@@ -21,9 +21,6 @@ jobs:
           - os: ubuntu-24.04-arm
             arch: arm64
             artifact: spel-linux-arm64
-          - os: macos-15
-            arch: amd64
-            artifact: spel-macos-amd64
           - os: macos-latest
             arch: arm64
             artifact: spel-macos-arm64
@@ -160,7 +157,6 @@ jobs:
         run: |
           chmod +x artifacts/spel-linux-amd64/spel-linux-amd64 || true
           chmod +x artifacts/spel-linux-arm64/spel-linux-arm64 || true
-          chmod +x artifacts/spel-macos-amd64/spel-macos-amd64 || true
           chmod +x artifacts/spel-macos-arm64/spel-macos-arm64 || true
 
       - name: Create Release
@@ -170,6 +166,5 @@ jobs:
           files: |
             artifacts/spel-linux-amd64/spel-linux-amd64
             artifacts/spel-linux-arm64/spel-linux-arm64
-            artifacts/spel-macos-amd64/spel-macos-amd64
             artifacts/spel-macos-arm64/spel-macos-arm64
             artifacts/spel-windows-amd64/spel-windows-amd64.exe

@@ -94,18 +94,21 @@
   ;; Always rebuild uberjar to pick up source changes
   (uberjar nil)
   (let [os-name    (str/lower-case (System/getProperty "os.name" ""))
-        binary     (if (str/includes? os-name "win")
+        windows?   (str/includes? os-name "win")
+        ;; GraalVM native-image auto-appends .exe on Windows, so always
+        ;; pass the base name to -o to avoid producing spel.exe.exe
+        binary     (if windows?
                      (str native-binary ".exe")
                      native-binary)
         extra-args (or (System/getProperty "playwright.native.extra-args") "")
         ;; Most flags come from META-INF/native-image/.../native-image.properties
         ;; Only specify output path and jar here
-        ni-cmd     (if (str/includes? os-name "win")
+        ni-cmd     (if windows?
                      "native-image.cmd"
                      "native-image")
         cmd        (cond-> [ni-cmd
                             "-jar" uber-file
-                            "-o" binary]
+                            "-o" native-binary]
                      (seq extra-args)
                      (into (str/split extra-args #"\s+")))
         _          (println "Running:" (str/join " " cmd))

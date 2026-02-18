@@ -57,48 +57,69 @@ jobs:
           key: allure-history-${{ github.run_number }}
           restore-keys: allure-history-
 
-      - name: Restore previous report data
+      - name: Restore previous builds
         uses: actions/cache/restore@v4
         with:
-          path: previous-report-data
-          key: allure-report-data-${{ github.run_number }}
-          restore-keys: allure-report-data-
+          path: allure-builds
+          key: allure-builds-${{ github.run_number }}
+          restore-keys: allure-builds-
 
       - name: Run tests with Allure reporter
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      - name: Merge previous report data
+      - name: Manage build history (keep last 10 builds)
         run: |
-          if [ -d previous-report-data/test-results ]; then
-            OLD_TR=$(ls previous-report-data/test-results/ 2>/dev/null | wc -l)
-            echo "Merging $OLD_TR previous test results"
-            cp -n previous-report-data/test-results/* allure-report/data/test-results/ 2>/dev/null || true
-          fi
-          if [ -d previous-report-data/attachments ]; then
-            OLD_AT=$(ls previous-report-data/attachments/ 2>/dev/null | wc -l)
-            echo "Merging $OLD_AT previous attachments"
-            cp -n previous-report-data/attachments/* allure-report/data/attachments/ 2>/dev/null || true
-          fi
-          if [ -d previous-report-data/test-env-groups ]; then
-            cp -n previous-report-data/test-env-groups/* allure-report/data/test-env-groups/ 2>/dev/null || true
-          fi
+          MAX_BUILDS=10
+          RUN=${{ github.run_number }}
 
-      - name: Prune old report data (keep last 20 runs)
-        run: |
-          for dir in allure-report/data/test-results allure-report/data/attachments allure-report/data/test-env-groups; do
-            if [ -d "$dir" ]; then
-              TOTAL=$(find "$dir" -maxdepth 1 -type f | wc -l)
-              CURRENT=$(find "$dir" -maxdepth 1 -type f -newer allure-results 2>/dev/null | wc -l)
-              OLD=$((TOTAL - CURRENT))
-              echo "$dir: $TOTAL total, $CURRENT current run, $OLD from history"
-              if [ "$TOTAL" -gt 20000 ]; then
-                echo "  Pruning oldest files to stay under 20k..."
-                find "$dir" -maxdepth 1 -type f -printf '%T+ %p\n' | sort | head -n $((TOTAL - 15000)) | cut -d' ' -f2- | xargs rm -f
-                echo "  After prune: $(find "$dir" -maxdepth 1 -type f | wc -l) files"
-              fi
+          # Save current run's data into its own directory
+          mkdir -p "allure-builds/$RUN"
+          for subdir in test-results attachments test-env-groups; do
+            if [ -d "allure-report/data/$subdir" ]; then
+              mkdir -p "allure-builds/$RUN/$subdir"
+              cp allure-report/data/$subdir/* "allure-builds/$RUN/$subdir/" 2>/dev/null || true
             fi
           done
+          echo "Saved build $RUN: $(find "allure-builds/$RUN" -type f | wc -l) files"
+
+          # List all builds sorted numerically, prune oldest beyond limit
+          BUILDS=$(ls -1d allure-builds/[0-9]* 2>/dev/null | sort -t/ -k2 -n)
+          COUNT=$(echo "$BUILDS" | grep -c .)
+          echo "Total builds cached: $COUNT (limit: $MAX_BUILDS)"
+
+          if [ "$COUNT" -gt "$MAX_BUILDS" ]; then
+            TO_REMOVE=$((COUNT - MAX_BUILDS))
+            echo "Removing $TO_REMOVE oldest build(s)..."
+            echo "$BUILDS" | head -n "$TO_REMOVE" | while read dir; do
+              echo "  Dropping build $(basename "$dir")"
+              rm -rf "$dir"
+            done
+          fi
+
+          # Merge all retained builds into the report
+          MERGED=0
+          for build_dir in allure-builds/[0-9]*; do
+            [ -d "$build_dir" ] || continue
+            for subdir in test-results attachments test-env-groups; do
+              if [ -d "$build_dir/$subdir" ] && [ -d "allure-report/data/$subdir" ]; then
+                cp -n "$build_dir/$subdir/"* "allure-report/data/$subdir/" 2>/dev/null || true
+              fi
+            done
+            MERGED=$((MERGED + 1))
+          done
+          echo "Merged data from $MERGED build(s) into report"
+
+      - name: Trim Allure history to last 10 entries
+        run: |
+          if [ -f .allure-history.jsonl ]; then
+            LINES=$(wc -l < .allure-history.jsonl)
+            if [ "$LINES" -gt 10 ]; then
+              echo "Trimming .allure-history.jsonl from $LINES to 10 entries"
+              tail -n 10 .allure-history.jsonl > .allure-history.jsonl.tmp
+              mv .allure-history.jsonl.tmp .allure-history.jsonl
+            fi
+          fi
 
       - name: Save Allure history
         if: github.ref == 'refs/heads/main'
@@ -107,12 +128,12 @@ jobs:
           path: .allure-history.jsonl
           key: allure-history-${{ github.run_number }}
 
-      - name: Save report data for next run
+      - name: Save build history
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
         with:
-          path: allure-report/data
-          key: allure-report-data-${{ github.run_number }}
+          path: allure-builds
+          key: allure-builds-${{ github.run_number }}
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'
