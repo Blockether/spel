@@ -12,11 +12,11 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*browser* *page*
+   [com.blockether.spel.test-fixtures :refer [*pw* *browser* *page*
                                               with-browser with-page with-playwright]]
    [lazytest.core :refer [defdescribe describe expect it]])
   (:import
-   [com.microsoft.playwright Locator Response]))
+   [com.microsoft.playwright BrowserContext Locator Response]))
 
 ;; =============================================================================
 ;; Navigation & Response
@@ -362,6 +362,112 @@
           (finally
             (core/close-page! pg)
             (.close ctx)))))))
+
+;; =============================================================================
+;; Proxy Configuration
+;; =============================================================================
+
+(defdescribe proxy-integration-test
+  "Tests that proxy configuration is actually applied to the browser"
+
+  (describe "launch with proxy"
+    {:context [with-playwright]}
+
+    (it "proxy config routes traffic through proxy (dead proxy causes navigation failure)"
+      ;; Launch a browser configured to use a non-existent proxy.
+      ;; If proxy config is correctly applied, navigation MUST fail because the
+      ;; proxy server doesn't exist. If proxy config was silently ignored (the
+      ;; old bug), navigation would succeed — and this test would catch that.
+      (let [browser (core/launch-chromium *pw* {:headless true
+                                                :proxy {:server "http://127.0.0.1:19999"
+                                                        :bypass ""}})
+            ctx     (core/new-context browser)
+            pg      (core/new-page-from-context ctx)]
+        (try
+          (let [result (page/navigate pg "http://example.com"
+                         {:timeout 5000})]
+            ;; Navigation through dead proxy should return an anomaly
+            (expect (core/anomaly? result)))
+          (finally
+            (core/close-page! pg)
+            (.close ^BrowserContext ctx)
+            (core/close-browser! browser)))))
+
+    (it "proxy bypass allows direct access for bypassed hosts"
+      ;; Launch with proxy pointing to dead server but bypass example.com.
+      ;; Navigation to example.com should succeed because it's bypassed.
+      ;; Use <-loopback> to bypass the proxy for all loopback and also
+      ;; specify the target domain. Use HTTP to avoid TLS complications.
+      (let [browser (core/launch-chromium *pw* {:headless true
+                                                :proxy {:server "http://127.0.0.1:19999"
+                                                        :bypass ".example.com,example.com"}})
+            ctx     (core/new-context browser)
+            pg      (core/new-page-from-context ctx)]
+        (try
+          (let [result (page/navigate pg "http://example.com"
+                         {:timeout 10000})]
+            ;; Bypassed host should navigate successfully
+            (expect (instance? Response result))
+            (expect (= "Example Domain" (page/title pg))))
+          (finally
+            (core/close-page! pg)
+            (.close ^BrowserContext ctx)
+            (core/close-browser! browser)))))))
+
+;; =============================================================================
+;; Persistent Context (Chrome Profile)
+;; =============================================================================
+
+(defdescribe persistent-context-integration-test
+  "Tests for launch-persistent-context (real Chrome profile directory)"
+
+  (describe "persistent context lifecycle"
+    {:context [with-playwright]}
+
+    (it "launches with persistent context and navigates"
+      (let [profile-dir (str (System/getProperty "java.io.tmpdir") "/spel-profile-test-"
+                          (System/currentTimeMillis))
+            context (core/launch-persistent-context
+                      (core/chromium *pw*)
+                      profile-dir
+                      {:headless true})
+            pg (if (seq (.pages ^BrowserContext context))
+                 (first (.pages ^BrowserContext context))
+                 (core/new-page-from-context context))]
+        (try
+          (page/navigate pg "https://example.com")
+          (expect (= "Example Domain" (page/title pg)))
+          ;; Verify we can get the browser from the context
+          (expect (some? (.browser ^BrowserContext context)))
+          (finally
+            (.close ^BrowserContext context)))))
+
+    (it "persistent context preserves data across sessions"
+      (let [profile-dir (str (System/getProperty "java.io.tmpdir") "/spel-profile-persist-"
+                          (System/currentTimeMillis))]
+        ;; Session 1: set a cookie
+        (let [ctx1 (core/launch-persistent-context
+                     (core/chromium *pw*) profile-dir {:headless true})
+              pg1  (if (seq (.pages ^BrowserContext ctx1))
+                     (first (.pages ^BrowserContext ctx1))
+                     (core/new-page-from-context ctx1))]
+          (try
+            (page/navigate pg1 "https://example.com")
+            (page/evaluate pg1 "document.cookie = 'profile_test=persisted; path=/; max-age=3600'")
+            (finally
+              (.close ^BrowserContext ctx1))))
+        ;; Session 2: verify cookie survived
+        (let [ctx2 (core/launch-persistent-context
+                     (core/chromium *pw*) profile-dir {:headless true})
+              pg2  (if (seq (.pages ^BrowserContext ctx2))
+                     (first (.pages ^BrowserContext ctx2))
+                     (core/new-page-from-context ctx2))]
+          (try
+            (page/navigate pg2 "https://example.com")
+            (let [cookie (page/evaluate pg2 "document.cookie")]
+              (expect (clojure.string/includes? (str cookie) "profile_test=persisted")))
+            (finally
+              (.close ^BrowserContext ctx2))))))))
 
 ;; =============================================================================
 ;; Reload & Navigation History
