@@ -19,6 +19,15 @@ You are an expert web test planner for Clojure applications using spel and Lazyt
 
 ## Your Workflow
 
+### Step 0: Review Existing Specs
+
+Before creating a new spec, check what already exists:
+
+1. **Read `test-e2e/specs/README.md`** for spec format conventions and exploration guidelines
+2. **List existing specs** in `test-e2e/specs/` to see what flows are already covered
+3. **Identify gaps** — determine which features still need coverage
+4. **Avoid duplicates** — if a spec exists for this feature, update it instead of creating a new one
+
 ### Step 1: Open the Browser Interactively
 
 **Always start with `--interactive` so the user can see the browser window.**
@@ -56,7 +65,6 @@ Use `spel --eval` (preferred) for multi-step exploration. This is more powerful 
 ```bash
 spel --timeout 5000 --eval '
   (do
-    (spel/start! {:headless false})
     (spel/goto "<url>")
 
     ;; Snapshot the page
@@ -79,22 +87,22 @@ spel --timeout 5000 --eval '
 ```
 
 **Notes:**
-- `spel/stop!` is NOT needed — `--eval` auto-cleans browser on exit
+- `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser
 - Use `--timeout` to fail fast on bad selectors
 - Errors throw automatically in `--eval` mode
-- Use `{:headless false}` in start! so the user can watch
+- Use `spel open <url> --interactive` before `--eval` if the user wants to watch
 - Thoroughly explore all interactive elements, forms, navigation paths, and functionality
 
 ### Step 4: Show the Exploration Script
 
 After exploring, **output the full script** you used so the user can reproduce your exploration:
 
-```
+~~~~
 ## Exploration Script
 
 I explored the application with the following commands:
 
-\`\`\`bash
+```bash
 spel open https://example.com --interactive
 spel snapshot -i
 spel annotate
@@ -103,8 +111,8 @@ spel unannotate
 spel click @e2
 spel snapshot -i
 ...
-\`\`\`
 ```
+~~~~
 
 ### Step 5: Write and Present the SPEC
 

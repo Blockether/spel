@@ -1709,6 +1709,41 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 - Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators
 - Integration tests: Live against `example.com`
 
+### Running Tests (Lazytest CLI)
+
+```bash
+# Run entire test suite
+clojure -M:test
+
+# Run a single namespace
+clojure -M:test -n com.blockether.spel.core-test
+
+# Run multiple namespaces
+clojure -M:test -n com.blockether.spel.core-test -n com.blockether.spel.page-test
+
+# Run a single test var (MUST be fully-qualified ns/var)
+clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
+
+# Run multiple vars
+clojure -M:test -v com.blockether.spel.options-test/launch-options-test \
+                -v com.blockether.spel.options-test/context-options-test
+
+# Run with metadata filter (include/exclude)
+clojure -M:test -i :smoke          # only tests tagged ^:smoke
+clojure -M:test -e :slow           # exclude tests tagged ^:slow
+
+# Run with Allure reporter
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+
+# Watch mode (re-runs on file changes)
+clojure -M:test --watch
+
+# Run tests from a specific directory
+clojure -M:test -d test/com/blockether/spel
+```
+
+**IMPORTANT**: The `-v`/`--var` flag requires **fully-qualified symbols** (`namespace/var-name`), not bare var names. Using a bare name will throw `IllegalArgumentException: no conversion to symbol`.
+
 ### Test Fixtures
 
 The project provides shared `around` hooks in `com.blockether.spel.test-fixtures`:
@@ -1950,7 +1985,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `--session <name>` | Named session (default: \"default\") |
 | `--json` | JSON output (for agents) |
-| `--profile <path>` | Persistent browser profile |
+| `--storage-state <path>` | Load storage state (cookies/localStorage JSON) |
+| `--profile <path>` | Chrome user data directory (real browser profile) |
 | `--executable-path <path>` | Custom browser executable |
 | `--user-agent <ua>` | Custom user agent string |
 | `--proxy <url>` | Proxy server URL |
@@ -2404,7 +2440,6 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) to interactive and meaningful elements:
 
 ```clojure
-(spel/start!)
 (spel/goto "https://example.com")
 
 ;; Get accessibility snapshot with refs
