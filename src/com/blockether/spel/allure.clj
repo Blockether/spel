@@ -32,6 +32,7 @@
    [clojure.string :as str]
    [com.blockether.spel.page :as page])
   (:import
+   [com.microsoft.playwright Tracing]
    [java.io File PrintWriter StringWriter Writer]
    [java.util UUID]))
 
@@ -57,9 +58,9 @@
       ([x off len]
        (if (string? x)
          (do (.write local ^String x (int off) (int len))
-             (.write parent ^String x (int off) (int len)))
+           (.write parent ^String x (int off) (int len)))
          (do (.write local ^chars x (int off) (int len))
-             (.write parent ^chars x (int off) (int len))))))
+           (.write parent ^chars x (int off) (int len))))))
     (flush []
       (.flush local)
       (.flush parent))
@@ -139,11 +140,26 @@
    completes. When nil (default), no HAR is captured."
   nil)
 
+(def ^:dynamic *test-title*
+  "Dynamic var holding the current test's display title.
+   Bound by the reporter's `wrap-try-test-case` to the test case
+   identifier (e.g. \"captures screenshot and attaches to report\").
+   Used by test fixtures for the Playwright trace title."
+  nil)
+
+(def ^:dynamic *tracing*
+  "Dynamic var holding the current Playwright Tracing object.
+   Bound by test fixtures (with-page, with-traced-page, with-api-tracing)
+   when tracing is active. When bound, `step*` automatically calls
+   tracing.group()/groupEnd() so steps appear as groups in the
+   Playwright Trace Viewer."
+  nil)
+
 (def ^:dynamic *test-out*
   "Dynamic var holding the test-level Writer for stdout accumulation.
-   Bound by the reporter's `wrap-try-test-case` to the test-level
-   StringWriter. Steps tee their output here (bypassing parent steps)
-   so the test-level \"Full stdout log\" captures everything."
+   Bound by the reporter's `wrap-try-test-case` to a per-test
+   StringWriter. Step capture tees to this so stdout flows to both
+   the step attachment AND the test-level system-out."
   nil)
 
 (def ^:dynamic *test-err*
@@ -372,9 +388,16 @@
   ([step-name f]
    ;; Lambda step — execute body, track timing and nesting
    (if-not *context*
-     ;; No context → just execute the function
-     (f)
+     ;; No context → just execute the function, but still group for traces
+     (if-let [^Tracing tracing *tracing*]
+       (try
+         (.group tracing step-name)
+         (f)
+         (finally
+           (.groupEnd tracing)))
+       (f))
      (let [ctx *context*
+           ^Tracing tracing *tracing*
            start (epoch-ms)
            ;; Create the step skeleton
            new-step {:name   step-name
@@ -400,6 +423,9 @@
            err-sw (StringWriter.)
            ^Writer tee-out (if *test-out* (tee-writer out-sw *test-out*) out-sw)
            ^Writer tee-err (if *test-err* (tee-writer err-sw *test-err*) err-sw)]
+       ;; Mirror step as a trace group in the Playwright Trace Viewer
+       (when tracing
+         (try (.group tracing step-name) (catch Exception _)))
        (try
          (let [result (binding [*out* (PrintWriter. tee-out true)
                                 *err* (PrintWriter. tee-err true)]
@@ -439,7 +465,9 @@
                :statusDetails {:message (.getMessage t)}))
            (throw t))
          (finally
-           ;; Always pop the stack
+           ;; Always close the trace group and pop the allure stack
+           (when tracing
+             (try (.groupEnd tracing) (catch Exception _)))
            (swap! ctx update :step-stack pop)))))))
 
 (defmacro step
@@ -566,8 +594,8 @@
                   ;; empty container — keep compact
                   (do (.append sb c) (recur (inc i) d false false))
                   (do (.append sb c) (.append sb \newline)
-                      (dotimes [_ (* 2 d)] (.append sb \space))
-                      (recur (inc i) d false false))))
+                    (dotimes [_ (* 2 d)] (.append sb \space))
+                    (recur (inc i) d false false))))
 
               (or (= c \}) (= c \]))
               (let [d (dec depth)]
@@ -578,12 +606,12 @@
 
               (= c \,)
               (do (.append sb c) (.append sb \newline)
-                  (dotimes [_ (* 2 depth)] (.append sb \space))
-                  (recur (inc i) depth false false))
+                (dotimes [_ (* 2 depth)] (.append sb \space))
+                (recur (inc i) depth false false))
 
               (= c \:)
               (do (.append sb c) (.append sb \space)
-                  (recur (inc i) depth false false))
+                (recur (inc i) depth false false))
 
               (Character/isWhitespace c)
               (recur (inc i) depth false false)

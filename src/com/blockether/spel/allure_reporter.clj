@@ -57,12 +57,13 @@
           trace-path  allure/*trace-path*
           har-path    allure/*har-path*
           start-ms    (System/currentTimeMillis)
-          result      (binding [*out*               (PrintWriter. out-sw true)
-                                *err*               (PrintWriter. err-sw true)
-                                allure/*context*    ctx-atom
-                                allure/*output-dir* (:output-dir @run-state)
-                                allure/*test-out*   out-sw
-                                allure/*test-err*   err-sw]
+          result      (binding [*out*                (PrintWriter. out-sw true)
+                                *err*                (PrintWriter. err-sw true)
+                                allure/*context*     ctx-atom
+                                allure/*output-dir*  (:output-dir @run-state)
+                                allure/*test-title*  (tc/identifier tc)
+                                allure/*test-out*    out-sw
+                                allure/*test-err*    err-sw]
                         (original-fn tc))
           stop-ms     (System/currentTimeMillis)
           ;; Auto-generate a step when the test has no explicit allure steps.
@@ -158,7 +159,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -503,6 +504,30 @@
         (when (not= content patched)
           (spit f patched))))))
 
+(defn- patch-sw-safari-compat!
+  "Patch the trace viewer Service Worker to fix Safari iframe compatibility.
+
+   Safari's Service Worker does not reflect history.pushState() changes
+   for iframe clients — self.clients.get(id).url returns the original
+   URL without ?trace=<blob>. The Playwright SW's loadTrace function
+   reads the trace URL from the client URL's searchParams and throws
+   'trace parameter is missing' when it's absent.
+
+   The fix: when searchParams lacks ?trace=, fall back to the cached
+   clientId→traceUrl map ($e) that was populated by an earlier /contexts
+   request (which DOES have ?trace= in the request URL)."
+  [^File report]
+  (let [sw (io/file report "trace-viewer" "sw.bundle.js")]
+    (when (.isFile sw)
+      (let [content (slurp sw)
+            ;; Original: if(!n)throw new Error("trace parameter is missing");
+            ;; Patched:  if(!n){n=$e.get(s);if(!n)throw new Error("trace parameter is missing");}
+            patched (str/replace content
+                      "if(!n)throw new Error(\"trace parameter is missing\")"
+                      "if(!n){n=$e.get(s);if(!n)throw new Error(\"trace parameter is missing\")}")]
+        (when (not= content patched)
+          (spit sw patched))))))
+
 (defn- inject-trace-viewer-prewarm!
   "Inject an inline script into the report's index.html that eagerly
    registers the Playwright trace viewer's Service Worker.
@@ -578,27 +603,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
+      ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -636,6 +661,7 @@
                 (copy-dir! trace-src (io/file report "trace-viewer"))
                 (patch-trace-viewer-url! report)
                 (inject-trace-viewer-prewarm! report)
+                (patch-sw-safari-compat! report)
                 ;; Update history JSONL for the next run
                 (run-proc! (into allure-cmd ["history" results-dir
                                              "-h" history-file]))

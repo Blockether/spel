@@ -17,7 +17,8 @@
   (:require
    [com.blockether.spel.allure :as allure]
    [com.blockether.spel.core :as core]
-   [lazytest.core :refer [around]])
+   [lazytest.core :refer [around]]
+   [lazytest.test-case :as tc])
   (:import
    [com.microsoft.playwright Tracing$StartOptions Tracing$StopOptions]
    [java.io File]))
@@ -37,6 +38,52 @@
                         (:cognitect.anomalies/message result))
                (dissoc result :playwright/exception))))
     result))
+
+;; =============================================================================
+;; Lightweight try-test-case wrapper (binds *test-title* without Allure)
+;; =============================================================================
+
+(def ^:private test-info-ref-count
+  "Ref counter so nested with-playwright calls don't double-patch."
+  (atom 0))
+
+(def ^:private original-try-test-case
+  "Stores the original try-test-case fn before patching."
+  (atom nil))
+
+(defn- wrap-test-info
+  "Wraps try-test-case to bind `allure/*test-title*` from the test case's
+   `:doc` field. Only binds when `*test-title*` is not already set (i.e.,
+   the Allure reporter hasn't bound it). This ensures test title is
+   available inside test bodies for trace groups even without Allure."
+  [original-fn]
+  (fn [tc]
+    (if allure/*test-title*
+      ;; Allure reporter already bound *test-title* — don't override
+      (original-fn tc)
+      ;; No Allure — bind from the test case doc string
+      (binding [allure/*test-title* (tc/identifier tc)]
+        (original-fn tc)))))
+
+(defn- install-test-info!
+  "Patches `lazytest.test-case/try-test-case` to bind `allure/*test-title*`
+   for all tests. Ref-counted so multiple `with-playwright` calls are safe."
+  []
+  (when (zero? (long (swap! test-info-ref-count inc)))
+    ;; unreachable since inc starts from 0 → 1, but defensive
+    nil)
+  (when (= 1 (long @test-info-ref-count))
+    (let [original (deref #'tc/try-test-case)]
+      (reset! original-try-test-case original)
+      (alter-var-root #'tc/try-test-case wrap-test-info))))
+
+(defn- uninstall-test-info!
+  "Restores the original `try-test-case` when the last ref is released."
+  []
+  (when (zero? (long (swap! test-info-ref-count dec)))
+    (when-let [original @original-try-test-case]
+      (alter-var-root #'tc/try-test-case (constantly original))
+      (reset! original-try-test-case nil))))
 
 ;; =============================================================================
 ;; Dynamic Vars
@@ -70,14 +117,19 @@
 (def with-playwright
   "Around hook: creates and closes a Playwright instance.
 
-   Binds the Playwright instance to *pw*."
+   Binds the Playwright instance to *pw*.
+   Also installs a lightweight try-test-case wrapper that binds
+   `allure/*test-title*` from the test case doc string, so trace
+   groups and step names work even without the Allure reporter."
   (around [f]
+    (install-test-info!)
     (let [pw (ensure! (core/create))]
       (try
         (binding [*pw* pw]
           (f))
         (finally
-          (core/close! pw))))))
+          (core/close! pw)
+          (uninstall-test-info!))))))
 
 (def with-browser
   "Around hook: launches and closes a headless Chromium browser.
@@ -119,13 +171,15 @@
         (.start tracing (doto (Tracing$StartOptions.)
                           (.setScreenshots true)
                           (.setSnapshots true)
-                          (.setSources true)))
+                          (.setSources true)
+                          (.setTitle (or allure/*test-title* "spel"))))
         (let [page (core/new-page-from-context ctx)]
           (try
             (binding [*page*              page
                       *browser-context*   ctx
                       *browser-api*       (.request ^com.microsoft.playwright.BrowserContext ctx)
                       allure/*page*       page
+                      allure/*tracing*    tracing
                       allure/*trace-path* trace-file
                       allure/*har-path*   har-file]
               (f))
@@ -134,10 +188,10 @@
                 (core/close-page! page))
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
-                   (catch Exception _))
+                (catch Exception _))
               (let [t (doto (Thread. (fn []
                                        (try (core/close-context! ctx)
-                                            (catch Exception _))))
+                                         (catch Exception _))))
                         (.setDaemon true)
                         (.start))]
                 (.join t 5000))))))
@@ -189,13 +243,15 @@
       (.start tracing (doto (Tracing$StartOptions.)
                         (.setScreenshots true)
                         (.setSnapshots true)
-                        (.setSources true)))
+                        (.setSources true)
+                        (.setTitle (or allure/*test-title* "spel"))))
       (let [page (core/new-page-from-context ctx)]
         (try
           (binding [*page*              page
                     *browser-context*   ctx
                     *browser-api*       (.request ^com.microsoft.playwright.BrowserContext ctx)
                     allure/*page*       page
+                    allure/*tracing*    tracing
                     allure/*trace-path* trace-file
                     allure/*har-path*   har-file]
             (f))
@@ -206,7 +262,7 @@
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
-                 (catch Exception _))
+              (catch Exception _))
                   ;; Close context → writes HAR via harExport.
                   ;; BrowserContextImpl.close() calls harExport with NO_TIMEOUT,
                   ;; which can hang indefinitely when tracing was active on the
@@ -215,7 +271,7 @@
                   ;; JVM exit and browser.close() from with-browser cleans up.
             (let [t (doto (Thread. (fn []
                                      (try (core/close-context! ctx)
-                                          (catch Exception _))))
+                                       (catch Exception _))))
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
@@ -260,20 +316,22 @@
             (.start tracing (doto (Tracing$StartOptions.)
                               (.setScreenshots false)
                               (.setSnapshots true)
-                              (.setSources true)))
+                              (.setSources true)
+                              (.setTitle (or allure/*test-title* "spel"))))
             (try
               (binding [*browser-context*   ctx
                         *browser-api*       (.request ^com.microsoft.playwright.BrowserContext ctx)
+                        allure/*tracing*    tracing
                         allure/*trace-path* trace-file
                         allure/*har-path*   har-file]
                 (f))
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                     (catch Exception _))
+                  (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                              (catch Exception _))))
+                                           (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000)))))
