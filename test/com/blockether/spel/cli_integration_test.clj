@@ -413,7 +413,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -432,7 +432,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -828,6 +828,25 @@
           (let [r (cmd "state_clear" {"name" tmp})]
             (expect (= tmp (:cleared r))))
           (finally
+            (Files/deleteIfExists (Path/of tmp (into-array String [])))))))
+
+    (it "state_load round-trip preserves cookies"
+      (nav! "/test-page")
+      ;; Set a cookie via JS
+      (cmd "evaluate" {"script" "document.cookie = 'test_cookie=hello_state; path=/'"})
+      (let [tmp (str (System/getProperty "java.io.tmpdir") "/state-roundtrip.json")]
+        (try
+          ;; Save state (captures cookies)
+          (let [save-r (cmd "state_save" {"path" tmp})]
+            (expect (= "saved" (:state save-r))))
+          ;; Load state into a new context (restores cookies)
+          (let [load-r (cmd "state_load" {"path" tmp})]
+            (expect (= "loaded" (:state load-r))))
+          ;; Navigate and verify cookie survived the round-trip
+          (nav! "/test-page")
+          (let [cookie-val (:result (cmd "evaluate" {"script" "document.cookie"}))]
+            (expect (str/includes? (str cookie-val) "test_cookie=hello_state")))
+          (finally
             (Files/deleteIfExists (Path/of tmp (into-array String [])))))))))
 
 ;; =============================================================================
@@ -1177,7 +1196,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))
 
     (it "persists defs between eval calls"

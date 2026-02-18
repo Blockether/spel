@@ -649,14 +649,23 @@
       (let [f (flags ["--debug" "open" "http://x.com"])]
         (expect (true? (:debug f))))))
 
+  (describe "--storage-state flag"
+    (it "sets storage-state"
+      (let [f (flags ["--storage-state" "/tmp/state.json" "open" "http://x.com"])]
+        (expect (= "/tmp/state.json" (:storage-state f)))))
+
+    (it "supports --storage-state=value syntax"
+      (let [f (flags ["--storage-state=/tmp/state.json" "open" "http://x.com"])]
+        (expect (= "/tmp/state.json" (:storage-state f))))))
+
   (describe "--profile flag"
     (it "sets profile"
-      (let [f (flags ["--profile" "/tmp/profile" "open" "http://x.com"])]
-        (expect (= "/tmp/profile" (:profile f)))))
+      (let [f (flags ["--profile" "/tmp/chrome-profile" "open" "http://x.com"])]
+        (expect (= "/tmp/chrome-profile" (:profile f)))))
 
     (it "supports --profile=value syntax"
-      (let [f (flags ["--profile=/tmp/profile" "open" "http://x.com"])]
-        (expect (= "/tmp/profile" (:profile f))))))
+      (let [f (flags ["--profile=/tmp/chrome-profile" "open" "http://x.com"])]
+        (expect (= "/tmp/chrome-profile" (:profile f))))))
 
   (describe "--headers flag"
     (it "sets headers"
