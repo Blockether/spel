@@ -3,7 +3,7 @@
 </p>
 
 <div align="center">
-<i>spel</i> — "play" in Dutch. Idiomatic Clojure wrapper for <a href="https://playwright.dev/">Microsoft Playwright</a>.
+<i>spel</i> Idiomatic Clojure wrapper for <a href="https://playwright.dev/">Microsoft Playwright</a>.
 <br/>
 <sub>Browser automation, API testing, test reporting, and native CLI — for Chromium, Firefox, and WebKit.</sub>
 </div>
@@ -50,47 +50,6 @@ spel wraps the official Playwright Java 1.58.0 library with idiomatic Clojure: m
 - **Composable**: `with-*` macros for lifecycle management — resources always cleaned up
 - **Batteries included**: API testing, Allure reporting, code generation, accessibility snapshots, native CLI
 - **Not a port**: Wraps the official Playwright Java library directly — full API coverage, same browser versions
-
-## Functionalities
-
-| Function | Description |
-|----------|-------------|
-| [**<code>with&#8209;playwright</code>**](#browser-lifecycle) | Resource-managed Playwright instance. Binds a Playwright object and ensures cleanup on exit. All browser work starts here. |
-| [**<code>with&#8209;browser</code>**](#browser-lifecycle) | Resource-managed browser instance. Launches Chromium, Firefox, or WebKit with automatic cleanup. Nests inside `with-playwright`. |
-| [**<code>with&#8209;context</code>**](#browser-lifecycle) | Resource-managed browser context. Isolates cookies, storage, and permissions. Nests inside `with-browser`. |
-| [**<code>with&#8209;page</code>**](#browser-lifecycle) | Resource-managed page instance. Opens a new tab with automatic cleanup. Nests inside `with-context`. |
-| [**<code>launch&#8209;chromium</code>**](#browser-lifecycle) | Launch a Chromium browser with options map. Also: `launch-firefox`, `launch-webkit`. |
-| [**<code>navigate</code>**](#page-operations) | Navigate a page to a URL. Supports timeout, wait-until, and referer options. Returns the main resource response. |
-| [**<code>locator</code>**](#page-operations) | Locate elements by CSS selector. Returns a Locator for chaining actions and assertions. |
-| [**<code>get&#8209;by&#8209;text</code>**](#page-operations) | Locate elements by text content. Also: `get-by-role`, `get-by-label`, `get-by-placeholder`, `get-by-test-id`, `get-by-alt-text`, `get-by-title`. |
-| [**<code>screenshot</code>**](#page-operations) | Capture page screenshot as byte array. Supports full-page, clip region, and file output via options. Also: `pdf` for Chromium. |
-| [**<code>evaluate</code>**](#page-operations) | Execute JavaScript in page context. Returns the evaluation result as Clojure data. |
-| [**<code>on&#8209;console</code>**](#page-operations) | Register page event handlers. Also: `on-dialog`, `on-download`, `on-popup`, `on-request`, `on-response`, `on-page-error`, `on-close`. |
-| [**<code>route!</code>**](#page-operations) | Intercept network requests matching a URL pattern. Use with `route-fulfill!`, `route-continue!`, `route-abort!` from the network namespace. |
-| [**<code>click</code>**](#locators) | Click an element. Supports click count, button, modifiers, position, force, and timeout options. Also: `dblclick`. |
-| [**<code>fill</code>**](#locators) | Clear and fill an input element. Also: `type-text` (type without clearing), `press` (key press with modifiers), `clear`. |
-| [**<code>check</code>**](#locators) | Check a checkbox or radio button. Also: `uncheck`, `hover`, `focus`, `blur`, `tap-element`, `select-option`, `set-input-files!`. |
-| [**<code>text&#8209;content</code>**](#locators) | Read element text content. Also: `inner-text`, `inner-html`, `input-value`, `get-attribute`, `bounding-box`. |
-| [**<code>is&#8209;visible?</code>**](#locators) | Query element state. Also: `is-hidden?`, `is-enabled?`, `is-disabled?`, `is-editable?`, `is-checked?`. |
-| [**<code>loc&#8209;filter</code>**](#locators) | Filter locator results by text or sub-locator. Also: `first-element`, `last-element`, `nth-element`, `loc-locator`. |
-| [**<code>assert&#8209;that</code>**](#assertions) | Create an assertion object from a Locator, Page, or API response. Required before calling any assertion function. |
-| [**<code>has&#8209;text</code>**](#assertions) | Assert element has exact text. Also: `contains-text`, `has-attribute`, `has-class`, `has-css`, `has-id`, `has-value`, `has-count`. |
-| [**<code>is&#8209;visible</code>**](#assertions) | Assert element visibility. Also: `is-hidden`, `is-enabled`, `is-disabled`, `is-checked`, `is-editable`, `is-focused`, `is-empty`, `is-attached`. |
-| [**<code>has&#8209;title</code>**](#assertions) | Assert page title. Also: `has-url`. Page-level assertions via `assert-that` on a Page object. |
-| [**<code>loc&#8209;not</code>**](#assertions) | Negate locator assertions. Also: `page-not` (negate page assertions), `api-not` (negate API response assertions). |
-| [**<code>with&#8209;api&#8209;context</code>**](#api-testing) | Resource-managed API request context with base URL, headers, and auth. Automatic disposal. Also: `with-api-contexts` for multiple. |
-| [**<code>api&#8209;get</code>**](#http-methods) | HTTP GET request. Also: `api-post`, `api-put`, `api-patch`, `api-delete`, `api-head`, `api-fetch`. Supports params, headers, data, and form options. |
-| [**<code>api&#8209;response&#8209;>map</code>**](#response-inspection) | Convert API response to Clojure map with `:status`, `:ok?`, `:headers`, `:body`. Also: individual accessors like `api-response-status`, `api-response-text`. |
-| [**<code>with&#8209;hooks</code>**](#hooks) | Wrap API calls with request/response interceptors for logging, auth injection, or response transformation. Composable — hooks nest. |
-| [**<code>retry</code>**](#retry) | Retry API calls with configurable backoff (linear/exponential), max attempts, and retry predicate. Also: `with-retry` macro. |
-| [**<code>capture&#8209;snapshot</code>**](#accessibility-snapshots) | Capture accessibility tree with numbered refs (e1, e2, ...). Returns `:tree` (YAML-like), `:refs` (map), `:counter`. Also: `capture-full-snapshot` (includes iframes). |
-| [**<code>resolve&#8209;ref</code>**](#accessibility-snapshots) | Resolve a snapshot ref (e.g., "e3") back to a Playwright Locator for interaction. |
-| [**<code>step</code>**](#allure-test-reporting) | Allure test step — wraps code in a named step for reports. Supports nesting. Also: `ui-step` (auto-screenshots), `api-step` (auto-attach response). |
-| [**<code>epic</code>**](#allure-test-reporting) | Allure metadata labels. Also: `feature`, `story`, `severity`, `owner`, `tag`, `description`, `link`, `issue`, `tms`, `parameter`. |
-| [**<code>attach</code>**](#allure-test-reporting) | Attach string content to Allure report. Also: `attach-bytes` (binary), `screenshot` (convenience PNG capture). |
-| [**<code>jsonl&#8209;>clojure</code>**](#test-generation-codegen) | Transform Playwright codegen JSONL recordings into idiomatic Clojure test code. Supports `:test`, `:script`, and `:body` output formats. Also: `jsonl-str->clojure`. |
-| [**<code>init&#8209;agents</code>**](#agent-scaffolding) | Scaffold E2E testing agents for OpenCode, Claude Code, or VS Code. Generates planner, generator, and healer agents with API reference skills. |
-| [**<code>spel</code>**](#native-cli) | Native CLI binary with 100+ commands. Instant startup, persistent browser via daemon. Navigation, interactions, snapshots, screenshots, network inspection, and more. |
 
 ## Quick Start
 
