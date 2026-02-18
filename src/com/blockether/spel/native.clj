@@ -19,7 +19,6 @@
      spel --help                      # Show help"
   (:require
    [clojure.string :as str]
-   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.daemon :as daemon]
@@ -27,8 +26,6 @@
    [com.blockether.spel.init-agents :as init-agents]
    [com.blockether.spel.sci-env :as sci-env])
   (:gen-class))
-
-(set! *warn-on-reflection* true)
 
 ;; =============================================================================
 ;; Driver Setup
@@ -352,10 +349,10 @@
               (println result-str)))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-            (binding [*out* *err*]
-              (println (str "Error: " (or (get-in response [:data :error])
-                                        (:error response)
-                                        "Unknown error")))))))
+              (binding [*out* *err*]
+                (println (str "Error: " (or (get-in response [:data :error])
+                                          (:error response)
+                                          "Unknown error")))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]
@@ -397,7 +394,7 @@
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-        (run-install! (rest cmd-args)))
+          (run-install! (rest cmd-args)))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -413,8 +410,8 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-        (let [opts (parse-daemon-args (rest cmd-args))]
-          (daemon/start-daemon! opts)))
+          (let [opts (parse-daemon-args (rest cmd-args))]
+            (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       (= "--eval" first-arg)
@@ -423,7 +420,7 @@
           (run-eval! code global)
           (do (binding [*out* *err*]
                 (println "Error: --eval requires a code argument"))
-            (System/exit 1))))
+              (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
       (run-eval! (subs first-arg 7) global)
@@ -431,5 +428,5 @@
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-        (cli/run-cli! args)))
+          (cli/run-cli! args)))
     (System/exit 0)))

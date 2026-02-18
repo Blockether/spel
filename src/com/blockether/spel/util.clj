@@ -10,8 +10,6 @@
     Tracing Video WebError Worker FileChooser Selectors
     BrowserContext Page]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Dialog
 ;; =============================================================================

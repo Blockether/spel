@@ -42,13 +42,13 @@
     Mouse$DownOptions Mouse$UpOptions
     Tracing$StartOptions Tracing$StopOptions
     Page$WaitForPopupOptions Page$WaitForResponseOptions
-    Page$WaitForRequestOptions Page$WaitForRequestFinishedOptions]
+    Page$WaitForRequestOptions Page$WaitForRequestFinishedOptions
+    Page$WaitForDownloadOptions Page$WaitForFileChooserOptions
+    Page$GetByRoleOptions]
    [com.microsoft.playwright.options
     Cookie HarContentPolicy HarMode ScreenSize ViewportSize
     WaitForSelectorState WaitUntilState MouseButton]
    [java.nio.file Path Paths]))
-
-(set! *warn-on-reflection* true)
 
 ;; =============================================================================
 ;; Helper Utilities
@@ -1154,6 +1154,30 @@
       (.setTimeout wo (double v)))
     wo))
 
+(defn ->wait-for-download-options
+  "Converts a map to Page$WaitForDownloadOptions."
+  ^Page$WaitForDownloadOptions [opts]
+  (let [^Page$WaitForDownloadOptions wo (Page$WaitForDownloadOptions.)]
+    (when-let [v (:predicate opts)]
+      (.setPredicate wo ^java.util.function.Predicate
+        (reify java.util.function.Predicate
+          (test [_ d] (boolean (v d))))))
+    (when-let [v (:timeout opts)]
+      (.setTimeout wo (double v)))
+    wo))
+
+(defn ->wait-for-file-chooser-options
+  "Converts a map to Page$WaitForFileChooserOptions."
+  ^Page$WaitForFileChooserOptions [opts]
+  (let [^Page$WaitForFileChooserOptions wo (Page$WaitForFileChooserOptions.)]
+    (when-let [v (:predicate opts)]
+      (.setPredicate wo ^java.util.function.Predicate
+        (reify java.util.function.Predicate
+          (test [_ fc] (boolean (v fc))))))
+    (when-let [v (:timeout opts)]
+      (.setTimeout wo (double v)))
+    wo))
+
 (defn ->wait-for-response-options
   "Converts a map to Page$WaitForResponseOptions."
   ^Page$WaitForResponseOptions [opts]
@@ -1355,3 +1379,44 @@
    ViewportSize instance."
   ^ViewportSize [opts]
   (ViewportSize. (long (:width opts)) (long (:height opts))))
+
+(defn ->get-by-role-options
+  "Converts a map to Page$GetByRoleOptions.
+   
+   Params:
+   `opts` - Map with optional keys:
+     :name           - String or Pattern. Accessible name to match.
+     :exact          - Boolean. Exact match for name (case-sensitive, whole-string).
+     :checked        - Boolean. Match checked state (aria-checked).
+     :disabled       - Boolean. Match disabled state (aria-disabled).
+     :expanded       - Boolean. Match expanded state (aria-expanded).
+     :include-hidden - Boolean. Include hidden elements.
+     :level          - Integer. Heading level (for heading, listitem, row, treeitem).
+     :pressed        - Boolean. Match pressed state (aria-pressed).
+     :selected       - Boolean. Match selected state (aria-selected).
+   
+   Returns:
+   Page$GetByRoleOptions instance."
+  ^Page$GetByRoleOptions [opts]
+  (let [^Page$GetByRoleOptions ro (Page$GetByRoleOptions.)]
+    (when-let [v (:name opts)]
+      (if (instance? java.util.regex.Pattern v)
+        (.setName ro ^java.util.regex.Pattern v)
+        (.setName ro ^String (str v))))
+    (when-let [v (:exact opts)]
+      (.setExact ro (boolean v)))
+    (when-let [v (:checked opts)]
+      (.setChecked ro (boolean v)))
+    (when-let [v (:disabled opts)]
+      (.setDisabled ro (boolean v)))
+    (when-let [v (:expanded opts)]
+      (.setExpanded ro (boolean v)))
+    (when-let [v (:include-hidden opts)]
+      (.setIncludeHidden ro (boolean v)))
+    (when-let [v (:level opts)]
+      (.setLevel ro (int v)))
+    (when-let [v (:pressed opts)]
+      (.setPressed ro (boolean v)))
+    (when-let [v (:selected opts)]
+      (.setSelected ro (boolean v)))
+    ro))

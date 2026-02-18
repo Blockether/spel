@@ -21,8 +21,6 @@
     Page Playwright PlaywrightException TimeoutError]
    [com.microsoft.playwright.impl TargetClosedError]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Error Handling
 ;; =============================================================================

@@ -20,8 +20,6 @@
    [clojure.java.io :as io]
    [clojure.string :as str]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Configuration
 ;; =============================================================================
@@ -163,8 +161,8 @@
   (when (str/starts-with? content "---\n")
     (let [end-idx (str/index-of content "\n---\n" 1)]
       (when end-idx
-        [(subs content 4 end-idx)
-         (subs content (+ end-idx 5))]))))
+        [(subs content 4 (long end-idx))
+         (subs content (+ (long end-idx) 5))]))))
 
 (defn- extract-fm-field
   "Extracts a single top-level field value from YAML-ish frontmatter string.
@@ -421,9 +419,9 @@
       (let [loop-target (:loop opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
-                        (println "         Tip: use --ns my-app to set namespace explicitly.")
-                        (println "")
-                        (derive-namespace)))
+                          (println "         Tip: use --ns my-app to set namespace explicitly.")
+                          (println "")
+                          (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
         (print-banner loop-target)

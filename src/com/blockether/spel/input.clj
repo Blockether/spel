@@ -6,8 +6,6 @@
   (:import
    [com.microsoft.playwright Keyboard Mouse Touchscreen]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Keyboard
 ;; =============================================================================

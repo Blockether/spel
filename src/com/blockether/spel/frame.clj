@@ -7,8 +7,6 @@
    [com.microsoft.playwright Frame FrameLocator Locator]
    [com.microsoft.playwright.options LoadState]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Frame Navigation
 ;; =============================================================================

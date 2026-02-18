@@ -13,7 +13,7 @@
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*browser* *page*
-                                                        with-browser with-page with-playwright]]
+                                              with-browser with-page with-playwright]]
    [lazytest.core :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright Locator Response]))

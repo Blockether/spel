@@ -116,3 +116,19 @@
       (do
         (println "Native image build FAILED (exit code:" (:exit result) ")")
         (System/exit 1)))))
+
+;; =============================================================================
+;; API Documentation Generation
+;; =============================================================================
+
+(defn gen-docs
+  "Generates API reference tables in the SKILL.md template from source code.
+
+   Introspects all public namespaces, SCI eval registrations, and CLI help text
+   to produce markdown tables that replace {{library-api}}, {{sci-api}}, and
+   {{cli-commands}} placeholders in the template.
+
+   Usage: clojure -T:build gen-docs"
+  [_]
+  (requiring-resolve 'com.blockether.spel.gen-docs/generate-skill-md)
+  ((resolve 'com.blockether.spel.gen-docs/generate-skill-md)))

@@ -30,8 +30,6 @@
    [java.security MessageDigest]
    [java.util UUID]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Run State
 ;; =============================================================================
@@ -163,7 +161,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-    (catch Exception _ "localhost")))
+       (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -202,7 +200,8 @@
   "Convert to JSON with basic indentation for readability."
   ^String [v]
   (let [indent (fn indent [v depth]
-                 (let [pad (apply str (repeat (* depth 2) " "))
+                 (let [depth (long depth)
+                       pad (apply str (repeat (* depth 2) " "))
                        pad1 (apply str (repeat (* (inc depth) 2) " "))]
                    (cond
                      (nil? v)     "null"
@@ -391,9 +390,9 @@
   [tc output-dir]
   (let [result-uuid (uuid)
         full-name   (build-full-name tc)
-        duration-ns (or (:lazytest.runner/duration tc) 0)
+        duration-ns (long (or (:lazytest.runner/duration tc) 0))
         duration-ms (long (/ duration-ns 1e6))
-        stop-ms     (+ (:start-ms @run-state 0) duration-ms)
+        stop-ms     (+ (long (:start-ms @run-state 0)) duration-ms)
         ;; Use test-level start/stop approximation
         ;; Allure cares about relative ordering for timeline
         start-ms    (- stop-ms duration-ms)
@@ -582,27 +581,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-      ["npx" "--yes" allure-npm-pkg])
+        ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-      ["allure"])
+        ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-      (if (zero? (run-proc! ["npm" "install" "-g" allure-npm-pkg]))
-        (do (println (str "  Installed " allure-npm-pkg " successfully."))
-          ["allure"])
-        (do (println "  x npm install failed - cannot generate report.")
-          nil)))
+        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+          (do (println (str "  Installed " allure-npm-pkg " successfully."))
+              ["allure"])
+          (do (println "  x npm install failed - cannot generate report.")
+              nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-      nil)))
+        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+        nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -634,7 +633,7 @@
                                                   "-o" report-dir-path])
                           (.isFile history)
                           (into ["-h" (.getAbsolutePath history)]))
-                exit    (run-proc! cmd)]
+                exit    (long (run-proc! cmd))]
             (if (zero? exit)
               (do
                 (copy-dir! trace-src (io/file report "trace-viewer"))

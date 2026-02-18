@@ -214,11 +214,11 @@
       (allure/step "Locator assertions on link"
         (let [link (page/locator *page* "a")]
           (println "Locator: a — checking text and href")
-          (allure/step "contains-text 'More information'"
-            (assert/contains-text link "More information"))
+          (allure/step "contains-text 'Learn more'"
+            (assert/contains-text link "Learn more"))
 
           (allure/step "has-attribute href containing 'iana.org'"
-            (assert/has-attribute link "href" "https://www.iana.org/domains/examples"))
+            (assert/has-attribute link "href" "https://iana.org/domains/example"))
           (println "Link assertions passed ✓")))
 
       (allure/step "Negated assertions"
@@ -415,8 +415,8 @@
         (assert/has-title *page* "Example Domain")
         (allure/screenshot *page* "Step 1: example.com loaded"))
 
-      (allure/step "Click the 'More information...' link"
-        (let [link (page/get-by-text *page* "More information...")]
+      (allure/step "Click the 'Learn more' link"
+        (let [link (page/get-by-text *page* "Learn more")]
           (assert/is-visible link)
           (locator/click link)
           (page/wait-for-load-state *page* "domcontentloaded")))

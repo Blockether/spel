@@ -11,8 +11,6 @@
    [com.microsoft.playwright.options LoadState
     FunctionCallback BindingCallback]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Navigation
 ;; =============================================================================
@@ -159,11 +157,23 @@
    Params:
    `page` - Page instance.
    `role` - AriaRole enum value.
+   `opts` - Map, optional. GetByRoleOptions:
+            :name           - String or Pattern. Accessible name to match.
+            :exact          - Boolean. Exact match for name.
+            :checked        - Boolean. Match checked state.
+            :disabled       - Boolean. Match disabled state.
+            :expanded       - Boolean. Match expanded state.
+            :include-hidden - Boolean. Include hidden elements.
+            :level          - Integer. Heading level.
+            :pressed        - Boolean. Match pressed state.
+            :selected       - Boolean. Match selected state.
    
    Returns:
    Locator instance."
-  ^Locator [^Page page ^com.microsoft.playwright.options.AriaRole role]
-  (.getByRole page role))
+  (^Locator [^Page page ^com.microsoft.playwright.options.AriaRole role]
+   (.getByRole page role))
+  (^Locator [^Page page ^com.microsoft.playwright.options.AriaRole role opts]
+   (.getByRole page role (opts/->get-by-role-options opts))))
 
 (defn get-by-label
   "Locates elements by their label text.
@@ -512,6 +522,59 @@
           (test [_ v] (boolean (url-or-fn v))))
         callback))))
 
+(defn wait-for-popup
+  "Waits for a popup page to open while executing `action`.
+   
+   Params:
+   `page`   - Page instance.
+   `action` - No-arg function that triggers the popup.
+   `opts`   - Optional map. {:predicate fn, :timeout ms}
+   
+   Returns:
+   Page (the popup) or anomaly map on timeout."
+  ([^Page page action]
+   (safe (.waitForPopup page (reify Runnable (run [_] (action))))))
+  ([^Page page action opts]
+   (safe (.waitForPopup page (opts/->wait-for-popup-options opts)
+           (reify Runnable (run [_] (action)))))))
+
+(defn wait-for-download
+  "Waits for a download to start while executing `action`.
+   
+   Params:
+   `page`   - Page instance.
+   `action` - No-arg function that triggers the download.
+   `opts`   - Optional map. {:predicate fn, :timeout ms}
+   
+   Returns:
+   Download or anomaly map on timeout."
+  ([^Page page action]
+   (safe (.waitForDownload page (reify Runnable (run [_] (action))))))
+  ([^Page page action opts]
+   (safe (.waitForDownload page (opts/->wait-for-download-options opts)
+           (reify Runnable (run [_] (action)))))))
+
+(defn wait-for-file-chooser
+  "Waits for a file chooser dialog while executing `action`.
+   
+   Params:
+   `page`   - Page instance.
+   `action` - No-arg function that triggers the file chooser (e.g. clicking an input).
+   `opts`   - Optional map. {:predicate fn, :timeout ms}
+   
+   Returns:
+   FileChooser or anomaly map on timeout.
+   
+   Example:
+   (let [fc (page/wait-for-file-chooser pg
+              #(locator/click (page/locator pg \"input[type=file]\")))]
+     (util/file-chooser-set-files! fc \"/path/to/file.txt\"))"
+  ([^Page page action]
+   (safe (.waitForFileChooser page (reify Runnable (run [_] (action))))))
+  ([^Page page action opts]
+   (safe (.waitForFileChooser page (opts/->wait-for-file-chooser-options opts)
+           (reify Runnable (run [_] (action)))))))
+
 ;; =============================================================================
 ;; Emulation
 ;; =============================================================================
@@ -548,6 +611,18 @@
    `handler` - Function that receives a Dialog."
   [^Page page handler]
   (.onDialog page
+    (reify java.util.function.Consumer
+      (accept [_ dialog] (handler dialog)))))
+
+(defn once-dialog
+  "Registers a one-time handler for the next dialog.
+   The handler is automatically removed after the first dialog is handled.
+   
+   Params:
+   `page`    - Page instance.
+   `handler` - Function that receives a Dialog."
+  [^Page page handler]
+  (.onceDialog page
     (reify java.util.function.Consumer
       (accept [_ dialog] (handler dialog)))))
 

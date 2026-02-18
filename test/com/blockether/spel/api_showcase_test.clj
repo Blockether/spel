@@ -18,7 +18,7 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures
-    :refer [*pw* *browser* *page* *browser-api*
+    :refer [*pw* *page* *browser-api*
             with-playwright with-browser with-page with-api-tracing]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]
@@ -305,14 +305,14 @@
             "text/plain"))
 
         (api/with-hooks
-          {:on-request  (fn [method url opts]
-                          (swap! request-log conj {:method method :url url})
-                          (assoc-in opts [:headers "Authorization"] "Bearer test-token"))
-           :on-response (fn [method _url resp]
-                          (swap! response-log conj
-                            {:method method
-                             :status (.status ^APIResponse resp)})
-                          resp)}
+         {:on-request  (fn [method url opts]
+                         (swap! request-log conj {:method method :url url})
+                         (assoc-in opts [:headers "Authorization"] "Bearer test-token"))
+          :on-response (fn [method _url resp]
+                         (swap! response-log conj
+                           {:method method
+                            :status (.status ^APIResponse resp)})
+                         resp)}
 
           (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
                                        {:base-url *test-server-url*})]
@@ -377,13 +377,13 @@
             retry-log   (atom [])]
 
         (api/with-hooks
-          {:on-response (fn [method _url resp]
-                          (swap! attempt-log conj
-                            {:method method
-                             :status (.status ^APIResponse resp)})
-                          resp)
-           :on-retry    (fn [info]
-                          (swap! retry-log conj info))}
+         {:on-response (fn [method _url resp]
+                         (swap! attempt-log conj
+                           {:method method
+                            :status (.status ^APIResponse resp)})
+                         resp)
+          :on-retry    (fn [info]
+                         (swap! retry-log conj info))}
 
           (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
                                        {:base-url *test-server-url*})]

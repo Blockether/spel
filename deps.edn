@@ -13,8 +13,14 @@
   :test {:extra-paths ["test"]
          :main-opts ["-m" "lazytest.main"]}
 
-  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
-                 slipset/deps-deploy          {:mvn/version "0.2.2"}}
+  :build {:paths ["src" "resources"]
+          :deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
+                 slipset/deps-deploy          {:mvn/version "0.2.2"}
+                 ;; Project deps needed for gen-docs introspection
+                 com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
+                 com.blockether/anomaly          {:mvn/version "1.0.0"}
+                 org.babashka/sci                {:mvn/version "0.8.43"}
+                 org.clojure/data.json           {:mvn/version "2.5.1"}}
           :ns-default build}
 
   :e2e {:extra-paths ["test-e2e"]

@@ -16,8 +16,6 @@
   (:import
    [com.microsoft.playwright Frame Page]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; JavaScript Injection
 ;; =============================================================================
@@ -376,7 +374,8 @@
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
   [{:strs [role name ref attrs text]} depth]
-  (let [indent (apply str (repeat (* 2 depth) \space))
+  (let [depth (long depth)
+        indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
                  (seq name)  (conj (str "\"" name "\""))
                  ref         (conj (str "[@" ref "]"))
@@ -391,7 +390,7 @@
     (let [line     (format-node node depth)
           children (get node "children")]
       (into [line]
-        (mapcat #(render-tree % (inc depth)))
+        (mapcat #(render-tree % (inc (long depth))))
         children))))
 
 ;; =============================================================================
@@ -484,7 +483,7 @@
       (let [iframe-snaps (map-indexed
                            (fn [idx _frame]
                              (capture-snapshot-for-frame
-                               _frame (inc idx)))
+                               _frame (inc (long idx))))
                            sub-frames)
             all-refs     (apply merge
                            (:refs main-snap)
@@ -495,8 +494,8 @@
                              (into (keep :tree iframe-snaps))))]
         {:tree    all-trees
          :refs    all-refs
-         :counter (+ (:counter main-snap)
-                    (reduce + 0 (map :counter iframe-snaps)))}))))
+         :counter (+ (long (:counter main-snap))
+                    (long (reduce + 0 (map :counter iframe-snaps))))}))))
 
 (defn resolve-ref
   "Resolves a ref ID to a Playwright Locator.

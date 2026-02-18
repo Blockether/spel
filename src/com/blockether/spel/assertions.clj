@@ -37,8 +37,6 @@
     PageAssertions$HasTitleOptions
     PageAssertions$HasURLOptions]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Entry Points
 ;; =============================================================================

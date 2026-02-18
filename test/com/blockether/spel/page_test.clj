@@ -1,13 +1,13 @@
 (ns com.blockether.spel.page-test
   (:require
-   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as sut]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
    [lazytest.core :refer [defdescribe describe expect expect-it it]])
   (:import
-   [com.microsoft.playwright Locator Frame Response]))
+   [com.microsoft.playwright Locator Frame Response]
+   [com.microsoft.playwright.options AriaRole]))
 
 ;; =============================================================================
 ;; Navigation
@@ -138,3 +138,88 @@
     {:context [with-playwright with-browser with-page]}
     (expect-it "returns main frame"
       (instance? Frame (sut/main-frame *page*)))))
+
+;; =============================================================================
+;; once-dialog
+;; =============================================================================
+
+(defdescribe once-dialog-test
+  "Tests for one-time dialog handler"
+
+  (describe "once-dialog"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "fires handler for first dialog"
+      (let [captured (atom nil)]
+        (sut/once-dialog *page* (fn [dialog]
+                                  (reset! captured (.message dialog))
+                                  (.dismiss dialog)))
+        (sut/evaluate *page* "window.alert('hello once')")
+        (expect (= "hello once" @captured))))
+
+    (it "does not fire for second dialog"
+      (let [once-msgs (atom [])
+            fallback-msgs (atom [])]
+        ;; Register one-time handler for first dialog
+        (sut/once-dialog *page* (fn [dialog]
+                                  (swap! once-msgs conj (.message dialog))
+                                  (.dismiss dialog)))
+        ;; Register persistent handler for subsequent dialogs
+        (sut/on-dialog *page* (fn [dialog]
+                                (swap! fallback-msgs conj (.message dialog))
+                                (.dismiss dialog)))
+        ;; First alert — handled by once-dialog
+        (sut/evaluate *page* "window.alert('first')")
+        ;; Second alert — once-dialog already consumed, falls through to on-dialog
+        (sut/evaluate *page* "window.alert('second')")
+        (expect (= ["first"] @once-msgs))
+        (expect (= ["second"] @fallback-msgs))))))
+
+;; =============================================================================
+;; get-by-role with options
+;; =============================================================================
+
+(def ^:private role-test-html
+  "<html><body>
+     <h1>Title</h1><h2>Subtitle</h2><h3>Section</h3>
+     <button>Cancel</button><button>Submit</button>
+     <input type='checkbox' id='c1' checked/><label for='c1'>Agree</label>
+     <input type='checkbox' id='c2'/><label for='c2'>Newsletter</label>
+   </body></html>")
+
+(defdescribe get-by-role-options-test
+  "Tests for get-by-role with options map"
+
+  (describe "get-by-role with :name"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "finds button by name"
+      (sut/set-content! *page* role-test-html)
+      (let [loc (sut/get-by-role *page* AriaRole/BUTTON {:name "Submit"})]
+        (expect (instance? Locator loc))
+        (expect (= "Submit" (locator/text-content loc))))))
+
+  (describe "get-by-role with :name :exact"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "finds exact name match"
+      (sut/set-content! *page* role-test-html)
+      (let [loc (sut/get-by-role *page* AriaRole/BUTTON {:name "Submit" :exact true})]
+        (expect (= "Submit" (locator/text-content loc))))))
+
+  (describe "get-by-role with :level"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "finds heading by level"
+      (sut/set-content! *page* role-test-html)
+      (let [loc (sut/get-by-role *page* AriaRole/HEADING {:level 2})]
+        (expect (= "Subtitle" (locator/text-content loc))))))
+
+  (describe "get-by-role with :checked"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "finds checked checkbox"
+      (sut/set-content! *page* role-test-html)
+      (let [loc (sut/get-by-role *page* AriaRole/CHECKBOX {:checked true})]
+        (expect (= 1 (locator/count-elements loc)))
+        (expect (true? (locator/is-checked? loc)))))))

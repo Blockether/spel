@@ -28,7 +28,7 @@
 <table>
 <tr>
 <td width="25%" align="center"><b>Accessibility Snapshots</b></td>
-<td width="25%" align="center"><b>Inline Clojure via <code>--eval</code></b></td>
+<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;<code>--eval</code></b></td>
 <td width="25%" align="center"><b>Visual Annotations</b></td>
 <td width="25%" align="center"><b>Agent Scaffolding</b></td>
 </tr>

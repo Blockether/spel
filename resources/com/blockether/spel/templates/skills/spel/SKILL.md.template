@@ -1,0 +1,950 @@
+---
+name: spel
+description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when working with browser automation, E2E tests, Playwright API, or visual testing in Clojure."
+license: MIT
+compatibility: opencode
+---
+
+# spel - Clojure Playwright Wrapper
+
+`com.blockether.spel` wraps Playwright Java 1.58.0 with idiomatic Clojure.
+
+## Quick Reference
+
+| Command | Purpose |
+|---------|---------|
+| `spel --help` | CLI help |
+| `spel codegen --help` | Codegen CLI help |
+| `spel init-agents --help` | Agent scaffolding help |
+| `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
+| `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
+| `spel init-agents --loop=vscode` | Scaffold E2E agents for VS Code / Copilot |
+
+---
+
+## Architecture
+
+{{library-api}}
+
+### Error Handling
+
+Uses `com.blockether.anomaly` instead of throwing exceptions:
+
+```clojure
+;; All wrapped functions return either a value or an anomaly map
+(let [result (page/navigate pg "https://example.com")]
+  (if (anomaly/anomaly? result)
+    (println "Error:" (:cognitect.anomalies/message result))
+    (println "Navigated!")))
+```
+
+| Playwright Exception | Anomaly Category | Error Type Keyword |
+|---------------------|------------------|-------------------|
+| `TimeoutError` | `:cognitect.anomalies/busy` | `:playwright.error/timeout` |
+| `TargetClosedError` | `:cognitect.anomalies/interrupted` | `:playwright.error/target-closed` |
+| `PlaywrightException` | `:cognitect.anomalies/fault` | `:playwright.error/playwright` |
+| Generic `Exception` | `:cognitect.anomalies/fault` | `:playwright.error/unknown` |
+
+### Resource Lifecycle Macros
+
+**Always use macros for cleanup.** They nest naturally:
+
+```clojure
+(core/with-playwright [pw]
+  (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+    (core/with-context [ctx (core/new-context browser)]
+      (core/with-page [pg (core/new-page-from-context ctx)]
+        (page/navigate pg "https://example.com")
+        ;; returns nil on success, throws on failure
+        (assert/has-title (assert/assert-that pg) "Example Domain")))))
+```
+
+| Macro | Cleans Up |
+|-------|-----------|
+| `with-playwright` | Playwright instance |
+| `with-browser` | Browser instance |
+| `with-context` | BrowserContext |
+| `with-page` | Page instance |
+
+---
+
+## Common Patterns
+
+### Locating Elements
+
+```clojure
+;; By CSS
+(page/locator pg "h1")
+(page/locator pg "#my-id")
+
+;; By text
+(page/get-by-text pg "Click me")
+
+;; By role (requires AriaRole import)
+(page/get-by-role pg AriaRole/BUTTON)
+
+;; By role + name filter
+(page/get-by-role pg AriaRole/LINK {:name "Learn more"})
+
+;; By role + exact name match
+(page/get-by-role pg AriaRole/BUTTON {:name "Submit" :exact true})
+
+;; By label
+(page/get-by-label pg "Email")
+
+;; By placeholder
+(page/get-by-placeholder pg "Enter email")
+
+;; By test ID
+(page/get-by-test-id pg "submit-btn")
+
+;; Sub-locators
+(locator/loc-locator (page/locator pg ".card") "h2")
+(locator/loc-get-by-text (page/locator pg ".card") "Title")
+```
+
+### Strict Mode & Multiple Elements
+
+Playwright uses **strict mode by default** — all locator actions (`click`, `fill`, `text-content`, etc.) require the locator to resolve to **exactly one element**. If multiple elements match, Playwright throws a strict mode violation error.
+
+This is intentional: it prevents accidentally interacting with the wrong element.
+
+**Example error:**
+
+```
+Error: strict mode violation: locator("h1") resolved to 4 elements
+```
+
+**How to handle multiple matches:**
+
+```clojure
+;; WRONG — throws if multiple h1 elements exist
+(locator/text-content (page/locator pg "h1"))
+(spel/text "h1")  ;; same thing in SCI/eval mode
+
+;; RIGHT — narrow to first element
+(locator/text-content (locator/first-element (page/locator pg "h1")))
+(spel/text (spel/first "h1"))  ;; SCI/eval equivalent
+
+;; RIGHT — get ALL matching texts as a vector
+(locator/all-text-contents (page/locator pg "h1"))
+(spel/all-text-contents "h1")  ;; SCI/eval equivalent
+
+;; RIGHT — use a more specific selector
+(locator/text-content (page/locator pg "h1.display-1"))
+(spel/text "h1.display-1")  ;; SCI/eval equivalent
+
+;; RIGHT — use semantic locators (role + name filter)
+(locator/text-content (page/get-by-role pg AriaRole/HEADING {:name "Installation"}))
+
+;; RIGHT — use nth-element for a specific match
+(locator/text-content (locator/nth-element (page/locator pg "h1") 0))
+(spel/text (spel/nth (spel/$ "h1") 0))  ;; SCI/eval equivalent
+```
+
+**Available narrowing functions:**
+
+| Function | Description |
+|----------|-------------|
+| `locator/first-element` / `spel/first` | First matching element |
+| `locator/last-element` / `spel/last` | Last matching element |
+| `locator/nth-element` / `spel/nth` | Nth element (0-indexed) |
+| `locator/all` / `spel/$$` | All matches as a vector of Locators |
+| `locator/all-text-contents` / `spel/all-text-contents` | All texts as a vector |
+| `locator/all-inner-texts` / `spel/all-inner-texts` | All inner texts as a vector |
+| `locator/count-elements` / `spel/count-of` | Count of matching elements |
+| `locator/loc-filter` / `spel/loc-filter` | Filter by text, has-text, or sub-locator |
+
+**Rule of thumb:** If your selector might match multiple elements, either:
+1. Make the selector more specific (CSS class, test-id, role + name)
+2. Use `first-element` / `spel/first` to explicitly pick the first
+3. Use `all-text-contents` / `spel/all-text-contents` to get all values
+
+### Assertions
+
+All assertion functions require `assert-that` first. They return `nil` on success, throw on failure.
+In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
+
+```clojure
+;; Page assertions (assert-that returns PageAssertions)
+(let [pa (assert/assert-that pg)]
+  (assert/has-title pa "My Page")
+  (assert/has-url pa "https://example.com"))
+
+;; Locator assertions (assert-that returns LocatorAssertions)
+(let [la (assert/assert-that (page/locator pg "h1"))]
+  (assert/has-text la "Welcome")
+  (assert/contains-text la "partial text")
+  (assert/is-visible la)
+  (assert/is-hidden la)
+  (assert/is-checked la)
+  (assert/is-enabled la)
+  (assert/is-disabled la)
+  (assert/is-editable la)
+  (assert/is-focused la)
+  (assert/is-empty la)
+  (assert/is-attached la)
+  (assert/is-in-viewport la)
+  (assert/has-value la "hello")
+  (assert/has-values la ["a" "b"])
+  (assert/has-attribute la "href" "https://example.com")
+  (assert/has-class la "active")
+  (assert/contains-class la "active")
+  (assert/has-css la "color" "rgb(0, 0, 0)")
+  (assert/has-id la "content")
+  (assert/has-role la AriaRole/NAVIGATION)
+  (assert/has-count la 5)
+  (assert/has-js-property la "dataset.ready" "true")
+  (assert/has-accessible-name la "Submit")
+  (assert/has-accessible-description la "Enter your email")
+  (assert/matches-aria-snapshot la "- navigation"))
+
+;; Locator negation (assert the opposite)
+(assert/is-visible (assert/loc-not (assert/assert-that (page/locator pg ".hidden"))))
+(assert/is-checked (assert/loc-not (assert/assert-that (page/locator pg "#opt-out"))))
+
+;; Page negation (page-not takes PageAssertions, not Page)
+(assert/has-title (assert/page-not (assert/assert-that pg)) "Wrong Title")
+(assert/has-url (assert/page-not (assert/assert-that pg)) "https://wrong.com")
+
+;; API response assertion (api-not takes APIResponseAssertions, not APIResponse)
+(assert/is-ok (assert/assert-that api-response))
+(assert/is-ok (assert/api-not (assert/assert-that api-response)))     ; assert NOT ok
+
+;; In test `it` blocks — ALWAYS wrap with expect:
+(expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome")))
+(expect (nil? (assert/has-title (assert/assert-that *page*) "My Page")))
+
+;; Timeout override
+(assert/set-default-assertion-timeout! 10000)
+```
+
+### Events & Signals
+
+```clojure
+;; Dialog handling
+(page/on-dialog pg (fn [dialog] (.dismiss dialog)))
+
+;; Download handling
+(page/on-download pg (fn [dl] (println "Downloaded:" (.suggestedFilename dl))))
+
+;; Popup handling
+(page/on-popup pg (fn [popup-pg] (println "Popup URL:" (page/url popup-pg))))
+
+;; waitForPopup / waitForDownload
+(let [popup (page/wait-for-popup pg
+              #(locator/click (page/locator pg "a")))]
+  (page/navigate popup "..."))
+
+(let [dl (page/wait-for-download pg
+           #(locator/click (page/locator pg "a.download")))]
+  (util/download-save-as! dl "/tmp/file.txt"))
+```
+
+### Frame Navigation
+
+```clojure
+;; Via FrameLocator (preferred)
+(let [fl (frame/frame-locator-obj pg "iframe#main")]
+  (locator/click (frame/fl-locator fl "button")))
+
+;; Via Locator.contentFrame() (Java interop)
+(let [frame-loc (.contentFrame (page/locator pg "iframe"))]
+  (locator/click (.locator frame-loc "h1")))
+
+;; Nested frames
+(let [fl1 (frame/frame-locator-obj pg "iframe.outer")
+      fl2 (.frameLocator (frame/fl-locator fl1 "iframe.inner") "iframe.inner")]
+  (locator/click (frame/fl-locator fl2 "button")))
+```
+
+### Utility Functions (util namespace)
+
+```clojure
+(require '[com.blockether.spel.util :as util])
+
+;; Dialog handling
+(page/on-dialog pg (fn [dialog]
+  (println "Type:" (util/dialog-type dialog))       ; "alert", "confirm", "prompt", "beforeunload"
+  (println "Message:" (util/dialog-message dialog))
+  (println "Default:" (util/dialog-default-value dialog))
+  (util/dialog-accept! dialog)                       ; or (util/dialog-accept! dialog "input text")
+  ;; (util/dialog-dismiss! dialog)
+  ))
+
+;; Download handling
+(page/on-download pg (fn [dl]
+  (println "URL:" (util/download-url dl))
+  (println "File:" (util/download-suggested-filename dl))
+  (println "Failure:" (util/download-failure dl))
+  (util/download-save-as! dl "/tmp/downloaded.pdf")
+  ;; (util/download-cancel! dl)
+  ;; (util/download-path dl)
+  ;; (util/download-page dl)
+  ))
+
+;; Console messages
+(page/on-console pg (fn [msg]
+  (println (util/console-type msg) ":"       ; "log", "error", "warning", etc.
+           (util/console-text msg))
+  ;; (util/console-args msg)                 ; vector of JSHandle
+  ;; (util/console-location msg)             ; {:url ... :line-number ... :column-number ...}
+  ;; (util/console-page msg)
+  ))
+
+;; Tracing
+(let [tracing (util/context-tracing ctx)]
+  (util/tracing-start! tracing {:screenshots true :snapshots true :sources true})
+  ;; ... test actions ...
+  (util/tracing-stop! tracing {:path "trace.zip"}))
+
+;; Clock manipulation (for time-dependent tests)
+(util/clock-install! (util/page-clock pg))
+(util/clock-set-fixed-time! (util/page-clock pg) "2024-01-01T00:00:00Z")
+(util/clock-set-system-time! (util/page-clock pg) "2024-06-15T12:00:00Z")
+(util/clock-fast-forward! (util/page-clock pg) 60000)   ; ms
+(util/clock-pause-at! (util/page-clock pg) "2024-01-01")
+(util/clock-resume! (util/page-clock pg))
+
+;; CDP (Chrome DevTools Protocol)
+;; Requires Chromium browser
+(let [session (util/cdp-send pg "Runtime.evaluate" {:expression "1+1"})]
+  ;; (util/cdp-on session "Network.requestWillBeSent" handler-fn)
+  ;; (util/cdp-detach! session)
+  )
+
+;; Video recording
+(let [video (page/video pg)]
+  (util/video-path video)
+  (util/video-save-as! video "/tmp/recording.webm")
+  (util/video-delete! video))
+
+;; Workers (Web Workers / Service Workers)
+(doseq [w (page/workers pg)]
+  (println "Worker URL:" (util/worker-url w))
+  (println "Eval:" (util/worker-evaluate w "self.name")))
+
+;; File chooser
+(let [fc (page/wait-for-file-chooser pg
+           #(locator/click (page/locator pg "input[type=file]")))]
+  (util/file-chooser-set-files! fc "/path/to/file.txt")
+  ;; (util/file-chooser-page fc)
+  ;; (util/file-chooser-element fc)
+  ;; (util/file-chooser-is-multiple? fc)
+  )
+
+;; Selectors engine
+(util/selectors-register! (util/selectors pg) "my-engine" {:script "..."})
+
+;; Web errors
+(page/on-page-error pg (fn [err]
+  ;; (util/web-error-page err)
+  ;; (util/web-error-error err)
+  ))
+```
+
+### File Input
+
+```clojure
+;; Single file
+(locator/set-input-files! (page/locator pg "input[type=file]") "/path/to/file.txt")
+
+;; Multiple files
+(locator/set-input-files! (page/locator pg "input[type=file]") ["/path/a.txt" "/path/b.txt"])
+```
+
+### API Testing (api namespace)
+
+```clojure
+(require '[com.blockether.spel.api :as api])
+
+;; Single API context
+(api/with-api-context [ctx (api/new-api-context (api/api-request pw)
+                             {:base-url "https://api.example.com"
+                              :extra-http-headers {"Authorization" "Bearer token"}})]
+  (let [resp (api/api-get ctx "/users")]
+    (println (api/api-response-status resp))     ; 200
+    (println (api/api-response-text resp))))      ; JSON body
+
+;; Multiple API contexts
+(api/with-api-contexts
+  [users   (api/new-api-context (api/api-request pw) {:base-url "https://users.example.com"})
+   billing (api/new-api-context (api/api-request pw) {:base-url "https://billing.example.com"})]
+  (api/api-get users "/me")
+  (api/api-get billing "/invoices"))
+
+;; HTTP methods
+(api/api-get ctx "/users" {:params {:page 1}})
+(api/api-post ctx "/users" {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
+(api/api-put ctx "/users/1" {:data "{\"name\":\"Bob\"}"})
+(api/api-patch ctx "/users/1" {:data "{\"name\":\"Charlie\"}"})
+(api/api-delete ctx "/users/1")
+(api/api-head ctx "/health")
+(api/api-fetch ctx "/resource" {:method "OPTIONS"})
+
+;; Form data
+(let [fd (api/form-data)]
+  (api/fd-set fd "name" "Alice")
+  (api/fd-append fd "tag" "clojure")
+  (api/api-post ctx "/submit" {:form fd}))
+;; Or from map:
+(api/api-post ctx "/submit" {:form (api/map->form-data {:name "Alice" :email "a@b.c"})})
+
+;; Response inspection
+(let [resp (api/api-get ctx "/users")]
+  (api/api-response-status resp)         ; 200
+  (api/api-response-status-text resp)    ; "OK"
+  (api/api-response-url resp)
+  (api/api-response-ok? resp)            ; true
+  (api/api-response-headers resp)        ; {"content-type" "..."}
+  (api/api-response-text resp)           ; body string
+  (api/api-response-body resp)           ; byte[]
+  (api/api-response->map resp))          ; {:status 200 :ok? true :headers {...} :body "..."}
+
+;; Hooks (request/response interceptors)
+(api/with-hooks
+  {:on-request  (fn [method url opts] (println "→" method url) opts)
+   :on-response (fn [method url resp] (println "←" method (api/api-response-status resp)) resp)}
+  (api/api-get ctx "/users"))
+
+;; Retry with backoff
+(api/retry #(api/api-get ctx "/flaky")
+  {:max-attempts 5 :delay-ms 1000 :backoff :linear
+   :retry-when (fn [r] (= 429 (:status (api/api-response->map r))))})
+;; Or with macro:
+(api/with-retry {:max-attempts 3 :delay-ms 200}
+  (api/api-post ctx "/endpoint" {:json {:action "process"}}))
+
+;; Standalone request (no context setup needed)
+(api/request! pw :get "https://api.example.com/health")
+(api/request! pw :post "https://api.example.com/users"
+  {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
+```
+
+### Allure Test Reporting (allure namespace)
+
+```clojure
+(require '[com.blockether.spel.allure :as allure])
+
+;; Labels (call inside test body)
+(allure/epic "E2E Testing")
+(allure/feature "Authentication")
+(allure/story "Login Flow")
+(allure/severity :critical)          ; :blocker :critical :normal :minor :trivial
+(allure/owner "team@example.com")
+(allure/tag "smoke")
+(allure/description "Tests the complete login flow")
+(allure/link "Docs" "https://example.com/docs")
+(allure/issue "BUG-123" "https://github.com/example/issues/123")
+(allure/tms "TC-456" "https://tms.example.com/456")
+(allure/parameter "browser" "chromium")
+
+;; Steps
+(allure/step "Navigate to login page"
+  (page/navigate pg "https://example.com/login"))
+
+;; Nested steps
+(allure/step "Login flow"
+  (allure/step "Enter credentials"
+    (locator/fill (page/locator pg "#user") "admin")
+    (locator/fill (page/locator pg "#pass") "secret"))
+  (allure/step "Submit"
+    (locator/click (page/locator pg "#submit"))))
+
+;; UI step (auto-captures before/after screenshots, requires *page* binding)
+(allure/ui-step "Fill login form"
+  (locator/fill username-input "admin")
+  (locator/fill password-input "secret")
+  (locator/click submit-btn))
+
+;; API step (auto-attaches response details: status, headers, body)
+(allure/api-step "Create user"
+  (api/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
+
+;; Attachments
+(allure/attach "Request Body" "{\"key\":\"value\"}" "application/json")
+(allure/attach-bytes "Screenshot" (page/screenshot pg) "image/png")
+(allure/screenshot pg "After navigation")        ; convenience: attach PNG screenshot
+(allure/attach-api-response! resp)               ; attach full API response
+```
+
+---
+
+## Codegen - JSONL to Clojure
+
+Transforms Playwright `codegen --target=jsonl` recordings into idiomatic Clojure.
+
+### Workflow
+
+```bash
+# 1. Record interactions (opens browser, saves to recording.jsonl)
+spel codegen --target=jsonl -o recording.jsonl https://example.com
+
+# 2. Transform JSONL to Clojure test
+spel codegen transform recording.jsonl > my_test.clj
+spel codegen transform --format=script recording.jsonl
+spel codegen transform --format=body recording.jsonl
+```
+
+### Formats
+
+| Format | Output |
+|--------|--------|
+| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-page` |
+| `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
+| `:body` | Just action lines for pasting into existing code |
+
+### Supported Actions
+
+| Action | Codegen Output |
+|--------|---------------|
+| `navigate` | `(page/navigate pg "url")` |
+| `click` | `(locator/click loc)` with modifiers, button, position |
+| `click` (dblclick) | `(locator/dblclick loc)` when clickCount=2 |
+| `click` (N>2) | `(locator/click loc {:click-count N})` |
+| `fill` | `(locator/fill loc "text")` |
+| `press` | `(locator/press loc "key")` with modifier combos |
+| `hover` | `(locator/hover loc)` with optional position |
+| `check`/`uncheck` | `(locator/check loc)` / `(locator/uncheck loc)` |
+| `select` | `(locator/select-option loc "value")` |
+| `setInputFiles` | `(locator/set-input-files! loc "path")` or vector |
+| `assertText` | `(assert/has-text (assert/assert-that loc) "text")` |
+| `assertChecked` | `(assert/is-checked (assert/assert-that loc))` |
+| `assertVisible` | `(assert/is-visible (assert/assert-that loc))` |
+| `assertValue` | `(assert/has-value (assert/assert-that loc) "val")` |
+| `assertSnapshot` | `(assert/matches-aria-snapshot (assert/assert-that loc) "snapshot")` |
+
+### Signal Handling
+
+| Signal | Codegen Pattern |
+|--------|----------------|
+| `dialog` | `(page/on-dialog pg (fn [dialog] (.dismiss dialog)))` BEFORE action |
+| `popup` | `(let [popup-pg (page/wait-for-popup pg #(action))] ...)` AROUND action |
+| `download` | `(let [download (page/wait-for-download pg #(action))] ...)` AROUND action |
+
+### Frame Navigation in Codegen
+
+`framePath` array generates chained `.contentFrame()` calls:
+
+```clojure
+;; framePath: ["iframe.outer", "iframe.inner"]
+(let [fl0 (.contentFrame (page/locator pg "iframe.outer"))
+      fl1 (.contentFrame (.locator fl0 "iframe.inner"))]
+  (locator/click (.locator fl1 "button")))
+```
+
+### Hard Errors
+
+Codegen dies immediately on:
+- Unknown action types
+- Unknown signal types
+- Unrecognized locator formats
+- Missing locator/selector data
+
+In CLI mode: prints full action data + `System/exit 1`.
+In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
+
+---
+
+## CLI
+
+Wraps Playwright CLI commands via the `spel` native binary.
+
+> **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
+
+```bash
+spel install                        # Install browsers (Chromium by default)
+spel install --with-deps chromium   # Install with system dependencies
+spel codegen URL                    # Record interactions
+spel open URL                       # Open browser
+spel screenshot URL                 # Take screenshot
+```
+
+---
+
+## Page Exploration (spel)
+
+The `spel` CLI provides comprehensive page exploration capabilities without writing code.
+
+### Basic Exploration Workflow
+
+```bash
+# 1. Navigate to a page
+spel open https://example.com
+
+# 2. Get accessibility snapshot with numbered refs (e1, e2, etc.)
+spel snapshot
+
+# 3. Take a screenshot for visual reference
+spel screenshot page.png
+```
+
+### Snapshot Command
+
+The primary exploration tool - returns an ARIA accessibility tree with numbered refs:
+
+```bash
+spel snapshot                           # Full accessibility tree
+spel snapshot -i                        # Interactive elements only
+spel snapshot -i -c                     # Compact format
+spel snapshot -i -c -d 3               # Limit depth to 3 levels
+spel snapshot -i -C                     # Include cursor/pointer elements
+spel snapshot -s "#main"               # Scoped to CSS selector
+```
+
+**Output format:**
+```
+- heading "Example Domain" [@e1] [level=1]
+- link "More information..." [@e2]
+- button "Submit" [@e3]
+```
+
+### Get Page Information
+
+```bash
+spel get url                           # Current URL
+spel get title                         # Page title
+spel get text @e1                      # Text content of ref e1
+spel get html @e1                      # Inner HTML
+spel get value @e2                     # Input value
+spel get attr @e1 href                 # Attribute value
+spel get count ".items"               # Count matching elements
+spel get box @e1                       # Bounding box {x, y, width, height}
+```
+
+### Check Element State
+
+```bash
+spel is visible @e1                    # Check visibility
+spel is enabled @e1                    # Check if enabled
+spel is checked @e3                    # Check checkbox state
+```
+
+### Find Elements (Semantic Locators)
+
+Find and interact in one command:
+
+```bash
+# Find by ARIA role
+spel find role button click
+spel find role button click --name "Submit"
+
+# Find by text content
+spel find text "Login" click
+
+# Find by label
+spel find label "Email" fill "test@example.com"
+
+# Position-based
+spel find first ".item" click
+spel find last ".item" click
+spel find nth 2 ".item" click
+```
+
+### Visual Exploration
+
+```bash
+spel screenshot                        # Screenshot to stdout (base64)
+spel screenshot shot.png              # Save to file
+spel screenshot -f full.png           # Full page screenshot
+spel pdf page.pdf                     # Save as PDF (Chromium only)
+spel highlight @e1                    # Highlight element visually
+```
+
+### Network Exploration
+
+```bash
+spel network requests                  # View all captured requests
+spel network requests --type fetch    # Filter by type (document, script, fetch, image, etc.)
+spel network requests --method POST   # Filter by HTTP method
+spel network requests --status 2      # Filter by status prefix (2=2xx, 4=4xx)
+spel network requests --filter "/api" # Filter by URL regex
+spel network clear                    # Clear captured requests
+```
+
+### JavaScript Evaluation
+
+```bash
+# Run JavaScript
+spel eval "document.title"
+spel eval "document.querySelector('h1').textContent"
+
+# Base64-encoded result
+spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text: a.textContent, href: a.href})))" -b
+```
+
+### Console & Errors
+
+Console messages and page errors are auto-captured from the moment a page opens. No `start` command needed.
+
+```bash
+spel console                           # View captured console messages
+spel console clear                     # Clear captured messages
+
+spel errors                            # View captured page errors
+spel errors clear                      # Clear captured errors
+```
+
+### Complete Exploration Example
+
+```bash
+# Open page
+spel open https://example.com
+
+# Get initial snapshot
+spel snapshot -i
+
+# Take screenshot
+spel screenshot initial.png
+
+# Get page info
+spel get title
+spel get url
+
+# Check specific element
+spel get text @e2
+spel is visible @e3
+
+# Interact and re-snapshot
+spel click @e2
+spel snapshot -i
+
+# View network activity
+spel network requests
+
+# Close browser when done
+spel close
+```
+
+---
+
+## Agent Scaffolding (init-agents)
+
+Scaffolds agent definitions for Playwright E2E testing into any consuming project. Equivalent to Playwright's `npx playwright init-agents --loop=<target>` but for the Clojure/Lazytest/spel stack.
+
+Supports three editor targets via `--loop`:
+
+```bash
+spel init-agents                      # OpenCode (default)
+spel init-agents --loop=claude        # Claude Code
+spel init-agents --loop=vscode        # VS Code / Copilot
+```
+
+### CLI Options
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
+| `--ns NS` | dir name | Base namespace for generated tests (e.g. `my-app` → `my-app.e2e.seed-test`) |
+| `--dry-run` | - | Preview files without writing |
+| `--force` | - | Overwrite existing files |
+| `--test-dir DIR` | `test/e2e` | E2E test output directory |
+| `--specs-dir DIR` | `test-e2e/specs` | Test plans directory (colocated with tests) |
+| `-h, --help` | - | Show help |
+
+### Generated Files by Target
+
+**`--loop=opencode`** (default):
+
+| File | Purpose |
+|------|---------|
+| `.opencode/agents/spel-test-planner.md` | Explores app, writes structured test plans to `test-e2e/specs/` |
+| `.opencode/agents/spel-test-generator.md` | Reads test plans, generates Clojure Lazytest code using spel |
+| `.opencode/agents/spel-test-healer.md` | Runs failing tests, diagnoses issues, applies fixes |
+| `.opencode/prompts/spel-test-workflow.md` | Orchestrator prompt: plan → generate → heal cycle |
+| `.opencode/skills/spel/SKILL.md` | Copy of this API reference skill (so agents work out-of-the-box) |
+
+**`--loop=claude`**:
+
+| File | Purpose |
+|------|---------|
+| `.claude/agents/spel-test-planner.md` | Same as OpenCode but with Claude Code frontmatter |
+| `.claude/agents/spel-test-generator.md` | Same as OpenCode but with Claude Code frontmatter |
+| `.claude/agents/spel-test-healer.md` | Same as OpenCode but with Claude Code frontmatter |
+| `.claude/prompts/spel-test-workflow.md` | Orchestrator prompt |
+| `.claude/docs/spel/SKILL.md` | API reference |
+
+**`--loop=vscode`**:
+
+| File | Purpose |
+|------|---------|
+| `.github/agents/spel-test-planner.agent.md` | Same as OpenCode but with VS Code / Copilot frontmatter |
+| `.github/agents/spel-test-generator.agent.md` | Same as OpenCode but with VS Code / Copilot frontmatter |
+| `.github/agents/spel-test-healer.agent.md` | Same as OpenCode but with VS Code / Copilot frontmatter |
+| `.github/prompts/spel-test-workflow.md` | Orchestrator prompt |
+| `.github/docs/spel/SKILL.md` | API reference |
+
+**All targets** also generate:
+
+| File | Purpose |
+|------|---------|
+| `test-e2e/specs/README.md` | Test plans directory README (colocated with tests) |
+| `test-e2e/<ns>/e2e/seed_test.clj` | Seed test with `{{ns}}` replaced by `--ns` value (or directory name) |
+
+### Agent Workflow
+
+Three subagents work together in a plan → generate → heal loop:
+
+1. **@spel-test-planner** — Explores the app using `spel` CLI commands (e.g., `spel snapshot`) and inline Clojure scripts with spel. Catalogs pages/flows, writes structured test plans as markdown files in `test-e2e/specs/`. Uses `spel` skill for API reference.
+
+2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
+
+3. **@spel-test-healer** — Runs tests via `clojure -M:test`, captures failures, uses `spel` CLI commands and inline scripts for investigation, diagnoses root causes (stale selectors, timing, missing setup), and applies targeted fixes. Loops until green.
+
+**Orchestration**: Use the `spel-test-workflow` prompt to trigger the full cycle, or invoke individual agents with `@agent-name`.
+
+**No external dependencies**: All agents use spel directly — no Agent Browser or external MCP tools needed.
+
+### Template System
+
+Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `{{ns}}` placeholders as Clojure code. The `process-template` function replaces `{{ns}}` with the `--ns` value (or falls back to the consuming project's directory name).
+
+---
+
+## Testing Conventions
+
+- Framework: **Lazytest** (`defdescribe`, `describe`, `it`, `expect`)
+- Fixtures: **Lazytest `:context`** with shared `around` hooks from `test-fixtures`
+- Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
+- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators
+- Integration tests: Live against `example.com`
+
+### Test Fixtures
+
+The project provides shared `around` hooks in `com.blockether.spel.test-fixtures`:
+
+| Fixture | Binds | Scope |
+|---------|-------|-------|
+| `with-playwright` | `*pw*` | Shared Playwright instance |
+| `with-browser` | `*browser*` | Shared headless Chromium browser |
+| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, auto-tracing with Allure) |
+| `with-traced-page` | `*page*` | Like `with-page` but always enables tracing/HAR |
+| `with-test-server` | `*test-server-url*` | Local HTTP test server |
+
+Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-page` manually inside `it` blocks.
+
+### Test Example
+
+```clojure
+(ns my-app.test
+  (:require
+   [com.blockether.spel.assertions :as assert]
+   [com.blockether.spel.locator :as locator]
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [lazytest.core :refer [defdescribe describe expect it before-each]])
+  (:import
+   [com.microsoft.playwright.options AriaRole]))
+
+(defdescribe my-test
+  (describe "example.com"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "navigates and asserts"
+      (page/navigate *page* "https://example.com")
+      (expect (= "Example Domain" (page/title *page*)))
+      (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Example Domain"))))))
+```
+
+---
+
+## Native Image CLI
+
+The library includes a GraalVM native-image compiled binary for instant-start browser automation via CLI.
+
+### Build & Run
+
+```bash
+# Build native binary
+clojure -T:build uberjar
+clojure -T:build native-image
+
+# Install Playwright browsers
+./target/spel install
+```
+
+{{cli-commands}}
+
+{{sci-api}}
+
+### Snapshot with Refs
+
+The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) to interactive and meaningful elements:
+
+```clojure
+(spel/start!)
+(spel/goto "https://example.com")
+
+;; Get accessibility snapshot with refs
+(def snap (spel/snapshot))
+(:tree snap)
+;; => "- heading \"Example Domain\" [@e1] [level=1]\n- link \"More information...\" [@e2]"
+(:refs snap)
+;; => {"e1" {:role "heading" :name "Example Domain" :tag "h1" :bbox {:x 0 :y 0 :width 500 :height 40}}
+;;     "e2" {:role "link" :name "More information..." :tag "a" :bbox {:x 10 :y 100 :width 200 :height 20}}}
+
+;; Click by ref
+(spel/click-ref "e2")
+
+;; Fill by ref
+(spel/fill-ref "e3" "hello@example.com")
+
+;; Hover by ref
+(spel/hover-ref "e1")
+```
+
+### Page Annotation
+
+Inject visual overlays (bounding boxes, ref badges, dimension labels) onto the page for **visible elements only**:
+
+```clojure
+;; Via CLI:
+;;   spel annotate              — inject overlays for visible elements
+;;   spel unannotate            — remove overlays
+;;   spel screenshot out.png    — capture (with or without overlays)
+
+;; Via Clojure API:
+(def snap (spel/snapshot))
+(annotate/inject-overlays! *page* (:refs snap))   ;; overlays now visible on page
+;; ... inspect in headed mode, take screenshots, etc.
+(annotate/remove-overlays! *page*)                 ;; clean up
+
+;; One-shot convenience (inject → screenshot → cleanup):
+(spel/save-annotated-screenshot! (:refs snap) "annotated.png")
+```
+
+### Daemon Architecture
+
+- Background process keeps browser alive between CLI invocations
+- Listens on Unix domain socket (`/tmp/spel-{session}.sock`)
+- PID file at `/tmp/spel-{session}.pid`
+- JSON protocol over socket (newline-delimited)
+- Auto-starts on first CLI command if not running
+- `close` command shuts down browser + daemon + cleans up files
+
+---
+
+## Rules
+
+| Rule | Detail |
+|------|--------|
+| **No per-file reflection warnings** | Root Makefile `validate-safe-graal-package` handles globally |
+| **No `clj-kondo` CLI** | All linting via `clojure-lsp diagnostics --raw` |
+| **Anomalies not exceptions** | Use `com.blockether.anomaly` pattern |
+| **Error type keywords** | `:playwright.error/timeout`, `:playwright.error/target-closed`, etc. |
+| **Exact string assertions** | Never use substring matching unless `contains-text` |
+| **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
+| **AriaRole import** | Always `(:import [com.microsoft.playwright.options AriaRole])` |
+| **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
+
+---
+
+## CLI Entry Points
+
+The `spel` binary is the primary CLI interface:
+
+| Command | Purpose |
+|---------|---------|
+| `spel <command>` | Browser automation CLI (100+ commands) |
+| `spel codegen` | Record and transform browser sessions to Clojure |
+| `spel init-agents` | Scaffold E2E testing agents (`--loop=opencode\|claude\|vscode`) |

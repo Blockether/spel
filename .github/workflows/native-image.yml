@@ -21,7 +21,7 @@ jobs:
           - os: ubuntu-24.04-arm
             arch: arm64
             artifact: spel-linux-arm64
-          - os: macos-13
+          - os: macos-15
             arch: amd64
             artifact: spel-macos-amd64
           - os: macos-latest
@@ -71,7 +71,7 @@ jobs:
 
       - name: Build native image
         # Flags come from META-INF/native-image/.../native-image.properties inside the uberjar
-        run: native-image -jar target/playwright-clj-standalone.jar -o target/spel
+        run: native-image -jar target/spel-standalone.jar -o target/spel
 
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'

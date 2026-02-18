@@ -7,11 +7,9 @@
    [com.blockether.spel.core :refer [safe]]
    [com.blockether.spel.options :as opts])
   (:import
-   [com.microsoft.playwright Locator ElementHandle JSHandle
+   [com.microsoft.playwright Locator ElementHandle JSHandle FrameLocator
     Locator$FilterOptions]
    [com.microsoft.playwright.options AriaRole]))
-
-(set! *warn-on-reflection* true)
 
 ;; =============================================================================
 ;; Locator Actions
@@ -514,6 +512,19 @@
    Locator instance."
   ^Locator [^Locator loc ^String selector]
   (.locator loc selector))
+
+(defn content-frame
+  "Returns a FrameLocator pointing to the same iframe as this locator.
+   Use when the locator points to an iframe element and you need to
+   interact with elements inside the frame.
+   
+   Params:
+   `loc` - Locator instance pointing to an iframe element.
+   
+   Returns:
+   FrameLocator instance."
+  ^FrameLocator [^Locator loc]
+  (.contentFrame loc))
 
 (defn loc-get-by-text
   "Locates elements by text within this locator.

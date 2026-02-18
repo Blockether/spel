@@ -24,27 +24,561 @@ compatibility: opencode
 
 ## Architecture
 
-### Namespace Map
+## Library API Reference
 
-| Namespace | Purpose | Key Functions |
-|-----------|---------|---------------|
-| `core` | Lifecycle, browser, context, page | `create`, `close!`, `with-playwright`, `with-browser`, `with-context`, `with-page`, `launch`, `launch-chromium`, `launch-firefox`, `launch-webkit`, `chromium`, `firefox`, `webkit`, `browser-type-name`, `close-browser!`, `browser-connected?`, `browser-version`, `browser-contexts`, `new-context`, `close-context!`, `context-pages`, `context-browser`, `context-set-default-timeout!`, `context-set-default-navigation-timeout!`, `context-grant-permissions!`, `context-clear-permissions!`, `context-clear-cookies!`, `context-cookies`, `context-set-offline!`, `context-set-extra-http-headers!`, `new-page`, `new-page-from-context`, `close-page!`, `wrap-error`, `safe` |
-| `page` | Navigation, locators, content, events | `navigate`, `go-back`, `go-forward`, `reload`, `url`, `title`, `content`, `set-content!`, `locator`, `get-by-text`, `get-by-role`, `get-by-label`, `get-by-placeholder`, `get-by-alt-text`, `get-by-title`, `get-by-test-id`, `evaluate`, `evaluate-handle`, `screenshot`, `pdf`, `is-closed?`, `viewport-size`, `set-viewport-size!`, `set-default-timeout!`, `set-default-navigation-timeout!`, `main-frame`, `frames`, `frame-by-name`, `frame-by-url`, `wait-for-load-state`, `wait-for-url`, `wait-for-selector`, `wait-for-timeout`, `wait-for-function`, `wait-for-response`, `emulate-media!`, `on-console`, `on-dialog`, `on-page-error`, `on-request`, `on-response`, `on-close`, `on-download`, `on-popup`, `route!`, `unroute!`, `bring-to-front`, `page-context`, `add-script-tag`, `add-style-tag`, `page-keyboard`, `page-mouse`, `page-touchscreen`, `video`, `workers`, `opener`, `set-extra-http-headers!`, `expose-function!`, `expose-binding!` |
-| `locator` | Element interactions | `click`, `dblclick`, `fill`, `type-text`, `press`, `clear`, `check`, `uncheck`, `hover`, `tap-element`, `focus`, `blur`, `select-option`, `set-input-files!`, `scroll-into-view`, `dispatch-event`, `drag-to`, `text-content`, `inner-text`, `inner-html`, `input-value`, `get-attribute`, `is-visible?`, `is-hidden?`, `is-enabled?`, `is-disabled?`, `is-editable?`, `is-checked?`, `bounding-box`, `count-elements`, `all-text-contents`, `all-inner-texts`, `all`, `loc-filter`, `first-element`, `last-element`, `nth-element`, `loc-locator`, `loc-get-by-text`, `loc-get-by-role`, `locator-screenshot`, `highlight`, `element-handle`, `element-handles`, `eh-click`, `eh-fill`, `eh-text-content`, `eh-inner-text`, `eh-inner-html`, `eh-get-attribute`, `eh-is-visible?`, `eh-is-enabled?`, `eh-is-checked?`, `eh-bounding-box`, `eh-screenshot`, `eh-dispose!`, `js-evaluate`, `js-json-value`, `js-get-property`, `js-get-properties`, `js-as-element`, `js-dispose!` |
-| `assertions` | Playwright assertions | `assert-that`, `set-default-assertion-timeout!`, `loc-not`, `page-not`, `api-not`, `has-text`, `contains-text`, `has-attribute`, `has-class`, `contains-class`, `has-count`, `has-css`, `has-id`, `has-js-property`, `has-value`, `has-values`, `has-role`, `has-accessible-name`, `has-accessible-description`, `has-accessible-error-message`, `matches-aria-snapshot`, `is-attached`, `is-checked`, `is-disabled`, `is-editable`, `is-enabled`, `is-focused`, `is-hidden`, `is-visible`, `is-empty`, `is-in-viewport`, `has-title`, `has-url`, `is-ok` |
-| `frame` | Frame/iframe operations | `frame-navigate`, `frame-content`, `frame-set-content!`, `frame-url`, `frame-name`, `frame-title`, `frame-locator`, `frame-get-by-text`, `frame-get-by-role`, `frame-get-by-label`, `frame-get-by-test-id`, `frame-evaluate`, `parent-frame`, `child-frames`, `frame-page`, `is-detached?`, `frame-wait-for-load-state`, `frame-wait-for-selector`, `frame-wait-for-function`, `frame-locator-obj`, `fl-locator`, `fl-get-by-text`, `fl-get-by-role`, `fl-get-by-label`, `fl-first`, `fl-last`, `fl-nth` |
-| `options` | Java option builders (80+) | `->launch-options`, `->new-context-options`, `->navigate-options`, `->screenshot-options`, `->click-options`, `->fill-options`, `->hover-options`, `->type-options`, `->press-options`, `->check-options`, `->uncheck-options`, `->dblclick-options`, `->locator-screenshot-options`, `->wait-for-options`, `->mouse-click-options`, `->mouse-down-options`, `->mouse-up-options`, `->tracing-start-options`, `->tracing-stop-options`, `->pdf-options`, `->emulate-media-options`, `->select-option-options`, `->drag-to-options`, `->wait-for-popup-options`, `->wait-for-response-options`, `->new-page-options`, `->storage-state-options`, `->cookie`, `->viewport-size`, and 40+ more |
-| `input` | Keyboard, mouse, touch | `key-press`, `key-type`, `key-down`, `key-up`, `key-insert-text`, `mouse-click`, `mouse-dblclick`, `mouse-move`, `mouse-down`, `mouse-up`, `mouse-wheel`, `touchscreen-tap` |
-| `network` | Request/response/routing | `request-url`, `request-method`, `request-headers`, `request-all-headers`, `request-post-data`, `request-resource-type`, `request-response`, `request-failure`, `request-frame`, `request-is-navigation?`, `request-redirected-from`, `request-redirected-to`, `request-timing`, `response-url`, `response-status`, `response-status-text`, `response-headers`, `response-all-headers`, `response-body`, `response-text`, `response-ok?`, `response-request`, `response-frame`, `response-finished`, `response-header-value`, `response-header-values`, `route-request`, `route-fulfill!`, `route-continue!`, `route-abort!`, `route-fallback!`, `route-fetch!`, `ws-url`, `ws-is-closed?`, `ws-on-message`, `ws-on-close`, `ws-on-error`, `wsf-text`, `wsf-binary` |
-| `data` | Datafy protocols | Extends `clojure.core.protocols/Datafiable` for Page, Browser, BrowserContext, exceptions |
-| `util` | Dialog, download, console, CDP, clock, tracing, video, workers, file chooser | `dialog-type`, `dialog-message`, `dialog-default-value`, `dialog-accept!`, `dialog-dismiss!`, `download-url`, `download-suggested-filename`, `download-path`, `download-save-as!`, `download-cancel!`, `download-failure`, `download-page`, `console-type`, `console-text`, `console-args`, `console-location`, `console-page`, `cdp-send`, `cdp-detach!`, `cdp-on`, `clock-install!`, `clock-set-fixed-time!`, `clock-set-system-time!`, `clock-fast-forward!`, `clock-pause-at!`, `clock-resume!`, `page-clock`, `context-tracing`, `tracing-start!`, `tracing-stop!`, `video-path`, `video-save-as!`, `video-delete!`, `worker-url`, `worker-evaluate`, `file-chooser-page`, `file-chooser-element`, `file-chooser-is-multiple?`, `file-chooser-set-files!`, `selectors`, `selectors-register!`, `web-error-page`, `web-error-error` |
-| `api` | REST API testing | `api-request`, `new-api-context`, `with-api-context`, `with-api-contexts`, `api-get`, `api-post`, `api-put`, `api-patch`, `api-delete`, `api-head`, `api-fetch`, `api-dispose!`, `api-response-url`, `api-response-status`, `api-response-status-text`, `api-response-headers`, `api-response-body`, `api-response-text`, `api-response-ok?`, `api-response-headers-array`, `api-response-dispose!`, `api-response->map`, `request!`, `retry`, `with-retry`, `with-hooks`, `form-data`, `fd-set`, `fd-append`, `map->form-data`, `request-options` |
-| `allure` | Allure test reporting | `epic`, `feature`, `story`, `severity`, `owner`, `tag`, `description`, `link`, `issue`, `tms`, `parameter`, `attach`, `attach-bytes`, `screenshot`, `step`, `ui-step`, `api-step`, `attach-api-response!`, `make-context`, `reporter-active?`, `set-reporter-active!` |
-| `snapshot` | Accessibility snapshots | `capture-snapshot`, `capture-snapshot-for-frame`, `capture-full-snapshot`, `resolve-ref`, `clear-refs!`, `ref-bounding-box` |
-| `annotate` | Page annotation overlays | `inject-overlays!`, `remove-overlays!`, `visible-refs`, `annotated-screenshot`, `save-annotated-screenshot!` |
-| `codegen` | JSONL to Clojure transformer | `jsonl->clojure`, `jsonl-str->clojure` |
-| `cli` | Native CLI client | `parse-args`, `send-command!`, `run-cli!` |
-| `init-agents` | Scaffold E2E agents (opencode/claude/vscode) | `-main` |
+Auto-generated from source code. Each namespace lists public functions with args and description.
+
+### `core` — Lifecycle, browser, context, page
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `browser-connected?` | [browser] | Returns true if the browser is connected. |
+| `browser-contexts` | [browser] | Returns all browser contexts. |
+| `browser-type-name` | [bt] | Returns the name of the browser type. |
+| `browser-version` | [browser] | Returns the browser version string. |
+| `chromium` | [pw] | Returns the Chromium BrowserType. |
+| `close!` | [pw] | Closes a Playwright instance and releases all resources. |
+| `close-browser!` | [browser] | Closes a browser and all its pages. |
+| `close-context!` | [context] | Closes a browser context and all its pages. |
+| `close-page!` | [page] | Closes a page. |
+| `context-browser` | [context] | Returns the browser that owns this context. |
+| `context-clear-cookies!` | [context] | Clears all cookies in the context. |
+| `context-clear-permissions!` | [context] | Clears all granted permissions. |
+| `context-cookies` | [context] | Returns all cookies in the context. |
+| `context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
+| `context-pages` | [context] | Returns all pages in a context. |
+| `context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |
+| `context-set-default-timeout!` | [context timeout] | Sets the default timeout for context operations. |
+| `context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
+| `context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
+| `create` | [] | Creates a new Playwright instance. |
+| `firefox` | [pw] | Returns the Firefox BrowserType. |
+| `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
+| `launch-chromium` | [pw] \| [pw opts] | Launches Chromium browser. |
+| `launch-firefox` | [pw] \| [pw opts] | Launches Firefox browser. |
+| `launch-webkit` | [pw] \| [pw opts] | Launches WebKit browser. |
+| `new-context` | [browser] \| [browser context-opts] | Creates a new browser context with optional configuration. |
+| `new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
+| `new-page-from-context` | [context] | Creates a new page in the given context. |
+| _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
+| `webkit` | [pw] | Returns the WebKit BrowserType. |
+| _(macro)_ `with-browser` | [[sym expr] & body] | Binds a browser instance and ensures cleanup. |
+| _(macro)_ `with-context` | [[sym expr] & body] | Binds a browser context and ensures cleanup. |
+| _(macro)_ `with-page` | [[sym expr] & body] | Binds a page instance and ensures cleanup. |
+| _(macro)_ `with-playwright` | [binding-vec & body] | Binds a Playwright instance and ensures cleanup. |
+| `wrap-error` | [e] | Wraps Playwright exceptions into anomaly maps. |
+
+### `page` — Navigation, locators, content, events
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `add-script-tag` | [page opts] | Adds a script tag to the page. |
+| `add-style-tag` | [page opts] | Adds a style tag to the page. |
+| `bring-to-front` | [page] | Brings page to front (activates tab). |
+| `content` | [page] | Returns the full HTML content of the page. |
+| `emulate-media!` | [page media-opts] | Emulates media type and features. |
+| `evaluate` | [page expression] \| [page expression arg] | Evaluates JavaScript expression in the page context. |
+| `evaluate-handle` | [page expression] \| [page expression arg] | Like evaluate, but returns a JSHandle. |
+| `expose-binding!` | [page name f] | Exposes a Clojure function as a binding. |
+| `expose-function!` | [page name f] | Exposes a Clojure function to JavaScript. |
+| `frame-by-name` | [page name] | Returns a frame by its name attribute. |
+| `frame-by-url` | [page pattern] | Returns a frame by matching URL pattern. |
+| `frames` | [page] | Returns all frames in the page. |
+| `get-by-alt-text` | [page text] | Locates elements by alt text. |
+| `get-by-label` | [page text] | Locates elements by their label text. |
+| `get-by-placeholder` | [page text] | Locates elements by placeholder text. |
+| `get-by-role` | [page role] | Locates elements by their ARIA role. |
+| `get-by-test-id` | [page test-id] | Locates elements by test ID attribute. |
+| `get-by-text` | [page text] | Locates elements by their text content. |
+| `get-by-title` | [page text] | Locates elements by title attribute. |
+| `go-back` | [page] \| [page nav-opts] | Navigates back in history. |
+| `go-forward` | [page] \| [page nav-opts] | Navigates forward in history. |
+| `is-closed?` | [page] | Returns true if the page has been closed. |
+| `locator` | [page selector] | Creates a Locator for finding elements on the page. |
+| `main-frame` | [page] | Returns the main frame of the page. |
+| `navigate` | [page url] \| [page url nav-opts] | Navigates the page to a URL. |
+| `on-close` | [page handler] | Registers a handler for page close. |
+| `on-console` | [page handler] | Registers a handler for console messages. |
+| `on-dialog` | [page handler] | Registers a handler for dialogs. |
+| `on-download` | [page handler] | Registers a handler for downloads. |
+| `on-page-error` | [page handler] | Registers a handler for page errors. |
+| `on-popup` | [page handler] | Registers a handler for popup pages. |
+| `on-request` | [page handler] | Registers a handler for requests. |
+| `on-response` | [page handler] | Registers a handler for responses. |
+| `opener` | [page] | Returns the opener page, if any. |
+| `page-context` | [page] | Returns the BrowserContext that the page belongs to. |
+| `page-keyboard` | [page] | Returns the Keyboard for this page. |
+| `page-mouse` | [page] | Returns the Mouse for this page. |
+| `page-touchscreen` | [page] | Returns the Touchscreen for this page. |
+| `pdf` | [page] \| [page pdf-opts] | Generates a PDF of the page. Only works in Chromium headless. |
+| `reload` | [page] \| [page nav-opts] | Reloads the page. |
+| `route!` | [page pattern handler] | Registers a route handler for URL pattern. |
+| `screenshot` | [page] \| [page ss-opts] | Takes a screenshot of the page. |
+| `set-content!` | [page html] \| [page html set-opts] | Sets the HTML content of the page. |
+| `set-default-navigation-timeout!` | [page timeout] | Sets the default navigation timeout. |
+| `set-default-timeout!` | [page timeout] | Sets the default timeout for page operations. |
+| `set-extra-http-headers!` | [page headers] | Sets extra HTTP headers for all requests on this page. |
+| `set-viewport-size!` | [page width height] | Sets the viewport size. |
+| `title` | [page] | Returns the page title. |
+| `unroute!` | [page pattern] | Removes a route handler. |
+| `url` | [page] | Returns the current page URL. |
+| `video` | [page] | Returns the Video for this page, if recording. |
+| `viewport-size` | [page] | Returns the viewport size of the page. |
+| `wait-for-download` | [page action] \| [page action opts] | Waits for a download to start while executing `action`. |
+| `wait-for-file-chooser` | [page action] \| [page action opts] | Waits for a file chooser dialog while executing `action`. |
+| `wait-for-function` | [page expression] | Waits for a JavaScript function to return a truthy value. |
+| `wait-for-load-state` | [page] \| [page state] | Waits for the page to reach a load state. |
+| `wait-for-popup` | [page action] \| [page action opts] | Waits for a popup page to open while executing `action`. |
+| `wait-for-response` | [page url-or-fn callback] | Waits for a response matching the URL or predicate. |
+| `wait-for-selector` | [page selector] \| [page selector wait-opts] | Waits for a selector to satisfy a condition. |
+| `wait-for-timeout` | [page timeout] | Waits for the specified time in milliseconds. |
+| `wait-for-url` | [page url] | Waits for the page to navigate to a URL. |
+| `workers` | [page] | Returns all workers in the page. |
+
+### `locator` — Element interactions
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `all` | [loc] | Returns all elements matching the locator as individual locators. |
+| `all-inner-texts` | [loc] | Returns all inner texts for matching elements. |
+| `all-text-contents` | [loc] | Returns all text contents for matching elements. |
+| `blur` | [loc] | Blurs (removes focus from) the element. |
+| `bounding-box` | [loc] | Returns the bounding box of the element. |
+| `check` | [loc] \| [loc check-opts] | Checks a checkbox or radio button. |
+| `clear` | [loc] | Clears input field content. |
+| `click` | [loc] \| [loc click-opts] | Clicks an element. |
+| `count-elements` | [loc] | Returns the number of elements matching the locator. |
+| `dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
+| `dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
+| `drag-to` | [loc target] | Drags this locator to another locator. |
+| `eh-bounding-box` | [eh] | Returns the bounding box of the element handle. |
+| `eh-click` | [eh] \| [eh click-opts] | Clicks an element handle. |
+| `eh-dispose!` | [eh] | Disposes the element handle. |
+| `eh-fill` | [eh value] | Fills text into an element handle. |
+| `eh-get-attribute` | [eh name] | Returns an attribute value of the element handle. |
+| `eh-inner-html` | [eh] | Returns inner HTML of an element handle. |
+| `eh-inner-text` | [eh] | Returns inner text of an element handle. |
+| `eh-is-checked?` | [eh] | Returns whether the element handle is checked. |
+| `eh-is-enabled?` | [eh] | Returns whether the element handle is enabled. |
+| `eh-is-visible?` | [eh] | Returns whether the element handle is visible. |
+| `eh-screenshot` | [eh] \| [eh screenshot-opts] | Takes a screenshot of the element. |
+| `eh-text-content` | [eh] | Returns text content of an element handle. |
+| `element-handle` | [loc] | Returns the ElementHandle for the first matching element. |
+| `element-handles` | [loc] | Returns all ElementHandles matching the locator. |
+| `evaluate-all` | [loc expression] \| [loc expression arg] | Evaluates JavaScript on all elements matching the locator. |
+| `evaluate-locator` | [loc expression] \| [loc expression arg] | Evaluates JavaScript on the element found by this locator. |
+| `fill` | [loc value] \| [loc value fill-opts] | Fills an input element with text. |
+| `first-element` | [loc] | Returns the first element matching the locator. |
+| `focus` | [loc] | Focuses the element. |
+| `get-attribute` | [loc name] | Returns the value of an attribute. |
+| `highlight` | [loc] | Highlights the element for debugging. |
+| `hover` | [loc] \| [loc hover-opts] | Hovers over an element. |
+| `inner-html` | [loc] | Returns the inner HTML of the element. |
+| `inner-text` | [loc] | Returns the inner text of the element. |
+| `input-value` | [loc] | Returns the input value of an input element. |
+| `is-checked?` | [loc] | Returns whether the element is checked. |
+| `is-disabled?` | [loc] | Returns whether the element is disabled. |
+| `is-editable?` | [loc] | Returns whether the element is editable. |
+| `is-enabled?` | [loc] | Returns whether the element is enabled. |
+| `is-hidden?` | [loc] | Returns whether the element is hidden. |
+| `is-visible?` | [loc] | Returns whether the element is visible. |
+| `js-as-element` | [handle] | Casts a JSHandle to ElementHandle if possible. |
+| `js-dispose!` | [handle] | Disposes the JSHandle. |
+| `js-evaluate` | [handle expression] \| [handle expression arg] | Evaluates JavaScript on a JSHandle. |
+| `js-get-properties` | [handle] | Gets all properties of a JSHandle. |
+| `js-get-property` | [handle name] | Gets a property of a JSHandle. |
+| `js-json-value` | [handle] | Returns the JSON value of a JSHandle. |
+| `last-element` | [loc] | Returns the last element matching the locator. |
+| `loc-filter` | [loc opts] | Filters this locator to a narrower set. |
+| `loc-get-by-label` | [loc text] | Locates elements by label within this locator. |
+| `loc-get-by-role` | [loc role] | Locates elements by ARIA role within this locator. |
+| `loc-get-by-test-id` | [loc test-id] | Locates elements by test ID within this locator. |
+| `loc-get-by-text` | [loc text] | Locates elements by text within this locator. |
+| `loc-locator` | [loc selector] | Creates a sub-locator within this locator. |
+| `locator-screenshot` | [loc] \| [loc ss-opts] | Takes a screenshot of the element. |
+| `nth-element` | [loc index] | Returns the nth element matching the locator. |
+| `press` | [loc key] \| [loc key press-opts] | Presses a key or key combination. |
+| `scroll-into-view` | [loc] | Scrolls element into view. |
+| `select-option` | [loc values] | Selects options in a select element. |
+| `set-input-files!` | [loc files] | Sets the value of a file input element. |
+| `tap-element` | [loc] | Taps an element (for touch devices). |
+| `text-content` | [loc] | Returns the text content of the element. |
+| `type-text` | [loc text] \| [loc text type-opts] | Types text into an element character by character. |
+| `uncheck` | [loc] \| [loc uncheck-opts] | Unchecks a checkbox. |
+| `wait-for` | [loc] \| [loc wait-opts] | Waits for the locator to satisfy a condition. |
+
+### `assertions` — Playwright assertions
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `api-not` | [ara] | Returns negated APIResponseAssertions (expect the opposite). |
+| `assert-that` | [target] | Creates an assertion object for the given Playwright instance. |
+| `contains-class` | [la class-val] \| [la class-val opts] | Asserts the locator's class attribute contains the specified class. |
+| `contains-text` | [la text] \| [la text opts] | Asserts the locator contains the specified text. |
+| `has-accessible-description` | [la desc] | Asserts the locator has the specified accessible description. |
+| `has-accessible-error-message` | [la msg] | Asserts the locator has the specified accessible error message. |
+| `has-accessible-name` | [la name-val] | Asserts the locator has the specified accessible name. |
+| `has-attribute` | [la name value] \| [la name value opts] | Asserts the locator has the specified attribute with value. |
+| `has-class` | [la class-val] \| [la class-val opts] | Asserts the locator has the specified CSS class. |
+| `has-count` | [la count] \| [la count opts] | Asserts the locator resolves to the expected number of elements. |
+| `has-css` | [la name value] \| [la name value opts] | Asserts the locator has the specified CSS property with value. |
+| `has-id` | [la id] \| [la id opts] | Asserts the locator has the specified ID. |
+| `has-js-property` | [la name value] | Asserts the locator has the specified JavaScript property. |
+| `has-role` | [la role] | Asserts the locator has the specified ARIA role. |
+| `has-text` | [la text] \| [la text opts] | Asserts the locator has the specified text. |
+| `has-title` | [pa title] \| [pa title opts] | Asserts the page has the specified title. |
+| `has-url` | [pa url] \| [pa url opts] | Asserts the page has the specified URL. |
+| `has-value` | [la value] \| [la value opts] | Asserts the locator (input) has the specified value. |
+| `has-values` | [la values] \| [la values opts] | Asserts the locator (multi-select) has the specified values. |
+| `is-attached` | [la] \| [la opts] | Asserts the locator is attached to the DOM. |
+| `is-checked` | [la] \| [la opts] | Asserts the locator (checkbox/radio) is checked. |
+| `is-disabled` | [la] \| [la opts] | Asserts the locator is disabled. |
+| `is-editable` | [la] \| [la opts] | Asserts the locator is editable. |
+| `is-empty` | [la] | Asserts the locator (input) is empty. |
+| `is-enabled` | [la] \| [la opts] | Asserts the locator is enabled. |
+| `is-focused` | [la] \| [la opts] | Asserts the locator is focused. |
+| `is-hidden` | [la] \| [la opts] | Asserts the locator is hidden. |
+| `is-in-viewport` | [la] \| [la opts] | Asserts the locator is in the viewport. |
+| `is-ok` | [ara] | Asserts the API response status is 2xx. |
+| `is-visible` | [la] \| [la opts] | Asserts the locator is visible. |
+| `loc-not` | [la] | Returns negated LocatorAssertions (expect the opposite). |
+| `matches-aria-snapshot` | [la snapshot] | Asserts the locator matches the ARIA snapshot. |
+| `page-not` | [pa] | Returns negated PageAssertions (expect the opposite). |
+| `set-default-assertion-timeout!` | [timeout] | Sets the default timeout for all assertions. |
+
+### `frame` — Frame/iframe operations
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `child-frames` | [frame] | Returns child frames. |
+| `fl-first` | [fl] | Returns the first FrameLocator. |
+| `fl-get-by-label` | [fl text] | Locates by label within a FrameLocator. |
+| `fl-get-by-role` | [fl role] | Locates by ARIA role within a FrameLocator. |
+| `fl-get-by-text` | [fl text] | Locates by text within a FrameLocator. |
+| `fl-last` | [fl] | Returns the last FrameLocator. |
+| `fl-locator` | [fl selector] | Creates a Locator within a FrameLocator. |
+| `fl-nth` | [fl index] | Returns the nth FrameLocator. |
+| `frame-content` | [frame] | Returns the HTML content of the frame. |
+| `frame-evaluate` | [frame expression] \| [frame expression arg] | Evaluates JavaScript in the frame context. |
+| `frame-get-by-label` | [frame text] | Locates elements by label in the frame. |
+| `frame-get-by-role` | [frame role] | Locates elements by ARIA role in the frame. |
+| `frame-get-by-test-id` | [frame test-id] | Locates elements by test ID in the frame. |
+| `frame-get-by-text` | [frame text] | Locates elements by text in the frame. |
+| `frame-locator` | [frame selector] | Creates a Locator for the frame. |
+| `frame-locator-obj` | [page-or-frame selector] | Creates a FrameLocator for an iframe. |
+| `frame-name` | [frame] | Returns the frame name. |
+| `frame-navigate` | [frame url] \| [frame url nav-opts] | Navigates the frame to a URL. |
+| `frame-page` | [frame] | Returns the page that owns this frame. |
+| `frame-set-content!` | [frame html] \| [frame html set-opts] | Sets the HTML content of the frame. |
+| `frame-title` | [frame] | Returns the frame title. |
+| `frame-url` | [frame] | Returns the frame URL. |
+| `frame-wait-for-function` | [frame expression] | Waits for a JavaScript function to return truthy in the frame. |
+| `frame-wait-for-load-state` | [frame] \| [frame state] | Waits for the frame to reach a load state. |
+| `frame-wait-for-selector` | [frame selector] \| [frame selector wait-opts] | Waits for a selector in the frame. |
+| `is-detached?` | [frame] | Returns whether the frame has been detached. |
+| `parent-frame` | [frame] | Returns the parent frame. |
+
+### `input` — Keyboard, mouse, touchscreen
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `key-down` | [keyboard key] | Dispatches a keydown event. |
+| `key-insert-text` | [keyboard text] | Inserts text without key events. |
+| `key-press` | [keyboard key] \| [keyboard key press-opts] | Presses a key on the keyboard. |
+| `key-type` | [keyboard text] \| [keyboard text type-opts] | Types text character by character. |
+| `key-up` | [keyboard key] | Dispatches a keyup event. |
+| `mouse-click` | [mouse x y] \| [mouse x y click-opts] | Clicks at the given coordinates. |
+| `mouse-dblclick` | [mouse x y] \| [mouse x y dblclick-opts] | Double-clicks at the given coordinates. |
+| `mouse-down` | [mouse] | Dispatches a mousedown event. |
+| `mouse-move` | [mouse x y] \| [mouse x y move-opts] | Moves the mouse to the given coordinates. |
+| `mouse-up` | [mouse] | Dispatches a mouseup event. |
+| `mouse-wheel` | [mouse delta-x delta-y] | Dispatches a wheel event. |
+| `touchscreen-tap` | [ts x y] | Taps at the given coordinates. |
+
+### `network` — Request/response/routing
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `request-all-headers` | [req] | Returns all request headers including redirects. |
+| `request-failure` | [req] | Returns the failure text if the request failed. |
+| `request-frame` | [req] | Returns the frame that initiated this request. |
+| `request-headers` | [req] | Returns the request headers as a map. |
+| `request-is-navigation?` | [req] | Returns whether this is a navigation request. |
+| `request-method` | [req] | Returns the request HTTP method. |
+| `request-post-data` | [req] | Returns the request POST data. |
+| `request-post-data-buffer` | [req] | Returns the request POST data as bytes. |
+| `request-redirected-from` | [req] | Returns the request that redirected to this one. |
+| `request-redirected-to` | [req] | Returns the request this was redirected to. |
+| `request-resource-type` | [req] | Returns the resource type (e.g. document, script, image). |
+| `request-response` | [req] | Returns the response for this request. |
+| `request-timing` | [req] | Returns the request timing information. |
+| `request-url` | [req] | Returns the request URL. |
+| `response-all-headers` | [resp] | Returns all response headers. |
+| `response-body` | [resp] | Returns the response body as bytes. |
+| `response-finished` | [resp] | Returns nil when response finishes, or the failure error string. |
+| `response-frame` | [resp] | Returns the frame that received this response. |
+| `response-header-value` | [resp name] | Returns the value of a specific header. |
+| `response-header-values` | [resp name] | Returns all values for a specific header. |
+| `response-headers` | [resp] | Returns the response headers. |
+| `response-ok?` | [resp] | Returns whether the response status is 2xx. |
+| `response-request` | [resp] | Returns the request for this response. |
+| `response-status` | [resp] | Returns the HTTP status code. |
+| `response-status-text` | [resp] | Returns the HTTP status text. |
+| `response-text` | [resp] | Returns the response body as text. |
+| `response-url` | [resp] | Returns the response URL. |
+| `route-abort!` | [route] \| [route error-code] | Aborts the route. |
+| `route-continue!` | [route] \| [route opts] | Continues the route, optionally modifying the request. |
+| `route-fallback!` | [route] | Falls through to the next route handler. |
+| `route-fetch!` | [route] | Performs the request and returns the response. |
+| `route-fulfill!` | [route opts] | Fulfills the route with a custom response. |
+| `route-request` | [route] | Returns the request being routed. |
+| `ws-is-closed?` | [ws] | Returns whether the WebSocket is closed. |
+| `ws-on-close` | [ws handler] | Registers a handler for WebSocket close. |
+| `ws-on-error` | [ws handler] | Registers a handler for WebSocket errors. |
+| `ws-on-message` | [ws handler] | Registers a handler for incoming messages. |
+| `ws-url` | [ws] | Returns the WebSocket URL. |
+| `wsf-binary` | [frame] | Returns the binary content of a WebSocket frame. |
+| `wsf-text` | [frame] | Returns the text content of a WebSocket frame. |
+| `wsr-close!` | [wsr] | Closes the WebSocket connection from the server side. |
+| `wsr-connect-to-server!` | [wsr] | Connects to the real server WebSocket. |
+| `wsr-on-close` | [wsr handler] | Registers a handler for close events. |
+| `wsr-on-message` | [wsr handler] | Registers a handler for client messages on the route. |
+| `wsr-send!` | [wsr message] | Sends a message to the client. |
+| `wsr-url` | [wsr] | Returns the URL of a WebSocketRoute. |
+
+### `api` — REST API testing
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `api-delete` | [ctx url] \| [ctx url opts] | Sends a DELETE request. |
+| `api-dispose!` | [ctx] | Disposes the APIRequestContext and all responses. |
+| `api-fetch` | [ctx url] \| [ctx url opts] | Sends a request with custom method (set via :method in opts). |
+| `api-get` | [ctx url] \| [ctx url opts] | Sends a GET request. |
+| `api-head` | [ctx url] \| [ctx url opts] | Sends a HEAD request. |
+| `api-patch` | [ctx url] \| [ctx url opts] | Sends a PATCH request. |
+| `api-post` | [ctx url] \| [ctx url opts] | Sends a POST request. |
+| `api-put` | [ctx url] \| [ctx url opts] | Sends a PUT request. |
+| `api-request` | [pw] | Returns the APIRequest for the Playwright instance. |
+| `api-response->map` | [resp] | Converts an APIResponse to a Clojure map. |
+| `api-response-body` | [resp] | Returns the response body as bytes. |
+| `api-response-dispose!` | [resp] | Disposes the APIResponse. |
+| `api-response-headers` | [resp] | Returns the response headers. |
+| `api-response-headers-array` | [resp] | Returns the response headers as a vector of {:name :value} maps. |
+| `api-response-ok?` | [resp] | Returns whether the response is OK (2xx). |
+| `api-response-status` | [resp] | Returns the HTTP status code. |
+| `api-response-status-text` | [resp] | Returns the HTTP status text. |
+| `api-response-text` | [resp] | Returns the response body as text. |
+| `api-response-url` | [resp] | Returns the response URL. |
+| `fd-append` | [fd name value] | Appends a field to FormData. |
+| `fd-set` | [fd name value] | Sets a field in FormData. |
+| `form-data` | [] | Creates a new FormData instance. |
+| `map->form-data` | [m] | Converts a Clojure map to FormData. |
+| `new-api-context` | [api-req] \| [api-req opts] | Creates a new APIRequestContext. |
+| `request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
+| `request-options` | [opts] | Creates RequestOptions from a map. |
+| `retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
+| _(macro)_ `with-api-context` | [[sym expr] & body] | Binds a single APIRequestContext and ensures disposal. |
+| _(macro)_ `with-api-contexts` | [bindings & body] | Binds multiple APIRequestContexts and disposes all on exit. |
+| _(macro)_ `with-hooks` | [hooks & body] | Execute body with the given hooks merged into `*hooks*`. |
+| _(macro)_ `with-retry` | [opts-or-body & body] | Execute body with retry logic. |
+
+### `allure` — Allure test reporting
+
+| Function | Args | Description |
+|----------|------|-------------|
+| _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
+| `attach` | [att-name content content-type] | Attach string content to the test report. |
+| `attach-api-response!` | [resp] | Attach APIResponse metadata to the current allure step as parameters, |
+| `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
+| `description` | [text] | Set the test description (markdown supported). |
+| `epic` | [value] | Set the epic label for this test. |
+| `feature` | [value] | Set the feature label for this test. |
+| `issue` | [name url] | Add an issue link. |
+| `link` | [name url] | Add a link to the test report. |
+| `make-context` | [] | Create a fresh context map for a test case. Called by the reporter. |
+| `owner` | [value] | Set the test owner. |
+| `parameter` | [name value] | Add a parameter to the test or current step. |
+| `reporter-active?` | [] | Returns true when the Allure reporter is active (i.e. we're |
+| `screenshot` | [pg att-name] | Take a Playwright screenshot and attach it to the report. |
+| `set-reporter-active!` | [active?] | Called by the Allure reporter at begin/end of test run. |
+| `severity` | [level] | Set the severity label. Level should be one of: |
+| _(macro)_ `step` | [step-name] \| [step-name & body] | Add a step to the test report. |
+| `step*` | [step-name] \| [step-name f] | Internal function backing the `step` macro. Prefer the macro. |
+| `story` | [value] | Set the story label for this test. |
+| `tag` | [value] | Add a tag label. |
+| `tms` | [name url] | Add a test management system link. |
+| _(macro)_ `ui-step` | [step-name & body] | Execute a UI step with automatic before/after screenshots. |
+
+### `snapshot` — Accessibility snapshots
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `capture-full-snapshot` | [page] | Captures a snapshot of the page and all its iframes. |
+| `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
+| `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
+| `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
+| `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
+
+### `annotate` — Page annotation overlays
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `annotated-screenshot` | [page refs] \| [page refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `check-visible-refs` | [page refs] | Runs JavaScript in the page to determine which refs are truly visible. |
+| `filter-annotatable` | [refs] | Filters refs to only those worth rendering as overlays. |
+| `inject-overlays!` | [page refs] \| [page refs opts] | Injects annotation overlays into the page DOM for visible elements only. |
+| `remove-containers` | [refs] | Removes refs whose bbox fully contains another ref's bbox. |
+| `remove-overlays!` | [page] | Removes all annotation overlays from the page DOM. |
+| `save-annotated-screenshot!` | [page refs path] \| [page refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `visible-refs` | [viewport refs] | Filters refs to only those whose bbox is at least partially visible |
+
+### `codegen` — JSONL to Clojure transformer
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `-main` | [& args] | CLI entry point. Transforms JSONL recording to Clojure code. |
+| `jsonl->clojure` | [path] \| [path opts] | Reads a JSONL file and returns Clojure test code as a string. |
+| `jsonl-str->clojure` | [jsonl-str] \| [jsonl-str opts] | Transforms a JSONL string into Clojure source code. |
+
+### `util` — Dialog, download, console, CDP, clock, tracing, video, workers
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `cdp-detach!` | [session] | Detaches the CDP session. |
+| `cdp-on` | [session event handler] | Registers a handler for CDP events. |
+| `cdp-send` | [session method] \| [session method params] | Sends a Chrome DevTools Protocol command. |
+| `clock-fast-forward!` | [clock ticks] | Fast-forwards the clock by the given time. |
+| `clock-install!` | [clock] | Installs fake timers on the clock. |
+| `clock-pause-at!` | [clock time] | Pauses the clock at the given time. |
+| `clock-resume!` | [clock] | Resumes the clock. |
+| `clock-set-fixed-time!` | [clock time] | Sets the clock to a fixed time. |
+| `clock-set-system-time!` | [clock time] | Sets the system time. |
+| `console-args` | [msg] | Returns the console message arguments as JSHandles. |
+| `console-location` | [msg] | Returns the source location of the console message. |
+| `console-page` | [msg] | Returns the page the console message belongs to. |
+| `console-text` | [msg] | Returns the console message text. |
+| `console-type` | [msg] | Returns the console message type (log, debug, info, error, warning, etc). |
+| `context-tracing` | [context] | Returns the Tracing for a context. |
+| `dialog-accept!` | [dialog] \| [dialog prompt-text] | Accepts the dialog. |
+| `dialog-default-value` | [dialog] | Returns the default value for prompt dialogs. |
+| `dialog-dismiss!` | [dialog] | Dismisses the dialog. |
+| `dialog-message` | [dialog] | Returns the dialog message. |
+| `dialog-type` | [dialog] | Returns the dialog type (alert, confirm, prompt, beforeunload). |
+| `download-cancel!` | [download] | Cancels the download. |
+| `download-failure` | [download] | Returns the download failure reason, or nil. |
+| `download-page` | [download] | Returns the page the download belongs to. |
+| `download-path` | [download] | Returns the local path to the downloaded file. |
+| `download-save-as!` | [download path] | Saves the download to the given path. |
+| `download-suggested-filename` | [download] | Returns the suggested filename. |
+| `download-url` | [download] | Returns the download URL. |
+| `file-chooser-element` | [fc] | Returns the element handle for the file input. |
+| `file-chooser-is-multiple?` | [fc] | Returns whether the file chooser accepts multiple files. |
+| `file-chooser-page` | [fc] | Returns the page the file chooser belongs to. |
+| `file-chooser-set-files!` | [fc files] | Sets the files for the file chooser. |
+| `page-clock` | [page] | Returns the Clock for a page. |
+| `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
+| `selectors-register!` | [sels name script] | Registers a custom selector engine. |
+| `tracing-start!` | [tracing] \| [tracing trace-opts] | Starts tracing. |
+| `tracing-stop!` | [tracing] \| [tracing stop-opts] | Stops tracing and saves the trace file. |
+| `video-delete!` | [video] | Deletes the video file. |
+| `video-path` | [video] | Returns the path to the video file. |
+| `video-save-as!` | [video path] | Saves the video to the given path. |
+| `web-error-error` | [we] | Returns the underlying error for this web error. |
+| `web-error-page` | [we] | Returns the page that generated this web error, if any. |
+| `worker-evaluate` | [worker expression] \| [worker expression arg] | Evaluates JavaScript in the worker context. |
+| `worker-url` | [worker] | Returns the worker URL. |
+
+### `options` — Java option builders (80+)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `->check-options` | [opts] | Converts a map to Locator$CheckOptions. |
+| `->click-options` | [opts] | Converts a map to Locator$ClickOptions. |
+| `->cookie` | [opts] | Creates a Cookie instance from a map. |
+| `->dblclick-options` | [opts] | Converts a map to Locator$DblclickOptions. |
+| `->dispatch-event-options` | [opts] | Converts a map to Locator$DispatchEventOptions. |
+| `->drag-to-options` | [opts] | Converts a map to Locator$DragToOptions. |
+| `->eh-check-options` | [opts] | Converts a map to ElementHandle$CheckOptions. |
+| `->eh-click-options` | [opts] | Converts a map to ElementHandle$ClickOptions. |
+| `->eh-dblclick-options` | [opts] | Converts a map to ElementHandle$DblclickOptions. |
+| `->eh-fill-options` | [opts] | Converts a map to ElementHandle$FillOptions. |
+| `->eh-hover-options` | [opts] | Converts a map to ElementHandle$HoverOptions. |
+| `->eh-press-options` | [opts] | Converts a map to ElementHandle$PressOptions. |
+| `->eh-screenshot-options` | [opts] | Converts a map to ElementHandle$ScreenshotOptions. |
+| `->eh-scroll-into-view-options` | [opts] | Converts a map to ElementHandle$ScrollIntoViewIfNeededOptions. |
+| `->eh-select-option-options` | [opts] | Converts a map to ElementHandle$SelectOptionOptions. |
+| `->eh-set-input-files-options` | [opts] | Converts a map to ElementHandle$SetInputFilesOptions. |
+| `->eh-tap-options` | [opts] | Converts a map to ElementHandle$TapOptions. |
+| `->eh-type-options` | [opts] | Converts a map to ElementHandle$TypeOptions. |
+| `->eh-uncheck-options` | [opts] | Converts a map to ElementHandle$UncheckOptions. |
+| `->eh-wait-for-element-state-options` | [opts] | Converts a map to ElementHandle$WaitForElementStateOptions. |
+| `->emulate-media-options` | [opts] | Converts a map to Page$EmulateMediaOptions. |
+| `->fill-options` | [opts] | Converts a map to Locator$FillOptions. |
+| `->focus-options` | [opts] | Converts a map to Locator$FocusOptions. |
+| `->frame-add-script-tag-options` | [opts] | Converts a map to Frame$AddScriptTagOptions. |
+| `->frame-add-style-tag-options` | [opts] | Converts a map to Frame$AddStyleTagOptions. |
+| `->frame-navigate-options` | [opts] | Converts a map to Frame$NavigateOptions. |
+| `->frame-set-content-options` | [opts] | Converts a map to Frame$SetContentOptions. |
+| `->frame-wait-for-function-options` | [opts] | Converts a map to Frame$WaitForFunctionOptions. |
+| `->frame-wait-for-selector-options` | [opts] | Converts a map to Frame$WaitForSelectorOptions. |
+| `->frame-wait-for-url-options` | [opts] | Converts a map to Frame$WaitForURLOptions. |
+| `->get-attribute-options` | [opts] | Converts a map to Locator$GetAttributeOptions. |
+| `->go-back-options` | [opts] | Converts a map to Page$GoBackOptions. |
+| `->go-forward-options` | [opts] | Converts a map to Page$GoForwardOptions. |
+| `->hover-options` | [opts] | Converts a map to Locator$HoverOptions. |
+| `->inner-html-options` | [opts] | Converts a map to Locator$InnerHTMLOptions. |
+| `->inner-text-options` | [opts] | Converts a map to Locator$InnerTextOptions. |
+| `->input-value-options` | [opts] | Converts a map to Locator$InputValueOptions. |
+| `->is-checked-options` | [opts] | Converts a map to Locator$IsCheckedOptions. |
+| `->is-disabled-options` | [opts] | Converts a map to Locator$IsDisabledOptions. |
+| `->is-editable-options` | [opts] | Converts a map to Locator$IsEditableOptions. |
+| `->is-enabled-options` | [opts] | Converts a map to Locator$IsEnabledOptions. |
+| `->is-hidden-options` | [opts] | Converts a map to Locator$IsHiddenOptions. |
+| `->is-visible-options` | [opts] | Converts a map to Locator$IsVisibleOptions. |
+| `->keyboard-press-options` | [opts] | Converts a map to Keyboard$PressOptions. |
+| `->keyboard-type-options` | [opts] | Converts a map to Keyboard$TypeOptions. |
+| `->launch-options` | [opts] | Converts a map to BrowserType$LaunchOptions. |
+| `->locator-screenshot-options` | [opts] | Converts a map to Locator$ScreenshotOptions. |
+| `->mouse-click-options` | [opts] | Converts a map to Mouse$ClickOptions. |
+| `->mouse-dblclick-options` | [opts] | Converts a map to Mouse$DblclickOptions. |
+| `->mouse-down-options` | [opts] | Converts a map to Mouse$DownOptions. |
+| `->mouse-move-options` | [opts] | Converts a map to Mouse$MoveOptions. |
+| `->mouse-up-options` | [opts] | Converts a map to Mouse$UpOptions. |
+| `->navigate-options` | [opts] | Converts a map to Page$NavigateOptions. |
+| `->new-context-options` | [opts] | Converts a map to Browser$NewContextOptions. |
+| `->new-page-options` | [opts] | Converts a map to Browser$NewPageOptions. |
+| `->page-add-script-tag-options` | [opts] | Converts a map to Page$AddScriptTagOptions. |
+| `->page-add-style-tag-options` | [opts] | Converts a map to Page$AddStyleTagOptions. |
+| `->page-wait-for-function-options` | [opts] | Converts a map to Page$WaitForFunctionOptions. |
+| `->page-wait-for-url-options` | [opts] | Converts a map to Page$WaitForURLOptions. |
+| `->pdf-options` | [opts] | Converts a map to Page$PdfOptions. |
+| `->press-options` | [opts] | Converts a map to Locator$PressOptions. |
+| `->reload-options` | [opts] | Converts a map to Page$ReloadOptions. |
+| `->screen-size` | [opts] | Creates a ScreenSize instance. |
+| `->screenshot-options` | [opts] | Converts a map to Page$ScreenshotOptions. |
+| `->scroll-into-view-options` | [opts] | Converts a map to Locator$ScrollIntoViewIfNeededOptions. |
+| `->select-option-options` | [opts] | Converts a map to Locator$SelectOptionOptions. |
+| `->set-content-options` | [opts] | Converts a map to Page$SetContentOptions. |
+| `->set-input-files-options` | [opts] | Converts a map to Locator$SetInputFilesOptions. |
+| `->storage-state-options` | [opts] | Converts a map to BrowserContext$StorageStateOptions. |
+| `->tap-options` | [opts] | Converts a map to Locator$TapOptions. |
+| `->text-content-options` | [opts] | Converts a map to Locator$TextContentOptions. |
+| `->tracing-start-options` | [opts] | Converts a map to Tracing$StartOptions. |
+| `->tracing-stop-options` | [opts] | Converts a map to Tracing$StopOptions. |
+| `->type-options` | [opts] | Converts a map to Locator$TypeOptions. |
+| `->uncheck-options` | [opts] | Converts a map to Locator$UncheckOptions. |
+| `->viewport-size` | [opts] | Creates a ViewportSize instance. |
+| `->wait-for-download-options` | [opts] | Converts a map to Page$WaitForDownloadOptions. |
+| `->wait-for-file-chooser-options` | [opts] | Converts a map to Page$WaitForFileChooserOptions. |
+| `->wait-for-options` | [opts] | Converts a map to Locator$WaitForOptions. |
+| `->wait-for-popup-options` | [opts] | Converts a map to Page$WaitForPopupOptions. |
+| `->wait-for-request-finished-options` | [opts] | Converts a map to Page$WaitForRequestFinishedOptions. |
+| `->wait-for-request-options` | [opts] | Converts a map to Page$WaitForRequestOptions. |
+| `->wait-for-response-options` | [opts] | Converts a map to Page$WaitForResponseOptions. |
+| `->wait-for-selector-options` | [opts] | Converts a map to Page$WaitForSelectorOptions. |
+
+
 
 ### Error Handling
 
@@ -250,10 +784,14 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 ;; Popup handling
 (page/on-popup pg (fn [popup-pg] (println "Popup URL:" (page/url popup-pg))))
 
-;; waitForPopup / waitForDownload (Java interop - no wrapper yet)
-(let [popup (.waitForPopup ^Page pg
-              (reify Runnable (run [_] (locator/click (page/locator pg "a")))))]
+;; waitForPopup / waitForDownload
+(let [popup (page/wait-for-popup pg
+              #(locator/click (page/locator pg "a")))]
   (page/navigate popup "..."))
+
+(let [dl (page/wait-for-download pg
+           #(locator/click (page/locator pg "a.download")))]
+  (util/download-save-as! dl "/tmp/file.txt"))
 ```
 
 ### Frame Navigation
@@ -339,8 +877,9 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
   (println "Worker URL:" (util/worker-url w))
   (println "Eval:" (util/worker-evaluate w "self.name")))
 
-;; File chooser (Java interop — no Clojure wrapper for waitForFileChooser)
-(let [fc (.waitForFileChooser ^Page pg (reify Runnable (run [_] (locator/click (page/locator pg "input[type=file]")))))]
+;; File chooser
+(let [fc (page/wait-for-file-chooser pg
+           #(locator/click (page/locator pg "input[type=file]")))]
   (util/file-chooser-set-files! fc "/path/to/file.txt")
   ;; (util/file-chooser-page fc)
   ;; (util/file-chooser-element fc)
@@ -533,8 +1072,8 @@ spel codegen transform --format=body recording.jsonl
 | Signal | Codegen Pattern |
 |--------|----------------|
 | `dialog` | `(page/on-dialog pg (fn [dialog] (.dismiss dialog)))` BEFORE action |
-| `popup` | `(let [popup-pg (.waitForPopup ^Page pg (reify Runnable ...))] ...)` AROUND action |
-| `download` | `(let [download (.waitForDownload ^Page pg (reify Runnable ...))] ...)` AROUND action |
+| `popup` | `(let [popup-pg (page/wait-for-popup pg #(action))] ...)` AROUND action |
+| `download` | `(let [download (page/wait-for-download pg #(action))] ...)` AROUND action |
 
 ### Frame Navigation in Codegen
 
@@ -902,848 +1441,639 @@ clojure -T:build native-image
 ./target/spel install
 ```
 
-### CLI Commands
-
-The CLI uses a daemon process to keep the browser alive between invocations. The daemon auto-starts on first command.
-
-```bash
-# Navigation
-spel open <url>                        # Navigate (aliases: goto, navigate)
-spel open <url> --interactive          # Navigate with visible browser
-spel back                              # Go back
-spel forward                           # Go forward
-spel reload                            # Reload page
-
-# Snapshot (ARIA accessibility tree with refs)
-spel snapshot                          # Full accessibility tree with refs
-spel snapshot -i                       # Interactive elements only
-spel snapshot -i -c -d 5              # Compact, depth-limited
-spel snapshot -i -C                    # Interactive + cursor elements
-spel snapshot -s "#main"              # Scoped to selector
-
-# Element interactions (by ref from snapshot)
-spel click @e1                         # Click element by ref or selector
-spel dblclick @e1                      # Double-click
-spel fill @e2 "text"                   # Clear and fill input
-spel type @e2 "text"                   # Type without clearing
-spel clear @e2                         # Clear input
-spel hover @e1                         # Hover element
-spel check @e3                         # Check checkbox
-spel uncheck @e3                       # Uncheck checkbox
-spel select @e4 "opt1"                 # Select dropdown option
-spel focus @e1                         # Focus element
-spel press Enter                       # Press key (Enter, Tab, Control+a)
-spel press @e1 Tab                     # Press key on element (alias: key)
-spel keydown Shift                     # Hold key down
-spel keyup Shift                       # Release key
-spel scroll down 500                   # Scroll (up/down/left/right)
-spel scrollintoview @e1                # Scroll element into view
-spel drag @e1 @e2                      # Drag and drop
-spel upload @e1 file.txt               # Upload files
-
-# Screenshots & PDF
-spel screenshot                        # Screenshot to stdout (base64)
-spel screenshot shot.png               # Screenshot to file
-spel screenshot -f shot.png            # Full page screenshot
-spel pdf page.pdf                      # Save as PDF (Chromium only)
-
-# JavaScript
-spel eval "document.title"             # Evaluate JavaScript
-spel eval "document.title" -b          # Evaluate, base64-encode result
-
-# Wait
-spel wait @e1                          # Wait for element visible
-spel wait 2000                         # Wait for timeout (ms)
-spel wait --text "Welcome"             # Wait for text to appear
-spel wait --url "**/dash"              # Wait for URL pattern
-spel wait --load networkidle           # Wait for load state
-spel wait --fn "window.ready"          # Wait for JS condition
-
-# Get Info
-spel get text @e1                      # Get text content
-spel get html @e1                      # Get innerHTML
-spel get value @e1                     # Get input value
-spel get attr @e1 href                 # Get attribute value
-spel get url                           # Get current URL
-spel get title                         # Get page title
-spel get count ".items"                # Count matching elements
-spel get box @e1                       # Get bounding box
-
-# Check State
-spel is visible @e1                    # Check visibility
-spel is enabled @e1                    # Check enabled state
-spel is checked @e1                    # Check checked state
-
-# Find (Semantic Locators)
-spel find role <role> <action>         # By ARIA role
-spel find text <text> <action>         # By text content
-spel find label <text> <action> [val]  # By label
-spel find role button click --name Submit  # With name filter
-spel find first/last/nth <sel> <action>    # Position-based
-
-# Mouse Control
-spel mouse move 100 200               # Move mouse
-spel mouse down                        # Press mouse button
-spel mouse up                          # Release mouse button
-spel mouse wheel 100                   # Scroll wheel
-
-# Browser Settings
-spel set viewport 1280 720            # Set viewport size
-spel set device "iphone 14"           # Emulate device
-spel set geo 37.7 -122.4              # Set geolocation
-spel set offline on                    # Toggle offline mode
-spel set headers '{"X-Key":"val"}'    # Extra HTTP headers
-spel set credentials user pass         # HTTP basic auth
-spel set media dark                    # Emulate color scheme (dark/light)
-
-# Cookies & Storage
-spel cookies                           # Get all cookies
-spel cookies set name value            # Set cookie
-spel cookies clear                     # Clear cookies
-spel storage local [key]               # Get localStorage
-spel storage local set key value       # Set localStorage
-spel storage local clear               # Clear localStorage
-spel storage session [key]             # Same for sessionStorage
-
-# Network
-spel network route <url>               # Intercept requests
-spel network route <url> --abort       # Block requests
-spel network route <url> --body <json> # Mock response
-spel network unroute [url]             # Remove routes
-spel network requests                  # View all tracked requests (auto-tracked, last 500)
-spel network requests --filter <regex> # Filter by URL regex
-spel network requests --type <type>    # Filter by type (document, script, fetch, image, stylesheet, font, xhr)
-spel network requests --method <method>  # Filter by HTTP method (GET, POST, etc.)
-spel network requests --status <prefix>  # Filter by status prefix (2=2xx, 30=30x, 404=exact)
-spel network requests --type fetch --status 4  # Combine filters
-spel network clear                     # Clear tracked requests
-
-# Tabs & Windows
-spel tab                               # List tabs
-spel tab new [url]                     # New tab
-spel tab <n>                           # Switch to tab
-spel tab close                         # Close tab
-
-# Frames & Dialogs
-spel frame <sel>                       # Switch to iframe
-spel frame main                        # Back to main frame
-spel frame list                        # List all frames
-spel dialog accept [text]              # Accept dialog
-spel dialog dismiss                    # Dismiss dialog
-
-# Debug
-spel connect <url>                     # Connect to browser via CDP
-spel trace start / trace stop          # Record trace
-spel console / console clear           # View/clear console (auto-captured)
-spel errors / errors clear             # View/clear errors (auto-captured)
-spel highlight @e1                     # Highlight element
-
-# State Management
-spel state save [path]                 # Save auth/storage state
-spel state load [path]                 # Load saved state
-spel state list                        # List state files
-spel state show <file>                 # Show state file contents
-spel state rename <old> <new>          # Rename state file
-spel state clear [--all]               # Clear state files
-spel state clean [--older-than N]      # Remove states older than N days
-
-# Sessions
-spel --session <name> <cmd>            # Use named session
-spel session                           # Show current session info
-spel session list                      # List active sessions
-
-# Utility
-spel install [--with-deps]             # Install Playwright browsers
-spel version                           # Show version
-spel close                             # Close browser + daemon (aliases: quit, exit)
-```
-
-### Global Flags
-
-```bash
-spel open <url> --interactive           # Show browser window (headed mode)
-spel --session work open <url>         # Named session (default: "default")
-spel --json get url                    # JSON output (for agents)
-spel --profile /path open <url>        # Persistent browser profile
-spel --executable-path /path open <url>  # Custom browser executable
-spel --user-agent "Bot/1.0" open <url> # Custom user agent string
-spel --proxy http://proxy:8080 open <url>  # Proxy server URL
-spel --proxy-bypass "*.local" open <url>   # Proxy bypass domains
-spel --headers '{"X-Key":"val"}' open <url>  # HTTP headers
-spel --args "no-sandbox,disable-gpu" open <url>  # Browser args (comma-separated)
-spel --cdp ws://... open <url>         # Connect via CDP endpoint
-spel --ignore-https-errors open <url>  # Ignore HTTPS errors
-spel --allow-file-access open <url>    # Allow file:// access
-spel --debug open <url>                # Debug output
-```
-
-### Eval / Script Mode (SCI)
-
-`spel --eval` evaluates Clojure code via SCI (Small Clojure Interpreter) embedded in the native binary. No JVM startup needed.
-
-**Daemon-backed**: Eval mode uses the same daemon as CLI commands. The browser persists between `--eval` invocations — no restart penalty. `spel/start!` is optional (no-op if a daemon browser is already running). `spel/stop!` does not kill the daemon's browser.
-
-**`--autoclose` flag**: Add `--autoclose` to shut down the daemon after eval (old behavior). Without it, the browser stays alive for the next invocation.
-
-**`--session` flag**: Use `--session <name>` to target a specific daemon session (default: "default"). Matches the CLI `--session` flag.
-
-**Error handling**: In `--eval` mode, Playwright errors throw immediately (short-circuiting `(do ...)` forms) and the process exits with code 1.
-
-**Timeout control**: Use `--timeout <ms>` to set Playwright's default action timeout (default: 30s):
-
-```bash
-# Basic eval — no browser needed
-spel --eval '(+ 1 2)'
-
-# Browser persists between calls (daemon-backed)
-spel --eval '(spel/goto "https://example.com") (spel/title)'
-
-# start! is optional — works but is a no-op when daemon has a page
-spel --eval '(spel/start!) (spel/goto "https://example.com") (spel/title)'
-
-# With timeout
-spel --timeout 5000 --eval '(do (spel/goto "https://example.com") (spel/text "h1"))'
-
-# Kill daemon after eval (old behavior)
-spel --autoclose --eval '(spel/goto "https://example.com") (spel/title)'
-
-# Use a named session
-spel --session work --eval '(spel/goto "https://example.com")'
-```
-
-#### Available Namespaces
-
-Nine namespaces are pre-registered:
-
-| Namespace | Purpose |
-|-----------|---------|
-| `pw` | Simplified browser automation (lifecycle, navigation, actions, content, assertions — implicit page) |
-| `snapshot` | Accessibility snapshot capture and ref resolution |
-| `annotate` | Page annotation overlays (visible elements only) |
-| `input` | Keyboard, Mouse, Touchscreen operations (explicit device arg) |
-| `frame` | Frame and FrameLocator operations (explicit Frame/FrameLocator arg) |
-| `net` | Network request/response/route inspection (explicit object arg) |
-| `loc` | Raw locator operations (explicit Locator arg — no implicit page) |
-| `assert` | Playwright assertion functions (explicit assertion object arg) |
-| `core` | Browser lifecycle utilities and resource management |
-
-#### `pw` Namespace — Full API
-
-**Lifecycle:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/start!)` | Start browser session (headless). No-op if daemon already has a page. |
-| `(spel/start! {:headless false})` | Start headed browser |
-| `(spel/start! {:browser :firefox})` | Start Firefox (`:chromium`, `:firefox`, `:webkit`) |
-| `(spel/start! {:viewport {:width 1280 :height 720}})` | Custom viewport |
-| `(spel/start! {:timeout 5000})` | Set default action timeout (ms) |
-| `(spel/stop!)` | Stop browser. In daemon mode: nils SCI atoms without killing daemon's browser. |
-| `(spel/restart!)` | Stop then start fresh |
-| `(spel/new-tab!)` | Open new tab, switch to it |
-| `(spel/switch-tab! 0)` | Switch to tab by index |
-| `(spel/tabs)` | List all tabs `[{:index 0 :url "..." :title "..." :active? true}]` |
-
-**Navigation:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/goto "https://example.com")` | Navigate to URL |
-| `(spel/goto "https://example.com" {:timeout 30000})` | Navigate with timeout |
-| `(spel/back)` | Go back |
-| `(spel/forward)` | Go forward |
-| `(spel/reload!)` | Reload page |
-| `(spel/url)` | Get current URL |
-| `(spel/title)` | Get page title |
-| `(spel/html)` | Get full page HTML |
-
-**Locators:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/$ "css-selector")` | Locate by CSS selector (also accepts Locator pass-through) |
-| `(spel/$$ "css-selector")` | Locate all matching elements |
-| `(spel/$text "Click me")` | Locate by text content |
-| `(spel/$role AriaRole/BUTTON)` | Locate by ARIA role |
-| `(spel/$label "Email")` | Locate by label |
-| `(spel/$placeholder "Search")` | Locate by placeholder |
-| `(spel/$test-id "submit-btn")` | Locate by test ID |
-| `(spel/$alt-text "alt text")` | Locate by alt text |
-| `(spel/$title-attr "title")` | Locate by title attribute |
-
-**Actions:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/click "selector")` | Click element |
-| `(spel/click "selector" {:click-count 2})` | Click with options |
-| `(spel/dblclick "selector")` | Double-click |
-| `(spel/fill "selector" "text")` | Clear + fill input |
-| `(spel/type-text "selector" "text")` | Type without clearing |
-| `(spel/press "selector" "Enter")` | Press key on element |
-| `(spel/clear "selector")` | Clear input |
-| `(spel/check "selector")` | Check checkbox |
-| `(spel/uncheck "selector")` | Uncheck checkbox |
-| `(spel/hover "selector")` | Hover element |
-| `(spel/focus "selector")` | Focus element |
-| `(spel/select "selector" "value")` | Select dropdown option |
-| `(spel/blur "selector")` | Blur element |
-| `(spel/tap "selector")` | Tap element (touch) |
-| `(spel/set-input-files! "selector" files)` | Set file input |
-| `(spel/scroll-into-view "selector")` | Scroll element into view |
-| `(spel/dispatch-event "selector" "click")` | Dispatch DOM event |
-| `(spel/drag-to "source" "target")` | Drag element to target |
-| `(spel/highlight "selector")` | Highlight element |
-| `(spel/locator-screenshot "selector")` | Screenshot specific element |
-
-**Content & State:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/text "selector")` | Get text content |
-| `(spel/inner-text "selector")` | Get inner text |
-| `(spel/inner-html "selector")` | Get inner HTML |
-| `(spel/attr "selector" "href")` | Get attribute value |
-| `(spel/value "selector")` | Get input value |
-| `(spel/count-of "selector")` | Count matching elements |
-| `(spel/visible? "selector")` | Check visibility |
-| `(spel/hidden? "selector")` | Check if hidden |
-| `(spel/enabled? "selector")` | Check if enabled |
-| `(spel/disabled? "selector")` | Check if disabled |
-| `(spel/editable? "selector")` | Check if editable |
-| `(spel/checked? "selector")` | Check if checked |
-| `(spel/bbox "selector")` | Get bounding box `{:x :y :width :height}` |
-| `(spel/all-text-contents "selector")` | Get all matching texts as vector |
-| `(spel/all-inner-texts "selector")` | Get all inner texts as vector |
-| `(spel/info)` | Get page info `{:url :title :viewport :closed?}` |
-
-**Locator Filtering:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/loc-filter (spel/$ "li") {:has-text "Item"})` | Filter locator |
-| `(spel/first (spel/$ "li"))` | First matching element |
-| `(spel/last (spel/$ "li"))` | Last matching element |
-| `(spel/nth (spel/$ "li") 2)` | Nth element (0-indexed) |
-| `(spel/loc-locator (spel/$ "div") "span")` | Sub-locator |
-| `(spel/loc-get-by-text loc "text")` | Sub-locate by text |
-| `(spel/loc-get-by-role loc AriaRole/BUTTON)` | Sub-locate by role |
-| `(spel/loc-get-by-label loc "Email")` | Sub-locate by label |
-| `(spel/loc-get-by-test-id loc "id")` | Sub-locate by test ID |
-| `(spel/loc-wait-for loc)` | Wait for locator |
-| `(spel/evaluate-locator loc "el => el.id")` | Evaluate JS on locator element |
-| `(spel/evaluate-all-locs loc "els => els.length")` | Evaluate JS on all matching |
-
-**JavaScript:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/eval-js "document.title")` | Evaluate JavaScript expression |
-| `(spel/eval-js "([a,b]) => a+b" [1 2])` | Evaluate with argument |
-| `(spel/evaluate-handle "document.body")` | Evaluate returning JSHandle |
-
-**Screenshots & PDF:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/screenshot)` | Screenshot as bytes |
-| `(spel/screenshot "path.png")` | Screenshot to file |
-| `(spel/screenshot {:path "p.png" :full-page true})` | Full page screenshot |
-| `(spel/pdf)` | PDF as bytes |
-| `(spel/pdf "page.pdf")` | PDF to file |
-
-**Waiting:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/wait-for "selector")` | Wait for element visible |
-| `(spel/wait-for "selector" {:state "hidden"})` | Wait for element hidden |
-| `(spel/wait-for-load)` | Wait for load state |
-| `(spel/wait-for-load "networkidle")` | Wait for specific load state |
-| `(spel/sleep 1000)` | Wait for timeout (ms) |
-| `(spel/wait-for-url "**/dashboard")` | Wait for URL pattern |
-| `(spel/wait-for-function "() => document.ready")` | Wait for JS predicate |
-
-**Assertions:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/assert-text "selector" "expected")` | Assert element has text |
-| `(spel/assert-visible "selector")` | Assert element is visible |
-| `(spel/assert-hidden "selector")` | Assert element is hidden |
-| `(spel/assert-title "My Page")` | Assert page title |
-| `(spel/assert-url "https://...")` | Assert page URL |
-| `(spel/assert-count "selector" 5)` | Assert element count |
-| `(spel/assert-that loc-or-page)` | Create assertion object |
-| `(spel/assert-not (spel/assert-that loc))` | Negate assertion |
-| `(spel/assert-contains-text "sel" "partial")` | Assert contains text (substring) |
-| `(spel/assert-attr "sel" "href" "val")` | Assert attribute value |
-| `(spel/assert-class "sel" "active")` | Assert CSS class |
-| `(spel/assert-contains-class "sel" "btn")` | Assert contains CSS class |
-| `(spel/assert-css "sel" "color" "red")` | Assert CSS property |
-| `(spel/assert-id "sel" "my-id")` | Assert element ID |
-| `(spel/assert-js-property "sel" "value" "x")` | Assert JS property |
-| `(spel/assert-value "sel" "text")` | Assert input value |
-| `(spel/assert-values "sel" ["a" "b"])` | Assert select values |
-| `(spel/assert-role "sel" AriaRole/BUTTON)` | Assert ARIA role |
-| `(spel/assert-accessible-name "sel" "Submit")` | Assert accessible name |
-| `(spel/assert-accessible-description "sel" "desc")` | Assert accessible description |
-| `(spel/assert-accessible-error-message "sel" "err")` | Assert error message |
-| `(spel/assert-matches-aria-snapshot "sel" "- button")` | Assert ARIA snapshot |
-| `(spel/assert-attached "sel")` | Assert element attached to DOM |
-| `(spel/assert-checked "sel")` | Assert checked |
-| `(spel/assert-disabled "sel")` | Assert disabled |
-| `(spel/assert-editable "sel")` | Assert editable |
-| `(spel/assert-enabled "sel")` | Assert enabled |
-| `(spel/assert-focused "sel")` | Assert focused |
-| `(spel/assert-empty "sel")` | Assert empty |
-| `(spel/assert-in-viewport "sel")` | Assert in viewport |
-| `(spel/assert-page-not)` | Negate page assertion (implicit page) |
-| `(spel/set-assertion-timeout! 5000)` | Set assertion timeout |
-
-**Snapshot & Ref-based Actions:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/snapshot)` | Capture accessibility snapshot with refs |
-| `(spel/full-snapshot)` | Full snapshot including iframes |
-| `(spel/resolve-ref "e1")` | Resolve ref to Locator |
-| `(spel/clear-refs!)` | Clear ref assignments |
-| `(spel/click-ref "e1")` | Click element by ref |
-| `(spel/fill-ref "e2" "text")` | Fill input by ref |
-| `(spel/type-ref "e2" "text")` | Type by ref |
-| `(spel/hover-ref "e1")` | Hover by ref |
-| `(spel/annotated-screenshot refs)` | Convenience: inject → screenshot → cleanup |
-| `(spel/save-annotated-screenshot! refs "path.png")` | Convenience: annotated screenshot to file |
-
-**Network:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/last-response "url")` | Navigate and return response `{:status :ok? :url :headers}` |
-
-**Page Functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/set-content! "<h1>Hi</h1>")` | Set page HTML content |
-| `(spel/set-viewport-size! 1280 720)` | Set viewport (width, height) |
-| `(spel/viewport-size)` | Get viewport `{:width :height}` |
-| `(spel/set-default-timeout! 5000)` | Set page default timeout |
-| `(spel/set-default-navigation-timeout! 10000)` | Set navigation timeout |
-| `(spel/emulate-media! {:media "print"})` | Emulate media type |
-| `(spel/bring-to-front)` | Bring page to front |
-| `(spel/set-extra-http-headers! {"X-Key" "val"})` | Set HTTP headers |
-| `(spel/add-script-tag {:url "..."})` | Add script tag |
-| `(spel/add-style-tag {:content "body{color:red}"})` | Add style tag |
-| `(spel/expose-function! "fn" handler)` | Expose function to page JS |
-| `(spel/expose-binding! "fn" handler)` | Expose binding to page JS |
-
-**Page Events:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/on-console handler)` | Listen for console messages |
-| `(spel/on-dialog handler)` | Listen for dialogs |
-| `(spel/on-page-error handler)` | Listen for page errors |
-| `(spel/on-request handler)` | Listen for requests |
-| `(spel/on-response handler)` | Listen for responses |
-| `(spel/on-close handler)` | Listen for page close |
-| `(spel/on-download handler)` | Listen for downloads |
-| `(spel/on-popup handler)` | Listen for popups |
-
-**Routing:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/route! "**/api/**" handler)` | Intercept requests matching pattern |
-| `(spel/unroute! "**/api/**")` | Remove route handler |
-
-**Page Accessors:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/page)` | Get raw Page object |
-| `(spel/keyboard)` | Get Keyboard for current page |
-| `(spel/mouse)` | Get Mouse for current page |
-| `(spel/touchscreen)` | Get Touchscreen for current page |
-| `(spel/page-context)` | Get BrowserContext from page |
-| `(spel/frames)` | Get all frames |
-| `(spel/main-frame)` | Get main frame |
-| `(spel/frame-by-name "name")` | Find frame by name |
-| `(spel/frame-by-url "url")` | Find frame by URL |
-
-**Context & Browser:**
-
-| Function | Description |
-|----------|-------------|
-| `(spel/context)` | Get raw BrowserContext |
-| `(spel/browser)` | Get raw Browser |
-| `(spel/context-cookies)` | Get cookies |
-| `(spel/context-clear-cookies!)` | Clear cookies |
-| `(spel/context-set-offline! true)` | Set offline mode |
-| `(spel/context-grant-permissions! ["geolocation"])` | Grant permissions |
-| `(spel/context-clear-permissions!)` | Clear permissions |
-| `(spel/context-set-extra-http-headers! {"K" "V"})` | Context-level headers |
-| `(spel/browser-connected?)` | Check browser connected |
-| `(spel/browser-version)` | Get browser version |
-
-#### `snapshot` Namespace
-
-| Function | Description |
-|----------|-------------|
-| `(snapshot/capture)` | Capture snapshot for current page (implicit) |
-| `(snapshot/capture page)` | Capture snapshot for explicit page |
-| `(snapshot/capture-full)` | Full snapshot with iframes (implicit page) |
-| `(snapshot/capture-full page)` | Full snapshot for explicit page |
-| `(snapshot/resolve-ref "e1")` | Resolve ref to Locator (implicit page) |
-| `(snapshot/clear-refs!)` | Clear refs (implicit page) |
-| `(snapshot/ref-bounding-box page "e1")` | Get ref bounding box (requires explicit page) |
-
-#### `annotate` Namespace
-
-| Function | Description |
-|----------|-------------|
-| `(annotate/annotated-screenshot refs)` | Inject overlays → screenshot → cleanup (implicit page) |
-| `(annotate/annotated-screenshot refs opts)` | With options (`:show-badges`, `:show-boxes`, `:show-dimensions`, `:full-page`) |
-| `(annotate/save! refs "path.png")` | Annotated screenshot saved to file (implicit page) |
-| `(annotate/save! refs "path.png" opts)` | Save with options |
-
-#### `input` Namespace
-
-Requires explicit Keyboard/Mouse/Touchscreen argument. Get devices via `(spel/keyboard)`, `(spel/mouse)`, `(spel/touchscreen)`.
-
-| Function | Description |
-|----------|-------------|
-| `(input/key-press kb "Enter")` | Press key |
-| `(input/key-type kb "text")` | Type text character by character |
-| `(input/key-down kb "Shift")` | Hold key down |
-| `(input/key-up kb "Shift")` | Release key |
-| `(input/key-insert-text kb "text")` | Insert text without key events |
-| `(input/mouse-click mouse 100 200)` | Click at coordinates |
-| `(input/mouse-dblclick mouse 100 200)` | Double-click at coordinates |
-| `(input/mouse-move mouse 100 200)` | Move mouse |
-| `(input/mouse-down mouse)` | Press mouse button |
-| `(input/mouse-up mouse)` | Release mouse button |
-| `(input/mouse-wheel mouse 0 100)` | Scroll wheel (deltaX, deltaY) |
-| `(input/touchscreen-tap ts 100 200)` | Tap at coordinates |
-
-#### `frame` Namespace
-
-For Frame and FrameLocator operations. Frame = a page frame; FrameLocator = CSS-based frame selector.
-
-| Function | Description |
-|----------|-------------|
-| `(frame/navigate frame "url")` | Navigate frame |
-| `(frame/content frame)` | Get frame HTML |
-| `(frame/set-content! frame "<h1>Hi</h1>")` | Set frame HTML |
-| `(frame/url frame)` | Get frame URL |
-| `(frame/name frame)` | Get frame name |
-| `(frame/title frame)` | Get frame title |
-| `(frame/locator frame "selector")` | Create locator in frame |
-| `(frame/get-by-text frame "text")` | Find by text in frame |
-| `(frame/get-by-role frame AriaRole/BUTTON)` | Find by role in frame |
-| `(frame/get-by-label frame "label")` | Find by label in frame |
-| `(frame/get-by-test-id frame "id")` | Find by test ID in frame |
-| `(frame/evaluate frame "expr")` | Evaluate JS in frame |
-| `(frame/parent-frame frame)` | Get parent frame |
-| `(frame/child-frames frame)` | Get child frames |
-| `(frame/frame-page frame)` | Get page owning frame |
-| `(frame/is-detached? frame)` | Check if frame detached |
-| `(frame/wait-for-load-state frame)` | Wait for frame load |
-| `(frame/wait-for-selector frame "sel")` | Wait for selector in frame |
-| `(frame/wait-for-function frame "fn")` | Wait for JS predicate in frame |
-| `(frame/frame-locator page "iframe")` | Create FrameLocator from CSS |
-| `(frame/fl-locator fl "button")` | Locator inside FrameLocator |
-| `(frame/fl-get-by-text fl "text")` | Find by text in FrameLocator |
-| `(frame/fl-get-by-role fl AriaRole/BUTTON)` | Find by role in FrameLocator |
-| `(frame/fl-get-by-label fl "label")` | Find by label in FrameLocator |
-| `(frame/fl-first fl)` | First matching FrameLocator |
-| `(frame/fl-last fl)` | Last matching FrameLocator |
-| `(frame/fl-nth fl 2)` | Nth FrameLocator (0-indexed) |
-
-#### `net` Namespace
-
-For Request, Response, Route, WebSocket, and WebSocketRoute inspection. All take explicit objects.
-
-**Request functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(net/request-url req)` | Request URL |
-| `(net/request-method req)` | HTTP method |
-| `(net/request-headers req)` | Request headers map |
-| `(net/request-all-headers req)` | All headers (including duplicates) |
-| `(net/request-post-data req)` | POST body string |
-| `(net/request-post-data-buffer req)` | POST body bytes |
-| `(net/request-resource-type req)` | Resource type (document, xhr, etc.) |
-| `(net/request-response req)` | Get response for request |
-| `(net/request-failure req)` | Get failure info |
-| `(net/request-frame req)` | Frame that initiated request |
-| `(net/request-is-navigation? req)` | Is navigation request? |
-| `(net/request-redirected-from req)` | Redirected-from request |
-| `(net/request-redirected-to req)` | Redirected-to request |
-| `(net/request-timing req)` | Request timing info |
-
-**Response functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(net/response-url resp)` | Response URL |
-| `(net/response-status resp)` | HTTP status code |
-| `(net/response-status-text resp)` | Status text |
-| `(net/response-headers resp)` | Response headers map |
-| `(net/response-all-headers resp)` | All headers |
-| `(net/response-body resp)` | Response body bytes |
-| `(net/response-text resp)` | Response body text |
-| `(net/response-ok? resp)` | Status 200-299? |
-| `(net/response-request resp)` | Get request for response |
-| `(net/response-frame resp)` | Frame that received response |
-| `(net/response-finished resp)` | Wait for response to finish |
-| `(net/response-header-value resp "key")` | Single header value |
-| `(net/response-header-values resp "key")` | All values for header |
-
-**Route functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(net/route-request route)` | Get request being routed |
-| `(net/route-fulfill! route {:status 200 :body "ok"})` | Fulfill with mock |
-| `(net/route-continue! route)` | Continue to server |
-| `(net/route-abort! route)` | Abort request |
-| `(net/route-fallback! route)` | Fall through to next handler |
-| `(net/route-fetch! route)` | Fetch and return response |
-
-**WebSocket functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(net/ws-url ws)` | WebSocket URL |
-| `(net/ws-is-closed? ws)` | Is closed? |
-| `(net/ws-on-message ws handler)` | Listen for messages |
-| `(net/ws-on-close ws handler)` | Listen for close |
-| `(net/ws-on-error ws handler)` | Listen for errors |
-| `(net/wsf-text frame)` | Frame text data |
-| `(net/wsf-binary frame)` | Frame binary data |
-| `(net/wsr-url wsr)` | WebSocketRoute URL |
-| `(net/wsr-close! wsr)` | Close route |
-| `(net/wsr-connect-to-server! wsr)` | Connect to server |
-| `(net/wsr-on-message wsr handler)` | Route message handler |
-| `(net/wsr-send! wsr data)` | Send through route |
-| `(net/wsr-on-close wsr handler)` | Route close handler |
-
-#### `loc` Namespace
-
-Raw locator operations with explicit Locator argument. Same functions as `spel/` but you pass the Locator directly instead of a CSS selector string.
-
-**Actions:**
-
-| Function | Description |
-|----------|-------------|
-| `(loc/click loc)` | Click |
-| `(loc/dblclick loc)` | Double-click |
-| `(loc/fill loc "text")` | Fill input |
-| `(loc/type-text loc "text")` | Type without clearing |
-| `(loc/press loc "Enter")` | Press key |
-| `(loc/clear loc)` | Clear input |
-| `(loc/check loc)` | Check checkbox |
-| `(loc/uncheck loc)` | Uncheck checkbox |
-| `(loc/hover loc)` | Hover |
-| `(loc/focus loc)` | Focus |
-| `(loc/blur loc)` | Blur |
-| `(loc/tap-element loc)` | Tap (touch) |
-| `(loc/select-option loc "value")` | Select dropdown |
-| `(loc/set-input-files! loc files)` | Set files |
-| `(loc/scroll-into-view loc)` | Scroll into view |
-| `(loc/dispatch-event loc "click")` | Dispatch event |
-| `(loc/drag-to loc target-loc)` | Drag to target |
-
-**State queries:**
-
-| Function | Description |
-|----------|-------------|
-| `(loc/text-content loc)` | Text content |
-| `(loc/inner-text loc)` | Inner text |
-| `(loc/inner-html loc)` | Inner HTML |
-| `(loc/input-value loc)` | Input value |
-| `(loc/get-attribute loc "href")` | Attribute value |
-| `(loc/is-visible? loc)` | Visible? |
-| `(loc/is-hidden? loc)` | Hidden? |
-| `(loc/is-enabled? loc)` | Enabled? |
-| `(loc/is-disabled? loc)` | Disabled? |
-| `(loc/is-editable? loc)` | Editable? |
-| `(loc/is-checked? loc)` | Checked? |
-| `(loc/bounding-box loc)` | Bounding box |
-| `(loc/count-elements loc)` | Count matching |
-| `(loc/all-text-contents loc)` | All texts vector |
-| `(loc/all-inner-texts loc)` | All inner texts vector |
-| `(loc/all loc)` | All Locator objects as list |
-
-**Filtering & positioning:**
-
-| Function | Description |
-|----------|-------------|
-| `(loc/loc-filter loc {:has-text "x"})` | Filter locator |
-| `(loc/first-element loc)` | First match |
-| `(loc/last-element loc)` | Last match |
-| `(loc/nth-element loc 2)` | Nth match |
-| `(loc/loc-locator loc "span")` | Sub-locator |
-| `(loc/loc-get-by-text loc "text")` | Sub-locate by text |
-| `(loc/loc-get-by-role loc AriaRole/BUTTON)` | Sub-locate by role |
-| `(loc/loc-get-by-label loc "label")` | Sub-locate by label |
-| `(loc/loc-get-by-test-id loc "id")` | Sub-locate by test ID |
-
-**Waiting & evaluation:**
-
-| Function | Description |
-|----------|-------------|
-| `(loc/wait-for loc)` | Wait for visible |
-| `(loc/evaluate loc "el => el.id")` | Evaluate JS on element |
-| `(loc/evaluate-all loc "els => els.length")` | Evaluate JS on all |
-| `(loc/screenshot loc)` | Element screenshot |
-| `(loc/highlight loc)` | Highlight |
-| `(loc/element-handle loc)` | Get ElementHandle |
-| `(loc/element-handles loc)` | Get all ElementHandles |
-
-#### `assert` Namespace
-
-Raw Playwright assertion functions. Requires explicit assertion object from `(assert/assert-that loc-or-page)`.
-
-| Function | Description |
-|----------|-------------|
-| `(assert/assert-that loc-or-page)` | Create assertion object (LocatorAssertions, PageAssertions, or APIResponseAssertions) |
-| `(assert/set-default-assertion-timeout! 5000)` | Set default assertion timeout |
-| `(assert/loc-not la)` | Negate locator assertion |
-| `(assert/page-not pa)` | Negate page assertion |
-| `(assert/api-not aa)` | Negate API response assertion |
-| `(assert/has-text la "text")` | Assert exact text |
-| `(assert/contains-text la "partial")` | Assert contains text |
-| `(assert/has-attribute la "attr" "val")` | Assert attribute |
-| `(assert/has-class la "cls")` | Assert CSS class |
-| `(assert/contains-class la "cls")` | Assert contains class |
-| `(assert/has-count la 5)` | Assert element count |
-| `(assert/has-css la "color" "red")` | Assert CSS property |
-| `(assert/has-id la "my-id")` | Assert ID |
-| `(assert/has-js-property la "value" "x")` | Assert JS property |
-| `(assert/has-value la "text")` | Assert input value |
-| `(assert/has-values la ["a" "b"])` | Assert select values |
-| `(assert/has-role la AriaRole/BUTTON)` | Assert ARIA role |
-| `(assert/has-accessible-name la "Submit")` | Assert accessible name |
-| `(assert/has-accessible-description la "desc")` | Assert accessible description |
-| `(assert/has-accessible-error-message la "err")` | Assert error message |
-| `(assert/matches-aria-snapshot la "- button")` | Assert ARIA snapshot |
-| `(assert/is-attached la)` | Assert attached to DOM |
-| `(assert/is-checked la)` | Assert checked |
-| `(assert/is-disabled la)` | Assert disabled |
-| `(assert/is-editable la)` | Assert editable |
-| `(assert/is-enabled la)` | Assert enabled |
-| `(assert/is-focused la)` | Assert focused |
-| `(assert/is-hidden la)` | Assert hidden |
-| `(assert/is-visible la)` | Assert visible |
-| `(assert/is-empty la)` | Assert empty |
-| `(assert/is-in-viewport la)` | Assert in viewport |
-| `(assert/has-title pa "title")` | Assert page title |
-| `(assert/has-url pa "url")` | Assert page URL |
-| `(assert/is-ok aa)` | Assert API response OK |
-
-#### `core` Namespace
-
-Browser lifecycle utilities. `with-*` macros throw helpful errors in eval mode (use `spel/start!` instead). Other functions pass through directly.
-
-**Lifecycle stubs (throw helpful errors — use `spel/start!` instead):**
-
-| Function | Eval Mode Behavior |
-|----------|-------------------|
-| `core/with-playwright` | Error: "Use spel/start! in eval mode" |
-| `core/with-browser` | Error: "Use spel/start! in eval mode" |
-| `core/with-context` | Error: "Use spel/start! in eval mode" |
-| `core/with-page` | Error: "Use spel/start! in eval mode" |
-| `core/create` | Error: "Use spel/start! in eval mode" |
-| `core/launch-chromium` | Error: "Use spel/start! in eval mode" |
-| `core/launch-firefox` | Error: "Use (spel/start! {:browser :firefox}) in eval mode" |
-| `core/launch-webkit` | Error: "Use (spel/start! {:browser :webkit}) in eval mode" |
-
-**Pass-through functions:**
-
-| Function | Description |
-|----------|-------------|
-| `(core/close! obj)` | Close any Playwright resource |
-| `(core/close-browser! browser)` | Close browser |
-| `(core/close-context! ctx)` | Close context |
-| `(core/close-page! page)` | Close page |
-| `(core/anomaly? x)` | Check if anomaly map |
-| `(core/browser-connected? browser)` | Is browser connected? |
-| `(core/browser-version browser)` | Browser version string |
-| `(core/browser-contexts browser)` | List contexts |
-| `(core/context-pages ctx)` | List pages in context |
-| `(core/context-browser ctx)` | Get browser from context |
-| `(core/new-context browser)` | Create new context |
-| `(core/new-page browser)` | Create new page |
-| `(core/new-page-from-context ctx)` | Create page from context |
-| `(core/context-cookies ctx)` | Get cookies |
-| `(core/context-clear-cookies! ctx)` | Clear cookies |
-| `(core/context-set-offline! ctx true)` | Set offline |
-| `(core/context-grant-permissions! ctx perms)` | Grant permissions |
-| `(core/context-clear-permissions! ctx)` | Clear permissions |
-| `(core/context-set-extra-http-headers! ctx headers)` | Set context headers |
-| `(core/context-set-default-timeout! ctx ms)` | Set context timeout |
-| `(core/context-set-default-navigation-timeout! ctx ms)` | Set context nav timeout |
-
-#### SCI Runtime Details
-
-The eval mode uses [SCI](https://github.com/babashka/sci) (Small Clojure Interpreter). Key details:
-
-- **Core Clojure**: `let`, `def`, `defn`, `fn`, `if`, `when`, `cond`, `loop/recur`, `map`, `filter`, `reduce`, `for`, `doseq`, `->`, `->>`, `as->`, destructuring — all work
-- **Atoms**: `atom`, `deref`/`@`, `swap!`, `reset!` — all work
-- **Interop**: Java interop via `.method`, `(.method obj)`, `(Class/staticMethod)` — works for registered classes
-- **No macros**: Cannot define new macros with `defmacro` (SCI limitation)
-- **No require**: Namespaces are pre-registered, no `require` or `use` needed
-
-**Registered Java classes for interop:**
-
-`Page`, `Browser`, `BrowserContext`, `BrowserType`, `Playwright`, `Locator`, `ElementHandle`, `JSHandle`, `Frame`, `FrameLocator`, `Keyboard`, `Mouse`, `Touchscreen`, `CDPSession`, `ConsoleMessage`, `Dialog`, `Download`, `Tracing`, `Request`, `Response`, `Route`, `WebSocket`, `WebSocketFrame`, `WebSocketRoute`, `APIResponse`, `LocatorAssertions`, `PageAssertions`, `APIResponseAssertions`, `PlaywrightAssertions`, `AriaRole`
-
-#### Eval Examples
-
-```bash
-# Simple expression
-spel --eval '(+ 1 2)'
-# => 3
-
-# Browser session — start! is optional (daemon auto-starts browser)
-spel --eval '
-  (spel/goto "https://example.com")
-  (println "Title:" (spel/title))
-  (println "URL:" (spel/url))'
-
-# start! still works (no-op if daemon already has a page)
-spel --eval '
-  (spel/start!)
-  (spel/goto "https://example.com")
-  (spel/title)'
-
-# Snapshot and interact by ref
-spel --eval '
-  (spel/goto "https://example.com")
-  (let [snap (spel/snapshot)]
-    (println (:tree snap))
-    (spel/click-ref "e2"))'
-
-# Scrape data
-spel --eval '
-  (spel/goto "https://example.com")
-  (spel/eval-js "document.querySelectorAll(\"a\").length")'
-
-# Kill daemon after eval (one-shot mode)
-spel --autoclose --eval '
-  (spel/goto "https://example.com")
-  (spel/title)'
-
-# Headed browser for debugging — use open --interactive first
-# spel open --interactive https://example.com
-# Then use eval to interact with the visible browser:
-spel --eval '(spel/title)'
-```
+## CLI Commands Reference (`spel`)
+
+Auto-generated from CLI help text. Run `spel --help` for the full reference.
+
+### Core Commands
+
+| Command | Description |
+|---------|-------------|
+| `open <url>` | Navigate (aliases: goto, navigate) |
+| `open <url> --interactive` | Navigate with visible browser |
+| `click @e1` | Click element by ref or selector |
+| `dblclick <sel>` | Double-click element |
+| `fill @e2 \"text\"` | Clear and fill input |
+| `type @e2 \"text\"` | Type without clearing |
+| `press <key>` | Press key (Enter, Tab, Control+a) (alias: key) |
+| `keydown <key>` | Hold key down |
+| `keyup <key>` | Release key |
+| `hover <sel>` | Hover element |
+| `select <sel> <val>` | Select dropdown option |
+| `check / uncheck <sel>` | Toggle checkbox |
+| `focus <sel>` | Focus element |
+| `clear <sel>` | Clear input |
+| `scroll <dir> [px]` | Scroll (up/down/left/right) |
+| `scrollintoview <sel>` | Scroll element into view |
+| `drag <src> <tgt>` | Drag and drop |
+| `upload <sel> <files...>` | Upload files |
+| `close` | Close browser (aliases: quit, exit) |
+
+### Snapshot & Screenshot
+
+| Command | Description |
+|---------|-------------|
+| `snapshot` | Full accessibility tree with refs |
+| `snapshot -i` | Interactive elements only |
+| `snapshot -i -c -d 5` | Compact, depth-limited |
+| `snapshot -i -C` | Interactive + cursor elements |
+| `snapshot -s \"#main\"` | Scoped to selector |
+| `screenshot [path]` | Take screenshot (-f full page) |
+| `annotate` | Show annotation overlays (visible elements) |
+| `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |
+| `--no-badges` | Hide ref labels |
+| `--no-dimensions` | Hide size labels |
+| `--no-boxes` | Hide bounding boxes |
+| `unannotate` | Remove annotation overlays |
+| `pdf <path>` | Save as PDF |
+
+### Get Info
+
+| Command | Description |
+|---------|-------------|
+| `get text @e1` | Get text content |
+| `get html @e1` | Get innerHTML |
+| `get value @e1` | Get input value |
+| `get attr @e1 <name>` | Get attribute value |
+| `get url / get title` | Get page URL or title |
+| `get count <sel>` | Count matching elements |
+| `get box <sel>` | Get bounding box |
+
+### Find (Semantic Locators)
+
+| Command | Description |
+|---------|-------------|
+| `find role <role> <action>` | By ARIA role |
+| `find text <text> <action>` | By text content |
+| `find label <text> <action> [value]` | By label |
+| `find role button click --name Submit` | With name filter |
+| `find first/last/nth <sel> <action>` | Position-based |
+
+### Wait
+
+| Command | Description |
+|---------|-------------|
+| `wait <sel>` | Wait for element visible |
+| `wait <ms>` | Wait for timeout |
+| `wait --text \"Welcome\"` | Wait for text to appear |
+| `wait --url \"**/dash\"` | Wait for URL pattern |
+| `wait --load networkidle` | Wait for load state |
+| `wait --fn \"window.ready\"` | Wait for JS condition |
+
+### Mouse Control
+
+| Command | Description |
+|---------|-------------|
+| `mouse move <x> <y>` | Move mouse |
+| `mouse down/up [button]` | Press/release button |
+| `mouse wheel <dy> [dx]` | Scroll wheel |
+
+### Browser Settings
+
+| Command | Description |
+|---------|-------------|
+| `set viewport <w> <h>` | Set viewport size |
+| `set device <name>` | Emulate device (iphone 14, pixel 7, etc.) |
+| `set geo <lat> <lng>` | Set geolocation |
+| `set offline [on\|off]` | Toggle offline mode |
+| `set headers <json>` | Extra HTTP headers |
+| `set credentials <u> <p>` | HTTP basic auth |
+| `set media dark\|light` | Emulate color scheme |
+
+### Cookies & Storage
+
+| Command | Description |
+|---------|-------------|
+| `cookies` | Get all cookies |
+| `cookies set <name> <val>` | Set cookie |
+| `cookies clear` | Clear cookies |
+| `storage local [key]` | Get localStorage |
+| `storage local clear` | Clear localStorage |
+| `storage session [key]` | Same for sessionStorage |
+
+### Network
+
+| Command | Description |
+|---------|-------------|
+| `network route <url>` | Intercept requests |
+| `network route <url> --abort` | Block requests |
+| `network unroute [url]` | Remove routes |
+| `network requests [flags]` | View requests |
+| `--filter <regex>` | Filter by URL regex |
+| `--type <type>` | Filter by type (document, script, fetch, ...) |
+| `--method <method>` | Filter by method (GET, POST, ...) |
+| `--status <prefix>` | Filter by status (2, 30, 404, ...) |
+| `network clear` | Clear tracked requests |
+
+### Tabs & Windows
+
+| Command | Description |
+|---------|-------------|
+| `tab` | List tabs |
+| `tab new [url]` | New tab |
+| `tab <n>` | Switch to tab |
+| `tab close` | Close tab |
+
+### Frames & Dialogs
+
+| Command | Description |
+|---------|-------------|
+| `frame <sel>` | Switch to iframe |
+| `frame main` | Back to main frame |
+| `frame list` | List all frames |
+| `dialog accept [text]` | Accept dialog |
+| `dialog dismiss` | Dismiss dialog |
+
+### Debug
+
+| Command | Description |
+|---------|-------------|
+| `eval <js>` | Run JavaScript |
+| `eval <js> -b` | Run JavaScript, base64-encode result |
+| `connect <url>` | Connect to browser via CDP |
+| `trace start / trace stop` | Record trace |
+| `console / console clear` | View/clear console (auto-captured) |
+| `errors / errors clear` | View/clear errors (auto-captured) |
+| `highlight <sel>` | Highlight element |
+
+### State Management
+
+| Command | Description |
+|---------|-------------|
+| `state save [path]` | Save auth/storage state |
+| `state load [path]` | Load saved state |
+| `state list` | List state files |
+| `state show <file>` | Show state file contents |
+| `state rename <old> <new>` | Rename state file |
+| `state clear [--all]` | Clear state files |
+| `state clean [--older-than N]` | Remove states older than N days |
+
+### Navigation
+
+| Command | Description |
+|---------|-------------|
+| `back / forward / reload` | History navigation |
+
+### Sessions
+
+| Command | Description |
+|---------|-------------|
+| `--session <name>` | Use named session |
+| `session` | Show current session info |
+| `session list` | List active sessions |
+
+### Options
+
+| Command | Description |
+|---------|-------------|
+| `--session <name>` | Named session (default: \"default\") |
+| `--json` | JSON output (for agents) |
+| `--profile <path>` | Persistent browser profile |
+| `--executable-path <path>` | Custom browser executable |
+| `--user-agent <ua>` | Custom user agent string |
+| `--proxy <url>` | Proxy server URL |
+| `--proxy-bypass <domains>` | Proxy bypass domains |
+| `--headers <json>` | HTTP headers |
+| `--args <args>` | Browser args (comma-separated) |
+| `--cdp <url>` | Connect via CDP endpoint |
+| `--ignore-https-errors` | Ignore HTTPS errors |
+| `--allow-file-access` | Allow file:// access |
+| `--timeout <ms>` | Command timeout in ms (default: 30000) |
+| `--debug` | Debug output |
+| `--help, -h` | Show this help |
+
+### Tools
+
+| Command | Description |
+|---------|-------------|
+| `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
+| `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
+
+### Utility
+
+| Command | Description |
+|---------|-------------|
+| `install [--with-deps]` | Install Playwright browsers |
+| `version` | Show version |
+
+### Modes
+
+| Command | Description |
+|---------|-------------|
+| `--eval '<code>'` | Evaluate Clojure expression |
+
+
+## SCI Eval API Reference (`spel --eval`)
+
+Auto-generated from SCI namespace registrations. All functions are available in `spel --eval` mode without JVM startup.
+
+### `spel/` — Simplified API with implicit page (lifecycle, navigation, actions, assertions)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `spel/$` | [sel-or-loc] |  |
+| `spel/$$` | [sel] |  |
+| `spel/$alt-text` | [text] |  |
+| `spel/$label` | [text] |  |
+| `spel/$placeholder` | [text] |  |
+| `spel/$role` | [role] |  |
+| `spel/$test-id` | [id] |  |
+| `spel/$text` | [text] |  |
+| `spel/$title-attr` | [text] |  |
+| `spel/add-script-tag` | [opts] |  |
+| `spel/add-style-tag` | [opts] |  |
+| `spel/all-inner-texts` | [sel] |  |
+| `spel/all-text-contents` | [sel] |  |
+| `spel/annotate` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
+| `spel/annotated-screenshot` | [refs] \| [refs opts] |  |
+| `spel/assert-accessible-description` | [sel desc] |  |
+| `spel/assert-accessible-error-message` | [sel msg] |  |
+| `spel/assert-accessible-name` | [sel name-val] |  |
+| `spel/assert-attached` | [sel] \| [sel opts] |  |
+| `spel/assert-attr` | [sel attr-name value] \| [sel attr-name value opts] |  |
+| `spel/assert-checked` | [sel] \| [sel opts] |  |
+| `spel/assert-class` | [sel class-val] \| [sel class-val opts] |  |
+| `spel/assert-contains-class` | [sel class-val] \| [sel class-val opts] |  |
+| `spel/assert-contains-text` | [sel expected] \| [sel expected opts] |  |
+| `spel/assert-count` | [sel n] \| [sel n opts] |  |
+| `spel/assert-css` | [sel css-name value] \| [sel css-name value opts] |  |
+| `spel/assert-disabled` | [sel] \| [sel opts] |  |
+| `spel/assert-editable` | [sel] \| [sel opts] |  |
+| `spel/assert-empty` | [sel] |  |
+| `spel/assert-enabled` | [sel] \| [sel opts] |  |
+| `spel/assert-focused` | [sel] \| [sel opts] |  |
+| `spel/assert-hidden` | [sel] \| [sel opts] |  |
+| `spel/assert-id` | [sel id] \| [sel id opts] |  |
+| `spel/assert-in-viewport` | [sel] \| [sel opts] |  |
+| `spel/assert-js-property` | [sel prop-name value] |  |
+| `spel/assert-matches-aria-snapshot` | [sel snapshot-str] |  |
+| `spel/assert-not` | [sel] |  |
+| `spel/assert-page-not` | [] |  |
+| `spel/assert-role` | [sel role] |  |
+| `spel/assert-text` | [sel expected] \| [sel expected opts] |  |
+| `spel/assert-that` | [target] |  |
+| `spel/assert-title` | [expected] \| [expected opts] |  |
+| `spel/assert-url` | [expected] \| [expected opts] |  |
+| `spel/assert-value` | [sel value] \| [sel value opts] |  |
+| `spel/assert-values` | [sel values] \| [sel values opts] |  |
+| `spel/assert-visible` | [sel] \| [sel opts] |  |
+| `spel/attr` | [sel name] |  |
+| `spel/back` | [] |  |
+| `spel/bbox` | [sel] |  |
+| `spel/blur` | [sel] |  |
+| `spel/bring-to-front` | [] |  |
+| `spel/browser` | [] |  |
+| `spel/browser-connected?` | [] |  |
+| `spel/browser-version` | [] |  |
+| `spel/check` | [sel] \| [sel opts] |  |
+| `spel/checked?` | [sel] |  |
+| `spel/clear` | [sel] |  |
+| `spel/clear-refs!` | [] |  |
+| `spel/click` | [sel] \| [sel opts] |  |
+| `spel/click-ref` | [ref-id] |  |
+| `spel/context` | [] |  |
+| `spel/context-clear-cookies!` | [] |  |
+| `spel/context-clear-permissions!` | [] |  |
+| `spel/context-cookies` | [] |  |
+| `spel/context-grant-permissions!` | [perms] |  |
+| `spel/context-set-extra-http-headers!` | [headers] |  |
+| `spel/context-set-offline!` | [offline] |  |
+| `spel/count-of` | [sel] |  |
+| `spel/dblclick` | [sel] \| [sel opts] |  |
+| `spel/disabled?` | [sel] |  |
+| `spel/dispatch-event` | [sel type] |  |
+| `spel/drag-to` | [sel target-sel] |  |
+| `spel/editable?` | [sel] |  |
+| `spel/emulate-media!` | [opts] |  |
+| `spel/enabled?` | [sel] |  |
+| `spel/eval-js` | [expr] \| [expr arg] |  |
+| `spel/evaluate-all-locs` | [sel expr] \| [sel expr arg] |  |
+| `spel/evaluate-handle` | [expr] \| [expr arg] |  |
+| `spel/evaluate-locator` | [sel expr] \| [sel expr arg] |  |
+| `spel/expose-binding!` | [binding-name f] |  |
+| `spel/expose-function!` | [fn-name f] |  |
+| `spel/fill` | [sel value] \| [sel value opts] |  |
+| `spel/fill-ref` | [ref-id value] |  |
+| `spel/first` | [sel] |  |
+| `spel/focus` | [sel] |  |
+| `spel/forward` | [] |  |
+| `spel/frame-by-name` | [name] |  |
+| `spel/frame-by-url` | [pattern] |  |
+| `spel/frames` | [] |  |
+| `spel/full-snapshot` | [] \| [page] |  |
+| `spel/goto` | [url] \| [url opts] |  |
+| `spel/hidden?` | [sel] |  |
+| `spel/highlight` | [sel] |  |
+| `spel/hover` | [sel] \| [sel opts] |  |
+| `spel/hover-ref` | [ref-id] |  |
+| `spel/html` | [] |  |
+| `spel/info` | [] |  |
+| `spel/inner-html` | [sel] |  |
+| `spel/inner-text` | [sel] |  |
+| `spel/keyboard` | [] |  |
+| `spel/last` | [sel] |  |
+| `spel/last-response` | [url] |  |
+| `spel/loc-filter` | [sel opts] |  |
+| `spel/loc-get-by-label` | [sel text] |  |
+| `spel/loc-get-by-role` | [sel role] |  |
+| `spel/loc-get-by-test-id` | [sel id] |  |
+| `spel/loc-get-by-text` | [sel text] |  |
+| `spel/loc-locator` | [sel sub-sel] |  |
+| `spel/loc-wait-for` | [sel] \| [sel opts] |  |
+| `spel/locator-screenshot` | [sel] \| [sel opts] |  |
+| `spel/main-frame` | [] |  |
+| `spel/mouse` | [] |  |
+| `spel/new-tab!` | [] |  |
+| `spel/nth` | [sel n] |  |
+| `spel/on-close` | [handler] |  |
+| `spel/on-console` | [handler] |  |
+| `spel/on-dialog` | [handler] |  |
+| `spel/on-download` | [handler] |  |
+| `spel/on-page-error` | [handler] |  |
+| `spel/on-popup` | [handler] |  |
+| `spel/on-request` | [handler] |  |
+| `spel/on-response` | [handler] |  |
+| `spel/page` | [] |  |
+| `spel/page-context` | [] |  |
+| `spel/pdf` | [] \| [path-or-opts] |  |
+| `spel/press` | [sel key] \| [sel key opts] |  |
+| `spel/reload!` | [] |  |
+| `spel/resolve-ref` | [ref-id] |  |
+| `spel/restart!` | [] \| [opts] |  |
+| `spel/route!` | [pattern handler] |  |
+| `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] |  |
+| `spel/screenshot` | [] \| [path-or-opts] |  |
+| `spel/scroll-into-view` | [sel] |  |
+| `spel/select` | [sel values] |  |
+| `spel/set-assertion-timeout!` | [ms] |  |
+| `spel/set-content!` | [html] \| [html opts] |  |
+| `spel/set-default-navigation-timeout!` | [ms] |  |
+| `spel/set-default-timeout!` | [ms] |  |
+| `spel/set-extra-http-headers!` | [headers] |  |
+| `spel/set-input-files!` | [sel files] |  |
+| `spel/set-viewport-size!` | [width height] |  |
+| `spel/sleep` | [ms] |  |
+| `spel/snapshot` | [] \| [page-or-opts] \| [page opts] |  |
+| `spel/start!` | [] \| [opts] |  |
+| `spel/stop!` | [] |  |
+| `spel/switch-tab!` | [idx] |  |
+| `spel/tabs` | [] |  |
+| `spel/tap` | [sel] |  |
+| `spel/text` | [sel] |  |
+| `spel/title` | [] |  |
+| `spel/touchscreen` | [] |  |
+| `spel/type-ref` | [ref-id text] |  |
+| `spel/type-text` | [sel text] \| [sel text opts] |  |
+| `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
+| `spel/uncheck` | [sel] \| [sel opts] |  |
+| `spel/unroute!` | [pattern] |  |
+| `spel/url` | [] |  |
+| `spel/value` | [sel] |  |
+| `spel/visible?` | [sel] |  |
+| `spel/wait-for` | [sel] \| [sel opts] |  |
+| `spel/wait-for-download` | [action] \| [action opts] |  |
+| `spel/wait-for-file-chooser` | [action] \| [action opts] |  |
+| `spel/wait-for-function` | [expr] |  |
+| `spel/wait-for-load` | [] \| [state] |  |
+| `spel/wait-for-popup` | [action] \| [action opts] |  |
+| `spel/wait-for-url` | [url] |  |
+
+### `snapshot/` — Accessibility snapshot capture and ref resolution
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `snapshot/capture` | [] \| [page-or-opts] \| [page opts] |  |
+| `snapshot/capture-full` | [] \| [page] |  |
+| `snapshot/clear-refs!` | [] |  |
+| `snapshot/ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
+| `snapshot/resolve-ref` | [ref-id] |  |
+
+### `annotate/` — Page annotation overlays
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `annotate/annotated-screenshot` | [refs] \| [refs opts] |  |
+| `annotate/save!` | [refs path] \| [refs path opts] |  |
+
+### `input/` — Keyboard, mouse, touchscreen (explicit device arg)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `input/key-down` | [keyboard key] | Dispatches a keydown event. |
+| `input/key-insert-text` | [keyboard text] | Inserts text without key events. |
+| `input/key-press` | [keyboard key] \| [keyboard key press-opts] | Presses a key on the keyboard. |
+| `input/key-type` | [keyboard text] \| [keyboard text type-opts] | Types text character by character. |
+| `input/key-up` | [keyboard key] | Dispatches a keyup event. |
+| `input/mouse-click` | [mouse x y] \| [mouse x y click-opts] | Clicks at the given coordinates. |
+| `input/mouse-dblclick` | [mouse x y] \| [mouse x y dblclick-opts] | Double-clicks at the given coordinates. |
+| `input/mouse-down` | [mouse] | Dispatches a mousedown event. |
+| `input/mouse-move` | [mouse x y] \| [mouse x y move-opts] | Moves the mouse to the given coordinates. |
+| `input/mouse-up` | [mouse] | Dispatches a mouseup event. |
+| `input/mouse-wheel` | [mouse delta-x delta-y] | Dispatches a wheel event. |
+| `input/touchscreen-tap` | [ts x y] | Taps at the given coordinates. |
+
+### `frame/` — Frame and FrameLocator operations (explicit Frame arg)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `frame/child-frames` | [frame] | Returns child frames. |
+| `frame/content` | [frame] | Returns the HTML content of the frame. |
+| `frame/evaluate` | [frame expression] \| [frame expression arg] | Evaluates JavaScript in the frame context. |
+| `frame/fl-first` | [fl] | Returns the first FrameLocator. |
+| `frame/fl-get-by-label` | [fl text] | Locates by label within a FrameLocator. |
+| `frame/fl-get-by-role` | [fl role] | Locates by ARIA role within a FrameLocator. |
+| `frame/fl-get-by-text` | [fl text] | Locates by text within a FrameLocator. |
+| `frame/fl-last` | [fl] | Returns the last FrameLocator. |
+| `frame/fl-locator` | [fl selector] | Creates a Locator within a FrameLocator. |
+| `frame/fl-nth` | [fl index] | Returns the nth FrameLocator. |
+| `frame/frame-locator` | [page-or-frame selector] | Creates a FrameLocator for an iframe. |
+| `frame/frame-page` | [frame] | Returns the page that owns this frame. |
+| `frame/get-by-label` | [frame text] | Locates elements by label in the frame. |
+| `frame/get-by-role` | [frame role] | Locates elements by ARIA role in the frame. |
+| `frame/get-by-test-id` | [frame test-id] | Locates elements by test ID in the frame. |
+| `frame/get-by-text` | [frame text] | Locates elements by text in the frame. |
+| `frame/is-detached?` | [frame] | Returns whether the frame has been detached. |
+| `frame/locator` | [frame selector] | Creates a Locator for the frame. |
+| `frame/name` | [frame] | Returns the frame name. |
+| `frame/navigate` | [frame url] \| [frame url nav-opts] | Navigates the frame to a URL. |
+| `frame/parent-frame` | [frame] | Returns the parent frame. |
+| `frame/set-content!` | [frame html] \| [frame html set-opts] | Sets the HTML content of the frame. |
+| `frame/title` | [frame] | Returns the frame title. |
+| `frame/url` | [frame] | Returns the frame URL. |
+| `frame/wait-for-function` | [frame expression] | Waits for a JavaScript function to return truthy in the frame. |
+| `frame/wait-for-load-state` | [frame] \| [frame state] | Waits for the frame to reach a load state. |
+| `frame/wait-for-selector` | [frame selector] \| [frame selector wait-opts] | Waits for a selector in the frame. |
+
+### `net/` — Network request/response/route (explicit object arg)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `net/request-all-headers` | [req] | Returns all request headers including redirects. |
+| `net/request-failure` | [req] | Returns the failure text if the request failed. |
+| `net/request-frame` | [req] | Returns the frame that initiated this request. |
+| `net/request-headers` | [req] | Returns the request headers as a map. |
+| `net/request-is-navigation?` | [req] | Returns whether this is a navigation request. |
+| `net/request-method` | [req] | Returns the request HTTP method. |
+| `net/request-post-data` | [req] | Returns the request POST data. |
+| `net/request-post-data-buffer` | [req] | Returns the request POST data as bytes. |
+| `net/request-redirected-from` | [req] | Returns the request that redirected to this one. |
+| `net/request-redirected-to` | [req] | Returns the request this was redirected to. |
+| `net/request-resource-type` | [req] | Returns the resource type (e.g. document, script, image). |
+| `net/request-response` | [req] | Returns the response for this request. |
+| `net/request-timing` | [req] | Returns the request timing information. |
+| `net/request-url` | [req] | Returns the request URL. |
+| `net/response-all-headers` | [resp] | Returns all response headers. |
+| `net/response-body` | [resp] | Returns the response body as bytes. |
+| `net/response-finished` | [resp] | Returns nil when response finishes, or the failure error string. |
+| `net/response-frame` | [resp] | Returns the frame that received this response. |
+| `net/response-header-value` | [resp name] | Returns the value of a specific header. |
+| `net/response-header-values` | [resp name] | Returns all values for a specific header. |
+| `net/response-headers` | [resp] | Returns the response headers. |
+| `net/response-ok?` | [resp] | Returns whether the response status is 2xx. |
+| `net/response-request` | [resp] | Returns the request for this response. |
+| `net/response-status` | [resp] | Returns the HTTP status code. |
+| `net/response-status-text` | [resp] | Returns the HTTP status text. |
+| `net/response-text` | [resp] | Returns the response body as text. |
+| `net/response-url` | [resp] | Returns the response URL. |
+| `net/route-abort!` | [route] \| [route error-code] | Aborts the route. |
+| `net/route-continue!` | [route] \| [route opts] | Continues the route, optionally modifying the request. |
+| `net/route-fallback!` | [route] | Falls through to the next route handler. |
+| `net/route-fetch!` | [route] | Performs the request and returns the response. |
+| `net/route-fulfill!` | [route opts] | Fulfills the route with a custom response. |
+| `net/route-request` | [route] | Returns the request being routed. |
+| `net/ws-is-closed?` | [ws] | Returns whether the WebSocket is closed. |
+| `net/ws-on-close` | [ws handler] | Registers a handler for WebSocket close. |
+| `net/ws-on-error` | [ws handler] | Registers a handler for WebSocket errors. |
+| `net/ws-on-message` | [ws handler] | Registers a handler for incoming messages. |
+| `net/ws-url` | [ws] | Returns the WebSocket URL. |
+| `net/wsf-binary` | [frame] | Returns the binary content of a WebSocket frame. |
+| `net/wsf-text` | [frame] | Returns the text content of a WebSocket frame. |
+| `net/wsr-close!` | [wsr] | Closes the WebSocket connection from the server side. |
+| `net/wsr-connect-to-server!` | [wsr] | Connects to the real server WebSocket. |
+| `net/wsr-on-close` | [wsr handler] | Registers a handler for close events. |
+| `net/wsr-on-message` | [wsr handler] | Registers a handler for client messages on the route. |
+| `net/wsr-send!` | [wsr message] | Sends a message to the client. |
+| `net/wsr-url` | [wsr] | Returns the URL of a WebSocketRoute. |
+
+### `loc/` — Raw locator operations (explicit Locator arg)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `loc/all` | [loc] | Returns all elements matching the locator as individual locators. |
+| `loc/all-inner-texts` | [loc] | Returns all inner texts for matching elements. |
+| `loc/all-text-contents` | [loc] | Returns all text contents for matching elements. |
+| `loc/blur` | [loc] | Blurs (removes focus from) the element. |
+| `loc/bounding-box` | [loc] | Returns the bounding box of the element. |
+| `loc/check` | [loc] \| [loc check-opts] | Checks a checkbox or radio button. |
+| `loc/clear` | [loc] | Clears input field content. |
+| `loc/click` | [loc] \| [loc click-opts] | Clicks an element. |
+| `loc/count-elements` | [loc] | Returns the number of elements matching the locator. |
+| `loc/dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
+| `loc/dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
+| `loc/drag-to` | [loc target] | Drags this locator to another locator. |
+| `loc/element-handle` | [loc] | Returns the ElementHandle for the first matching element. |
+| `loc/element-handles` | [loc] | Returns all ElementHandles matching the locator. |
+| `loc/evaluate` | [loc expression] \| [loc expression arg] | Evaluates JavaScript on the element found by this locator. |
+| `loc/evaluate-all` | [loc expression] \| [loc expression arg] | Evaluates JavaScript on all elements matching the locator. |
+| `loc/fill` | [loc value] \| [loc value fill-opts] | Fills an input element with text. |
+| `loc/first-element` | [loc] | Returns the first element matching the locator. |
+| `loc/focus` | [loc] | Focuses the element. |
+| `loc/get-attribute` | [loc name] | Returns the value of an attribute. |
+| `loc/highlight` | [loc] | Highlights the element for debugging. |
+| `loc/hover` | [loc] \| [loc hover-opts] | Hovers over an element. |
+| `loc/inner-html` | [loc] | Returns the inner HTML of the element. |
+| `loc/inner-text` | [loc] | Returns the inner text of the element. |
+| `loc/input-value` | [loc] | Returns the input value of an input element. |
+| `loc/is-checked?` | [loc] | Returns whether the element is checked. |
+| `loc/is-disabled?` | [loc] | Returns whether the element is disabled. |
+| `loc/is-editable?` | [loc] | Returns whether the element is editable. |
+| `loc/is-enabled?` | [loc] | Returns whether the element is enabled. |
+| `loc/is-hidden?` | [loc] | Returns whether the element is hidden. |
+| `loc/is-visible?` | [loc] | Returns whether the element is visible. |
+| `loc/last-element` | [loc] | Returns the last element matching the locator. |
+| `loc/loc-filter` | [loc opts] | Filters this locator to a narrower set. |
+| `loc/loc-get-by-label` | [loc text] | Locates elements by label within this locator. |
+| `loc/loc-get-by-role` | [loc role] | Locates elements by ARIA role within this locator. |
+| `loc/loc-get-by-test-id` | [loc test-id] | Locates elements by test ID within this locator. |
+| `loc/loc-get-by-text` | [loc text] | Locates elements by text within this locator. |
+| `loc/loc-locator` | [loc selector] | Creates a sub-locator within this locator. |
+| `loc/nth-element` | [loc index] | Returns the nth element matching the locator. |
+| `loc/press` | [loc key] \| [loc key press-opts] | Presses a key or key combination. |
+| `loc/screenshot` | [loc] \| [loc ss-opts] | Takes a screenshot of the element. |
+| `loc/scroll-into-view` | [loc] | Scrolls element into view. |
+| `loc/select-option` | [loc values] | Selects options in a select element. |
+| `loc/set-input-files!` | [loc files] | Sets the value of a file input element. |
+| `loc/tap-element` | [loc] | Taps an element (for touch devices). |
+| `loc/text-content` | [loc] | Returns the text content of the element. |
+| `loc/type-text` | [loc text] \| [loc text type-opts] | Types text into an element character by character. |
+| `loc/uncheck` | [loc] \| [loc uncheck-opts] | Unchecks a checkbox. |
+| `loc/wait-for` | [loc] \| [loc wait-opts] | Waits for the locator to satisfy a condition. |
+
+### `assert/` — Assertion functions (explicit assertion object arg)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `assert/api-not` | [ara] | Returns negated APIResponseAssertions (expect the opposite). |
+| `assert/assert-that` | [target] | Creates an assertion object for the given Playwright instance. |
+| `assert/contains-class` | [la class-val] \| [la class-val opts] | Asserts the locator's class attribute contains the specified class. |
+| `assert/contains-text` | [la text] \| [la text opts] | Asserts the locator contains the specified text. |
+| `assert/has-accessible-description` | [la desc] | Asserts the locator has the specified accessible description. |
+| `assert/has-accessible-error-message` | [la msg] | Asserts the locator has the specified accessible error message. |
+| `assert/has-accessible-name` | [la name-val] | Asserts the locator has the specified accessible name. |
+| `assert/has-attribute` | [la name value] \| [la name value opts] | Asserts the locator has the specified attribute with value. |
+| `assert/has-class` | [la class-val] \| [la class-val opts] | Asserts the locator has the specified CSS class. |
+| `assert/has-count` | [la count] \| [la count opts] | Asserts the locator resolves to the expected number of elements. |
+| `assert/has-css` | [la name value] \| [la name value opts] | Asserts the locator has the specified CSS property with value. |
+| `assert/has-id` | [la id] \| [la id opts] | Asserts the locator has the specified ID. |
+| `assert/has-js-property` | [la name value] | Asserts the locator has the specified JavaScript property. |
+| `assert/has-role` | [la role] | Asserts the locator has the specified ARIA role. |
+| `assert/has-text` | [la text] \| [la text opts] | Asserts the locator has the specified text. |
+| `assert/has-title` | [pa title] \| [pa title opts] | Asserts the page has the specified title. |
+| `assert/has-url` | [pa url] \| [pa url opts] | Asserts the page has the specified URL. |
+| `assert/has-value` | [la value] \| [la value opts] | Asserts the locator (input) has the specified value. |
+| `assert/has-values` | [la values] \| [la values opts] | Asserts the locator (multi-select) has the specified values. |
+| `assert/is-attached` | [la] \| [la opts] | Asserts the locator is attached to the DOM. |
+| `assert/is-checked` | [la] \| [la opts] | Asserts the locator (checkbox/radio) is checked. |
+| `assert/is-disabled` | [la] \| [la opts] | Asserts the locator is disabled. |
+| `assert/is-editable` | [la] \| [la opts] | Asserts the locator is editable. |
+| `assert/is-empty` | [la] | Asserts the locator (input) is empty. |
+| `assert/is-enabled` | [la] \| [la opts] | Asserts the locator is enabled. |
+| `assert/is-focused` | [la] \| [la opts] | Asserts the locator is focused. |
+| `assert/is-hidden` | [la] \| [la opts] | Asserts the locator is hidden. |
+| `assert/is-in-viewport` | [la] \| [la opts] | Asserts the locator is in the viewport. |
+| `assert/is-ok` | [ara] | Asserts the API response status is 2xx. |
+| `assert/is-visible` | [la] \| [la opts] | Asserts the locator is visible. |
+| `assert/loc-not` | [la] | Returns negated LocatorAssertions (expect the opposite). |
+| `assert/matches-aria-snapshot` | [la snapshot] | Asserts the locator matches the ARIA snapshot. |
+| `assert/page-not` | [pa] | Returns negated PageAssertions (expect the opposite). |
+| `assert/set-default-assertion-timeout!` | [timeout] | Sets the default timeout for all assertions. |
+
+### `core/` — Browser lifecycle utilities and resource management
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `core/anomaly?` |  | Returns true if x is an anomaly map (has a recognized anomaly category). |
+| `core/browser-connected?` | [browser] | Returns true if the browser is connected. |
+| `core/browser-contexts` | [browser] | Returns all browser contexts. |
+| `core/browser-version` | [browser] | Returns the browser version string. |
+| `core/close!` | [pw] | Closes a Playwright instance and releases all resources. |
+| `core/close-browser!` | [browser] | Closes a browser and all its pages. |
+| `core/close-context!` | [context] | Closes a browser context and all its pages. |
+| `core/close-page!` | [page] | Closes a page. |
+| `core/context-browser` | [context] | Returns the browser that owns this context. |
+| `core/context-clear-cookies!` | [context] | Clears all cookies in the context. |
+| `core/context-clear-permissions!` | [context] | Clears all granted permissions. |
+| `core/context-cookies` | [context] | Returns all cookies in the context. |
+| `core/context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
+| `core/context-pages` | [context] | Returns all pages in a context. |
+| `core/context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |
+| `core/context-set-default-timeout!` | [context timeout] | Sets the default timeout for context operations. |
+| `core/context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
+| `core/context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
+| `core/new-context` | [browser] \| [browser context-opts] | Creates a new browser context with optional configuration. |
+| `core/new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
+| `core/new-page-from-context` | [context] | Creates a new page in the given context. |
+
 
 ### Snapshot with Refs
 
@@ -1823,8 +2153,6 @@ These Playwright Java methods have no Clojure wrapper yet:
 
 | Method | Workaround |
 |--------|-----------|
-| `Page.waitForPopup(Runnable)` | `(.waitForPopup ^Page pg (reify Runnable (run [_] ...)))` |
-| `Page.waitForDownload(Runnable)` | `(.waitForDownload ^Page pg (reify Runnable (run [_] ...)))` |
 | `Page.onceDialog(Consumer)` | Use `page/on-dialog` (registers persistent handler) |
 | `Locator.contentFrame()` | `(.contentFrame loc)` |
 | `Page.getByRole(role, options)` | `(locator/loc-filter (page/get-by-role pg role) {:has-text "name"})` |

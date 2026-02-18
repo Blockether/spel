@@ -11,8 +11,6 @@
    [com.microsoft.playwright Request Response Route
     WebSocket WebSocketFrame WebSocketRoute]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Railway — anomaly pass-through
 ;; =============================================================================

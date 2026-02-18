@@ -222,13 +222,15 @@
         (expect (= 1 (count result)))
         (expect (contains? result "e3"))))
 
-    (it "handles identical bboxes by keeping lower ref ID"
+    (it "handles identical bboxes by keeping both elements"
       (let [refs {"e1" {:role "button"  :bbox {:x 10 :y 10 :width 60 :height 20}}
                   "e2" {:role "heading" :bbox {:x 10 :y 10 :width 60 :height 20}}}
             result (sut/filter-annotatable refs)]
-        ;; Same bbox → lower ID (e1) kept, higher (e2) removed
-        (expect (= 1 (count result)))
-        (expect (contains? result "e1"))))
+        ;; Same bbox → neither is a "container" → both kept
+        ;; (prevents <a><img> same-size suppression bug)
+        (expect (= 2 (count result)))
+        (expect (contains? result "e1"))
+        (expect (contains? result "e2"))))
 
     (it "keeps mixed-content container when it wraps a child (has own text)"
       (let [refs {"e1" {:role "paragraph" :mixed true :bbox {:x 0 :y 0 :width 300 :height 20}}
@@ -245,6 +247,15 @@
             result (sut/filter-annotatable refs)]
         ;; e1 has no :mixed flag → pure container → suppressed
         (expect (= 1 (count result)))
+        (expect (contains? result "e2"))))
+
+    (it "zero-area child does not suppress visible container"
+      (let [refs {"e1" {:role "link" :bbox {:x 63 :y 0 :width 0 :height 0}}
+                  "e2" {:role "img"  :bbox {:x 63 :y 0 :width 132 :height 70}}}
+            result (sut/filter-annotatable refs)]
+        ;; e1 is a 0×0 hidden link inside e2 (a CSS background-image logo)
+        ;; e2 must NOT be suppressed — the zero-area ghost shouldn't trigger
+        ;; container dedup
         (expect (contains? result "e2"))))
 
     (it "handles empty refs"

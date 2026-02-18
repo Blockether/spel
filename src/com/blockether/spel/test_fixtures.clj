@@ -115,10 +115,10 @@
               (core/close-page! page)
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
-                (catch Exception _))
+                   (catch Exception _))
               (let [t (doto (Thread. (fn []
                                        (try (core/close-context! ctx)
-                                         (catch Exception _))))
+                                            (catch Exception _))))
                         (.setDaemon true)
                         (.start))]
                 (.join t 5000))))))
@@ -184,7 +184,7 @@
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
-              (catch Exception _))
+                 (catch Exception _))
                   ;; Close context → writes HAR via harExport.
                   ;; BrowserContextImpl.close() calls harExport with NO_TIMEOUT,
                   ;; which can hang indefinitely when tracing was active on the
@@ -193,7 +193,7 @@
                   ;; JVM exit and browser.close() from with-browser cleans up.
             (let [t (doto (Thread. (fn []
                                      (try (core/close-context! ctx)
-                                       (catch Exception _))))
+                                          (catch Exception _))))
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
@@ -247,10 +247,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                  (catch Exception _))
+                     (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                           (catch Exception _))))
+                                              (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000)))))

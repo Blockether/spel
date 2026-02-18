@@ -1,1 +1,3 @@
-{}
+{:lint-as {com.blockether.spel.allure/step     clojure.test/testing
+           com.blockether.spel.allure/ui-step  clojure.test/testing
+           com.blockether.spel.allure/api-step clojure.test/testing}}

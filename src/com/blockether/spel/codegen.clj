@@ -98,23 +98,21 @@
     action-code))
 
 (defn- wrap-popup-signal
-  "Wraps action code with waitForPopup if action has popup signal.
-   Uses Java interop: (.waitForPopup ^Page pg (reify Runnable (run [_] ...)))"
+  "Wraps action code with page/wait-for-popup if action has popup signal."
   [pg action-code action]
   (if-let [_sig (has-signal? action "popup")]
-    (str "(let [popup-pg (.waitForPopup ^Page " pg
-      " (reify Runnable (run [_] " action-code ")))]\n"
+    (str "(let [popup-pg (page/wait-for-popup " pg
+      " #(" action-code "))]\n"
       "  ;; popup-pg is now available for further actions"
       ")")
     action-code))
 
 (defn- wrap-download-signal
-  "Wraps action code with waitForDownload if action has download signal.
-   Uses Java interop: (.waitForDownload ^Page pg (reify Runnable (run [_] ...)))"
+  "Wraps action code with page/wait-for-download if action has download signal."
   [pg action-code action]
   (if-let [_sig (has-signal? action "download")]
-    (str "(let [download (.waitForDownload ^Page " pg
-      " (reify Runnable (run [_] " action-code ")))]\n"
+    (str "(let [download (page/wait-for-download " pg
+      " #(" action-code "))]\n"
       "  ;; download is now available - (.path download), (.suggestedFilename download)"
       ")")
     action-code))
@@ -142,7 +140,8 @@
     [pg-sym nil]
     (let [steps (map-indexed
                   (fn [i selector]
-                    (let [fl-sym (str "fl" i)
+                    (let [i (long i)
+                          fl-sym (str "fl" i)
                           parent (if (zero? i) pg-sym (str "fl" (dec i)))]
                       [fl-sym
                        (if (zero? i)
@@ -318,12 +317,13 @@
 (defn- modifiers->keys
   "Converts modifier bitmask to key name strings."
   [modifiers]
-  (when (and modifiers (pos? modifiers))
-    (cond-> []
-      (pos? (bit-and modifiers 1)) (conj "Alt")
-      (pos? (bit-and modifiers 2)) (conj "ControlOrMeta")
-      (pos? (bit-and modifiers 4)) (conj "Meta")
-      (pos? (bit-and modifiers 8)) (conj "Shift"))))
+  (when (and modifiers (pos? (long modifiers)))
+    (let [modifiers (long modifiers)]
+      (cond-> []
+        (pos? (bit-and modifiers 1)) (conj "Alt")
+        (pos? (bit-and modifiers 2)) (conj "ControlOrMeta")
+        (pos? (bit-and modifiers 4)) (conj "Meta")
+        (pos? (bit-and modifiers 8)) (conj "Shift")))))
 
 ;; =============================================================================
 ;; Action -> Clojure Code
@@ -361,7 +361,7 @@
 
       ;; ----- Click -----
       "click"
-      (let [cc (or (:clickCount action) 1)]
+      (let [cc (long (or (:clickCount action) 1))]
         (cond
           (= cc 2)
           (clojure.core/format "(locator/dblclick %s)" (loc))

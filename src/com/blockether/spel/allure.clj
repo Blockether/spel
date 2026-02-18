@@ -35,8 +35,6 @@
    [java.io File PrintWriter StringWriter Writer]
    [java.util UUID]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Tee Writer — writes to both a local capture and the parent writer
 ;; =============================================================================

@@ -23,8 +23,6 @@
    [java.nio.channels Channels SocketChannel]
    [java.nio.file Files]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Per-Command Help
 ;; =============================================================================
@@ -1121,22 +1119,22 @@
                          ;; Parse -d N
                            (some #{"-d" "--depth"} cmd-args)
                            (assoc :depth (let [v    (vec cmd-args)
-                                               idx1 (.indexOf ^java.util.List v "-d")
-                                               idx2 (.indexOf ^java.util.List v "--depth")
-                                               idx  (cond (>= idx1 0) idx1
-                                                      (>= idx2 0) idx2
-                                                      :else -1)]
+                                               idx1 (long (.indexOf ^java.util.List v "-d"))
+                                               idx2 (long (.indexOf ^java.util.List v "--depth"))
+                                               idx  (long (cond (>= idx1 0) idx1
+                                                                (>= idx2 0) idx2
+                                                                :else -1))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
                            (assoc :selector (let [v    (vec cmd-args)
-                                                  idx1 (.indexOf ^java.util.List v "-s")
-                                                  idx2 (.indexOf ^java.util.List v "--selector")
-                                                  idx  (cond (>= idx1 0) idx1
-                                                         (>= idx2 0) idx2
-                                                         :else -1)]
+                                                  idx1 (long (.indexOf ^java.util.List v "-s"))
+                                                  idx2 (long (.indexOf ^java.util.List v "--selector"))
+                                                  idx  (long (cond (>= idx1 0) idx1
+                                                                   (>= idx2 0) idx2
+                                                                   :else -1))]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))))
 
@@ -1196,7 +1194,7 @@
           ;; Scroll (+ aliases)
             "scroll"   (let [direction (or (first cmd-args) "down")
                              amount (try (Integer/parseInt (or (second cmd-args) "500"))
-                                      (catch Exception _ 500))]
+                                         (catch Exception _ 500))]
                          {:action "scroll" :direction direction :amount amount})
 
             ("scrollintoview" "scrollinto")
@@ -1229,8 +1227,8 @@
                          (assoc :show-boxes false)
                          ;; Parse -s <selector-or-ref>
                          (some #{"-s" "--scope"} cmd-args)
-                         (assoc :selector (let [idx (or (.indexOf ^java.util.List (vec cmd-args) "-s")
-                                                      (.indexOf ^java.util.List (vec cmd-args) "--scope"))]
+                         (assoc :selector (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
+                                                            (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
                                             (when (>= idx 0)
                                               (nth cmd-args (inc idx) nil)))))
 
@@ -1258,19 +1256,19 @@
             "wait"     (let [wait-args (vec cmd-args)]
                          (cond
                            (some #{"--text"} wait-args)
-                           (let [idx (.indexOf ^java.util.List wait-args "--text")]
+                           (let [idx (long (.indexOf ^java.util.List wait-args "--text"))]
                              {:action "wait" :text (nth wait-args (inc idx))})
 
                            (some #{"--url"} wait-args)
-                           (let [idx (.indexOf ^java.util.List wait-args "--url")]
+                           (let [idx (long (.indexOf ^java.util.List wait-args "--url"))]
                              {:action "wait" :url (nth wait-args (inc idx))})
 
                            (some #{"--fn"} wait-args)
-                           (let [idx (.indexOf ^java.util.List wait-args "--fn")]
+                           (let [idx (long (.indexOf ^java.util.List wait-args "--fn"))]
                              {:action "wait" :function (nth wait-args (inc idx))})
 
                            (some #{"--load"} wait-args)
-                           (let [idx (.indexOf ^java.util.List wait-args "--load")]
+                           (let [idx (long (.indexOf ^java.util.List wait-args "--load"))]
                              {:action "wait" :state (nth wait-args (inc idx))})
 
                            (nil? (first wait-args))
@@ -1340,7 +1338,7 @@
                              action (nth cmd-args 2 nil)
                              known-types #{"role" "text" "label" "placeholder" "alt" "title" "testid" "first" "last" "nth"}
                            ;; Parse --name and --exact flags
-                             name-idx (.indexOf ^java.util.List (vec cmd-args) "--name")
+                             name-idx (long (.indexOf ^java.util.List (vec cmd-args) "--name"))
                              name-val (when (>= name-idx 0)
                                         (nth cmd-args (inc name-idx) nil))
                              exact?   (some #{"--exact"} cmd-args)
@@ -1425,7 +1423,7 @@
                            "route"    (let [url       (second cmd-args)
                                             rest-args (set (drop 2 cmd-args))
                                             abort?    (rest-args "--abort")
-                                            body-idx  (.indexOf ^java.util.List (vec cmd-args) "--body")
+                                            body-idx  (long (.indexOf ^java.util.List (vec cmd-args) "--body"))
                                             body      (when (>= body-idx 0)
                                                         (nth cmd-args (inc body-idx) nil))]
                                         (cond-> {:action "network_route" :url url}
@@ -1436,7 +1434,7 @@
                                        :url (second cmd-args)}
                            "requests" (let [args-v    (vec cmd-args)
                                             flag-val  (fn [flag]
-                                                        (let [i (.indexOf ^java.util.List args-v flag)]
+                                                        (let [i (long (.indexOf ^java.util.List args-v flag))]
                                                           (when (>= i 0) (nth args-v (inc i) nil))))]
                                         (cond-> {:action "network_requests"}
                                           (flag-val "--filter") (assoc :filter (flag-val "--filter"))
@@ -1492,11 +1490,11 @@
                            "clear"  (if (some #{"--all"} cmd-args)
                                       {:action "state_clear" :all true}
                                       {:action "state_clear" :name (second cmd-args)})
-                           "clean"  (let [idx (.indexOf ^java.util.List (vec cmd-args) "--older-than")]
+                           "clean"  (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--older-than"))]
                                       {:action "state_clean"
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                            (catch Exception _ 30)))})
+                                                               (catch Exception _ 30)))})
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
@@ -1558,9 +1556,9 @@
              (json/read-str result :key-fn keyword))))
        (finally
          (try (.close channel)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "warn: close-channel: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
   [^String pid]
@@ -1573,9 +1571,9 @@
   "Deletes stale socket and PID files for a session."
   [session]
   (try (Files/deleteIfExists (daemon/socket-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
   (try (Files/deleteIfExists (daemon/pid-file-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
 
 (defn- read-pid
   "Reads the PID from a session's PID file, or nil if unavailable."
@@ -1583,7 +1581,7 @@
   (let [pid-path (daemon/pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
-        (catch Exception _ nil)))))
+           (catch Exception _ nil)))))
 
 (defn- socket-connectable?
   "Tries to connect to the daemon's Unix socket. Returns true if connectable."
@@ -1608,7 +1606,7 @@
   (let [old-pid (read-pid session)]
     ;; Send graceful close (5s timeout — just asking daemon to exit)
     (try (send-command! session {:action "close"} 5000)
-      (catch Exception e (binding [*out* *err*] (println (str "warn: close-command: " (.getMessage e))))))
+         (catch Exception e (binding [*out* *err*] (println (str "warn: close-command: " (.getMessage e))))))
     ;; Wait for old process to actually die (up to 10s)
     (when old-pid
       (loop [tries 0]
@@ -1624,7 +1622,7 @@
   (when-let [old-pid (read-pid session)]
     (when (process-alive? old-pid)
       (try (.start (ProcessBuilder. ^java.util.List (list "kill" "-9" old-pid)))
-        (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
+           (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
       ;; Wait for process to die
       (loop [tries 0]
         (when (and (< tries 50) (process-alive? old-pid))
@@ -1665,7 +1663,7 @@
         (if (socket-connectable? session)
           true
           (do (Thread/sleep 100)
-            (recur (inc tries))))))))
+              (recur (inc tries))))))))
 
 (defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
@@ -1712,10 +1710,10 @@
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
-            (when (:url data)
-              (println (str "\n  URL: " (:url data))))
-            (when (:title data)
-              (println (str "  Title: " (:title data)))))
+              (when (:url data)
+                (println (str "\n  URL: " (:url data))))
+              (when (:title data)
+                (println (str "  Title: " (:title data)))))
 
           ;; Screenshot
           (:base64 data)
@@ -1933,13 +1931,13 @@
                          ;; Treat as retriable — kill stale daemon and restart
                          (and (nil? res) (< retries 5))
                          (do (Thread/sleep 200)
-                           (kill-stale-daemon! (:session flags))
-                           (ensure-daemon! (:session flags) flags)
-                           (recur (inc retries)))
+                             (kill-stale-daemon! (:session flags))
+                             (ensure-daemon! (:session flags) flags)
+                             (recur (inc retries)))
                          :else res)))]
       (if response
         (do (print-result response (:json flags))
-          (System/exit (if (:success response) 0 1)))
+            (System/exit (if (:success response) 0 1)))
         (do (binding [*out* *err*]
               (println "Error: Could not connect to daemon"))
-          (System/exit 1))))))
+            (System/exit 1))))))

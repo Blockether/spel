@@ -16,8 +16,6 @@
   (:import
    [com.microsoft.playwright Page]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Role → Color mapping (CSS hex)
 ;; =============================================================================
@@ -79,15 +77,26 @@
 (defn- bbox-contains?
   "Returns true if outer bbox fully contains inner bbox (with 2px epsilon).
 
-   Used to detect parent-wrapping-child overlap: if a paragraph's bbox
-   fully wraps a link's bbox, we prefer annotating the link only."
+  Used to detect parent-wrapping-child overlap: if a paragraph's bbox
+  fully wraps a link's bbox, we prefer annotating the link only.
+  
+  IMPORTANT: The outer bbox must be strictly larger in at least one dimension
+  to avoid false positives when two elements have identical bboxes (e.g., an
+  img that fills its containing link). Without this check, equal-sized elements
+  would 'contain' each other, leading to the child being incorrectly suppressed."
   [{ox :x oy :y ow :width oh :height}
    {ix :x iy :y iw :width ih :height}]
-  (let [eps 2]
+  (let [eps 2.0
+        ox (double ox) oy (double oy) ow (double ow) oh (double oh)
+        ix (double ix) iy (double iy) iw (double iw) ih (double ih)]
     (and (<= (- ox eps) ix)
       (<= (- oy eps) iy)
       (>= (+ ox ow eps) (+ ix iw))
-      (>= (+ oy oh eps) (+ iy ih)))))
+      (>= (+ oy oh eps) (+ iy ih))
+      ;; Must be strictly larger in at least one dimension (without epsilon)
+      ;; to be a true container — prevents identical bboxes from suppressing
+      ;; each other (e.g., <a><img></a> where img fills the link)
+      (or (> ow iw) (> oh ih)))))
 
 (defn remove-containers
   "Removes refs whose bbox fully contains another ref's bbox.
@@ -99,7 +108,7 @@
   (if (<= (count refs) 1)
     refs
     (let [entries (vec refs)
-          bbox-area (fn [{:keys [width height]}] (* (long width) (long height)))
+          bbox-area (fn ^long [{:keys [width height]}] (* (long width) (long height)))
           suppressed
           (into #{}
             (for [[id-a info-a] entries
@@ -111,10 +120,16 @@
                           (bbox-contains? bbox-a bbox-b)
                           ;; Don't suppress mixed-content containers — they have
                           ;; their own direct text content distinct from children
-                          (not (:mixed info-a))
-                          (or (> (bbox-area bbox-a) (bbox-area bbox-b))
-                            (and (= (bbox-area bbox-a) (bbox-area bbox-b))
-                              (pos? (compare id-a id-b)))))]
+                          (not (:mixed info-a)))
+                  :let [area-a (long (bbox-area bbox-a))
+                        area-b (long (bbox-area bbox-b))]
+                  ;; A zero-area child (invisible/hidden element) must not
+                  ;; trigger suppression of a visible container (e.g., a 0×0
+                  ;; hidden link inside a CSS-background logo div)
+                  :when (pos? area-b)
+                  :when (or (> area-a area-b)
+                          (and (= area-a area-b)
+                            (pos? (compare id-a id-b))))]
               id-a))]
       (apply dissoc refs suppressed))))
 
@@ -142,9 +157,11 @@
    viewport: {:width W :height H}  — scroll offset is 0,0 (viewport coords).
    bbox:     {:x X :y Y :width W :height H}"
   [{vw :width vh :height} {:keys [x y width height]}]
-  (and (pos? width) (pos? height)
-    (< x vw) (< y vh)
-    (> (+ x width) 0) (> (+ y height) 0)))
+  (let [vw (double vw) vh (double vh)
+        x (double x) y (double y) width (double width) height (double height)]
+    (and (pos? width) (pos? height)
+      (< x vw) (< y vh)
+      (> (+ x width) 0.0) (> (+ y height) 0.0))))
 
 (defn visible-refs
   "Filters refs to only those whose bbox is at least partially visible
@@ -177,7 +194,9 @@
    attribute that capture-snapshot already sets on the DOM."
   [refs]
   (let [items (for [[ref-id _info] refs
-                    :let [{:keys [x y width height]} (:bbox _info)]
+                    :let [{:keys [x y width height]} (:bbox _info)
+                          x (double x) y (double y)
+                          width (double width) height (double height)]
                     :when (and (pos? width) (pos? height))]
                 (str "{id:'" ref-id "'"
                   ",cx:" (+ x (/ width 2.0))
@@ -191,8 +210,22 @@
       "checks.forEach(function(c){"
      ;; Skip if center outside viewport
       "  if(c.cx<0||c.cy<0||c.cx>=vw||c.cy>=vh)return;"
-     ;; Get topmost element at center point
+     ;; Get topmost element at center point, piercing through invisible
+     ;; overlays (opacity:0, visibility:hidden, pointer-events:none).
+     ;; Some sites use transparent elements for click handling (e.g.,
+     ;; an opacity:0 <img> over a CSS-background logo). Without this,
+     ;; the transparent element occludes the real visual element beneath.
+      "  var hidden=[];"
       "  var el=document.elementFromPoint(c.cx,c.cy);"
+      "  while(el){"
+      "    var s=getComputedStyle(el);"
+      "    if(parseFloat(s.opacity)===0||s.visibility==='hidden'||s.pointerEvents==='none'){"
+      "      el.style.display='none';hidden.push(el);"
+      "      el=document.elementFromPoint(c.cx,c.cy);"
+      "    }else{break;}"
+      "  }"
+     ;; Restore hidden elements
+      "  hidden.forEach(function(h){h.style.display='';});"
       "  if(!el)return;"
      ;; Walk up from topmost element looking for data-pw-ref matching this ref
      ;; If found → our element is on top (visible). If not → occluded.
@@ -264,6 +297,7 @@
         (for [[ref-id info] items
               :let [{:keys [role bbox]} info
                     {:keys [width height]} bbox
+                    width (double width) height (double height)
                     color (color-for-role role)]
               :when (and (pos? width) (pos? height))]
           (str

@@ -1,5 +1,5 @@
 .PHONY: test test-watch test-junit test-allure allure-report allure-serve allure clean jar install deploy lint repl \
-	spel uberjar init-agents install-local
+	spel uberjar init-agents install-local gen-docs validate-safe-graal
 
 REPL_PORT ?= 7600
 
@@ -60,5 +60,16 @@ install-local: spel ## Install spel binary to ~/.local/bin
 	rm -f $(HOME)/.local/bin/spel
 	cp target/spel $(HOME)/.local/bin/spel
 
+gen-docs: ## Regenerate API docs in SKILL.md template from source
+	clojure -T:build gen-docs
+
 init-agents: ## Scaffold OpenCode E2E testing agents (via spel)
 	./target/spel init-agents $(ARGS)
+
+validate-safe-graal: ## Check root src for GraalVM native-image safety (reflection/boxed math)
+	@echo "Checking root src for GraalVM native-image safety..."
+	@clojure \
+		-e "(set! *warn-on-reflection* true)" \
+		-e "(set! *unchecked-math* :warn-on-boxed)" \
+		-e "(doseq [^java.io.File f (file-seq (clojure.java.io/file \"src\"))] (when (and (.isFile f) (.endsWith (.getName f) \".clj\")) (try (load-file (.getPath f)) (catch Exception e (println \"Error loading:\" (.getPath f) (.getMessage e))))))" \
+		2>&1 | grep -iE "(reflection|boxed math) warning" | grep "/src/" && { echo "=== FAILED: Reflection/boxed math warnings found ==="; exit 1; } || echo "=== GraalVM Check Passed ==="

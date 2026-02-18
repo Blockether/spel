@@ -32,8 +32,6 @@
    [java.nio.file Files Path]
    [java.util Base64]))
 
-(set! *warn-on-reflection* true)
-
 (declare stop-daemon!)
 
 (defn- warn
@@ -104,9 +102,10 @@
                :resource-type (.resourceType req)}]
     (swap! !tracked-requests
       (fn [reqs]
-        (let [updated (conj reqs entry)]
-          (if (> (count updated) max-tracked-requests)
-            (subvec updated (- (count updated) max-tracked-requests))
+        (let [updated (conj reqs entry)
+              n (long (count updated))]
+          (if (> n (long max-tracked-requests))
+            (subvec updated (- n (long max-tracked-requests)))
             updated))))))
 
 (defn- pg ^Page [] (:page @!state))
@@ -219,7 +218,7 @@
                      (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                      (get flags "headers")             (assoc :extra-http-headers
                                                          (try (clojure.data.json/read-str (get flags "headers"))
-                                                           (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                      (get flags "profile")             (assoc :storage-state (get flags "profile")))
           pw      (core/create)
           browser (if (get flags "cdp")
@@ -395,7 +394,7 @@
             (Path/of ^String path-str (into-array String []))
             ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-        {:path path-str :size (alength ss-bytes)})
+          {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
@@ -441,7 +440,7 @@
 (defmethod handle-cmd "scroll" [_ params]
   (ensure-page-loaded!)
   (let [direction (get params "direction" "down")
-        amount    (get params "amount" 500)
+        amount    (long (get params "amount" 500))
         sel       (get params "selector")
         [dx dy]   (case direction
                     "up"    [0 (- amount)]
@@ -479,27 +478,27 @@
   (cond
     (get params "text")
     (do (page/wait-for-selector (pg) (str "text=" (get params "text")))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (page/wait-for-url (pg) (get params "url"))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (page/wait-for-function (pg) (get params "function"))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (do (page/wait-for-selector (pg) (get params "selector"))
-      {:found (get params "selector")})
+        {:found (get params "selector")})
 
     (get params "state")
     (do (page/wait-for-load-state (pg) (keyword (get params "state")))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (page/wait-for-timeout (pg) (double (get params "timeout")))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -650,13 +649,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "click" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "fill" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -820,7 +819,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -869,12 +868,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -992,7 +991,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg)
               ;; Re-register console, error, and request listeners on new page
@@ -1042,14 +1041,14 @@
       {:cleared file-name})))
 
 (defmethod handle-cmd "state_clean" [_ {:strs [older_than_days]}]
-  (let [days     (or older_than_days 30)
+  (let [days     (long (or older_than_days 30))
         cutoff   (- (System/currentTimeMillis) (* days 24 60 60 1000))
         dir      (java.io.File. ".")
         files    (->> (.listFiles dir)
                    (filter (fn [^File f] (and (.isFile f)
                                            (str/ends-with? (.getName f) ".json")
                                            (str/starts-with? (.getName f) "state-")
-                                           (< (.lastModified f) cutoff)))))]
+                                           (< (.lastModified f) ^long cutoff)))))]
     (doseq [^File f files] (.delete f))
     {:cleaned (count files) :older_than_days days}))
 

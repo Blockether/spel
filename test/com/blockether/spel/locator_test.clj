@@ -4,9 +4,9 @@
    [com.blockether.spel.locator :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect expect-it it before-each]])
+   [lazytest.core :refer [defdescribe describe expect it before-each]])
   (:import
-   [com.microsoft.playwright Locator]))
+   [com.microsoft.playwright Locator FrameLocator]))
 
 ;; Test HTML content for locator tests
 (def ^:private test-html
@@ -115,10 +115,10 @@
       (page/set-content! *page* test-html))
 
     (it "returns inner HTML of element"
-      (let [div (page/locator *page* "#container")]
-        (let [html (sut/inner-html div)]
-          (expect (string? html))
-          (expect (.contains html "btn1"))))))
+      (let [div  (page/locator *page* "#container")
+            html (sut/inner-html div)]
+        (expect (string? html))
+        (expect (.contains html "btn1")))))
 
   (describe "input-value"
     {:context [with-playwright with-browser with-page]}
@@ -365,3 +365,24 @@
             sub-link (sut/loc-get-by-text container "Link text")]
         (expect (instance? Locator sub-link))
         (expect (= "Link text" (sut/text-content sub-link)))))))
+
+;; =============================================================================
+;; Content Frame
+;; =============================================================================
+
+(defdescribe content-frame-test
+  "Tests for locator content-frame (returns FrameLocator for iframes)"
+
+  (describe "content-frame"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "returns FrameLocator for iframe element"
+      (page/set-content! *page*
+        "<iframe id='myframe' srcdoc='<h1>Inside Frame</h1><p>Frame content</p>'></iframe>")
+      ;; Wait for iframe to load
+      (page/wait-for-load-state *page*)
+      (let [iframe-loc (page/locator *page* "#myframe")
+            fl (sut/content-frame iframe-loc)]
+        (expect (instance? FrameLocator fl))
+        (let [h1 (.locator fl "h1")]
+          (expect (= "Inside Frame" (sut/text-content h1))))))))

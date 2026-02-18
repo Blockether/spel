@@ -42,8 +42,6 @@
     Playwright]
    [com.microsoft.playwright.options FormData RequestOptions]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; JSON Encoding
 ;; =============================================================================
@@ -714,9 +712,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -742,11 +740,11 @@
                    (or (anomaly/anomaly? result)
                      (and (map? result)
                        (contains? result :status)
-                       (>= (:status result) 500))))})
+                       (>= (long (:status result)) 500))))})
 
 (defn- compute-delay
   "Compute delay in ms for the given attempt number (0-based)."
-  ^long [backoff delay-ms max-delay-ms attempt]
+  ^long [backoff ^long delay-ms ^long max-delay-ms ^long attempt]
   (let [raw (case backoff
               :fixed       delay-ms
               :linear      (* delay-ms (inc attempt))
@@ -782,7 +780,10 @@
   ([f] (retry f {}))
   ([f opts]
    (let [{:keys [max-attempts delay-ms backoff max-delay-ms retry-when]}
-         (merge default-retry-opts opts)]
+         (merge default-retry-opts opts)
+         max-attempts (long max-attempts)
+         delay-ms     (long delay-ms)
+         max-delay-ms (long max-delay-ms)]
      (loop [attempt 0]
        (let [result (f)]
          (if (and (< (inc attempt) max-attempts)
@@ -802,7 +803,7 @@
 
    Usage:
    ;; Default: 3 attempts, exponential backoff, retry on anomalies + 5xx
-   (with-retry
+   (with-retry {}
      (api-get ctx \"/flaky-endpoint\"))
 
    ;; Custom retry config

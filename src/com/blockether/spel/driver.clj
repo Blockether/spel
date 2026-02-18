@@ -20,8 +20,6 @@
    [java.nio.file.attribute FileAttribute]
    [java.util.zip ZipInputStream]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Constants
 ;; =============================================================================

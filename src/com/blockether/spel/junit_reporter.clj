@@ -26,8 +26,6 @@
    [java.time.format DateTimeFormatter]
    [java.util Locale]))
 
-(set! *warn-on-reflection* true)
-
 ;; =============================================================================
 ;; Run State
 ;; =============================================================================
@@ -92,7 +90,7 @@
   "Convert nanoseconds to seconds as a formatted string.
    Forces US locale to ensure dot decimal separator (JUnit XML spec)."
   ^String [nanos]
-  (String/format Locale/US "%.3f" (into-array Object [(double (/ (or nanos 0) 1e9))])))
+  (String/format Locale/US "%.3f" (into-array Object [(/ (double (or nanos 0)) 1e9)])))
 
 (defn- stacktrace-str
   "Get full stacktrace as a string."
