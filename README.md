@@ -51,7 +51,9 @@ spel wraps the official Playwright Java 1.58.0 library with idiomatic Clojure: m
 
 - **Data-driven**: Maps for options, anomaly maps for errors — no option builders, no checked exceptions
 - **Composable**: `with-*` macros for lifecycle management — resources always cleaned up
-- **Batteries included**: API testing, Allure reporting, code generation, accessibility snapshots, native CLI
+- **Agent-friendly**: Accessibility snapshots with numbered refs, persistent browser daemon, and `--eval` scripting — built for AI agents to see, decide, and act
+- **Record & replay**: Record browser sessions to JSONL, transform to idiomatic Clojure tests or scripts
+- **Batteries included**: API testing, Allure reporting with embedded Playwright traces, agent scaffolding for Claude/VS Code/OpenCode
 - **Not a port**: Wraps the official Playwright Java library directly — full API coverage, same browser versions
 
 ## Quick Start
@@ -83,21 +85,73 @@ npx playwright install --with-deps chromium
 
 ### As a Native CLI Binary
 
-Download from [GitHub releases](https://github.com/blockether/spel/releases) (5 platforms):
+#### Releases
+
+Download from [GitHub releases](https://github.com/Blockether/spel/releases) (5 platforms):
 
 ```bash
-# Example for macOS ARM
-curl -LO https://github.com/blockether/spel/releases/latest/download/spel-macos-arm64
-chmod +x spel-macos-arm64
-mv spel-macos-arm64 /usr/local/bin/spel
+# macOS ARM (Apple Silicon)
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-arm64
+chmod +x spel-macos-arm64 && mv spel-macos-arm64 /usr/local/bin/spel
 
-spel install
-spel open https://example.com
-spel snapshot -i
-spel close
+# macOS Intel
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-amd64
+chmod +x spel-macos-amd64 && mv spel-macos-amd64 /usr/local/bin/spel
+
+# Linux (amd64)
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-amd64
+chmod +x spel-linux-amd64 && sudo mv spel-linux-amd64 /usr/local/bin/spel
+
+# Linux (arm64)
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-arm64
+chmod +x spel-linux-arm64 && sudo mv spel-linux-arm64 /usr/local/bin/spel
+
+# Windows (PowerShell)
+Invoke-WebRequest -Uri https://github.com/Blockether/spel/releases/latest/download/spel-windows-amd64.exe -OutFile spel.exe
+Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 ```
 
-Platforms: linux-amd64, linux-arm64, macos-amd64, macos-arm64, windows-amd64.
+#### Dev Builds (from CI)
+
+Every push to `main` produces native binaries as GitHub Actions artifacts. Install the latest dev build with the [GitHub CLI](https://cli.github.com/):
+
+```bash
+# macOS ARM (Apple Silicon)
+gh run download -n spel-dev-macos-arm64 -R Blockether/spel -D /tmp/spel
+chmod +x /tmp/spel/spel && mv /tmp/spel/spel /usr/local/bin/spel
+
+# macOS Intel
+gh run download -n spel-dev-macos-amd64 -R Blockether/spel -D /tmp/spel
+chmod +x /tmp/spel/spel && mv /tmp/spel/spel /usr/local/bin/spel
+
+# Linux (amd64)
+gh run download -n spel-dev-linux-amd64 -R Blockether/spel -D /tmp/spel
+chmod +x /tmp/spel/spel && sudo mv /tmp/spel/spel /usr/local/bin/spel
+
+# Windows (PowerShell)
+gh run download -n spel-dev-windows-amd64 -R Blockether/spel -D $env:TEMP\spel
+Move-Item "$env:TEMP\spel\spel.exe" "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
+```
+
+#### macOS Gatekeeper
+
+The binaries are not signed with an Apple Developer certificate. macOS will block the first run with *"spel can't be opened because Apple cannot check it for malicious software"*. To allow it:
+
+```bash
+# Remove the quarantine attribute (recommended)
+xattr -d com.apple.quarantine /usr/local/bin/spel
+```
+
+Or: **System Settings → Privacy & Security → scroll down → click "Allow Anyway"** after the first blocked attempt.
+
+#### Post-install
+
+Install browsers and verify:
+
+```bash
+spel install
+spel version
+```
 
 ## Usage
 
