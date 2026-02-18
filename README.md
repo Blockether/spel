@@ -87,16 +87,12 @@ npx playwright install --with-deps chromium
 
 #### Releases
 
-Download from [GitHub releases](https://github.com/Blockether/spel/releases) (5 platforms):
+Download from [GitHub releases](https://github.com/Blockether/spel/releases):
 
 ```bash
-# macOS ARM (Apple Silicon)
+# macOS (Apple Silicon)
 curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-arm64
 chmod +x spel-macos-arm64 && mv spel-macos-arm64 /usr/local/bin/spel
-
-# macOS Intel
-curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-amd64
-chmod +x spel-macos-amd64 && mv spel-macos-amd64 /usr/local/bin/spel
 
 # Linux (amd64)
 curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-amd64
@@ -116,12 +112,8 @@ Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 Every push to `main` produces native binaries as GitHub Actions artifacts. Install the latest dev build with the [GitHub CLI](https://cli.github.com/):
 
 ```bash
-# macOS ARM (Apple Silicon)
+# macOS (Apple Silicon)
 gh run download -n spel-dev-macos-arm64 -R Blockether/spel -D /tmp/spel
-chmod +x /tmp/spel/spel && mv /tmp/spel/spel /usr/local/bin/spel
-
-# macOS Intel
-gh run download -n spel-dev-macos-amd64 -R Blockether/spel -D /tmp/spel
 chmod +x /tmp/spel/spel && mv /tmp/spel/spel /usr/local/bin/spel
 
 # Linux (amd64)
@@ -1005,7 +997,8 @@ spel close
 --args "ARG1,ARG2"          # Browser args (comma-separated)
 --cdp URL                   # Connect via CDP endpoint
 --ignore-https-errors       # Ignore SSL errors
---profile PATH              # Persistent browser profile
+--storage-state PATH        # Load storage state (cookies/localStorage JSON)
+--profile PATH              # Chrome user data directory (real profile)
 --debug                     # Debug logging
 ```
 

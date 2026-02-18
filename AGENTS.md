@@ -67,3 +67,55 @@ spel init-agents --ns my-app --loop=claude --force
 # VS Code / Copilot
 spel init-agents --ns my-app --loop=vscode --force
 ```
+
+## Verification Checklist (MANDATORY before completing any change)
+
+Every code change MUST pass this full checklist before it's considered done:
+
+1. **All tests pass**
+   ```bash
+   clojure -M:test
+   ```
+   All test cases must report 0 failures. Pre-existing failures must be noted explicitly.
+
+2. **Native CLI builds**
+   ```bash
+   make install-local
+   ```
+   Builds uberjar → native-image → copies to `~/.local/bin/spel`. Must exit 0.
+
+3. **Native CLI smoke test**
+   ```bash
+   spel version
+   spel --help
+   ```
+   The freshly built binary must respond correctly.
+
+4. **Regenerate agents/skills/docs** (if templates or source changed)
+   ```bash
+   make init-agents ARGS="--ns com.blockether.spel --force"
+   ```
+   Scaffolded files in `.opencode/` must be regenerated from templates.
+
+**Skipping any step = incomplete work.** If a step fails, fix it before moving on.
+
+## Running Tests (Lazytest)
+
+```bash
+# Full suite
+clojure -M:test
+
+# Single namespace
+clojure -M:test -n com.blockether.spel.core-test
+
+# Single var (MUST be fully-qualified: namespace/var-name)
+clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
+
+# With Allure report
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+
+# Watch mode
+clojure -M:test --watch
+```
+
+**IMPORTANT**: `-v`/`--var` requires fully-qualified symbols. Bare var names throw `IllegalArgumentException`.
