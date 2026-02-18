@@ -302,7 +302,23 @@
         (expect (= "annotate" (:action c)))
         (expect (false? (:show-badges c)))
         (expect (false? (:show-dimensions c)))
-        (expect (false? (:show-boxes c))))))
+        (expect (false? (:show-boxes c)))))
+
+    (it "parses annotate --full"
+      (let [c (cmd ["annotate" "--full"])]
+        (expect (= "annotate" (:action c)))
+        (expect (true? (:full-page c)))))
+
+    (it "parses annotate -f"
+      (let [c (cmd ["annotate" "-f"])]
+        (expect (= "annotate" (:action c)))
+        (expect (true? (:full-page c)))))
+
+    (it "parses annotate --full with other flags"
+      (let [c (cmd ["annotate" "--full" "--no-badges"])]
+        (expect (= "annotate" (:action c)))
+        (expect (true? (:full-page c)))
+        (expect (false? (:show-badges c))))))
 
   (describe "unannotate"
     (it "parses unannotate"

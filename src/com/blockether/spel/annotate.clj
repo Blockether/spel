@@ -462,27 +462,29 @@
    Params:
    `page` - Playwright Page instance.
    `refs` - Map from capture-snapshot. {\"e1\" {:role :name :bbox {:x :y :width :height}} ...}
-   `opts` - Map, optional.
-     :scope           - String. CSS selector or snapshot ref (@e1, e1) to restrict
-                        annotations to a subtree. Only elements that are descendants
-                        of the matched element will be annotated. Requires prior
-                        snapshot (elements tagged with data-pw-ref).
-     :show-dimensions - Boolean (default true). Show width x height in labels.
-     :show-badges     - Boolean (default true). Show compact labels.
-     :show-boxes      - Boolean (default true). Show bounding box outlines.
+    `opts` - Map, optional.
+      :scope           - String. CSS selector or snapshot ref (@e1, e1) to restrict
+                         annotations to a subtree. Only elements that are descendants
+                         of the matched element will be annotated. Requires prior
+                         snapshot (elements tagged with data-pw-ref).
+      :full-page       - Boolean (default false). Annotate all elements on the page,
+                         not just those visible in the current viewport.
+      :show-dimensions - Boolean (default true). Show width x height in labels.
+      :show-badges     - Boolean (default true). Show compact labels.
+      :show-boxes      - Boolean (default true). Show bounding box outlines.
 
-   Returns: count of annotated elements (long)."
+    Returns: count of annotated elements (long)."
   ([^Page page refs]
    (inject-overlays! page refs {}))
   ([^Page page refs opts]
    (let [;; Phase 0: scope filter (restrict to DOM subtree)
          scoped      (apply-scope page (:scope opts) refs)
-         ;; Phase 1: filter to annotatable roles + remove containers
+          ;; Phase 1: filter to annotatable roles + remove containers
          annotatable (filter-annotatable scoped)
-         ;; Phase 2: fast Clojure-side bbox filter
-         vp          (page/viewport-size page)
+          ;; Phase 2: fast Clojure-side bbox filter (skip when :full-page)
+         vp          (when-not (:full-page opts) (page/viewport-size page))
          in-viewport (if vp (visible-refs vp annotatable) annotatable)
-         ;; Phase 3: JS-side elementFromPoint occlusion check
+          ;; Phase 3: JS-side elementFromPoint occlusion check
          visible-ids (check-visible-refs page in-viewport)
          visible     (select-keys in-viewport visible-ids)]
      (when (seq visible)

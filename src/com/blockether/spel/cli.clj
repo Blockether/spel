@@ -352,6 +352,7 @@
       "  spel annotate --no-boxes --no-dims"
       ""
       "Flags:"
+      "  -f, --full                Annotate all elements (not just viewport)"
       "  --no-badges               Hide element type badges"
       "  --no-dimensions, --no-dims  Hide dimension overlays"
       "  --no-boxes                Hide bounding boxes"
@@ -1229,6 +1230,8 @@
 
           ;; Annotate (inject overlays onto the page for visible elements)
             "annotate" (cond-> {:action "annotate"}
+                         (some #{"-f" "--full"} cmd-args)
+                         (assoc :full-page true)
                          (some #{"--no-badges"} cmd-args)
                          (assoc :show-badges false)
                          (some #{"--no-dimensions" "--no-dims"} cmd-args)

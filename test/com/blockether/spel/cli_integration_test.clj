@@ -1124,7 +1124,15 @@
       (let [r (cmd "annotate" {"show-badges" false
                                "show-dimensions" false
                                "show-boxes" false})]
-        (expect (number? (:annotated r))))))
+        (expect (number? (:annotated r)))))
+
+    (it "annotate --full annotates at least as many as viewport-only"
+      (nav! "/test-page")
+      (let [viewport-r (cmd "annotate" {})
+            _          (cmd "unannotate" {})
+            full-r     (cmd "annotate" {"full-page" true})]
+        (expect (number? (:annotated full-r)))
+        (expect (>= (:annotated full-r) (:annotated viewport-r))))))
 
   (describe "unannotate removes overlays"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}

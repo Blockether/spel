@@ -432,6 +432,7 @@
         opts (cond-> {}
                scope
                (assoc :scope scope)
+               (get params "full-page")              (assoc :full-page true)
                (contains? params "show-badges")     (assoc :show-badges (get params "show-badges"))
                (contains? params "show-dimensions") (assoc :show-dimensions (get params "show-dimensions"))
                (contains? params "show-boxes")      (assoc :show-boxes (get params "show-boxes")))
