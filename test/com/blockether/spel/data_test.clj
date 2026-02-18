@@ -1,4 +1,5 @@
 (ns com.blockether.spel.data-test
+  #_{:clj-kondo/ignore [:unused-namespace]}
   (:require
    [clojure.datafy :refer [datafy]]
    [com.blockether.spel.core :as core] ;; auto-loads data.clj

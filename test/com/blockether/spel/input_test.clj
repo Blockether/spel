@@ -5,7 +5,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect expect-it it before-each]])
+   [lazytest.core :refer [defdescribe describe expect it before-each]])
   (:import
    [com.microsoft.playwright Keyboard Mouse]))
 
@@ -86,15 +86,14 @@
       (page/set-content! *page* test-html))
 
     (it "clicks at coordinates"
-      (let [btn (page/locator *page* "#click-btn")
-            mouse (page/page-mouse *page*)
-            bb (locator/bounding-box btn)]
+      (let [btn      (page/locator *page* "#click-btn")
+            mouse    (page/page-mouse *page*)
+            bb       (locator/bounding-box btn)
+            center-x (+ (:x bb) (/ (:width bb) 2))
+            center-y (+ (:y bb) (/ (:height bb) 2))]
         ;; Click at the center of the button
-        (let [center-x (+ (:x bb) (/ (:width bb) 2))
-              center-y (+ (:y bb) (/ (:height bb) 2))]
-          (sut/mouse-click mouse center-x center-y)
-          ;; Wait a bit for the click to take effect
-          (page/wait-for-timeout *page* 100)
-          ;; Verify the click had an effect
-          (let [result (locator/text-content (page/locator *page* "#result"))]
-            (expect (= "clicked" result))))))))
+        (sut/mouse-click mouse center-x center-y)
+        ;; Wait a bit for the click to take effect
+        (page/wait-for-timeout *page* 100)
+        ;; Verify the click had an effect
+        (expect (= "clicked" (locator/text-content (page/locator *page* "#result"))))))))

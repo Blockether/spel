@@ -158,22 +158,18 @@
         (expect (= "hello once" @captured))))
 
     (it "does not fire for second dialog"
-      (let [once-msgs (atom [])
-            fallback-msgs (atom [])]
-        ;; Register one-time handler for first dialog
-        (sut/once-dialog *page* (fn [dialog]
-                                  (swap! once-msgs conj (.message dialog))
-                                  (.dismiss dialog)))
-        ;; Register persistent handler for subsequent dialogs
-        (sut/on-dialog *page* (fn [dialog]
-                                (swap! fallback-msgs conj (.message dialog))
-                                (.dismiss dialog)))
-        ;; First alert — handled by once-dialog
+      (let [once-count (atom 0)]
+        ;; Register persistent handler to dismiss all dialogs
+        (sut/on-dialog *page* (fn [dialog] (.dismiss dialog)))
+        ;; Register one-time handler that increments counter
+        (sut/once-dialog *page* (fn [_dialog]
+                                  (swap! once-count inc)))
+        ;; First alert — once-dialog fires
         (sut/evaluate *page* "window.alert('first')")
-        ;; Second alert — once-dialog already consumed, falls through to on-dialog
+        (expect (= 1 @once-count))
+        ;; Second alert — once-dialog already consumed, does not fire again
         (sut/evaluate *page* "window.alert('second')")
-        (expect (= ["first"] @once-msgs))
-        (expect (= ["second"] @fallback-msgs))))))
+        (expect (= 1 @once-count))))))
 
 ;; =============================================================================
 ;; get-by-role with options

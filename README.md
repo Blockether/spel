@@ -652,7 +652,7 @@ Request/response interceptors — composable, nestable:
 
 ## Allure Test Reporting
 
-Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/).
+Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/). Compatible with Allure 2+ result format. The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx) with an embedded local Playwright trace viewer — no external `allure generate` step needed.
 
 ### Test Example
 
@@ -757,12 +757,21 @@ Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehe
 ### Running Tests
 
 ```bash
-# Run with Allure reporter
-clojure -M:test --output com.blockether.spel.allure-reporter/allure
+# Run with Allure reporter (generates JSON + HTML report + embedded trace viewer automatically)
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Generate HTML report
-allure generate allure-results --clean
+# Or use Make targets
+make test-allure     # run tests + generate report
+make allure          # run tests + generate + open in browser
 ```
+
+The reporter handles the full pipeline:
+1. Writes Allure JSON results to `allure-results/`
+2. Resolves Allure 3 CLI via `npx allure@3.1.0` (no manual install needed)
+3. Generates HTML report to `allure-report/` using `allure awesome`
+4. Embeds a local Playwright trace viewer (no dependency on `trace.playwright.dev`)
+5. Patches report JS to load traces from `./trace-viewer/` and pre-registers the Service Worker for instant loading
+6. Manages run history across builds via `.allure-history.jsonl`
 
 ### Trace Viewer Integration
 
@@ -774,7 +783,7 @@ When using test fixtures with Allure reporter active, Playwright tracing is auto
 - Sources captured
 - HAR file generated
 
-Trace and HAR files are automatically attached to test results and viewable in the Allure report.
+Trace and HAR files are automatically attached to test results (MIME type `application/vnd.allure.playwright-trace`) and viewable directly in the Allure report via an embedded local trace viewer — no external service dependency. The report JS is patched to load traces from `./trace-viewer/` instead of `trace.playwright.dev`, and a Service Worker is pre-registered for instant loading.
 
 ## Test Generation (Codegen)
 

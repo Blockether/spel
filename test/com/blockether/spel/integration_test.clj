@@ -145,10 +145,10 @@
 
     (it "inner-html returns element markup"
       (page/navigate *page* "https://example.com")
-      (let [body (page/locator *page* "body")]
-        (let [html (locator/inner-html body)]
-          (expect (.contains html "<h1>"))
-          (expect (.contains html "Example Domain")))))
+      (let [body (page/locator *page* "body")
+            html (locator/inner-html body)]
+        (expect (.contains html "<h1>"))
+        (expect (.contains html "Example Domain"))))
 
     (it "inner-text returns visible text"
       (page/navigate *page* "https://example.com")

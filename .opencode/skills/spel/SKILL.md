@@ -87,7 +87,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `get-by-alt-text` | [page text] | Locates elements by alt text. |
 | `get-by-label` | [page text] | Locates elements by their label text. |
 | `get-by-placeholder` | [page text] | Locates elements by placeholder text. |
-| `get-by-role` | [page role] | Locates elements by their ARIA role. |
+| `get-by-role` | [page role] \| [page role opts] | Locates elements by their ARIA role. |
 | `get-by-test-id` | [page test-id] | Locates elements by test ID attribute. |
 | `get-by-text` | [page text] | Locates elements by their text content. |
 | `get-by-title` | [page text] | Locates elements by title attribute. |
@@ -105,6 +105,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `on-popup` | [page handler] | Registers a handler for popup pages. |
 | `on-request` | [page handler] | Registers a handler for requests. |
 | `on-response` | [page handler] | Registers a handler for responses. |
+| `once-dialog` | [page handler] | Registers a one-time handler for the next dialog. |
 | `opener` | [page] | Returns the opener page, if any. |
 | `page-context` | [page] | Returns the BrowserContext that the page belongs to. |
 | `page-keyboard` | [page] | Returns the Keyboard for this page. |
@@ -147,6 +148,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `check` | [loc] \| [loc check-opts] | Checks a checkbox or radio button. |
 | `clear` | [loc] | Clears input field content. |
 | `click` | [loc] \| [loc click-opts] | Clicks an element. |
+| `content-frame` | [loc] | Returns a FrameLocator pointing to the same iframe as this locator. |
 | `count-elements` | [loc] | Returns the number of elements matching the locator. |
 | `dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
 | `dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
@@ -524,6 +526,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `->frame-wait-for-selector-options` | [opts] | Converts a map to Frame$WaitForSelectorOptions. |
 | `->frame-wait-for-url-options` | [opts] | Converts a map to Frame$WaitForURLOptions. |
 | `->get-attribute-options` | [opts] | Converts a map to Locator$GetAttributeOptions. |
+| `->get-by-role-options` | [opts] | Converts a map to Page$GetByRoleOptions. |
 | `->go-back-options` | [opts] | Converts a map to Page$GoBackOptions. |
 | `->go-forward-options` | [opts] | Converts a map to Page$GoForwardOptions. |
 | `->hover-options` | [opts] | Converts a map to Locator$HoverOptions. |
@@ -637,8 +640,11 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 ;; By role (requires AriaRole import)
 (page/get-by-role pg AriaRole/BUTTON)
 
-;; By role + name filter (no GetByRoleOptions for name yet)
-(locator/loc-filter (page/get-by-role pg AriaRole/LINK) {:has-text "Learn more"})
+;; By role + name filter
+(page/get-by-role pg AriaRole/LINK {:name "Learn more"})
+
+;; By role + exact name match
+(page/get-by-role pg AriaRole/BUTTON {:name "Submit" :exact true})
 
 ;; By label
 (page/get-by-label pg "Email")
@@ -686,9 +692,7 @@ Error: strict mode violation: locator("h1") resolved to 4 elements
 (spel/text "h1.display-1")  ;; SCI/eval equivalent
 
 ;; RIGHT — use semantic locators (role + name filter)
-(locator/text-content
-  (locator/loc-filter (page/get-by-role pg AriaRole/HEADING)
-    {:has-text "Installation"}))
+(locator/text-content (page/get-by-role pg AriaRole/HEADING {:name "Installation"}))
 
 ;; RIGHT — use nth-element for a specific match
 (locator/text-content (locator/nth-element (page/locator pg "h1") 0))
@@ -1348,31 +1352,6 @@ Three subagents work together in a plan → generate → heal loop:
 
 **No external dependencies**: All agents use spel directly — no Agent Browser or external MCP tools needed.
 
-### OpenCode Agent Frontmatter Spec
-
-Agent markdown files use YAML frontmatter. The `color` field accepts:
-
-| Format | Example | Notes |
-|--------|---------|-------|
-| **Hex color** | `"#FF5733"` | Must be quoted, include `#` prefix |
-| **Theme color** | `primary`, `secondary`, `accent`, `success`, `warning`, `error`, `info` | Unquoted |
-
-**PROHIBITED:** Named CSS colors (`blue`, `red`, `green`, etc.) are **NOT valid** and cause OpenCode validation errors: `Invalid hex color format color`.
-
-All agent frontmatter fields:
-
-| Field | Required | Values |
-|-------|----------|--------|
-| `description` | Yes | Brief description of the agent |
-| `mode` | Yes | `primary`, `subagent`, or `all` |
-| `color` | No | Hex (`"#RRGGBB"`) or theme color name |
-| `model` | No | `provider/model-id` |
-| `temperature` | No | `0.0` - `1.0` |
-| `steps` | No | Max agentic iterations |
-| `hidden` | No | `true`/`false` — hide from `@` menu |
-| `tools` | No | Map of tool → `true`/`false` |
-| `permission` | No | Map of tool → `allow`/`ask`/`deny` or glob patterns |
-
 ### Template System
 
 Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `com.blockether.spel` placeholders as Clojure code. The `process-template` function replaces `com.blockether.spel` with the `--ns` value (or falls back to the consuming project's directory name).
@@ -1676,7 +1655,7 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/$alt-text` | [text] |  |
 | `spel/$label` | [text] |  |
 | `spel/$placeholder` | [text] |  |
-| `spel/$role` | [role] |  |
+| `spel/$role` | [role] \| [role opts] |  |
 | `spel/$test-id` | [id] |  |
 | `spel/$text` | [text] |  |
 | `spel/$title-attr` | [text] |  |
@@ -1793,6 +1772,7 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/on-popup` | [handler] |  |
 | `spel/on-request` | [handler] |  |
 | `spel/on-response` | [handler] |  |
+| `spel/once-dialog` | [handler] |  |
 | `spel/page` | [] |  |
 | `spel/page-context` | [] |  |
 | `spel/pdf` | [] \| [path-or-opts] |  |
@@ -1967,6 +1947,7 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `loc/check` | [loc] \| [loc check-opts] | Checks a checkbox or radio button. |
 | `loc/clear` | [loc] | Clears input field content. |
 | `loc/click` | [loc] \| [loc click-opts] | Clicks an element. |
+| `loc/content-frame` | [loc] | Returns a FrameLocator pointing to the same iframe as this locator. |
 | `loc/count-elements` | [loc] | Returns the number of elements matching the locator. |
 | `loc/dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
 | `loc/dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
@@ -2144,18 +2125,6 @@ Inject visual overlays (bounding boxes, ref badges, dimension labels) onto the p
 | **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
 | **AriaRole import** | Always `(:import [com.microsoft.playwright.options AriaRole])` |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
-
----
-
-## Missing API (Java Interop Needed)
-
-These Playwright Java methods have no Clojure wrapper yet:
-
-| Method | Workaround |
-|--------|-----------|
-| `Page.onceDialog(Consumer)` | Use `page/on-dialog` (registers persistent handler) |
-| `Locator.contentFrame()` | `(.contentFrame loc)` |
-| `Page.getByRole(role, options)` | `(locator/loc-filter (page/get-by-role pg role) {:has-text "name"})` |
 
 ---
 

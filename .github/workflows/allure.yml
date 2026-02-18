@@ -3,12 +3,16 @@ name: Allure Report
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write
+  checks: write
 
 # Only one deployment at a time
 concurrency:
@@ -24,6 +28,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - uses: DeLaGuardo/setup-clojure@13.1
         with:
@@ -42,37 +50,32 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Install Allure CLI
-        run: |
-          curl -sL https://github.com/allure-framework/allure2/releases/download/2.34.0/allure-2.34.0.tgz | tar xz
-          echo "$PWD/allure-2.34.0/bin" >> $GITHUB_PATH
-
+      # The Allure reporter handles everything automatically:
+      #   - Writes JSON results to allure-results/
+      #   - Resolves Allure 3 CLI via npx (pinned to 3.1.0)
+      #   - Runs `allure awesome` to generate HTML report
+      #   - Embeds local Playwright trace viewer (no trace.playwright.dev dependency)
+      #   - Patches report JS to use local ./trace-viewer/ for traces
+      #   - Pre-registers Service Worker for instant trace loading
+      #   - Manages run history via .allure-history.jsonl
+      # Output: allure-results/ (JSON) + allure-report/ (HTML with trace viewer)
       - name: Run tests with Allure reporter
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      # Fetch history from previous GitHub Pages deployment for trend persistence
-      - name: Fetch previous report history
-        run: |
-          # Try to download history from the currently deployed GitHub Pages site
-          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-          mkdir -p allure-results/history
-
-          for f in history.json history-trend.json duration-trend.json retry-trend.json categories-trend.json; do
-            curl -sSfL "${PAGES_URL}/history/${f}" -o "allure-results/history/${f}" 2>/dev/null || true
-          done
-
-          # Show what we got
-          ls -la allure-results/history/ || echo "No history fetched (first run)"
-
-      - name: Generate Allure report
-        run: allure generate allure-results -o allure-report --clean
+      - name: Allure Report PR summary
+        if: always()
+        uses: allure-framework/allure-report@v0
+        with:
+          report-directory: allure-report
 
       - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: allure-report
 
       - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
         id: deployment
         uses: actions/deploy-pages@v4

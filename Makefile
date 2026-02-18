@@ -1,4 +1,4 @@
-.PHONY: test test-watch test-junit test-allure allure-report allure-serve allure clean jar install deploy lint repl \
+.PHONY: test test-watch test-junit test-allure allure-serve allure clean jar install deploy lint repl \
 	spel uberjar init-agents install-local gen-docs validate-safe-graal
 
 REPL_PORT ?= 7600
@@ -12,7 +12,7 @@ test-watch:
 test-junit: ## Run tests with JUnit XML output (test-results/junit.xml)
 	clojure -M:test --output nested --output com.blockether.spel.junit-reporter/junit
 
-test-allure: ## Run tests with Allure report (allure-results/ + allure-report/)
+test-allure: ## Run tests + generate Allure 3 HTML report (allure-results/ + allure-report/)
 	clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 
 allure-serve: ## Open Allure report in browser

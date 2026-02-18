@@ -1,9 +1,10 @@
 (ns com.blockether.spel.allure-reporter
-  "Native Allure JSON reporter for Lazytest.
+  "Allure 3 reporter for Lazytest with embedded Playwright trace viewer.
 
-   Generates Allure-native result files ({uuid}-result.json) that the
-   `allure generate` CLI consumes to produce rich HTML reports with
-   timeline, categories, environment info, and full suite hierarchy.
+   Writes JSON result files to allure-results/, then automatically generates
+   the full HTML report to allure-report/ using Allure 3 CLI (pinned to 3.1.0
+   via npx). The report embeds a local Playwright trace viewer so trace
+   attachments load instantly without trace.playwright.dev.
 
    Usage:
      clojure -M:test --output com.blockether.spel.allure-reporter/allure
@@ -11,11 +12,7 @@
 
    Output directory defaults to allure-results/. Override with:
      -Dlazytest.allure.output=path/to/dir
-     LAZYTEST_ALLURE_OUTPUT=path/to/dir
-
-   Then generate the HTML report:
-     allure generate allure-results/ -o allure-report --clean
-     allure serve allure-results/"
+     LAZYTEST_ALLURE_OUTPUT=path/to/dir"
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -161,7 +158,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -581,27 +578,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
+      ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -670,17 +667,12 @@
   (.mkdirs dir))
 
 (defmulti allure
-  "Native Allure JSON reporter for Lazytest.
+  "Allure 3 reporter multimethod for Lazytest.
 
-   Generates Allure-native result files for rich HTML reporting with
-   timeline, categories, suite hierarchy, environment info, and more.
+   Writes JSON results and auto-generates HTML report with embedded trace viewer.
 
-   Designed to be combined with a visual reporter:
-     --output nested --output com.blockether.spel.allure-reporter/allure
-
-   Then generate the report:
-     allure generate allure-results/ -o allure-report --clean
-     allure serve allure-results/"
+   Usage:
+     --output nested --output com.blockether.spel.allure-reporter/allure"
   {:arglists '([config m])}
   #'reporter-dispatch)
 

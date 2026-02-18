@@ -184,56 +184,74 @@
   "Builds JS that checks which refs are truly visible using elementFromPoint.
 
    The snapshot tags each ref element with data-pw-ref='eN'. For each ref:
-   1. Compute center point of the bbox
-   2. elementFromPoint(cx, cy) → get the topmost DOM element at that point
-   3. Walk UP from that element checking if any ancestor has data-pw-ref
-      matching this ref ID → if yes, the actual element is on top = visible
-   4. If no ancestor matches, the element is occluded by something else
+   1. Compute multiple sample points across the bbox (center + 4 inset corners)
+   2. For each point, elementFromPoint → get the topmost DOM element
+   3. Pierce through invisible overlays (opacity:0, visibility:hidden,
+      pointer-events:none) by temporarily hiding them and re-probing
+   4. Walk UP from the hit element checking if any ancestor has data-pw-ref
+      matching this ref ID → if yes, the element is on top = visible
+   5. If ANY sample point matches, the element is visible
+
+   Multi-point sampling handles partial occlusion: when a navbar or other
+   element covers the center of a logo, a corner probe still hits the logo.
 
    This is exact — no heuristic role matching. Uses the same data-pw-ref
    attribute that capture-snapshot already sets on the DOM."
   [refs]
-  (let [items (for [[ref-id _info] refs
+  (let [inset 5.0
+        items (for [[ref-id _info] refs
                     :let [{:keys [x y width height]} (:bbox _info)
                           x (double x) y (double y)
-                          width (double width) height (double height)]
-                    :when (and (pos? width) (pos? height))]
+                          w (double width) h (double height)
+                          cx (+ x (/ w 2.0))
+                          cy (+ y (/ h 2.0))
+                          ;; Inset corners — clamp to center for very small elements
+                          left   (min (+ x inset) cx)
+                          right  (max (- (+ x w) inset) cx)
+                          top    (min (+ y inset) cy)
+                          bottom (max (- (+ y h) inset) cy)]
+                    :when (and (pos? w) (pos? h))]
                 (str "{id:'" ref-id "'"
-                  ",cx:" (+ x (/ width 2.0))
-                  ",cy:" (+ y (/ height 2.0))
-                  "}"))]
+                  ",pts:["
+                  "[" cx "," cy "],"
+                  "[" left "," top "],"
+                  "[" right "," top "],"
+                  "[" left "," bottom "],"
+                  "[" right "," bottom "]"
+                  "]}"))]
     (str
       "(function(){"
       "var checks=[" (apply str (interpose "," items)) "];"
       "var vw=window.innerWidth,vh=window.innerHeight;"
       "var visible=[];"
-      "checks.forEach(function(c){"
-     ;; Skip if center outside viewport
-      "  if(c.cx<0||c.cy<0||c.cx>=vw||c.cy>=vh)return;"
-     ;; Get topmost element at center point, piercing through invisible
-     ;; overlays (opacity:0, visibility:hidden, pointer-events:none).
-     ;; Some sites use transparent elements for click handling (e.g.,
-     ;; an opacity:0 <img> over a CSS-background logo). Without this,
-     ;; the transparent element occludes the real visual element beneath.
+     ;; Helper: probe a single point, piercing invisible overlays.
+     ;; Returns true if the hit element (or ancestor) has matching data-pw-ref.
+      "function probe(px,py,id){"
+      "  if(px<0||py<0||px>=vw||py>=vh)return false;"
       "  var hidden=[];"
-      "  var el=document.elementFromPoint(c.cx,c.cy);"
+      "  var el=document.elementFromPoint(px,py);"
       "  while(el){"
       "    var s=getComputedStyle(el);"
       "    if(parseFloat(s.opacity)===0||s.visibility==='hidden'||s.pointerEvents==='none'){"
       "      el.style.display='none';hidden.push(el);"
-      "      el=document.elementFromPoint(c.cx,c.cy);"
+      "      el=document.elementFromPoint(px,py);"
       "    }else{break;}"
       "  }"
-     ;; Restore hidden elements
       "  hidden.forEach(function(h){h.style.display='';});"
-      "  if(!el)return;"
-     ;; Walk up from topmost element looking for data-pw-ref matching this ref
-     ;; If found → our element is on top (visible). If not → occluded.
+      "  if(!el)return false;"
       "  var node=el;"
       "  while(node&&node!==document.documentElement){"
-      "    if(node.getAttribute&&node.getAttribute('data-pw-ref')===c.id){"
-      "      visible.push(c.id);return;}"
-      "    node=node.parentElement;}"
+      "    if(node.getAttribute&&node.getAttribute('data-pw-ref')===id)return true;"
+      "    node=node.parentElement;"
+      "  }"
+      "  return false;"
+      "}"
+      "checks.forEach(function(c){"
+      "  for(var i=0;i<c.pts.length;i++){"
+      "    if(probe(c.pts[i][0],c.pts[i][1],c.id)){"
+      "      visible.push(c.id);return;"
+      "    }"
+      "  }"
       "});"
       "return visible;"
       "})()")))
@@ -241,10 +259,12 @@
 (defn check-visible-refs
   "Runs JavaScript in the page to determine which refs are truly visible.
 
-   Uses elementFromPoint at each ref's center to hit-test against the DOM.
+   Uses elementFromPoint with multi-point sampling (center + 4 inset corners)
+   to hit-test against the DOM. Pierces through invisible overlays (opacity:0,
+   visibility:hidden, pointer-events:none) by temporarily hiding them.
    Walks up from the topmost element checking for the data-pw-ref attribute
-   that capture-snapshot sets. If found, the element is on top and visible.
-   If not, it's occluded by an overlay, ad, or other covering content.
+   that capture-snapshot sets. If ANY sample point matches, the element is
+   visible. This handles partial occlusion (e.g., navbar over part of a logo).
 
    Returns a set of ref IDs that are actually visible."
   [^Page page refs]

@@ -8,12 +8,17 @@
 
 (defn step
   "Hook for allure/step macro. Transforms:
-     (step \"name\")        → (do \"name\")
-     (step \"name\" exprs)  → (do \"name\" exprs)"
+     (step \"name\")             → (do \"name\")
+     (step \"name\" body...)     → (do body...)
+   The step-name is a label — only lint the body in multi-arg form."
   [{:keys [node]}]
   (let [children (rest (:children node))
-        new-node (api/list-node
-                   (list* (api/token-node 'do) children))]
+        new-node (if (= 1 (count children))
+                   ;; Marker step — keep name as expression
+                   (api/list-node (list* (api/token-node 'do) children))
+                   ;; Lambda step — drop name, lint body only
+                   (let [[_step-name & body] children]
+                     (api/list-node (list* (api/token-node 'do) body))))]
     {:node new-node}))
 
 (defn ui-step

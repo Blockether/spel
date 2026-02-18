@@ -169,21 +169,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -234,7 +234,9 @@
     (page/locator (require-page!) (str sel-or-loc))))
 (defn sci-$$           [sel]  (locator/all (sci-$ sel)))
 (defn sci-$text        [text] (page/get-by-text (require-page!) text))
-(defn sci-$role        [role] (page/get-by-role (require-page!) role))
+(defn sci-$role
+  ([role]      (page/get-by-role (require-page!) role))
+  ([role opts] (page/get-by-role (require-page!) role opts)))
 (defn sci-$label       [text] (page/get-by-label (require-page!) text))
 (defn sci-$placeholder [text] (page/get-by-placeholder (require-page!) text))
 (defn sci-$test-id     [id]   (page/get-by-test-id (require-page!) id))
@@ -519,6 +521,7 @@
 
 (defn sci-on-console   [handler] (page/on-console (require-page!) handler))
 (defn sci-on-dialog    [handler] (page/on-dialog (require-page!) handler))
+(defn sci-once-dialog  [handler] (page/once-dialog (require-page!) handler))
 (defn sci-on-page-error [handler] (page/on-page-error (require-page!) handler))
 (defn sci-on-request   [handler] (page/on-request (require-page!) handler))
 (defn sci-on-response  [handler] (page/on-response (require-page!) handler))
@@ -809,6 +812,7 @@
                   ;; Page events
                   ['on-console   sci-on-console]
                   ['on-dialog    sci-on-dialog]
+                  ['once-dialog  sci-once-dialog]
                   ['on-page-error sci-on-page-error]
                   ['on-request   sci-on-request]
                   ['on-response  sci-on-response]
@@ -1016,6 +1020,7 @@
                    ['last-element   locator/last-element]
                    ['nth-element    locator/nth-element]
                    ['loc-locator    locator/loc-locator]
+                   ['content-frame  locator/content-frame]
                    ['loc-get-by-text    locator/loc-get-by-text]
                    ['loc-get-by-role    locator/loc-get-by-role]
                    ['loc-get-by-label   locator/loc-get-by-label]
