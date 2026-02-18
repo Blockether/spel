@@ -33,6 +33,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.artifact }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
