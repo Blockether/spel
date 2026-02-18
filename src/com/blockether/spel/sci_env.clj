@@ -165,7 +165,9 @@
          (reset! !page pg-inst)
          :started)))))
 
-(defn sci-stop! []
+(defn sci-stop!
+  "Stops the Playwright session, closing browser and cleaning up resources."
+  []
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
@@ -189,20 +191,27 @@
       :stopped)))
 
 (defn sci-restart!
+  "Stops the current session and starts a new one with the given options."
   ([] (sci-restart! {}))
   ([opts] (when @!pw (sci-stop!)) (sci-start! opts)))
 
 ;; Tab management
-(defn sci-new-tab! []
+(defn sci-new-tab!
+  "Opens a new tab in the current context and switches to it."
+  []
   (let [new-pg (core/new-page-from-context (require-context!))]
     (reset! !page new-pg) new-pg))
 
-(defn sci-switch-tab! [idx]
+(defn sci-switch-tab!
+  "Switches to the tab at the given index."
+  [idx]
   (let [pages (core/context-pages (require-context!))
         pg-inst (nth pages idx)]
     (reset! !page pg-inst) pg-inst))
 
-(defn sci-tabs []
+(defn sci-tabs
+  "Returns a list of all open tabs with their index, url, title, and active status."
+  []
   (let [pages (core/context-pages (require-context!))
         active @!page]
     (mapv (fn [idx pg-inst]
@@ -540,7 +549,9 @@
 ;; Page Accessors
 ;; =============================================================================
 
-(defn sci-page        [] (require-page!))
+(defn sci-page
+  "Returns the current Page instance."
+  [] (require-page!))
 (defn sci-keyboard    [] (page/page-keyboard (require-page!)))
 (defn sci-mouse       [] (page/page-mouse (require-page!)))
 (defn sci-touchscreen [] (page/page-touchscreen (require-page!)))
@@ -554,8 +565,12 @@
 ;; Context & Browser Functions
 ;; =============================================================================
 
-(defn sci-context [] (require-context!))
-(defn sci-browser [] (require-browser!))
+(defn sci-context
+  "Returns the current BrowserContext instance."
+  [] (require-context!))
+(defn sci-browser
+  "Returns the current Browser instance."
+  [] (require-browser!))
 (defn sci-context-cookies          [] (core/context-cookies (require-context!)))
 (defn sci-context-clear-cookies!   [] (core/context-clear-cookies! (require-context!)))
 (defn sci-context-set-offline!     [offline] (core/context-set-offline! (require-context!) offline))
@@ -569,7 +584,9 @@
 ;; Network
 ;; =============================================================================
 
-(defn sci-last-response [url]
+(defn sci-last-response
+  "Navigates to URL and returns response info map with :status, :ok?, :url, :headers."
+  [url]
   (let [resp (throw-if-anomaly (page/navigate (require-page!) url))]
     (when resp
       {:status  (net/response-status resp)
@@ -581,7 +598,9 @@
 ;; Info
 ;; =============================================================================
 
-(defn sci-info []
+(defn sci-info
+  "Returns a map with current page :url, :title, :viewport, and :closed? state."
+  []
   {:url      (page/url (require-page!))
    :title    (page/title (require-page!))
    :viewport (page/viewport-size (require-page!))
@@ -605,13 +624,21 @@
   (snapshot/resolve-ref (require-page!) ref-id))
 (defn sci-clear-refs! []
   (snapshot/clear-refs! (require-page!)))
-(defn sci-click-ref [ref-id]
+(defn sci-click-ref
+  "Clicks an element identified by a snapshot ref ID."
+  [ref-id]
   (throw-if-anomaly (locator/click (snapshot/resolve-ref (require-page!) ref-id))))
-(defn sci-fill-ref [ref-id value]
+(defn sci-fill-ref
+  "Fills an input element identified by a snapshot ref ID."
+  [ref-id value]
   (throw-if-anomaly (locator/fill (snapshot/resolve-ref (require-page!) ref-id) value)))
-(defn sci-type-ref [ref-id text]
+(defn sci-type-ref
+  "Types text into an element identified by a snapshot ref ID."
+  [ref-id text]
   (throw-if-anomaly (locator/type-text (snapshot/resolve-ref (require-page!) ref-id) text)))
-(defn sci-hover-ref [ref-id]
+(defn sci-hover-ref
+  "Hovers over an element identified by a snapshot ref ID."
+  [ref-id]
   (throw-if-anomaly (locator/hover (snapshot/resolve-ref (require-page!) ref-id))))
 (defn sci-annotate
   "Injects annotation overlays into the current page for visible elements.

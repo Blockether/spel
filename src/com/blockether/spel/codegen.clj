@@ -102,7 +102,7 @@
   [pg action-code action]
   (if-let [_sig (has-signal? action "popup")]
     (str "(let [popup-pg (page/wait-for-popup " pg
-      " #(" action-code "))]\n"
+      " (fn [] " action-code "))]\n"
       "  ;; popup-pg is now available for further actions"
       ")")
     action-code))
@@ -112,7 +112,7 @@
   [pg action-code action]
   (if-let [_sig (has-signal? action "download")]
     (str "(let [download (page/wait-for-download " pg
-      " #(" action-code "))]\n"
+      " (fn [] " action-code "))]\n"
       "  ;; download is now available - (.path download), (.suggestedFilename download)"
       ")")
     action-code))
@@ -248,6 +248,11 @@
     ;; Playwright 1.58+ JSONL format: {:kind "role", :body "heading", :options {:attrs [...]}}
     (and (:kind locator) (:body locator))
     (case (str (:kind locator))
+      ;; CSS selector (default)
+      ("default" "css")
+      (clojure.core/format "(page/locator %s %s)" pg-sym (pr-str (:body locator)))
+
+      ;; ARIA role
       "role" (let [role-code (role->enum (:body locator) action)
                    name-val (some (fn [attr]
                                     (when (= "name" (str (:name attr)))
@@ -257,6 +262,15 @@
                  (clojure.core/format "(locator/loc-filter (page/get-by-role %s %s) {:has-text %s})"
                    pg-sym role-code (pr-str name-val))
                  (clojure.core/format "(page/get-by-role %s %s)" pg-sym role-code)))
+
+      ;; Semantic locators
+      "text"        (clojure.core/format "(page/get-by-text %s %s)" pg-sym (pr-str (:body locator)))
+      "label"       (clojure.core/format "(page/get-by-label %s %s)" pg-sym (pr-str (:body locator)))
+      "placeholder" (clojure.core/format "(page/get-by-placeholder %s %s)" pg-sym (pr-str (:body locator)))
+      "alt"         (clojure.core/format "(page/get-by-alt-text %s %s)" pg-sym (pr-str (:body locator)))
+      "title"       (clojure.core/format "(page/get-by-title %s %s)" pg-sym (pr-str (:body locator)))
+      "testid"      (clojure.core/format "(page/get-by-test-id %s %s)" pg-sym (pr-str (:body locator)))
+
       ;; Unknown kind
       (die! (clojure.core/format "Unrecognized locator kind '%s'." (:kind locator)) action))
 
@@ -625,6 +639,7 @@
       (println "  --format=script   Standalone require + with-playwright script")
       (println "  --format=body     Only action lines (for pasting)")
       (println "  --output=FILE     Write to file instead of stdout")
+      (println "  -o FILE           Same as --output=FILE")
       (println "  -h, --help        Show this help")
       (println "")
       (println "If no FILE argument, reads JSONL from stdin.")
@@ -637,15 +652,41 @@
       (println "  spel codegen recording.jsonl")
       (println "  spel codegen --format=script --output=my_test.clj recording.jsonl")
       (System/exit 0))
-    (let [fmt-arg (first (filter #(str/starts-with? % "--format=") args))
+    (let [;; Support both --output=FILE and -o FILE
+          o-idx (long (or (.indexOf ^java.util.List args "-o")
+                        (.indexOf ^java.util.List args "--output")))
+          o-val (when (>= o-idx 0) (nth args (inc o-idx) nil))
+          ;; Remove -o FILE pair from args before further parsing
+          args (if (>= o-idx 0)
+                 (into (subvec args 0 o-idx)
+                   (subvec args (min (+ o-idx 2) (count args))))
+                 args)
+          fmt-arg (first (filter #(str/starts-with? % "--format=") args))
           out-arg (first (filter #(str/starts-with? % "--output=") args))
           fmt (if fmt-arg
                 (keyword (subs fmt-arg (count "--format=")))
                 :test)
-          out-path (when out-arg (subs out-arg (count "--output=")))
-          file-args (remove #(str/starts-with? % "--") args)
-          input (if (seq file-args)
-                  (slurp (io/file (first file-args)))
+          out-path (or o-val (when out-arg (subs out-arg (count "--output="))))
+          file-args (remove #(or (str/starts-with? % "--")
+                               (str/starts-with? % "-")) args)
+          ;; Detect common mistakes
+          _ (when-let [url (first (filter #(re-matches #"https?://.*" %) file-args))]
+              (binding [*out* *err*]
+                (println (str "Error: '" url "' looks like a URL, not a JSONL file."))
+                (println "")
+                (println "To record a browser session, use Playwright directly:")
+                (println (str "  npx playwright codegen --target=jsonl -o recording.jsonl " url))
+                (println "")
+                (println "Then transform the recording:")
+                (println "  spel codegen recording.jsonl"))
+              (System/exit 1))
+          file-path (first file-args)
+          _ (when (and file-path (not (.exists (io/file file-path))))
+              (binding [*out* *err*]
+                (println (str "Error: file not found: " file-path)))
+              (System/exit 1))
+          input (if file-path
+                  (slurp (io/file file-path))
                   (slurp *in*))
           result (jsonl-str->clojure input {:format fmt})]
       (if out-path

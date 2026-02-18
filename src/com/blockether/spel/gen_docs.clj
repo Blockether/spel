@@ -118,6 +118,31 @@
    ["assert"   "Assertion functions (explicit assertion object arg)"]
    ["core"     "Browser lifecycle utilities and resource management"]])
 
+(def ^:private alias->full-ns
+  "Maps require aliases used in sci_env.clj to full namespace names."
+  {"input"    "com.blockether.spel.input"
+   "net"      "com.blockether.spel.network"
+   "frame"    "com.blockether.spel.frame"
+   "locator"  "com.blockether.spel.locator"
+   "assert"   "com.blockether.spel.assertions"
+   "core"     "com.blockether.spel.core"
+   "page"     "com.blockether.spel.page"
+   "snapshot" "com.blockether.spel.snapshot"
+   "annotate" "com.blockether.spel.annotate"
+   "allure"   "com.blockether.spel.allure"})
+
+(defn- resolve-qualified-fn
+  "Resolves an alias-qualified function name (e.g. 'page/navigate') to its var."
+  [qualified-name]
+  (when (str/includes? qualified-name "/")
+    (let [[ns-alias fn-part] (str/split qualified-name #"/" 2)
+          full-ns (or (get alias->full-ns ns-alias)
+                    (str "com.blockether.spel." ns-alias))]
+      (try
+        (require (symbol full-ns))
+        (ns-resolve (find-ns (symbol full-ns)) (symbol fn-part))
+        (catch Exception _ nil)))))
+
 (defn- resolve-backing-var
   "Resolves a backing function reference to its var for metadata extraction.
    Handles both local refs (sci-click) and namespaced refs (input/key-press)."
@@ -127,25 +152,32 @@
       ;; Local var in sci-env namespace
       (get sci-env-publics backing-sym)
       ;; Namespaced ref like input/key-press, net/response-url, etc.
-      (when (str/includes? backing-name "/")
-        (let [[ns-alias fn-part] (str/split backing-name #"/" 2)
-              ;; Map common aliases to full namespace names
-              ns-map {"input"    "com.blockether.spel.input"
-                      "net"      "com.blockether.spel.network"
-                      "frame"    "com.blockether.spel.frame"
-                      "locator"  "com.blockether.spel.locator"
-                      "assert"   "com.blockether.spel.assertions"
-                      "core"     "com.blockether.spel.core"
-                      "page"     "com.blockether.spel.page"
-                      "snapshot" "com.blockether.spel.snapshot"
-                      "annotate" "com.blockether.spel.annotate"
-                      "allure"   "com.blockether.spel.allure"}
-              full-ns (or (get ns-map ns-alias)
-                        (str "com.blockether.spel." ns-alias))]
-          (try
-            (require (symbol full-ns))
-            (ns-resolve (find-ns (symbol full-ns)) (symbol fn-part))
-            (catch Exception _ nil)))))))
+      (resolve-qualified-fn backing-name))))
+
+(defn- extract-library-fn-from-source
+  "Given a sci-env backing function name (e.g. 'sci-click'), parses its
+   source in sci_env.clj to find the first library function it delegates to.
+   
+   Looks for qualified calls like page/navigate, locator/click, etc.
+   Returns the resolved var or nil."
+  [backing-name src]
+  (let [;; Find the defn form for this function
+        defn-marker (str "(defn " backing-name)
+        defn-start (str/index-of src defn-marker)]
+    (when defn-start
+      (let [;; Find the end: next top-level (defn or (def at column 0, or EOF
+            defn-end (or (str/index-of src "\n(def" (+ (long defn-start) 10))
+                       (count src))
+            defn-body (subs src defn-start defn-end)
+            ;; Find first qualified library function call in the body
+            ;; Match: alias/fn-name where alias is a known spel namespace
+            lib-fn-pattern (re-pattern
+                             (str "(?:"
+                               (str/join "|" (keys alias->full-ns))
+                               ")/([\\w\\-\\!\\?]+)"))
+            match (re-find lib-fn-pattern defn-body)]
+        (when match
+          (resolve-qualified-fn (first match)))))))
 
 (defn- parse-sci-registrations
   "Parses SCI function registrations from sci_env.clj source.
@@ -200,22 +232,30 @@
       (range (count marker-positions)))))
 
 (defn- sci-var-entry
-  "Extracts SCI function documentation from its backing var."
-  [{:keys [exposed backing-var]}]
+  "Extracts SCI function documentation from its backing var.
+   When the backing var has no docstring (common for sci-* wrappers),
+   follows through to the underlying library function and uses its docstring."
+  [{:keys [exposed backing-var backing-name]} src]
   (if backing-var
-    (let [m (meta backing-var)]
+    (let [m (meta backing-var)
+          doc (first-doc-line (:doc m))
+          ;; If no docstring on the wrapper, try the underlying library function
+          resolved-doc (or doc
+                         (when (and (not doc) backing-name src)
+                           (when-let [lib-var (extract-library-fn-from-source backing-name src)]
+                             (first-doc-line (:doc (meta lib-var))))))]
       {:name exposed
        :arglists (:arglists m)
-       :doc (first-doc-line (:doc m))})
+       :doc resolved-doc})
     {:name exposed
      :arglists nil
      :doc nil}))
 
 (defn- sci-ns-table
   "Generates a markdown table for a single SCI namespace."
-  [ns-name description entries]
+  [ns-name description entries src]
   (let [docs (->> entries
-               (map sci-var-entry)
+               (map #(sci-var-entry % src))
                (sort-by :name))]
     (when (seq docs)
       (str "### `" ns-name "/` — " description "\n\n"
@@ -233,7 +273,8 @@
 (defn generate-sci-api
   "Generates markdown for SCI eval API tables."
   []
-  (let [registrations (parse-sci-registrations)]
+  (let [registrations (parse-sci-registrations)
+        src (slurp (io/resource "com/blockether/spel/sci_env.clj"))]
     (str "## SCI Eval API Reference (`spel --eval`)\n\n"
       "Auto-generated from SCI namespace registrations. "
       "All functions are available in `spel --eval` mode without JVM startup.\n\n"
@@ -241,7 +282,7 @@
         (for [[ns-name description] sci-namespaces
               :let [entries (get registrations ns-name)]
               :when (seq entries)]
-          (sci-ns-table ns-name description entries))))))
+          (sci-ns-table ns-name description entries src))))))
 
 ;; =============================================================================
 ;; CLI Commands Generation

@@ -1993,190 +1993,190 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `spel/$` | [sel-or-loc] |  |
-| `spel/$$` | [sel] |  |
-| `spel/$alt-text` | [text] |  |
-| `spel/$label` | [text] |  |
-| `spel/$placeholder` | [text] |  |
-| `spel/$role` | [role] \| [role opts] |  |
-| `spel/$test-id` | [id] |  |
-| `spel/$text` | [text] |  |
-| `spel/$title-attr` | [text] |  |
-| `spel/add-script-tag` | [opts] |  |
-| `spel/add-style-tag` | [opts] |  |
-| `spel/all-inner-texts` | [sel] |  |
-| `spel/all-text-contents` | [sel] |  |
+| `spel/$` | [sel-or-loc] | Creates a Locator for finding elements on the page. |
+| `spel/$$` | [sel] | Returns all elements matching the locator as individual locators. |
+| `spel/$alt-text` | [text] | Locates elements by alt text. |
+| `spel/$label` | [text] | Locates elements by their label text. |
+| `spel/$placeholder` | [text] | Locates elements by placeholder text. |
+| `spel/$role` | [role] \| [role opts] | Locates elements by their ARIA role. |
+| `spel/$test-id` | [id] | Locates elements by test ID attribute. |
+| `spel/$text` | [text] | Locates elements by their text content. |
+| `spel/$title-attr` | [text] | Locates elements by title attribute. |
+| `spel/add-script-tag` | [opts] | Adds a script tag to the page. |
+| `spel/add-style-tag` | [opts] | Adds a style tag to the page. |
+| `spel/all-inner-texts` | [sel] | Returns all inner texts for matching elements. |
+| `spel/all-text-contents` | [sel] | Returns all text contents for matching elements. |
 | `spel/annotate` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
-| `spel/annotated-screenshot` | [refs] \| [refs opts] |  |
-| `spel/assert-accessible-description` | [sel desc] |  |
-| `spel/assert-accessible-error-message` | [sel msg] |  |
-| `spel/assert-accessible-name` | [sel name-val] |  |
-| `spel/assert-attached` | [sel] \| [sel opts] |  |
-| `spel/assert-attr` | [sel attr-name value] \| [sel attr-name value opts] |  |
-| `spel/assert-checked` | [sel] \| [sel opts] |  |
-| `spel/assert-class` | [sel class-val] \| [sel class-val opts] |  |
-| `spel/assert-contains-class` | [sel class-val] \| [sel class-val opts] |  |
-| `spel/assert-contains-text` | [sel expected] \| [sel expected opts] |  |
-| `spel/assert-count` | [sel n] \| [sel n opts] |  |
-| `spel/assert-css` | [sel css-name value] \| [sel css-name value opts] |  |
-| `spel/assert-disabled` | [sel] \| [sel opts] |  |
-| `spel/assert-editable` | [sel] \| [sel opts] |  |
-| `spel/assert-empty` | [sel] |  |
-| `spel/assert-enabled` | [sel] \| [sel opts] |  |
-| `spel/assert-focused` | [sel] \| [sel opts] |  |
-| `spel/assert-hidden` | [sel] \| [sel opts] |  |
-| `spel/assert-id` | [sel id] \| [sel id opts] |  |
-| `spel/assert-in-viewport` | [sel] \| [sel opts] |  |
-| `spel/assert-js-property` | [sel prop-name value] |  |
-| `spel/assert-matches-aria-snapshot` | [sel snapshot-str] |  |
-| `spel/assert-not` | [sel] |  |
-| `spel/assert-page-not` | [] |  |
-| `spel/assert-role` | [sel role] |  |
-| `spel/assert-text` | [sel expected] \| [sel expected opts] |  |
-| `spel/assert-that` | [target] |  |
-| `spel/assert-title` | [expected] \| [expected opts] |  |
-| `spel/assert-url` | [expected] \| [expected opts] |  |
-| `spel/assert-value` | [sel value] \| [sel value opts] |  |
-| `spel/assert-values` | [sel values] \| [sel values opts] |  |
-| `spel/assert-visible` | [sel] \| [sel opts] |  |
-| `spel/attr` | [sel name] |  |
-| `spel/back` | [] |  |
-| `spel/bbox` | [sel] |  |
-| `spel/blur` | [sel] |  |
-| `spel/bring-to-front` | [] |  |
-| `spel/browser` | [] |  |
-| `spel/browser-connected?` | [] |  |
-| `spel/browser-version` | [] |  |
-| `spel/check` | [sel] \| [sel opts] |  |
-| `spel/checked?` | [sel] |  |
-| `spel/clear` | [sel] |  |
-| `spel/clear-refs!` | [] |  |
-| `spel/click` | [sel] \| [sel opts] |  |
-| `spel/click-ref` | [ref-id] |  |
-| `spel/context` | [] |  |
-| `spel/context-clear-cookies!` | [] |  |
-| `spel/context-clear-permissions!` | [] |  |
-| `spel/context-cookies` | [] |  |
-| `spel/context-grant-permissions!` | [perms] |  |
-| `spel/context-set-extra-http-headers!` | [headers] |  |
-| `spel/context-set-offline!` | [offline] |  |
-| `spel/count-of` | [sel] |  |
-| `spel/dblclick` | [sel] \| [sel opts] |  |
-| `spel/disabled?` | [sel] |  |
-| `spel/dispatch-event` | [sel type] |  |
-| `spel/drag-to` | [sel target-sel] |  |
-| `spel/editable?` | [sel] |  |
-| `spel/emulate-media!` | [opts] |  |
-| `spel/enabled?` | [sel] |  |
-| `spel/eval-js` | [expr] \| [expr arg] |  |
-| `spel/evaluate-all-locs` | [sel expr] \| [sel expr arg] |  |
-| `spel/evaluate-handle` | [expr] \| [expr arg] |  |
-| `spel/evaluate-locator` | [sel expr] \| [sel expr arg] |  |
-| `spel/expose-binding!` | [binding-name f] |  |
-| `spel/expose-function!` | [fn-name f] |  |
-| `spel/fill` | [sel value] \| [sel value opts] |  |
-| `spel/fill-ref` | [ref-id value] |  |
-| `spel/first` | [sel] |  |
-| `spel/focus` | [sel] |  |
-| `spel/forward` | [] |  |
-| `spel/frame-by-name` | [name] |  |
-| `spel/frame-by-url` | [pattern] |  |
-| `spel/frames` | [] |  |
-| `spel/full-snapshot` | [] \| [page] |  |
-| `spel/goto` | [url] \| [url opts] |  |
-| `spel/hidden?` | [sel] |  |
-| `spel/highlight` | [sel] |  |
-| `spel/hover` | [sel] \| [sel opts] |  |
-| `spel/hover-ref` | [ref-id] |  |
-| `spel/html` | [] |  |
-| `spel/info` | [] |  |
-| `spel/inner-html` | [sel] |  |
-| `spel/inner-text` | [sel] |  |
-| `spel/keyboard` | [] |  |
-| `spel/last` | [sel] |  |
-| `spel/last-response` | [url] |  |
-| `spel/loc-filter` | [sel opts] |  |
-| `spel/loc-get-by-label` | [sel text] |  |
-| `spel/loc-get-by-role` | [sel role] |  |
-| `spel/loc-get-by-test-id` | [sel id] |  |
-| `spel/loc-get-by-text` | [sel text] |  |
-| `spel/loc-locator` | [sel sub-sel] |  |
-| `spel/loc-wait-for` | [sel] \| [sel opts] |  |
-| `spel/locator-screenshot` | [sel] \| [sel opts] |  |
-| `spel/main-frame` | [] |  |
-| `spel/mouse` | [] |  |
-| `spel/new-tab!` | [] |  |
-| `spel/nth` | [sel n] |  |
-| `spel/on-close` | [handler] |  |
-| `spel/on-console` | [handler] |  |
-| `spel/on-dialog` | [handler] |  |
-| `spel/on-download` | [handler] |  |
-| `spel/on-page-error` | [handler] |  |
-| `spel/on-popup` | [handler] |  |
-| `spel/on-request` | [handler] |  |
-| `spel/on-response` | [handler] |  |
-| `spel/once-dialog` | [handler] |  |
-| `spel/page` | [] |  |
-| `spel/page-context` | [] |  |
-| `spel/pdf` | [] \| [path-or-opts] |  |
-| `spel/press` | [sel key] \| [sel key opts] |  |
-| `spel/reload!` | [] |  |
-| `spel/resolve-ref` | [ref-id] |  |
-| `spel/restart!` | [] \| [opts] |  |
-| `spel/route!` | [pattern handler] |  |
-| `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] |  |
-| `spel/screenshot` | [] \| [path-or-opts] |  |
-| `spel/scroll-into-view` | [sel] |  |
-| `spel/select` | [sel values] |  |
-| `spel/set-assertion-timeout!` | [ms] |  |
-| `spel/set-content!` | [html] \| [html opts] |  |
-| `spel/set-default-navigation-timeout!` | [ms] |  |
-| `spel/set-default-timeout!` | [ms] |  |
-| `spel/set-extra-http-headers!` | [headers] |  |
-| `spel/set-input-files!` | [sel files] |  |
-| `spel/set-viewport-size!` | [width height] |  |
-| `spel/sleep` | [ms] |  |
-| `spel/snapshot` | [] \| [page-or-opts] \| [page opts] |  |
-| `spel/start!` | [] \| [opts] |  |
-| `spel/stop!` | [] |  |
-| `spel/switch-tab!` | [idx] |  |
-| `spel/tabs` | [] |  |
-| `spel/tap` | [sel] |  |
-| `spel/text` | [sel] |  |
-| `spel/title` | [] |  |
-| `spel/touchscreen` | [] |  |
-| `spel/type-ref` | [ref-id text] |  |
-| `spel/type-text` | [sel text] \| [sel text opts] |  |
+| `spel/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `spel/assert-accessible-description` | [sel desc] | Asserts the locator has the specified accessible description. |
+| `spel/assert-accessible-error-message` | [sel msg] | Asserts the locator has the specified accessible error message. |
+| `spel/assert-accessible-name` | [sel name-val] | Asserts the locator has the specified accessible name. |
+| `spel/assert-attached` | [sel] \| [sel opts] | Asserts the locator is attached to the DOM. |
+| `spel/assert-attr` | [sel attr-name value] \| [sel attr-name value opts] | Asserts the locator has the specified attribute with value. |
+| `spel/assert-checked` | [sel] \| [sel opts] | Asserts the locator (checkbox/radio) is checked. |
+| `spel/assert-class` | [sel class-val] \| [sel class-val opts] | Asserts the locator has the specified CSS class. |
+| `spel/assert-contains-class` | [sel class-val] \| [sel class-val opts] | Asserts the locator's class attribute contains the specified class. |
+| `spel/assert-contains-text` | [sel expected] \| [sel expected opts] | Asserts the locator contains the specified text. |
+| `spel/assert-count` | [sel n] \| [sel n opts] | Asserts the locator resolves to the expected number of elements. |
+| `spel/assert-css` | [sel css-name value] \| [sel css-name value opts] | Asserts the locator has the specified CSS property with value. |
+| `spel/assert-disabled` | [sel] \| [sel opts] | Asserts the locator is disabled. |
+| `spel/assert-editable` | [sel] \| [sel opts] | Asserts the locator is editable. |
+| `spel/assert-empty` | [sel] | Asserts the locator (input) is empty. |
+| `spel/assert-enabled` | [sel] \| [sel opts] | Asserts the locator is enabled. |
+| `spel/assert-focused` | [sel] \| [sel opts] | Asserts the locator is focused. |
+| `spel/assert-hidden` | [sel] \| [sel opts] | Asserts the locator is hidden. |
+| `spel/assert-id` | [sel id] \| [sel id opts] | Asserts the locator has the specified ID. |
+| `spel/assert-in-viewport` | [sel] \| [sel opts] | Asserts the locator is in the viewport. |
+| `spel/assert-js-property` | [sel prop-name value] | Asserts the locator has the specified JavaScript property. |
+| `spel/assert-matches-aria-snapshot` | [sel snapshot-str] | Asserts the locator matches the ARIA snapshot. |
+| `spel/assert-not` | [sel] | Returns negated LocatorAssertions (expect the opposite). |
+| `spel/assert-page-not` | [] | Returns negated PageAssertions (expect the opposite). |
+| `spel/assert-role` | [sel role] | Asserts the locator has the specified ARIA role. |
+| `spel/assert-text` | [sel expected] \| [sel expected opts] | Asserts the locator has the specified text. |
+| `spel/assert-that` | [target] | Creates an assertion object for the given Playwright instance. |
+| `spel/assert-title` | [expected] \| [expected opts] | Asserts the page has the specified title. |
+| `spel/assert-url` | [expected] \| [expected opts] | Asserts the page has the specified URL. |
+| `spel/assert-value` | [sel value] \| [sel value opts] | Asserts the locator (input) has the specified value. |
+| `spel/assert-values` | [sel values] \| [sel values opts] | Asserts the locator (multi-select) has the specified values. |
+| `spel/assert-visible` | [sel] \| [sel opts] | Asserts the locator is visible. |
+| `spel/attr` | [sel name] | Returns the value of an attribute. |
+| `spel/back` | [] | Navigates back in history. |
+| `spel/bbox` | [sel] | Returns the bounding box of the element. |
+| `spel/blur` | [sel] | Blurs (removes focus from) the element. |
+| `spel/bring-to-front` | [] | Brings page to front (activates tab). |
+| `spel/browser` | [] | Returns the current Browser instance. |
+| `spel/browser-connected?` | [] | Returns true if the browser is connected. |
+| `spel/browser-version` | [] | Returns the browser version string. |
+| `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
+| `spel/checked?` | [sel] | Returns whether the element is checked. |
+| `spel/clear` | [sel] | Clears input field content. |
+| `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
+| `spel/click` | [sel] \| [sel opts] | Clicks an element. |
+| `spel/click-ref` | [ref-id] | Clicks an element identified by a snapshot ref ID. |
+| `spel/context` | [] | Returns the current BrowserContext instance. |
+| `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
+| `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
+| `spel/context-cookies` | [] | Returns all cookies in the context. |
+| `spel/context-grant-permissions!` | [perms] | Grants permissions to the context. |
+| `spel/context-set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests in the context. |
+| `spel/context-set-offline!` | [offline] | Sets the context to offline or online mode. |
+| `spel/count-of` | [sel] | Returns the number of elements matching the locator. |
+| `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
+| `spel/disabled?` | [sel] | Returns whether the element is disabled. |
+| `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
+| `spel/drag-to` | [sel target-sel] | Drags this locator to another locator. |
+| `spel/editable?` | [sel] | Returns whether the element is editable. |
+| `spel/emulate-media!` | [opts] | Emulates media type and features. |
+| `spel/enabled?` | [sel] | Returns whether the element is enabled. |
+| `spel/eval-js` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
+| `spel/evaluate-all-locs` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
+| `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
+| `spel/evaluate-locator` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on the element found by this locator. |
+| `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
+| `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
+| `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
+| `spel/fill-ref` | [ref-id value] | Fills an input element identified by a snapshot ref ID. |
+| `spel/first` | [sel] | Returns the first element matching the locator. |
+| `spel/focus` | [sel] | Focuses the element. |
+| `spel/forward` | [] | Navigates forward in history. |
+| `spel/frame-by-name` | [name] | Returns a frame by its name attribute. |
+| `spel/frame-by-url` | [pattern] | Returns a frame by matching URL pattern. |
+| `spel/frames` | [] | Returns all frames in the page. |
+| `spel/full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
+| `spel/goto` | [url] \| [url opts] | Navigates the page to a URL. |
+| `spel/hidden?` | [sel] | Returns whether the element is hidden. |
+| `spel/highlight` | [sel] | Highlights the element for debugging. |
+| `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
+| `spel/hover-ref` | [ref-id] | Hovers over an element identified by a snapshot ref ID. |
+| `spel/html` | [] | Returns the full HTML content of the page. |
+| `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
+| `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
+| `spel/inner-text` | [sel] | Returns the inner text of the element. |
+| `spel/keyboard` | [] | Returns the Keyboard for this page. |
+| `spel/last` | [sel] | Returns the last element matching the locator. |
+| `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
+| `spel/loc-filter` | [sel opts] | Filters this locator to a narrower set. |
+| `spel/loc-get-by-label` | [sel text] | Locates elements by label within this locator. |
+| `spel/loc-get-by-role` | [sel role] | Locates elements by ARIA role within this locator. |
+| `spel/loc-get-by-test-id` | [sel id] | Locates elements by test ID within this locator. |
+| `spel/loc-get-by-text` | [sel text] | Locates elements by text within this locator. |
+| `spel/loc-locator` | [sel sub-sel] | Creates a sub-locator within this locator. |
+| `spel/loc-wait-for` | [sel] \| [sel opts] | Waits for the locator to satisfy a condition. |
+| `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
+| `spel/main-frame` | [] | Returns the main frame of the page. |
+| `spel/mouse` | [] | Returns the Mouse for this page. |
+| `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
+| `spel/nth` | [sel n] | Returns the nth element matching the locator. |
+| `spel/on-close` | [handler] | Registers a handler for page close. |
+| `spel/on-console` | [handler] | Registers a handler for console messages. |
+| `spel/on-dialog` | [handler] | Registers a handler for dialogs. |
+| `spel/on-download` | [handler] | Registers a handler for downloads. |
+| `spel/on-page-error` | [handler] | Registers a handler for page errors. |
+| `spel/on-popup` | [handler] | Registers a handler for popup pages. |
+| `spel/on-request` | [handler] | Registers a handler for requests. |
+| `spel/on-response` | [handler] | Registers a handler for responses. |
+| `spel/once-dialog` | [handler] | Registers a one-time handler for the next dialog. |
+| `spel/page` | [] | Returns the current Page instance. |
+| `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
+| `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
+| `spel/press` | [sel key] \| [sel key opts] | Presses a key or key combination. |
+| `spel/reload!` | [] | Reloads the page. |
+| `spel/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `spel/restart!` | [] \| [opts] | Stops the current session and starts a new one with the given options. |
+| `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
+| `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
+| `spel/scroll-into-view` | [sel] | Scrolls element into view. |
+| `spel/select` | [sel values] | Selects options in a select element. |
+| `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
+| `spel/set-content!` | [html] \| [html opts] | Sets the HTML content of the page. |
+| `spel/set-default-navigation-timeout!` | [ms] | Sets the default navigation timeout. |
+| `spel/set-default-timeout!` | [ms] | Sets the default timeout for page operations. |
+| `spel/set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests on this page. |
+| `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
+| `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
+| `spel/sleep` | [ms] | Waits for the specified time in milliseconds. |
+| `spel/snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
+| `spel/stop!` | [] | Stops the Playwright session, closing browser and cleaning up resources. |
+| `spel/switch-tab!` | [idx] | Switches to the tab at the given index. |
+| `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
+| `spel/tap` | [sel] | Taps an element (for touch devices). |
+| `spel/text` | [sel] | Returns the text content of the element. |
+| `spel/title` | [] | Returns the page title. |
+| `spel/touchscreen` | [] | Returns the Touchscreen for this page. |
+| `spel/type-ref` | [ref-id text] | Types text into an element identified by a snapshot ref ID. |
+| `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
 | `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
-| `spel/uncheck` | [sel] \| [sel opts] |  |
-| `spel/unroute!` | [pattern] |  |
-| `spel/url` | [] |  |
-| `spel/value` | [sel] |  |
-| `spel/visible?` | [sel] |  |
-| `spel/wait-for` | [sel] \| [sel opts] |  |
-| `spel/wait-for-download` | [action] \| [action opts] |  |
-| `spel/wait-for-file-chooser` | [action] \| [action opts] |  |
-| `spel/wait-for-function` | [expr] |  |
-| `spel/wait-for-load` | [] \| [state] |  |
-| `spel/wait-for-popup` | [action] \| [action opts] |  |
-| `spel/wait-for-url` | [url] |  |
+| `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
+| `spel/unroute!` | [pattern] | Removes a route handler. |
+| `spel/url` | [] | Returns the current page URL. |
+| `spel/value` | [sel] | Returns the input value of an input element. |
+| `spel/visible?` | [sel] | Returns whether the element is visible. |
+| `spel/wait-for` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
+| `spel/wait-for-download` | [action] \| [action opts] | Waits for a download to start while executing `action`. |
+| `spel/wait-for-file-chooser` | [action] \| [action opts] | Waits for a file chooser dialog while executing `action`. |
+| `spel/wait-for-function` | [expr] | Waits for a JavaScript function to return a truthy value. |
+| `spel/wait-for-load` | [] \| [state] | Waits for the page to reach a load state. |
+| `spel/wait-for-popup` | [action] \| [action opts] | Waits for a popup page to open while executing `action`. |
+| `spel/wait-for-url` | [url] | Waits for the page to navigate to a URL. |
 
 ### `snapshot/` — Accessibility snapshot capture and ref resolution
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `snapshot/capture` | [] \| [page-or-opts] \| [page opts] |  |
-| `snapshot/capture-full` | [] \| [page] |  |
-| `snapshot/clear-refs!` | [] |  |
+| `snapshot/capture` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `snapshot/capture-full` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
+| `snapshot/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `snapshot/ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
-| `snapshot/resolve-ref` | [ref-id] |  |
+| `snapshot/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
 
 ### `annotate/` — Page annotation overlays
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `annotate/annotated-screenshot` | [refs] \| [refs opts] |  |
-| `annotate/save!` | [refs path] \| [refs path opts] |  |
+| `annotate/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `annotate/save!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
 
 ### `input/` — Keyboard, mouse, touchscreen (explicit device arg)
 

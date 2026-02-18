@@ -196,16 +196,16 @@
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"a.link\",\"signals\":[{\"name\":\"popup\"}],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
       (expect (= result
-                (str "(let [popup-pg (.waitForPopup ^Page pg"
-                  " (reify Runnable (run [_] (locator/click (page/locator pg \"a.link\")))))]\n"
+                (str "(let [popup-pg (page/wait-for-popup pg"
+                  " (fn [] (locator/click (page/locator pg \"a.link\"))))]\n"
                   "  ;; popup-pg is now available for further actions)")))))
 
   (it "download signal: waitForDownload wrapping click, exact output"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"a.dl\",\"signals\":[{\"name\":\"download\"}],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
       (expect (= result
-                (str "(let [download (.waitForDownload ^Page pg"
-                  " (reify Runnable (run [_] (locator/click (page/locator pg \"a.dl\")))))]\n"
+                (str "(let [download (page/wait-for-download pg"
+                  " (fn [] (locator/click (page/locator pg \"a.dl\"))))]\n"
                   "  ;; download is now available - (.path download), (.suggestedFilename download)"
                   ")"))))))
 
@@ -234,7 +234,52 @@
   (it "handles {:role ...} locator map"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"role\":\"button\"}}"
           result (codegen jsonl)]
-      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON))")))))
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON))"))))
+
+  (it "handles 1.58+ default kind (CSS selector)"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"div\",\"signals\":[],\"text\":\"Learn more\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"default\",\"body\":\"div\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(assert/contains-text (page/locator pg \"div\") \"Learn more\")"))))
+
+  (it "handles 1.58+ css kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"css\",\"body\":\"#submit-btn\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/locator pg \"#submit-btn\"))"))))
+
+  (it "handles 1.58+ text kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"text\",\"body\":\"Submit\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-text pg \"Submit\"))"))))
+
+  (it "handles 1.58+ label kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"fill\",\"text\":\"user@test.com\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"label\",\"body\":\"Email\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/fill (page/get-by-label pg \"Email\") \"user@test.com\")"))))
+
+  (it "handles 1.58+ placeholder kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"fill\",\"text\":\"search\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"placeholder\",\"body\":\"Search...\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/fill (page/get-by-placeholder pg \"Search...\") \"search\")"))))
+
+  (it "handles 1.58+ testid kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"testid\",\"body\":\"login-btn\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-test-id pg \"login-btn\"))"))))
+
+  (it "handles 1.58+ alt kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"alt\",\"body\":\"Company logo\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-alt-text pg \"Company logo\"))"))))
+
+  (it "handles 1.58+ title kind"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"title\",\"body\":\"Close dialog\",\"options\":{}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-title pg \"Close dialog\"))"))))
+
+  (it "handles 1.58+ role kind with named attr"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"button\",\"options\":{\"attrs\":[{\"name\":\"name\",\"value\":\"Submit\"}]}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (locator/loc-filter (page/get-by-role pg AriaRole/BUTTON) {:has-text \"Submit\"}))")))))
 
 ;; =============================================================================
 ;; Browser Name / Headless Options

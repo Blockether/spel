@@ -191,6 +191,11 @@
    4. Walk UP from the hit element checking if any ancestor has data-pw-ref
       matching this ref ID → if yes, the element is on top = visible
    5. If ANY sample point matches, the element is visible
+   6. Fallback: if no probe matches, query the element directly by
+      data-pw-ref and check its computed styles. If the element exists and
+      is stylistically visible (display, visibility, opacity), consider it
+      visible. This catches elements under transparent containers like
+      navbars that fully cover the target's bbox.
 
    Multi-point sampling handles partial occlusion: when a navbar or other
    element covers the center of a logo, a corner probe still hits the logo.
@@ -246,12 +251,23 @@
       "  }"
       "  return false;"
       "}"
+     ;; Fallback: check the element directly by its data-pw-ref attribute.
+     ;; When elementFromPoint misses (e.g., a transparent nav fully covers
+     ;; a logo), verify the element itself is stylistically visible.
+      "function directCheck(id){"
+      "  var el=document.querySelector('[data-pw-ref=\"'+id+'\"]');"
+      "  if(!el)return false;"
+      "  var s=getComputedStyle(el);"
+      "  return s.display!=='none'&&s.visibility!=='hidden'&&parseFloat(s.opacity)>0;"
+      "}"
       "checks.forEach(function(c){"
       "  for(var i=0;i<c.pts.length;i++){"
       "    if(probe(c.pts[i][0],c.pts[i][1],c.id)){"
       "      visible.push(c.id);return;"
       "    }"
       "  }"
+     ;; All probes missed — try direct style check
+      "  if(directCheck(c.id)){visible.push(c.id);}"
       "});"
       "return visible;"
       "})()")))
@@ -259,12 +275,13 @@
 (defn check-visible-refs
   "Runs JavaScript in the page to determine which refs are truly visible.
 
-   Uses elementFromPoint with multi-point sampling (center + 4 inset corners)
-   to hit-test against the DOM. Pierces through invisible overlays (opacity:0,
-   visibility:hidden, pointer-events:none) by temporarily hiding them.
-   Walks up from the topmost element checking for the data-pw-ref attribute
-   that capture-snapshot sets. If ANY sample point matches, the element is
-   visible. This handles partial occlusion (e.g., navbar over part of a logo).
+   Two-phase check for each ref:
+   1. Multi-point elementFromPoint (center + 4 inset corners) — pierces
+      invisible overlays (opacity:0, visibility:hidden, pointer-events:none).
+      Walks up from hit element checking for matching data-pw-ref.
+   2. Fallback: direct style check — queries the element by data-pw-ref and
+      verifies computed display/visibility/opacity. Catches elements under
+      transparent containers (e.g., a logo under a transparent navbar).
 
    Returns a set of ref IDs that are actually visible."
   [^Page page refs]
