@@ -1,0 +1,78 @@
+name: Allure Report
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeLaGuardo/setup-clojure@13.1
+        with:
+          cli: latest
+
+      - name: Cache Clojure deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: allure-${{ hashFiles('deps.edn') }}
+          restore-keys: allure-
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Allure CLI
+        run: |
+          curl -sL https://github.com/allure-framework/allure2/releases/download/2.34.0/allure-2.34.0.tgz | tar xz
+          echo "$PWD/allure-2.34.0/bin" >> $GITHUB_PATH
+
+      - name: Run tests with Allure reporter
+        run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+        continue-on-error: true
+
+      # Fetch history from previous GitHub Pages deployment for trend persistence
+      - name: Fetch previous report history
+        run: |
+          # Try to download history from the currently deployed GitHub Pages site
+          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          mkdir -p allure-results/history
+
+          for f in history.json history-trend.json duration-trend.json retry-trend.json categories-trend.json; do
+            curl -sSfL "${PAGES_URL}/history/${f}" -o "allure-results/history/${f}" 2>/dev/null || true
+          done
+
+          # Show what we got
+          ls -la allure-results/history/ || echo "No history fetched (first run)"
+
+      - name: Generate Allure report
+        run: allure generate allure-results -o allure-report --clean
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

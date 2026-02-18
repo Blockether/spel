@@ -1,0 +1,131 @@
+name: Native Image Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+            artifact: spel-linux-amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            artifact: spel-linux-arm64
+          - os: macos-13
+            arch: amd64
+            artifact: spel-macos-amd64
+          - os: macos-latest
+            arch: arm64
+            artifact: spel-macos-arm64
+          - os: windows-latest
+            arch: amd64
+            artifact: spel-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.artifact }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm'
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: latest
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Build uberjar
+        run: clojure -T:build uberjar
+
+      - name: Build native image
+        # Flags come from META-INF/native-image/.../native-image.properties inside the uberjar
+        run: native-image -jar target/playwright-clj-standalone.jar -o target/spel
+
+      - name: Rename binary (Unix)
+        if: runner.os != 'Windows'
+        run: mv target/spel target/${{ matrix.artifact }}
+
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: mv target/spel.exe target/${{ matrix.artifact }}.exe
+
+      - name: Upload artifact (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.artifact }}
+
+      - name: Upload artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.artifact }}.exe
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | head -20
+
+      - name: Make Unix binaries executable
+        run: |
+          chmod +x artifacts/spel-linux-amd64/spel-linux-amd64 || true
+          chmod +x artifacts/spel-linux-arm64/spel-linux-arm64 || true
+          chmod +x artifacts/spel-macos-amd64/spel-macos-amd64 || true
+          chmod +x artifacts/spel-macos-arm64/spel-macos-arm64 || true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/spel-linux-amd64/spel-linux-amd64
+            artifacts/spel-linux-arm64/spel-linux-arm64
+            artifacts/spel-macos-amd64/spel-macos-amd64
+            artifacts/spel-macos-arm64/spel-macos-arm64
+            artifacts/spel-windows-amd64/spel-windows-amd64.exe

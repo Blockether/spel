@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "python-development%3Afastapi-pro": {
+      "disable": true
+    }
+  },
+  "model": "anthropic/claude-opus-4-6",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "mcp": {
+    "image-analysis": {
+      "command": [
+        "npx",
+        "-y",
+        "@z_ai/mcp-server"
+      ],
+      "environment": {
+        "Z_AI_MODE": "ZAI"
+      },
+      "type": "local"
+    },
+    "linear": {
+      "type": "remote",
+      "url": "https://mcp.linear.app/mcp"
+    },
+    "search-engine": {
+      "headers": {
+        "Authorization": "Bearer {env:Z_AI_API_KEY}"
+      },
+      "oauth": false,
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_search_prime/mcp"
+    },
+    "website-reader": {
+      "headers": {
+        "Authorization": "Bearer {env:Z_AI_API_KEY}"
+      },
+      "oauth": false,
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/web_reader/mcp"
+    },
+    "zread": {
+      "headers": {
+        "Authorization": "Bearer {env:Z_AI_API_KEY}"
+      },
+      "oauth": false,
+      "type": "remote",
+      "url": "https://api.z.ai/api/mcp/zread/mcp"
+    }
+  },
+  "plugin": [
+    "oh-my-opencode@3.7.3",
+    "opencode-anthropic-auth@latest"
+  ]
+}

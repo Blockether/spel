@@ -1,0 +1,39 @@
+# Clojure
+**/.cpcache/
+.nrepl-port
+target/
+
+# Editor/tooling caches (recursive)
+.clj-kondo/.cache/**
+.lsp/.cache/**
+.calva/**
+.pytest_cache/**
+resources-frontend/public/dist
+resources-frontend/public/main.css
+# OS
+.DS_Store
+.shadow-cljs
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+resources-frontend/public/css/**
+resources-frontend/public/js/**
+resources-test/diarization.interpretation.json
+resources-test/diarization.json
+.env
+.ports.env
+.ports.json
+.cloudflared.pid
+.cloudflared.log
+.cloudflared*.log
+.cloudflared*.pid
+models 
+lancedb
+
+test-results/
+allure-results/
+allure-report/
+.allure-history.jsonl
+/data/
+/debug/

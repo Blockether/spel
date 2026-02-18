@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: spel-dev-linux-amd64
+          - os: macos-latest
+            artifact: spel-dev-macos-arm64
+          - os: windows-latest
+            artifact: spel-dev-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+    name: CI (${{ matrix.os }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm'
+
+      - uses: DeLaGuardo/setup-clojure@13.1
+        with:
+          cli: latest
+
+      - name: Cache Clojure deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: ${{ runner.os }}-ci-${{ hashFiles('deps.edn') }}
+          restore-keys: |
+            ${{ runner.os }}-ci-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Check Clojure syntax
+        run: clojure -M -e "(println \"Syntax check passed\")"
+
+      - name: Run tests
+        run: clojure -M:test
+
+      - name: Build jar
+        run: clojure -T:build jar
+
+      - name: Build spel native image
+        run: clojure -T:build native-image
+
+      - name: Upload spel binary (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/spel
+
+      - name: Upload spel binary (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/spel.exe

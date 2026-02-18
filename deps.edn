@@ -1,0 +1,24 @@
+{:paths ["src" "resources"]
+ :deps {com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
+        com.blockether/anomaly          {:mvn/version "1.0.0"}
+        org.babashka/sci                {:mvn/version "0.8.43"}
+        org.clojure/data.json           {:mvn/version "2.5.1"}
+        io.github.noahtheduke/lazytest  {:mvn/version "1.9.1"}}
+
+ :aliases
+ {:dev {:extra-paths ["test"]
+        :extra-deps {nrepl/nrepl                    {:mvn/version "1.5.2"}
+                     cider/cider-nrepl              {:mvn/version "0.58.0"}}}
+
+  :test {:extra-paths ["test"]
+         :main-opts ["-m" "lazytest.main"]}
+
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
+                 slipset/deps-deploy          {:mvn/version "0.2.2"}}
+          :ns-default build}
+
+  :e2e {:extra-paths ["test-e2e"]
+        :main-opts ["-m" "lazytest.main" "--dir" "test-e2e"]}
+
+  :native {:extra-deps {com.github.clj-easy/graal-build-time {:mvn/version "1.0.5"}}
+           :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}}}

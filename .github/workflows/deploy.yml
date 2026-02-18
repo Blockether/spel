@@ -1,0 +1,112 @@
+name: Deploy to Clojars
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: DeLaGuardo/setup-clojure@13.1
+        with:
+          cli: latest
+
+      - name: Cache Clojure deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: clojars-deploy-${{ hashFiles('deps.edn') }}
+
+      - name: Build & Deploy to Clojars
+        env:
+          VERSION: ${{ github.ref_name }}
+          CLOJARS_USERNAME: blockether-deployer
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
+        run: clojure -T:build deploy
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | head -n 2 | tail -n 1)
+          CURRENT_TAG=${{ github.ref_name }}
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $CURRENT_TAG)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..${CURRENT_TAG})
+          fi
+
+          echo "## What's Changed" > /tmp/release_body.md
+          echo "" >> /tmp/release_body.md
+          echo "$CHANGELOG" >> /tmp/release_body.md
+          echo "" >> /tmp/release_body.md
+          echo "**Full Changelog**: https://github.com/Blockether/spel/compare/${PREV_TAG}...${CURRENT_TAG}" >> /tmp/release_body.md
+
+      - name: Update CHANGELOG.md
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | head -n 2 | tail -n 1)
+          CURRENT_TAG=${{ github.ref_name }}
+          DATE=$(date +%Y-%m-%d)
+          
+          # Get commits for this release
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" $CURRENT_TAG)
+          else
+            COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..${CURRENT_TAG})
+          fi
+          
+          # Find the [Unreleased] heading line dynamically
+          UNRELEASED_LINE=$(grep -n '^## \[Unreleased\]' CHANGELOG.md | head -1 | cut -d: -f1)
+          
+          if [ -z "$UNRELEASED_LINE" ]; then
+            echo "ERROR: Could not find ## [Unreleased] section in CHANGELOG.md"
+            exit 1
+          fi
+          
+          # Insert new version entry after the [Unreleased] heading
+          {
+            head -n "$UNRELEASED_LINE" CHANGELOG.md
+            echo ""
+            echo "## [$CURRENT_TAG] - $DATE"
+            echo ""
+            echo "### Changed"
+            echo "$COMMITS"
+            echo ""
+            tail -n +$((UNRELEASED_LINE + 1)) CHANGELOG.md
+          } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+          
+          # Update the [Unreleased] comparison link
+          sed -i "s|\[Unreleased\]: .*|[Unreleased]: https://github.com/Blockether/spel/compare/${CURRENT_TAG}...HEAD|" CHANGELOG.md
+          
+          # Add version link if not already present
+          if ! grep -q "^\[${CURRENT_TAG}\]:" CHANGELOG.md; then
+            echo "[$CURRENT_TAG]: https://github.com/Blockether/spel/releases/tag/${CURRENT_TAG}" >> CHANGELOG.md
+          fi
+
+      - name: Commit CHANGELOG.md
+        run: |
+          git config user.name "blockether-deployer"
+          git config user.email "contact@blockether.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for ${{ github.ref_name }}" || echo "No changes to commit"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --notes-file /tmp/release_body.md

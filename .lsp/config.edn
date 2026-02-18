@@ -1,0 +1,42 @@
+{:cljfmt
+ {:indents
+  {;; ================================================================
+   ;; core.clj — error handling & lifecycle macros
+   ;; ================================================================
+
+   ;; (safe body...) — like do, all body at same indent
+   com.blockether.spel.core/safe [[:inner 0]]
+
+   ;; (with-playwright [pw expr?] body...) — binding vec + body
+   com.blockether.spel.core/with-playwright [[:block 1]]
+   com.blockether.spel.core/with-browser    [[:block 1]]
+   com.blockether.spel.core/with-context    [[:block 1]]
+   com.blockether.spel.core/with-page       [[:block 1]]
+
+   ;; ================================================================
+   ;; allure.clj — step macros
+   ;; ================================================================
+
+   ;; (step "name" body...) — name is special, body indented
+   com.blockether.spel.allure/step     [[:block 1]]
+   com.blockether.spel.allure/ui-step  [[:block 1]]
+   com.blockether.spel.allure/api-step [[:block 1]]
+
+   ;; ================================================================
+   ;; api.clj — context & hook macros
+   ;; ================================================================
+
+   ;; (with-hooks {...} body...)
+   com.blockether.spel.api/with-hooks [[:block 1]]
+
+   ;; (with-api-context [ctx expr] body...)
+   com.blockether.spel.api/with-api-context  [[:block 1]]
+   com.blockether.spel.api/with-api-contexts [[:block 1]]
+
+   ;; (with-retry opts body...)
+   com.blockether.spel.api/with-retry [[:block 1]]
+
+   ;; ================================================================
+   ;; network.clj — railway macro (private, but for internal formatting)
+   ;; ================================================================
+   com.blockether.spel.network/resp-> [[:block 1]]}}}
