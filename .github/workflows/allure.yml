@@ -48,7 +48,7 @@ jobs:
           restore-keys: allure-
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
       # The Allure reporter handles everything automatically:
       #   - Writes JSON results to allure-results/

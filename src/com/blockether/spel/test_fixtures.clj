@@ -113,7 +113,8 @@
                       allure/*har-path*   har-file]
               (f))
             (finally
-              (core/close-page! page)
+              (when (instance? com.microsoft.playwright.Page page)
+                (core/close-page! page))
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
                 (catch Exception _))
@@ -133,7 +134,8 @@
                     allure/*page*     page]
             (f))
           (finally
-            (core/close-page! page)
+            (when (instance? com.microsoft.playwright.Page page)
+              (core/close-page! page))
             (try (core/close-context! ctx) (catch Exception _))))))))
 
 (def with-traced-page
@@ -181,7 +183,8 @@
             (f))
           (finally
                   ;; Close page first (matches Playwright's own test patterns)
-            (core/close-page! page)
+            (when (instance? com.microsoft.playwright.Page page)
+              (core/close-page! page))
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
