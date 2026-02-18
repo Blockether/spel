@@ -50,9 +50,6 @@ jobs:
       - name: Install Playwright browsers
         run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
-      # Restore Allure history from previous runs so the report shows trends.
-      # The reporter reads .allure-history.jsonl (Allure 3 JSONL format) and
-      # passes it to `allure awesome -h` for history graphs and retries.
       - name: Restore Allure history
         uses: actions/cache/restore@v4
         with:
@@ -60,27 +57,62 @@ jobs:
           key: allure-history-${{ github.run_number }}
           restore-keys: allure-history-
 
-      # The Allure reporter handles everything automatically:
-      #   - Writes JSON results to allure-results/
-      #   - Resolves Allure 3 CLI via npx (pinned to 3.1.0)
-      #   - Runs `allure awesome` to generate HTML report
-      #   - Embeds local Playwright trace viewer (no trace.playwright.dev dependency)
-      #   - Patches report JS to use local ./trace-viewer/ for traces
-      #   - Pre-registers Service Worker for instant trace loading
-      #   - Manages run history via .allure-history.jsonl
-      # Output: allure-results/ (JSON) + allure-report/ (HTML with trace viewer)
+      - name: Restore previous report data
+        uses: actions/cache/restore@v4
+        with:
+          path: previous-report-data
+          key: allure-report-data-${{ github.run_number }}
+          restore-keys: allure-report-data-
+
       - name: Run tests with Allure reporter
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      # Save updated history for next run. Uses run_number as key so each
-      # run creates a new cache entry (restore-keys prefix matches the latest).
+      - name: Merge previous report data
+        run: |
+          if [ -d previous-report-data/test-results ]; then
+            OLD_TR=$(ls previous-report-data/test-results/ 2>/dev/null | wc -l)
+            echo "Merging $OLD_TR previous test results"
+            cp -n previous-report-data/test-results/* allure-report/data/test-results/ 2>/dev/null || true
+          fi
+          if [ -d previous-report-data/attachments ]; then
+            OLD_AT=$(ls previous-report-data/attachments/ 2>/dev/null | wc -l)
+            echo "Merging $OLD_AT previous attachments"
+            cp -n previous-report-data/attachments/* allure-report/data/attachments/ 2>/dev/null || true
+          fi
+          if [ -d previous-report-data/test-env-groups ]; then
+            cp -n previous-report-data/test-env-groups/* allure-report/data/test-env-groups/ 2>/dev/null || true
+          fi
+
+      - name: Prune old report data (keep last 20 runs)
+        run: |
+          for dir in allure-report/data/test-results allure-report/data/attachments allure-report/data/test-env-groups; do
+            if [ -d "$dir" ]; then
+              TOTAL=$(find "$dir" -maxdepth 1 -type f | wc -l)
+              CURRENT=$(find "$dir" -maxdepth 1 -type f -newer allure-results 2>/dev/null | wc -l)
+              OLD=$((TOTAL - CURRENT))
+              echo "$dir: $TOTAL total, $CURRENT current run, $OLD from history"
+              if [ "$TOTAL" -gt 20000 ]; then
+                echo "  Pruning oldest files to stay under 20k..."
+                find "$dir" -maxdepth 1 -type f -printf '%T+ %p\n' | sort | head -n $((TOTAL - 15000)) | cut -d' ' -f2- | xargs rm -f
+                echo "  After prune: $(find "$dir" -maxdepth 1 -type f | wc -l) files"
+              fi
+            fi
+          done
+
       - name: Save Allure history
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
         with:
           path: .allure-history.jsonl
           key: allure-history-${{ github.run_number }}
+
+      - name: Save report data for next run
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: allure-report/data
+          key: allure-report-data-${{ github.run_number }}
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'
