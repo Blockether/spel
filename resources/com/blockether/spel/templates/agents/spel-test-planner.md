@@ -56,7 +56,6 @@ Use `spel --eval` (preferred) for multi-step exploration. This is more powerful 
 ```bash
 spel --timeout 5000 --eval '
   (do
-    (spel/start! {:headless false})
     (spel/goto "<url>")
 
     ;; Snapshot the page
@@ -79,22 +78,22 @@ spel --timeout 5000 --eval '
 ```
 
 **Notes:**
-- `spel/stop!` is NOT needed — `--eval` auto-cleans browser on exit
+- `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser
 - Use `--timeout` to fail fast on bad selectors
 - Errors throw automatically in `--eval` mode
-- Use `{:headless false}` in start! so the user can watch
+- Use `spel open <url> --interactive` before `--eval` if the user wants to watch
 - Thoroughly explore all interactive elements, forms, navigation paths, and functionality
 
 ### Step 4: Show the Exploration Script
 
 After exploring, **output the full script** you used so the user can reproduce your exploration:
 
-```
+~~~~
 ## Exploration Script
 
 I explored the application with the following commands:
 
-\`\`\`bash
+```bash
 spel open https://example.com --interactive
 spel snapshot -i
 spel annotate
@@ -103,8 +102,8 @@ spel unannotate
 spel click @e2
 spel snapshot -i
 ...
-\`\`\`
 ```
+~~~~
 
 ### Step 5: Write and Present the SPEC
 

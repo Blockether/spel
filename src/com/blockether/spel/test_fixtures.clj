@@ -26,17 +26,17 @@
 ;; Helpers
 ;; =============================================================================
 
-(defn- ensure-context!
-  "Throws the original exception when `ctx` is an anomaly map from
-   core/new-context, instead of letting a confusing ClassCastException
-   surface later. Returns `ctx` unchanged when it is a real BrowserContext."
-  [ctx]
-  (if (core/anomaly? ctx)
-    (throw (or (:playwright/exception ctx)
-             (ex-info (str "Failed to create browser context: "
-                        (:cognitect.anomalies/message ctx))
-               (dissoc ctx :playwright/exception))))
-    ctx))
+(defn- ensure!
+  "Throws the original Playwright exception when `result` is an anomaly
+   map (from any safe-wrapped call), instead of letting a confusing
+   ClassCastException surface later. Returns `result` unchanged on success."
+  [result]
+  (if (core/anomaly? result)
+    (throw (or (:playwright/exception result)
+             (ex-info (str "Playwright operation failed: "
+                        (:cognitect.anomalies/message result))
+               (dissoc result :playwright/exception))))
+    result))
 
 ;; =============================================================================
 ;; Dynamic Vars
@@ -72,7 +72,7 @@
 
    Binds the Playwright instance to *pw*."
   (around [f]
-    (let [pw (core/create)]
+    (let [pw (ensure! (core/create))]
       (try
         (binding [*pw* pw]
           (f))
@@ -85,7 +85,7 @@
    Requires *pw* to be bound (use with with-playwright).
    Binds the Browser instance to *browser*."
   (around [f]
-    (let [browser (core/launch-chromium *pw* {:headless true})]
+    (let [browser (ensure! (core/launch-chromium *pw* {:headless true}))]
       (try
         (binding [*browser* browser]
           (f))
@@ -111,7 +111,7 @@
             ;; Auto-trace: create context with HAR + tracing, then page
       (let [trace-file (File/createTempFile "pw-trace-" ".zip")
             har-file   (File/createTempFile "pw-har-" ".har")
-            ctx        (ensure-context!
+            ctx        (ensure!
                          (core/new-context *browser*
                            {:record-har-path (str har-file)
                             :record-har-mode :full}))
@@ -142,7 +142,7 @@
                         (.start))]
                 (.join t 5000))))))
             ;; Normal mode: plain page, no tracing overhead
-      (let [ctx  (ensure-context! (core/new-context *browser*))
+      (let [ctx  (ensure! (core/new-context *browser*))
             page (core/new-page-from-context ctx)]
         (try
           (binding [*page*            page
@@ -180,7 +180,7 @@
   (around [f]
     (let [trace-file (File/createTempFile "pw-trace-" ".zip")
           har-file   (File/createTempFile "pw-har-" ".har")
-          ctx        (ensure-context!
+          ctx        (ensure!
                        (core/new-context *browser*
                          {:record-har-path        (str har-file)
                           :record-har-mode        :full}))
@@ -246,13 +246,13 @@
                                (str *test-server-url* \"/health\"))]
          (expect (= 200 (api/api-response-status resp)))))"
   (around [f]
-    (let [browser (core/launch-chromium *pw* {:headless true})]
+    (let [browser (ensure! (core/launch-chromium *pw* {:headless true}))]
       (try
         (if (allure/reporter-active?)
                 ;; Traced mode: HAR + tracing, no screenshots/snapshots (no page)
           (let [trace-file (File/createTempFile "pw-trace-" ".zip")
                 har-file   (File/createTempFile "pw-har-" ".har")
-                ctx        (ensure-context!
+                ctx        (ensure!
                              (core/new-context browser
                                {:record-har-path (str har-file)
                                 :record-har-mode :full}))
@@ -278,7 +278,7 @@
                           (.start))]
                   (.join t 5000)))))
                 ;; Non-traced mode: provide *browser-api* without overhead
-          (let [ctx (ensure-context! (core/new-context browser {}))]
+          (let [ctx (ensure! (core/new-context browser {}))]
             (try
               (binding [*browser-context* ctx
                         *browser-api*     (.request ^com.microsoft.playwright.BrowserContext ctx)]

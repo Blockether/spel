@@ -35,16 +35,15 @@ com.blockether.spel and Lazytest framework.
      spel unannotate
      ```
    - Use `spel --eval` (preferred) to verify selectors and text content:
-     ```bash
-     spel --timeout 5000 --eval '
-       (do
-         (spel/start! {:headless false})
-         (spel/goto "<url>")
-         (println "Button text:" (spel/text "button.submit"))
-         (println "Heading:" (spel/text "h1"))
-         (println "Input value:" (spel/value "#email")))'
-     ```
-     Notes: `spel/stop!` is NOT needed — `--eval` auto-cleans browser on exit. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode.
+      ```bash
+      spel --timeout 5000 --eval '
+        (do
+          (spel/goto "<url>")
+          (println "Button text:" (spel/text "button.submit"))
+          (println "Heading:" (spel/text "h1"))
+          (println "Input value:" (spel/value "#email")))'
+      ```
+      Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
    - Note exact selectors, text content, and expected values
 4. **Generate the test file** at `test/e2e/<feature>_test.clj`
 5. **Run the test** to verify: `clojure -M:test` or appropriate test command

@@ -45,7 +45,6 @@ E2E tests using spel and Lazytest.
     ```bash
     spel --timeout 5000 --eval '
       (do
-        (spel/start! {:headless false})
         (spel/goto "<url>")
         (spel/click (spel/$text "Login"))
         (println "Title:" (spel/title))
@@ -53,7 +52,7 @@ E2E tests using spel and Lazytest.
         (let [snap (spel/snapshot)]
           (println (:tree snap))))'
     ```
-   Notes: `spel/stop!` is NOT needed — `--eval` auto-cleans browser on exit. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `{:headless false}` so the user sees the browser.
+   Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
 
 5. **Root Cause Analysis**: Determine the underlying cause:
    - **Selector changed**: UI element moved/renamed → update locator
