@@ -203,46 +203,66 @@
 
 (defn- ensure-browser!
   "Lazily starts Chromium on first command. Uses launch-flags from !state if present.
+   If --profile is set, uses launchPersistentContext (real Chrome profile).
    If --session-name is set and a saved state file exists, auto-loads it."
   []
   (when-not (:browser @!state)
-    (let [flags   (get @!state :launch-flags {})
+    (let [flags       (get @!state :launch-flags {})
+          profile-dir (get flags "profile")
           launch-opts (cond-> {:headless (:headless @!state)}
                         (get flags "executable-path") (assoc :executable-path (get flags "executable-path"))
                         (get flags "args")            (assoc :args (clojure.string/split (get flags "args") #","))
                         (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
                                                                      :bypass (get flags "proxy-bypass" "")})
                         (get flags "cdp")             (assoc :cdp (get flags "cdp")))
-          ctx-opts (cond-> {}
-                     (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
-                     (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
-                     (get flags "headers")             (assoc :extra-http-headers
-                                                         (try (clojure.data.json/read-str (get flags "headers"))
+          ctx-opts    (cond-> {}
+                        (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
+                        (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
+                        (get flags "headers")             (assoc :extra-http-headers
+                                                            (try (clojure.data.json/read-str (get flags "headers"))
                                                               (catch Exception _ {})))
-                     (get flags "profile")             (assoc :storage-state (get flags "profile")))
-          pw      (core/create)
-          browser (if (get flags "cdp")
-                    (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
-                    (core/launch-chromium pw launch-opts))
-          context (if (seq ctx-opts)
-                    (core/new-context browser ctx-opts)
-                    (core/new-context browser))
-          pg-inst (core/new-page-from-context context)]
-      (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)
-      ;; Auto-register console, error, and request listeners
-      (reset! !console-messages [])
-      (page/on-console pg-inst (fn [msg]
-                                 (swap! !console-messages conj
-                                   {:type (.type ^ConsoleMessage msg)
-                                    :text (.text ^ConsoleMessage msg)})))
-      (reset! !page-errors [])
-      (page/on-page-error pg-inst (fn [error]
-                                    (swap! !page-errors conj
-                                      {:message (str error)})))
-      (reset! !tracked-requests [])
-      (page/on-response pg-inst track-response!)
-      ;; Auto-load session state if --session-name is set
-      (auto-load-session-state!))))
+                        (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
+          pw          (core/create)]
+      (if profile-dir
+        ;; Persistent context: real Chrome profile directory.
+        ;; launchPersistentContext returns BrowserContext directly, not Browser.
+        ;; Closing the context auto-closes the browser.
+        (let [persistent-opts (merge launch-opts ctx-opts)
+              context         (core/launch-persistent-context
+                                (.chromium ^com.microsoft.playwright.Playwright pw)
+                                profile-dir
+                                persistent-opts)
+              browser         (.browser ^com.microsoft.playwright.BrowserContext context)
+              pg-inst         (if (seq (.pages ^com.microsoft.playwright.BrowserContext context))
+                                (first (.pages ^com.microsoft.playwright.BrowserContext context))
+                                (core/new-page-from-context context))]
+          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
+            :persistent-profile true))
+        ;; Normal path: launch browser + create context separately.
+        (let [browser (if (get flags "cdp")
+                        (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
+                        (core/launch-chromium pw launch-opts))
+              context (if (seq ctx-opts)
+                        (core/new-context browser ctx-opts)
+                        (core/new-context browser))
+              pg-inst (core/new-page-from-context context)]
+          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))
+      ;; Common setup for both paths
+      (let [pg-inst (:page @!state)]
+        (reset! !console-messages [])
+        (page/on-console pg-inst (fn [msg]
+                                   (swap! !console-messages conj
+                                     {:type (.type ^ConsoleMessage msg)
+                                      :text (.text ^ConsoleMessage msg)})))
+        (reset! !page-errors [])
+        (page/on-page-error pg-inst (fn [error]
+                                      (swap! !page-errors conj
+                                        {:message (str error)})))
+        (reset! !tracked-requests [])
+        (page/on-response pg-inst track-response!)
+        ;; Auto-load session state if --session-name is set (not for persistent profiles)
+        (when-not profile-dir
+          (auto-load-session-state!))))))
 
 ;; =============================================================================
 ;; Ref Resolution
@@ -394,7 +414,7 @@
             (Path/of ^String path-str (into-array String []))
             ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-          {:path path-str :size (alength ss-bytes)})
+        {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
@@ -478,27 +498,27 @@
   (cond
     (get params "text")
     (do (page/wait-for-selector (pg) (str "text=" (get params "text")))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (page/wait-for-url (pg) (get params "url"))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (page/wait-for-function (pg) (get params "function"))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (do (page/wait-for-selector (pg) (get params "selector"))
-        {:found (get params "selector")})
+      {:found (get params "selector")})
 
     (get params "state")
     (do (page/wait-for-load-state (pg) (keyword (get params "state")))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (page/wait-for-timeout (pg) (double (get params "timeout")))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -649,13 +669,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "click" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "fill" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -819,7 +839,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -868,12 +888,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -991,7 +1011,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg)
               ;; Re-register console, error, and request listeners on new page
