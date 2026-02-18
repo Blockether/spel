@@ -17,8 +17,9 @@
    [com.blockether.spel.data]
    [com.blockether.spel.options :as opts])
   (:import
+   [java.io File]
    [com.microsoft.playwright Browser BrowserContext BrowserType
-    Page Playwright PlaywrightException TimeoutError]
+    Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError]
    [com.microsoft.playwright.impl TargetClosedError]))
 
 ;; =============================================================================
@@ -94,8 +95,24 @@
 ;; Playwright Lifecycle
 ;; =============================================================================
 
+(defn- detect-source-dirs
+  "Auto-detects Clojure source directories that exist in the working directory.
+   Returns a platform-separated path string (e.g. \"src:test:dev\") or nil."
+  []
+  (let [candidates ["src" "test" "dev"]
+        existing   (filterv #(.isDirectory (File. ^String %)) candidates)]
+    (when (seq existing)
+      (String/join File/pathSeparator existing))))
+
 (defn create
   "Creates a new Playwright instance.
+
+   Automatically detects Clojure source directories (src, test, dev) and
+   configures Playwright tracing to include .clj source files. When a trace
+   is captured with {:sources true}, the Trace Viewer Source tab will show
+   the actual Clojure source code for each action.
+
+   Respects the PLAYWRIGHT_JAVA_SRC environment variable if already set.
    
    Returns:
    Playwright instance or anomaly map on failure.
@@ -105,7 +122,12 @@
    ;; Use pw for browser launching, then (.close pw) when done."
   []
   (safe
-    (Playwright/create)))
+    (let [src-dirs (when-not (System/getenv "PLAYWRIGHT_JAVA_SRC")
+                     (detect-source-dirs))]
+      (if src-dirs
+        (Playwright/create (doto (Playwright$CreateOptions.)
+                             (.setEnv {"PLAYWRIGHT_JAVA_SRC" src-dirs})))
+        (Playwright/create)))))
 
 (defn close!
   "Closes a Playwright instance and releases all resources.
