@@ -23,6 +23,22 @@
    [java.io File]))
 
 ;; =============================================================================
+;; Helpers
+;; =============================================================================
+
+(defn- ensure-context!
+  "Throws the original exception when `ctx` is an anomaly map from
+   core/new-context, instead of letting a confusing ClassCastException
+   surface later. Returns `ctx` unchanged when it is a real BrowserContext."
+  [ctx]
+  (if (core/anomaly? ctx)
+    (throw (or (:playwright/exception ctx)
+             (ex-info (str "Failed to create browser context: "
+                        (:cognitect.anomalies/message ctx))
+               (dissoc ctx :playwright/exception))))
+    ctx))
+
+;; =============================================================================
 ;; Dynamic Vars
 ;; =============================================================================
 
@@ -95,9 +111,10 @@
             ;; Auto-trace: create context with HAR + tracing, then page
       (let [trace-file (File/createTempFile "pw-trace-" ".zip")
             har-file   (File/createTempFile "pw-har-" ".har")
-            ctx        (core/new-context *browser*
-                         {:record-har-path (str har-file)
-                          :record-har-mode :full})
+            ctx        (ensure-context!
+                         (core/new-context *browser*
+                           {:record-har-path (str har-file)
+                            :record-har-mode :full}))
             tracing    (.tracing ^com.microsoft.playwright.BrowserContext ctx)]
         (.start tracing (doto (Tracing$StartOptions.)
                           (.setScreenshots true)
@@ -125,7 +142,7 @@
                         (.start))]
                 (.join t 5000))))))
             ;; Normal mode: plain page, no tracing overhead
-      (let [ctx  (core/new-context *browser*)
+      (let [ctx  (ensure-context! (core/new-context *browser*))
             page (core/new-page-from-context ctx)]
         (try
           (binding [*page*            page
@@ -163,9 +180,10 @@
   (around [f]
     (let [trace-file (File/createTempFile "pw-trace-" ".zip")
           har-file   (File/createTempFile "pw-har-" ".har")
-          ctx        (core/new-context *browser*
-                       {:record-har-path        (str har-file)
-                        :record-har-mode        :full})
+          ctx        (ensure-context!
+                       (core/new-context *browser*
+                         {:record-har-path        (str har-file)
+                          :record-har-mode        :full}))
           tracing    (.tracing ^com.microsoft.playwright.BrowserContext ctx)]
             ;; Start tracing with screenshots + DOM snapshots + sources
       (.start tracing (doto (Tracing$StartOptions.)
@@ -234,9 +252,10 @@
                 ;; Traced mode: HAR + tracing, no screenshots/snapshots (no page)
           (let [trace-file (File/createTempFile "pw-trace-" ".zip")
                 har-file   (File/createTempFile "pw-har-" ".har")
-                ctx        (core/new-context browser
-                             {:record-har-path (str har-file)
-                              :record-har-mode :full})
+                ctx        (ensure-context!
+                             (core/new-context browser
+                               {:record-har-path (str har-file)
+                                :record-har-mode :full}))
                 tracing    (.tracing ^com.microsoft.playwright.BrowserContext ctx)]
             (.start tracing (doto (Tracing$StartOptions.)
                               (.setScreenshots false)
@@ -259,7 +278,7 @@
                           (.start))]
                   (.join t 5000)))))
                 ;; Non-traced mode: provide *browser-api* without overhead
-          (let [ctx (core/new-context browser {})]
+          (let [ctx (ensure-context! (core/new-context browser {}))]
             (try
               (binding [*browser-context* ctx
                         *browser-api*     (.request ^com.microsoft.playwright.BrowserContext ctx)]

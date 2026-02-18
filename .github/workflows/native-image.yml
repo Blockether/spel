@@ -47,7 +47,7 @@ jobs:
           distribution: 'graalvm'
 
       - name: Setup Clojure
-        uses: DeLaGuardo/setup-clojure@12.5
+        uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
 

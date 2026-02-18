@@ -37,7 +37,7 @@ jobs:
           java-version: '25'
           distribution: 'graalvm'
 
-      - uses: DeLaGuardo/setup-clojure@13.1
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
 
@@ -71,9 +71,11 @@ jobs:
         run: clojure -M -e "(println \"Syntax check passed\")"
 
       - name: Lint (clojure-lsp)
+        if: runner.os == 'Linux'
         run: make lint
 
       - name: Validate GraalVM native-image safety
+        if: runner.os == 'Linux'
         run: make validate-safe-graal
 
       - name: Run tests

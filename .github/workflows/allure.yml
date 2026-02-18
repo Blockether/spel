@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: '20'
 
-      - uses: DeLaGuardo/setup-clojure@13.1
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
 
