@@ -6,6 +6,7 @@
   (:refer-clojure :exclude [proxy])
   (:import
    [com.microsoft.playwright BrowserType$LaunchOptions
+    BrowserType$LaunchPersistentContextOptions
     Browser$NewContextOptions Browser$NewPageOptions
     BrowserContext$StorageStateOptions
     Page$NavigateOptions Page$ScreenshotOptions Page$PdfOptions
@@ -46,7 +47,7 @@
     Page$WaitForDownloadOptions Page$WaitForFileChooserOptions
     Page$GetByRoleOptions]
    [com.microsoft.playwright.options
-    Cookie HarContentPolicy HarMode ScreenSize ViewportSize
+    Cookie HarContentPolicy HarMode Proxy ScreenSize ViewportSize
     WaitForSelectorState WaitUntilState MouseButton]
    [java.nio.file Path Paths]))
 
@@ -127,7 +128,120 @@
       (.setDownloadsPath lo (->path v)))
     (when-let [v (:executable-path opts)]
       (.setExecutablePath lo (->path v)))
+    (when-let [v (:proxy opts)]
+      (let [^Proxy p (Proxy. ^String (:server v))]
+        (when-let [b (:bypass v)]   (.setBypass p ^String b))
+        (when-let [u (:username v)] (.setUsername p ^String u))
+        (when-let [pw (:password v)] (.setPassword p ^String pw))
+        (.setProxy lo p)))
     lo))
+
+;; =============================================================================
+;; Launch Persistent Context Options
+;; =============================================================================
+
+(defn ->launch-persistent-context-options
+  "Converts a map to BrowserType$LaunchPersistentContextOptions.
+
+   Combines launch options (headless, args, proxy, etc.) and context options
+   (viewport, user-agent, storage-state, etc.) into a single options object.
+   Used with `BrowserType.launchPersistentContext` which returns a BrowserContext
+   directly (not a Browser).
+
+   Params:
+   `opts` - Map with optional keys:
+     ;; Launch options
+     :headless        - Boolean. Run in headless mode (default: true).
+     :slow-mo         - Double. Slow down operations by ms.
+     :timeout         - Double. Maximum time in ms to wait for browser launch.
+     :channel         - String. Browser channel (e.g. \"chrome\", \"msedge\").
+     :args            - Vector of strings. Additional browser args.
+     :chromium-sandbox - Boolean. Enable Chromium sandbox.
+     :downloads-path  - String. Path to download files.
+     :executable-path - String. Path to browser executable.
+     :proxy           - Map with :server, :bypass, :username, :password.
+     ;; Context options
+     :viewport        - Map with :width :height, or nil to disable.
+     :screen          - Map with :width :height.
+     :user-agent      - String.
+     :locale          - String (e.g. \"en-US\").
+     :timezone-id     - String (e.g. \"America/New_York\").
+     :permissions     - Vector of strings.
+     :ignore-https-errors - Boolean.
+     :java-script-enabled - Boolean.
+     :bypass-csp      - Boolean.
+     :device-scale-factor - Double.
+     :is-mobile       - Boolean.
+     :has-touch       - Boolean.
+     :base-url        - String.
+     :accept-downloads - Boolean.
+     :offline         - Boolean.
+     :extra-http-headers - Map of string->string.
+
+   Returns:
+   BrowserType$LaunchPersistentContextOptions instance."
+  ^BrowserType$LaunchPersistentContextOptions [opts]
+  (let [^BrowserType$LaunchPersistentContextOptions o
+        (BrowserType$LaunchPersistentContextOptions.)]
+    ;; Launch options
+    (when (contains? opts :headless)
+      (.setHeadless o (boolean (:headless opts))))
+    (when-let [v (:slow-mo opts)]
+      (.setSlowMo o (double v)))
+    (when-let [v (:timeout opts)]
+      (.setTimeout o (double v)))
+    (when-let [v (:channel opts)]
+      (.setChannel o ^String v))
+    (when-let [v (:args opts)]
+      (.setArgs o ^java.util.List v))
+    (when (contains? opts :chromium-sandbox)
+      (.setChromiumSandbox o (boolean (:chromium-sandbox opts))))
+    (when-let [v (:downloads-path opts)]
+      (.setDownloadsPath o (->path v)))
+    (when-let [v (:executable-path opts)]
+      (.setExecutablePath o (->path v)))
+    (when-let [v (:proxy opts)]
+      (let [^Proxy p (Proxy. ^String (:server v))]
+        (when-let [b (:bypass v)]   (.setBypass p ^String b))
+        (when-let [u (:username v)] (.setUsername p ^String u))
+        (when-let [pw (:password v)] (.setPassword p ^String pw))
+        (.setProxy o p)))
+    ;; Context options
+    (when (contains? opts :viewport)
+      (if-let [vp (:viewport opts)]
+        (.setViewportSize o (long (:width vp)) (long (:height vp)))
+        (.setViewportSize o nil)))
+    (when-let [s (:screen opts)]
+      (.setScreenSize o (long (:width s)) (long (:height s))))
+    (when-let [v (:user-agent opts)]
+      (.setUserAgent o ^String v))
+    (when-let [v (:locale opts)]
+      (.setLocale o ^String v))
+    (when-let [v (:timezone-id opts)]
+      (.setTimezoneId o ^String v))
+    (when-let [v (:permissions opts)]
+      (.setPermissions o ^java.util.List v))
+    (when (contains? opts :ignore-https-errors)
+      (.setIgnoreHTTPSErrors o (boolean (:ignore-https-errors opts))))
+    (when (contains? opts :java-script-enabled)
+      (.setJavaScriptEnabled o (boolean (:java-script-enabled opts))))
+    (when (contains? opts :bypass-csp)
+      (.setBypassCSP o (boolean (:bypass-csp opts))))
+    (when-let [v (:device-scale-factor opts)]
+      (.setDeviceScaleFactor o (double v)))
+    (when (contains? opts :is-mobile)
+      (.setIsMobile o (boolean (:is-mobile opts))))
+    (when (contains? opts :has-touch)
+      (.setHasTouch o (boolean (:has-touch opts))))
+    (when-let [v (:base-url opts)]
+      (.setBaseURL o ^String v))
+    (when (contains? opts :accept-downloads)
+      (.setAcceptDownloads o (boolean (:accept-downloads opts))))
+    (when (contains? opts :offline)
+      (.setOffline o (boolean (:offline opts))))
+    (when-let [v (:extra-http-headers opts)]
+      (.setExtraHTTPHeaders o ^java.util.Map v))
+    o))
 
 ;; =============================================================================
 ;; Browser Context Options

@@ -241,6 +241,42 @@
    (launch (webkit pw) opts)))
 
 ;; =============================================================================
+;; Persistent Context (Chrome Profile)
+;; =============================================================================
+
+(defn launch-persistent-context
+  "Launches a browser with a persistent user data directory (Chrome profile).
+
+   Unlike `launch` + `new-context`, this uses a real Chrome profile directory
+   that persists cookies, localStorage, extensions, saved passwords, bookmarks,
+   and other browser data across sessions.
+
+   Returns a BrowserContext directly (not a Browser). Closing the context
+   automatically closes the browser.
+
+   Params:
+   `browser-type` - BrowserType instance (from `chromium`, `firefox`, `webkit`).
+   `user-data-dir` - String. Path to Chrome user data directory.
+                     Pass empty string for a temporary profile.
+   `opts`          - Map, optional. Combined launch + context options
+                     (see options/->launch-persistent-context-options).
+
+   Returns:
+   BrowserContext instance or anomaly map on failure.
+
+   Examples:
+   (launch-persistent-context (chromium pw) \"/tmp/my-profile\")
+   (launch-persistent-context (chromium pw) \"/tmp/my-profile\"
+     {:headless false :user-agent \"MyAgent/1.0\"})"
+  (^BrowserContext [^BrowserType browser-type ^String user-data-dir]
+   (safe (.launchPersistentContext browser-type
+           (java.nio.file.Paths/get user-data-dir (into-array String [])))))
+  (^BrowserContext [^BrowserType browser-type ^String user-data-dir opts]
+   (safe (.launchPersistentContext browser-type
+           (java.nio.file.Paths/get user-data-dir (into-array String []))
+           (opts/->launch-persistent-context-options opts)))))
+
+;; =============================================================================
 ;; Browser Operations
 ;; =============================================================================
 
