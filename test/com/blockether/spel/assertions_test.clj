@@ -1,11 +1,10 @@
 (ns com.blockether.spel.assertions-test
   "Tests for the assertions namespace - LocatorAssertions, PageAssertions."
   (:require
-   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.assertions :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect expect-it it throws? before-each]])
+   [lazytest.core :refer [defdescribe describe expect it throws? before-each]])
   (:import
    [com.microsoft.playwright.assertions LocatorAssertions PageAssertions]))
 
@@ -198,7 +197,7 @@
       (page/set-content! *page* test-html))
 
     (it "passes when URL contains expected text"
-      (let [pa (sut/assert-that *page*)]
+      (let [_pa (sut/assert-that *page*)]
         ;; The URL will be a data: URL or about:blank
         (expect (string? (page/url *page*)))))))
 

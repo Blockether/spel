@@ -13,7 +13,7 @@
 
 (def class-dir "target/classes")
 (def jar-file (format "target/%s.jar" (name lib)))
-(def uber-file "target/playwright-clj-standalone.jar")
+(def uber-file "target/spel-standalone.jar")
 (def native-binary "target/spel")
 (def basis (delay (b/create-basis {:project "deps.edn"})))
 (def native-basis (delay (b/create-basis {:project "deps.edn"
@@ -101,8 +101,8 @@
         ;; Most flags come from META-INF/native-image/.../native-image.properties
         ;; Only specify output path and jar here
         cmd        (cond-> ["native-image"
-                             "-jar" uber-file
-                             "-o" binary]
+                            "-jar" uber-file
+                            "-o" binary]
                      (seq extra-args)
                      (into (str/split extra-args #"\s+")))
         _          (println "Running:" (str/join " " cmd))

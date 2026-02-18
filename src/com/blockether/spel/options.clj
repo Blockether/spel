@@ -45,7 +45,7 @@
     Page$WaitForRequestOptions Page$WaitForRequestFinishedOptions]
    [com.microsoft.playwright.options
     Cookie HarContentPolicy HarMode ScreenSize ViewportSize
-    WaitForSelectorState WaitUntilState LoadState MouseButton]
+    WaitForSelectorState WaitUntilState MouseButton]
    [java.nio.file Path Paths]))
 
 (set! *warn-on-reflection* true)
@@ -68,15 +68,6 @@
     :networkidle WaitUntilState/NETWORKIDLE
     :commit WaitUntilState/COMMIT
     WaitUntilState/LOAD))
-
-(defn- ->load-state
-  "Converts keyword to LoadState enum."
-  ^LoadState [kw]
-  (case kw
-    :load LoadState/LOAD
-    :domcontentloaded LoadState/DOMCONTENTLOADED
-    :networkidle LoadState/NETWORKIDLE
-    LoadState/LOAD))
 
 (defn- ->mouse-button
   "Converts keyword to MouseButton enum."
@@ -925,18 +916,6 @@
 ;; =============================================================================
 ;; ElementHandle Options
 ;; =============================================================================
-
-(defn- ->element-state
-  "Converts keyword to ElementState enum for WaitForElementStateOptions."
-  ^com.microsoft.playwright.options.ElementState [kw]
-  (case kw
-    :visible com.microsoft.playwright.options.ElementState/VISIBLE
-    :hidden com.microsoft.playwright.options.ElementState/HIDDEN
-    :stable com.microsoft.playwright.options.ElementState/STABLE
-    :enabled com.microsoft.playwright.options.ElementState/ENABLED
-    :disabled com.microsoft.playwright.options.ElementState/DISABLED
-    :editable com.microsoft.playwright.options.ElementState/EDITABLE
-    com.microsoft.playwright.options.ElementState/VISIBLE))
 
 (defn ->eh-click-options
   "Converts a map to ElementHandle$ClickOptions."

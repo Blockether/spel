@@ -1,4 +1,8 @@
-{:cljfmt
+{;; This is a library — public vars are API surface consumed by users.
+ ;; Suppress unused-public-var to avoid false positives on intentional API.
+ :linters {:clojure-lsp/unused-public-var {:level :off}}
+
+ :cljfmt
  {:indents
   {;; ================================================================
    ;; core.clj — error handling & lifecycle macros

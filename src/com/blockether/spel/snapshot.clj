@@ -454,17 +454,10 @@
 
    Returns:
    Same format as capture-snapshot, but with prefixed refs."
-  [^Frame frame frame-ordinal]
-  (let [result     (com.blockether.spel.page/evaluate
-                     (.page frame)
-                     (str "((frameEl) => {"
-                       "  const doc = frameEl.contentDocument || frameEl.contentWindow.document;"
-                       "  // ... frame-specific snapshot logic"
-                       "  return null;"
-                       "})(document.querySelectorAll('iframe')[" (dec frame-ordinal) "])"))
-        prefix     (str "f" frame-ordinal "_")]
-    ;; For now, fall back to main-frame snapshot
-    ;; Frame-specific logic will be expanded
+  [^Frame _frame frame-ordinal]
+  ;; TODO: Implement frame-specific snapshot logic.
+  ;; For now, fall back to a stub — frame-specific logic will be expanded.
+  (let [prefix (str "f" frame-ordinal "_")]
     {:tree    nil
      :refs    {}
      :counter 0

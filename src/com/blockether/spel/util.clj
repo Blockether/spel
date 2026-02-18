@@ -220,7 +220,10 @@
   ([^CDPSession session ^String method]
    (safe (.send session method)))
   ([^CDPSession session ^String method params]
-   (safe (.send session method (com.google.gson.JsonObject.)))))
+   (let [json-obj (com.google.gson.JsonObject.)]
+     (doseq [[k v] params]
+       (.addProperty json-obj (name k) (str v)))
+     (safe (.send session method json-obj)))))
 
 (defn cdp-detach!
   "Detaches the CDP session.

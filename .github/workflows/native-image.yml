@@ -73,6 +73,41 @@ jobs:
         # Flags come from META-INF/native-image/.../native-image.properties inside the uberjar
         run: native-image -jar target/playwright-clj-standalone.jar -o target/spel
 
+      - name: CLI smoke tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x target/spel
+          echo "=== spel --help ==="
+          target/spel --help
+          echo "=== spel version ==="
+          target/spel version
+          echo "=== spel open --help (per-command help) ==="
+          target/spel open --help
+          echo "=== spel snapshot --help ==="
+          target/spel snapshot --help
+          echo "=== spel find --help ==="
+          target/spel find --help
+          echo "=== spel network --help ==="
+          target/spel network --help
+          echo "=== All CLI smoke tests passed ==="
+
+      - name: CLI smoke tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          echo "=== spel --help ==="
+          target/spel.exe --help
+          echo "=== spel version ==="
+          target/spel.exe version
+          echo "=== spel open --help (per-command help) ==="
+          target/spel.exe open --help
+          echo "=== spel snapshot --help ==="
+          target/spel.exe snapshot --help
+          echo "=== spel find --help ==="
+          target/spel.exe find --help
+          echo "=== spel network --help ==="
+          target/spel.exe network --help
+          echo "=== All CLI smoke tests passed ==="
+
       - name: Rename binary (Unix)
         if: runner.os != 'Windows'
         run: mv target/spel target/${{ matrix.artifact }}

@@ -15,20 +15,19 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.core :as core]
-   [com.blockether.spel.frame :as frame]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as network]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.options :as options]
+   [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
    [java.io BufferedReader File InputStreamReader OutputStreamWriter]
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
-   [java.nio ByteBuffer]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
    [java.util Base64]))
@@ -114,9 +113,19 @@
 (defn- ctx ^BrowserContext [] (:context @!state))
 
 (defn- str->aria-role
-  "Converts a lowercase role string to AriaRole enum."
+  "Converts a lowercase role string to AriaRole enum.
+   Throws ex-info with a helpful message if the role name is invalid."
   ^AriaRole [^String s]
-  (AriaRole/valueOf (.toUpperCase s)))
+  (try
+    (AriaRole/valueOf (.toUpperCase s))
+    (catch IllegalArgumentException _
+      (throw (ex-info (str "Unknown ARIA role: " s
+                        ". Valid roles include: alert, button, checkbox, combobox, dialog, grid, "
+                        "heading, img, link, list, listbox, listitem, menu, menuitem, navigation, "
+                        "option, paragraph, progressbar, radio, region, row, search, searchbox, "
+                        "separator, slider, spinbutton, switch, tab, table, tabpanel, textbox, "
+                        "toolbar, tooltip, tree, treeitem")
+               {})))))
 
 (defn- filter-snapshot-tree
   "Applies snapshot filters to the tree string."
@@ -1092,6 +1101,51 @@
     (page/on-response pg-inst track-response!)
     {:connected url :url (page/url pg-inst)}))
 
+;; --- SCI Eval ---
+
+;; Cached SCI evaluation context. Created once per daemon lifetime and reused
+;; across eval invocations so that def'd vars persist between calls.
+(defonce ^:private !sci-ctx (atom nil))
+
+(defn- sync-state-to-sci!
+  "Copies daemon's Playwright objects into SCI atoms so user code sees them."
+  []
+  (reset! sci-env/!daemon-mode? true)
+  (let [st @!state]
+    (reset! sci-env/!pw (:pw st))
+    (reset! sci-env/!browser (:browser st))
+    (reset! sci-env/!context (:context st))
+    (reset! sci-env/!page (:page st))))
+
+(defn- sync-sci-to-state!
+  "After SCI eval, syncs SCI atoms back to daemon state in case user code
+   changed the page (e.g. navigated, opened new tab)."
+  []
+  (swap! !state assoc
+    :page @sci-env/!page
+    :context @sci-env/!context))
+
+(defmethod handle-cmd "sci_eval" [_ params]
+  (ensure-browser!)
+  (sync-state-to-sci!)
+  (let [code (get params "code")]
+    (when-not code
+      (throw (ex-info "sci_eval requires a 'code' parameter" {})))
+    (let [ctx (or @!sci-ctx
+                (let [c (sci-env/create-sci-ctx)]
+                  (reset! !sci-ctx c)
+                  c))]
+      (sci-env/set-throw-on-error! true)
+      (try
+        (let [result (sci-env/eval-string ctx code)]
+          (sync-sci-to-state!)
+          (if (anomaly/anomaly? result)
+            {:error (::anomaly/message result)}
+            {:result (pr-str result)}))
+        (catch Exception e
+          (sync-sci-to-state!)
+          (throw e))))))
+
 ;; --- Close & Default ---
 
 (defmethod handle-cmd "close" [_ _]
@@ -1202,9 +1256,9 @@
   (let [pid-path (pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try
-        (let [pid (str/trim (String. (Files/readAllBytes pid-path)))]
-          (let [p (.start (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String ["kill" "-0" pid])))]
-            (= 0 (.waitFor p))))
+        (let [pid (str/trim (String. (Files/readAllBytes pid-path)))
+              p   (.start (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String ["kill" "-0" pid])))]
+          (= 0 (.waitFor p)))
         (catch Exception _
           (cleanup! session)
           false)))))

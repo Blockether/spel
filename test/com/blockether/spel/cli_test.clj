@@ -5,6 +5,7 @@
    global flags, and edge cases."
   (:require
    [com.blockether.spel.cli :as sut]
+   [com.blockether.spel.native] ;; for #' access to parse-global-flags
    [lazytest.core :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
@@ -37,7 +38,27 @@
     (it "parses goto as alias for open"
       (let [c (cmd ["goto" "https://example.com"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c))))))
+        (expect (= "https://example.com" (:url c)))))
+
+    (it "auto-prefixes https for bare domains"
+      (let [c (cmd ["open" "example.com"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "https://example.com" (:url c)))))
+
+    (it "preserves file:// protocol"
+      (let [c (cmd ["open" "file:///tmp/page.html"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "file:///tmp/page.html" (:url c)))))
+
+    (it "preserves data: protocol"
+      (let [c (cmd ["open" "data:text/html,<h1>hi</h1>"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "data:text/html,<h1>hi</h1>" (:url c)))))
+
+    (it "parses open with no URL"
+      (let [c (cmd ["open"])]
+        (expect (= "navigate" (:action c)))
+        (expect (nil? (:url c))))))
 
   (describe "back/forward/reload"
     (it "parses back"
@@ -68,7 +89,45 @@
     (it "parses snapshot --interactive"
       (let [c (cmd ["snapshot" "--interactive"])]
         (expect (= "snapshot" (:action c)))
-        (expect (true? (:interactive c)))))))
+        (expect (true? (:interactive c)))))
+
+    (it "parses snapshot -c compact flag"
+      (let [c (cmd ["snapshot" "-c"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:compact c)))))
+
+    (it "parses snapshot --compact flag"
+      (let [c (cmd ["snapshot" "--compact"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:compact c)))))
+
+    (it "parses snapshot -d depth"
+      (let [c (cmd ["snapshot" "-d" "3"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (= 3 (:depth c)))))
+
+    (it "parses snapshot --depth"
+      (let [c (cmd ["snapshot" "--depth" "5"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (= 5 (:depth c)))))
+
+    (it "parses snapshot -s selector"
+      (let [c (cmd ["snapshot" "-s" "#main"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (= "#main" (:selector c)))))
+
+    (it "parses snapshot --selector"
+      (let [c (cmd ["snapshot" "--selector" ".content"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (= ".content" (:selector c)))))
+
+    (it "parses snapshot with combined flags"
+      (let [c (cmd ["snapshot" "-i" "-c" "-d" "3" "-s" "#main"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:interactive c)))
+        (expect (true? (:compact c)))
+        (expect (= 3 (:depth c)))
+        (expect (= "#main" (:selector c)))))))
 
 ;; =============================================================================
 ;; Click / Input
@@ -341,7 +400,10 @@
       (expect (= "tab_close" (:action (cmd ["tab" "close"])))))
 
     (it "parses tab list"
-      (expect (= "tab_list" (:action (cmd ["tab" "list"])))))))
+      (expect (= "tab_list" (:action (cmd ["tab" "list"])))))
+
+    (it "defaults to tab list with no args"
+      (expect (= "tab_list" (:action (cmd ["tab"])))))))
 
 ;; =============================================================================
 ;; Getters
@@ -368,7 +430,23 @@
     (it "parses get html with selector"
       (let [c (cmd ["get" "html" "@e3"])]
         (expect (= "content" (:action c)))
-        (expect (= "@e3" (:selector c)))))))
+        (expect (= "@e3" (:selector c))))))
+
+  (describe "get count"
+    (it "parses get count with selector"
+      (let [c (cmd ["get" "count" ".items"])]
+        (expect (= "get_count" (:action c)))
+        (expect (= ".items" (:selector c))))))
+
+  (describe "get box"
+    (it "parses get box with selector"
+      (let [c (cmd ["get" "box" "@e1"])]
+        (expect (= "get_box" (:action c)))
+        (expect (= "@e1" (:selector c))))))
+
+  (describe "get with no subcommand"
+    (it "defaults to url"
+      (expect (= "url" (:action (cmd ["get"])))))))
 
 ;; =============================================================================
 ;; Is Checks
@@ -461,7 +539,21 @@
 
     (it "defaults json to false"
       (let [f (flags ["get" "url"])]
-        (expect (false? (:json f)))))))
+        (expect (false? (:json f))))))
+
+  (describe "--headless flag"
+    (it "sets headless to true"
+      (let [f (flags ["--headless" "open" "http://x.com"])]
+        (expect (true? (:headless f))))))
+
+  (describe "--timeout flag"
+    (it "sets timeout with --timeout"
+      (let [f (flags ["--timeout" "5000" "open" "http://x.com"])]
+        (expect (= 5000 (:timeout f)))))
+
+    (it "supports --timeout=value syntax"
+      (let [f (flags ["--timeout=10000" "open" "http://x.com"])]
+        (expect (= 10000 (:timeout f)))))))
 
 ;; =============================================================================
 ;; Error Handling
@@ -823,6 +915,27 @@
         (expect (= "placeholder" (:by c)))
         (expect (= "type" (:find_action c))))))
 
+  (describe "find by alt"
+    (it "parses find alt"
+      (let [c (cmd ["find" "alt" "Logo" "click"])]
+        (expect (= "alt" (:by c)))
+        (expect (= "Logo" (:value c)))
+        (expect (= "click" (:find_action c))))))
+
+  (describe "find by title"
+    (it "parses find title"
+      (let [c (cmd ["find" "title" "Close" "click"])]
+        (expect (= "title" (:by c)))
+        (expect (= "Close" (:value c)))
+        (expect (= "click" (:find_action c))))))
+
+  (describe "find by testid"
+    (it "parses find testid"
+      (let [c (cmd ["find" "testid" "submit-btn" "click"])]
+        (expect (= "testid" (:by c)))
+        (expect (= "submit-btn" (:value c)))
+        (expect (= "click" (:find_action c))))))
+
   (describe "find positional"
     (it "parses find first"
       (let [c (cmd ["find" "first" ".item" "click"])]
@@ -838,7 +951,86 @@
         (expect (= "nth" (:by c)))
         (expect (= "2" (:value c)))
         (expect (= "li" (:selector c)))
-        (expect (= "click" (:find_action c)))))))
+        (expect (= "click" (:find_action c))))))
+
+  (describe "ARIA role shortcuts"
+    (it "treats unknown find type as ARIA role shortcut"
+      (let [c (cmd ["find" "link" "click"])]
+        (expect (= "find" (:action c)))
+        (expect (= "role" (:by c)))
+        (expect (= "link" (:value c)))
+        (expect (= "click" (:find_action c)))))
+
+    (it "parses role shortcut with action value"
+      (let [c (cmd ["find" "button" "fill" "hello"])]
+        (expect (= "role" (:by c)))
+        (expect (= "button" (:value c)))
+        (expect (= "fill" (:find_action c)))
+        (expect (= "hello" (:find_value c)))))
+
+    (it "parses role shortcut with --name flag"
+      (let [c (cmd ["find" "heading" "click" "--name" "Title"])]
+        (expect (= "role" (:by c)))
+        (expect (= "heading" (:value c)))
+        (expect (= "Title" (:name c)))))
+
+    (it "parses role shortcut with no action"
+      (let [c (cmd ["find" "paragraph"])]
+        (expect (= "role" (:by c)))
+        (expect (= "paragraph" (:value c)))
+        (expect (nil? (:find_action c)))))))
+
+;; =============================================================================
+;; Help
+;; =============================================================================
+
+(defdescribe help-test
+  "Tests for per-command help system"
+
+  (describe "parse-args help detection"
+    (it "detects --help for a command"
+      (let [c (cmd ["open" "--help"])]
+        (expect (= "help" (:action c)))
+        (expect (= "open" (:for c)))))
+
+    (it "detects -h for a command"
+      (let [c (cmd ["click" "-h"])]
+        (expect (= "help" (:action c)))
+        (expect (= "click" (:for c)))))
+
+    (it "detects bare spel --help"
+      (let [c (cmd ["--help"])]
+        (expect (= "help" (:action c)))
+        (expect (nil? (:for c)))))
+
+    (it "detects bare spel -h"
+      (let [c (cmd ["-h"])]
+        (expect (= "help" (:action c)))
+        (expect (nil? (:for c))))))
+
+  (describe "command-help map"
+    (it "has help for all major commands"
+      (doseq [cmd-name ["open" "back" "forward" "reload" "snapshot" "click" "dblclick"
+                        "fill" "type" "clear" "press" "keydown" "keyup" "hover" "mouse"
+                        "check" "uncheck" "select" "focus" "scroll" "scrollintoview"
+                        "drag" "upload" "screenshot" "annotate" "unannotate" "pdf"
+                        "eval" "wait" "tab" "get" "is" "count" "bbox" "highlight"
+                        "find" "set" "cookies" "storage" "network" "frame" "dialog"
+                        "trace" "console" "errors" "state" "session" "connect"
+                        "close" "install"]]
+        (expect (string? (get sut/command-help cmd-name))
+          (str "Missing help for command: " cmd-name)))))
+
+  (describe "top-level-help"
+    (it "returns a non-empty string"
+      (expect (string? (sut/top-level-help)))
+      (expect (pos? (count (sut/top-level-help)))))
+
+    (it "contains key sections"
+      (let [h (sut/top-level-help)]
+        (expect (.contains ^String h "Navigation:"))
+        (expect (.contains ^String h "Global Flags:"))
+        (expect (.contains ^String h "Environment Variables:"))))))
 
 ;; =============================================================================
 ;; Cookies
@@ -917,6 +1109,14 @@
     (it "parses frame main"
       (let [c (cmd ["frame" "main"])]
         (expect (= "frame_switch" (:action c)))
+        (expect (= "main" (:selector c)))))
+
+    (it "parses frame list"
+      (expect (= "frame_list" (:action (cmd ["frame" "list"])))))
+
+    (it "defaults to main frame with no args"
+      (let [c (cmd ["frame"])]
+        (expect (= "frame_switch" (:action c)))
         (expect (= "main" (:selector c)))))))
 
 ;; =============================================================================
@@ -970,17 +1170,23 @@
     (it "parses console get"
       (expect (= "console_get" (:action (cmd ["console"])))))
 
-    (it "parses console clear"
-      (expect (= "console_clear" (:action (cmd ["console" "--clear"]))))))
+    (it "parses console --clear flag"
+      (expect (= "console_clear" (:action (cmd ["console" "--clear"])))))
+
+    (it "parses console clear subcommand"
+      (expect (= "console_clear" (:action (cmd ["console" "clear"]))))))
 
   (describe "errors"
     (it "parses errors get"
       (expect (= "errors_get" (:action (cmd ["errors"])))))
 
-    (it "parses errors clear"
+    (it "parses errors --clear flag"
       (let [c (cmd ["errors" "--clear"])]
         (expect (= "errors_get" (:action c)))
-        (expect (true? (:clear c)))))))
+        (expect (true? (:clear c)))))
+
+    (it "parses errors clear subcommand"
+      (expect (= "errors_clear" (:action (cmd ["errors" "clear"])))))))
 
 ;; =============================================================================
 ;; Highlight
@@ -1116,7 +1322,12 @@
     (it "parses set media"
       (let [c (cmd ["set" "media" "dark"])]
         (expect (= "set_media" (:action c)))
-        (expect (= "dark" (:colorScheme c))))))
+        (expect (= "dark" (:colorScheme c)))))
+
+    (it "parses set headers"
+      (let [c (cmd ["set" "headers" "{\"X-Custom\":\"value\"}"])]
+        (expect (= "set_headers" (:action c)))
+        (expect (= {"X-Custom" "value"} (:headers c))))))
 
   (describe "get value and attribute"
     (it "parses get value"
@@ -1172,10 +1383,80 @@
     (it "parses network requests with filter"
       (let [c (cmd ["network" "requests" "--filter" "api"])]
         (expect (= "network_requests" (:action c)))
-        (expect (= "api" (:filter c))))))
+        (expect (= "api" (:filter c)))))
+
+    (it "parses network requests with --type"
+      (let [c (cmd ["network" "requests" "--type" "fetch"])]
+        (expect (= "network_requests" (:action c)))
+        (expect (= "fetch" (:type c)))))
+
+    (it "parses network requests with --method"
+      (let [c (cmd ["network" "requests" "--method" "POST"])]
+        (expect (= "network_requests" (:action c)))
+        (expect (= "POST" (:method c)))))
+
+    (it "parses network requests with --status"
+      (let [c (cmd ["network" "requests" "--status" "4"])]
+        (expect (= "network_requests" (:action c)))
+        (expect (= "4" (:status c)))))
+
+    (it "parses network requests with combined flags"
+      (let [c (cmd ["network" "requests" "--type" "fetch" "--status" "2"])]
+        (expect (= "network_requests" (:action c)))
+        (expect (= "fetch" (:type c)))
+        (expect (= "2" (:status c)))))
+
+    (it "parses network clear"
+      (expect (= "network_clear" (:action (cmd ["network" "clear"]))))))
 
   (describe "open --interactive"
     (it "parses open --interactive"
       (let [c (cmd ["open" "https://example.com" "--interactive"])]
         (expect (= "navigate" (:action c)))
         (expect (true? (:interactive c)))))))
+
+;; =============================================================================
+;; Native parse-global-flags (--autoclose, --session for --eval mode)
+;; =============================================================================
+
+(defdescribe native-global-flags-test
+  "Tests for native.clj parse-global-flags (private)"
+
+  (describe "--autoclose flag"
+    (it "defaults to false"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (false? (:autoclose? g)))))
+
+    (it "sets autoclose? to true"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--autoclose" "--eval" "(+ 1 2)"])]
+        (expect (true? (:autoclose? g)))))
+
+    (it "strips --autoclose from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--autoclose" "--eval" "(+ 1 2)"])]
+        (expect (not (some #{"--autoclose"} (:command-args g)))))))
+
+  (describe "--session flag"
+    (it "defaults to nil"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (nil? (:session g)))))
+
+    (it "parses --session <name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--session" "mytest" "--eval" "(+ 1 2)"])]
+        (expect (= "mytest" (:session g)))))
+
+    (it "parses --session=<name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--session=mytest" "--eval" "(+ 1 2)"])]
+        (expect (= "mytest" (:session g)))))
+
+    (it "strips --session from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--session" "work" "--eval" "(+ 1 2)"])]
+        (expect (not (some #{"--session"} (:command-args g))))
+        (expect (not (some #{"work"} (:command-args g)))))))
+
+  (describe "combined flags"
+    (it "parses --autoclose --session --timeout together"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--autoclose" "--session" "dev" "--timeout" "5000" "--eval" "(+ 1 2)"])]
+        (expect (true? (:autoclose? g)))
+        (expect (= "dev" (:session g)))
+        (expect (= 5000 (:timeout-ms g)))))))

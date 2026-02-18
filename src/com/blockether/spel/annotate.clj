@@ -11,6 +11,7 @@
      ;; ... inspect, screenshot, etc. ...
      (remove-overlays! page)                ;; clean up"
   (:require
+   [clojure.string :as str]
    [com.blockether.spel.page :as page])
   (:import
    [com.microsoft.playwright Page]))
@@ -322,8 +323,8 @@
   "Escapes single quotes and backslashes for embedding in JS string literal."
   [^String s]
   (-> s
-    (clojure.string/replace "\\" "\\\\")
-    (clojure.string/replace "'" "\\'")))
+    (str/replace "\\" "\\\\")
+    (str/replace "'" "\\'")))
 
 (defn- ref-scope?
   "Returns true if the scope string is a snapshot ref like @e1 or e1."
@@ -337,7 +338,7 @@
    Otherwise, passes through as a CSS selector."
   [^String s]
   (if (ref-scope? s)
-    (str "[data-pw-ref=\"" (clojure.string/replace s #"^@" "") "\"]")
+    (str "[data-pw-ref=\"" (str/replace s #"^@" "") "\"]")
     s))
 
 (defn- scope-ref-ids

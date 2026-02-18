@@ -518,8 +518,7 @@
 (defn- generate-test-footer
   "Generates a Lazytest test file footer."
   []
-  (str
-    ")))))\n"))
+  ")))))\n")
 
 (defn- generate-script-header
   "Generates a standalone script header."
@@ -550,8 +549,7 @@
 (defn- generate-script-footer
   "Generates a standalone script footer."
   []
-  (str
-    "))))\n"))
+  "))))\n")
 
 ;; =============================================================================
 ;; Public API

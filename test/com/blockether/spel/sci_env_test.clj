@@ -138,6 +138,10 @@
 
   (describe "lifecycle and navigation"
     (it "can start, navigate, query, and stop via SCI"
+      ;; Reset SCI atoms in case a previous test (e.g. daemon sci_eval) left them dirty
+      (reset! sut/!pw nil) (reset! sut/!browser nil)
+      (reset! sut/!context nil) (reset! sut/!page nil)
+      (reset! sut/!daemon-mode? false)
       (let [ctx (sut/create-sci-ctx)]
         (try
           ;; Start browser
@@ -167,4 +171,36 @@
             (expect (contains? info :viewport)))
 
           (finally
-            (sut/eval-string ctx "(spel/stop!)")))))))
+            (sut/eval-string ctx "(spel/stop!)"))))))
+
+  (describe "daemon-mode awareness"
+    (it "start! is no-op when page is already set"
+      (let [sentinel (Object.)]
+        (try
+          (reset! sut/!page sentinel)
+          (let [result (sut/sci-start!)]
+            (expect (= :started result))
+            ;; Page should still be our sentinel — not replaced
+            (expect (identical? sentinel @sut/!page)))
+          (finally
+            (reset! sut/!page nil)))))
+
+    (it "stop! nils atoms without closing in daemon mode"
+      (try
+        (reset! sut/!daemon-mode? true)
+        (reset! sut/!pw (Object.))
+        (reset! sut/!browser (Object.))
+        (reset! sut/!context (Object.))
+        (reset! sut/!page (Object.))
+        (let [result (sut/sci-stop!)]
+          (expect (= :stopped result))
+          (expect (nil? @sut/!pw))
+          (expect (nil? @sut/!browser))
+          (expect (nil? @sut/!context))
+          (expect (nil? @sut/!page)))
+        (finally
+          (reset! sut/!daemon-mode? false)
+          (reset! sut/!pw nil)
+          (reset! sut/!browser nil)
+          (reset! sut/!context nil)
+          (reset! sut/!page nil))))))

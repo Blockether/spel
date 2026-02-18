@@ -52,8 +52,6 @@ repl:
 		-e "(require 'nrepl.cmdline)" \
 		-e "(nrepl.cmdline/-main \"--port\" \"$(REPL_PORT)\" \"--middleware\" \"[cider.nrepl/cider-middleware]\" \"--interactive\")"
 
-
-
 format: 
 	clojure-lsp format
 

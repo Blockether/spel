@@ -58,27 +58,27 @@
     [["agents/spel-test-planner.md"
       (str agent-dir "/spel-test-planner" agent-ext)
       "test planner agent"
-      "🤖"
+      "+"
       "spel-test-planner"]
      ["agents/spel-test-generator.md"
       (str agent-dir "/spel-test-generator" agent-ext)
       "test generator agent"
-      "🤖"
+      "+"
       "spel-test-generator"]
      ["agents/spel-test-healer.md"
       (str agent-dir "/spel-test-healer" agent-ext)
       "test healer agent"
-      "🤖"
+      "+"
       "spel-test-healer"]
      ["prompts/spel-test-workflow.md"
       (str prompt-dir "/spel-test-workflow.md")
       "coverage workflow"
-      "📋"
+      "+"
       nil]
      ["skills/spel/SKILL.md"
       (str skill-dir "/SKILL.md")
       "API reference skill"
-      "📚"
+      "+"
       nil]]))
 
 (def ^:private seed-template-resource
@@ -326,7 +326,7 @@
   "Prints the initialization banner with the target name."
   [loop-target]
   (let [desc (:desc (get loop-targets loop-target))]
-    (println (str "🎭 Initializing Playwright E2E testing agents for " desc "..."))
+    (println (str "Initializing Playwright E2E testing agents for " desc "..."))
     (println "")))
 
 (defn- print-help
@@ -377,10 +377,10 @@
   [loop-target test-dir]
   (println "")
   (if (= "opencode" loop-target)
-    (println "✅ Done! Use @spel-test-planner to start planning tests.")
-    (println "✅ Done! Use the spel-test-planner agent to start planning tests."))
+    (println "Done! Use @spel-test-planner to start planning tests.")
+    (println "Done! Use the spel-test-planner agent to start planning tests."))
   (println "")
-  (println "📦 Next steps:")
+  (println "Next steps:")
   (println "")
   (println "  1. Install Playwright browsers:")
   (println "     spel install --with-deps chromium")
@@ -420,8 +420,8 @@
       :else
       (let [loop-target (:loop opts)
             ns-name (or (:ns opts)
-                      (do (println "⚠️  No --ns provided, deriving from directory name.")
-                        (println (str "   Tip: use --ns my-app to set namespace explicitly."))
+                      (do (println "Warning: No --ns provided, deriving from directory name.")
+                        (println "         Tip: use --ns my-app to set namespace explicitly.")
                         (println "")
                         (derive-namespace)))
             test-dir (:test-dir opts)
@@ -438,15 +438,15 @@
               specs-readme-result
               (if (file-exists? specs-readme-path)
                 {:created false :skipped true :reason "Already exists"}
-                (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "📝" opts ns-name loop-target nil))]
+                (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil))]
           (when (or (:dry-run opts) (not (:skipped specs-readme-result)))
-            (print-result "📝" specs-dir "test plans directory" specs-readme-result)))
+            (print-result "+" specs-dir "test plans directory" specs-readme-result)))
 
         ;; Scaffold test directory with seed test
         ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
         (let [seed-ns (str ns-name ".e2e.seed-test")
               seed-path (ns->path test-dir seed-ns)
-              seed-result (scaffold-file seed-template-resource seed-path "seed test" "🌱" opts ns-name loop-target nil)]
-          (print-result "🌱" seed-path "seed test" seed-result))
+              seed-result (scaffold-file seed-template-resource seed-path "seed test" "+" opts ns-name loop-target nil)]
+          (print-result "+" seed-path "seed test" seed-result))
 
         (print-footer loop-target test-dir)))))

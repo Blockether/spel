@@ -1,5 +1,5 @@
 (ns com.blockether.spel.smoke-test
-  "End-to-end smoke tests against live websites (example.com, amazon.com).
+  "End-to-end smoke tests against example.com.
 
    Showcases the Allure in-test API with epics, features, stories, steps,
    screenshots, parameters, attachments, and links. Run with the Allure
@@ -10,13 +10,13 @@
    [clojure.string :as str]
    [com.blockether.spel.allure :as allure]
    [com.blockether.spel.assertions :as assert]
-   [com.blockether.spel.core :as core]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright
-                                                        with-browser with-page
-                                                        with-traced-page]]
+                                              with-browser
+                                              with-traced-page]]
    [lazytest.core :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright Response]))
@@ -288,217 +288,228 @@
           (allure/attach "Page HTML" html "text/html"))))))
 
 ;; =============================================================================
-;; Amazon.com — Smoke Tests
+;; Example.com — Accessibility Snapshots & Ref-Based Interaction
 ;; =============================================================================
 
-(defdescribe amazon-com-navigation-smoke-test
-  "Smoke: amazon.com navigation and page load"
+(defdescribe example-com-snapshot-smoke-test
+  "Smoke: accessibility snapshots and ref-based interaction on example.com"
 
-  (describe "homepage load"
+  (describe "capture snapshot and interact via refs"
     {:context [with-playwright with-browser with-traced-page]}
 
-    (it "loads amazon.com homepage"
+    (it "captures accessibility tree with numbered refs"
       (allure/epic "Smoke Tests")
-      (allure/feature "amazon.com")
-      (allure/story "Navigation")
-      (allure/severity :blocker)
+      (allure/feature "example.com")
+      (allure/story "Accessibility Snapshots")
+      (allure/severity :critical)
       (allure/owner "spel")
       (allure/tag "smoke")
-      (allure/tag "amazon")
-      (allure/link "Site" "https://www.amazon.com")
+      (allure/tag "snapshot")
+      (allure/link "Site" "https://example.com")
       (allure/description
-        "Navigates to amazon.com, verifies HTTP response, page title,
-        and takes a screenshot of the homepage.")
+        "Captures the accessibility snapshot of example.com, verifies the
+        tree structure contains expected elements with refs, and resolves
+        refs back to Playwright locators for interaction.")
 
-      (allure/step "Navigate to amazon.com"
-        (println "Starting Amazon.com navigation...")
-        (let [resp (page/navigate *page* "https://www.amazon.com")]
-          (println "Navigation response received")
-          (allure/parameter "url" "https://www.amazon.com")
+      (allure/step "Navigate to example.com"
+        (page/navigate *page* "https://example.com")
+        (page/wait-for-load-state *page* "load"))
 
-          (allure/step "Verify HTTP response is successful"
-            (let [status (net/response-status resp)]
+      (allure/step "Capture accessibility snapshot"
+        (let [snap (snapshot/capture-snapshot *page*)]
+          (allure/parameter "ref-count" (:counter snap))
+          (allure/attach "Accessibility Tree" (:tree snap) "text/plain")
 
-              (println "Navigation returned anomaly, skipping status check:" status)
+          (allure/step "Verify snapshot structure"
+            (expect (map? snap))
+            (expect (string? (:tree snap)))
+            (expect (map? (:refs snap)))
+            (expect (pos? (:counter snap))))
 
-              (println "HTTP status:" status (if (<= 200 status 299) "(OK)" "(UNEXPECTED)"))
-              (allure/parameter "status" status)
-                                              ;; Amazon may return 200 or 202
-              (expect (<= 200 status 299))))))
+          (allure/step "Tree contains heading 'Example Domain'"
+            (expect (.contains ^String (:tree snap) "Example Domain")))
 
-      (allure/step "Wait for full page load"
-        (println "Waiting for 'load' event...")
-        (page/wait-for-load-state *page* "load")
-        (println "Page fully loaded"))
+          (allure/step "Tree contains a link element"
+            (expect (.contains ^String (:tree snap) "link")))
 
-      (allure/step "Verify page title contains 'Amazon'"
-        (assert/has-title *page* "Amazon" {:substring true})
-        (let [title (page/title *page*)]
-          (println "Page title:" (pr-str title))
-          (allure/parameter "title" title)))
+          (allure/step "Refs map has entries"
+            (let [ref-count (count (:refs snap))]
+              (println "Snapshot has" ref-count "refs")
+              (allure/parameter "refs" ref-count)
+              (expect (pos? ref-count))))))
 
-      (allure/step "Verify URL contains 'amazon.com'"
-        (let [url (page/url *page*)]
-          (println "Final URL:" url)
-          (allure/parameter "url" url)
-          (expect (.contains ^String url "amazon.com"))))
+      (allure/step "Screenshot with snapshot overlay"
+        (allure/screenshot *page* "example.com accessibility")))
 
-      (allure/step "Screenshot of homepage"
-        (println "Capturing Amazon homepage screenshot...")
-        (allure/screenshot *page* "Amazon homepage")))))
-
-(defdescribe amazon-com-search-smoke-test
-  "Smoke: amazon.com search functionality"
-
-  (describe "product search"
-    {:context [with-playwright with-browser with-traced-page]}
-
-    (it "searches for 'clojure programming' and finds results"
+    (it "resolves snapshot refs to working locators"
       (allure/epic "Smoke Tests")
-      (allure/feature "amazon.com")
-      (allure/story "Search")
+      (allure/feature "example.com")
+      (allure/story "Accessibility Snapshots")
       (allure/severity :critical)
       (allure/tag "smoke")
-      (allure/tag "amazon")
-      (allure/tag "search")
-      (allure/parameter "search-term" "clojure programming")
-      (allure/description
-        "Searches Amazon for 'clojure programming', verifies search results
-        appear, and captures screenshots at each step.")
-
-      (allure/step "Navigate to amazon.com"
-        (println "Opening Amazon.com for search test...")
-        (page/navigate *page* "https://www.amazon.com")
-        (page/wait-for-load-state *page* "domcontentloaded")
-        (println "DOM content loaded"))
-
-      (allure/step "Screenshot before search"
-        (allure/screenshot *page* "Before search"))
-
-      (allure/step "Type search query"
-        (let [search-box (page/locator *page* "#twotabsearchtextbox")]
-          (allure/step "Wait for search box"
-            (println "Waiting for #twotabsearchtextbox to be visible...")
-            (locator/wait-for search-box {:state "visible" :timeout 10000})
-            (println "Search box visible"))
-          (allure/step "Fill search term"
-            (println "Typing 'clojure programming' into search box")
-            (locator/fill search-box "clojure programming"))
-          (allure/step "Verify input value"
-            (let [val (locator/input-value search-box)]
-              (println "Input value:" (pr-str val))
-              (allure/parameter "input-value" val)
-              (expect (= "clojure programming" val))))))
-
-      (allure/step "Submit search"
-        (let [submit (page/locator *page* "#nav-search-submit-button")]
-          (println "Clicking search submit button...")
-          (locator/click submit)
-          (page/wait-for-load-state *page* "domcontentloaded")
-          (println "Search results page loaded")))
-
-      (allure/step "Screenshot after search"
-        (allure/screenshot *page* "Search results"))
-
-      (allure/step "Verify search results page"
-        (allure/step "URL contains search term"
-          (let [url (page/url *page*)]
-            (println "Results URL:" url)
-            (allure/parameter "results-url" url)
-            (expect (.contains ^String url "amazon.com"))))
-
-        (allure/step "Page title reflects search"
-          (let [title (page/title *page*)]
-            (println "Results page title:" (pr-str title))
-            (allure/parameter "results-title" title)
-            (expect (.contains ^String (str/lower-case title) "amazon"))))))
-
-    (it "search box is visible and interactive"
-      (allure/epic "Smoke Tests")
-      (allure/feature "amazon.com")
-      (allure/story "Search")
-      (allure/severity :normal)
-      (allure/tag "smoke")
-      (allure/tag "amazon")
+      (allure/tag "snapshot")
 
       (allure/step "Navigate"
-        (println "Loading Amazon for search box inspection...")
-        (page/navigate *page* "https://www.amazon.com")
-        (page/wait-for-load-state *page* "domcontentloaded"))
+        (page/navigate *page* "https://example.com"))
 
-      (allure/step "Verify search box is visible"
-        (let [search-box (page/locator *page* "#twotabsearchtextbox")]
-          (locator/wait-for search-box {:state "visible" :timeout 10000})
-          (println "Search box: visible?" (locator/is-visible? search-box)
-            "enabled?" (locator/is-enabled? search-box)
-            "editable?" (locator/is-editable? search-box))
-          (expect (locator/is-visible? search-box))
-          (expect (locator/is-enabled? search-box))
-          (expect (locator/is-editable? search-box))))
+      (allure/step "Capture snapshot and resolve refs"
+        (let [snap (snapshot/capture-snapshot *page*)
+              refs (:refs snap)]
 
-      (allure/step "Verify search button exists"
-        (let [btn (page/locator *page* "#nav-search-submit-button")]
-          (println "Submit button: visible?" (locator/is-visible? btn)
-            "enabled?" (locator/is-enabled? btn))
-          (expect (locator/is-visible? btn))
-          (expect (locator/is-enabled? btn))))
+          (allure/step "Find the heading ref"
+            (let [heading-entry (first (filter (fn [[_ v]] (= "heading" (:role v)))
+                                         refs))
+                  heading-ref   (first heading-entry)]
+              (println "Heading ref:" heading-ref)
+              (allure/parameter "heading-ref" heading-ref)
+              (expect (some? heading-ref))
 
-      (allure/step "Screenshot"
-        (allure/screenshot *page* "Search elements")))))
+              (allure/step "Resolve ref to locator and read text"
+                (let [loc  (snapshot/resolve-ref *page* heading-ref)
+                      text (locator/text-content loc)]
+                  (println "Resolved heading text:" (pr-str text))
+                  (allure/parameter "heading-text" text)
+                  (expect (= "Example Domain" text))
+                  (expect (locator/is-visible? loc))))))
 
-(defdescribe amazon-com-structure-smoke-test
-  "Smoke: amazon.com page structure and navigation elements"
+          (allure/step "Find the link ref"
+            (let [link-entry (first (filter (fn [[_ v]] (= "link" (:role v)))
+                                      refs))
+                  link-ref   (first link-entry)]
+              (println "Link ref:" link-ref)
+              (allure/parameter "link-ref" link-ref)
+              (expect (some? link-ref))
 
-  (describe "page structure"
+              (allure/step "Resolve ref to locator and verify href"
+                (let [loc  (snapshot/resolve-ref *page* link-ref)
+                      href (locator/get-attribute loc "href")]
+                  (println "Resolved link href:" href)
+                  (allure/parameter "link-href" href)
+                  (expect (.contains ^String href "iana.org"))
+                  (expect (locator/is-visible? loc)))))))))))
+
+;; =============================================================================
+;; Example.com — Navigation Flow & History
+;; =============================================================================
+
+(defdescribe example-com-navigation-flow-smoke-test
+  "Smoke: navigation flow — click link, go back, go forward"
+
+  (describe "full navigation cycle"
     {:context [with-playwright with-browser with-traced-page]}
 
-    (it "has navigation bar with expected elements"
+    (it "clicks the IANA link, navigates away, and returns via back/forward"
       (allure/epic "Smoke Tests")
-      (allure/feature "amazon.com")
-      (allure/story "Page Structure")
+      (allure/feature "example.com")
+      (allure/story "Navigation Flow")
+      (allure/severity :critical)
+      (allure/tag "smoke")
+      (allure/tag "navigation")
+      (allure/description
+        "Tests the full navigation lifecycle: load page → click outbound
+        link → verify new page → go back → verify original page → go
+        forward → verify we're back on the target page.")
+
+      (allure/step "Navigate to example.com"
+        (page/navigate *page* "https://example.com")
+        (assert/has-title *page* "Example Domain")
+        (allure/screenshot *page* "Step 1: example.com loaded"))
+
+      (allure/step "Click the 'More information...' link"
+        (let [link (page/get-by-text *page* "More information...")]
+          (assert/is-visible link)
+          (locator/click link)
+          (page/wait-for-load-state *page* "domcontentloaded")))
+
+      (allure/step "Verify navigated to IANA"
+        (let [url (page/url *page*)]
+          (println "After click URL:" url)
+          (allure/parameter "iana-url" url)
+          (expect (.contains ^String url "iana.org"))
+          (allure/screenshot *page* "Step 2: IANA page")))
+
+      (allure/step "Go back to example.com"
+        (page/go-back *page*)
+        (page/wait-for-load-state *page* "domcontentloaded")
+        (let [url (page/url *page*)]
+          (println "After back URL:" url)
+          (allure/parameter "back-url" url)
+          (expect (.contains ^String url "example.com")))
+        (assert/has-title *page* "Example Domain")
+        (allure/screenshot *page* "Step 3: back to example.com"))
+
+      (allure/step "Go forward to IANA again"
+        (page/go-forward *page*)
+        (page/wait-for-load-state *page* "domcontentloaded")
+        (let [url (page/url *page*)]
+          (println "After forward URL:" url)
+          (allure/parameter "forward-url" url)
+          (expect (.contains ^String url "iana.org")))
+        (allure/screenshot *page* "Step 4: forward to IANA")))
+
+    (it "reload preserves the page"
+      (allure/epic "Smoke Tests")
+      (allure/feature "example.com")
+      (allure/story "Navigation Flow")
       (allure/severity :normal)
       (allure/tag "smoke")
-      (allure/tag "amazon")
-      (allure/tag "structure")
+      (allure/tag "navigation")
 
-      (allure/step "Navigate and wait for full load"
-        (println "Loading amazon.com with full page load...")
-        (page/navigate *page* "https://www.amazon.com")
-        (page/wait-for-load-state *page* "load")
-        (println "Full load complete"))
+      (allure/step "Navigate to example.com"
+        (page/navigate *page* "https://example.com"))
 
-      (allure/step "Verify Amazon logo/branding"
-        (let [logo (page/locator *page* "a#nav-logo-sprites")]
-          (println "Looking for Amazon logo (a#nav-logo-sprites)...")
-          (locator/wait-for logo {:state "visible" :timeout 10000})
-          (println "Logo found and visible")
-          (expect (locator/is-visible? logo))))
+      (allure/step "Reload the page"
+        (page/reload *page*)
+        (page/wait-for-load-state *page* "load"))
 
-      (allure/step "Verify navigation bar exists"
-        (let [nav (page/locator *page* "#navbar")]
-          (println "Looking for navigation bar (#navbar)...")
-          (locator/wait-for nav {:state "visible" :timeout 10000})
-          (println "Navigation bar visible")
-          (expect (locator/is-visible? nav))))
+      (allure/step "Verify page is intact after reload"
+        (assert/has-title *page* "Example Domain")
+        (assert/has-text (page/locator *page* "h1") "Example Domain")
+        (let [url (page/url *page*)]
+          (allure/parameter "url-after-reload" url)
+          (expect (.contains ^String url "example.com"))))))
 
-      (allure/step "Verify cart link"
-        (let [cart (page/locator *page* "#nav-cart")]
-          (expect (locator/is-visible? cart))
-          (let [text (locator/text-content cart)]
-            (println "Cart link text:" (pr-str (str/trim text)))
-            (allure/parameter "cart.text" (str/trim text)))))
+  (describe "network inspection during navigation"
+    {:context [with-playwright with-browser with-traced-page]}
 
-      (allure/step "Collect page metadata via JS"
-        (let [meta-count (page/evaluate *page* "document.querySelectorAll('meta').length")
-              link-count (page/evaluate *page* "document.querySelectorAll('a').length")
-              img-count  (page/evaluate *page* "document.querySelectorAll('img').length")]
-          (println "Page stats: meta=" meta-count "links=" link-count "images=" img-count)
-          (allure/parameter "meta-tags" meta-count)
-          (allure/parameter "links" link-count)
-          (allure/parameter "images" img-count)
-          (expect (pos? (int link-count)))
-          (expect (pos? (int img-count)))))
+    (it "inspects request and response details for navigation"
+      (allure/epic "Smoke Tests")
+      (allure/feature "example.com")
+      (allure/story "Network Inspection")
+      (allure/severity :normal)
+      (allure/tag "smoke")
+      (allure/tag "network")
+      (allure/description
+        "Navigates to example.com and inspects the HTTP request/response
+        chain: method, headers, timing, and body content.")
 
-      (allure/step "Screenshot of navigation"
-        (println "Capturing navigation bar screenshot")
-        (allure/screenshot *page* "Amazon navigation bar")))))
+      (allure/step "Navigate and capture response"
+        (let [resp (page/navigate *page* "https://example.com")]
+          (expect (instance? Response resp))
+
+          (allure/step "Inspect request details"
+            (let [req    (net/response-request resp)
+                  method (net/request-method req)
+                  url    (net/request-url req)]
+              (println "Request:" method url)
+              (allure/parameter "request-method" method)
+              (allure/parameter "request-url" url)
+              (expect (= "GET" method))
+              (expect (.contains ^String url "example.com"))
+              (expect (true? (net/request-is-navigation? req)))))
+
+          (allure/step "Inspect response headers"
+            (let [headers (net/response-headers resp)]
+              (println "Response headers:" (count headers) "entries")
+              (allure/parameter "header-count" (count headers))
+              (allure/attach "Response Headers"
+                (str/join "\n" (map (fn [[k v]] (str k ": " v)) headers))
+                "text/plain")
+              (expect (some? (get headers "content-type")))))
+
+          (allure/step "Inspect response body"
+            (let [body (net/response-text resp)]
+              (println "Response body:" (count body) "chars")
+              (allure/parameter "body-length" (count body))
+              (expect (pos? (count body)))
+              (expect (.contains ^String body "Example Domain")))))))))

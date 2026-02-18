@@ -1141,3 +1141,46 @@
       (nav! "/test-page")
       (let [r (cmd "errors_start" {})]
         (expect (= "listening" (:errors r)))))))
+
+;; =============================================================================
+;; 42. SCI Eval (daemon handler)
+;; =============================================================================
+
+(defdescribe sci-eval-integration-test
+  "Integration tests for the sci_eval daemon handler"
+
+  (describe "sci_eval handler"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "evaluates simple expressions"
+      (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
+        (expect (= "3" (:result r)))))
+
+    (it "evaluates string expressions"
+      (let [r (cmd "sci_eval" {"code" "\"hello\""})]
+        (expect (= "\"hello\"" (:result r)))))
+
+    (it "can navigate and read title via spel functions"
+      (let [_ (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+            r (cmd "sci_eval" {"code" "(spel/title)"})]
+        (expect (= "\"Test Page\"" (:result r)))))
+
+    (it "start! is a no-op when daemon has page"
+      (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]
+        (expect (= ":started" (:result r)))))
+
+    (it "stop! does not kill daemon browser"
+      (let [_ (cmd "sci_eval" {"code" "(spel/stop!)"})
+            ;; After stop!, daemon re-syncs state on next call, so page still works
+            r (cmd "sci_eval" {"code" "(+ 10 20)"})]
+        (expect (= "30" (:result r)))))
+
+    (it "returns error for missing code param"
+      (let [threw? (try (cmd "sci_eval" {}) false
+                     (catch Exception _ true))]
+        (expect threw?)))
+
+    (it "persists defs between eval calls"
+      (cmd "sci_eval" {"code" "(def my-val 42)"})
+      (let [r (cmd "sci_eval" {"code" "my-val"})]
+        (expect (= "42" (:result r)))))))

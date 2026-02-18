@@ -9,7 +9,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright
-                                                        with-browser with-page]]
+                                              with-browser with-page]]
    [lazytest.core :refer [defdescribe describe expect it]])
   (:import
    [java.io ByteArrayInputStream File]
@@ -343,6 +343,39 @@
         (expect (= 0 (count vis)))))))
 
 ;; =============================================================================
+;; Unit Tests — scope filtering
+;; =============================================================================
+
+(defdescribe scope-helpers-test
+  "Unit tests for scope ref resolution helpers"
+
+  (describe "ref-scope? detection"
+    (it "recognizes @e1 as a ref scope"
+      (expect (true? (#'sut/ref-scope? "@e1"))))
+
+    (it "recognizes e1 as a ref scope"
+      (expect (true? (#'sut/ref-scope? "e1"))))
+
+    (it "recognizes e123 as a ref scope"
+      (expect (true? (#'sut/ref-scope? "e123"))))
+
+    (it "rejects CSS selectors"
+      (expect (false? (#'sut/ref-scope? "#main")))
+      (expect (false? (#'sut/ref-scope? ".container")))
+      (expect (false? (#'sut/ref-scope? "div")))))
+
+  (describe "resolve-scope"
+    (it "converts @e1 to data-pw-ref selector"
+      (expect (= "[data-pw-ref=\"e1\"]" (#'sut/resolve-scope "@e1"))))
+
+    (it "converts e1 to data-pw-ref selector"
+      (expect (= "[data-pw-ref=\"e1\"]" (#'sut/resolve-scope "e1"))))
+
+    (it "passes CSS selectors through unchanged"
+      (expect (= "#main" (#'sut/resolve-scope "#main")))
+      (expect (= ".container" (#'sut/resolve-scope ".container"))))))
+
+;; =============================================================================
 ;; Integration Tests — annotated-screenshot
 ;; =============================================================================
 
@@ -395,3 +428,60 @@
             (expect (some? img)))
           (finally
             (.delete tmp-file)))))))
+
+;; =============================================================================
+;; Integration Tests — scoped annotations
+;; =============================================================================
+
+(defdescribe scoped-annotation-test
+  "Integration tests for scoped annotation support"
+
+  (describe "scoped inject-overlays! with CSS selector"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "annotates fewer elements when scoped to a subtree"
+      (page/navigate *page* "https://example.com")
+      (let [snap      (snapshot/capture-snapshot *page*)
+            refs      (:refs snap)
+            full-n    (sut/inject-overlays! *page* refs)
+            _         (sut/remove-overlays! *page*)
+            ;; Scope to just the body > div (inner content container)
+            scoped-n  (sut/inject-overlays! *page* refs {:scope "div > p"})]
+        (sut/remove-overlays! *page*)
+        ;; Scoped should annotate fewer (or equal) elements
+        (expect (<= scoped-n full-n))))
+
+    (it "returns 0 when scope selector matches nothing"
+      (page/navigate *page* "https://example.com")
+      (let [snap (snapshot/capture-snapshot *page*)
+            n    (sut/inject-overlays! *page* (:refs snap) {:scope "#nonexistent-element"})]
+        (expect (= 0 n)))))
+
+  (describe "scoped snapshot via capture-snapshot :scope"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "captures fewer refs when scoped"
+      (page/navigate *page* "https://example.com")
+      (let [full-snap   (snapshot/capture-snapshot *page*)
+            scoped-snap (snapshot/capture-snapshot *page* {:scope "div > p"})]
+        ;; Scoped snapshot should have fewer (or equal) refs
+        (expect (<= (count (:refs scoped-snap)) (count (:refs full-snap))))))
+
+    (it "returns empty snapshot when scope matches nothing"
+      (page/navigate *page* "https://example.com")
+      (let [snap (snapshot/capture-snapshot *page* {:scope "#nonexistent"})]
+        (expect (nil? (:tree snap)))
+        (expect (= 0 (count (:refs snap))))
+        (expect (= 0 (:counter snap))))))
+
+  (describe "scoped annotated-screenshot"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "produces valid PNG with scoped annotations"
+      (page/navigate *page* "https://example.com")
+      (let [snap   (snapshot/capture-snapshot *page*)
+            result (sut/annotated-screenshot *page* (:refs snap) {:scope "body"})]
+        (expect (bytes? result))
+        (expect (pos? (alength result)))
+        (let [img (ImageIO/read (ByteArrayInputStream. result))]
+          (expect (some? img)))))))

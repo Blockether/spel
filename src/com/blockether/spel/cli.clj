@@ -26,6 +26,932 @@
 (set! *warn-on-reflection* true)
 
 ;; =============================================================================
+;; Per-Command Help
+;; =============================================================================
+
+(def command-help
+  "Help text for each CLI command. Keys are primary command names."
+  {"open"
+   (str/join \newline
+     ["open - Navigate to a URL"
+      ""
+      "Aliases: open, goto, navigate"
+      ""
+      "Usage:"
+      "  spel open <url>"
+      "  spel open <url> --interactive"
+      ""
+      "Examples:"
+      "  spel open https://example.com"
+      "  spel open example.com"
+      "  spel open file:///tmp/page.html"
+      "  spel open https://example.com --interactive"
+      ""
+      "Flags:"
+      "  --interactive    Show browser window (headed mode)"])
+
+   "back"
+   (str/join \newline
+     ["back - Go back in browser history"
+      ""
+      "Usage:"
+      "  spel back"
+      ""
+      "Examples:"
+      "  spel back"])
+
+   "forward"
+   (str/join \newline
+     ["forward - Go forward in browser history"
+      ""
+      "Usage:"
+      "  spel forward"
+      ""
+      "Examples:"
+      "  spel forward"])
+
+   "reload"
+   (str/join \newline
+     ["reload - Reload the current page"
+      ""
+      "Usage:"
+      "  spel reload"
+      ""
+      "Examples:"
+      "  spel reload"])
+
+   "snapshot"
+   (str/join \newline
+     ["snapshot - Capture accessibility tree with numbered refs"
+      ""
+      "Usage:"
+      "  spel snapshot [flags]"
+      ""
+      "Examples:"
+      "  spel snapshot"
+      "  spel snapshot -i"
+      "  spel snapshot -i -c"
+      "  spel snapshot -i -c -d 3"
+      "  spel snapshot -s \"#main\""
+      "  spel snapshot -i -C"
+      ""
+      "Flags:"
+      "  -i, --interactive    Interactive elements only"
+      "  -c, --compact        Compact output format"
+      "  -C, --cursor         Include cursor/pointer elements"
+      "  -d, --depth N        Limit tree depth to N levels"
+      "  -s, --selector SEL   Scope snapshot to CSS selector"])
+
+   "click"
+   (str/join \newline
+     ["click - Click an element"
+      ""
+      "Usage:"
+      "  spel click <selector>"
+      ""
+      "Examples:"
+      "  spel click @e1"
+      "  spel click \"#submit-btn\""
+      "  spel click \"text=Login\""])
+
+   "dblclick"
+   (str/join \newline
+     ["dblclick - Double-click an element"
+      ""
+      "Usage:"
+      "  spel dblclick <selector>"
+      ""
+      "Examples:"
+      "  spel dblclick @e1"
+      "  spel dblclick \".editable-cell\""])
+
+   "fill"
+   (str/join \newline
+     ["fill - Clear and fill an input element"
+      ""
+      "Usage:"
+      "  spel fill <selector> <text>"
+      ""
+      "Examples:"
+      "  spel fill @e2 \"user@example.com\""
+      "  spel fill \"#search\" \"search query\""])
+
+   "type"
+   (str/join \newline
+     ["type - Type text without clearing the input first"
+      ""
+      "Usage:"
+      "  spel type <selector> <text>"
+      ""
+      "Examples:"
+      "  spel type @e2 \"additional text\""
+      "  spel type \"#editor\" \"appended content\""])
+
+   "clear"
+   (str/join \newline
+     ["clear - Clear an input element"
+      ""
+      "Usage:"
+      "  spel clear <selector>"
+      ""
+      "Examples:"
+      "  spel clear @e2"
+      "  spel clear \"#search\""])
+
+   "press"
+   (str/join \newline
+     ["press - Press a keyboard key"
+      ""
+      "Aliases: press, key"
+      ""
+      "Usage:"
+      "  spel press <key>"
+      "  spel press <selector> <key>"
+      ""
+      "Examples:"
+      "  spel press Enter"
+      "  spel press Tab"
+      "  spel press Control+a"
+      "  spel press @e1 Enter"
+      "  spel key Escape"])
+
+   "keydown"
+   (str/join \newline
+     ["keydown - Hold a key down"
+      ""
+      "Usage:"
+      "  spel keydown <key>"
+      ""
+      "Examples:"
+      "  spel keydown Shift"
+      "  spel keydown Control"])
+
+   "keyup"
+   (str/join \newline
+     ["keyup - Release a held key"
+      ""
+      "Usage:"
+      "  spel keyup <key>"
+      ""
+      "Examples:"
+      "  spel keyup Shift"
+      "  spel keyup Control"])
+
+   "hover"
+   (str/join \newline
+     ["hover - Hover over an element"
+      ""
+      "Usage:"
+      "  spel hover <selector>"
+      ""
+      "Examples:"
+      "  spel hover @e1"
+      "  spel hover \".dropdown-trigger\""])
+
+   "mouse"
+   (str/join \newline
+     ["mouse - Low-level mouse control"
+      ""
+      "Usage:"
+      "  spel mouse <subcommand> [args]"
+      ""
+      "Subcommands:"
+      "  move <x> <y>      Move mouse to coordinates"
+      "  down [button]      Press mouse button (default: left)"
+      "  up [button]        Release mouse button (default: left)"
+      "  wheel <deltaY>     Scroll mouse wheel"
+      ""
+      "Examples:"
+      "  spel mouse move 100 200"
+      "  spel mouse down"
+      "  spel mouse up"
+      "  spel mouse down right"
+      "  spel mouse wheel 300"])
+
+   "check"
+   (str/join \newline
+     ["check - Check a checkbox or radio button"
+      ""
+      "Usage:"
+      "  spel check <selector>"
+      ""
+      "Examples:"
+      "  spel check @e3"
+      "  spel check \"#agree-terms\""])
+
+   "uncheck"
+   (str/join \newline
+     ["uncheck - Uncheck a checkbox"
+      ""
+      "Usage:"
+      "  spel uncheck <selector>"
+      ""
+      "Examples:"
+      "  spel uncheck @e3"
+      "  spel uncheck \"#newsletter\""])
+
+   "select"
+   (str/join \newline
+     ["select - Select a dropdown option"
+      ""
+      "Usage:"
+      "  spel select <selector> <value> [value...]"
+      ""
+      "Examples:"
+      "  spel select @e4 \"option1\""
+      "  spel select \"#country\" \"US\""
+      "  spel select @e4 \"opt1\" \"opt2\""])
+
+   "focus"
+   (str/join \newline
+     ["focus - Focus an element"
+      ""
+      "Usage:"
+      "  spel focus <selector>"
+      ""
+      "Examples:"
+      "  spel focus @e1"
+      "  spel focus \"#email-input\""])
+
+   "scroll"
+   (str/join \newline
+     ["scroll - Scroll the page"
+      ""
+      "Usage:"
+      "  spel scroll [direction] [amount]"
+      ""
+      "Arguments:"
+      "  direction    up, down, left, or right (default: down)"
+      "  amount       Pixels to scroll (default: 500)"
+      ""
+      "Examples:"
+      "  spel scroll"
+      "  spel scroll down 1000"
+      "  spel scroll up 500"
+      "  spel scroll left 200"])
+
+   "scrollintoview"
+   (str/join \newline
+     ["scrollintoview - Scroll an element into view"
+      ""
+      "Aliases: scrollintoview, scrollinto"
+      ""
+      "Usage:"
+      "  spel scrollintoview <selector>"
+      ""
+      "Examples:"
+      "  spel scrollintoview @e5"
+      "  spel scrollinto \"#footer\""])
+
+   "drag"
+   (str/join \newline
+     ["drag - Drag an element to another element"
+      ""
+      "Usage:"
+      "  spel drag <source> <target>"
+      ""
+      "Examples:"
+      "  spel drag @e1 @e2"
+      "  spel drag \"#item\" \"#dropzone\""])
+
+   "upload"
+   (str/join \newline
+     ["upload - Upload files to a file input"
+      ""
+      "Usage:"
+      "  spel upload <selector> <file> [file...]"
+      ""
+      "Examples:"
+      "  spel upload @e1 photo.jpg"
+      "  spel upload \"input[type=file]\" doc.pdf image.png"])
+
+   "screenshot"
+   (str/join \newline
+     ["screenshot - Take a screenshot"
+      ""
+      "Usage:"
+      "  spel screenshot [path] [flags]"
+      ""
+      "Examples:"
+      "  spel screenshot"
+      "  spel screenshot page.png"
+      "  spel screenshot -f full.png"
+      ""
+      "Flags:"
+      "  -f, --full-page, --full    Capture full page (not just viewport)"])
+
+   "annotate"
+   (str/join \newline
+     ["annotate - Inject visual annotation overlays onto the page"
+      ""
+      "Usage:"
+      "  spel annotate [flags]"
+      ""
+      "Examples:"
+      "  spel annotate"
+      "  spel annotate --no-badges"
+      "  spel annotate -s \"#main\""
+      "  spel annotate --no-boxes --no-dims"
+      ""
+      "Flags:"
+      "  --no-badges               Hide element type badges"
+      "  --no-dimensions, --no-dims  Hide dimension overlays"
+      "  --no-boxes                Hide bounding boxes"
+      "  -s, --scope SEL           Scope annotations to selector"])
+
+   "unannotate"
+   (str/join \newline
+     ["unannotate - Remove annotation overlays from the page"
+      ""
+      "Usage:"
+      "  spel unannotate"
+      ""
+      "Examples:"
+      "  spel unannotate"])
+
+   "pdf"
+   (str/join \newline
+     ["pdf - Save page as PDF (Chromium only)"
+      ""
+      "Usage:"
+      "  spel pdf [path]"
+      ""
+      "Examples:"
+      "  spel pdf"
+      "  spel pdf page.pdf"])
+
+   "eval"
+   (str/join \newline
+     ["eval - Evaluate JavaScript in the page context"
+      ""
+      "Usage:"
+      "  spel eval <script>"
+      "  spel eval --stdin"
+      ""
+      "Examples:"
+      "  spel eval \"document.title\""
+      "  spel eval \"document.querySelector('h1').textContent\""
+      "  spel eval -b \"JSON.stringify(data)\""
+      "  echo 'document.title' | spel eval --stdin"
+      ""
+      "Flags:"
+      "  -b, --base64    Base64-encode the result"
+      "  --stdin          Read script from stdin"])
+
+   "wait"
+   (str/join \newline
+     ["wait - Wait for a condition"
+      ""
+      "Usage:"
+      "  spel wait [selector]"
+      "  spel wait <timeout-ms>"
+      "  spel wait --text <text>"
+      "  spel wait --url <pattern>"
+      "  spel wait --fn <expression>"
+      "  spel wait --load <state>"
+      ""
+      "Examples:"
+      "  spel wait @e1"
+      "  spel wait 2000"
+      "  spel wait --text \"Welcome\""
+      "  spel wait --url \"**/dashboard\""
+      "  spel wait --fn \"window.appReady\""
+      "  spel wait --load networkidle"
+      ""
+      "Flags:"
+      "  --text TEXT       Wait for text to appear on page"
+      "  --url PATTERN     Wait for URL to match pattern"
+      "  --fn EXPR         Wait for JavaScript expression to be truthy"
+      "  --load STATE      Wait for load state (load, domcontentloaded, networkidle)"])
+
+   "tab"
+   (str/join \newline
+     ["tab - Manage browser tabs"
+      ""
+      "Usage:"
+      "  spel tab [subcommand] [args]"
+      ""
+      "Subcommands:"
+      "  (none)        List all tabs"
+      "  list          List all tabs"
+      "  new [url]     Open a new tab, optionally navigating to URL"
+      "  close         Close the current tab"
+      "  <n>           Switch to tab by index (0-based)"
+      ""
+      "Examples:"
+      "  spel tab"
+      "  spel tab list"
+      "  spel tab new https://example.com"
+      "  spel tab 0"
+      "  spel tab close"])
+
+   "get"
+   (str/join \newline
+     ["get - Get page information"
+      ""
+      "Usage:"
+      "  spel get <what> [selector] [args]"
+      ""
+      "Subcommands:"
+      "  text <sel>            Get text content of element"
+      "  html <sel>            Get innerHTML of element"
+      "  value <sel>           Get input value"
+      "  attr <sel> <name>     Get attribute value"
+      "  attribute <sel> <name>  Get attribute value"
+      "  url                   Get current page URL"
+      "  title                 Get current page title"
+      "  count <sel>           Count matching elements"
+      "  box <sel>             Get bounding box {x, y, width, height}"
+      ""
+      "Examples:"
+      "  spel get text @e1"
+      "  spel get url"
+      "  spel get title"
+      "  spel get html @e1"
+      "  spel get value @e2"
+      "  spel get attr @e1 href"
+      "  spel get count \".items\""
+      "  spel get box @e1"])
+
+   "is"
+   (str/join \newline
+     ["is - Check element state"
+      ""
+      "Usage:"
+      "  spel is <what> <selector>"
+      ""
+      "Subcommands:"
+      "  visible <sel>    Check if element is visible"
+      "  enabled <sel>    Check if element is enabled"
+      "  checked <sel>    Check if element is checked"
+      ""
+      "Examples:"
+      "  spel is visible @e1"
+      "  spel is enabled @e2"
+      "  spel is checked @e3"])
+
+   "count"
+   (str/join \newline
+     ["count - Count elements matching a selector"
+      ""
+      "Usage:"
+      "  spel count <selector>"
+      ""
+      "Examples:"
+      "  spel count \".items\""
+      "  spel count \"li\""])
+
+   "bbox"
+   (str/join \newline
+     ["bbox - Get the bounding box of an element"
+      ""
+      "Usage:"
+      "  spel bbox <selector>"
+      ""
+      "Examples:"
+      "  spel bbox @e1"
+      "  spel bbox \"#header\""])
+
+   "highlight"
+   (str/join \newline
+     ["highlight - Visually highlight an element on the page"
+      ""
+      "Usage:"
+      "  spel highlight <selector>"
+      ""
+      "Examples:"
+      "  spel highlight @e1"
+      "  spel highlight \".target\""])
+
+   "find"
+   (str/join \newline
+     ["find - Find elements by semantic locator and optionally interact"
+      ""
+      "Usage:"
+      "  spel find <type> <value> [action] [action-value]"
+      "  spel find <role-name> [action] [action-value]"
+      ""
+      "Find types:"
+      "  role <name>           By ARIA role"
+      "  text <text>           By text content"
+      "  label <text>          By associated label"
+      "  placeholder <text>    By placeholder text"
+      "  alt <text>            By alt text"
+      "  title <text>          By title attribute"
+      "  testid <id>           By test ID"
+      "  first <sel>           First matching element"
+      "  last <sel>            Last matching element"
+      "  nth <n> <sel>         Nth matching element"
+      ""
+      "ARIA role shortcuts:"
+      "  Unknown find types are treated as ARIA role names."
+      "  spel find link click  is equivalent to  spel find role link click"
+      ""
+      "Examples:"
+      "  spel find role button click"
+      "  spel find role button click --name Submit"
+      "  spel find text \"Login\" click"
+      "  spel find label \"Email\" fill \"user@example.com\""
+      "  spel find link click"
+      "  spel find heading text"
+      "  spel find first \".item\" click"
+      "  spel find nth 2 \".item\" click"
+      ""
+      "Flags:"
+      "  --name VALUE    Filter by accessible name"
+      "  --exact         Require exact text match"])
+
+   "set"
+   (str/join \newline
+     ["set - Configure browser settings"
+      ""
+      "Usage:"
+      "  spel set <setting> [args]"
+      ""
+      "Subcommands:"
+      "  viewport <width> <height>    Set viewport size"
+      "  device <name>                Emulate device"
+      "  geo <lat> <lon>              Set geolocation"
+      "  offline [on|off]             Toggle offline mode"
+      "  headers <json>               Set extra HTTP headers"
+      "  credentials <user> <pass>    Set HTTP basic auth"
+      "  media <scheme>               Emulate color scheme (dark/light)"
+      ""
+      "Examples:"
+      "  spel set viewport 1280 720"
+      "  spel set device \"iPhone 14\""
+      "  spel set geo 37.7749 -122.4194"
+      "  spel set offline on"
+      "  spel set offline off"
+      "  spel set headers '{\"X-Custom\":\"value\"}'"
+      "  spel set credentials admin secret"
+      "  spel set media dark"])
+
+   "cookies"
+   (str/join \newline
+     ["cookies - Manage browser cookies"
+      ""
+      "Usage:"
+      "  spel cookies [subcommand] [args]"
+      ""
+      "Subcommands:"
+      "  (none)              List all cookies"
+      "  set <name> <value>  Set a cookie"
+      "  clear               Clear all cookies"
+      ""
+      "Examples:"
+      "  spel cookies"
+      "  spel cookies set session_id abc123"
+      "  spel cookies clear"])
+
+   "storage"
+   (str/join \newline
+     ["storage - Manage web storage (localStorage / sessionStorage)"
+      ""
+      "Usage:"
+      "  spel storage <type> [subcommand] [args]"
+      ""
+      "Arguments:"
+      "  type    local or session"
+      ""
+      "Subcommands:"
+      "  (none)              List all entries"
+      "  <key>               Get value by key"
+      "  set <key> <value>   Set a key-value pair"
+      "  clear               Clear all entries"
+      ""
+      "Examples:"
+      "  spel storage local"
+      "  spel storage local token"
+      "  spel storage local set theme dark"
+      "  spel storage local clear"
+      "  spel storage session"
+      "  spel storage session set cart_id abc"])
+
+   "network"
+   (str/join \newline
+     ["network - Network inspection and request interception"
+      ""
+      "Usage:"
+      "  spel network <subcommand> [args]"
+      ""
+      "Subcommands:"
+      "  requests [flags]      View tracked requests (auto-tracked, last 500)"
+      "  route <url> [flags]   Intercept requests matching URL pattern"
+      "  unroute <url>         Remove route for URL pattern"
+      "  clear                 Clear tracked requests"
+      ""
+      "Request flags:"
+      "  --filter REGEX    Filter by URL regex"
+      "  --type TYPE       Filter by resource type (fetch, document, script, image, etc.)"
+      "  --method METHOD   Filter by HTTP method (GET, POST, etc.)"
+      "  --status PREFIX   Filter by status prefix (2 = 2xx, 404 = exact)"
+      ""
+      "Route flags:"
+      "  --abort           Block matching requests"
+      "  --body JSON       Fulfill with mock response body"
+      ""
+      "Examples:"
+      "  spel network requests"
+      "  spel network requests --type fetch --status 4"
+      "  spel network requests --filter \"/api\""
+      "  spel network route \"**/api/**\""
+      "  spel network route \"**/ads/**\" --abort"
+      "  spel network route \"**/data\" --body '{\"mock\":true}'"
+      "  spel network unroute \"**/api/**\""
+      "  spel network clear"])
+
+   "frame"
+   (str/join \newline
+     ["frame - Navigate between frames and iframes"
+      ""
+      "Usage:"
+      "  spel frame [subcommand]"
+      ""
+      "Subcommands:"
+      "  (none)        Switch to main frame"
+      "  main          Switch to main frame"
+      "  list          List all frames"
+      "  <selector>    Switch to frame by CSS selector"
+      ""
+      "Examples:"
+      "  spel frame list"
+      "  spel frame main"
+      "  spel frame \"iframe#content\""])
+
+   "dialog"
+   (str/join \newline
+     ["dialog - Handle browser dialogs (alert, confirm, prompt)"
+      ""
+      "Usage:"
+      "  spel dialog <subcommand> [text]"
+      ""
+      "Subcommands:"
+      "  accept [text]    Accept the dialog, optionally with input text"
+      "  dismiss          Dismiss the dialog"
+      ""
+      "Examples:"
+      "  spel dialog accept"
+      "  spel dialog accept \"my input\""
+      "  spel dialog dismiss"])
+
+   "trace"
+   (str/join \newline
+     ["trace - Record a Playwright trace for debugging"
+      ""
+      "Usage:"
+      "  spel trace <subcommand> [args]"
+      ""
+      "Subcommands:"
+      "  start [name]     Start recording a trace"
+      "  stop [path]      Stop recording and save trace file"
+      ""
+      "Examples:"
+      "  spel trace start"
+      "  spel trace start my-trace"
+      "  spel trace stop"
+      "  spel trace stop trace.zip"])
+
+   "console"
+   (str/join \newline
+     ["console - View captured console messages"
+      ""
+      "Console messages are automatically captured from the moment a page opens."
+      ""
+      "Usage:"
+      "  spel console [subcommand]"
+      ""
+      "Subcommands:"
+      "  (none)    View all captured console messages"
+      "  clear     Clear captured messages"
+      ""
+      "Examples:"
+      "  spel console"
+      "  spel console clear"])
+
+   "errors"
+   (str/join \newline
+     ["errors - View captured page errors"
+      ""
+      "Page errors are automatically captured from the moment a page opens."
+      ""
+      "Usage:"
+      "  spel errors [subcommand]"
+      ""
+      "Subcommands:"
+      "  (none)    View all captured page errors"
+      "  clear     Clear captured errors"
+      ""
+      "Examples:"
+      "  spel errors"
+      "  spel errors clear"])
+
+   "state"
+   (str/join \newline
+     ["state - Manage persistent browser state (cookies, storage, auth)"
+      ""
+      "Usage:"
+      "  spel state <subcommand> [args]"
+      ""
+      "Subcommands:"
+      "  save [path]                Save current state"
+      "  load [path]                Load saved state"
+      "  list                       List saved state files"
+      "  show <file>                Show contents of a state file"
+      "  rename <old> <new>         Rename a state file"
+      "  clear [name] [--all]       Clear state file(s)"
+      "  clean [--older-than N]     Remove states older than N days"
+      ""
+      "Examples:"
+      "  spel state save"
+      "  spel state save auth.json"
+      "  spel state load auth.json"
+      "  spel state list"
+      "  spel state show auth.json"
+      "  spel state rename old.json new.json"
+      "  spel state clear auth.json"
+      "  spel state clear --all"
+      "  spel state clean --older-than 30"])
+
+   "session"
+   (str/join \newline
+     ["session - Manage browser sessions"
+      ""
+      "Usage:"
+      "  spel session [subcommand]"
+      ""
+      "Subcommands:"
+      "  (none)    Show current session info"
+      "  list      List all active sessions"
+      ""
+      "Examples:"
+      "  spel session"
+      "  spel session list"
+      "  spel --session work open https://example.com"])
+
+   "connect"
+   (str/join \newline
+     ["connect - Connect to a browser via Chrome DevTools Protocol"
+      ""
+      "Usage:"
+      "  spel connect <url>"
+      ""
+      "Examples:"
+      "  spel connect ws://localhost:9222"])
+
+   "close"
+   (str/join \newline
+     ["close - Close the browser and stop the daemon"
+      ""
+      "Aliases: close, quit, exit"
+      ""
+      "Usage:"
+      "  spel close"
+      ""
+      "Examples:"
+      "  spel close"
+      "  spel quit"
+      "  spel exit"])
+
+   "install"
+   (str/join \newline
+     ["install - Install Playwright browsers"
+      ""
+      "Usage:"
+      "  spel install [flags]"
+      ""
+      "Examples:"
+      "  spel install"
+      "  spel install --with-deps"
+      ""
+      "Flags:"
+      "  --with-deps    Install system dependencies alongside browsers"])})
+
+(defn top-level-help
+  "Returns the top-level help string shown by `spel --help`."
+  []
+  (str/join \newline
+    ["spel - Browser automation CLI"
+     ""
+     "Usage:"
+     "  spel [flags] <command> [args]"
+     "  spel <command> --help"
+     ""
+     "Navigation:"
+     "  open, goto, navigate    Navigate to URL"
+     "  back                    Go back"
+     "  forward                 Go forward"
+     "  reload                  Reload page"
+     ""
+     "Accessibility:"
+     "  snapshot                Capture accessibility tree with refs"
+     ""
+     "Interactions:"
+     "  click                   Click element"
+     "  dblclick                Double-click element"
+     "  fill                    Clear and fill input"
+     "  type                    Type text (no clear)"
+     "  clear                   Clear input"
+     "  press, key              Press keyboard key"
+     "  keydown                 Hold key down"
+     "  keyup                   Release key"
+     "  hover                   Hover element"
+     "  mouse                   Mouse control (move, down, up, wheel)"
+     "  check                   Check checkbox"
+     "  uncheck                 Uncheck checkbox"
+     "  select                  Select dropdown option"
+     "  focus                   Focus element"
+     "  scroll                  Scroll page"
+     "  scrollintoview          Scroll element into view"
+     "  drag                    Drag and drop"
+     "  upload                  Upload files"
+     ""
+     "Capture:"
+     "  screenshot              Take screenshot"
+     "  annotate                Inject annotation overlays"
+     "  unannotate              Remove annotation overlays"
+     "  pdf                     Save page as PDF"
+     ""
+     "JavaScript:"
+     "  eval                    Evaluate JavaScript"
+     ""
+     "Wait:"
+     "  wait                    Wait for condition"
+     ""
+     "Tabs:"
+     "  tab                     Manage tabs (new, list, close, switch)"
+     ""
+     "Getters:"
+     "  get                     Get page info (text, url, title, html, value, attr, count, box)"
+     ""
+     "State Checks:"
+     "  is                      Check element state (visible, enabled, checked)"
+     ""
+     "Element Info:"
+     "  count                   Count matching elements"
+     "  bbox                    Get bounding box"
+     "  highlight               Highlight element"
+     ""
+     "Find:"
+     "  find                    Semantic locators (role, text, label, etc.)"
+     ""
+     "Settings:"
+     "  set                     Browser settings (viewport, device, geo, media, etc.)"
+     ""
+     "Storage:"
+     "  cookies                 Manage cookies"
+     "  storage                 Manage localStorage / sessionStorage"
+     ""
+     "Network:"
+     "  network                 Inspect requests, intercept routes"
+     ""
+     "Frames:"
+     "  frame                   Navigate between frames"
+     ""
+     "Dialogs:"
+     "  dialog                  Handle browser dialogs"
+     ""
+     "Debug:"
+     "  trace                   Record Playwright traces"
+     "  console                 View console messages"
+     "  errors                  View page errors"
+     ""
+     "State Management:"
+     "  state                   Save/load browser state"
+     ""
+     "Sessions:"
+     "  session                 Manage browser sessions"
+     ""
+     "Connection:"
+     "  connect                 Connect via CDP"
+     ""
+     "Lifecycle:"
+     "  close, quit, exit       Close browser and daemon"
+     "  install                 Install Playwright browsers"
+     ""
+     "Global Flags:"
+     "  --session NAME          Named browser session (default: \"default\")"
+     "  --json                  JSON output mode"
+     "  --interactive           Show browser window (headed mode)"
+     "  --proxy URL             HTTP proxy"
+     "  --proxy-bypass DOMAINS  Proxy bypass list"
+     "  --user-agent STRING     Custom User-Agent"
+     "  --executable-path PATH  Custom browser binary"
+     "  --args \"ARG1,ARG2\"     Extra browser arguments"
+     "  --cdp URL               Connect via Chrome DevTools Protocol"
+     "  --ignore-https-errors   Ignore HTTPS certificate errors"
+     "  --profile PATH          Persistent browser profile"
+     "  --timeout MS            Command timeout in milliseconds"
+     "  --debug                 Enable debug logging"
+     ""
+     "Environment Variables:"
+     "  SPEL_SESSION            Default session name"
+     "  SPEL_JSON               Set to \"true\" for JSON output"
+     "  SPEL_PROFILE            Default browser profile path"
+     "  SPEL_HEADERS            Default HTTP headers (JSON)"
+     "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
+
+;; =============================================================================
 ;; Arg Parsing
 ;; =============================================================================
 
@@ -158,10 +1084,11 @@
         ;; Parse the command from remaining args
         cmd (first remaining)
         cmd-args (rest remaining)
-        has-help? (some #{"--help" "-h"} cmd-args)
+        bare-help? (or (= "--help" cmd) (= "-h" cmd))
+        has-help? (or bare-help? (some #{"--help" "-h"} cmd-args))
         command
         (if has-help?
-          {:action "help" :for cmd}
+          {:action "help" :for (when-not bare-help? cmd)}
           (case cmd
           ;; Navigation (+ aliases).
           ;; --interactive opens the browser in headed (visible) mode, allowing
@@ -193,15 +1120,23 @@
                            (assoc :cursor true)
                          ;; Parse -d N
                            (some #{"-d" "--depth"} cmd-args)
-                           (assoc :depth (let [idx (or (.indexOf ^java.util.List (vec cmd-args) "-d")
-                                                     (.indexOf ^java.util.List (vec cmd-args) "--depth"))]
+                           (assoc :depth (let [v    (vec cmd-args)
+                                               idx1 (.indexOf ^java.util.List v "-d")
+                                               idx2 (.indexOf ^java.util.List v "--depth")
+                                               idx  (cond (>= idx1 0) idx1
+                                                      (>= idx2 0) idx2
+                                                      :else -1)]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
                                                (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
-                           (assoc :selector (let [idx (or (.indexOf ^java.util.List (vec cmd-args) "-s")
-                                                        (.indexOf ^java.util.List (vec cmd-args) "--selector"))]
+                           (assoc :selector (let [v    (vec cmd-args)
+                                                  idx1 (.indexOf ^java.util.List v "-s")
+                                                  idx2 (.indexOf ^java.util.List v "--selector")
+                                                  idx  (cond (>= idx1 0) idx1
+                                                         (>= idx2 0) idx2
+                                                         :else -1)]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))))
 
@@ -395,26 +1330,45 @@
             "highlight" {:action "highlight" :selector (first cmd-args)}
 
           ;; Find (semantic locators)
+          ;; Supports explicit types: role, text, label, placeholder, alt, title, testid, first, last, nth
+          ;; Unknown types are treated as ARIA role shortcuts:
+          ;;   spel find link click      → spel find role link click
+          ;;   spel find button          → spel find role button
+          ;;   spel find heading text    → spel find role heading text
             "find"     (let [by     (first cmd-args)
                              value  (second cmd-args)
                              action (nth cmd-args 2 nil)
+                             known-types #{"role" "text" "label" "placeholder" "alt" "title" "testid" "first" "last" "nth"}
                            ;; Parse --name and --exact flags
                              name-idx (.indexOf ^java.util.List (vec cmd-args) "--name")
                              name-val (when (>= name-idx 0)
                                         (nth cmd-args (inc name-idx) nil))
                              exact?   (some #{"--exact"} cmd-args)
-                           ;; For nth, the args are: nth <n> <sel> <action> [value]
-                             find-map (if (= by "nth")
+                             find-map (cond
+                                      ;; For nth, the args are: nth <n> <sel> <action> [value]
+                                        (= by "nth")
                                         {:action "find" :by "nth" :value value
                                          :selector (nth cmd-args 2 nil)
                                          :find_action (nth cmd-args 3 nil)
                                          :find_value (nth cmd-args 4 nil)}
-                                      ;; For others: <by> <value> <action> [value]
-                                        (let [;; find_value is the next non-flag arg after action
-                                              rest-args (drop 3 cmd-args)
+
+                                      ;; Known find types: <by> <value> <action> [value]
+                                        (contains? known-types by)
+                                        (let [rest-args (drop 3 cmd-args)
                                               fv (first (remove #(str/starts-with? % "-") rest-args))]
                                           (cond-> {:action "find" :by by :value value
                                                    :find_action action}
+                                            fv        (assoc :find_value fv)
+                                            name-val  (assoc :name name-val)
+                                            exact?    (assoc :exact true)))
+
+                                      ;; Role shortcut: unknown type treated as ARIA role name
+                                      ;; spel find link click "val" → by=role value=link find_action=click find_value=val
+                                        :else
+                                        (let [rest-args (drop 2 cmd-args)
+                                              fv (first (remove #(str/starts-with? % "-") rest-args))]
+                                          (cond-> {:action "find" :by "role" :value by
+                                                   :find_action value}
                                             fv        (assoc :find_value fv)
                                             name-val  (assoc :name name-val)
                                             exact?    (assoc :exact true))))]
@@ -713,7 +1667,7 @@
           (do (Thread/sleep 100)
             (recur (inc tries))))))))
 
-(defn- ensure-daemon!
+(defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
    Starts one if needed. Handles:
    - No daemon running → start fresh
@@ -932,9 +1886,20 @@
         (println (:error command)))
       (System/exit 1))
 
-    ;; Subcommand --help: print top-level help and exit
+    ;; Subcommand --help: print help and exit
     (when (= "help" (:action command))
-      (println (str "Run 'spel --help' for full usage."))
+      (let [cmd-name (:for command)
+            ;; Resolve aliases to primary command name
+            resolved (get {"goto" "open" "navigate" "open"
+                           "key" "press"
+                           "scrollinto" "scrollintoview"
+                           "quit" "close" "exit" "close"}
+                       cmd-name cmd-name)
+            help-text (get command-help resolved)]
+        (cond
+          help-text       (println help-text)
+          (nil? cmd-name) (println (top-level-help))
+          :else           (println (str "Unknown command: " cmd-name ". Run 'spel --help' for usage."))))
       (System/exit 0))
 
     ;; Ensure daemon is running

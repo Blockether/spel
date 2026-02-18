@@ -35,8 +35,7 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.snapshot :as snapshot]
-   [com.blockether.spel.util :as util])
+   [com.blockether.spel.snapshot :as snapshot])
   (:import
    [com.microsoft.playwright
     APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -57,6 +56,9 @@
 (defonce !browser (atom nil))
 (defonce !context (atom nil))
 (defonce !page    (atom nil))
+
+;; When true, stop! is a no-op — the daemon owns the browser lifecycle.
+(defonce !daemon-mode? (atom false))
 
 ;; Default action timeout for Playwright operations (ms).
 ;; Set via --timeout flag in --eval mode. nil = Playwright default (30s).
@@ -87,8 +89,6 @@
           ex  (:playwright/exception result)]
       (throw (if ex ex (ex-info (or msg "Playwright operation failed") result))))
     result))
-
-(defn- pg ^Page [] @!page)
 
 (defn- require-page! []
   (when-not @!page
@@ -135,49 +135,60 @@
 (defn sci-start!
   ([] (sci-start! {}))
   ([opts]
-   (when @!pw
-     (throw (ex-info "Session already running. Call (spel/stop!) first." {})))
-   (let [pw-inst      (core/create)
-         launch-opts  (cond-> {:headless (get opts :headless true)}
-                        (:slow-mo opts) (assoc :slow-mo (:slow-mo opts)))
-         browser-type (get opts :browser :chromium)
-         browser-inst (case browser-type
-                        :chromium (core/launch-chromium pw-inst launch-opts)
-                        :firefox  (core/launch-firefox pw-inst launch-opts)
-                        :webkit   (core/launch-webkit pw-inst launch-opts))
-         ctx-opts     (cond-> {}
-                        (:viewport opts)    (assoc :viewport (:viewport opts))
-                        (:base-url opts)    (assoc :base-url (:base-url opts))
-                        (:user-agent opts)  (assoc :user-agent (:user-agent opts))
-                        (:locale opts)      (assoc :locale (:locale opts))
-                        (:timezone-id opts) (assoc :timezone-id (:timezone-id opts)))
-         ctx          (core/new-context browser-inst (when (seq ctx-opts) ctx-opts))
-         pg-inst      (core/new-page-from-context ctx)]
-     ;; Set default action timeout: explicit opts > --timeout flag > Playwright default
-     (when-let [timeout (or (:timeout opts) @!default-timeout)]
-       (page/set-default-timeout! pg-inst timeout))
-     (reset! !pw pw-inst)
-     (reset! !browser browser-inst)
-     (reset! !context ctx)
-     (reset! !page pg-inst)
-     :started)))
+   ;; In daemon mode, the browser is already running — start! is a no-op.
+   ;; This lets old scripts that call (spel/start!) work unchanged.
+   (if @!page
+     :started
+     (do
+       (when @!pw
+         (throw (ex-info "Session already running. Call (spel/stop!) first." {})))
+       (let [pw-inst      (core/create)
+             launch-opts  (cond-> {:headless (get opts :headless true)}
+                            (:slow-mo opts) (assoc :slow-mo (:slow-mo opts)))
+             browser-type (get opts :browser :chromium)
+             browser-inst (case browser-type
+                            :chromium (core/launch-chromium pw-inst launch-opts)
+                            :firefox  (core/launch-firefox pw-inst launch-opts)
+                            :webkit   (core/launch-webkit pw-inst launch-opts))
+             ctx-opts     (cond-> {}
+                            (:viewport opts)    (assoc :viewport (:viewport opts))
+                            (:base-url opts)    (assoc :base-url (:base-url opts))
+                            (:user-agent opts)  (assoc :user-agent (:user-agent opts))
+                            (:locale opts)      (assoc :locale (:locale opts))
+                            (:timezone-id opts) (assoc :timezone-id (:timezone-id opts)))
+             ctx          (core/new-context browser-inst (when (seq ctx-opts) ctx-opts))
+             pg-inst      (core/new-page-from-context ctx)]
+         ;; Set default action timeout: explicit opts > --timeout flag > Playwright default
+         (when-let [timeout (or (:timeout opts) @!default-timeout)]
+           (page/set-default-timeout! pg-inst timeout))
+         (reset! !pw pw-inst)
+         (reset! !browser browser-inst)
+         (reset! !context ctx)
+         (reset! !page pg-inst)
+         :started)))))
 
 (defn sci-stop! []
-  ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
-  ;; No need to individually close page/context — they're owned by the browser.
-  (when-let [b @!browser]
-    (try (core/close-browser! b)
-      (catch Exception e
-        (binding [*out* *err*]
-          (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
-  (when-let [p @!pw]
-    (try (core/close! p)
-      (catch Exception e
-        (binding [*out* *err*]
-          (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
-  (reset! !page nil) (reset! !context nil)
-  (reset! !browser nil) (reset! !pw nil)
-  :stopped)
+  ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
+  (if @!daemon-mode?
+    (do (reset! !page nil) (reset! !context nil)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
+    (do
+      ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
+      ;; No need to individually close page/context — they're owned by the browser.
+      (when-let [b @!browser]
+        (try (core/close-browser! b)
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+      (when-let [p @!pw]
+        (try (core/close! p)
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+      (reset! !page nil) (reset! !context nil)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)))
 
 (defn sci-restart!
   ([] (sci-restart! {}))

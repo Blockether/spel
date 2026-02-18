@@ -258,7 +258,6 @@
   (describe "multiple contexts"
     {:context [with-playwright with-test-server]}
 
-    #_{:clj-kondo/ignore [:unresolved-symbol]}
     (it "binds multiple contexts and executes body"
       (let [result (sut/with-api-contexts
                      [ctx1 (sut/new-api-context (sut/api-request *pw*)
@@ -270,7 +269,6 @@
                      :both-ok)]
         (expect (= :both-ok result))))
 
-    #_{:clj-kondo/ignore [:unresolved-symbol]}
     (it "each context can make independent requests"
       (sut/with-api-contexts
         [ctx1 (sut/new-api-context (sut/api-request *pw*)
@@ -282,7 +280,6 @@
           (expect (= 200 (sut/api-response-status r1)))
           (expect (= 200 (sut/api-response-status r2))))))
 
-    #_{:clj-kondo/ignore [:unresolved-symbol]}
     (it "disposes all contexts after body"
       (let [refs (atom [])]
         (sut/with-api-contexts

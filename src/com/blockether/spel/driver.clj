@@ -53,21 +53,21 @@
 ;; Paths
 ;; =============================================================================
 
-(defn- ^Path cache-dir
+(defn- cache-dir
   "Returns the driver cache root directory.
 
     Respects SPEL_DRIVER_DIR env var, otherwise defaults to
     ~/.cache/spel/<version>."
-  []
+  ^Path []
   (let [override (System/getenv "SPEL_DRIVER_DIR")]
     (if override
       (Paths/get override (into-array String []))
       (Paths/get (System/getProperty "user.home")
         (into-array String [".cache" "spel" playwright-version])))))
 
-(defn- ^Path driver-dir
+(defn- driver-dir
   "Returns the platform-specific driver directory."
-  []
+  ^Path []
   (.resolve (cache-dir) ^String (platform-name)))
 
 (def ^:private no-link-opts (into-array java.nio.file.LinkOption []))
@@ -88,9 +88,9 @@
 ;; Download & Extract
 ;; =============================================================================
 
-(defn- ^String download-url
+(defn- download-url
   "Returns the CDN URL for the current platform's driver archive."
-  []
+  ^String []
   (str cdn-base "/playwright-" playwright-version "-" (platform-name) ".zip"))
 
 (defn- set-executable!

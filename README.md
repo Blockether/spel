@@ -25,23 +25,20 @@
 </h3>
 </div>
 
-### Accessibility Snapshots & Ref-Based Interaction
-
-<p align="center">
-  <img src="docs/screenshots/cli-snapshot.png" alt="spel snapshot demo" width="680"/>
-</p>
-
-### Inline Clojure Scripts via `--eval`
-
-<p align="center">
-  <img src="docs/screenshots/cli-eval.png" alt="spel eval demo" width="680"/>
-</p>
-
-### Agent Scaffolding & Workflow
-
-<p align="center">
-  <img src="docs/screenshots/agents-demo.png" alt="spel agents demo" width="680"/>
-</p>
+<table>
+<tr>
+<td width="25%" align="center"><b>Accessibility Snapshots</b></td>
+<td width="25%" align="center"><b>Inline Clojure via <code>--eval</code></b></td>
+<td width="25%" align="center"><b>Visual Annotations</b></td>
+<td width="25%" align="center"><b>Agent Scaffolding</b></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/cli-snapshot.png" alt="spel snapshot demo"/></td>
+<td><img src="docs/screenshots/cli-eval.png" alt="spel eval demo"/></td>
+<td><img src="docs/screenshots/annotate-demo.png" alt="spel annotate demo"/></td>
+<td><img src="docs/screenshots/agents-demo.png" alt="spel agents demo"/></td>
+</tr>
+</table>
 
 ## Rationale
 

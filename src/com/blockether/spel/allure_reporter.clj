@@ -163,7 +163,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -197,29 +197,6 @@
     (str/replace "\n" "\\n")
     (str/replace "\r" "\\r")
     (str/replace "\t" "\\t")))
-
-(declare ->json)
-
-(defn- ->json
-  "Convert a Clojure value to a JSON string. Handles maps, vectors,
-   strings, numbers, booleans, nil. No pretty-printing."
-  ^String [v]
-  (cond
-    (nil? v)     "null"
-    (string? v)  (str "\"" (json-escape v) "\"")
-    (number? v)  (str v)
-    (boolean? v) (if v "true" "false")
-    (keyword? v) (->json (name v))
-    (map? v)     (str "{"
-                   (->> v
-                     (map (fn [[k val]]
-                            (str (->json (if (keyword? k) (name k) (str k)))
-                              ":"
-                              (->json val))))
-                     (str/join ","))
-                   "}")
-    (sequential? v) (str "[" (str/join "," (map ->json v)) "]")
-    :else (->json (str v))))
 
 (defn- ->json-pretty
   "Convert to JSON with basic indentation for readability."
@@ -605,27 +582,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
+      ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
-    (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally…"))
-        (if (zero? (run-proc! ["npm" "install" "-g" allure-npm-pkg]))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  ✗ npm install failed — cannot generate report.")
-              nil)))
+    (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
+      (if (zero? (run-proc! ["npm" "install" "-g" allure-npm-pkg]))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
-    (do (println "  ✗ Cannot generate report: npx, allure, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+    (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -643,7 +620,7 @@
   (let [report    (io/file report-dir-path)
         trace-src (io/file "resources/trace-viewer")]
     (when (.exists trace-src)
-      (println "Generating Allure HTML report…")
+      (println "Generating Allure HTML report...")
       (flush)
       (if-let [allure-cmd (resolve-allure-cmd!)]
         (do
@@ -669,7 +646,7 @@
                 (println (str "  Report ready at " report-dir-path "/"))
                 true)
               (do
-                (println (str "  ✗ allure generate failed (exit " exit ")"))
+                (println (str "  x allure generate failed (exit " exit ")"))
                 false))))
         false))))
 

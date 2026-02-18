@@ -120,6 +120,65 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 (locator/loc-get-by-text (page/locator pg ".card") "Title")
 ```
 
+### Strict Mode & Multiple Elements
+
+Playwright uses **strict mode by default** — all locator actions (`click`, `fill`, `text-content`, etc.) require the locator to resolve to **exactly one element**. If multiple elements match, Playwright throws a strict mode violation error.
+
+This is intentional: it prevents accidentally interacting with the wrong element.
+
+**Example error:**
+
+```
+Error: strict mode violation: locator("h1") resolved to 4 elements
+```
+
+**How to handle multiple matches:**
+
+```clojure
+;; WRONG — throws if multiple h1 elements exist
+(locator/text-content (page/locator pg "h1"))
+(spel/text "h1")  ;; same thing in SCI/eval mode
+
+;; RIGHT — narrow to first element
+(locator/text-content (locator/first-element (page/locator pg "h1")))
+(spel/text (spel/first "h1"))  ;; SCI/eval equivalent
+
+;; RIGHT — get ALL matching texts as a vector
+(locator/all-text-contents (page/locator pg "h1"))
+(spel/all-text-contents "h1")  ;; SCI/eval equivalent
+
+;; RIGHT — use a more specific selector
+(locator/text-content (page/locator pg "h1.display-1"))
+(spel/text "h1.display-1")  ;; SCI/eval equivalent
+
+;; RIGHT — use semantic locators (role + name filter)
+(locator/text-content
+  (locator/loc-filter (page/get-by-role pg AriaRole/HEADING)
+    {:has-text "Installation"}))
+
+;; RIGHT — use nth-element for a specific match
+(locator/text-content (locator/nth-element (page/locator pg "h1") 0))
+(spel/text (spel/nth (spel/$ "h1") 0))  ;; SCI/eval equivalent
+```
+
+**Available narrowing functions:**
+
+| Function | Description |
+|----------|-------------|
+| `locator/first-element` / `spel/first` | First matching element |
+| `locator/last-element` / `spel/last` | Last matching element |
+| `locator/nth-element` / `spel/nth` | Nth element (0-indexed) |
+| `locator/all` / `spel/$$` | All matches as a vector of Locators |
+| `locator/all-text-contents` / `spel/all-text-contents` | All texts as a vector |
+| `locator/all-inner-texts` / `spel/all-inner-texts` | All inner texts as a vector |
+| `locator/count-elements` / `spel/count-of` | Count of matching elements |
+| `locator/loc-filter` / `spel/loc-filter` | Filter by text, has-text, or sub-locator |
+
+**Rule of thumb:** If your selector might match multiple elements, either:
+1. Make the selector more specific (CSS class, test-id, role + name)
+2. Use `first-element` / `spel/first` to explicitly pick the first
+3. Use `all-text-contents` / `spel/all-text-contents` to get all values
+
 ### Assertions
 
 All assertion functions require `assert-that` first. They return `nil` on success, throw on failure.
@@ -549,9 +608,9 @@ spel snapshot -s "#main"               # Scoped to CSS selector
 
 **Output format:**
 ```
-- heading "Example Domain" [ref=e1] [level=1]
-- link "More information..." [ref=e2]
-- button "Submit" [ref=e3]
+- heading "Example Domain" [@e1] [level=1]
+- link "More information..." [@e2]
+- button "Submit" [@e3]
 ```
 
 ### Get Page Information
@@ -734,7 +793,7 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | File | Purpose |
 |------|---------|
 | `test-e2e/specs/README.md` | Test plans directory README (colocated with tests) |
-| `test-e2e/<ns>/e2e/seed_test.clj` | Seed test with `spel` replaced by `--ns` value (or directory name) |
+| `test-e2e/<ns>/e2e/seed_test.clj` | Seed test with `com.blockether.spel` replaced by `--ns` value (or directory name) |
 
 ### Agent Workflow
 
@@ -777,7 +836,7 @@ All agent frontmatter fields:
 
 ### Template System
 
-Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `spel` placeholders as Clojure code. The `process-template` function replaces `spel` with the `--ns` value (or falls back to the consuming project's directory name).
+Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `com.blockether.spel` placeholders as Clojure code. The `process-template` function replaces `com.blockether.spel` with the `--ns` value (or falls back to the consuming project's directory name).
 
 ---
 
@@ -1022,14 +1081,34 @@ spel --debug open <url>                # Debug output
 
 `spel --eval` evaluates Clojure code via SCI (Small Clojure Interpreter) embedded in the native binary. No JVM startup needed.
 
-**Error handling**: In `--eval` mode, Playwright errors throw immediately (short-circuiting `(do ...)` forms) and the process exits with code 1. Cleanup is automatic — `spel/stop!` is optional.
+**Daemon-backed**: Eval mode uses the same daemon as CLI commands. The browser persists between `--eval` invocations — no restart penalty. `spel/start!` is optional (no-op if a daemon browser is already running). `spel/stop!` does not kill the daemon's browser.
+
+**`--autoclose` flag**: Add `--autoclose` to shut down the daemon after eval (old behavior). Without it, the browser stays alive for the next invocation.
+
+**`--session` flag**: Use `--session <name>` to target a specific daemon session (default: "default"). Matches the CLI `--session` flag.
+
+**Error handling**: In `--eval` mode, Playwright errors throw immediately (short-circuiting `(do ...)` forms) and the process exits with code 1.
 
 **Timeout control**: Use `--timeout <ms>` to set Playwright's default action timeout (default: 30s):
 
 ```bash
+# Basic eval — no browser needed
 spel --eval '(+ 1 2)'
+
+# Browser persists between calls (daemon-backed)
+spel --eval '(spel/goto "https://example.com") (spel/title)'
+
+# start! is optional — works but is a no-op when daemon has a page
 spel --eval '(spel/start!) (spel/goto "https://example.com") (spel/title)'
-spel --timeout 5000 --eval '(do (spel/start!) (spel/goto "https://example.com") (spel/text "h1"))'
+
+# With timeout
+spel --timeout 5000 --eval '(do (spel/goto "https://example.com") (spel/text "h1"))'
+
+# Kill daemon after eval (old behavior)
+spel --autoclose --eval '(spel/goto "https://example.com") (spel/title)'
+
+# Use a named session
+spel --session work --eval '(spel/goto "https://example.com")'
 ```
 
 #### Available Namespaces
@@ -1054,12 +1133,12 @@ Nine namespaces are pre-registered:
 
 | Function | Description |
 |----------|-------------|
-| `(spel/start!)` | Start browser session (headless by default) |
+| `(spel/start!)` | Start browser session (headless). No-op if daemon already has a page. |
 | `(spel/start! {:headless false})` | Start headed browser |
 | `(spel/start! {:browser :firefox})` | Start Firefox (`:chromium`, `:firefox`, `:webkit`) |
 | `(spel/start! {:viewport {:width 1280 :height 720}})` | Custom viewport |
 | `(spel/start! {:timeout 5000})` | Set default action timeout (ms) |
-| `(spel/stop!)` | Stop browser and clean up |
+| `(spel/stop!)` | Stop browser. In daemon mode: nils SCI atoms without killing daemon's browser. |
 | `(spel/restart!)` | Stop then start fresh |
 | `(spel/new-tab!)` | Open new tab, switch to it |
 | `(spel/switch-tab! 0)` | Switch to tab by index |
@@ -1631,36 +1710,39 @@ The eval mode uses [SCI](https://github.com/babashka/sci) (Small Clojure Interpr
 spel --eval '(+ 1 2)'
 # => 3
 
-# Full browser session
+# Browser session — start! is optional (daemon auto-starts browser)
+spel --eval '
+  (spel/goto "https://example.com")
+  (println "Title:" (spel/title))
+  (println "URL:" (spel/url))'
+
+# start! still works (no-op if daemon already has a page)
 spel --eval '
   (spel/start!)
   (spel/goto "https://example.com")
-  (println "Title:" (spel/title))
-  (println "URL:" (spel/url))
-  (spel/stop!)'
+  (spel/title)'
 
 # Snapshot and interact by ref
 spel --eval '
-  (spel/start!)
   (spel/goto "https://example.com")
   (let [snap (spel/snapshot)]
     (println (:tree snap))
-    (spel/click-ref "e2"))
-  (spel/stop!)'
+    (spel/click-ref "e2"))'
 
 # Scrape data
 spel --eval '
-  (spel/start!)
   (spel/goto "https://example.com")
-  (spel/eval-js "document.querySelectorAll(\"a\").length")
-  (spel/stop!)'
+  (spel/eval-js "document.querySelectorAll(\"a\").length")'
 
-# Headed browser for debugging
-spel --eval '
-  (spel/start! {:headless false})
+# Kill daemon after eval (one-shot mode)
+spel --autoclose --eval '
   (spel/goto "https://example.com")
-  (spel/sleep 5000)
-  (spel/stop!)'
+  (spel/title)'
+
+# Headed browser for debugging — use open --interactive first
+# spel open --interactive https://example.com
+# Then use eval to interact with the visible browser:
+spel --eval '(spel/title)'
 ```
 
 ### Snapshot with Refs
@@ -1674,7 +1756,7 @@ The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) t
 ;; Get accessibility snapshot with refs
 (def snap (spel/snapshot))
 (:tree snap)
-;; => "- heading \"Example Domain\" [ref=e1] [level=1]\n- link \"More information...\" [ref=e2]"
+;; => "- heading \"Example Domain\" [@e1] [level=1]\n- link \"More information...\" [@e2]"
 (:refs snap)
 ;; => {"e1" {:role "heading" :name "Example Domain" :tag "h1" :bbox {:x 0 :y 0 :width 500 :height 40}}
 ;;     "e2" {:role "link" :name "More information..." :tag "a" :bbox {:x 10 :y 100 :width 200 :height 20}}}

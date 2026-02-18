@@ -78,6 +78,7 @@
   (println "  snapshot -s \"#main\"       Scoped to selector")
   (println "  screenshot [path]         Take screenshot (-f full page)")
   (println "  annotate                  Show annotation overlays (visible elements)")
+  (println "    -s, --scope <sel|@ref>  Scope annotations to a subtree")
   (println "    --no-badges             Hide ref labels")
   (println "    --no-dimensions         Hide size labels")
   (println "    --no-boxes              Hide bounding boxes")
@@ -272,13 +273,14 @@
 
 (defn- parse-global-flags
   "Pre-parses global flags from args.
-   Returns {:timeout-ms long?, :debug? bool, :json? bool, :command-args vec}.
+   Returns {:timeout-ms long?, :debug? bool, :json? bool, :autoclose? bool,
+            :session str?, :command-args vec}.
    :command-args has global flags stripped for dispatch (finding the command).
    Original args are preserved for modes that do their own parsing (CLI daemon)."
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :session nil}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -304,32 +306,66 @@
           (= "--json" arg)
           (recur (rest remaining) cmd-args (assoc opts :json? true))
 
+          ;; --autoclose
+          (= "--autoclose" arg)
+          (recur (rest remaining) cmd-args (assoc opts :autoclose? true))
+
+          ;; --session=<name>
+          (and (string? arg) (str/starts-with? arg "--session="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :session (subs arg 10)))
+
+          ;; --session <name>
+          (= "--session" arg)
+          (let [val (second remaining)]
+            (if val
+              (recur (drop 2 remaining) cmd-args (assoc opts :session val))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
 (defn- run-eval!
-  "Runs --eval mode: evaluate code, detect anomalies, always clean up.
-   Enables throw-on-error so Playwright anomalies short-circuit (do ...) forms."
+  "Runs --eval mode via daemon: sends code for evaluation, browser persists.
+   The daemon lazily starts a browser on first Playwright call and keeps it
+   alive between invocations. Use --autoclose to shut the daemon after eval."
   [code global]
-  (sci-env/set-throw-on-error! true)
-  (let [exit-code (volatile! 0)]
+  (driver/ensure-driver!)
+  (let [session  (or (:session global) "default")
+        timeout  (or (:timeout-ms global) 30000)
+        exit-code (volatile! 0)]
     (try
-      (driver/ensure-driver!)
-      (let [ctx    (sci-env/create-sci-ctx)
-            result (sci-env/eval-string ctx code)]
-        (if (anomaly/anomaly? result)
+      ;; Ensure daemon is running (same as CLI mode)
+      (cli/ensure-daemon! session {:headless true})
+      ;; Set timeout on daemon side if provided
+      (when (:timeout-ms global)
+        (sci-env/set-default-timeout! (:timeout-ms global)))
+      ;; Send eval command to daemon
+      (let [response (cli/send-command! session
+                       {"action" "sci_eval" "code" code}
+                       timeout)]
+        (if (and response (:success response))
+          ;; Success — print the result
+          (let [result-str (get-in response [:data :result])]
+            (if (:json? global)
+              (println result-str)
+              (println result-str)))
+          ;; Error from daemon
           (do (vreset! exit-code 1)
-              (binding [*out* *err*]
-                (println (str "Error: " (::anomaly/message result)))))
-          (if (:json? global)
-            (println result)   ;; TODO: proper JSON encoding when needed
-            (prn result))))
+            (binding [*out* *err*]
+              (println (str "Error: " (or (get-in response [:data :error])
+                                        (:error response)
+                                        "Unknown error")))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]
           (println (str "Error: " (.getMessage e)))))
       (finally
-        (sci-env/sci-stop!)
+        ;; --autoclose: shut down daemon after eval
+        (when (:autoclose? global)
+          (try
+            (cli/send-command! session {"action" "close"} 5000)
+            (catch Exception _)))
         (System/exit @exit-code)))))
 
 (defn -main
@@ -361,12 +397,12 @@
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
-      ;; Help — only when no subcommand matched
+      ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
+      ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
       (or (nil? first-arg)
-        (#{"--help" "-h" "help"} first-arg)
-        (some #{"--help" "-h"} (rest cmd-args)))
+        (#{"--help" "-h" "help"} first-arg))
       (print-help)
 
       ;; Version
@@ -377,8 +413,8 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))]
-            (daemon/start-daemon! opts)))
+        (let [opts (parse-daemon-args (rest cmd-args))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       (= "--eval" first-arg)
@@ -387,7 +423,7 @@
           (run-eval! code global)
           (do (binding [*out* *err*]
                 (println "Error: --eval requires a code argument"))
-              (System/exit 1))))
+            (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
       (run-eval! (subs first-arg 7) global)
@@ -395,5 +431,5 @@
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))
