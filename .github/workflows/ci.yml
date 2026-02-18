@@ -27,6 +27,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # Normalize Playwright browser path across all OSes (macOS default differs)
+      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +68,8 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        # Use Java driver CLI so browser versions match the library exactly
+        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
       - name: Check Clojure syntax
         run: clojure -M -e "(println \"Syntax check passed\")"

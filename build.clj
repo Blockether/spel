@@ -100,7 +100,10 @@
         extra-args (or (System/getProperty "playwright.native.extra-args") "")
         ;; Most flags come from META-INF/native-image/.../native-image.properties
         ;; Only specify output path and jar here
-        cmd        (cond-> ["native-image"
+        ni-cmd     (if (str/includes? os-name "win")
+                     "native-image.cmd"
+                     "native-image")
+        cmd        (cond-> [ni-cmd
                             "-jar" uber-file
                             "-o" binary]
                      (seq extra-args)

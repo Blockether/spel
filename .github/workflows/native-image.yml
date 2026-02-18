@@ -36,6 +36,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
 
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +62,7 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
       - name: Cache Maven dependencies
         uses: actions/cache@v4
@@ -73,8 +75,12 @@ jobs:
         run: clojure -T:build uberjar
 
       - name: Build native image
-        # Flags come from META-INF/native-image/.../native-image.properties inside the uberjar
-        run: native-image -jar target/spel-standalone.jar -o target/spel
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            "$GRAALVM_HOME/bin/native-image.cmd" -jar target/spel-standalone.jar -o target/spel
+          else
+            native-image -jar target/spel-standalone.jar -o target/spel
+          fi
 
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'
