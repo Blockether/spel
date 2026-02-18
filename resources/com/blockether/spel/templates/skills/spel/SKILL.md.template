@@ -222,8 +222,13 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 ### Events & Signals
 
 ```clojure
-;; Dialog handling
+;; Dialog handling (persistent — fires for every dialog)
 (page/on-dialog pg (fn [dialog] (.dismiss dialog)))
+
+;; One-time dialog handler (fires once, then auto-removes)
+(page/once-dialog pg (fn [dialog]
+  (println "Dialog:" (.message dialog))
+  (.accept dialog)))
 
 ;; Download handling
 (page/on-download pg (fn [dl] (println "Downloaded:" (.suggestedFilename dl))))
@@ -231,7 +236,17 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 ;; Popup handling
 (page/on-popup pg (fn [popup-pg] (println "Popup URL:" (page/url popup-pg))))
 
-;; waitForPopup / waitForDownload
+;; Console messages
+(page/on-console pg (fn [msg] (println (.type msg) ":" (.text msg))))
+
+;; Page errors
+(page/on-page-error pg (fn [err] (println "Page error:" err)))
+
+;; Request/Response events
+(page/on-request pg (fn [req] (println "→" (.method req) (.url req))))
+(page/on-response pg (fn [resp] (println "←" (.status resp) (.url resp))))
+
+;; waitForPopup / waitForDownload / waitForFileChooser
 (let [popup (page/wait-for-popup pg
               #(locator/click (page/locator pg "a")))]
   (page/navigate popup "..."))
@@ -239,6 +254,10 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (let [dl (page/wait-for-download pg
            #(locator/click (page/locator pg "a.download")))]
   (util/download-save-as! dl "/tmp/file.txt"))
+
+(let [fc (page/wait-for-file-chooser pg
+           #(locator/click (page/locator pg "input[type=file]")))]
+  (util/file-chooser-set-files! fc "/path/to/file.txt"))
 ```
 
 ### Frame Navigation
@@ -248,14 +267,38 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (let [fl (frame/frame-locator-obj pg "iframe#main")]
   (locator/click (frame/fl-locator fl "button")))
 
-;; Via Locator.contentFrame() (Java interop)
-(let [frame-loc (.contentFrame (page/locator pg "iframe"))]
-  (locator/click (.locator frame-loc "h1")))
+;; Via Locator.contentFrame()
+(let [fl (locator/content-frame (page/locator pg "iframe"))]
+  (locator/click (.locator fl "h1")))
 
 ;; Nested frames
 (let [fl1 (frame/frame-locator-obj pg "iframe.outer")
       fl2 (.frameLocator (frame/fl-locator fl1 "iframe.inner") "iframe.inner")]
   (locator/click (frame/fl-locator fl2 "button")))
+
+;; Frame hierarchy
+(let [main-frame (page/main-frame pg)
+      children (frame/child-frames main-frame)]
+  (doseq [f children]
+    (println "Frame:" (frame/frame-name f) "URL:" (frame/frame-url f))))
+
+;; Frame locator methods (same as page)
+(let [f (first (page/frames pg))]
+  (frame/frame-locator f "button")
+  (frame/frame-get-by-text f "Click me")
+  (frame/frame-get-by-role f AriaRole/BUTTON)
+  (frame/frame-get-by-label f "Email")
+  (frame/frame-evaluate f "document.title"))
+
+;; FrameLocator sub-locators
+(let [fl (frame/frame-locator-obj pg "iframe")]
+  (frame/fl-locator fl "button")
+  (frame/fl-get-by-text fl "Submit")
+  (frame/fl-get-by-role fl AriaRole/LINK)
+  (frame/fl-get-by-label fl "Password")
+  (frame/fl-first fl)
+  (frame/fl-last fl)
+  (frame/fl-nth fl 0))
 ```
 
 ### Utility Functions (util namespace)
@@ -351,6 +394,306 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 
 ;; Multiple files
 (locator/set-input-files! (page/locator pg "input[type=file]") ["/path/a.txt" "/path/b.txt"])
+```
+
+### Browser Launch Options
+
+```clojure
+;; Basic headless (default)
+(core/launch-chromium pw {:headless true})
+
+;; Headed mode for debugging
+(core/launch-chromium pw {:headless false :slow-mo 500})
+
+;; Use Chrome/Edge channel
+(core/launch-chromium pw {:channel "chrome"})
+(core/launch-chromium pw {:channel "msedge"})
+
+;; Custom browser args
+(core/launch-chromium pw {:args ["--disable-gpu" "--no-sandbox"]})
+
+;; Proxy
+(core/launch-chromium pw {:proxy {:server "http://proxy:8080"
+                                   :username "user"
+                                   :password "pass"}})
+
+;; Custom downloads directory
+(core/launch-chromium pw {:downloads-path "/tmp/downloads"})
+
+;; All browsers
+(core/launch-firefox pw {:headless true})
+(core/launch-webkit pw {:headless true})
+```
+
+### Browser Context Options
+
+```clojure
+;; Custom viewport
+(core/new-context browser {:viewport {:width 1920 :height 1080}})
+
+;; Mobile emulation
+(core/new-context browser {:viewport {:width 375 :height 812}
+                           :is-mobile true
+                           :has-touch true
+                           :device-scale-factor 3
+                           :user-agent "Mozilla/5.0 (iPhone...)"})
+
+;; Locale and timezone
+(core/new-context browser {:locale "fr-FR"
+                           :timezone-id "Europe/Paris"})
+
+;; Geolocation
+(core/new-context browser {:geolocation {:latitude 48.8566 :longitude 2.3522}
+                           :permissions ["geolocation"]})
+
+;; Dark mode
+(core/new-context browser {:color-scheme :dark})
+
+;; Offline mode
+(core/new-context browser {:offline true})
+
+;; Extra HTTP headers
+(core/new-context browser {:extra-http-headers {"Authorization" "Bearer token"
+                                                 "X-Custom" "value"}})
+
+;; Base URL (for relative navigations)
+(core/new-context browser {:base-url "https://example.com"})
+
+;; Storage state (restore cookies + localStorage)
+(core/new-context browser {:storage-state "state.json"})
+
+;; Record video
+(core/new-context browser {:record-video-dir "/tmp/videos"
+                           :record-video-size {:width 1280 :height 720}})
+
+;; Record HAR (HTTP Archive)
+(core/new-context browser {:record-har-path "network.har"
+                           :record-har-mode :minimal})
+
+;; Ignore HTTPS errors
+(core/new-context browser {:ignore-https-errors true})
+
+;; Bypass CSP
+(core/new-context browser {:bypass-csp true})
+
+;; Context management
+(core/context-grant-permissions! ctx ["clipboard-read" "clipboard-write"])
+(core/context-clear-permissions! ctx)
+(core/context-cookies ctx)
+(core/context-clear-cookies! ctx)
+(core/context-set-offline! ctx true)
+(core/context-set-extra-http-headers! ctx {"X-Test" "value"})
+(core/context-set-default-timeout! ctx 30000)
+(core/context-set-default-navigation-timeout! ctx 60000)
+```
+
+### Page Routing (network namespace)
+
+```clojure
+(require '[com.blockether.spel.network :as net])
+
+;; Block images
+(page/route! pg "**/*.{png,jpg,jpeg,gif,svg}" (fn [route]
+  (net/route-abort! route)))
+
+;; Mock API response
+(page/route! pg "**/api/users" (fn [route]
+  (net/route-fulfill! route {:status 200
+                             :content-type "application/json"
+                             :body "{\"users\":[]}"})))
+
+;; Modify request headers
+(page/route! pg "**/*" (fn [route]
+  (net/route-continue! route {:headers (merge (net/request-headers (net/route-request route))
+                                               {"X-Custom" "injected"})})))
+
+;; Modify response (fetch, then alter)
+(page/route! pg "**/api/data" (fn [route]
+  (let [resp (net/route-fetch! route)]
+    (net/route-fulfill! route {:status 200
+                               :body (str (net/response-text resp) " (modified)")}))))
+
+;; Fallback to next handler
+(page/route! pg "**/*" (fn [route]
+  (if (= "POST" (net/request-method (net/route-request route)))
+    (net/route-abort! route)
+    (net/route-fallback! route))))
+
+;; Remove route
+(page/unroute! pg "**/*.{png,jpg}")
+
+;; Request/Response inspection
+(let [req some-request]
+  (net/request-url req)            ; "https://example.com/api"
+  (net/request-method req)         ; "GET"
+  (net/request-headers req)        ; {"accept" "text/html" ...}
+  (net/request-post-data req)      ; POST body string or nil
+  (net/request-resource-type req)  ; "document", "script", "fetch", etc.
+  (net/request-timing req)         ; {:start-time ... :response-end ...}
+  (net/request-is-navigation? req) ; true/false
+  (net/request-failure req))       ; failure text or nil
+
+(let [resp some-response]
+  (net/response-url resp)          ; "https://example.com/api"
+  (net/response-status resp)       ; 200
+  (net/response-status-text resp)  ; "OK"
+  (net/response-ok? resp)          ; true
+  (net/response-headers resp)      ; {"content-type" "application/json" ...}
+  (net/response-text resp)         ; body string
+  (net/response-body resp)         ; byte[]
+  (net/response-header-value resp "content-type"))
+
+;; Wait for specific response
+(let [resp (page/wait-for-response pg "**/api/users"
+             (reify Runnable (run [_]
+               (locator/click (page/locator pg "#load-users")))))]
+  (println (net/response-status resp)))
+
+;; WebSocket
+(let [ws (first (.webSockets pg))]
+  (net/ws-url ws)
+  (net/ws-is-closed? ws)
+  (net/ws-on-message ws (fn [frame]
+    (println "WS msg:" (net/wsf-text frame))))
+  (net/ws-on-close ws (fn [_ws] (println "WS closed")))
+  (net/ws-on-error ws (fn [err] (println "WS error:" err))))
+```
+
+### Waiting
+
+```clojure
+;; Wait for element to appear
+(page/wait-for-selector pg ".loaded")
+(page/wait-for-selector pg ".modal" {:state :visible :timeout 10000})
+;; :state values — :attached :detached :visible :hidden
+
+;; Wait for URL change
+(page/wait-for-url pg "https://example.com/dashboard")
+(page/wait-for-url pg #".*dashboard.*")               ; regex
+(page/wait-for-url pg #(clojure.string/includes? % "dash"))  ; predicate
+
+;; Wait for JS function to return truthy
+(page/wait-for-function pg "() => document.querySelector('.ready')")
+
+;; Wait for load state
+(page/wait-for-load-state pg)                    ; default: load
+(page/wait-for-load-state pg :domcontentloaded)
+(page/wait-for-load-state pg :networkidle)
+
+;; Wait for timeout (sleep)
+(page/wait-for-timeout pg 1000)
+
+;; Locator wait-for (wait for locator to satisfy condition)
+(locator/wait-for (page/locator pg ".spinner") {:state :hidden})
+(locator/wait-for (page/locator pg ".content") {:state :visible :timeout 5000})
+```
+
+### Page Utilities
+
+```clojure
+;; Set HTML content directly (useful for tests)
+(page/set-content! pg "<h1>Hello</h1><p>World</p>")
+
+;; Emulate media
+(page/emulate-media! pg {:media :screen})              ; or :print
+(page/emulate-media! pg {:color-scheme :dark})          ; or :light :no-preference
+(page/emulate-media! pg {:media :print :color-scheme :dark})
+
+;; Set viewport
+(page/set-viewport-size! pg 1024 768)
+
+;; Add script/style tags
+(page/add-script-tag pg {:url "https://cdn.example.com/lib.js"})
+(page/add-script-tag pg {:content "window.myVar = 42;"})
+(page/add-script-tag pg {:path "/path/to/local.js"})
+
+(page/add-style-tag pg {:content "body { background: red; }"})
+(page/add-style-tag pg {:url "https://cdn.example.com/style.css"})
+
+;; Expose Clojure function to JavaScript
+(page/expose-function! pg "clojureAdd" (fn [a b] (+ a b)))
+;; In JS: await window.clojureAdd(1, 2)  => 3
+
+;; Expose binding (receives BindingSource as first arg)
+(page/expose-binding! pg "getPageInfo" (fn [source]
+  (str "Frame: " (.frame source))))
+
+;; Extra HTTP headers for this page
+(page/set-extra-http-headers! pg {"Authorization" "Bearer token"})
+
+;; Bring page to front (activate tab)
+(page/bring-to-front pg)
+```
+
+### Advanced Locator Actions
+
+```clojure
+;; Drag and drop
+(locator/drag-to (page/locator pg "#source") (page/locator pg "#target"))
+
+;; Dispatch custom DOM event
+(locator/dispatch-event (page/locator pg "#el") "click")
+(locator/dispatch-event (page/locator pg "#el") "dragstart" {:dataTransfer {}})
+
+;; Scroll element into view
+(locator/scroll-into-view (page/locator pg "#offscreen"))
+
+;; Tap (touch) element
+(locator/tap-element (page/locator pg "#button"))
+
+;; Evaluate JavaScript on element
+(locator/evaluate-locator (page/locator pg "#el") "el => el.dataset.value")
+(locator/evaluate-all (page/locator pg ".items") "els => els.length")
+
+;; Take screenshot of specific element
+(locator/locator-screenshot (page/locator pg ".card"))
+(locator/locator-screenshot (page/locator pg ".card") {:path "card.png"})
+
+;; Highlight element (visual debugging)
+(locator/highlight (page/locator pg "#important"))
+
+;; Get/set attributes
+(locator/get-attribute (page/locator pg "a") "href")
+
+;; Select dropdown option
+(locator/select-option (page/locator pg "select") "value")
+(locator/select-option (page/locator pg "select") ["val1" "val2"])  ; multi-select
+
+;; Check/uncheck
+(locator/check (page/locator pg "#checkbox"))
+(locator/uncheck (page/locator pg "#checkbox"))
+
+;; Hover
+(locator/hover (page/locator pg ".tooltip-trigger"))
+```
+
+### Input Devices (input namespace)
+
+```clojure
+(require '[com.blockether.spel.input :as input])
+
+;; Keyboard
+(let [kb (page/page-keyboard pg)]
+  (input/key-press kb "Enter")
+  (input/key-press kb "Control+a")
+  (input/key-press kb "Shift+ArrowRight" {:delay 100})
+  (input/key-type kb "Hello World" {:delay 50})
+  (input/key-down kb "Shift")
+  (input/key-up kb "Shift")
+  (input/key-insert-text kb "直接挿入"))  ; insert without key events
+
+;; Mouse
+(let [mouse (page/page-mouse pg)]
+  (input/mouse-click mouse 100 200)
+  (input/mouse-dblclick mouse 100 200)
+  (input/mouse-move mouse 300 400 {:steps 10})
+  (input/mouse-down mouse)
+  (input/mouse-up mouse)
+  (input/mouse-wheel mouse 0 100))    ; scroll down 100px
+
+;; Touchscreen
+(let [ts (page/page-touchscreen pg)]
+  (input/touchscreen-tap ts 100 200))
 ```
 
 ### API Testing (api namespace)

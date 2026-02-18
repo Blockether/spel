@@ -37,7 +37,10 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@13.1
         with:
           cli: latest
-          clojure-lsp: latest
+
+      - uses: clojure-lsp/setup-clojure-lsp@v1
+        with:
+          clojure-lsp-version: 2025.11.28-12.47.43
 
       - name: Cache Clojure deps
         uses: actions/cache@v4
