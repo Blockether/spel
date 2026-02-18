@@ -20,7 +20,7 @@
 <div align="center">
 <h3>
 
-[Rationale](#rationale) • [Functionalities](#functionalities) • [Quick Start](#quick-start) • [Usage](#usage) • [API Testing](#api-testing) • [Allure Reporting](#allure-test-reporting) • [Native CLI](#native-cli)
+[Rationale](#rationale) • [Quick Start](#quick-start) • [Usage](#usage) • [API Testing](#api-testing) • [Allure Reporting](#allure-test-reporting) • [Native CLI](#native-cli)
 
 </h3>
 </div>
@@ -28,7 +28,7 @@
 <table>
 <tr>
 <td width="25%" align="center"><b>Accessibility Snapshots</b></td>
-<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;<code>--eval</code></b></td>
+<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;--eval</b></td>
 <td width="25%" align="center"><b>Visual Annotations</b></td>
 <td width="25%" align="center"><b>Agent Scaffolding</b></td>
 </tr>
