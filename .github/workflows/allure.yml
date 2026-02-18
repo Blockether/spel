@@ -50,90 +50,47 @@ jobs:
       - name: Install Playwright browsers
         run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
+      # ── Allure history: standard directory-based approach ──
+      # Allure reads history from allure-results/history/ and writes
+      # updated history to allure-report/history/. We cache the latter
+      # and copy it back before each run so trends accumulate.
       - name: Restore Allure history
         uses: actions/cache/restore@v4
         with:
-          path: .allure-history.jsonl
-          key: allure-history-${{ github.run_number }}
-          restore-keys: allure-history-
+          path: allure-history
+          key: allure-history-dir-${{ github.run_number }}
+          restore-keys: allure-history-dir-
 
-      - name: Restore previous builds
-        uses: actions/cache/restore@v4
-        with:
-          path: allure-builds
-          key: allure-builds-${{ github.run_number }}
-          restore-keys: allure-builds-
+      - name: Inject history into results directory
+        run: |
+          mkdir -p allure-results/history
+          if [ -d allure-history ] && [ "$(ls -A allure-history 2>/dev/null)" ]; then
+            cp -r allure-history/* allure-results/history/
+            echo "Injected $(find allure-results/history -type f | wc -l) history files"
+          else
+            echo "No previous history found — first run"
+          fi
 
       - name: Run tests with Allure reporter
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      - name: Manage build history (keep last 10 builds)
+      - name: Save history from generated report
         run: |
-          MAX_BUILDS=10
-          RUN=${{ github.run_number }}
-
-          # Save current run's data into its own directory
-          mkdir -p "allure-builds/$RUN"
-          for subdir in test-results attachments test-env-groups; do
-            if [ -d "allure-report/data/$subdir" ]; then
-              mkdir -p "allure-builds/$RUN/$subdir"
-              cp allure-report/data/$subdir/* "allure-builds/$RUN/$subdir/" 2>/dev/null || true
-            fi
-          done
-          echo "Saved build $RUN: $(find "allure-builds/$RUN" -type f | wc -l) files"
-
-          # List all builds sorted numerically, prune oldest beyond limit
-          BUILDS=$(ls -1d allure-builds/[0-9]* 2>/dev/null | sort -t/ -k2 -n)
-          COUNT=$(echo "$BUILDS" | grep -c .)
-          echo "Total builds cached: $COUNT (limit: $MAX_BUILDS)"
-
-          if [ "$COUNT" -gt "$MAX_BUILDS" ]; then
-            TO_REMOVE=$((COUNT - MAX_BUILDS))
-            echo "Removing $TO_REMOVE oldest build(s)..."
-            echo "$BUILDS" | head -n "$TO_REMOVE" | while read dir; do
-              echo "  Dropping build $(basename "$dir")"
-              rm -rf "$dir"
-            done
+          mkdir -p allure-history
+          if [ -d allure-report/history ]; then
+            cp -r allure-report/history/* allure-history/
+            echo "Saved $(find allure-history -type f | wc -l) history files for next run"
+          else
+            echo "No history directory in report — skipping"
           fi
 
-          # Merge all retained builds into the report
-          MERGED=0
-          for build_dir in allure-builds/[0-9]*; do
-            [ -d "$build_dir" ] || continue
-            for subdir in test-results attachments test-env-groups; do
-              if [ -d "$build_dir/$subdir" ] && [ -d "allure-report/data/$subdir" ]; then
-                cp -n "$build_dir/$subdir/"* "allure-report/data/$subdir/" 2>/dev/null || true
-              fi
-            done
-            MERGED=$((MERGED + 1))
-          done
-          echo "Merged data from $MERGED build(s) into report"
-
-      - name: Trim Allure history to last 10 entries
-        run: |
-          if [ -f .allure-history.jsonl ]; then
-            LINES=$(wc -l < .allure-history.jsonl)
-            if [ "$LINES" -gt 10 ]; then
-              echo "Trimming .allure-history.jsonl from $LINES to 10 entries"
-              tail -n 10 .allure-history.jsonl > .allure-history.jsonl.tmp
-              mv .allure-history.jsonl.tmp .allure-history.jsonl
-            fi
-          fi
-
-      - name: Save Allure history
+      - name: Cache Allure history
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
         with:
-          path: .allure-history.jsonl
-          key: allure-history-${{ github.run_number }}
-
-      - name: Save build history
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: allure-builds
-          key: allure-builds-${{ github.run_number }}
+          path: allure-history
+          key: allure-history-dir-${{ github.run_number }}
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'

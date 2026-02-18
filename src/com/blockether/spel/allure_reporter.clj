@@ -685,11 +685,17 @@
     "allure-results"))
 
 (defn- clean-output-dir!
-  "Remove old results and recreate the output directory."
+  "Remove old results and recreate the output directory.
+   Preserves the history/ subdirectory so Allure trend data
+   survives across runs (CI caches history/ between builds)."
   [^File dir]
   (when (.exists dir)
-    (doseq [^File f (reverse (file-seq dir))]
-      (.delete f)))
+    (let [history-dir (io/file dir "history")
+          history-path (.toPath history-dir)]
+      (doseq [^File f (reverse (file-seq dir))]
+        (when-not (or (= f history-dir)
+                    (.startsWith (.toPath f) history-path))
+          (.delete f)))))
   (.mkdirs dir))
 
 (defmulti allure
