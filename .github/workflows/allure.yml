@@ -50,47 +50,27 @@ jobs:
       - name: Install Playwright browsers
         run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
-      # ── Allure history: standard directory-based approach ──
-      # Allure reads history from allure-results/history/ and writes
-      # updated history to allure-report/history/. We cache the latter
-      # and copy it back before each run so trends accumulate.
+      # ── Allure 3 history: JSONL-based approach ──
+      # The reporter uses `allure awesome -h .allure-history.jsonl` which
+      # reads/appends a single JSONL file. We cache this file between runs
+      # so trend charts accumulate. The reporter caps history at 10 builds.
       - name: Restore Allure history
         uses: actions/cache/restore@v4
         with:
-          path: allure-history
-          key: allure-history-dir-${{ github.run_number }}
-          restore-keys: allure-history-dir-
-
-      - name: Inject history into results directory
-        run: |
-          mkdir -p allure-results/history
-          if [ -d allure-history ] && [ "$(ls -A allure-history 2>/dev/null)" ]; then
-            cp -r allure-history/* allure-results/history/
-            echo "Injected $(find allure-results/history -type f | wc -l) history files"
-          else
-            echo "No previous history found — first run"
-          fi
+          path: .allure-history.jsonl
+          key: allure-history-jsonl-${{ github.run_number }}
+          restore-keys: allure-history-jsonl-
 
       - name: Run tests with Allure reporter
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      - name: Save history from generated report
-        run: |
-          mkdir -p allure-history
-          if [ -d allure-report/history ]; then
-            cp -r allure-report/history/* allure-history/
-            echo "Saved $(find allure-history -type f | wc -l) history files for next run"
-          else
-            echo "No history directory in report — skipping"
-          fi
-
       - name: Cache Allure history
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
         with:
-          path: allure-history
-          key: allure-history-dir-${{ github.run_number }}
+          path: .allure-history.jsonl
+          key: allure-history-jsonl-${{ github.run_number }}
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'

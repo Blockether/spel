@@ -787,12 +787,30 @@ make allure          # run tests + generate + open in browser
 ```
 
 The reporter handles the full pipeline:
-1. Writes Allure JSON results to `allure-results/`
+1. Writes Allure JSON results to `allure-results/` (Allure 2+ compatible format)
 2. Resolves Allure 3 CLI via `npx allure@3.1.0` (no manual install needed)
 3. Generates HTML report to `allure-report/` using `allure awesome`
 4. Embeds a local Playwright trace viewer (no dependency on `trace.playwright.dev`)
 5. Patches report JS to load traces from `./trace-viewer/` and pre-registers the Service Worker for instant loading
-6. Manages run history across builds via `.allure-history.jsonl`
+6. Manages run history via `.allure-history.jsonl` (Allure 3 JSONL mechanism, default: last 10 builds)
+
+#### History Configuration
+
+| Property | Env Var | Default | Description |
+|----------|---------|---------|-------------|
+| `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
+| `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
+| `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
+
+```bash
+# Keep last 20 builds in history
+clojure -J-Dlazytest.allure.history-limit=20 -M:test \
+  --output nested --output com.blockether.spel.allure-reporter/allure
+
+# Or via env var
+LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
+  --output nested --output com.blockether.spel.allure-reporter/allure
+```
 
 ### Trace Viewer Integration
 

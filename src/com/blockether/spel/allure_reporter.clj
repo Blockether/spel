@@ -629,9 +629,13 @@
 ;; Report generation
 ;; ---------------------------------------------------------------------------
 
-(def ^:private history-file
-  "JSONL file that accumulates history across runs (Allure 3 mechanism)."
-  ".allure-history.jsonl")
+(def ^:private history-file ".allure-history.jsonl")
+
+(defn- history-limit
+  ^String []
+  (or (System/getProperty "lazytest.allure.history-limit")
+    (System/getenv "LAZYTEST_ALLURE_HISTORY_LIMIT")
+    "10"))
 
 (defn- generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
@@ -662,9 +666,9 @@
                 (patch-trace-viewer-url! report)
                 (inject-trace-viewer-prewarm! report)
                 (patch-sw-safari-compat! report)
-                ;; Update history JSONL for the next run
                 (run-proc! (into allure-cmd ["history" results-dir
-                                             "-h" history-file]))
+                                             "-h" history-file
+                                             "--history-limit" (history-limit)]))
                 (println (str "  Report ready at " report-dir-path "/"))
                 true)
               (do
@@ -686,16 +690,12 @@
 
 (defn- clean-output-dir!
   "Remove old results and recreate the output directory.
-   Preserves the history/ subdirectory so Allure trend data
-   survives across runs (CI caches history/ between builds)."
+   History is managed externally via `.allure-history.jsonl` (Allure 3
+   JSONL mechanism), so nothing inside the results dir needs preserving."
   [^File dir]
   (when (.exists dir)
-    (let [history-dir (io/file dir "history")
-          history-path (.toPath history-dir)]
-      (doseq [^File f (reverse (file-seq dir))]
-        (when-not (or (= f history-dir)
-                    (.startsWith (.toPath f) history-path))
-          (.delete f)))))
+    (doseq [^File f (reverse (file-seq dir))]
+      (.delete f)))
   (.mkdirs dir))
 
 (defmulti allure
