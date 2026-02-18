@@ -2404,7 +2404,6 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) to interactive and meaningful elements:
 
 ```clojure
-(spel/start!)
 (spel/goto "https://example.com")
 
 ;; Get accessibility snapshot with refs
