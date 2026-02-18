@@ -30,21 +30,25 @@
 
 (def ^:private loop-targets
   "Configuration for each supported agent loop target.
-   Keys: agent-dir, prompt-dir, skill-dir, agent-ext, desc."
+   Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
+   agent-ref-fmt is a format string for agent references in prompts (takes agent name)."
   {"opencode" {:agent-dir ".opencode/agents"
                :prompt-dir ".opencode/prompts"
                :skill-dir ".opencode/skills/spel"
                :agent-ext ".md"
+               :agent-ref-fmt "@%s"
                :desc "OpenCode"}
    "claude"   {:agent-dir ".claude/agents"
                :prompt-dir ".claude/prompts"
                :skill-dir ".claude/docs/spel"
                :agent-ext ".md"
+               :agent-ref-fmt "@%s"
                :desc "Claude Code"}
    "vscode"   {:agent-dir ".github/agents"
                :prompt-dir ".github/prompts"
                :skill-dir ".github/docs/spel"
                :agent-ext ".agent.md"
+               :agent-ref-fmt "#agent:%s"
                :desc "VS Code / Copilot"}})
 
 (defn- files-to-create
@@ -171,13 +175,27 @@
   (when-let [match (re-find (re-pattern (str "(?m)^" (java.util.regex.Pattern/quote field-name) ":\\s*(.*)$")) fm-str)]
     (str/trim (second match))))
 
+(def ^:private agent-ref-names
+  "Agent names that may be referenced in templates via @name syntax."
+  ["spel-test-planner" "spel-test-generator" "spel-test-healer"])
+
+(defn- transform-agent-references
+  "Replaces @agent-name references in template content with the
+   target-appropriate agent invocation syntax based on agent-ref-fmt."
+  [content loop-target]
+  (let [fmt (:agent-ref-fmt (get loop-targets loop-target))]
+    (reduce (fn [c agent-name]
+              (str/replace c (str "@" agent-name) (format fmt agent-name)))
+      content
+      agent-ref-names)))
+
 (defn- replace-skill-instruction
   "Replaces the OpenCode skill loading instruction with a file-read instruction
    for non-OpenCode targets."
   [body skill-dir]
   (str/replace body
-    "Load the `spel` skill first for API reference."
-    (str "Read the file `" skill-dir "/SKILL.md` for the full spel API reference.")))
+    "You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first."
+    (str "You MUST read the file `" skill-dir "/SKILL.md` before performing any action. This file contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without reading it first.")))
 
 (defn- transform-for-claude
   "Transforms OpenCode agent template to Claude Code format.
@@ -310,6 +328,7 @@
       :else
       (let [content (-> (read-template resource-path)
                       (process-template ns-name)
+                      (transform-agent-references loop-target)
                       (transform-agent-template loop-target agent-name))
             written? (write-file! output-path content dry-run)]
         (if dry-run
@@ -419,9 +438,9 @@
       (let [loop-target (:loop opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
-                          (println "         Tip: use --ns my-app to set namespace explicitly.")
-                          (println "")
-                          (derive-namespace)))
+                        (println "         Tip: use --ns my-app to set namespace explicitly.")
+                        (println "")
+                        (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
         (print-banner loop-target)
@@ -433,12 +452,8 @@
 
         ;; Scaffold specs directory with README
         (let [specs-readme-path (str specs-dir "/README.md")
-              specs-readme-result
-              (if (file-exists? specs-readme-path)
-                {:created false :skipped true :reason "Already exists"}
-                (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil))]
-          (when (or (:dry-run opts) (not (:skipped specs-readme-result)))
-            (print-result "+" specs-dir "test plans directory" specs-readme-result)))
+              specs-readme-result (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil)]
+          (print-result "+" specs-readme-path "test plans directory" specs-readme-result))
 
         ;; Scaffold test directory with seed test
         ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj

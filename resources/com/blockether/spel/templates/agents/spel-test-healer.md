@@ -29,6 +29,7 @@ E2E tests using spel and Lazytest.
 
 2. **Analyze Failures**: For each failing test:
    - Read the error output carefully
+   - **Reference the original spec** in `test-e2e/specs/` (see `test-e2e/specs/README.md` for conventions) to understand expected behavior vs actual
    - Identify the type of failure: selector mismatch, assertion failure, timeout, state issue
    - Check if it's a test bug or an application change
 

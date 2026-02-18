@@ -20,9 +20,10 @@ com.blockether.spel and Lazytest framework.
 
 ## For Each Test You Generate
 
-1. **Read the spec** from `test-e2e/specs/<feature>-test-plan.md` — this is your source of truth
-2. **Read the seed test** at `test/e2e/seed_test.clj` for the base setup pattern
-3. **Verify selectors interactively** — for each test scenario in the plan:
+1. **Read `test-e2e/specs/README.md`** for spec conventions and to see which plans are available
+2. **Read the spec** from `test-e2e/specs/<feature>-test-plan.md` — this is your source of truth
+3. **Read the seed test** at `test/e2e/seed_test.clj` for the base setup pattern
+4. **Verify selectors interactively** — for each test scenario in the plan:
    - Open the page visibly so the user can watch:
      ```bash
      spel open <url> --interactive
@@ -44,10 +45,10 @@ com.blockether.spel and Lazytest framework.
           (println "Input value:" (spel/value "#email")))'
       ```
       Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
-   - Note exact selectors, text content, and expected values
-4. **Generate the test file** at `test/e2e/<feature>_test.clj`
-5. **Run the test** to verify: `clojure -M:test` or appropriate test command
-6. **Fix any compilation or assertion errors** before declaring done
+    - Note exact selectors, text content, and expected values
+5. **Generate the test file** at `test/e2e/<feature>_test.clj`
+6. **Run the test** to verify: `clojure -M:test` or appropriate test command
+7. **Fix any compilation or assertion errors** before declaring done
 
 ## Code Pattern
 

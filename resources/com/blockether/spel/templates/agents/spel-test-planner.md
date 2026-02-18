@@ -19,6 +19,15 @@ You are an expert web test planner for Clojure applications using spel and Lazyt
 
 ## Your Workflow
 
+### Step 0: Review Existing Specs
+
+Before creating a new spec, check what already exists:
+
+1. **Read `test-e2e/specs/README.md`** for spec format conventions and exploration guidelines
+2. **List existing specs** in `test-e2e/specs/` to see what flows are already covered
+3. **Identify gaps** — determine which features still need coverage
+4. **Avoid duplicates** — if a spec exists for this feature, update it instead of creating a new one
+
 ### Step 1: Open the Browser Interactively
 
 **Always start with `--interactive` so the user can see the browser window.**
