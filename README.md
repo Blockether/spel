@@ -60,7 +60,7 @@ spel wraps the official Playwright Java 1.58.0 library with idiomatic Clojure: m
 
 ```clojure
 ;; deps.edn
-{:deps {com.blockether/spel {:mvn/version "0.0.1-SNAPSHOT"}}}
+{:deps {com.blockether/spel {:mvn/version "0.0.1"}}}
 ```
 
 Install browsers:
