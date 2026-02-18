@@ -3,7 +3,7 @@
 </p>
 
 <div align="center">
-<i>spel</i> Idiomatic Clojure wrapper for <a href="https://playwright.dev/">Microsoft Playwright</a>.
+<i>spel</i> - Idiomatic Clojure wrapper for <a href="https://playwright.dev/">Microsoft Playwright</a>.
 <br/>
 <sub>Browser automation, API testing, test reporting, and native CLI — for Chromium, Firefox, and WebKit.</sub>
 </div>
@@ -13,6 +13,9 @@
     <a href="https://clojars.org/com.blockether/spel"><img src="https://img.shields.io/clojars/v/com.blockether/spel?color=%23007ec6&label=clojars" alt="Clojars version"></a>
     <a href="https://github.com/Blockether/spel/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License - Apache 2.0">
+    </a>
+    <a href="https://blockether.github.io/spel/">
+      <img src="https://img.shields.io/badge/Allure_Report-845_passed-brightgreen" alt="Allure Report">
     </a>
   </h2>
 </div>
@@ -612,6 +615,19 @@ Request/response interceptors — composable, nestable:
 ## Allure Test Reporting
 
 Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/). Compatible with Allure 2+ result format. The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx) with an embedded local Playwright trace viewer — no external `allure generate` step needed.
+
+> **[View live test report](https://blockether.github.io/spel/)** — 845 tests, 100% pass rate, with embedded Playwright traces.
+
+<table>
+<tr>
+<td width="50%" align="center"><b>Allure&nbsp;Report</b></td>
+<td width="50%" align="center"><b>Embedded&nbsp;Playwright&nbsp;Traces</b></td>
+</tr>
+<tr>
+<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-report.png" alt="Allure Report — 845 tests passed"/></a></td>
+<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-trace-viewer.png" alt="Playwright Trace Viewer embedded in Allure"/></a></td>
+</tr>
+</table>
 
 ### Test Example
 
