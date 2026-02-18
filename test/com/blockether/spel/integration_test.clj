@@ -6,6 +6,7 @@
    against a stable public website."
   (:require
    [clojure.datafy :refer [datafy]]
+   [clojure.string :as str]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
    com.blockether.spel.data ;; loads datafy protocol extensions
@@ -465,7 +466,7 @@
           (try
             (page/navigate pg2 "https://example.com")
             (let [cookie (page/evaluate pg2 "document.cookie")]
-              (expect (clojure.string/includes? (str cookie) "profile_test=persisted")))
+              (expect (str/includes? (str cookie) "profile_test=persisted")))
             (finally
               (.close ^BrowserContext ctx2))))))))
 
