@@ -293,6 +293,29 @@
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
 
+(defn- describe-element
+  "Returns a short human-readable description of the element behind a locator.
+   e.g. 'h1 \"Example Domain\"', 'button \"Submit\"', 'input[type=text][name=email]'.
+   Returns nil on failure (element detached, timeout, etc.)."
+  [loc]
+  (try
+    (locator/evaluate-locator loc
+      (str "el => {"
+        "  const tag = el.tagName.toLowerCase();"
+        "  const text = (el.innerText || '').trim().replace(/\\s+/g, ' ');"
+        "  const cls = el.className ? '.' + el.className.trim().split(/\\s+/)[0] : '';"
+        "  const name = el.getAttribute('name');"
+        "  const type = el.getAttribute('type');"
+        "  let desc = tag;"
+        "  if (cls && !text) desc += cls;"
+        "  if (type) desc += '[type=' + type + ']';"
+        "  if (name) desc += '[name=' + name + ']';"
+        "  const dt = text.length > 30 ? text.slice(0, 30) + '…' : text;"
+        "  if (dt) desc += ' \"' + dt + '\"';"
+        "  return desc;"
+        "}"))
+    (catch Exception _ nil)))
+
 ;; =============================================================================
 ;; Snapshot Helper
 ;; =============================================================================
@@ -366,8 +389,11 @@
 
 (defmethod handle-cmd "hover" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/hover (resolve-selector selector))
-  {:hovered selector})
+  (let [loc  (resolve-selector selector)
+        _    (locator/hover loc)
+        desc (describe-element loc)]
+    (cond-> {:hovered selector}
+      desc (assoc :desc desc))))
 
 (defmethod handle-cmd "check" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -395,13 +421,19 @@
 
 (defmethod handle-cmd "focus" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/focus (resolve-selector selector))
-  {:focused selector})
+  (let [loc  (resolve-selector selector)
+        _    (locator/focus loc)
+        desc (describe-element loc)]
+    (cond-> {:focused selector}
+      desc (assoc :desc desc))))
 
 (defmethod handle-cmd "clear" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/clear (resolve-selector selector))
-  {:cleared selector})
+  (let [loc  (resolve-selector selector)
+        _    (locator/clear loc)
+        desc (describe-element loc)]
+    (cond-> {:cleared selector}
+      desc (assoc :desc desc))))
 
 (defmethod handle-cmd "screenshot" [_ params]
   (ensure-browser!)
@@ -648,8 +680,11 @@
 
 (defmethod handle-cmd "highlight" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/highlight (resolve-selector selector))
-  {:highlighted selector})
+  (let [loc  (resolve-selector selector)
+        _    (locator/highlight loc)
+        desc (describe-element loc)]
+    (cond-> {:highlighted selector}
+      desc (assoc :desc desc))))
 
 (defmethod handle-cmd "find" [_ {:strs [by value find_action find_value name exact selector]}]
   (ensure-page-loaded!)

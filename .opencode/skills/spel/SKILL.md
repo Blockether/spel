@@ -393,8 +393,49 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 ### `allure` — Allure test reporting
 
-_Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:1:1)._
-
+| Function | Args | Description |
+|----------|------|-------------|
+| _(macro)_ `after` | [& body] | Re-export of `lazytest.core/after`. |
+| _(macro)_ `after-each` | [& body] | Re-export of `lazytest.core/after-each`. |
+| _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
+| _(macro)_ `around` | [[f] & body] | Re-export of `lazytest.core/around`. |
+| `attach` | [att-name content content-type] | Attach string content to the test report. |
+| `attach-api-response!` | [resp] | Attach APIResponse metadata to the current allure step as parameters, |
+| `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
+| _(macro)_ `before` | [& body] | Re-export of `lazytest.core/before`. |
+| _(macro)_ `before-each` | [& body] | Re-export of `lazytest.core/before-each`. |
+| `causes-with-msg?` | [c re f] | Re-export of `lazytest.core/causes-with-msg?`. |
+| `causes?` | [c f] | Re-export of `lazytest.core/causes?`. |
+| _(macro)_ `context` | [doc & children] \| [doc attr-map? & children] | Alias for `describe` — includes automatic Allure step nesting. |
+| _(macro)_ `defdescribe` | [test-name & children] \| [test-name doc? attr-map? & children] | Re-export of `lazytest.core/defdescribe`. |
+| _(macro)_ `describe` | [doc & children] \| [doc attr-map? & children] | Like `lazytest.core/describe` with automatic Allure step nesting. |
+| `description` | [text] | Set the test description (markdown supported). |
+| `epic` | [value] | Set the epic label for this test. |
+| _(macro)_ `expect` | [expr] \| [expr msg] | Drop-in replacement for `lazytest.core/expect` that automatically |
+| _(macro)_ `expect-it` | [doc expr] \| [doc attr-map? expr] | Like `lazytest.core/expect-it` with stepped expectations. |
+| `feature` | [value] | Set the feature label for this test. |
+| `issue` | [name url] | Add an issue link. |
+| _(macro)_ `it` | [doc & body] \| [doc attr-map? & body] | Like `lazytest.core/it` with automatic Allure step wrapping. |
+| `link` | [name url] | Add a link to the test report. |
+| `make-context` | [] | Create a fresh context map for a test case. Called by the reporter. |
+| `ok?` | [f] | Re-export of `lazytest.core/ok?`. |
+| `owner` | [value] | Set the test owner. |
+| `parameter` | [name value] | Add a parameter to the test or current step. |
+| `reporter-active?` | [] | Returns true when the Allure reporter is active (i.e. we're |
+| `screenshot` | [pg att-name] | Take a Playwright screenshot and attach it to the report. |
+| `set-ns-context!` | [contexts] | Re-export of `lazytest.core/set-ns-context!`. |
+| `set-reporter-active!` | [active?] | Called by the Allure reporter at begin/end of test run. |
+| `severity` | [level] | Set the severity label. Level should be one of: |
+| _(macro)_ `should` | [expr] \| [expr msg] | Like `lazytest.core/should` with stepped expectations. |
+| _(macro)_ `specify` | [doc & body] \| [doc attr-map? & body] | Alias for `it` — includes automatic Allure step wrapping. |
+| _(macro)_ `step` | [step-name] \| [step-name & body] | Add a step to the test report. |
+| `step*` | [step-name] \| [step-name f] \| [step-name f loc-map] | Internal function backing the `step` macro. Prefer the macro. |
+| `story` | [value] | Set the story label for this test. |
+| `tag` | [value] | Add a tag label. |
+| `throws-with-msg?` | [c re f] | Re-export of `lazytest.core/throws-with-msg?`. |
+| `throws?` | [c f] | Re-export of `lazytest.core/throws?`. |
+| `tms` | [name url] | Add a test management system link. |
+| _(macro)_ `ui-step` | [step-name & body] | Execute a UI step with automatic before/after screenshots. |
 
 ### `snapshot` — Accessibility snapshots
 
@@ -625,7 +666,7 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 ;; By text
 (page/get-by-text pg "Click me")
 
-;; By role (requires AriaRole import)
+;; By role (requires [com.blockether.spel.roles :as role])
 (page/get-by-role pg role/button)
 
 ;; By role + name filter
@@ -1496,7 +1537,7 @@ spel codegen --format=body recording.jsonl
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
+| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` (from `spel.allure`), `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
 | `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
 | `:body` | Just action lines for pasting into existing code |
 
@@ -1555,6 +1596,8 @@ In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 ## CLI
 
 Wraps Playwright CLI commands via the `spel` native binary.
+
+> **Prefer `--eval` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e1`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel --eval '<clojure-code>'` or `spel --eval script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel --eval --stdin`.
 
 > **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
 
@@ -1790,7 +1833,7 @@ spel close
 
 ## Agent Scaffolding (init-agents)
 
-Scaffolds agent definitions for Playwright E2E testing into any consuming project. Equivalent to Playwright's `npx playwright init-agents --loop=<target>` but for the Clojure/Lazytest/spel stack.
+Scaffolds agent definitions for Playwright E2E testing into any consuming project. Equivalent to Playwright's `npx playwright init-agents --loop=<target>` but for the Clojure/spel stack.
 
 Supports three editor targets via `--loop`:
 
@@ -1819,7 +1862,7 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | File | Purpose |
 |------|---------|
 | `.opencode/agents/spel-test-planner.md` | Explores app, writes structured test plans to `test-e2e/specs/` |
-| `.opencode/agents/spel-test-generator.md` | Reads test plans, generates Clojure Lazytest code using spel |
+| `.opencode/agents/spel-test-generator.md` | Reads test plans, generates Clojure test code using spel and `spel.allure` |
 | `.opencode/agents/spel-test-healer.md` | Runs failing tests, diagnoses issues, applies fixes |
 | `.opencode/prompts/spel-test-workflow.md` | Orchestrator prompt: plan → generate → heal cycle |
 | `.opencode/skills/spel/SKILL.md` | Copy of this API reference skill (so agents work out-of-the-box) |
@@ -1857,7 +1900,7 @@ Three subagents work together in a plan → generate → heal loop:
 
 1. **@spel-test-planner** — Explores the app using `spel` CLI commands (e.g., `spel snapshot`) and inline Clojure scripts with spel. Catalogs pages/flows, writes structured test plans as markdown files in `test-e2e/specs/`. Uses `spel` skill for API reference.
 
-2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
+2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure test files using `spel.allure` (`defdescribe`/`it`/`expect`), `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
 
 3. **@spel-test-healer** — Runs tests via `clojure -M:test`, captures failures, uses `spel` CLI commands and inline scripts for investigation, diagnoses root causes (stale selectors, timing, missing setup), and applies targeted fixes. Loops until green.
 
@@ -1873,10 +1916,10 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 
 ## Testing Conventions
 
-- Framework: **Lazytest** (`defdescribe`, `describe`, `it`, `expect`)
-- Fixtures: **Lazytest `:context`** with shared `around` hooks from `test-fixtures`
+- Framework: **`spel.allure`** (`defdescribe`, `describe`, `it`, `expect`) — NOT `lazytest.core`
+- Fixtures: `:context` with shared `around` hooks from `com.blockether.spel.test-fixtures`
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators (all 16 Playwright enums are auto-available in `--eval` mode — see the Enums table in SCI Eval API Reference below)
+- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
 - Integration tests: Live against `example.com`
 
 ### Running Tests (Lazytest CLI)
@@ -1965,10 +2008,9 @@ All `*browser-context*` and `*browser-api*` bindings work the same as with the d
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.roles :as role]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
-  (:import
-   [com.microsoft.playwright.options AriaRole]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe my-test
   (describe "example.com"
@@ -3271,8 +3313,9 @@ Before the Allure workflow can deploy:
 | **Error type keywords** | `:playwright.error/timeout`, `:playwright.error/target-closed`, etc. |
 | **Exact string assertions** | Never use substring matching unless `contains-text` |
 | **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
-| **AriaRole import** | Always `(:import [com.microsoft.playwright.options AriaRole])` |
+| **Roles require** | Always `[com.blockether.spel.roles :as role]` in requires. Use `role/button`, `role/heading`, etc. |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
+| **Prefer `--eval` over CLI** | For multi-step browser automation, use `spel --eval '<code>'` or `spel --eval script.clj` instead of chaining standalone CLI commands. `--eval` gives full Clojure composition (loops, conditionals, variables, error handling) in a single browser session. Use standalone CLI commands only for quick one-off actions (e.g. `spel open`, `spel screenshot`). Pipe support: `echo '(code)' \| spel --eval --stdin` for LLM-generated scripts. |
 
 ---
 

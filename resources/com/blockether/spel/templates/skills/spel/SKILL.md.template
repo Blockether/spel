@@ -951,7 +951,7 @@ spel codegen --format=body recording.jsonl
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
+| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` (from `spel.allure`), `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
 | `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
 | `:body` | Just action lines for pasting into existing code |
 
@@ -1247,7 +1247,7 @@ spel close
 
 ## Agent Scaffolding (init-agents)
 
-Scaffolds agent definitions for Playwright E2E testing into any consuming project. Equivalent to Playwright's `npx playwright init-agents --loop=<target>` but for the Clojure/Lazytest/spel stack.
+Scaffolds agent definitions for Playwright E2E testing into any consuming project. Equivalent to Playwright's `npx playwright init-agents --loop=<target>` but for the Clojure/spel stack.
 
 Supports three editor targets via `--loop`:
 
@@ -1276,7 +1276,7 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | File | Purpose |
 |------|---------|
 | `.opencode/agents/spel-test-planner.md` | Explores app, writes structured test plans to `test-e2e/specs/` |
-| `.opencode/agents/spel-test-generator.md` | Reads test plans, generates Clojure Lazytest code using spel |
+| `.opencode/agents/spel-test-generator.md` | Reads test plans, generates Clojure test code using spel and `spel.allure` |
 | `.opencode/agents/spel-test-healer.md` | Runs failing tests, diagnoses issues, applies fixes |
 | `.opencode/prompts/spel-test-workflow.md` | Orchestrator prompt: plan → generate → heal cycle |
 | `.opencode/skills/spel/SKILL.md` | Copy of this API reference skill (so agents work out-of-the-box) |
@@ -1314,7 +1314,7 @@ Three subagents work together in a plan → generate → heal loop:
 
 1. **@spel-test-planner** — Explores the app using `spel` CLI commands (e.g., `spel snapshot`) and inline Clojure scripts with spel. Catalogs pages/flows, writes structured test plans as markdown files in `test-e2e/specs/`. Uses `spel` skill for API reference.
 
-2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
+2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure test files using `spel.allure` (`defdescribe`/`it`/`expect`), `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
 
 3. **@spel-test-healer** — Runs tests via `clojure -M:test`, captures failures, uses `spel` CLI commands and inline scripts for investigation, diagnoses root causes (stale selectors, timing, missing setup), and applies targeted fixes. Loops until green.
 
@@ -1330,8 +1330,8 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 
 ## Testing Conventions
 
-- Framework: **Lazytest** (`defdescribe`, `describe`, `it`, `expect`)
-- Fixtures: **Lazytest `:context`** with shared `around` hooks from `test-fixtures`
+- Framework: **`spel.allure`** (`defdescribe`, `describe`, `it`, `expect`) — NOT `lazytest.core`
+- Fixtures: `:context` with shared `around` hooks from `com.blockether.spel.test-fixtures`
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
 - Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
 - Integration tests: Live against `example.com`

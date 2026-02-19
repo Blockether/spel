@@ -833,12 +833,13 @@
       "Opens a headed browser with the Playwright Codegen recorder."
       "Interact with the page and actions are recorded to a file."
       "Defaults to --target=jsonl for use with `spel codegen` transform."
+      "When -o is omitted, auto-generates recording-<timestamp>.jsonl."
       ""
       "Usage:"
       "  spel codegen record [options] [url]"
       ""
       "Examples:"
-      "  spel codegen record https://example.com"
+      "  spel codegen record https://example.com                       # auto-saves to recording-YYYYMMDD-HHmmss.jsonl"
       "  spel codegen record -o recording.jsonl https://example.com"
       "  spel codegen record --target=java https://example.com"
       "  spel codegen record -b firefox https://example.com"
@@ -1836,10 +1837,16 @@
     (println (str/trim (str snapshot)))))
 
 (defn- print-result
-  "Pretty-prints a daemon response to the terminal."
+  "Pretty-prints a daemon response to the terminal.
+   Default mode: human-friendly strings and tables (never EDN).
+   JSON mode (--json): clean JSON of just the data (no envelope)."
   [response json-mode?]
   (if json-mode?
-    (println (json/write-json-str response :escape-slash false))
+    ;; --json: output just the data payload (success) or error object (failure)
+    (let [{:keys [success data error]} response]
+      (if success
+        (println (json/write-json-str data :escape-slash false))
+        (println (json/write-json-str {:error (or error "Unknown error")} :escape-slash false))))
     (let [{:keys [success data error]} response]
       (if success
         (cond
@@ -1933,13 +1940,19 @@
           (contains? data :value)
           (println (:value data))
 
-          ;; Evaluate
+          ;; Evaluate (JS eval result — can be any type)
           (contains? data :result)
-          (prn (:result data))
+          (let [r (:result data)]
+            (cond
+              (nil? r) nil ;; void JS expressions — no output
+              (or (map? r) (sequential? r))
+              (println (json/write-json-str r :escape-slash false))
+              :else (println r)))
 
-          ;; Storage
+          ;; Storage (localStorage/sessionStorage value or JSON entries)
           (contains? data :storage)
-          (prn (:storage data))
+          (when-some [s (:storage data)]
+            (println s))
 
           ;; Cookies
           (:cookies data)
@@ -1988,9 +2001,23 @@
           (:closed data)
           (println "Browser closed.")
 
-          ;; Fallback
+          ;; Fallback — human-friendly key: value output (never EDN)
           :else
-          (prn data))
+          (let [desc (:desc data)
+                data (dissoc data :desc)]
+            (doseq [[k v] data]
+              (let [suffix (when desc (str " — " desc))]
+                (cond
+                  ;; Boolean confirmations: "cookies cleared." / "headers set."
+                  (true? v)
+                  (println (str (str/replace (name k) "_" " ") "." suffix))
+                  ;; Nested maps/vectors: format as JSON
+                  (or (map? v) (sequential? v))
+                  (println (str (str/replace (name k) "_" " ") ": "
+                             (json/write-json-str v :escape-slash false) suffix))
+                  ;; Simple scalars
+                  :else
+                  (println (str (str/replace (name k) "_" " ") ": " v suffix)))))))
 
         ;; Error
         (binding [*out* *err*]

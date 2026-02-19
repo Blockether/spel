@@ -101,7 +101,7 @@ Each spec is a markdown file named `<feature>-test-plan.md`:
 ```markdown
 # <Feature> Test Plan
 
-**Seed:** `test/e2e/seed_test.clj`
+**Seed:** `test-e2e/<ns>/e2e/seed_test.clj`
 **Target URL:** `<url>`
 **Explored on:** <date>
 
@@ -150,5 +150,5 @@ Screenshots:
 
 1. **Planner** explores the app and creates specs here → `<feature>-test-plan.md`
 2. **User reviews and approves** the spec (GATE — do not proceed without approval)
-3. **Generator** reads specs and creates Lazytest code, verifying selectors against the live app
+3. **Generator** reads specs and creates test code using `spel.allure` (`defdescribe`, `it`, `expect`), verifying selectors against the live app
 4. **Healer** references specs when diagnosing failures to understand expected behavior
