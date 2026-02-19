@@ -9,7 +9,7 @@
   (let [v (System/getenv "VERSION")]
     (if (and v (.startsWith v "v"))
       (subs v 1)
-      (or v "0.0.1-SNAPSHOT"))))
+      (or v (str/trim (slurp "resources/SPEL_VERSION"))))))
 
 (def class-dir "target/classes")
 (def jar-file (format "target/%s.jar" (name lib)))

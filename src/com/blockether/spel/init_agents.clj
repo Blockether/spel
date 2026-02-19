@@ -28,6 +28,14 @@
   "Base path for template resources on classpath."
   "com/blockether/spel/templates/")
 
+(def ^:private spel-version
+  "Reads the version string from the SPEL_VERSION resource file.
+   This file is the single source of truth for the spel version."
+  (delay
+    (-> (io/resource "SPEL_VERSION")
+      slurp
+      str/trim)))
+
 (def ^:private loop-targets
   "Configuration for each supported agent loop target.
    Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
@@ -405,7 +413,7 @@
   (println "  2. Add the :e2e alias to your deps.edn:")
   (println "")
   (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
-  (println "           :extra-deps {com.blockether/spel {:mvn/version \"0.0.1-SNAPSHOT\"}}")
+  (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
   (println "           :main-opts [\"-m\" \"lazytest.main\"]}")
   (println "")
   (println "  3. Run the E2E tests:")
@@ -438,9 +446,9 @@
       (let [loop-target (:loop opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
-                          (println "         Tip: use --ns my-app to set namespace explicitly.")
-                          (println "")
-                          (derive-namespace)))
+                        (println "         Tip: use --ns my-app to set namespace explicitly.")
+                        (println "")
+                        (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
         (print-banner loop-target)

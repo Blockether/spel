@@ -4,7 +4,8 @@
       {"pattern": "META-INF/.*"},
       {"pattern": "com/blockether/spel/templates/.*"},
       {"pattern": "trace-viewer/.*"},
-      {"pattern": "clj-kondo.exports/.*"}
+      {"pattern": "clj-kondo.exports/.*"},
+      {"pattern": "SPEL_VERSION"}
     ]
   }
 }

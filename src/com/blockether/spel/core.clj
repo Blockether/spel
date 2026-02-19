@@ -494,6 +494,31 @@
   [^BrowserContext context]
   (vec (.cookies context)))
 
+(defn context-storage-state
+  "Returns the storage state (cookies, localStorage) as a JSON string.
+
+   Params:
+   `context` - BrowserContext instance.
+
+   Returns:
+   JSON string containing cookies and origins with localStorage."
+  [^BrowserContext context]
+  (.storageState context))
+
+(defn context-save-storage-state!
+  "Saves the storage state (cookies, localStorage) to a file.
+
+   Params:
+   `context` - BrowserContext instance.
+   `path`    - String. File path to save the JSON state to.
+
+   Returns:
+   The storage state JSON string."
+  [^BrowserContext context ^String path]
+  (.storageState context
+    (doto (com.microsoft.playwright.BrowserContext$StorageStateOptions.)
+      (.setPath (java.nio.file.Paths/get path (into-array String []))))))
+
 (defn context-set-offline!
   "Sets the context to offline or online mode.
    

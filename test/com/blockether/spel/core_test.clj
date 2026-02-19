@@ -1,5 +1,6 @@
 (ns com.blockether.spel.core-test
   (:require
+   [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as sut]
    [com.blockether.spel.test-fixtures :as tf :refer [*pw* *browser* with-playwright with-browser]]
@@ -105,7 +106,32 @@
     {:context [with-playwright with-browser]}
     (it "returns empty list for new context"
       (sut/with-context [ctx (sut/new-context *browser*)]
-        (expect (empty? (sut/context-pages ctx)))))))
+        (expect (empty? (sut/context-pages ctx))))))
+
+  (describe "context-storage-state"
+    {:context [with-playwright with-browser]}
+    (it "returns storage state as JSON string"
+      (sut/with-context [ctx (sut/new-context *browser*)]
+        (let [state (sut/context-storage-state ctx)]
+          (expect (string? state))
+          (expect (str/includes? state "cookies"))
+          (expect (str/includes? state "origins"))))))
+
+  (describe "context-save-storage-state!"
+    {:context [with-playwright with-browser]}
+    (it "saves storage state to a file"
+      (sut/with-context [ctx (sut/new-context *browser*)]
+        (let [tmp-file (java.io.File/createTempFile "spel-storage" ".json")
+              path     (.getAbsolutePath tmp-file)]
+          (try
+            (sut/context-save-storage-state! ctx path)
+            (expect (.exists tmp-file))
+            (expect (pos? (.length tmp-file)))
+            (let [content (slurp tmp-file)]
+              (expect (str/includes? content "cookies"))
+              (expect (str/includes? content "origins")))
+            (finally
+              (.delete tmp-file))))))))
 
 ;; =============================================================================
 ;; Page Creation

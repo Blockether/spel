@@ -45,6 +45,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `context-clear-permissions!` | [context] | Clears all granted permissions. |
 | `context-cookies` | [context] | Returns all cookies in the context. |
+| `context-save-storage-state!` | [context path] | Saves storage state (cookies, localStorage) to a JSON file. |
+| `context-storage-state` | [context] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `context-pages` | [context] | Returns all pages in a context. |
 | `context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |
@@ -1038,6 +1040,8 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (core/context-clear-permissions! ctx)
 (core/context-cookies ctx)
 (core/context-clear-cookies! ctx)
+(core/context-storage-state ctx)                          ;; => JSON string
+(core/context-save-storage-state! ctx "state.json")       ;; saves to file
 (core/context-set-offline! ctx true)
 (core/context-set-extra-http-headers! ctx {"X-Test" "value"})
 (core/context-set-default-timeout! ctx 30000)
@@ -2224,6 +2228,8 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
 | `spel/context-cookies` | [] | Returns all cookies in the context. |
+| `spel/context-save-storage-state!` | [path] | Saves storage state (cookies, localStorage) to a JSON file. |
+| `spel/context-storage-state` | [] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `spel/context-grant-permissions!` | [perms] | Grants permissions to the context. |
 | `spel/context-set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests in the context. |
 | `spel/context-set-offline!` | [offline] | Sets the context to offline or online mode. |
@@ -2555,6 +2561,8 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `core/context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `core/context-clear-permissions!` | [context] | Clears all granted permissions. |
 | `core/context-cookies` | [context] | Returns all cookies in the context. |
+| `core/context-save-storage-state!` | [context path] | Saves storage state (cookies, localStorage) to a JSON file. |
+| `core/context-storage-state` | [context] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `core/context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `core/context-pages` | [context] | Returns all pages in a context. |
 | `core/context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |

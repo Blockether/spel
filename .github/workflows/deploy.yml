@@ -95,10 +95,21 @@ jobs:
             echo "[$CURRENT_TAG]: https://github.com/Blockether/spel/releases/tag/${CURRENT_TAG}" >> CHANGELOG.md
           fi
 
+      - name: Bump SPEL_VERSION to next patch
+        run: |
+          CURRENT="${GITHUB_REF_NAME#v}"
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+          echo "$NEXT_VERSION" > resources/SPEL_VERSION
+          echo "Bumped SPEL_VERSION to $NEXT_VERSION"
+
       - name: Commit version updates
         run: |
           git config user.name "blockether-deployer"
           git config user.email "contact@blockether.com"
-          git add README.md CHANGELOG.md
-          git commit -m "release: update README and CHANGELOG for ${{ github.ref_name }}" || echo "No changes to commit"
+          git add README.md CHANGELOG.md resources/SPEL_VERSION
+          git commit -m "release: update version files for ${{ github.ref_name }}, bump to next dev version" || echo "No changes to commit"
           git push origin HEAD:main

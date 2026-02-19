@@ -172,21 +172,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -579,6 +579,8 @@
   [] (require-browser!))
 (defn sci-context-cookies          [] (core/context-cookies (require-context!)))
 (defn sci-context-clear-cookies!   [] (core/context-clear-cookies! (require-context!)))
+(defn sci-context-storage-state    [] (core/context-storage-state (require-context!)))
+(defn sci-context-save-storage-state! [path] (core/context-save-storage-state! (require-context!) path))
 (defn sci-context-set-offline!     [offline] (core/context-set-offline! (require-context!) offline))
 (defn sci-context-grant-permissions! [perms] (core/context-grant-permissions! (require-context!) perms))
 (defn sci-context-clear-permissions! [] (core/context-clear-permissions! (require-context!)))
@@ -910,6 +912,8 @@
                   ['browser      sci-browser]
                   ['context-cookies          sci-context-cookies]
                   ['context-clear-cookies!   sci-context-clear-cookies!]
+                  ['context-storage-state    sci-context-storage-state]
+                  ['context-save-storage-state! sci-context-save-storage-state!]
                   ['context-set-offline!     sci-context-set-offline!]
                   ['context-grant-permissions!  sci-context-grant-permissions!]
                   ['context-clear-permissions!  sci-context-clear-permissions!]
@@ -1179,6 +1183,8 @@
                     ['new-page-from-context core/new-page-from-context]
                     ['context-cookies          core/context-cookies]
                     ['context-clear-cookies!   core/context-clear-cookies!]
+                    ['context-storage-state    core/context-storage-state]
+                    ['context-save-storage-state! core/context-save-storage-state!]
                     ['context-set-offline!     core/context-set-offline!]
                     ['context-grant-permissions!  core/context-grant-permissions!]
                     ['context-clear-permissions!  core/context-clear-permissions!]

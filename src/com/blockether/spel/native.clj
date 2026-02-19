@@ -18,6 +18,7 @@
      spel install                     # Install Playwright browsers
      spel --help                      # Show help"
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -226,8 +227,16 @@
   (println "  spel cookies")
   (println "  spel --session agent1 open site.com"))
 
+(defn- spel-version
+  "Reads the version string from the SPEL_VERSION resource file.
+   This file is the single source of truth for the spel version."
+  []
+  (-> (clojure.java.io/resource "SPEL_VERSION")
+    slurp
+    str/trim))
+
 (defn- print-version []
-  (println "spel 0.1.0"))
+  (println (str "spel " (spel-version))))
 
 (defn- driver-cli-path
   "Returns the path to the Playwright Node.js CLI entry point.
