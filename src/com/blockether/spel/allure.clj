@@ -363,15 +363,34 @@
 ;; Steps
 ;; =============================================================================
 
+(defn- resolve-source-file
+  "Resolve a classpath-relative file path (e.g. \"com/blockether/spel/smoke_test.clj\")
+   to a project-relative path (e.g. \"test/com/blockether/spel/smoke_test.clj\") by
+   checking directories listed in PLAYWRIGHT_JAVA_SRC. Falls back to the original
+   path when the file cannot be found in any source directory."
+  ^String [^String classpath-file]
+  (let [src-dirs (str/split (or (System/getenv "PLAYWRIGHT_JAVA_SRC") "src:test:dev")
+                   #"[;:]")]
+    (or (some (fn [dir]
+                (let [full (str dir "/" classpath-file)]
+                  (when (.exists (File. full))
+                    full)))
+          src-dirs)
+      classpath-file)))
+
 (defn- make-group-options
   "Build a Tracing$GroupOptions with source location when loc-map is
-   provided. Returns nil when no location is available."
+   provided. Resolves the classpath-relative file path against
+   PLAYWRIGHT_JAVA_SRC directories so the Trace Viewer can find the
+   source content in the captured trace. Returns nil when no location
+   is available."
   ^Tracing$GroupOptions [loc-map]
   (when-let [{:keys [file line]} loc-map]
     (when (and file line)
-      (doto (Tracing$GroupOptions.)
-        (.setLocation (doto (Location. (str file))
-                        (.setLine (int line))))))))
+      (let [resolved (resolve-source-file (str file))]
+        (doto (Tracing$GroupOptions.)
+          (.setLocation (doto (Location. resolved)
+                          (.setLine (int line)))))))))
 
 (defn step*
   "Internal function backing the `step` macro. Prefer the macro.
