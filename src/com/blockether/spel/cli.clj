@@ -1725,11 +1725,17 @@
 
 (defn- restart-daemon!
   "Restarts the daemon by closing the existing one first.
-   Sends close command, waits for the old process to exit, then cleans up files."
+   Sends close command, waits for the old process to exit, then cleans up files.
+   If an active trace was running, the daemon auto-saves it before shutdown."
   [session]
   (let [old-pid (read-pid session)]
     ;; Send graceful close (5s timeout — just asking daemon to exit)
-    (try (send-command! session {:action "close"} 5000)
+    ;; The daemon auto-saves any in-flight trace during shutdown.
+    (try
+      (let [resp (send-command! session {:action "close"} 5000)]
+        (when-let [tw (get-in resp ["data" "trace-warning"])]
+          (binding [*out* *err*]
+            (println (str "spel: " tw)))))
       (catch Exception e (binding [*out* *err*] (println (str "warn: close-command: " (.getMessage e))))))
     ;; Wait for old process to actually die (up to 10s)
     (when old-pid

@@ -33,6 +33,7 @@
    [java.util Base64]))
 
 (declare stop-daemon!)
+(declare save-inflight-trace!)
 
 (defn- warn
   "Logs a warning to stderr. Used in cleanup paths where we must continue
@@ -81,7 +82,8 @@
          :refs     {}
          :counter  0
          :headless true
-         :session  "default"}))
+         :session  "default"
+         :tracing? false}))
 
 (defonce ^:private !server (atom nil))
 (defonce ^:private !console-messages (atom []))
@@ -169,12 +171,14 @@
       (let [state-path (session-state-path sn)]
         (when (Files/exists (Path/of state-path (into-array String []))
                 (into-array java.nio.file.LinkOption []))
-          ;; Close current page and context, re-create with saved state
+          ;; Save in-flight trace before destroying context
+          (save-inflight-trace!)
+           ;; Close current page and context, re-create with saved state
           (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
           (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
           (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})
                 new-pg  (core/new-page-from-context new-ctx)]
-            (swap! !state assoc :context new-ctx :page new-pg)
+            (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
             ;; Re-register console, error, and request listeners on new page
             (page/on-console new-pg (fn [msg]
                                       (swap! !console-messages conj
@@ -765,6 +769,8 @@
         preset      (get device-presets device-name)]
     (if preset
       (let [current-url (try (page/url (pg)) (catch Exception _ nil))]
+        ;; Save in-flight trace before destroying context
+        (save-inflight-trace!)
         ;; Close current page and context, recreate with device settings
         (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
@@ -773,7 +779,7 @@
                           (dissoc :width :height)
                           (assoc :viewport {:width (:width preset) :height (:height preset)})))
               new-pg  (core/new-page-from-context new-ctx)]
-          (swap! !state assoc :context new-ctx :page new-pg)
+          (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
           ;; Re-register console, error, and request listeners on new page
           (reset! !console-messages [])
           (page/on-console new-pg (fn [msg]
@@ -801,12 +807,14 @@
 (defmethod handle-cmd "set_credentials" [_ {:strs [username password]}]
   ;; HTTP credentials require recreating the context
   (let [current-url (try (page/url (pg)) (catch Exception _ nil))]
+    ;; Save in-flight trace before destroying context
+    (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
     (let [new-ctx (core/new-context (:browser @!state)
                     {:http-credentials {:username username :password password}})
           new-pg  (core/new-page-from-context new-ctx)]
-      (swap! !state assoc :context new-ctx :page new-pg)
+      (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
       ;; Re-register console, error, and request listeners on new page
       (reset! !console-messages [])
       (page/on-console new-pg (fn [msg]
@@ -954,11 +962,13 @@
   (util/tracing-start! (util/context-tracing (ctx))
     (cond-> {:screenshots true :snapshots true}
       name (assoc :name name)))
+  (swap! !state assoc :tracing? true)
   {:trace "started" :name name})
 
 (defmethod handle-cmd "trace_stop" [_ {:strs [path]}]
   (let [out-path (or path "trace.zip")]
     (util/tracing-stop! (util/context-tracing (ctx)) {:path out-path})
+    (swap! !state assoc :tracing? false)
     {:trace "stopped" :path out-path}))
 
 (defmethod handle-cmd "console_get" [_ {:strs [clear]}]
@@ -1004,6 +1014,8 @@
 (defmethod handle-cmd "state_load" [_ {:strs [path]}]
   (let [state-path (or path (str "state-" (:session @!state) ".json"))
         current-url (try (page/url (pg)) (catch Exception _ nil))]
+    ;; Save in-flight trace before destroying context
+    (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
     (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})]
@@ -1014,8 +1026,8 @@
             (do (.close ^BrowserContext new-ctx)
               {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
-              (swap! !state assoc :context new-ctx :page new-pg)
-              ;; Re-register console, error, and request listeners on new page
+              (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
+               ;; Re-register console, error, and request listeners on new page
               (reset! !console-messages [])
               (page/on-console new-pg (fn [msg]
                                         (swap! !console-messages conj
@@ -1093,6 +1105,7 @@
 (defmethod handle-cmd "session_info" [_ _]
   {:session    (:session @!state)
    :headless   (:headless @!state)
+   :tracing    (:tracing? @!state)
    :url        (try (page/url (pg)) (catch Exception _ nil))
    :title      (try (page/title (pg)) (catch Exception _ nil))
    :refs_count (:counter @!state)})
@@ -1171,7 +1184,9 @@
 (defmethod handle-cmd "close" [_ _]
   ;; Auto-save session state if --session-name is set
   (auto-save-session-state!)
-  {:closed true :shutdown true})
+  ;; Note: in-flight trace is saved by stop-daemon! (called after this returns)
+  (cond-> {:closed true :shutdown true}
+    (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))
 
 (defmethod handle-cmd :default [action _]
   {:error (str "Unknown action: " action)})
@@ -1297,6 +1312,23 @@
         (= (str/trim (String. (Files/readAllBytes pid-path))) (my-pid))
         (catch Exception _ false)))))
 
+(defn- save-inflight-trace!
+  "If tracing is active, stops the trace and saves it to an auto-generated path.
+   Logs a warning to stderr so the user knows where the trace file went.
+   Called during daemon shutdown to avoid losing in-flight traces."
+  []
+  (when (:tracing? @!state)
+    (when-let [c (:context @!state)]
+      (let [out-path (str "trace-autosave-" (System/currentTimeMillis) ".zip")]
+        (try
+          (util/tracing-stop! (util/context-tracing c) {:path out-path})
+          (swap! !state assoc :tracing? false)
+          (binding [*out* *err*]
+            (println (str "spel: trace auto-saved to " out-path " (daemon shutting down)")))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: failed to auto-save trace: " (.getMessage e))))))))))
+
 (defn stop-daemon!
   "Stops the daemon server and cleans up browser resources.
    Closes server socket first so new CLI invocations fail fast and start
@@ -1308,18 +1340,21 @@
     (when-let [server @!server]
       (try (.close ^ServerSocketChannel server) (catch Exception e (warn "close-server" e)))
       (reset! !server nil))
-    ;; 2. Close browser resources (may take seconds — Chromium shutdown)
+    ;; 2. Save in-flight trace before closing browser resources
+    (save-inflight-trace!)
+    ;; 3. Close browser resources (may take seconds — Chromium shutdown)
     (when-let [p  (:page @!state)]    (try (core/close-page! p)    (catch Exception e (warn "close-page" e))))
     (when-let [c  (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
     (when-let [b  (:browser @!state)] (try (core/close-browser! b) (catch Exception e (warn "close-browser" e))))
     (when-let [pw (:pw @!state)]      (try (core/close! pw)        (catch Exception e (warn "close-playwright" e))))
-    ;; 3. Only delete files if they still belong to US (a new daemon may
+    ;; 4. Only delete files if they still belong to US (a new daemon may
     ;;    have already replaced them during our slow browser cleanup)
     (when (owns-pid-file? session)
       (cleanup! session))
-    ;; 4. Reset state and exit
+    ;; 5. Reset state and exit
     (reset! !state {:pw nil :browser nil :context nil :page nil
-                    :refs {} :counter 0 :headless true :session session})
+                    :refs {} :counter 0 :headless true :session session
+                    :tracing? false})
     (System/exit 0)))
 
 (defn start-daemon!
