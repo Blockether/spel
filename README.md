@@ -813,13 +813,13 @@ Record browser sessions and transform to idiomatic Clojure code.
 ### Recording
 
 ```bash
-# Record to JSONL file
-spel codegen --target=jsonl -o recording.jsonl https://example.com
+# Record browser session (opens interactive Playwright Codegen recorder)
+spel codegen record -o recording.jsonl https://example.com
 
 # Transform JSONL to Clojure test
-spel codegen transform recording.jsonl > my_test.clj
-spel codegen transform --format=script recording.jsonl
-spel codegen transform --format=body recording.jsonl
+spel codegen recording.jsonl > my_test.clj
+spel codegen --format=script recording.jsonl
+spel codegen --format=body recording.jsonl
 ```
 
 ### Library API

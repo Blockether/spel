@@ -867,20 +867,21 @@ Trace and HAR files are automatically attached to test results (MIME type `appli
 
 ---
 
-## Codegen - JSONL to Clojure
+## Codegen - Record & Transform
 
-Transforms Playwright `codegen --target=jsonl` recordings into idiomatic Clojure.
+Record browser sessions and transform to idiomatic Clojure.
 
 ### Workflow
 
 ```bash
-# 1. Record interactions (opens browser, saves to recording.jsonl)
-spel codegen --target=jsonl -o recording.jsonl https://example.com
+# 1. Record browser session (opens interactive Playwright Codegen recorder)
+# Defaults to --target=jsonl for the spel transform pipeline
+spel codegen record -o recording.jsonl https://example.com
 
 # 2. Transform JSONL to Clojure test
-spel codegen transform recording.jsonl > my_test.clj
-spel codegen transform --format=script recording.jsonl
-spel codegen transform --format=body recording.jsonl
+spel codegen recording.jsonl > my_test.clj
+spel codegen --format=script recording.jsonl
+spel codegen --format=body recording.jsonl
 ```
 
 ### Formats

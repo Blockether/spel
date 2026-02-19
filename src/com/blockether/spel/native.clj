@@ -205,6 +205,7 @@
   (println "")
   (println "Tools:")
   (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
+  (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
   (println "")
   (println "Utility:")
@@ -432,7 +433,21 @@
       (apply init-agents/-main (rest cmd-args))
 
       (= "codegen" first-arg)
-      (apply codegen/-main (rest cmd-args))
+      (let [sub-args (rest cmd-args)]
+        (if (= "record" (first sub-args))
+          ;; Launch Playwright's interactive codegen recorder
+          (let [record-args (vec (rest sub-args))]
+            (if (some #{"--help" "-h"} record-args)
+              (println (get cli/command-help "codegen-record"))
+              (let [has-target? (some #(or (str/starts-with? % "--target")
+                                         (= "-t" %)) record-args)
+                    final-args (if has-target?
+                                 record-args
+                                 (into ["--target=jsonl"] record-args))]
+                (driver/ensure-driver!)
+                (run-playwright-cmd! (into ["codegen"] final-args)))))
+          ;; Existing transform behavior
+          (apply codegen/-main sub-args)))
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
@@ -440,13 +455,19 @@
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)
-      (do (driver/ensure-driver!)
-        (run-playwright-cmd! (into ["open"] (rest cmd-args))))
+      (let [rest-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} rest-args)
+          (println (get cli/command-help "inspector"))
+          (do (driver/ensure-driver!)
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
-      (do (driver/ensure-driver!)
-        (run-playwright-cmd! (into ["show-trace"] (rest cmd-args))))
+      (let [rest-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} rest-args)
+          (println (get cli/command-help "show-trace"))
+          (do (driver/ensure-driver!)
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!

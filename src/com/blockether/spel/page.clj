@@ -721,6 +721,54 @@
     (.unroute page ^java.util.regex.Pattern pattern)
     (.unroute page ^String (str pattern))))
 
+(defn route-from-har!
+  "Routes requests from a HAR file. Replays recorded responses for matching requests.
+
+   Use with :update true to record actual responses into the HAR for later replay.
+
+   Params:
+   `page` - Page instance.
+   `har`  - String. Path to the HAR file.
+   `opts` - Map, optional. RouteFromHAR options:
+            :url            - String glob or regex Pattern. Only intercept matching URLs.
+            :not-found      - Keyword. :abort or :fallback.
+            :update         - Boolean. Whether to update HAR with actual network data.
+            :update-content - Keyword. :embed or :attach.
+            :update-mode    - Keyword. :full or :minimal."
+  ([^Page page ^String har]
+   (safe (.routeFromHAR page (java.nio.file.Paths/get har (into-array String [])))))
+  ([^Page page ^String har route-opts]
+   (safe (.routeFromHAR page
+           (java.nio.file.Paths/get har (into-array String []))
+           (opts/->page-route-from-har-options route-opts)))))
+
+(defn route-web-socket!
+  "Registers a handler for WebSocket connections matching a URL pattern.
+
+   The handler receives a WebSocketRoute that can be used to mock the
+   WebSocket connection (send messages, intercept client messages, etc.).
+
+   Params:
+   `page`    - Page instance.
+   `pattern` - String glob, regex Pattern, or predicate fn.
+   `handler` - Function that receives a WebSocketRoute."
+  [^Page page pattern handler]
+  (let [consumer (reify java.util.function.Consumer
+                   (accept [_ wsr] (handler wsr)))]
+    (cond
+      (instance? java.util.regex.Pattern pattern)
+      (.routeWebSocket page ^java.util.regex.Pattern pattern consumer)
+
+      (string? pattern)
+      (.routeWebSocket page ^String pattern consumer)
+
+      :else
+      (.routeWebSocket page
+        ^java.util.function.Predicate
+        (reify java.util.function.Predicate
+          (test [_ v] (boolean (pattern v))))
+        consumer))))
+
 ;; =============================================================================
 ;; Misc
 ;; =============================================================================

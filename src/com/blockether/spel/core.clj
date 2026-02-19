@@ -512,6 +512,56 @@
   [^BrowserContext context headers]
   (.setExtraHTTPHeaders context ^java.util.Map headers))
 
+(defn context-route-from-har!
+  "Routes requests in the context from a HAR file. Replays recorded responses
+   for matching requests.
+
+   Use with :update true to record actual responses into the HAR for later replay.
+
+   Params:
+   `context` - BrowserContext instance.
+   `har`     - String. Path to the HAR file.
+   `opts`    - Map, optional. RouteFromHAR options:
+               :url            - String glob or regex Pattern.
+               :not-found      - Keyword. :abort or :fallback.
+               :update         - Boolean. Whether to update HAR with actual network data.
+               :update-content - Keyword. :embed or :attach.
+               :update-mode    - Keyword. :full or :minimal."
+  ([^BrowserContext context ^String har]
+   (safe (.routeFromHAR context (java.nio.file.Paths/get har (into-array String [])))))
+  ([^BrowserContext context ^String har route-opts]
+   (safe (.routeFromHAR context
+           (java.nio.file.Paths/get har (into-array String []))
+           (opts/->context-route-from-har-options route-opts)))))
+
+(defn context-route-web-socket!
+  "Registers a handler for WebSocket connections matching a URL pattern
+   in the browser context (applies to all pages in this context).
+
+   The handler receives a WebSocketRoute that can be used to mock the
+   WebSocket connection (send messages, intercept client messages, etc.).
+
+   Params:
+   `context` - BrowserContext instance.
+   `pattern` - String glob, regex Pattern, or predicate fn.
+   `handler` - Function that receives a WebSocketRoute."
+  [^BrowserContext context pattern handler]
+  (let [consumer (reify java.util.function.Consumer
+                   (accept [_ wsr] (handler wsr)))]
+    (cond
+      (instance? java.util.regex.Pattern pattern)
+      (.routeWebSocket context ^java.util.regex.Pattern pattern consumer)
+
+      (string? pattern)
+      (.routeWebSocket context ^String pattern consumer)
+
+      :else
+      (.routeWebSocket context
+        ^java.util.function.Predicate
+        (reify java.util.function.Predicate
+          (test [_ v] (boolean (pattern v))))
+        consumer))))
+
 ;; =============================================================================
 ;; Page Operations
 ;; =============================================================================

@@ -171,21 +171,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -544,6 +544,11 @@
 
 (defn sci-route!   [pattern handler] (page/route! (require-page!) pattern handler))
 (defn sci-unroute! [pattern]         (page/unroute! (require-page!) pattern))
+(defn sci-route-from-har!
+  ([har]      (throw-if-anomaly (page/route-from-har! (require-page!) har)))
+  ([har opts] (throw-if-anomaly (page/route-from-har! (require-page!) har opts))))
+(defn sci-route-web-socket! [pattern handler]
+  (page/route-web-socket! (require-page!) pattern handler))
 
 ;; =============================================================================
 ;; Page Accessors
@@ -577,6 +582,11 @@
 (defn sci-context-grant-permissions! [perms] (core/context-grant-permissions! (require-context!) perms))
 (defn sci-context-clear-permissions! [] (core/context-clear-permissions! (require-context!)))
 (defn sci-context-set-extra-http-headers! [headers] (core/context-set-extra-http-headers! (require-context!) headers))
+(defn sci-context-route-from-har!
+  ([har]      (throw-if-anomaly (core/context-route-from-har! (require-context!) har)))
+  ([har opts] (throw-if-anomaly (core/context-route-from-har! (require-context!) har opts))))
+(defn sci-context-route-web-socket! [pattern handler]
+  (core/context-route-web-socket! (require-context!) pattern handler))
 (defn sci-browser-connected? [] (core/browser-connected? (require-browser!)))
 (defn sci-browser-version    [] (core/browser-version (require-browser!)))
 
@@ -849,6 +859,8 @@
                   ;; Routing
                   ['route!       sci-route!]
                   ['unroute!     sci-unroute!]
+                  ['route-from-har!    sci-route-from-har!]
+                  ['route-web-socket!  sci-route-web-socket!]
                   ;; Page accessors
                   ['page         sci-page]
                   ['keyboard     sci-keyboard]
@@ -868,6 +880,8 @@
                   ['context-grant-permissions!  sci-context-grant-permissions!]
                   ['context-clear-permissions!  sci-context-clear-permissions!]
                   ['context-set-extra-http-headers! sci-context-set-extra-http-headers!]
+                  ['context-route-from-har!    sci-context-route-from-har!]
+                  ['context-route-web-socket!  sci-context-route-web-socket!]
                   ['browser-connected? sci-browser-connected?]
                   ['browser-version    sci-browser-version]
                   ;; Network
@@ -1131,7 +1145,9 @@
                     ['context-clear-permissions!  core/context-clear-permissions!]
                     ['context-set-extra-http-headers! core/context-set-extra-http-headers!]
                     ['context-set-default-timeout!           core/context-set-default-timeout!]
-                    ['context-set-default-navigation-timeout! core/context-set-default-navigation-timeout!]])]
+                    ['context-set-default-navigation-timeout! core/context-set-default-navigation-timeout!]
+                    ['context-route-from-har!   core/context-route-from-har!]
+                    ['context-route-web-socket!  core/context-route-web-socket!]])]
 
     (sci/init
       {:namespaces {'spel     pw-map

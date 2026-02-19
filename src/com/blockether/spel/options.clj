@@ -9,11 +9,13 @@
     BrowserType$LaunchPersistentContextOptions
     Browser$NewContextOptions Browser$NewPageOptions
     BrowserContext$StorageStateOptions
+    BrowserContext$RouteFromHAROptions
     Page$NavigateOptions Page$ScreenshotOptions Page$PdfOptions
     Page$WaitForSelectorOptions Page$GoBackOptions Page$GoForwardOptions
     Page$ReloadOptions Page$SetContentOptions Page$AddScriptTagOptions
     Page$AddStyleTagOptions Page$EmulateMediaOptions
     Page$WaitForFunctionOptions Page$WaitForURLOptions
+    Page$RouteFromHAROptions
     Locator$ClickOptions Locator$DblclickOptions Locator$FillOptions
     Locator$HoverOptions Locator$TypeOptions Locator$PressOptions
     Locator$CheckOptions Locator$UncheckOptions Locator$SelectOptionOptions
@@ -47,7 +49,9 @@
     Page$WaitForDownloadOptions Page$WaitForFileChooserOptions
     Page$GetByRoleOptions]
    [com.microsoft.playwright.options
-    Cookie HarContentPolicy HarMode Proxy ScreenSize ViewportSize
+    Cookie HarContentPolicy HarMode HarNotFound Proxy
+    RouteFromHarUpdateContentPolicy
+    ScreenSize ViewportSize
     WaitForSelectorState WaitUntilState MouseButton]
    [java.nio.file Path Paths]))
 
@@ -665,6 +669,82 @@
     (when-let [v (:path opts)]
       (.setPath so (->path v)))
     so))
+
+;; =============================================================================
+;; RouteFromHAR Options
+;; =============================================================================
+
+(defn ->page-route-from-har-options
+  "Converts a map to Page$RouteFromHAROptions.
+
+   Params:
+   `opts` - Map with optional keys:
+     :url            - String glob or regex Pattern. Only intercept matching URLs.
+     :not-found      - Keyword. :abort or :fallback (default). What to do when
+                       no match is found in the HAR file.
+     :update         - Boolean. Whether to update the HAR with actual network data.
+     :update-content - Keyword. :embed or :attach. Content storage policy on update.
+     :update-mode    - Keyword. :full or :minimal. HAR recording mode on update.
+
+   Returns:
+   Page$RouteFromHAROptions instance."
+  ^Page$RouteFromHAROptions [opts]
+  (let [^Page$RouteFromHAROptions o (Page$RouteFromHAROptions.)]
+    (when-let [v (:url opts)]
+      (if (instance? java.util.regex.Pattern v)
+        (.setUrl o ^java.util.regex.Pattern v)
+        (.setUrl o ^String (str v))))
+    (when-let [v (:not-found opts)]
+      (.setNotFound o (case v
+                        :abort    HarNotFound/ABORT
+                        :fallback HarNotFound/FALLBACK)))
+    (when (contains? opts :update)
+      (.setUpdate o (boolean (:update opts))))
+    (when-let [v (:update-content opts)]
+      (.setUpdateContent o (case v
+                             :embed  RouteFromHarUpdateContentPolicy/EMBED
+                             :attach RouteFromHarUpdateContentPolicy/ATTACH)))
+    (when-let [v (:update-mode opts)]
+      (.setUpdateMode o (case v
+                          :full    HarMode/FULL
+                          :minimal HarMode/MINIMAL)))
+    o))
+
+(defn ->context-route-from-har-options
+  "Converts a map to BrowserContext$RouteFromHAROptions.
+
+   Params:
+   `opts` - Map with optional keys:
+     :url            - String glob or regex Pattern. Only intercept matching URLs.
+     :not-found      - Keyword. :abort or :fallback (default). What to do when
+                       no match is found in the HAR file.
+     :update         - Boolean. Whether to update the HAR with actual network data.
+     :update-content - Keyword. :embed or :attach. Content storage policy on update.
+     :update-mode    - Keyword. :full or :minimal. HAR recording mode on update.
+
+   Returns:
+   BrowserContext$RouteFromHAROptions instance."
+  ^BrowserContext$RouteFromHAROptions [opts]
+  (let [^BrowserContext$RouteFromHAROptions o (BrowserContext$RouteFromHAROptions.)]
+    (when-let [v (:url opts)]
+      (if (instance? java.util.regex.Pattern v)
+        (.setUrl o ^java.util.regex.Pattern v)
+        (.setUrl o ^String (str v))))
+    (when-let [v (:not-found opts)]
+      (.setNotFound o (case v
+                        :abort    HarNotFound/ABORT
+                        :fallback HarNotFound/FALLBACK)))
+    (when (contains? opts :update)
+      (.setUpdate o (boolean (:update opts))))
+    (when-let [v (:update-content opts)]
+      (.setUpdateContent o (case v
+                             :embed  RouteFromHarUpdateContentPolicy/EMBED
+                             :attach RouteFromHarUpdateContentPolicy/ATTACH)))
+    (when-let [v (:update-mode opts)]
+      (.setUpdateMode o (case v
+                          :full    HarMode/FULL
+                          :minimal HarMode/MINIMAL)))
+    o))
 
 ;; =============================================================================
 ;; Page Wait Options
