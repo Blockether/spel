@@ -62,7 +62,7 @@
 (defn uberjar
   "Builds an uberjar for native-image compilation.
 
-   The uberjar includes all dependencies (Playwright, SCI, data.json)
+   The uberjar includes all dependencies (Playwright, SCI, charred)
    and the graal-build-time library for automatic class initialization.
 
    Usage: clojure -T:build uberjar"

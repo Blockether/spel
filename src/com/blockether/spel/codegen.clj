@@ -27,13 +27,13 @@
    causes an IMMEDIATE hard error with details about what failed."
   (:refer-clojure :exclude [format])
   (:require
-   [clojure.data.json :as json]
+   [charred.api :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]))
 
 (defn- parse-json
   [^String s]
-  (json/read-str s :key-fn keyword))
+  (json/read-json s :key-fn keyword))
 
 ;; =============================================================================
 ;; Error Handling - HARD ERRORS

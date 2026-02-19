@@ -58,8 +58,8 @@
    (binding [api/*json-encoder* cheshire.core/generate-string]
      (api/api-post ctx \"/users\" {:json {:name \"Alice\"}}))
 
-   ;; data.json
-   (binding [api/*json-encoder* clojure.data.json/write-str]
+   ;; charred
+   (binding [api/*json-encoder* charred.api/write-json-str]
      (api/api-post ctx \"/users\" {:json {:name \"Alice\"}}))
 
    ;; jsonista
@@ -712,9 +712,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-              (catch Exception e
-                (binding [*out* *err*]
-                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+           (catch Exception e
+             (binding [*out* *err*]
+               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry

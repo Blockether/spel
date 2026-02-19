@@ -4,7 +4,7 @@
  {com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
   com.blockether/anomaly              {:mvn/version "1.0.1"}
   org.babashka/sci                    {:mvn/version "0.8.43"}
-  org.clojure/data.json               {:mvn/version "2.5.1"}
+  com.cnuernber/charred                {:mvn/version "1.038"}
   io.github.noahtheduke/lazytest      {:mvn/version "1.9.1"}}
 
  :aliases
@@ -21,7 +21,7 @@
                         com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
                         com.blockether/anomaly              {:mvn/version "1.0.1"}
                         org.babashka/sci                    {:mvn/version "0.8.43"}
-                        org.clojure/data.json               {:mvn/version "2.5.1"}}
+                        com.cnuernber/charred                {:mvn/version "1.038"}}
            :ns-default build}
 
   :e2e    {:extra-paths ["test-e2e"]

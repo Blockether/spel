@@ -48,7 +48,12 @@ Use **clojure-lsp diagnostics** (not the `clj-kondo` CLI) for all lint checks. T
 
 ## Regenerating After Template Changes
 
-After editing any template in `resources/com/blockether/spel/templates/`:
+**Trigger: ANY of these files changed → MUST regenerate:**
+- Any template in `resources/com/blockether/spel/templates/`
+- `src/com/blockether/spel/sci_env.clj` — adding/removing namespaces or functions from the SCI eval environment means the SKILL docs are stale (they reference what's available in `--eval` mode)
+- `src/com/blockether/spel/gen_docs.clj` — the auto-generated API tables in SKILL come from here
+
+After editing any of the above:
 
 ```bash
 # 1. Rebuild the native binary (templates are baked into the JAR/binary)

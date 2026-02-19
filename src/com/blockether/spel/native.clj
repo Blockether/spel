@@ -436,10 +436,10 @@
               (println result-str)))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (binding [*out* *err*]
-                (println (str "Error: " (or (get-in response [:data :error])
-                                          (:error response)
-                                          "Unknown error")))))))
+            (binding [*out* *err*]
+              (println (str "Error: " (or (get-in response [:data :error])
+                                        (:error response)
+                                        "Unknown error")))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]
@@ -485,17 +485,36 @@
               (println (get cli/command-help "codegen-record"))
               (let [has-target? (some #(or (str/starts-with? % "--target")
                                          (= "-t" %)) record-args)
-                    final-args (if has-target?
-                                 record-args
-                                 (into ["--target=jsonl"] record-args))]
+                    has-output? (some #(or (str/starts-with? % "--output")
+                                         (str/starts-with? % "-o")) record-args)
+                    ;; Default to jsonl target if not specified
+                    args-with-target (if has-target?
+                                       record-args
+                                       (into ["--target=jsonl"] record-args))
+                    ;; Auto-generate output file if not specified
+                    output-file (when-not has-output?
+                                  (let [ts (-> (java.time.LocalDateTime/now)
+                                             (.format (java.time.format.DateTimeFormatter/ofPattern
+                                                        "yyyyMMdd-HHmmss")))]
+                                    (str "recording-" ts ".jsonl")))
+                    final-args (if has-output?
+                                 args-with-target
+                                 (into [(str "-o" output-file)] args-with-target))]
+                (when output-file
+                  (println (str "Recording to: " output-file))
+                  (flush))
                 (driver/ensure-driver!)
-                (run-playwright-cmd! (into ["codegen"] final-args)))))
+                (run-playwright-cmd! (into ["codegen"] final-args))
+                (when (and output-file (.exists (io/file output-file)))
+                  (println (str "\nRecording saved to: " output-file))
+                  (println (str "Transform with: spel codegen " output-file))
+                  (flush)))))
           ;; Existing transform behavior
           (apply codegen/-main sub-args)))
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)
@@ -503,7 +522,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "inspector"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["open"] rest-args)))))
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
@@ -511,7 +530,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -527,8 +546,8 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))]
-            (daemon/start-daemon! opts)))
+        (let [opts (parse-daemon-args (rest cmd-args))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       ;; Supports both inline code and .clj file paths:
@@ -544,7 +563,7 @@
             (run-eval! code global))
           (do (binding [*out* *err*]
                 (println "Error: --eval requires a code argument or .clj file path"))
-              (System/exit 1))))
+            (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
       (let [code-or-file (subs first-arg 7)
@@ -557,5 +576,5 @@
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))

@@ -28,6 +28,7 @@
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
+   [com.blockether.spel.markdown :as markdown]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.frame :as frame]
@@ -169,21 +170,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1437,7 +1438,15 @@
                      ['tooltip          roles/tooltip]
                      ['tree             roles/tree]
                      ['treegrid         roles/treegrid]
-                     ['treeitem         roles/treeitem]])]
+                     ['treeitem         roles/treeitem]])
+
+        ;; =================================================================
+        ;; markdown/ — Markdown table parsing and generation
+        ;; =================================================================
+        md-ns  (sci/create-ns 'markdown nil)
+        md-map (make-ns-map md-ns
+                 [['from-markdown-table markdown/from-markdown-table]
+                  ['to-markdown-table   markdown/to-markdown-table]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1459,7 +1468,10 @@
                     'com.blockether.spel.page       page-raw-map
                     'com.blockether.spel.locator    locator-raw-map
                     'com.blockether.spel.assertions assert-ns-map
-                    'com.blockether.spel.roles      roles-map}
+                    'com.blockether.spel.roles      roles-map
+                     ;; Utility namespaces
+                    'markdown                            md-map
+                    'com.blockether.spel.markdown        md-map}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

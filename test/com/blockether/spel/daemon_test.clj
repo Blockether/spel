@@ -4,7 +4,7 @@
    Unit tests for path functions, protocol parsing, and lifecycle checks.
    No browser or socket connections required."
   (:require
-   [clojure.data.json :as json]
+   [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.spel.daemon :as sut]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
@@ -76,28 +76,28 @@
 
   (describe "invalid JSON input"
     (it "returns error response for garbage input"
-      (let [response (json/read-str (#'sut/process-command "not valid json"))]
+      (let [response (json/read-json (#'sut/process-command "not valid json"))]
         (expect (false? (get response "success")))
         (expect (str/includes? (get response "error") "Parse error"))))
 
     (it "returns error response for empty string"
-      (let [response (json/read-str (#'sut/process-command ""))]
+      (let [response (json/read-json (#'sut/process-command ""))]
         (expect (false? (get response "success"))))))
 
   (describe "unknown action"
     (it "returns success with error message for unknown action"
-      (let [response (json/read-str
+      (let [response (json/read-json
                        (#'sut/process-command
-                        (json/write-str {"action" "nonexistent_action"})))]
+                        (json/write-json-str {"action" "nonexistent_action"})))]
         (expect (true? (get response "success")))
         (expect (str/includes? (get-in response ["data" "error"])
                   "Unknown action")))))
 
   (describe "close action"
     (it "returns shutdown flag"
-      (let [response (json/read-str
+      (let [response (json/read-json
                        (#'sut/process-command
-                        (json/write-str {"action" "close"})))]
+                        (json/write-json-str {"action" "close"})))]
         (expect (true? (get response "success")))
         (expect (true? (get-in response ["data" "closed"])))
         (expect (true? (get-in response ["data" "shutdown"])))))))
@@ -161,9 +161,9 @@
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
                             :refs {} :counter 0 :headless true :session "test"
                             :launch-flags {}})
-        (let [cmd-str (json/write-str {"action" "close"
-                                       "_flags" {"user-agent" "TestAgent"
-                                                 "proxy" "http://proxy:8080"}})
+        (let [cmd-str (json/write-json-str {"action" "close"
+                                            "_flags" {"user-agent" "TestAgent"
+                                                      "proxy" "http://proxy:8080"}})
               _       (#'sut/process-command cmd-str)
               flags   (get @state-atom :launch-flags)]
           ;; After processing, flags should be merged
