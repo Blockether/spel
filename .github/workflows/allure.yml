@@ -71,6 +71,7 @@ jobs:
       - name: Run tests with Allure reporter
         env:
           LAZYTEST_ALLURE_REPORT_NAME: "#${{ github.run_number }} · ${{ github.sha }} · ${{ github.event.head_commit.message }}"
+          LAZYTEST_ALLURE_LOGO: logo.svg
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 

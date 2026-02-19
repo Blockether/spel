@@ -642,6 +642,13 @@
   (or (System/getProperty "lazytest.allure.report-name")
     (System/getenv "LAZYTEST_ALLURE_REPORT_NAME")))
 
+(defn- report-logo
+  ^String []
+  (let [path (or (System/getProperty "lazytest.allure.logo")
+               (System/getenv "LAZYTEST_ALLURE_LOGO"))]
+    (when (and path (.isFile (io/file path)))
+      path)))
+
 (defn- generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
    available), embed the local trace viewer, and patch the report JS.
@@ -665,7 +672,9 @@
                           (.isFile history)
                           (into ["-h" (.getAbsolutePath history)])
                           (report-name)
-                          (into ["--name" (report-name)]))
+                          (into ["--name" (report-name)])
+                          (report-logo)
+                          (into ["--logo" (report-logo)]))
                 exit    (long (run-proc! cmd))]
             (if (zero? exit)
               (do
