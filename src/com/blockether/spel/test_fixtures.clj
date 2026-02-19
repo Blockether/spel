@@ -171,28 +171,20 @@
           (when (instance? com.microsoft.playwright.Browser browser)
             (core/close-browser! browser)))))))
 
-(def with-page
-  "Around hook: creates and closes a page.
-
-   Requires *browser* to be bound (use with with-browser).
-   Binds the Page instance to *page* and allure/*page* (for automatic
-   step screenshots).
-
-   When the Allure reporter is active, automatically enables Playwright
-   tracing (screenshots + DOM snapshots + sources) and HAR recording.
-   Also binds *browser-context* and *browser-api* so API calls made
-   through *browser-api* appear in the Playwright trace.
-   The Allure reporter picks up the trace and HAR files and attaches
-   them to the test result — zero configuration needed in tests."
-  (around [f]
+(defn- make-page-around-fn
+  "Creates the around function for a page hook with optional context-opts.
+   Returns a 1-arg function (fn [f] ...) that Lazytest uses via clojure.test/join-fixtures."
+  [context-opts]
+  (fn page-around [f]
     (if (allure/reporter-active?)
             ;; Auto-trace: create context with HAR + tracing, then page
       (let [trace-file (File/createTempFile "pw-trace-" ".zip")
             har-file   (File/createTempFile "pw-har-" ".har")
             ctx        (ensure!
                          (core/new-context *browser*
-                           {:record-har-path (str har-file)
-                            :record-har-mode :full}))
+                           (merge context-opts
+                             {:record-har-path (str har-file)
+                              :record-har-mode :full})))
             tracing    (.tracing ^com.microsoft.playwright.BrowserContext ctx)]
         (.start tracing (doto (Tracing$StartOptions.)
                           (.setScreenshots true)
@@ -222,7 +214,7 @@
                         (.start))]
                 (.join t 5000))))))
             ;; Normal mode: plain page, no tracing overhead
-      (let [ctx  (ensure! (core/new-context *browser*))
+      (let [ctx  (ensure! (core/new-context *browser* (or context-opts {})))
             page (core/new-page-from-context ctx)]
         (try
           (binding [*page*            page
@@ -235,35 +227,54 @@
               (core/close-page! page))
             (try (core/close-context! ctx) (catch Exception _))))))))
 
-(def with-traced-page
-  "Around hook: creates a BrowserContext with HAR recording and Playwright
-   tracing enabled, then creates a page from that context.
+(def with-page
+  "Around hook: creates and closes a page (default — no context opts).
 
    Requires *browser* to be bound (use with with-browser).
-   Binds:
-     *page*             — the Page instance
-     allure/*page*      — for automatic step screenshots
-     allure/*trace-path* — where the trace zip will be written
-     allure/*har-path*   — where the HAR file will be written
+   Binds the Page instance to *page* and allure/*page* (for automatic
+   step screenshots).
 
-    On teardown:
-      1. Closes page (removes page-level activity)
-      2. Stops tracing (writes trace.zip, decrements tracingCount)
-      3. Closes context on a daemon thread with a 5s timeout (writes HAR).
-        BrowserContextImpl.close() can hang on harExport(NO_TIMEOUT)
-        when tracing was active on the same context. The daemon thread
-        approach means: if it completes in time, HAR is written; if it
-        hangs, the process exits normally and browser.close() cleans up.
+   When the Allure reporter is active, automatically enables Playwright
+   tracing (screenshots + DOM snapshots + sources) and HAR recording.
+   Also binds *browser-context* and *browser-api* so API calls made
+   through *browser-api* appear in the Playwright trace.
+   The Allure reporter picks up the trace and HAR files and attaches
+   them to the test result — zero configuration needed in tests.
 
-   The Allure reporter picks up *trace-path* and *har-path* and attaches
-   them to the test result automatically."
+   To pass context-opts (viewport, locale, etc.), use `with-page-opts` instead."
   (around [f]
+    ((make-page-around-fn nil) f)))
+
+(defn with-page-opts
+  "Like `with-page` but accepts context-opts for the BrowserContext.
+
+   Returns a Lazytest around hook that creates a BrowserContext with the
+   given opts merged in, then creates a page from that context.
+
+   Context opts support all Browser$NewContextOptions keys:
+     `:locale`, `:viewport`, `:color-scheme`, `:storage-state`,
+     `:user-agent`, `:timezone-id`, `:permissions`, etc.
+
+   Usage:
+     {:context [with-playwright with-browser (with-page-opts {:locale \"fr-FR\"
+                                                               :viewport {:width 375 :height 812}})]}
+
+   HAR recording opts are set automatically when the Allure reporter is active."
+  [context-opts]
+  {:around (make-page-around-fn context-opts)})
+
+(defn- make-traced-page-around-fn
+  "Creates the around function for a traced-page hook with optional context-opts.
+   Returns a 1-arg function (fn [f] ...) that Lazytest uses via clojure.test/join-fixtures."
+  [context-opts]
+  (fn traced-page-around [f]
     (let [trace-file (File/createTempFile "pw-trace-" ".zip")
           har-file   (File/createTempFile "pw-har-" ".har")
           ctx        (ensure!
                        (core/new-context *browser*
-                         {:record-har-path        (str har-file)
-                          :record-har-mode        :full}))
+                         (merge context-opts
+                           {:record-har-path (str har-file)
+                            :record-har-mode :full})))
           tracing    (.tracing ^com.microsoft.playwright.BrowserContext ctx)]
             ;; Start tracing with screenshots + DOM snapshots + sources
       (.start tracing (doto (Tracing$StartOptions.)
@@ -301,6 +312,51 @@
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
+
+(def with-traced-page
+  "Around hook: creates a BrowserContext with HAR recording and Playwright
+   tracing enabled, then creates a page from that context (default — no context opts).
+
+   Requires *browser* to be bound (use with with-browser).
+   Binds:
+     *page*             — the Page instance
+     allure/*page*      — for automatic step screenshots
+     allure/*trace-path* — where the trace zip will be written
+     allure/*har-path*   — where the HAR file will be written
+
+    On teardown:
+      1. Closes page (removes page-level activity)
+      2. Stops tracing (writes trace.zip, decrements tracingCount)
+      3. Closes context on a daemon thread with a 5s timeout (writes HAR).
+
+   The Allure reporter picks up *trace-path* and *har-path* and attaches
+   them to the test result automatically.
+
+   To pass context-opts (viewport, locale, etc.), use `with-traced-page-opts` instead."
+  (around [f]
+    ((make-traced-page-around-fn nil) f)))
+
+(defn with-traced-page-opts
+  "Like `with-traced-page` but accepts context-opts for the BrowserContext.
+
+   Returns a Lazytest around hook that creates a BrowserContext with the
+   given opts merged in, HAR recording, and Playwright tracing enabled.
+
+   Context opts support all Browser$NewContextOptions keys:
+     `:locale`, `:viewport`, `:color-scheme`, `:storage-state`,
+     `:user-agent`, `:timezone-id`, `:permissions`, etc.
+
+   HAR recording opts (`:record-har-path`, `:record-har-mode`) are always
+   set by this hook — user opts are merged first, then HAR opts overlay.
+
+   Usage:
+     {:context [with-playwright with-browser (with-traced-page-opts {:locale \"fr-FR\"
+                                                                      :viewport {:width 375 :height 812}})]}
+
+   The Allure reporter picks up *trace-path* and *har-path* and attaches
+   them to the test result automatically."
+  [context-opts]
+  {:around (make-traced-page-around-fn context-opts)})
 
 (def with-api-tracing
   "Around hook: creates a BrowserContext with Playwright tracing

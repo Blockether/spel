@@ -66,10 +66,9 @@ The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.roles :as role]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
-  (:import
-   [com.microsoft.playwright.options AriaRole]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe feature-test
   (describe "Scenario Group"
@@ -80,7 +79,7 @@ The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
       (page/navigate *page* "http://localhost:8080")
 
       ;; 2. Click the submit button
-      (locator/click (page/get-by-role *page* AriaRole/BUTTON))
+      (locator/click (page/get-by-role *page* role/button))
 
       ;; 3. Assert expected text
       (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome"))))))
@@ -119,7 +118,7 @@ Use `before-each` to set up page state (e.g. navigate) shared by multiple `it` b
 - **`assert-that` first**: ALWAYS wrap locator/page with `(assert/assert-that ...)` before passing to assertion functions.
 - **`(expect (nil? ...))` for assertions**: Playwright assertions return `nil` on success. ALWAYS wrap in `(expect (nil? (assert/has-text ...)))` inside `it` blocks.
 - **Exact string assertions**: ALWAYS use exact text matching with `assert/has-text`. NEVER use substring.
-- **AriaRole import**: Always `(:import [com.microsoft.playwright.options AriaRole])` for role-based locators.
+- **Roles require**: Always `[com.blockether.spel.roles :as role]` in requires. Use `role/button`, `role/heading`, etc.
 - **Comments before steps**: Include a comment with the step description before each action. Do not duplicate comments if a step requires multiple actions.
 - **One scenario per `it` block**: Each scenario is a separate `it`. The fixture gives each one a fresh page automatically.
 - **Locator patterns**: Use `page/get-by-text`, `page/get-by-role`, `page/get-by-label`, `page/locator` (CSS). Filter roles with `locator/loc-filter`.

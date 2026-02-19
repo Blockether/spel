@@ -190,11 +190,11 @@
    "treeitem" "TREEITEM"})
 
 (defn- role->enum
-  "Converts a role string to AriaRole/ENUM code. Dies if unknown."
+  "Converts a role string to role/name code. Dies if unknown."
   [role-str action]
   (let [normalized (str/lower-case (str role-str))]
     (if-let [enum-name (role-map normalized)]
-      (str "AriaRole/" enum-name)
+      (str "role/" (str/lower-case enum-name))
       (die! (clojure.core/format "Unknown ARIA role '%s'. Not in AriaRole enum." role-str) action))))
 
 (defn- parse-internal-selector
@@ -535,10 +535,8 @@
       "   [com.blockether.spel.core :as core]\n"
       "   [com.blockether.spel.locator :as locator]\n"
       "   [com.blockether.spel.page :as page]\n"
-      "   [lazytest.core :refer [defdescribe it expect]])\n"
-      "  (:import\n"
-      "   [com.microsoft.playwright Page]\n"
-      "   [com.microsoft.playwright.options AriaRole]))\n"
+      "   [com.blockether.spel.roles :as role]\n"
+      "   [com.blockether.spel.allure :refer [defdescribe it expect]]))\n"
       "\n"
       "(defdescribe generated-test\n"
       "  (it \"recorded test\"\n"
@@ -570,8 +568,7 @@
       "(require '[com.blockether.spel.core :as core])\n"
       "(require '[com.blockether.spel.locator :as locator])\n"
       "(require '[com.blockether.spel.page :as page])\n"
-      "(import '[com.microsoft.playwright Page])\n"
-      "(import '[com.microsoft.playwright.options AriaRole])\n"
+      "(require '[com.blockether.spel.roles :as role])\n"
       "\n"
       "(core/with-playwright [pw]\n"
       (clojure.core/format

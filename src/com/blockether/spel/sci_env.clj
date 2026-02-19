@@ -35,6 +35,7 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.roles :as roles]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.util :as util])
   (:import
@@ -168,21 +169,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-      (reset! !browser nil) (reset! !pw nil)
-      :stopped)
+        (reset! !browser nil) (reset! !pw nil)
+        :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-          (catch Exception e
-            (binding [*out* *err*]
-              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+             (catch Exception e
+               (binding [*out* *err*]
+                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-          (catch Exception e
-            (binding [*out* *err*]
-              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+             (catch Exception e
+               (binding [*out* *err*]
+                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1348,7 +1349,95 @@
                            ['screenshot     locator/locator-screenshot]
                            ['highlight      locator/highlight]
                            ['element-handle  locator/element-handle]
-                           ['element-handles locator/element-handles]])]
+                           ['element-handles locator/element-handles]])
+
+        ;; =================================================================
+        ;; role/ — Clojure vars wrapping AriaRole enum values
+        ;; =================================================================
+        roles-ns  (sci/create-ns 'role nil)
+        roles-map (make-ns-map roles-ns
+                    [['alert            roles/alert]
+                     ['alertdialog      roles/alertdialog]
+                     ['application      roles/application]
+                     ['article          roles/article]
+                     ['banner           roles/banner]
+                     ['blockquote       roles/blockquote]
+                     ['button           roles/button]
+                     ['caption          roles/caption]
+                     ['cell             roles/cell]
+                     ['checkbox         roles/checkbox]
+                     ['code             roles/code]
+                     ['columnheader     roles/columnheader]
+                     ['combobox         roles/combobox]
+                     ['complementary    roles/complementary]
+                     ['contentinfo      roles/contentinfo]
+                     ['definition       roles/definition]
+                     ['deletion         roles/deletion]
+                     ['dialog           roles/dialog]
+                     ['directory        roles/directory]
+                     ['document         roles/document]
+                     ['emphasis         roles/emphasis]
+                     ['feed             roles/feed]
+                     ['figure           roles/figure]
+                     ['form             roles/form]
+                     ['generic          roles/generic]
+                     ['grid             roles/grid]
+                     ['gridcell         roles/gridcell]
+                     ['group            roles/group]
+                     ['heading          roles/heading]
+                     ['img              roles/img]
+                     ['insertion        roles/insertion]
+                     ['link             roles/link]
+                     ['list             roles/list]
+                     ['listbox          roles/listbox]
+                     ['listitem         roles/listitem]
+                     ['log              roles/log]
+                     ['main             roles/main]
+                     ['marquee          roles/marquee]
+                     ['math             roles/math]
+                     ['meter            roles/meter]
+                     ['menu             roles/menu]
+                     ['menubar          roles/menubar]
+                     ['menuitem         roles/menuitem]
+                     ['menuitemcheckbox roles/menuitemcheckbox]
+                     ['menuitemradio    roles/menuitemradio]
+                     ['navigation       roles/navigation]
+                     ['none             roles/none]
+                     ['note             roles/note]
+                     ['option           roles/option]
+                     ['paragraph        roles/paragraph]
+                     ['presentation     roles/presentation]
+                     ['progressbar      roles/progressbar]
+                     ['radio            roles/radio]
+                     ['radiogroup       roles/radiogroup]
+                     ['region           roles/region]
+                     ['row              roles/row]
+                     ['rowgroup         roles/rowgroup]
+                     ['rowheader        roles/rowheader]
+                     ['scrollbar        roles/scrollbar]
+                     ['search           roles/search]
+                     ['searchbox        roles/searchbox]
+                     ['separator        roles/separator]
+                     ['slider           roles/slider]
+                     ['spinbutton       roles/spinbutton]
+                     ['status           roles/status]
+                     ['strong           roles/strong]
+                     ['subscript        roles/subscript]
+                     ['superscript      roles/superscript]
+                     ['switch           roles/switch]
+                     ['tab              roles/tab]
+                     ['table            roles/table]
+                     ['tablist          roles/tablist]
+                     ['tabpanel         roles/tabpanel]
+                     ['term             roles/term]
+                     ['textbox          roles/textbox]
+                     ['time             roles/time]
+                     ['timer            roles/timer]
+                     ['toolbar          roles/toolbar]
+                     ['tooltip          roles/tooltip]
+                     ['tree             roles/tree]
+                     ['treegrid         roles/treegrid]
+                     ['treeitem         roles/treeitem]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1361,6 +1450,7 @@
                     'loc      loc-map
                     'assert   assert-ns-map
                     'core     core-map
+                    'role     roles-map
                     ;; Raw namespaces for codegen script compat
                     'page     page-raw-map
                     'locator  locator-raw-map
@@ -1368,7 +1458,8 @@
                     'com.blockether.spel.core       core-map
                     'com.blockether.spel.page       page-raw-map
                     'com.blockether.spel.locator    locator-raw-map
-                    'com.blockether.spel.assertions assert-ns-map}
+                    'com.blockether.spel.assertions assert-ns-map
+                    'com.blockether.spel.roles      roles-map}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

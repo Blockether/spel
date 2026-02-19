@@ -626,13 +626,13 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 (page/get-by-text pg "Click me")
 
 ;; By role (requires AriaRole import)
-(page/get-by-role pg AriaRole/BUTTON)
+(page/get-by-role pg role/button)
 
 ;; By role + name filter
-(page/get-by-role pg AriaRole/LINK {:name "Learn more"})
+(page/get-by-role pg role/link {:name "Learn more"})
 
 ;; By role + exact name match
-(page/get-by-role pg AriaRole/BUTTON {:name "Submit" :exact true})
+(page/get-by-role pg role/button {:name "Submit" :exact true})
 
 ;; By label
 (page/get-by-label pg "Email")
@@ -680,7 +680,7 @@ Error: strict mode violation: locator("h1") resolved to 4 elements
 (spel/text "h1.display-1")  ;; SCI/eval equivalent
 
 ;; RIGHT — use semantic locators (role + name filter)
-(locator/text-content (page/get-by-role pg AriaRole/HEADING {:name "Installation"}))
+(locator/text-content (page/get-by-role pg role/heading {:name "Installation"}))
 
 ;; RIGHT — use nth-element for a specific match
 (locator/text-content (locator/nth-element (page/locator pg "h1") 0))
@@ -737,7 +737,7 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
   (assert/contains-class la "active")
   (assert/has-css la "color" "rgb(0, 0, 0)")
   (assert/has-id la "content")
-  (assert/has-role la AriaRole/NAVIGATION)
+  (assert/has-role la role/navigation)
   (assert/has-count la 5)
   (assert/has-js-property la "dataset.ready" "true")
   (assert/has-accessible-name la "Submit")
@@ -831,7 +831,7 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (let [f (first (page/frames pg))]
   (frame/frame-locator f "button")
   (frame/frame-get-by-text f "Click me")
-  (frame/frame-get-by-role f AriaRole/BUTTON)
+  (frame/frame-get-by-role f role/button)
   (frame/frame-get-by-label f "Email")
   (frame/frame-evaluate f "document.title"))
 
@@ -839,7 +839,7 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (let [fl (frame/frame-locator-obj pg "iframe")]
   (frame/fl-locator fl "button")
   (frame/fl-get-by-text fl "Submit")
-  (frame/fl-get-by-role fl AriaRole/LINK)
+  (frame/fl-get-by-role fl role/link)
   (frame/fl-get-by-label fl "Password")
   (frame/fl-first fl)
   (frame/fl-last fl)
@@ -1924,11 +1924,38 @@ The project provides shared `around` hooks in `com.blockether.spel.test-fixtures
 | `with-browser` | `*browser*` | Shared headless Chromium browser |
 | `with-traced-page` | `*page*` | **Default.** Fresh page per `it` block with tracing/HAR always enabled (auto-cleanup) |
 | `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, tracing only when Allure is active) |
+| `with-traced-page-opts` | `*page*` | Like `with-traced-page` but accepts context-opts map |
+| `with-page-opts` | `*page*` | Like `with-page` but accepts context-opts map |
 | `with-test-server` | `*test-server-url*` | Local HTTP test server |
 
 **Always use `with-traced-page` as the default** — it enables Playwright tracing and HAR capture on every test run, so traces are always available for debugging. Use `with-page` only if you explicitly want tracing disabled outside Allure.
 
 Use `{:context [with-playwright with-browser with-traced-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
+
+#### Custom Context Options
+
+To pass `Browser$NewContextOptions` (viewport, locale, color-scheme, storage-state, user-agent, etc.) use `with-page-opts` or `with-traced-page-opts`:
+
+```clojure
+;; Mobile viewport with French locale
+(describe "mobile view"
+  {:context [with-playwright with-browser
+             (with-traced-page-opts {:viewport {:width 375 :height 812}
+                                     :locale "fr-FR"})]}
+  (it "renders mobile layout"
+    (page/navigate *page* "https://example.com")
+    (expect (= "fr-FR" (page/evaluate *page* "navigator.language")))))
+
+;; Load saved auth state
+(describe "authenticated tests"
+  {:context [with-playwright with-browser
+             (with-page-opts {:storage-state "auth.json"})]}
+  (it "is logged in"
+    (page/navigate *page* "https://app.example.com/dashboard")
+    (expect (nil? (assert/has-url (assert/assert-that *page*) "dashboard")))))
+```
+
+All `*browser-context*` and `*browser-api*` bindings work the same as with the default fixtures.
 
 ### Test Example
 

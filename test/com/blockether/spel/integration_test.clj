@@ -13,8 +13,10 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*pw* *browser* *page*
-                                              with-browser with-page with-playwright]]
+   [com.blockether.spel.test-fixtures :refer [*pw* *browser* *page* *browser-context*
+                                              with-browser with-page with-page-opts
+                                              with-traced-page with-traced-page-opts
+                                              with-playwright]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright BrowserContext Locator Response]))
@@ -486,3 +488,61 @@
         (expect (instance? Response resp))
         (expect (= 200 (net/response-status resp)))
         (expect (= "Example Domain" (page/title *page*)))))))
+
+;; =============================================================================
+;; with-page / with-traced-page context-opts
+;; =============================================================================
+
+(defdescribe fixture-context-opts-test
+  "Tests that with-page and with-traced-page accept context-opts"
+
+  (describe "with-page-opts accepts context-opts"
+    {:context [with-playwright with-browser (with-page-opts {:viewport {:width 375 :height 812}})]}
+
+    (it "applies viewport from context-opts"
+      (page/navigate *page* "https://example.com")
+      (let [size (page/viewport-size *page*)]
+        (expect (= 375 (:width size)))
+        (expect (= 812 (:height size)))))
+
+    (it "binds *browser-context*"
+      (expect (instance? BrowserContext *browser-context*))))
+
+  (describe "with-page without opts still works"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "creates a page with default viewport"
+      (page/navigate *page* "https://example.com")
+      (let [size (page/viewport-size *page*)]
+        (expect (pos? (:width size)))
+        (expect (pos? (:height size))))))
+
+  (describe "with-traced-page-opts accepts context-opts"
+    {:context [with-playwright with-browser (with-traced-page-opts {:viewport {:width 320 :height 568}})]}
+
+    (it "applies viewport from context-opts"
+      (page/navigate *page* "https://example.com")
+      (let [size (page/viewport-size *page*)]
+        (expect (= 320 (:width size)))
+        (expect (= 568 (:height size)))))
+
+    (it "binds *browser-context*"
+      (expect (instance? BrowserContext *browser-context*))))
+
+  (describe "with-traced-page without opts still works"
+    {:context [with-playwright with-browser with-traced-page]}
+
+    (it "creates a page with default viewport"
+      (page/navigate *page* "https://example.com")
+      (let [size (page/viewport-size *page*)]
+        (expect (pos? (:width size)))
+        (expect (pos? (:height size))))))
+
+  (describe "with-page-opts locale context-opt"
+    {:context [with-playwright with-browser (with-page-opts {:locale "fr-FR"})]}
+
+    (it "applies locale to the context"
+      (page/navigate *page* "https://example.com")
+      ;; Verify locale was set by checking navigator.language via JS eval
+      (let [lang (page/evaluate *page* "navigator.language")]
+        (expect (= "fr-FR" lang))))))
