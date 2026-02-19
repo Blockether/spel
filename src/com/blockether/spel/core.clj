@@ -99,7 +99,7 @@
   "Auto-detects Clojure source directories that exist in the working directory.
    Returns a platform-separated path string (e.g. \"src:test:dev\") or nil."
   []
-  (let [candidates ["src" "test" "dev"]
+  (let [candidates ["src" "test" "test-e2e" "dev"]
         existing   (filterv #(.isDirectory (File. ^String %)) candidates)]
     (when (seq existing)
       (String/join ^CharSequence File/pathSeparator ^Iterable existing))))
@@ -107,7 +107,7 @@
 (defn create
   "Creates a new Playwright instance.
 
-   Automatically detects Clojure source directories (src, test, dev) and
+   Automatically detects Clojure source directories (src, test, test-e2e, dev) and
    configures Playwright tracing to include .clj source files. When a trace
    is captured with {:sources true}, the Trace Viewer Source tab will show
    the actual Clojure source code for each action.
