@@ -122,6 +122,7 @@ jobs:
           COMMIT_TS: ${{ github.event.head_commit.timestamp }}
           TEST_PASSED: ${{ steps.tests.outcome == 'success' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -163,14 +164,15 @@ jobs:
                   pass
           passed = os.environ.get('TEST_PASSED', 'false') == 'true'
           repo_url = os.environ.get('REPO_URL', '')
-          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url}
+          run_url = os.environ.get('RUN_URL', '')
+          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url}
           dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
           pruned = {k: v for k, v in meta.items() if k in dirs}
           json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
           builds = []
           for d in dirs:
               entry = pruned.get(d, {})
-              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', '')})
+              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', '')})
           json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
           print(f'Generated builds.json with {len(builds)} entries')
           "
