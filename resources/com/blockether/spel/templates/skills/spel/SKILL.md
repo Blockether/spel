@@ -1515,6 +1515,30 @@ spel open URL                       # Open browser
 spel screenshot URL                 # Take screenshot
 ```
 
+#### Corporate Proxy / Custom CA Certificates
+
+Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
+
+| Env Var | Format | On missing file | Description |
+|---------|--------|----------------|-------------|
+| `SPEL_CA_BUNDLE` | PEM file | Error | Extra CA certs (merged with defaults) |
+| `NODE_EXTRA_CA_CERTS` | PEM file | Warning, skips | Shared with Node.js subprocess |
+| `SPEL_TRUSTSTORE` | JKS/PKCS12 | Error | Truststore (merged with defaults) |
+| `SPEL_TRUSTSTORE_TYPE` | String | — | Default: JKS |
+| `SPEL_TRUSTSTORE_PASSWORD` | String | — | Default: empty |
+
+```bash
+# Simplest — PEM file with corporate CA
+export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
+spel install --with-deps
+
+# Or reuse Node.js var — covers both driver + browser downloads
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+spel install --with-deps
+```
+
+All options merge with built-in defaults — public CDN certs continue to work.
+
 ### Playwright Tools
 
 Launch Playwright's built-in visual tools directly from `spel`:

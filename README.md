@@ -131,6 +131,41 @@ spel install
 spel version
 ```
 
+#### Corporate Proxy / Custom CA Certificates
+
+If you're behind a corporate SSL-inspecting proxy, `spel install` may fail with *"PKIX path building failed"* because the native binary uses certificates baked at build time. Set one of these environment variables to add your corporate CA:
+
+```bash
+# PEM file with corporate CA cert(s) — simplest option
+export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
+
+# Or reuse Node.js env var — covers both driver + browser downloads
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+
+# Or use a JKS/PKCS12 truststore
+export SPEL_TRUSTSTORE=/path/to/truststore.jks
+export SPEL_TRUSTSTORE_PASSWORD=changeit    # optional
+export SPEL_TRUSTSTORE_TYPE=JKS             # optional, default: JKS
+```
+
+| Env Var | Format | Behavior on missing file |
+|---------|--------|-------------------------|
+| `SPEL_CA_BUNDLE` | PEM file | Error (explicit config) |
+| `NODE_EXTRA_CA_CERTS` | PEM file | Warning, continues with defaults |
+| `SPEL_TRUSTSTORE` | JKS/PKCS12 | Error (explicit config) |
+
+All options **merge** with the built-in default certificates — public CDN certs continue to work alongside your corporate CA.
+
+> **Tip:** `NODE_EXTRA_CA_CERTS` is shared with the Node.js subprocess that installs browsers, so one env var covers both the driver download (Java/native) and browser download (Node.js) paths.
+
+You can also pass a truststore directly via JVM system property (GraalVM native-image supports this at runtime):
+
+```bash
+spel -Djavax.net.ssl.trustStore=/path/to/truststore.jks install
+```
+
+> **Note:** Unlike the env vars above, `-Djavax.net.ssl.trustStore` **replaces** the default truststore entirely — your truststore must include both corporate and public CA certificates.
+
 ## Usage
 
 ### Browser Lifecycle

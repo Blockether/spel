@@ -12,13 +12,15 @@
       2. SPEL_DRIVER_DIR env var — overrides cache location
       3. Default: ~/.cache/spel/<version>/<platform>/"
   (:require
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [com.blockether.spel.ssl :as ssl])
   (:import
    [java.io InputStream]
    [java.net HttpURLConnection URL]
    [java.nio.file Files Path Paths StandardCopyOption]
    [java.nio.file.attribute FileAttribute]
-   [java.util.zip ZipInputStream]))
+   [java.util.zip ZipInputStream]
+   [javax.net.ssl HttpsURLConnection SSLSocketFactory]))
 
 ;; =============================================================================
 ;; Constants
@@ -134,6 +136,10 @@
                      " for " (platform-name) "...")))
         (let [url  (URL. url-str)
               conn ^HttpURLConnection (.openConnection url)]
+          ;; Apply custom SSL factory for corporate proxy certificate support
+          (when (instance? HttpsURLConnection conn)
+            (when-let [^SSLSocketFactory sf (ssl/custom-ssl-factory)]
+              (.setSSLSocketFactory ^HttpsURLConnection conn sf)))
           (.setInstanceFollowRedirects conn true)
           (.setRequestMethod conn "GET")
           (.setConnectTimeout conn 30000)
