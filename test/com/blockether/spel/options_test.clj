@@ -2,7 +2,7 @@
   "Unit tests for options conversion functions."
   (:require
    [com.blockether.spel.options :as sut]
-   [lazytest.core :refer [defdescribe describe expect it]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright BrowserType$LaunchOptions Browser$NewContextOptions]))
 

@@ -20,7 +20,7 @@
     :refer [*pw* *page* with-playwright with-browser with-page]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]
-   [lazytest.core :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Metadata and Steps (no browser needed)

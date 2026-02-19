@@ -30,7 +30,8 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [com.blockether.spel.page :as page])
+   [com.blockether.spel.page :as page]
+   [lazytest.core :as lt-core])
   (:import
    [com.microsoft.playwright Tracing]
    [java.io File PrintWriter StringWriter Writer]
@@ -721,6 +722,262 @@
          (when (instance? com.microsoft.playwright.APIResponse result#)
            (attach-api-response! result#))
          result#))))
+
+;; =============================================================================
+;; Lazytest Re-exports — single-require with auto Allure steps
+;; =============================================================================
+;;
+;; Re-exports the full `lazytest.core` public API so test files need only:
+;;
+;;   (:require [com.blockether.spel.allure :refer [defdescribe describe it expect ...]])
+;;
+;; instead of importing from both `lazytest.core` and this namespace.
+;;
+;; Enhanced macros:
+;;
+;;   describe  — injects an `around` hook that wraps each test execution
+;;               in an Allure step named after the suite's doc string.
+;;               Nested describes produce nested steps automatically.
+;;
+;;   it        — wraps the test body in an Allure step named after the
+;;               test case's doc string.
+;;
+;;   expect    — wraps the assertion in an Allure step named after the
+;;               source expression (or custom message).
+;;
+;;   expect-it — combines `it` + `expect` with auto-stepping.
+;;
+;; Together they produce a fully nested Allure step hierarchy:
+;;
+;;   (defdescribe my-test
+;;     (describe "login"
+;;       (describe "form validation"
+;;         (it "rejects empty email"
+;;           (expect (= "Required" (get-error-text)))))))
+;;
+;;   Allure steps:
+;;     ✓ login
+;;       └── ✓ form validation
+;;             └── ✓ rejects empty email
+;;                   └── ✓ expect: (= "Required" (get-error-text))
+;;
+;; When not running under the Allure reporter, all macros delegate
+;; directly to `lazytest.core` with zero overhead.
+
+;; ---------------------------------------------------------------------------
+;; Test definition
+;; ---------------------------------------------------------------------------
+
+(defmacro defdescribe
+  "Re-export of `lazytest.core/defdescribe`.
+   Defines a top-level test suite var.
+
+   Does not create an Allure step — the defdescribe name is already
+   visible as the top-level suite label in the report."
+  {:arglists '([test-name & children]
+               [test-name doc? attr-map? & children])}
+  [& args]
+  `(lt-core/defdescribe ~@args))
+
+(defmacro describe
+  "Like `lazytest.core/describe` with automatic Allure step nesting.
+
+   Injects an `around` hook so each test case executed within this
+   suite is wrapped in an Allure step named after the doc string.
+   Nested describes produce nested steps.
+
+   When not running under the Allure reporter, the step call is a
+   no-op — just `(f)` — so there is zero runtime overhead."
+  {:arglists '([doc & children]
+               [doc attr-map? & children])}
+  [doc & body]
+  (let [[attr-map children] (if (map? (first body))
+                              [(first body) (rest body)]
+                              [nil body])
+        step-name (if (string? doc) doc `(str ~doc))]
+    (if attr-map
+      `(lt-core/describe ~doc ~attr-map
+         (lt-core/around [f#]
+           (step* ~step-name (fn [] (f#))))
+         ~@children)
+      `(lt-core/describe ~doc
+         (lt-core/around [f#]
+           (step* ~step-name (fn [] (f#))))
+         ~@children))))
+
+(defmacro it
+  "Like `lazytest.core/it` with automatic Allure step wrapping.
+
+   Wraps the test body in an Allure step named after the doc string,
+   providing a named container for the expect steps within.
+
+   When not running under the Allure reporter, the step call is a
+   no-op — just `(body)` — so there is zero runtime overhead."
+  {:arglists '([doc & body]
+               [doc attr-map? & body])}
+  [doc & body]
+  (let [[attr-map body] (if (map? (first body))
+                          [(first body) (rest body)]
+                          [nil body])
+        step-name (if (string? doc) doc `(str ~doc))]
+    (if attr-map
+      `(lt-core/it ~doc ~attr-map
+         (step* ~step-name (fn [] ~@body)))
+      `(lt-core/it ~doc
+         (step* ~step-name (fn [] ~@body))))))
+
+(defmacro expect
+  "Drop-in replacement for `lazytest.core/expect` that automatically
+   creates an Allure step for each expectation.
+
+   When running under the Allure reporter, each `expect` call renders
+   as a named step in the report with its own pass/fail status. The
+   step name is derived from the source expression (or the custom
+   message when provided).
+
+   When not running under the Allure reporter, delegates directly to
+   `lazytest.core/expect` with zero overhead.
+
+   With custom message:
+
+     (expect (= 1 1) \"numbers are equal\")
+     ;; Step name: \"expect: numbers are equal\""
+  ([expr]
+   (let [form-str (pr-str expr)]
+     `(step* ~(str "expect: " form-str)
+        (fn [] (lt-core/expect ~expr)))))
+  ([expr msg]
+   (let [form-str (pr-str expr)]
+     `(let [msg# ~msg]
+        (step* (if msg# (str "expect: " msg#) ~(str "expect: " form-str))
+          (fn [] (lt-core/expect ~expr msg#)))))))
+
+(defmacro expect-it
+  "Like `lazytest.core/expect-it` with stepped expectations.
+   Shorthand for `(it doc (expect expr))`.
+
+   Uses `lt-core/it` directly (no extra it-level step) since
+   expect-it has exactly one assertion — the expect step is
+   sufficient."
+  {:arglists '([doc expr]
+               [doc attr-map? expr])}
+  [doc & body]
+  (let [[attr-map exprs] (if (map? (first body))
+                           [(first body) (rest body)]
+                           [nil body])]
+    (assert (= 1 (count exprs)) "expect-it takes 1 expr")
+    (let [expr (first exprs)]
+      (if attr-map
+        `(lt-core/it ~doc ~attr-map (expect ~expr ~doc))
+        `(lt-core/it ~doc (expect ~expr ~doc))))))
+
+;; ---------------------------------------------------------------------------
+;; Test definition aliases
+;; ---------------------------------------------------------------------------
+
+(defmacro context
+  "Alias for `describe` — includes automatic Allure step nesting."
+  {:arglists '([doc & children]
+               [doc attr-map? & children])}
+  [doc & body]
+  `(describe ~doc ~@body))
+
+(defmacro specify
+  "Alias for `it` — includes automatic Allure step wrapping."
+  {:arglists '([doc & body]
+               [doc attr-map? & body])}
+  [doc & body]
+  `(it ~doc ~@body))
+
+(defmacro should
+  "Like `lazytest.core/should` with stepped expectations.
+   Alias for `expect`."
+  ([expr]   `(expect ~expr))
+  ([expr msg] `(expect ~expr ~msg)))
+
+;; ---------------------------------------------------------------------------
+;; Hooks
+;; ---------------------------------------------------------------------------
+
+(defmacro before
+  "Re-export of `lazytest.core/before`.
+   Runs body once before all nested suites and test cases."
+  {:arglists '([& body])}
+  [& body]
+  `(lt-core/before ~@body))
+
+(defmacro before-each
+  "Re-export of `lazytest.core/before-each`.
+   Runs body before each nested test case."
+  {:arglists '([& body])}
+  [& body]
+  `(lt-core/before-each ~@body))
+
+(defmacro after
+  "Re-export of `lazytest.core/after`.
+   Runs body once after all nested suites and test cases."
+  {:arglists '([& body])}
+  [& body]
+  `(lt-core/after ~@body))
+
+(defmacro after-each
+  "Re-export of `lazytest.core/after-each`.
+   Runs body after each nested test case."
+  {:arglists '([& body])}
+  [& body]
+  `(lt-core/after-each ~@body))
+
+(defmacro around
+  "Re-export of `lazytest.core/around`.
+   Wraps nested execution in a function, useful for `binding` forms."
+  {:arglists '([[f] & body])}
+  [param & body]
+  `(lt-core/around ~param ~@body))
+
+;; ---------------------------------------------------------------------------
+;; Assertion helpers (function re-exports)
+;; ---------------------------------------------------------------------------
+
+(def ^{:doc "Re-export of `lazytest.core/throws?`.
+   Calls f with no arguments; returns true if it throws an instance of
+   class c. Any other exception will be re-thrown."
+       :arglists '([c f])}
+  throws?
+  lt-core/throws?)
+
+(def ^{:doc "Re-export of `lazytest.core/throws-with-msg?`.
+   Calls f with no arguments; catches exceptions of class c. Returns
+   true if the exception message matches the regex re."
+       :arglists '([c re f])}
+  throws-with-msg?
+  lt-core/throws-with-msg?)
+
+(def ^{:doc "Re-export of `lazytest.core/causes?`.
+   Calls f with no arguments; returns true if any exception in the
+   cause chain is an instance of class c."
+       :arglists '([c f])}
+  causes?
+  lt-core/causes?)
+
+(def ^{:doc "Re-export of `lazytest.core/causes-with-msg?`.
+   Calls f with no arguments; returns true if any exception in the
+   cause chain is an instance of class c with a message matching re."
+       :arglists '([c re f])}
+  causes-with-msg?
+  lt-core/causes-with-msg?)
+
+(def ^{:doc "Re-export of `lazytest.core/ok?`.
+   Calls f with no arguments and discards its return value. Returns
+   true if f does not throw. Useful for expressions that return false."
+       :arglists '([f])}
+  ok?
+  lt-core/ok?)
+
+(def ^{:doc "Re-export of `lazytest.core/set-ns-context!`.
+   Add hooks to the namespace suite, instead of to a var or test suite."
+       :arglists '([contexts])}
+  set-ns-context!
+  lt-core/set-ns-context!)
 
 ;; =============================================================================
 ;; Context Initialization (used by the reporter)

@@ -5,7 +5,7 @@
    [com.blockether.spel.core :as core] ;; auto-loads data.clj
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* *browser* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect expect-it it]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
   (:import
    [com.microsoft.playwright PlaywrightException TimeoutError]))
 

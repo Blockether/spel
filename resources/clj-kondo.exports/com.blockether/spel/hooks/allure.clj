@@ -40,3 +40,14 @@
         new-node (api/list-node
                    (list* (api/token-node 'do) body))]
     {:node new-node}))
+
+(defn expect
+  "Hook for allure/expect macro. Transforms:
+     (expect expr)       → (lazytest.core/expect expr)
+     (expect expr msg)   → (lazytest.core/expect expr msg)
+   Delegates to lazytest's expect for linting."
+  [{:keys [node]}]
+  (let [children (rest (:children node))
+        new-node (api/list-node
+                   (list* (api/token-node 'lazytest.core/expect) children))]
+    {:node new-node}))

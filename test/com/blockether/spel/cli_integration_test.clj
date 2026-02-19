@@ -17,7 +17,7 @@
             with-playwright with-browser]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]
-   [lazytest.core :refer [around defdescribe describe expect it]])
+   [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage]
    [java.nio.file Files Path]))

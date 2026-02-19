@@ -7,7 +7,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.spel.codegen :as sut]
-   [lazytest.core :refer [defdescribe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe expect it]]))
 
 ;; =============================================================================
 ;; Helpers

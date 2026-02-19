@@ -15,7 +15,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*pw* *browser* *page*
                                               with-browser with-page with-playwright]]
-   [lazytest.core :refer [defdescribe describe expect it]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright BrowserContext Locator Response]))
 

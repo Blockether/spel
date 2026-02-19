@@ -4,7 +4,7 @@
    [com.blockether.spel.assertions :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect it throws? before-each]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it throws? before-each]])
   (:import
    [com.microsoft.playwright.assertions LocatorAssertions PageAssertions]))
 

@@ -7,7 +7,7 @@
    [clojure.data.json :as json]
    [clojure.string :as str]
    [com.blockether.spel.daemon :as sut]
-   [lazytest.core :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Unit Tests — Path Functions

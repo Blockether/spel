@@ -6,7 +6,7 @@
    real Playwright session."
   (:require
    [com.blockether.spel.sci-env :as sut]
-   [lazytest.core :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Unit Tests — SCI Context & Evaluation

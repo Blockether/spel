@@ -7,13 +7,20 @@
    Usage:
    (ns my-test
      (:require
-      [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-      [lazytest.core :refer [defdescribe describe expect it]]))
+      [com.blockether.spel.allure :refer [defdescribe describe it expect]]
+      [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]))
 
    (defdescribe my-test
      (describe \"with full setup\" {:context [with-playwright with-browser with-page]}
        (it \"can access page\"
-         (expect (some? *page*)))))"
+         (expect (some? *page*)))))
+
+   Import `defdescribe`, `describe`, `it`, and `expect` from
+   `com.blockether.spel.allure` instead of `lazytest.core` for a single
+   require. `expect` auto-creates an Allure step per expectation with
+   its own pass/fail status. The other three delegate to `lazytest.core`
+   unchanged. All are zero-overhead when not running under the Allure
+   reporter."
   (:require
    [com.blockether.spel.allure :as allure]
    [com.blockether.spel.core :as core]

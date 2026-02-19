@@ -9,7 +9,7 @@
    [com.blockether.spel.snapshot :as sut]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright
                                               with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Unit Tests — ref-bounding-box

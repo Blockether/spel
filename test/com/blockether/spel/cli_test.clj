@@ -6,7 +6,7 @@
   (:require
    [com.blockether.spel.cli :as sut]
    [com.blockether.spel.native] ;; for #' access to parse-global-flags
-   [lazytest.core :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Helper

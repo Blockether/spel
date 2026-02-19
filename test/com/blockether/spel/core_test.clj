@@ -3,7 +3,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as sut]
    [com.blockether.spel.test-fixtures :as tf :refer [*pw* *browser* with-playwright with-browser]]
-   [lazytest.core :refer [defdescribe describe expect expect-it it]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
   (:import
    [com.microsoft.playwright Browser BrowserContext BrowserType
     Page Playwright]))

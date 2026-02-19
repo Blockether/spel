@@ -704,6 +704,18 @@
               (binding [*out* *err*]
                 (println (str "Error: file not found: " file-path)))
               (System/exit 1))
+          _ (when (and (nil? file-path)
+                    (zero? (.available ^java.io.InputStream System/in)))
+              (binding [*out* *err*]
+                (println "Error: no input file specified.")
+                (println "")
+                (println "Usage: spel codegen [OPTIONS] FILE")
+                (println "")
+                (println "Examples:")
+                (println "  spel codegen recording.jsonl")
+                (println "  spel codegen --format=script recording.jsonl")
+                (println "  cat recording.jsonl | spel codegen"))
+              (System/exit 1))
           input (if file-path
                   (slurp (io/file file-path))
                   (slurp *in*))

@@ -90,20 +90,26 @@ Download from [GitHub releases](https://github.com/Blockether/spel/releases):
 ```bash
 # macOS (Apple Silicon)
 curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-arm64
-chmod +x spel-macos-arm64 && mv spel-macos-arm64 /usr/local/bin/spel
+chmod +x spel-macos-arm64 && mv spel-macos-arm64 ~/.local/bin/spel
 
 # Linux (amd64)
 curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-amd64
-chmod +x spel-linux-amd64 && sudo mv spel-linux-amd64 /usr/local/bin/spel
+chmod +x spel-linux-amd64 && mv spel-linux-amd64 ~/.local/bin/spel
 
 # Linux (arm64)
 curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-arm64
-chmod +x spel-linux-arm64 && sudo mv spel-linux-arm64 /usr/local/bin/spel
+chmod +x spel-linux-arm64 && mv spel-linux-arm64 ~/.local/bin/spel
 
 # Windows (PowerShell)
 Invoke-WebRequest -Uri https://github.com/Blockether/spel/releases/latest/download/spel-windows-amd64.exe -OutFile spel.exe
 Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 ```
+
+> **Tip:** The examples install to `~/.local/bin/` (no sudo needed). Make sure it's on your `PATH`:
+> ```bash
+> export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc or ~/.zshrc
+> ```
+> You can also install system-wide with `sudo mv spel-* /usr/local/bin/spel` instead.
 
 #### macOS Gatekeeper
 
@@ -111,7 +117,7 @@ The binaries are not signed with an Apple Developer certificate. macOS will bloc
 
 ```bash
 # Remove the quarantine attribute (recommended)
-xattr -d com.apple.quarantine /usr/local/bin/spel
+xattr -d com.apple.quarantine ~/.local/bin/spel
 ```
 
 Or: **System Settings → Privacy & Security → scroll down → click "Allow Anyway"** after the first blocked attempt.
@@ -371,6 +377,63 @@ In Lazytest `it` blocks, always wrap with `expect`:
 (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome")))
 (expect (nil? (assert/has-title (assert/assert-that *page*) "My Page")))
 ```
+
+### Auto-Stepped Tests (Allure)
+
+Import `defdescribe`, `describe`, `it`, and `expect` from `com.blockether.spel.allure` instead of `lazytest.core` to get automatic Allure step nesting — the full `describe` → `it` → `expect` hierarchy appears as nested steps in the report:
+
+```clojure
+(ns my-app.test
+  (:require
+   [com.blockether.spel.allure :refer [defdescribe describe it expect]]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]))
+
+(defdescribe my-test
+  (describe "example.com"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "navigates and asserts"
+      (page/navigate *page* "https://example.com")
+      (expect (= "Example Domain" (page/title *page*)))
+      (expect (nil? (assert/has-text
+                      (assert/assert-that (page/locator *page* "h1"))
+                      "Example Domain"))))))
+```
+
+Allure report rendering:
+
+```
+✓ example.com
+  └── ✓ navigates and asserts
+        ├── ✓ expect: (= "Example Domain" (page/title *page*))
+        └── ✓ expect: (nil? (assert/has-text ...))
+```
+
+Nested describes produce nested steps:
+
+```clojure
+(defdescribe login-test
+  (describe "login"
+    (describe "form validation"
+      (it "rejects empty email"
+        (expect (= "Required" (get-error-text)))))))
+```
+
+```
+✓ login
+  └── ✓ form validation
+        └── ✓ rejects empty email
+              └── ✓ expect: (= "Required" (get-error-text))
+```
+
+Custom messages for cleaner expect step names:
+
+```clojure
+(expect (= "Example Domain" (page/title *page*)) "title matches")
+;; Step name: "expect: title matches"
+```
+
+The full `lazytest.core` API is re-exported — hooks (`before`, `after`, `around`, etc.), assertion helpers (`throws?`, `ok?`, etc.), and aliases (`context`, `specify`, `should`). When not running under the Allure reporter, all macros delegate directly to `lazytest.core` with zero overhead.
 
 Set default timeout:
 

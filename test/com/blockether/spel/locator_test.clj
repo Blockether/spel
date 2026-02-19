@@ -4,7 +4,7 @@
    [com.blockether.spel.locator :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect it before-each]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it before-each]])
   (:import
    [com.microsoft.playwright Locator FrameLocator]))
 

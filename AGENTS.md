@@ -1,3 +1,26 @@
+# Agent Instructions
+
+## Browser Automation — USE `spel` SKILL, NOT `playwright`
+
+The built-in oh-my-opencode `playwright` skill is **disabled** in this project (see `.opencode/oh-my-opencode.json`). For ALL browser automation, testing, screenshots, scraping, and browser interactions, use the **`spel` skill** instead.
+
+**Why spel is superior for this project:**
+
+- `spel` is this project's own Clojure wrapper for Playwright — it knows our API, patterns, and idioms natively
+- It includes accessibility snapshots with numbered refs, a persistent browser daemon, `--eval` scripting via SCI, codegen recording, and Allure reporting integration
+- The spel skill (`.opencode/skills/spel/SKILL.md`) contains the full API reference agents need — locators, assertions, page operations, network, frames, and the native CLI
+- The built-in `playwright` skill is a generic MCP wrapper with no knowledge of our Clojure API
+
+**When delegating browser-related tasks**, always pass `load_skills=["spel"]`:
+
+```
+task(category="...", load_skills=["spel"], prompt="...")
+```
+
+**Never use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` in this project.** They are disabled / irrelevant.
+
+---
+
 # Agent Templates
 
 The E2E testing agents (planner, generator, healer) are scaffolded from templates in `resources/com/blockether/spel/templates/`. The scaffolded output lives in `.opencode/agents/`, `.opencode/prompts/`, and `.opencode/skills/`.
