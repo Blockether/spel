@@ -679,6 +679,10 @@
             (if (zero? exit)
               (do
                 (copy-dir! trace-src (io/file report "trace-viewer"))
+                (when-let [logo (report-logo)]
+                  (let [src (io/file logo)
+                        dst (io/file report (.getName src))]
+                    (io/copy src dst)))
                 (patch-trace-viewer-url! report)
                 (inject-trace-viewer-prewarm! report)
                 (patch-sw-safari-compat! report)
