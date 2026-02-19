@@ -672,7 +672,13 @@
       (println "")
       (println "  # 3. Transform to Clojure")
       (println "  spel codegen recording.jsonl")
-      (println "  spel codegen --format=script --output=my_test.clj recording.jsonl")
+      (println "  spel codegen --format=script --output=my_script.clj recording.jsonl")
+      (println "")
+      (println "  # 4. Run the generated script")
+      (println "  spel --eval my_script.clj")
+      (println "")
+      (println "  # 5. Run with saved auth state (cookies/localStorage)")
+      (println "  spel --eval my_script.clj --load-state auth-state.json")
       (System/exit 0))
     (let [;; Support both --output=FILE, --output FILE, and -o FILE
           ;; NOTE: .indexOf returns -1 (truthy in Clojure), not nil, so `or` won't work

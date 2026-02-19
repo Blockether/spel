@@ -172,21 +172,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1157,17 +1157,47 @@
                          ['is-ok    assert/is-ok]])
 
         ;; =================================================================
-        ;; core/ — Lifecycle stubs + utility pass-throughs
+        ;; core/ — Lifecycle macros + utility pass-throughs
+        ;;
+        ;; The with-* forms are SCI macros that work with the daemon's
+        ;; existing browser instances. They discard the init expressions
+        ;; (launch-chromium, new-context, etc.) and bind the variables to
+        ;; the daemon's current instances via spel/ namespace helpers.
+        ;; This lets codegen --format=script output run in --eval mode.
         ;; =================================================================
         core-map (make-ns-map core-ns
-                   [['with-playwright (eval-mode-stub "core/with-playwright" "spel/start!")]
-                    ['with-browser    (eval-mode-stub "core/with-browser" "spel/start!")]
-                    ['with-context    (eval-mode-stub "core/with-context" "spel/start!")]
-                    ['with-page       (eval-mode-stub "core/with-page" "spel/start!")]
-                    ['create          (eval-mode-stub "core/create" "spel/start!")]
-                    ['launch-chromium (eval-mode-stub "core/launch-chromium" "spel/start!")]
-                    ['launch-firefox  (eval-mode-stub "core/launch-firefox" "(spel/start! {:browser :firefox})")]
-                    ['launch-webkit   (eval-mode-stub "core/launch-webkit" "(spel/start! {:browser :webkit})")]
+                   [;; Lifecycle macros — work with daemon browser
+                    ['with-playwright (with-meta
+                                        (fn [_&form _&env binding & body]
+                                          (let [[sym] binding]
+                                            (list 'do
+                                              (list 'spel/start!)
+                                              (list* 'let [sym nil] body))))
+                                        {:sci/macro true})]
+                    ['with-browser    (with-meta
+                                        (fn [_&form _&env binding & body]
+                                          (let [[sym _init-expr] binding]
+                                            (list* 'let [sym (list 'spel/browser)] body)))
+                                        {:sci/macro true})]
+                    ['with-context    (with-meta
+                                        (fn [_&form _&env binding & body]
+                                          (let [[sym _init-expr] binding]
+                                            (list* 'let [sym (list 'spel/context)] body)))
+                                        {:sci/macro true})]
+                    ['with-page       (with-meta
+                                        (fn [_&form _&env binding & body]
+                                          (let [[sym _init-expr] binding]
+                                            (list* 'let [sym (list 'spel/page)] body)))
+                                        {:sci/macro true})]
+                    ;; Launch/create functions — return daemon's existing instances
+                    ['create          (fn [] nil)]
+                    ['launch-chromium (fn [_pw & _opts] (require-browser!))]
+                    ['launch-firefox  (fn [_pw & _opts] (require-browser!))]
+                    ['launch-webkit   (fn [_pw & _opts] (require-browser!))]
+                    ['new-context        (fn [_browser & _opts] (require-context!))]
+                    ['new-page           (fn [_browser] (require-page!))]
+                    ['new-page-from-context (fn [_ctx] (require-page!))]
+                    ;; Close & utility pass-throughs
                     ['close!          core/close!]
                     ['close-browser!  core/close-browser!]
                     ['close-context!  core/close-context!]
@@ -1178,9 +1208,6 @@
                     ['browser-contexts   core/browser-contexts]
                     ['context-pages      core/context-pages]
                     ['context-browser    core/context-browser]
-                    ['new-context        core/new-context]
-                    ['new-page           core/new-page]
-                    ['new-page-from-context core/new-page-from-context]
                     ['context-cookies          core/context-cookies]
                     ['context-clear-cookies!   core/context-clear-cookies!]
                     ['context-storage-state    core/context-storage-state]
@@ -1192,10 +1219,140 @@
                     ['context-set-default-timeout!           core/context-set-default-timeout!]
                     ['context-set-default-navigation-timeout! core/context-set-default-navigation-timeout!]
                     ['context-route-from-har!   core/context-route-from-har!]
-                    ['context-route-web-socket!  core/context-route-web-socket!]])]
+                    ['context-route-web-socket!  core/context-route-web-socket!]])
+
+        ;; =================================================================
+        ;; page/ — Raw page operations (explicit Page argument)
+        ;;
+        ;; These mirror com.blockether.spel.page functions so that code
+        ;; generated by `spel codegen --format=script` works in --eval.
+        ;; =================================================================
+        page-raw-ns  (sci/create-ns 'page nil)
+        page-raw-map (make-ns-map page-raw-ns
+                       [['navigate               page/navigate]
+                        ['go-back                 page/go-back]
+                        ['go-forward              page/go-forward]
+                        ['reload                  page/reload]
+                        ['url                     page/url]
+                        ['title                   page/title]
+                        ['content                 page/content]
+                        ['set-content!            page/set-content!]
+                        ['locator                 page/locator]
+                        ['get-by-text             page/get-by-text]
+                        ['get-by-role             page/get-by-role]
+                        ['get-by-label            page/get-by-label]
+                        ['get-by-placeholder      page/get-by-placeholder]
+                        ['get-by-alt-text         page/get-by-alt-text]
+                        ['get-by-title            page/get-by-title]
+                        ['get-by-test-id          page/get-by-test-id]
+                        ['evaluate                page/evaluate]
+                        ['evaluate-handle         page/evaluate-handle]
+                        ['screenshot              page/screenshot]
+                        ['pdf                     page/pdf]
+                        ['is-closed?              page/is-closed?]
+                        ['viewport-size           page/viewport-size]
+                        ['set-viewport-size!      page/set-viewport-size!]
+                        ['set-default-timeout!    page/set-default-timeout!]
+                        ['set-default-navigation-timeout! page/set-default-navigation-timeout!]
+                        ['main-frame              page/main-frame]
+                        ['frames                  page/frames]
+                        ['frame-by-name           page/frame-by-name]
+                        ['frame-by-url            page/frame-by-url]
+                        ['wait-for-load-state     page/wait-for-load-state]
+                        ['wait-for-url            page/wait-for-url]
+                        ['wait-for-selector       page/wait-for-selector]
+                        ['wait-for-timeout        page/wait-for-timeout]
+                        ['wait-for-function       page/wait-for-function]
+                        ['wait-for-response       page/wait-for-response]
+                        ['wait-for-popup          page/wait-for-popup]
+                        ['wait-for-download       page/wait-for-download]
+                        ['wait-for-file-chooser   page/wait-for-file-chooser]
+                        ['emulate-media!          page/emulate-media!]
+                        ['on-console              page/on-console]
+                        ['on-dialog               page/on-dialog]
+                        ['once-dialog             page/once-dialog]
+                        ['on-page-error           page/on-page-error]
+                        ['on-request              page/on-request]
+                        ['on-response             page/on-response]
+                        ['on-close                page/on-close]
+                        ['on-download             page/on-download]
+                        ['on-popup                page/on-popup]
+                        ['route!                  page/route!]
+                        ['unroute!                page/unroute!]
+                        ['route-from-har!         page/route-from-har!]
+                        ['route-web-socket!       page/route-web-socket!]
+                        ['bring-to-front          page/bring-to-front]
+                        ['page-context            page/page-context]
+                        ['add-script-tag          page/add-script-tag]
+                        ['add-style-tag           page/add-style-tag]
+                        ['page-keyboard           page/page-keyboard]
+                        ['page-mouse              page/page-mouse]
+                        ['page-touchscreen        page/page-touchscreen]
+                        ['set-extra-http-headers! page/set-extra-http-headers!]
+                        ['expose-function!        page/expose-function!]
+                        ['expose-binding!         page/expose-binding!]])
+
+        ;; =================================================================
+        ;; locator/ — Raw locator operations (explicit Locator argument)
+        ;;
+        ;; Alias of loc/ so that `locator/click` etc. from codegen works.
+        ;; =================================================================
+        locator-raw-ns  (sci/create-ns 'locator nil)
+        locator-raw-map (make-ns-map locator-raw-ns
+                          [['click          locator/click]
+                           ['dblclick       locator/dblclick]
+                           ['fill           locator/fill]
+                           ['type-text      locator/type-text]
+                           ['press          locator/press]
+                           ['clear          locator/clear]
+                           ['check          locator/check]
+                           ['uncheck        locator/uncheck]
+                           ['hover          locator/hover]
+                           ['focus          locator/focus]
+                           ['blur           locator/blur]
+                           ['tap-element    locator/tap-element]
+                           ['select-option  locator/select-option]
+                           ['set-input-files! locator/set-input-files!]
+                           ['scroll-into-view locator/scroll-into-view]
+                           ['dispatch-event locator/dispatch-event]
+                           ['drag-to        locator/drag-to]
+                           ['text-content   locator/text-content]
+                           ['inner-text     locator/inner-text]
+                           ['inner-html     locator/inner-html]
+                           ['input-value    locator/input-value]
+                           ['get-attribute  locator/get-attribute]
+                           ['is-visible?    locator/is-visible?]
+                           ['is-hidden?     locator/is-hidden?]
+                           ['is-enabled?    locator/is-enabled?]
+                           ['is-disabled?   locator/is-disabled?]
+                           ['is-editable?   locator/is-editable?]
+                           ['is-checked?    locator/is-checked?]
+                           ['bounding-box   locator/bounding-box]
+                           ['count-elements locator/count-elements]
+                           ['all-text-contents locator/all-text-contents]
+                           ['all-inner-texts   locator/all-inner-texts]
+                           ['all            locator/all]
+                           ['loc-filter     locator/loc-filter]
+                           ['first-element  locator/first-element]
+                           ['last-element   locator/last-element]
+                           ['nth-element    locator/nth-element]
+                           ['loc-locator    locator/loc-locator]
+                           ['content-frame  locator/content-frame]
+                           ['loc-get-by-text    locator/loc-get-by-text]
+                           ['loc-get-by-role    locator/loc-get-by-role]
+                           ['loc-get-by-label   locator/loc-get-by-label]
+                           ['loc-get-by-test-id locator/loc-get-by-test-id]
+                           ['wait-for       locator/wait-for]
+                           ['evaluate       locator/evaluate-locator]
+                           ['evaluate-all   locator/evaluate-all]
+                           ['screenshot     locator/locator-screenshot]
+                           ['highlight      locator/highlight]
+                           ['element-handle  locator/element-handle]
+                           ['element-handles locator/element-handles]])]
 
     (sci/init
-      {:namespaces {'spel     pw-map
+      {:namespaces {;; Short aliases (original)
+                    'spel     pw-map
                     'snapshot snap-map
                     'annotate ann-map
                     'input    input-map
@@ -1203,7 +1360,15 @@
                     'net      net-map
                     'loc      loc-map
                     'assert   assert-ns-map
-                    'core     core-map}
+                    'core     core-map
+                    ;; Raw namespaces for codegen script compat
+                    'page     page-raw-map
+                    'locator  locator-raw-map
+                    ;; Full qualified names (for require support)
+                    'com.blockether.spel.core       core-map
+                    'com.blockether.spel.page       page-raw-map
+                    'com.blockether.spel.locator    locator-raw-map
+                    'com.blockether.spel.assertions assert-ns-map}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

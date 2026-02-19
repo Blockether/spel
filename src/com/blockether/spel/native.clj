@@ -215,7 +215,9 @@
   (println "")
   (println "Modes:")
   (println "  --eval '<code>'           Evaluate Clojure expression")
+  (println "  --eval <file.clj>         Evaluate Clojure file (e.g. codegen script)")
   (println "  --eval --interactive      Evaluate with visible browser (headed mode)")
+  (println "  --eval --load-state FILE  Load auth/storage state before evaluation")
   (println "")
   (println "Examples:")
   (println "  spel open example.com")
@@ -225,7 +227,8 @@
   (println "  spel wait --text \"Welcome\"")
   (println "  spel set viewport 1280 720")
   (println "  spel cookies")
-  (println "  spel --session agent1 open site.com"))
+  (println "  spel --session agent1 open site.com")
+  (println "  spel --eval script.clj --load-state auth.json"))
 
 (defn- spel-version
   "Reads the version string from the SPEL_VERSION resource file.
@@ -330,7 +333,7 @@
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -376,13 +379,27 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :session val))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
+          ;; --load-state=<path>
+          (and (string? arg) (str/starts-with? arg "--load-state="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :load-state (subs arg 13)))
+
+          ;; --load-state <path>
+          (= "--load-state" arg)
+          (let [path (second remaining)]
+            (if path
+              (recur (drop 2 remaining) cmd-args (assoc opts :load-state path))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
 (defn- run-eval!
   "Runs --eval mode via daemon: sends code for evaluation, browser persists.
    The daemon lazily starts a browser on first Playwright call and keeps it
-   alive between invocations. Use --autoclose to shut the daemon after eval."
+   alive between invocations. Use --autoclose to shut the daemon after eval.
+   When --load-state is set, loads browser storage state (cookies/localStorage)
+   from a JSON file before evaluating the code."
   [code global]
   (driver/ensure-driver!)
   (let [session  (or (:session global) "default")
@@ -395,6 +412,18 @@
       ;; Set timeout on daemon side if provided
       (when (:timeout-ms global)
         (sci-env/set-default-timeout! (:timeout-ms global)))
+      ;; Load state if --load-state specified
+      (when-let [state-path (:load-state global)]
+        ;; Bootstrap browser first (sci_eval triggers ensure-browser!)
+        (cli/send-command! session {"action" "sci_eval" "code" "nil"} timeout)
+        ;; Load state into context (replaces context with saved cookies/storage)
+        (let [resp (cli/send-command! session
+                     {"action" "state_load" "path" state-path}
+                     timeout)]
+          (when-not (:success resp)
+            (binding [*out* *err*]
+              (println (str "Warning: failed to load state from " state-path ": "
+                         (or (get-in resp [:data :error]) (:error resp))))))))
       ;; Send eval command to daemon
       (let [response (cli/send-command! session
                        {"action" "sci_eval" "code" code}
@@ -407,10 +436,10 @@
               (println result-str)))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (binding [*out* *err*]
-                (println (str "Error: " (or (get-in response [:data :error])
-                                          (:error response)
-                                          "Unknown error")))))))
+            (binding [*out* *err*]
+              (println (str "Error: " (or (get-in response [:data :error])
+                                        (:error response)
+                                        "Unknown error")))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]
@@ -466,7 +495,7 @@
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)
@@ -474,7 +503,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "inspector"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["open"] rest-args)))))
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
@@ -482,7 +511,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -498,23 +527,35 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))]
-            (daemon/start-daemon! opts)))
+        (let [opts (parse-daemon-args (rest cmd-args))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
+      ;; Supports both inline code and .clj file paths:
+      ;;   spel --eval '(+ 1 2)'
+      ;;   spel --eval script.clj
       (= "--eval" first-arg)
-      (let [code (second cmd-args)]
-        (if code
-          (run-eval! code global)
+      (let [code-or-file (second cmd-args)]
+        (if code-or-file
+          (let [code (if (and (str/ends-with? code-or-file ".clj")
+                           (.exists (java.io.File. ^String code-or-file)))
+                       (slurp (java.io.File. ^String code-or-file))
+                       code-or-file)]
+            (run-eval! code global))
           (do (binding [*out* *err*]
-                (println "Error: --eval requires a code argument"))
-              (System/exit 1))))
+                (println "Error: --eval requires a code argument or .clj file path"))
+            (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
-      (run-eval! (subs first-arg 7) global)
+      (let [code-or-file (subs first-arg 7)
+            code (if (and (str/ends-with? code-or-file ".clj")
+                       (.exists (java.io.File. ^String code-or-file)))
+                   (slurp (java.io.File. ^String code-or-file))
+                   code-or-file)]
+        (run-eval! code global))
 
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))
