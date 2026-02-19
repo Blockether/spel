@@ -60,9 +60,9 @@
       ([x off len]
        (if (string? x)
          (do (.write local ^String x (int off) (int len))
-           (.write parent ^String x (int off) (int len)))
+             (.write parent ^String x (int off) (int len)))
          (do (.write local ^chars x (int off) (int len))
-           (.write parent ^chars x (int off) (int len))))))
+             (.write parent ^chars x (int off) (int len))))))
     (flush []
       (.flush local)
       (.flush parent))
@@ -647,8 +647,8 @@
                   ;; empty container — keep compact
                   (do (.append sb c) (recur (inc i) d false false))
                   (do (.append sb c) (.append sb \newline)
-                    (dotimes [_ (* 2 d)] (.append sb \space))
-                    (recur (inc i) d false false))))
+                      (dotimes [_ (* 2 d)] (.append sb \space))
+                      (recur (inc i) d false false))))
 
               (or (= c \}) (= c \]))
               (let [d (dec depth)]
@@ -659,12 +659,12 @@
 
               (= c \,)
               (do (.append sb c) (.append sb \newline)
-                (dotimes [_ (* 2 depth)] (.append sb \space))
-                (recur (inc i) depth false false))
+                  (dotimes [_ (* 2 depth)] (.append sb \space))
+                  (recur (inc i) depth false false))
 
               (= c \:)
               (do (.append sb c) (.append sb \space)
-                (recur (inc i) depth false false))
+                  (recur (inc i) depth false false))
 
               (Character/isWhitespace c)
               (recur (inc i) depth false false)

@@ -108,7 +108,7 @@
 
           (and (= "HEAD" method) (= "/health" path))
           (do (.sendResponseHeaders exchange 200 -1)
-            (.close (.getResponseBody exchange)))
+              (.close (.getResponseBody exchange)))
 
           (= "/echo" path)
           (let [resp-body (str "{\"method\":\"" method "\""
@@ -126,7 +126,7 @@
 
           (= "/slow" path)
           (do (Thread/sleep 2000)
-            (send-response exchange 200 "{\"slow\":true}" "application/json"))
+              (send-response exchange 200 "{\"slow\":true}" "application/json"))
 
           :else
           (send-response exchange 404

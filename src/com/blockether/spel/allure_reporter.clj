@@ -159,7 +159,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-    (catch Exception _ "localhost")))
+       (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -603,27 +603,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-      ["npx" "--yes" allure-npm-pkg])
+        ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-      ["allure"])
+        ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-        (do (println (str "  Installed " allure-npm-pkg " successfully."))
-          ["allure"])
-        (do (println "  x npm install failed - cannot generate report.")
-          nil)))
+        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+          (do (println (str "  Installed " allure-npm-pkg " successfully."))
+              ["allure"])
+          (do (println "  x npm install failed - cannot generate report.")
+              nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-      nil)))
+        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+        nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation

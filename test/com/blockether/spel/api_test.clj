@@ -260,10 +260,10 @@
 
     (it "binds multiple contexts and executes body"
       (let [result (sut/with-api-contexts
-                     [ctx1 (sut/new-api-context (sut/api-request *pw*)
-                             {:base-url *test-server-url*})
-                      ctx2 (sut/new-api-context (sut/api-request *pw*)
-                             {:base-url *test-server-url*})]
+                    [ctx1 (sut/new-api-context (sut/api-request *pw*)
+                            {:base-url *test-server-url*})
+                     ctx2 (sut/new-api-context (sut/api-request *pw*)
+                            {:base-url *test-server-url*})]
                      (expect (instance? APIRequestContext ctx1))
                      (expect (instance? APIRequestContext ctx2))
                      :both-ok)]
@@ -271,10 +271,10 @@
 
     (it "each context can make independent requests"
       (sut/with-api-contexts
-        [ctx1 (sut/new-api-context (sut/api-request *pw*)
-                {:base-url *test-server-url*})
-         ctx2 (sut/new-api-context (sut/api-request *pw*)
-                {:base-url *test-server-url*})]
+       [ctx1 (sut/new-api-context (sut/api-request *pw*)
+               {:base-url *test-server-url*})
+        ctx2 (sut/new-api-context (sut/api-request *pw*)
+               {:base-url *test-server-url*})]
         (let [r1 (sut/api-get ctx1 "/health")
               r2 (sut/api-get ctx2 "/health")]
           (expect (= 200 (sut/api-response-status r1)))
@@ -283,10 +283,10 @@
     (it "disposes all contexts after body"
       (let [refs (atom [])]
         (sut/with-api-contexts
-          [ctx1 (sut/new-api-context (sut/api-request *pw*)
-                  {:base-url *test-server-url*})
-           ctx2 (sut/new-api-context (sut/api-request *pw*)
-                  {:base-url *test-server-url*})]
+         [ctx1 (sut/new-api-context (sut/api-request *pw*)
+                 {:base-url *test-server-url*})
+          ctx2 (sut/new-api-context (sut/api-request *pw*)
+                 {:base-url *test-server-url*})]
           (swap! refs conj ctx1 ctx2)
           :ok)
         ;; Both contexts should be disposed
@@ -1410,7 +1410,7 @@
   (it "with-retry default succeeds on first try for good result"
     (let [counter (atom 0)
           result  (sut/with-retry
-                    (swap! counter inc)
+                   (swap! counter inc)
                     {:status 200})]
       (expect (= 200 (:status result)))
       (expect (= 1 @counter)))))

@@ -1043,8 +1043,7 @@
                         "find" "set" "cookies" "storage" "network" "frame" "dialog"
                         "trace" "console" "errors" "state" "session" "connect"
                         "close" "install" "inspector" "show-trace"]]
-        (expect (string? (get sut/command-help cmd-name))
-          (str "Missing help for command: " cmd-name)))))
+        (expect (string? (get sut/command-help cmd-name))))))
 
   (describe "top-level-help"
     (it "returns a non-empty string"
