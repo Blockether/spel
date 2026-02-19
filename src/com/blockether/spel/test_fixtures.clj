@@ -93,6 +93,22 @@
       (reset! original-try-test-case nil))))
 
 ;; =============================================================================
+;; Interactive Mode
+;; =============================================================================
+
+(defn interactive?
+  "Returns true when tests should run in interactive (headed) mode.
+   Checks system property `spel.interactive` first, then env var `SPEL_INTERACTIVE`.
+   Any truthy string value (e.g. \"true\", \"1\", \"yes\") enables interactive mode.
+
+   Usage:
+     clojure -J-Dspel.interactive=true -M:test
+     SPEL_INTERACTIVE=true clojure -M:test"
+  []
+  (some? (or (System/getProperty "spel.interactive")
+           (System/getenv "SPEL_INTERACTIVE"))))
+
+;; =============================================================================
 ;; Dynamic Vars
 ;; =============================================================================
 
@@ -139,12 +155,15 @@
           (uninstall-test-info!))))))
 
 (def with-browser
-  "Around hook: launches and closes a headless Chromium browser.
+  "Around hook: launches and closes a Chromium browser.
+
+   Headless by default. Set `SPEL_INTERACTIVE=true` env var or
+   `-Dspel.interactive=true` system property to run headed (interactive).
 
    Requires *pw* to be bound (use with with-playwright).
    Binds the Browser instance to *browser*."
   (around [f]
-    (let [browser (ensure! (core/launch-chromium *pw* {:headless true}))]
+    (let [browser (ensure! (core/launch-chromium *pw* {:headless (not (interactive?))}))]
       (try
         (binding [*browser* browser]
           (f))
@@ -284,8 +303,11 @@
               (.join t 5000))))))))
 
 (def with-api-tracing
-  "Around hook: creates a headless BrowserContext with Playwright tracing
+  "Around hook: creates a BrowserContext with Playwright tracing
    for API-only tests (no page needed).
+
+   Headless by default. Set `SPEL_INTERACTIVE=true` env var or
+   `-Dspel.interactive=true` system property to run headed (interactive).
 
    Requires *pw* to be bound (use with with-playwright).
    Binds:
@@ -309,7 +331,7 @@
                                (str *test-server-url* \"/health\"))]
          (expect (= 200 (api/api-response-status resp)))))"
   (around [f]
-    (let [browser (ensure! (core/launch-chromium *pw* {:headless true}))]
+    (let [browser (ensure! (core/launch-chromium *pw* {:headless (not (interactive?))}))]
       (try
         (if (allure/reporter-active?)
                 ;; Traced mode: HAR + tracing, no screenshots/snapshots (no page)

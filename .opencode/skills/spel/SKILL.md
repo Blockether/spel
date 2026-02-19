@@ -1042,6 +1042,8 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (core/context-clear-cookies! ctx)
 (core/context-storage-state ctx)                          ;; => JSON string
 (core/context-save-storage-state! ctx "state.json")       ;; saves to file
+;; Load saved state into a NEW context (round-trip):
+(core/new-context browser {:storage-state "state.json"})
 (core/context-set-offline! ctx true)
 (core/context-set-extra-http-headers! ctx {"X-Test" "value"})
 (core/context-set-default-timeout! ctx 30000)
@@ -1846,6 +1848,32 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 
 ### Running Tests (Lazytest CLI)
 
+Usage: `clojure -M:test [options] [path...]` to run once, or `clojure -M:test --watch [options] [path...]` for watch mode.
+
+`[path...]` accepts any file or directory. By default, Lazytest only runs tests found in the `test/` directory.
+
+#### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `-d, --dir DIR` | Directory containing tests. Can be given multiple times. |
+| `-n, --namespace SYMBOL` | Run only the specified test namespaces. Can be given multiple times. |
+| `-v, --var SYMBOL` | Run only the specified fully-qualified symbol. Can be given multiple times. |
+| `-i, --include KEYWORD` | Run only test sequences or vars with this metadata keyword. Can be given multiple times. |
+| `-e, --exclude KEYWORD` | Exclude test sequences or vars with this metadata keyword. Can be given multiple times. |
+| `--output SYMBOL` | Output format. Can be given multiple times. (Defaults to `nested`.) |
+| `--md FILE` | Run doc tests in markdown file. Can be given multiple times. |
+| `--watch` | Watch mode — reloads and reruns test suite as code changes. |
+| `--delay NUM` | Milliseconds to wait before checking for changes (watch mode only, default: 500). |
+| `--help` | Print help information. |
+| `--version` | Print version information. |
+
+**Behavior notes:**
+- If both `--namespace` and `--var` are provided, Lazytest runs all tests within the namespaces **AND** the specified vars. They are **inclusive**, not exclusive.
+- `--exclude` overrides `--include` if both are provided.
+
+#### Examples
+
 ```bash
 # Run entire test suite
 clojure -M:test
@@ -1873,11 +1901,41 @@ clojure -M:test --output nested --output com.blockether.spel.allure-reporter/all
 # Watch mode (re-runs on file changes)
 clojure -M:test --watch
 
+# Watch mode with custom delay
+clojure -M:test --watch --delay 1000
+
 # Run tests from a specific directory
 clojure -M:test -d test/com/blockether/spel
+
+# Run doc tests from markdown
+clojure -M:test --md docs/examples.md
 ```
 
 **IMPORTANT**: The `-v`/`--var` flag requires **fully-qualified symbols** (`namespace/var-name`), not bare var names. Using a bare name will throw `IllegalArgumentException: no conversion to symbol`.
+
+#### Interactive Mode (Headed Browser)
+
+By default, test fixtures run browsers in headless mode. To run with a visible browser (interactive/headed mode), set the `SPEL_INTERACTIVE` env var or `spel.interactive` system property:
+
+```bash
+# Via environment variable
+SPEL_INTERACTIVE=true clojure -M:test
+
+# Via system property
+clojure -J-Dspel.interactive=true -M:test
+
+# Combined with other options (e.g. single namespace + watch)
+SPEL_INTERACTIVE=true clojure -M:test -n my-app.login-test --watch
+```
+
+Any truthy value enables interactive mode. Both `with-browser` and `with-api-tracing` fixtures respect this setting.
+
+You can also check programmatically:
+
+```clojure
+(require '[com.blockether.spel.test-fixtures :as tf])
+(tf/interactive?)  ;; => true when SPEL_INTERACTIVE or -Dspel.interactive is set
+```
 
 ### Test Fixtures
 
@@ -1886,12 +1944,33 @@ The project provides shared `around` hooks in `com.blockether.spel.test-fixtures
 | Fixture | Binds | Scope |
 |---------|-------|-------|
 | `with-playwright` | `*pw*` | Shared Playwright instance |
-| `with-browser` | `*browser*` | Shared headless Chromium browser |
+| `with-browser` | `*browser*` | Chromium browser (headless by default, headed with `SPEL_INTERACTIVE`) |
 | `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, auto-tracing with Allure) |
 | `with-traced-page` | `*page*` | Like `with-page` but always enables tracing/HAR |
 | `with-test-server` | `*test-server-url*` | Local HTTP test server |
 
 Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-page` manually inside `it` blocks.
+
+### Test Imports — ALWAYS Use `spel.allure` Wrappers
+
+**NEVER** import `defdescribe`, `describe`, `it`, `expect`, or `expect-it` from `lazytest.core` directly.
+**ALWAYS** use `com.blockether.spel.allure` instead — it re-exports the same macros with automatic Allure step integration (zero-overhead when Allure is not active):
+
+```clojure
+;; CORRECT — always use this
+[com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]]
+
+;; WRONG — never use this directly
+;; [lazytest.core :refer [defdescribe describe expect it]]
+```
+
+| Macro | Source | Allure Integration |
+|-------|--------|-------------------|
+| `defdescribe` | `spel.allure` | Re-export (name already visible in report) |
+| `describe` | `spel.allure` | Re-export (group name visible in report) |
+| `it` | `spel.allure` | Re-export (test name visible in report) |
+| `expect` | `spel.allure` | Creates Allure step per assertion with pass/fail status |
+| `expect-it` | `spel.allure` | Combines `it` + `expect` with auto-stepping |
 
 ### Test Example
 
@@ -1902,7 +1981,7 @@ Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. 
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect it before-each]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright.options AriaRole]))
 

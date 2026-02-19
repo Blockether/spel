@@ -1242,19 +1242,19 @@
                                                idx1 (long (.indexOf ^java.util.List v "-d"))
                                                idx2 (long (.indexOf ^java.util.List v "--depth"))
                                                idx  (long (cond (>= idx1 0) idx1
-                                                            (>= idx2 0) idx2
-                                                            :else -1))]
+                                                                (>= idx2 0) idx2
+                                                                :else -1))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
                            (assoc :selector (let [v    (vec cmd-args)
                                                   idx1 (long (.indexOf ^java.util.List v "-s"))
                                                   idx2 (long (.indexOf ^java.util.List v "--selector"))
                                                   idx  (long (cond (>= idx1 0) idx1
-                                                               (>= idx2 0) idx2
-                                                               :else -1))]
+                                                                   (>= idx2 0) idx2
+                                                                   :else -1))]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))))
 
@@ -1314,7 +1314,7 @@
           ;; Scroll (+ aliases)
             "scroll"   (let [direction (or (first cmd-args) "down")
                              amount (try (Integer/parseInt (or (second cmd-args) "500"))
-                                      (catch Exception _ 500))]
+                                         (catch Exception _ 500))]
                          {:action "scroll" :direction direction :amount amount})
 
             ("scrollintoview" "scrollinto")
@@ -1616,7 +1616,7 @@
                                       {:action "state_clean"
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                            (catch Exception _ 30)))})
+                                                               (catch Exception _ 30)))})
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
@@ -1686,9 +1686,9 @@
              (json/read-str result :key-fn keyword))))
        (finally
          (try (.close channel)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "warn: close-channel: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
   [^String pid]
@@ -1701,9 +1701,9 @@
   "Deletes stale socket and PID files for a session."
   [session]
   (try (Files/deleteIfExists (daemon/socket-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
   (try (Files/deleteIfExists (daemon/pid-file-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
 
 (defn- read-pid
   "Reads the PID from a session's PID file, or nil if unavailable."
@@ -1711,7 +1711,7 @@
   (let [pid-path (daemon/pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
-        (catch Exception _ nil)))))
+           (catch Exception _ nil)))))
 
 (defn- socket-connectable?
   "Tries to connect to the daemon's Unix socket. Returns true if connectable."
@@ -1758,7 +1758,7 @@
   (when-let [old-pid (read-pid session)]
     (when (process-alive? old-pid)
       (try (.start (ProcessBuilder. ^java.util.List (list "kill" "-9" old-pid)))
-        (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
+           (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
       ;; Wait for process to die
       (loop [tries 0]
         (when (and (< tries 50) (process-alive? old-pid))
@@ -1799,7 +1799,7 @@
         (if (socket-connectable? session)
           true
           (do (Thread/sleep 100)
-            (recur (inc tries))))))))
+              (recur (inc tries))))))))
 
 (defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
@@ -1846,10 +1846,10 @@
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
-            (when (:url data)
-              (println (str "\n  URL: " (:url data))))
-            (when (:title data)
-              (println (str "  Title: " (:title data)))))
+              (when (:url data)
+                (println (str "\n  URL: " (:url data))))
+              (when (:title data)
+                (println (str "  Title: " (:title data)))))
 
           ;; Screenshot
           (:base64 data)
@@ -2094,13 +2094,13 @@
                          ;; Treat as retriable — kill stale daemon and restart
                          (and (nil? res) (< retries 5))
                          (do (Thread/sleep 200)
-                           (kill-stale-daemon! (:session flags))
-                           (ensure-daemon! (:session flags) flags)
-                           (recur (inc retries)))
+                             (kill-stale-daemon! (:session flags))
+                             (ensure-daemon! (:session flags) flags)
+                             (recur (inc retries)))
                          :else res)))]
       (if response
         (do (print-result response (:json flags))
-          (System/exit (if (:success response) 0 1)))
+            (System/exit (if (:success response) 0 1)))
         (do (binding [*out* *err*]
               (println "Error: Could not connect to daemon"))
-          (System/exit 1))))))
+            (System/exit 1))))))

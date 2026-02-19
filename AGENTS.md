@@ -91,6 +91,41 @@ spel init-agents --ns my-app --loop=claude --force
 spel init-agents --ns my-app --loop=vscode --force
 ```
 
+## Versioning
+
+The single source of truth for the project version is `resources/SPEL_VERSION`. **Never hardcode version strings anywhere else.**
+
+### How It Works
+
+| Context | How version is resolved |
+|---------|------------------------|
+| **Local dev** (`build.clj`) | No `VERSION` env → reads `resources/SPEL_VERSION` |
+| **Local dev** (`spel version`) | `native.clj` reads `SPEL_VERSION` from classpath resource |
+| **CI release** (`git tag v0.1.0`) | `VERSION=v0.1.0` env → `build.clj` strips `v` prefix → publishes `0.1.0` to Clojars |
+| **Post-release bump** | Deploy workflow parses tag, increments patch, writes next dev version back to `SPEL_VERSION` |
+| **`init-agents` output** | `init_agents.clj` reads `SPEL_VERSION` for the deps.edn snippet shown to users |
+
+### Release Flow (what happens when you push a tag)
+
+```
+git tag v0.1.0 && git push --tags
+```
+
+1. Deploy workflow triggers on `v*` tag
+2. `build.clj` uses `VERSION=v0.1.0` env → publishes `0.1.0` JAR to Clojars
+3. Workflow generates changelog entry in `CHANGELOG.md`
+4. Workflow bumps `resources/SPEL_VERSION` to `0.1.1` (next patch)
+5. Workflow commits `README.md`, `CHANGELOG.md`, `resources/SPEL_VERSION` back to main
+
+### Rules for Agents
+
+- **Never hardcode versions** in `native.clj`, `build.clj`, `init_agents.clj`, or anywhere else — always read from `SPEL_VERSION`
+- **Never manually edit `SPEL_VERSION`** unless intentionally setting a pre-release dev version
+- **The file contains a bare semver string** (e.g. `0.1.0`), no `v` prefix, no newline padding
+- When adding new code that needs the version, read it the same way: `(slurp (io/resource "SPEL_VERSION"))` + `str/trim`
+
+---
+
 ## Verification Checklist (MANDATORY before completing any change)
 
 Every code change MUST pass this full checklist before it's considered done:

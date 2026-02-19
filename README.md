@@ -375,7 +375,7 @@ Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehe
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [lazytest.core :refer [defdescribe describe expect it]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright.options AriaRole]))
 

@@ -83,6 +83,29 @@
         (expect (sut/browser-connected? browser))))))
 
 ;; =============================================================================
+;; Interactive Mode
+;; =============================================================================
+
+(defdescribe interactive-test
+  "Tests for interactive? fixture helper"
+
+  (describe "interactive? without env or property"
+    (it "returns false by default"
+      (expect (not (tf/interactive?)))))
+
+  (describe "interactive? with system property"
+    (it "returns true when spel.interactive is set"
+      (try
+        (System/setProperty "spel.interactive" "true")
+        (expect (tf/interactive?))
+        (finally
+          (System/clearProperty "spel.interactive")))))
+
+  (describe "interactive? after clearing property"
+    (it "returns false again"
+      (expect (not (tf/interactive?))))))
+
+;; =============================================================================
 ;; Browser Context
 ;; =============================================================================
 
