@@ -81,9 +81,9 @@ spel install  # requires spel CLI — see "As a Native CLI Binary" below
 ;; => "Example Domain"
 ```
 
-### As a Native CLI Binary
+## Native CLI
 
-#### Releases
+### Releases
 
 Download from [GitHub releases](https://github.com/Blockether/spel/releases):
 
@@ -111,7 +111,7 @@ Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 > ```
 > You can also install system-wide with `sudo mv spel-* /usr/local/bin/spel` instead.
 
-#### MacOS Gatekeeper
+### MacOS Gatekeeper
 
 The binaries are not signed with an Apple Developer certificate. macOS will block the first run with *"spel can't be opened because Apple cannot check it for malicious software"*. To allow it:
 
@@ -122,7 +122,7 @@ xattr -d com.apple.quarantine ~/.local/bin/spel
 
 Or: **System Settings → Privacy & Security → scroll down → click "Allow Anyway"** after the first blocked attempt.
 
-#### Post-install
+### Post-install
 
 Install browsers and verify:
 
@@ -131,7 +131,7 @@ spel install
 spel version
 ```
 
-#### Corporate Proxy / Custom CA Certificates
+### Corporate Proxy / Custom CA Certificates
 
 If you're behind a corporate SSL-inspecting proxy, `spel install` may fail with *"PKIX path building failed"* because the native binary uses certificates baked at build time. Set one of these environment variables to add your corporate CA:
 
