@@ -69,18 +69,27 @@ jobs:
           restore-keys: allure-site-
 
       - name: Run tests with Allure reporter
+        env:
+          LAZYTEST_ALLURE_REPORT_NAME: "#${{ github.run_number }} · ${{ github.sha }} · ${{ github.event.head_commit.message }}"
         run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
-      - name: Inject report URL into history
+      - name: Inject report URL and commit info into history
         if: github.ref == 'refs/heads/main'
         env:
           REPORT_URL: ${{ env.PAGES_BASE_URL }}/${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           if [ -f .allure-history.jsonl ]; then
             python3 -c "
           import json, os
           report_url = os.environ['REPORT_URL']
+          sha = os.environ.get('COMMIT_SHA', '')[:8]
+          msg = os.environ.get('COMMIT_MSG', '').split('\n')[0][:100]
+          run = os.environ.get('RUN_NUMBER', '')
+          name = f'#{run} \u00b7 {sha} \u00b7 {msg}'
           lines = open('.allure-history.jsonl').read().strip().split('\n')
           result = []
           for i, line in enumerate(lines):
@@ -89,13 +98,14 @@ jobs:
               entry = json.loads(line)
               if i == len(lines) - 1:
                   entry['url'] = report_url
+                  entry['name'] = name
                   for tid in entry.get('testResults', {}):
                       entry['testResults'][tid]['url'] = report_url
               result.append(json.dumps(entry, separators=(',', ':')))
           with open('.allure-history.jsonl', 'w') as f:
               f.write('\n'.join(result) + '\n')
           "
-            echo "Injected URL ${REPORT_URL} into latest history entry"
+            echo "Injected URL ${REPORT_URL} and commit info into latest history entry"
           fi
 
       - name: Assemble site with per-build reports

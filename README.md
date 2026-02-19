@@ -801,6 +801,7 @@ The reporter handles the full pipeline:
 | `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
 | `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
 | `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
+| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto)_ | Report title (shown in header and history) |
 
 ```bash
 # Keep last 20 builds in history

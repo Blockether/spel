@@ -637,6 +637,11 @@
     (System/getenv "LAZYTEST_ALLURE_HISTORY_LIMIT")
     "10"))
 
+(defn- report-name
+  ^String []
+  (or (System/getProperty "lazytest.allure.report-name")
+    (System/getenv "LAZYTEST_ALLURE_REPORT_NAME")))
+
 (defn- generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
    available), embed the local trace viewer, and patch the report JS.
@@ -658,7 +663,9 @@
                 cmd     (cond-> (into allure-cmd ["awesome" results-dir
                                                   "-o" report-dir-path])
                           (.isFile history)
-                          (into ["-h" (.getAbsolutePath history)]))
+                          (into ["-h" (.getAbsolutePath history)])
+                          (report-name)
+                          (into ["--name" (report-name)]))
                 exit    (long (run-proc! cmd))]
             (if (zero? exit)
               (do
