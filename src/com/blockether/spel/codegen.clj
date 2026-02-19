@@ -671,9 +671,11 @@
       (println "  spel codegen recording.jsonl")
       (println "  spel codegen --format=script --output=my_test.clj recording.jsonl")
       (System/exit 0))
-    (let [;; Support both --output=FILE and -o FILE
-          o-idx (long (or (.indexOf ^java.util.List args "-o")
-                        (.indexOf ^java.util.List args "--output")))
+    (let [;; Support both --output=FILE, --output FILE, and -o FILE
+          ;; NOTE: .indexOf returns -1 (truthy in Clojure), not nil, so `or` won't work
+          o-idx (long (let [i1 (.indexOf ^java.util.List args "-o")
+                            i2 (.indexOf ^java.util.List args "--output")]
+                        (cond (>= i1 0) i1 (>= i2 0) i2 :else -1)))
           o-val (when (>= o-idx 0) (nth args (inc o-idx) nil))
           ;; Remove -o FILE pair from args before further parsing
           args (if (>= o-idx 0)

@@ -5,7 +5,7 @@
   (:require
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe it expect]]))
+   [lazytest.core :refer [defdescribe describe it expect]]))
 
 (defdescribe seed-test
   (describe "browser environment"

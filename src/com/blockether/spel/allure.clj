@@ -33,7 +33,8 @@
    [com.blockether.spel.page :as page]
    [lazytest.core :as lt-core])
   (:import
-   [com.microsoft.playwright Tracing]
+   [com.microsoft.playwright Tracing Tracing$GroupOptions]
+   [com.microsoft.playwright.options Location]
    [java.io File PrintWriter StringWriter Writer]
    [java.util UUID]))
 
@@ -362,12 +363,24 @@
 ;; Steps
 ;; =============================================================================
 
+(defn- make-group-options
+  "Build a Tracing$GroupOptions with source location when loc-map is
+   provided. Returns nil when no location is available."
+  ^Tracing$GroupOptions [loc-map]
+  (when-let [{:keys [file line]} loc-map]
+    (when (and file line)
+      (doto (Tracing$GroupOptions.)
+        (.setLocation (doto (Location. (str file))
+                        (.setLine (int line))))))))
+
 (defn step*
   "Internal function backing the `step` macro. Prefer the macro.
 
-   Two arities:
-   - (step* name)      — marker step (records a named checkpoint, no body)
-   - (step* name f)    — lambda step (executes f, records timing and status)
+   Three arities:
+   - (step* name)              — marker step (records a named checkpoint, no body)
+   - (step* name f)            — lambda step (executes f, records timing and status)
+   - (step* name f loc-map)    — lambda step with source location override for
+                                  Playwright Trace Viewer (loc-map = {:file ... :line ...})
 
    Does NOT take screenshots. Use `ui-step` for steps that need
    before/after screenshots, or call `screenshot` explicitly."
@@ -387,15 +400,20 @@
              parent-steps-path (stack->steps-path stack)]
          (swap! ctx update-in parent-steps-path (fnil conj []) marker)))))
   ([step-name f]
+   (step* step-name f nil))
+  ([step-name f loc-map]
    ;; Lambda step — execute body, track timing and nesting
    (if-not *context*
      ;; No context → just execute the function, but still group for traces
      (if-let [^Tracing tracing *tracing*]
-       (try
-         (.group tracing step-name)
-         (f)
-         (finally
-           (.groupEnd tracing)))
+       (let [opts (make-group-options loc-map)]
+         (try
+           (if opts
+             (.group tracing step-name opts)
+             (.group tracing step-name))
+           (f)
+           (finally
+             (.groupEnd tracing))))
        (f))
      (let [ctx *context*
            ^Tracing tracing *tracing*
@@ -423,10 +441,16 @@
            out-sw (StringWriter.)
            err-sw (StringWriter.)
            ^Writer tee-out (if *test-out* (tee-writer out-sw *test-out*) out-sw)
-           ^Writer tee-err (if *test-err* (tee-writer err-sw *test-err*) err-sw)]
+           ^Writer tee-err (if *test-err* (tee-writer err-sw *test-err*) err-sw)
+           ;; Build GroupOptions with source location if available
+           opts (make-group-options loc-map)]
        ;; Mirror step as a trace group in the Playwright Trace Viewer
        (when tracing
-         (try (.group tracing step-name) (catch Exception _)))
+         (try
+           (if opts
+             (.group tracing step-name opts)
+             (.group tracing step-name))
+           (catch Exception _)))
        (try
          (let [result (binding [*out* (PrintWriter. tee-out true)
                                 *err* (PrintWriter. tee-err true)]
@@ -488,11 +512,18 @@
        (allure/step \"Click submit\"
          (locator/click submit-btn)))
 
-   All step calls are no-ops when not running under the Allure reporter."
+   All step calls are no-ops when not running under the Allure reporter.
+
+   When Playwright tracing is active, the step's source location is
+   captured at macro expansion time (via `*file*` and `&form` metadata)
+   and passed to `Tracing.group(name, GroupOptions)` so the Trace Viewer
+   links to the test source file instead of allure.clj internals."
   ([step-name]
    `(step* ~step-name))
   ([step-name & body]
-   `(step* ~step-name (fn [] ~@body))))
+   (let [loc-line (-> &form meta :line)]
+     `(step* ~step-name (fn [] ~@body)
+        {:file ~*file* :line ~loc-line}))))
 
 ;; =============================================================================
 ;; UI Step — before/after screenshots as child steps
@@ -530,24 +561,26 @@
    Falls back to a regular step when `*page*` is not bound.
    No-op when not running under the Allure reporter."
   [step-name & body]
-  `(step* ~step-name
-     (fn []
-       (when (and *page* (not *trace-path*))
-         (step* (str "Before: " ~step-name)
-           (fn [] (screenshot *page* (str "Before: " ~step-name)))))
-       (try
-         (let [result# (do ~@body)]
-           (when (and *page* (not *trace-path*))
-             (step* (str "After: " ~step-name)
-               (fn [] (screenshot *page* (str "After: " ~step-name)))))
-           result#)
-         (catch Throwable t#
-           (when (and *page* (not *trace-path*))
-             (try
-               (step* (str "Error: " ~step-name)
-                 (fn [] (screenshot *page* (str "Error: " ~step-name))))
-               (catch Throwable ~'_)))
-           (throw t#))))))
+  (let [loc-line (-> &form meta :line)]
+    `(step* ~step-name
+       (fn []
+         (when (and *page* (not *trace-path*))
+           (step* (str "Before: " ~step-name)
+             (fn [] (screenshot *page* (str "Before: " ~step-name)))))
+         (try
+           (let [result# (do ~@body)]
+             (when (and *page* (not *trace-path*))
+               (step* (str "After: " ~step-name)
+                 (fn [] (screenshot *page* (str "After: " ~step-name)))))
+             result#)
+           (catch Throwable t#
+             (when (and *page* (not *trace-path*))
+               (try
+                 (step* (str "Error: " ~step-name)
+                   (fn [] (screenshot *page* (str "Error: " ~step-name))))
+                 (catch Throwable ~'_)))
+             (throw t#))))
+       {:file ~*file* :line ~loc-line})))
 
 ;; =============================================================================
 ;; API Step — auto-attach HTTP request/response details
@@ -716,12 +749,14 @@
    is an APIResponse instance. No-op when not running under the Allure
    reporter."
   [step-name & body]
-  `(step* ~step-name
-     (fn []
-       (let [result# (do ~@body)]
-         (when (instance? com.microsoft.playwright.APIResponse result#)
-           (attach-api-response! result#))
-         result#))))
+  (let [loc-line (-> &form meta :line)]
+    `(step* ~step-name
+       (fn []
+         (let [result# (do ~@body)]
+           (when (instance? com.microsoft.playwright.APIResponse result#)
+             (attach-api-response! result#))
+           result#))
+       {:file ~*file* :line ~loc-line})))
 
 ;; =============================================================================
 ;; Lazytest Re-exports — single-require with auto Allure steps
@@ -794,15 +829,18 @@
   (let [[attr-map children] (if (map? (first body))
                               [(first body) (rest body)]
                               [nil body])
-        step-name (if (string? doc) doc `(str ~doc))]
+        step-name (if (string? doc) doc `(str ~doc))
+        loc-line  (-> &form meta :line)]
     (if attr-map
       `(lt-core/describe ~doc ~attr-map
          (lt-core/around [f#]
-           (step* ~step-name (fn [] (f#))))
+           (step* ~step-name (fn [] (f#))
+             {:file ~*file* :line ~loc-line}))
          ~@children)
       `(lt-core/describe ~doc
          (lt-core/around [f#]
-           (step* ~step-name (fn [] (f#))))
+           (step* ~step-name (fn [] (f#))
+             {:file ~*file* :line ~loc-line}))
          ~@children))))
 
 (defmacro it
@@ -819,12 +857,15 @@
   (let [[attr-map body] (if (map? (first body))
                           [(first body) (rest body)]
                           [nil body])
-        step-name (if (string? doc) doc `(str ~doc))]
+        step-name (if (string? doc) doc `(str ~doc))
+        loc-line  (-> &form meta :line)]
     (if attr-map
       `(lt-core/it ~doc ~attr-map
-         (step* ~step-name (fn [] ~@body)))
+         (step* ~step-name (fn [] ~@body)
+           {:file ~*file* :line ~loc-line}))
       `(lt-core/it ~doc
-         (step* ~step-name (fn [] ~@body))))))
+         (step* ~step-name (fn [] ~@body)
+           {:file ~*file* :line ~loc-line})))))
 
 (defmacro expect
   "Drop-in replacement for `lazytest.core/expect` that automatically
@@ -843,14 +884,18 @@
      (expect (= 1 1) \"numbers are equal\")
      ;; Step name: \"expect: numbers are equal\""
   ([expr]
-   (let [form-str (pr-str expr)]
+   (let [form-str (pr-str expr)
+         loc-line (-> &form meta :line)]
      `(step* ~(str "expect: " form-str)
-        (fn [] (lt-core/expect ~expr)))))
+        (fn [] (lt-core/expect ~expr))
+        {:file ~*file* :line ~loc-line})))
   ([expr msg]
-   (let [form-str (pr-str expr)]
+   (let [form-str (pr-str expr)
+         loc-line (-> &form meta :line)]
      `(let [msg# ~msg]
         (step* (if msg# (str "expect: " msg#) ~(str "expect: " form-str))
-          (fn [] (lt-core/expect ~expr msg#)))))))
+          (fn [] (lt-core/expect ~expr msg#))
+          {:file ~*file* :line ~loc-line})))))
 
 (defmacro expect-it
   "Like `lazytest.core/expect-it` with stepped expectations.

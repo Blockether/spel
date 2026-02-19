@@ -12,15 +12,14 @@
    (auto-attach HTTP response metadata) macros."
   (:require
    [clojure.string :as str]
-   [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.api :as api]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures
     :refer [*pw* *page* with-playwright with-browser with-page]]
    [com.blockether.spel.test-server
-    :refer [*test-server-url* with-test-server]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+    :refer [*test-server-url* with-test-server]]))
 
 ;; =============================================================================
 ;; Metadata and Steps (no browser needed)

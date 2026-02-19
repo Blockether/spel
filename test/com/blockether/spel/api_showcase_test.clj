@@ -13,7 +13,7 @@
        --output nested --output com.blockether.spel.allure-reporter/allure"
   (:require
    [clojure.string :as str]
-   [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.api :as api]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
@@ -21,8 +21,7 @@
     :refer [*pw* *page* *browser-api*
             with-playwright with-browser with-page with-api-tracing]]
    [com.blockether.spel.test-server
-    :refer [*test-server-url* with-test-server]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
+    :refer [*test-server-url* with-test-server]])
   (:import
    [com.microsoft.playwright APIResponse]))
 

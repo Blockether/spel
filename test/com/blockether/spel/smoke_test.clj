@@ -8,7 +8,7 @@
      clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure"
   (:require
    [clojure.string :as str]
-   [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
@@ -16,8 +16,7 @@
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright
                                               with-browser
-                                              with-traced-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
+                                              with-traced-page]])
   (:import
    [com.microsoft.playwright Response]))
 

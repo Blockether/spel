@@ -16,7 +16,27 @@
    com.blockether.spel.allure/step     hooks.allure/step
    com.blockether.spel.allure/ui-step  hooks.allure/ui-step
    com.blockether.spel.allure/api-step hooks.allure/api-step
-   com.blockether.spel.allure/expect   hooks.allure/expect}}
+
+   ;; allure — lazytest re-exports (test definition)
+   com.blockether.spel.allure/defdescribe hooks.allure/defdescribe
+   com.blockether.spel.allure/describe    hooks.allure/describe
+   com.blockether.spel.allure/it          hooks.allure/it
+
+   ;; allure — lazytest re-exports (assertions)
+   com.blockether.spel.allure/expect      hooks.allure/expect
+   com.blockether.spel.allure/expect-it   hooks.allure/expect-it
+   com.blockether.spel.allure/should      hooks.allure/expect
+
+   ;; allure — lazytest re-exports (aliases)
+   com.blockether.spel.allure/context     hooks.allure/describe
+   com.blockether.spel.allure/specify     hooks.allure/it
+
+   ;; allure — lazytest re-exports (hooks)
+   com.blockether.spel.allure/before      hooks.allure/body-only
+   com.blockether.spel.allure/before-each hooks.allure/body-only
+   com.blockether.spel.allure/after       hooks.allure/body-only
+   com.blockether.spel.allure/after-each  hooks.allure/body-only
+   com.blockether.spel.allure/around      hooks.allure/around}}
 
  :lint-as
  {;; core — safe is just try/catch, indent like do
@@ -33,12 +53,12 @@
   com.blockether.spel.allure/ui-step         clojure.core/when
   com.blockether.spel.allure/api-step        clojure.core/when
 
-  ;; allure — lazytest re-exports lint like the originals
-  com.blockether.spel.allure/defdescribe     lazytest.core/defdescribe
-  com.blockether.spel.allure/describe        lazytest.core/describe
-  com.blockether.spel.allure/it              lazytest.core/it
-
   ;; api — lifecycle macros
   com.blockether.spel.api/with-api-context   clojure.core/with-open
   com.blockether.spel.api/with-api-contexts  clojure.core/with-open
-  com.blockether.spel.api/with-retry         clojure.core/when}}
+  com.blockether.spel.api/with-retry         clojure.core/when}
+
+ :linters
+ {:clojure-lsp/unused-public-var
+  {:exclude-when-defined-by
+   #{com.blockether.spel.allure/defdescribe}}}}
