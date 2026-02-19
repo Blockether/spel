@@ -178,16 +178,28 @@ jobs:
           "
 
           cp ../resources/allure-index.html index.html
-          if [ -f ../logo.svg ]; then
-            python3 -c "
+          python3 -c "
+          import re, os
           html = open('index.html').read()
-          logo = open('../logo.svg').read()
-          logo = logo.replace('viewBox=\"0 0 400 350\"', 'viewBox=\"60 10 280 230\"')
-          logo = logo.replace('width=\"400\" height=\"350\"', '')
-          html = html.replace('<!--LOGO_PLACEHOLDER-->', logo)
+
+          # Logo: inject SVG from file if present
+          logo_file = '../logo.svg'
+          if os.path.isfile(logo_file):
+              logo = open(logo_file).read()
+              logo = logo.replace('viewBox=\"0 0 400 350\"', 'viewBox=\"60 10 280 230\"')
+              logo = logo.replace('width=\"400\" height=\"350\"', '')
+              html = html.replace('<!--LOGO_PLACEHOLDER-->', logo)
+
+          # Title & subtitle: replace between placeholder markers if env vars set
+          title = os.environ.get('LANDING_TITLE', '')
+          subtitle = os.environ.get('LANDING_SUBTITLE', '')
+          if title:
+              html = re.sub(r'<!--TITLE_PLACEHOLDER-->.*?<!--/TITLE_PLACEHOLDER-->', title, html)
+          if subtitle:
+              html = re.sub(r'<!--SUBTITLE_PLACEHOLDER-->.*?<!--/SUBTITLE_PLACEHOLDER-->', subtitle, html)
+
           open('index.html', 'w').write(html)
           "
-          fi
 
           mkdir -p latest
           cat > latest/index.html <<EOF
