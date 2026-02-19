@@ -102,7 +102,7 @@
   (let [candidates ["src" "test" "dev"]
         existing   (filterv #(.isDirectory (File. ^String %)) candidates)]
     (when (seq existing)
-      (String/join File/pathSeparator existing))))
+      (String/join ^CharSequence File/pathSeparator ^Iterable existing))))
 
 (defn create
   "Creates a new Playwright instance.
