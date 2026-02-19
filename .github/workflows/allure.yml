@@ -69,10 +69,14 @@ jobs:
           restore-keys: allure-site-
 
       - name: Run tests with Allure reporter
+        id: tests
         env:
-          LAZYTEST_ALLURE_REPORT_NAME: "#${{ github.run_number }} · ${{ github.sha }} · ${{ github.event.head_commit.message }}"
           LAZYTEST_ALLURE_LOGO: logo.svg
-        run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+          FULL_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
+          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${FIRST_LINE}"
+          clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
       - name: Inject report URL and commit info into history
@@ -111,6 +115,13 @@ jobs:
 
       - name: Assemble site with per-build reports
         if: github.ref == 'refs/heads/main'
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_TS: ${{ github.event.head_commit.timestamp }}
+          TEST_PASSED: ${{ steps.tests.outcome == 'success' }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -118,6 +129,8 @@ jobs:
           echo "Added report #${RUN}"
 
           cd gh-pages-site
+
+          # Prune oldest reports beyond MAX_REPORTS
           DIRS=$(ls -1d [0-9]* 2>/dev/null | sort -n)
           COUNT=$(echo "$DIRS" | grep -c .)
           if [ "$COUNT" -gt "$MAX_REPORTS" ]; then
@@ -128,27 +141,57 @@ jobs:
             done
           fi
 
-          LATEST="$RUN"
-          LINKS=""
-          for dir in $(ls -1d [0-9]* 2>/dev/null | sort -rn); do
-            if [ "$dir" = "$LATEST" ]; then
-              LINKS="${LINKS}<a href=\"${dir}/\"><b>#${dir} (latest)</b></a> "
-            else
-              LINKS="${LINKS}<a href=\"${dir}/\">#${dir}</a> "
-            fi
-          done
+          # Generate builds.json from available report dirs + metadata cache
+          BUILDS_META="builds-meta.json"
+          [ -f "$BUILDS_META" ] || echo '{}' > "$BUILDS_META"
 
-          cat > index.html <<EOF
-          <!DOCTYPE html><html><head>
-          <meta charset="utf-8">
-          <meta http-equiv="refresh" content="0; url=${LATEST}/">
-          <title>Allure Report - spel</title>
-          <style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#eee}a{color:#7eb6ff}</style>
-          </head><body><div style="text-align:center">
-          <p>Redirecting to <a href="${LATEST}/">latest report (#${LATEST})</a>...</p>
-          <p style="margin-top:2em;font-size:0.85em;color:#999">Previous reports: ${LINKS}</p>
-          </div></body></html>
+          python3 -c "
+          import json, os, time
+          meta_file = '$BUILDS_META'
+          meta = json.load(open(meta_file))
+          run = os.environ['RUN_NUMBER']
+          sha = os.environ.get('COMMIT_SHA', '')
+          msg = os.environ.get('COMMIT_MSG', '').split('\n')[0]
+          ts_str = os.environ.get('COMMIT_TS', '')
+          ts = int(time.time() * 1000)
+          if ts_str:
+              from datetime import datetime
+              try:
+                  dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                  ts = int(dt.timestamp() * 1000)
+              except Exception:
+                  pass
+          passed = os.environ.get('TEST_PASSED', 'false') == 'true'
+          repo_url = os.environ.get('REPO_URL', '')
+          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url}
+          dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
+          pruned = {k: v for k, v in meta.items() if k in dirs}
+          json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
+          builds = []
+          for d in dirs:
+              entry = pruned.get(d, {})
+              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', '')})
+          json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
+          print(f'Generated builds.json with {len(builds)} entries')
+          "
+
+          cp ../resources/allure-index.html index.html
+          if [ -f ../logo.svg ]; then
+            python3 -c "
+          html = open('index.html').read()
+          logo = open('../logo.svg').read()
+          logo = logo.replace('viewBox=\"0 0 400 350\"', 'viewBox=\"60 10 280 230\"')
+          logo = logo.replace('width=\"400\" height=\"350\"', '')
+          html = html.replace('<!--LOGO_PLACEHOLDER-->', logo)
+          open('index.html', 'w').write(html)
+          "
+          fi
+
+          mkdir -p latest
+          cat > latest/index.html <<EOF
+          <!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../${RUN}/"></head><body></body></html>
           EOF
+
           cd ..
           echo "Site ready with $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) reports"
 
