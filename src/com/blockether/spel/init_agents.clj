@@ -14,6 +14,7 @@
      spel init-agents --ns my-app
      spel init-agents --ns my-app --loop=claude
      spel init-agents --ns my-app --loop=vscode
+     spel init-agents --ns my-app --no-tests
      spel init-agents --ns my-app --test-dir test-e2e --specs-dir test-e2e/specs
      spel init-agents --dry-run"
   (:require
@@ -60,36 +61,40 @@
                :desc "VS Code / Copilot"}})
 
 (defn- files-to-create
-  "Returns file specs based on loop target.
+  "Returns file specs based on loop target and whether tests are included.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
-   agent-name is non-nil for agent templates that need frontmatter transformation."
-  [loop-target]
-  (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)]
-    [["agents/spel-test-planner.md"
-      (str agent-dir "/spel-test-planner" agent-ext)
-      "test planner agent"
-      "+"
-      "spel-test-planner"]
-     ["agents/spel-test-generator.md"
-      (str agent-dir "/spel-test-generator" agent-ext)
-      "test generator agent"
-      "+"
-      "spel-test-generator"]
-     ["agents/spel-test-healer.md"
-      (str agent-dir "/spel-test-healer" agent-ext)
-      "test healer agent"
-      "+"
-      "spel-test-healer"]
-     ["prompts/spel-test-workflow.md"
-      (str prompt-dir "/spel-test-workflow.md")
-      "coverage workflow"
-      "+"
-      nil]
-     ["skills/spel/SKILL.md"
-      (str skill-dir "/SKILL.md")
-      "API reference skill"
-      "+"
-      nil]]))
+   agent-name is non-nil for agent templates that need frontmatter transformation.
+   When no-tests is true, only the SKILL file is generated (no test agents/prompts)."
+  [loop-target no-tests]
+  (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
+        skill-file [["skills/spel/SKILL.md"
+                     (str skill-dir "/SKILL.md")
+                     "API reference skill"
+                     "+"
+                     nil]]
+        test-files [["agents/spel-test-planner.md"
+                     (str agent-dir "/spel-test-planner" agent-ext)
+                     "test planner agent"
+                     "+"
+                     "spel-test-planner"]
+                    ["agents/spel-test-generator.md"
+                     (str agent-dir "/spel-test-generator" agent-ext)
+                     "test generator agent"
+                     "+"
+                     "spel-test-generator"]
+                    ["agents/spel-test-healer.md"
+                     (str agent-dir "/spel-test-healer" agent-ext)
+                     "test healer agent"
+                     "+"
+                     "spel-test-healer"]
+                    ["prompts/spel-test-workflow.md"
+                     (str prompt-dir "/spel-test-workflow.md")
+                     "coverage workflow"
+                     "+"
+                     nil]]]
+    (if no-tests
+      skill-file
+      (into test-files skill-file))))
 
 (def ^:private seed-template-resource
   "Resource path for the seed test template (uses .template extension to
@@ -261,6 +266,7 @@
   (loop [remaining args
          opts {:dry-run false
                :force false
+               :no-tests false
                :ns nil
                :loop "opencode"
                :test-dir "test-e2e"
@@ -274,6 +280,9 @@
 
           (= "--force" arg)
           (recur (rest remaining) (assoc opts :force true))
+
+          (= "--no-tests" arg)
+          (recur (rest remaining) (assoc opts :no-tests true))
 
           (= "--ns" arg)
           (recur (drop 2 remaining)
@@ -349,9 +358,11 @@
 
 (defn- print-banner
   "Prints the initialization banner with the target name."
-  [loop-target]
+  [loop-target no-tests]
   (let [desc (:desc (get loop-targets loop-target))]
-    (println (str "Initializing Playwright E2E testing agents for " desc "..."))
+    (if no-tests
+      (println (str "Initializing Playwright skill for " desc " (interactive development, no test agents)..."))
+      (println (str "Initializing Playwright E2E testing agents for " desc "...")))
     (println "")))
 
 (defn- print-help
@@ -364,6 +375,7 @@
   (println "  spel init-agents --ns my-app --loop=claude")
   (println "  spel init-agents --ns my-app --loop=vscode")
   (println "  spel init-agents --ns my-app --test-dir test/e2e --specs-dir test-e2e/specs")
+  (println "  spel init-agents --ns my-app --no-tests")
   (println "  spel init-agents --ns my-app --dry-run")
   (println "  spel init-agents --ns my-app --force")
   (println "")
@@ -371,6 +383,8 @@
   (println "  --loop TARGET     Agent format: opencode (default), claude, vscode")
   (println "  --ns NS           Base namespace for generated tests (e.g. my-app → my-app.e2e.seed-test)")
   (println "                    If omitted, derived from the current directory name")
+  (println "  --no-tests        Scaffold only the SKILL (API reference) — no test agents, specs, or seed test.")
+  (println "                    Use this when spel is for interactive development, not E2E testing.")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
   (println "  --specs-dir DIR   Test plans directory (default: test-e2e/specs)")
   (println "  --dry-run         Show what would be created without writing")
@@ -382,7 +396,7 @@
   (println "  claude            .claude/agents/, .claude/prompts/, .claude/docs/")
   (println "  vscode            .github/agents/, .github/prompts/, .github/docs/")
   (println "")
-  (println "Also generates (all targets):")
+  (println "Also generates (all targets, unless --no-tests):")
   (println "  test-e2e/specs/                — Test plans directory (with README)")
   (println "  test-e2e/<ns>/e2e/seed_test.clj — Seed test (path derived from --ns)"))
 
@@ -399,29 +413,46 @@
 
 (defn- print-footer
   "Prints the completion message and next steps for the user."
-  [loop-target test-dir]
+  [loop-target test-dir no-tests]
   (println "")
-  (if (= "opencode" loop-target)
-    (println "Done! Use @spel-test-planner to start planning tests.")
-    (println "Done! Use the spel-test-planner agent to start planning tests."))
-  (println "")
-  (println "Next steps:")
-  (println "")
-  (println "  1. Install Playwright browsers:")
-  (println "     spel install --with-deps chromium")
-  (println "")
-  (println "  2. Add the :e2e alias to your deps.edn:")
-  (println "")
-  (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
-  (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
-  (println (str "           :main-opts [\"-m\" \"lazytest.main\" \"--dir\" \"" test-dir "\"]}"))
-  (println "")
-  (println "  3. Run the E2E tests:")
-  (println "     clojure -M:e2e")
-  (println "")
-  (println "  4. Update the seed test URL in")
-  (println (str "     " test-dir "/<ns>/e2e/seed_test.clj"))
-  (println "     to point to your development server."))
+  (if no-tests
+    (do
+      (println "Done! Skill installed for interactive development.")
+      (println "")
+      (println "Next steps:")
+      (println "")
+      (println "  1. Install Playwright browsers:")
+      (println "     spel install --with-deps chromium")
+      (println "")
+      (println "  2. Add spel to your deps.edn:")
+      (println "")
+      (println (str "     :deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
+      (println "")
+      (println "  3. Use spel for browser automation:")
+      (println "     spel open https://example.com")
+      (println "     spel --eval '(page/navigate \"https://example.com\")'"))
+    (do
+      (if (= "opencode" loop-target)
+        (println "Done! Use @spel-test-planner to start planning tests.")
+        (println "Done! Use the spel-test-planner agent to start planning tests."))
+      (println "")
+      (println "Next steps:")
+      (println "")
+      (println "  1. Install Playwright browsers:")
+      (println "     spel install --with-deps chromium")
+      (println "")
+      (println "  2. Add the :e2e alias to your deps.edn:")
+      (println "")
+      (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
+      (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
+      (println (str "           :main-opts [\"-m\" \"lazytest.main\" \"--dir\" \"" test-dir "\"]}"))
+      (println "")
+      (println "  3. Run the E2E tests:")
+      (println "     clojure -M:e2e")
+      (println "")
+      (println "  4. Update the seed test URL in")
+      (println (str "     " test-dir "/<ns>/e2e/seed_test.clj"))
+      (println "     to point to your development server."))))
 
 ;; =============================================================================
 ;; Main Entry Point
@@ -444,30 +475,32 @@
 
       :else
       (let [loop-target (:loop opts)
+            no-tests (:no-tests opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
-                          (println "         Tip: use --ns my-app to set namespace explicitly.")
-                          (println "")
-                          (derive-namespace)))
+                        (println "         Tip: use --ns my-app to set namespace explicitly.")
+                        (println "")
+                        (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
-        (print-banner loop-target)
+        (print-banner loop-target no-tests)
 
-        ;; Scaffold agent, prompt, and skill files
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target)]
+        ;; Scaffold files (skill only when --no-tests, full set otherwise)
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 
-        ;; Scaffold specs directory with README
-        (let [specs-readme-path (str specs-dir "/README.md")
-              specs-readme-result (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil)]
-          (print-result "+" specs-readme-path "test plans directory" specs-readme-result))
+        (when-not no-tests
+          ;; Scaffold specs directory with README
+          (let [specs-readme-path (str specs-dir "/README.md")
+                specs-readme-result (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil)]
+            (print-result "+" specs-readme-path "test plans directory" specs-readme-result))
 
-        ;; Scaffold test directory with seed test
-        ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
-        (let [seed-ns (str ns-name ".e2e.seed-test")
-              seed-path (ns->path test-dir seed-ns)
-              seed-result (scaffold-file seed-template-resource seed-path "seed test" "+" opts ns-name loop-target nil)]
-          (print-result "+" seed-path "seed test" seed-result))
+          ;; Scaffold test directory with seed test
+          ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
+          (let [seed-ns (str ns-name ".e2e.seed-test")
+                seed-path (ns->path test-dir seed-ns)
+                seed-result (scaffold-file seed-template-resource seed-path "seed test" "+" opts ns-name loop-target nil)]
+            (print-result "+" seed-path "seed test" seed-result)))
 
-        (print-footer loop-target test-dir)))))
+        (print-footer loop-target test-dir no-tests)))))
