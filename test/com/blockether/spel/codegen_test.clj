@@ -50,7 +50,7 @@
       (expect (= result
                 (str ";; New page: pg\n"
                   "(page/navigate pg \"https://example.com/\")\n"
-                  "(assert/contains-text (page/get-by-role pg AriaRole/HEADING) \"Example Domain\")\n"
+                  "(assert/contains-text (assert/assert-that (page/get-by-role pg AriaRole/HEADING)) \"Example Domain\")\n"
                   "(core/close-page! pg)")))))
 
   (it "produces exact navigate action"
@@ -93,22 +93,22 @@
   (it "produces exact assertText with substring=true"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Hello World\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(assert/contains-text (page/locator pg \"h1\") \"Hello World\")"))))
+      (expect (= result "(assert/contains-text (assert/assert-that (page/locator pg \"h1\")) \"Hello World\")"))))
 
   (it "produces exact assertText with substring=false"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Exact Title\",\"substring\":false,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(assert/has-text (page/locator pg \"h1\") \"Exact Title\")"))))
+      (expect (= result "(assert/has-text (assert/assert-that (page/locator pg \"h1\")) \"Exact Title\")"))))
 
   (it "produces exact assertVisible"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertVisible\",\"selector\":\".modal\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(assert/is-visible (page/locator pg \".modal\"))"))))
+      (expect (= result "(assert/is-visible (assert/assert-that (page/locator pg \".modal\")))"))))
 
   (it "produces exact assertChecked"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertChecked\",\"selector\":\"#agree\",\"checked\":true,\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(assert/is-checked (page/locator pg \"#agree\"))")))))
+      (expect (= result "(assert/is-checked (assert/assert-that (page/locator pg \"#agree\")))")))))
 
 ;; =============================================================================
 ;; Full Recording — :test format (exact output)
@@ -146,7 +146,7 @@
                   "          (core/with-page [pg (core/new-page-from-context ctx)]\n"
                   "          ;; New page: pg\n"
                   "          (page/navigate pg \"https://example.com/\")\n"
-                  "          (assert/contains-text (page/get-by-role pg AriaRole/HEADING) \"Example Domain\")\n"
+                  "          (assert/contains-text (assert/assert-that (page/get-by-role pg AriaRole/HEADING)) \"Example Domain\")\n"
                   "          (core/close-page! pg))))))\n"))))))
 
 ;; =============================================================================
@@ -175,7 +175,7 @@
                   "      (core/with-page [pg (core/new-page-from-context ctx)]\n"
                   "      ;; New page: pg\n"
                   "      (page/navigate pg \"https://example.com/\")\n"
-                  "      (assert/contains-text (page/get-by-role pg AriaRole/HEADING) \"Example Domain\")\n"
+                  "      (assert/contains-text (assert/assert-that (page/get-by-role pg AriaRole/HEADING)) \"Example Domain\")\n"
                   "      (core/close-page! pg)))))\n"))))))
 
 ;; =============================================================================
@@ -219,7 +219,7 @@
   (it "handles Playwright 1.58+ {:kind :body} locator map"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"internal:role=heading\",\"signals\":[],\"text\":\"Hello\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"heading\",\"options\":{\"attrs\":[]}}}"
           result (codegen jsonl)]
-      (expect (= result "(assert/contains-text (page/get-by-role pg AriaRole/HEADING) \"Hello\")"))))
+      (expect (= result "(assert/contains-text (assert/assert-that (page/get-by-role pg AriaRole/HEADING)) \"Hello\")"))))
 
   (it "handles internal:role selector fallback"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"internal:role=button\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
@@ -239,7 +239,7 @@
   (it "handles 1.58+ default kind (CSS selector)"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"div\",\"signals\":[],\"text\":\"Learn more\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"default\",\"body\":\"div\",\"options\":{}}}"
           result (codegen jsonl)]
-      (expect (= result "(assert/contains-text (page/locator pg \"div\") \"Learn more\")"))))
+      (expect (= result "(assert/contains-text (assert/assert-that (page/locator pg \"div\")) \"Learn more\")"))))
 
   (it "handles 1.58+ css kind"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"css\",\"body\":\"#submit-btn\",\"options\":{}}}"
@@ -276,10 +276,67 @@
           result (codegen jsonl)]
       (expect (= result "(locator/click (page/get-by-title pg \"Close dialog\"))"))))
 
-  (it "handles 1.58+ role kind with named attr"
+  (it "handles 1.58+ role kind with named attr in attrs array (legacy)"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"button\",\"options\":{\"attrs\":[{\"name\":\"name\",\"value\":\"Submit\"}]}}}"
           result (codegen jsonl)]
-      (expect (= result "(locator/click (locator/loc-filter (page/get-by-role pg AriaRole/BUTTON) {:has-text \"Submit\"}))")))))
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON {:name \"Submit\"}))")))))
+
+;; =============================================================================
+;; Role Name & Exact Flag (the real recording format)
+;; =============================================================================
+
+(defdescribe role-name-exact-test
+  "Tests for role locators with :name and :exact options"
+
+  (it "extracts name from options.name (Playwright 1.58+ JSONL format)"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"internal:role=link[name=\\\"Sign in\\\"i]\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"link\",\"options\":{\"attrs\":[],\"exact\":false,\"name\":\"Sign in\"}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/LINK {:name \"Sign in\"}))"))))
+
+  (it "passes :exact true when options.exact is true"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"internal:role=button[name=\\\"Sign in\\\"s]\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"button\",\"options\":{\"attrs\":[],\"exact\":true,\"name\":\"Sign in\"}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON {:name \"Sign in\", :exact true}))"))))
+
+  (it "omits :exact when options.exact is false"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"textbox\",\"options\":{\"attrs\":[],\"exact\":false,\"name\":\"Username\"}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/TEXTBOX {:name \"Username\"}))"))))
+
+  (it "role without name or exact generates plain get-by-role"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"alert\",\"options\":{\"attrs\":[]}}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/ALERT))"))))
+
+  (it "internal:role selector with name uses get-by-role {:name}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"internal:role=navigation[name=\\\"Platform\\\"i]\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/NAVIGATION {:name \"Platform\"}))"))))
+
+  (it "internal:role selector with exact suffix 's' adds :exact true"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"internal:role=button[name=\\\"Submit\\\"s]\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON {:name \"Submit\", :exact true}))"))))
+
+  (it "assertVisible with named role wraps assert-that"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertVisible\",\"selector\":\"internal:role=navigation[name=\\\"Platform\\\"i]\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"navigation\",\"options\":{\"attrs\":[],\"exact\":false,\"name\":\"Platform\"}}}"
+          result (codegen jsonl)]
+      (expect (= result "(assert/is-visible (assert/assert-that (page/get-by-role pg AriaRole/NAVIGATION {:name \"Platform\"})))"))))
+
+  (it "assertText with named role wraps assert-that"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"internal:role=alert\",\"signals\":[],\"text\":\"Error occurred\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"alert\",\"options\":{\"attrs\":[]}}}"
+          result (codegen jsonl)]
+      (expect (= result "(assert/contains-text (assert/assert-that (page/get-by-role pg AriaRole/ALERT)) \"Error occurred\")"))))
+
+  (it "legacy {:role :name} locator map uses get-by-role {:name}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"role\":\"button\",\"name\":\"Submit\"}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/BUTTON {:name \"Submit\"}))"))))
+
+  (it "legacy {:role :name :exact true} locator passes :exact true"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"role\":\"link\",\"name\":\"Home\",\"exact\":true}}"
+          result (codegen jsonl)]
+      (expect (= result "(locator/click (page/get-by-role pg AriaRole/LINK {:name \"Home\", :exact true}))")))))
 
 ;; =============================================================================
 ;; Browser Name / Headless Options

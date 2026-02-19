@@ -899,6 +899,20 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | `--test-dir DIR` | `test/e2e` | E2E test output directory |
 | `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
 
+### Oh My OpenCode
+
+If you use [Oh My OpenCode](https://github.com/code-yeongyu/oh-my-opencode), disable the built-in `playwright` skill and use the scaffolded `spel` skill instead. The built-in skill is a generic MCP wrapper with no knowledge of spel's Clojure API — the `spel` skill includes the full API reference (locators, assertions, snapshots, CLI, codegen) so agents generate idiomatic code out of the box.
+
+Add to your project's `.opencode/oh-my-opencode.json`:
+
+```json
+{
+  "disabled_skills": ["playwright"]
+}
+```
+
+After scaffolding with `spel init-agents`, the `spel` skill is automatically available at `.opencode/skills/spel/SKILL.md`. Agents and task delegations should use `load_skills=["spel"]` for any browser-related work.
+
 ## Native CLI
 
 Pre-compiled native binary with 100+ commands for browser automation. Instant startup, persistent browser via daemon.

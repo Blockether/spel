@@ -203,14 +203,20 @@
   [pg-sym selector]
   (cond
     ;; internal:role=heading[name=\"Example Domain\"i]
+    ;; Suffix: "i" = case-insensitive (default), "s" = exact match
     (str/starts-with? selector "internal:role=")
     (let [rest-str (subs selector (count "internal:role="))
           [role-part attrs] (str/split rest-str #"\[" 2)
           role-str (str/replace role-part #"[^a-zA-Z]" "")
-          name-val (when attrs (second (re-find #"name=\"([^\"]+)\"" attrs)))]
-      (if name-val
-        (clojure.core/format "(locator/loc-filter (page/get-by-role %s %s) {:has-text %s})"
-          pg-sym (role->enum role-str nil) (pr-str name-val))
+          name-match (when attrs (re-find #"name=\"([^\"]+)\"([is])?" attrs))
+          name-val (second name-match)
+          exact? (= "s" (nth name-match 2 nil))
+          role-opts (cond-> {}
+                      name-val (assoc :name name-val)
+                      exact?   (assoc :exact true))]
+      (if (seq role-opts)
+        (clojure.core/format "(page/get-by-role %s %s %s)"
+          pg-sym (role->enum role-str nil) (pr-str role-opts))
         (clojure.core/format "(page/get-by-role %s %s)" pg-sym (role->enum role-str nil))))
 
     ;; internal:text=\"value\"i
@@ -239,10 +245,13 @@
   [pg-sym locator action]
   (cond
     (:role locator)
-    (let [role-code (role->enum (:role locator) action)]
-      (if (:name locator)
-        (clojure.core/format "(locator/loc-filter (page/get-by-role %s %s) {:has-text %s})"
-          pg-sym role-code (pr-str (:name locator)))
+    (let [role-code (role->enum (:role locator) action)
+          role-opts (cond-> {}
+                      (:name locator)          (assoc :name (:name locator))
+                      (true? (:exact locator)) (assoc :exact true))]
+      (if (seq role-opts)
+        (clojure.core/format "(page/get-by-role %s %s %s)"
+          pg-sym role-code (pr-str role-opts))
         (clojure.core/format "(page/get-by-role %s %s)" pg-sym role-code)))
 
     ;; Playwright 1.58+ JSONL format: {:kind "role", :body "heading", :options {:attrs [...]}}
@@ -254,13 +263,21 @@
 
       ;; ARIA role
       "role" (let [role-code (role->enum (:body locator) action)
-                   name-val (some (fn [attr]
-                                    (when (= "name" (str (:name attr)))
-                                      (:value attr)))
-                              (get-in locator [:options :attrs]))]
-               (if name-val
-                 (clojure.core/format "(locator/loc-filter (page/get-by-role %s %s) {:has-text %s})"
-                   pg-sym role-code (pr-str name-val))
+                   opts (:options locator)
+                   ;; Name comes from options.name (Playwright 1.58+)
+                   ;; or from attrs array (legacy: [{:name "name" :value "Submit"}])
+                   name-val (or (:name opts)
+                              (some (fn [attr]
+                                      (when (= "name" (str (:name attr)))
+                                        (:value attr)))
+                                (:attrs opts)))
+                   exact? (true? (:exact opts))
+                   role-opts (cond-> {}
+                               name-val (assoc :name name-val)
+                               exact?   (assoc :exact true))]
+               (if (seq role-opts)
+                 (clojure.core/format "(page/get-by-role %s %s %s)"
+                   pg-sym role-code (pr-str role-opts))
                  (clojure.core/format "(page/get-by-role %s %s)" pg-sym role-code)))
 
       ;; Semantic locators
@@ -447,23 +464,25 @@
           (die! (clojure.core/format "setInputFiles: unexpected files format: %s" (pr-str files)) action)))
 
       ;; ----- Assertions -----
+      ;; All assertion functions take LocatorAssertions, not raw Locator.
+      ;; Must wrap with assert-that first.
       "assertText"
       (if (:substring action)
-        (clojure.core/format "(assert/contains-text %s %s)" (loc) (pr-str (:text action)))
-        (clojure.core/format "(assert/has-text %s %s)" (loc) (pr-str (:text action))))
+        (clojure.core/format "(assert/contains-text (assert/assert-that %s) %s)" (loc) (pr-str (:text action)))
+        (clojure.core/format "(assert/has-text (assert/assert-that %s) %s)" (loc) (pr-str (:text action))))
 
       "assertChecked"
       (if (:checked action)
-        (clojure.core/format "(assert/is-checked %s)" (loc))
-        (clojure.core/format "(assert/is-checked (assert/loc-not %s))" (loc)))
+        (clojure.core/format "(assert/is-checked (assert/assert-that %s))" (loc))
+        (clojure.core/format "(assert/is-checked (assert/loc-not (assert/assert-that %s)))" (loc)))
 
       "assertVisible"
-      (clojure.core/format "(assert/is-visible %s)" (loc))
+      (clojure.core/format "(assert/is-visible (assert/assert-that %s))" (loc))
 
       "assertValue"
       (if (str/blank? (str (:value action)))
-        (clojure.core/format "(assert/is-empty %s)" (loc))
-        (clojure.core/format "(assert/has-value %s %s)" (loc) (pr-str (:value action))))
+        (clojure.core/format "(assert/is-empty (assert/assert-that %s))" (loc))
+        (clojure.core/format "(assert/has-value (assert/assert-that %s) %s)" (loc) (pr-str (:value action))))
 
       "assertSnapshot"
       (clojure.core/format "(assert/matches-aria-snapshot (assert/assert-that %s) %s)"
