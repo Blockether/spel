@@ -109,7 +109,356 @@
 
     (it "has save! function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? annotate/save!)")))))))
+        (expect (true? (sut/eval-string ctx "(fn? annotate/save!)"))))))
+
+  (describe "page namespace (raw Page-arg functions)"
+    (it "has navigate function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/navigate)")))))
+
+    (it "has locator function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/locator)")))))
+
+    (it "has get-by-role function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/get-by-role)")))))
+
+    (it "has get-by-text function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/get-by-text)")))))
+
+    (it "has get-by-label function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/get-by-label)")))))
+
+    (it "has title function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/title)")))))
+
+    (it "has url function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/url)")))))
+
+    (it "has screenshot function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/screenshot)")))))
+
+    (it "has evaluate function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/evaluate)")))))
+
+    (it "has wait-for-load-state function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/wait-for-load-state)")))))
+
+    (it "has set-content! function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? page/set-content!)"))))))
+
+  (describe "locator namespace (raw Locator-arg functions)"
+    (it "has click function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/click)")))))
+
+    (it "has fill function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/fill)")))))
+
+    (it "has type-text function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/type-text)")))))
+
+    (it "has press function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/press)")))))
+
+    (it "has text-content function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/text-content)")))))
+
+    (it "has is-visible? function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/is-visible?)")))))
+
+    (it "has hover function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/hover)")))))
+
+    (it "has check function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/check)")))))
+
+    (it "has select-option function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/select-option)")))))
+
+    (it "has count-elements function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/count-elements)")))))
+
+    (it "has all function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/all)")))))
+
+    (it "has wait-for function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/wait-for)")))))
+
+    (it "has screenshot function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? locator/screenshot)"))))))
+
+  (describe "core namespace (lifecycle macros and functions)"
+    (it "with-playwright is a macro"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx
+                         "(-> (resolve 'core/with-playwright) meta :sci/macro)")))))
+
+    (it "with-browser is a macro"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx
+                         "(-> (resolve 'core/with-browser) meta :sci/macro)")))))
+
+    (it "with-context is a macro"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx
+                         "(-> (resolve 'core/with-context) meta :sci/macro)")))))
+
+    (it "with-page is a macro"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx
+                         "(-> (resolve 'core/with-page) meta :sci/macro)")))))
+
+    (it "has launch-chromium function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/launch-chromium)")))))
+
+    (it "has launch-firefox function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/launch-firefox)")))))
+
+    (it "has launch-webkit function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/launch-webkit)")))))
+
+    (it "has create function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/create)")))))
+
+    (it "has new-context function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/new-context)")))))
+
+    (it "has new-page function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/new-page)")))))
+
+    (it "has new-page-from-context function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/new-page-from-context)")))))
+
+    (it "has close! function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/close!)")))))
+
+    (it "has close-browser! function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? core/close-browser!)")))))))
+
+(defdescribe sci-enum-availability-test
+  "Unit tests for Playwright enum access in SCI"
+
+  (describe "AriaRole enum"
+    (it "resolves AriaRole/BUTTON"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "AriaRole/BUTTON")))))
+
+    (it "resolves AriaRole/HEADING"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "AriaRole/HEADING")))))
+
+    (it "resolves AriaRole/NAVIGATION"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "AriaRole/NAVIGATION")))))
+
+    (it "resolves AriaRole/LINK"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "AriaRole/LINK"))))))
+
+  (describe "LoadState enum"
+    (it "resolves LoadState/LOAD"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "LoadState/LOAD")))))
+
+    (it "resolves LoadState/DOMCONTENTLOADED"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "LoadState/DOMCONTENTLOADED")))))
+
+    (it "resolves LoadState/NETWORKIDLE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "LoadState/NETWORKIDLE"))))))
+
+  (describe "WaitUntilState enum"
+    (it "resolves WaitUntilState/LOAD"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "WaitUntilState/LOAD")))))
+
+    (it "resolves WaitUntilState/COMMIT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "WaitUntilState/COMMIT"))))))
+
+  (describe "WaitForSelectorState enum"
+    (it "resolves WaitForSelectorState/VISIBLE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "WaitForSelectorState/VISIBLE")))))
+
+    (it "resolves WaitForSelectorState/HIDDEN"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "WaitForSelectorState/HIDDEN")))))
+
+    (it "resolves WaitForSelectorState/ATTACHED"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "WaitForSelectorState/ATTACHED"))))))
+
+  (describe "MouseButton enum"
+    (it "resolves MouseButton/LEFT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "MouseButton/LEFT")))))
+
+    (it "resolves MouseButton/RIGHT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "MouseButton/RIGHT"))))))
+
+  (describe "ScreenshotType enum"
+    (it "resolves ScreenshotType/PNG"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ScreenshotType/PNG")))))
+
+    (it "resolves ScreenshotType/JPEG"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ScreenshotType/JPEG"))))))
+
+  (describe "Media enum"
+    (it "resolves Media/SCREEN"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "Media/SCREEN")))))
+
+    (it "resolves Media/PRINT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "Media/PRINT"))))))
+
+  (describe "ColorScheme enum"
+    (it "resolves ColorScheme/LIGHT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ColorScheme/LIGHT")))))
+
+    (it "resolves ColorScheme/DARK"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ColorScheme/DARK")))))
+
+    (it "resolves ColorScheme/NO_PREFERENCE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ColorScheme/NO_PREFERENCE"))))))
+
+  (describe "ForcedColors enum"
+    (it "resolves ForcedColors/ACTIVE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ForcedColors/ACTIVE")))))
+
+    (it "resolves ForcedColors/NONE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ForcedColors/NONE"))))))
+
+  (describe "ReducedMotion enum"
+    (it "resolves ReducedMotion/REDUCE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ReducedMotion/REDUCE")))))
+
+    (it "resolves ReducedMotion/NO_PREFERENCE"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ReducedMotion/NO_PREFERENCE"))))))
+
+  (describe "HarMode enum"
+    (it "resolves HarMode/FULL"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarMode/FULL")))))
+
+    (it "resolves HarMode/MINIMAL"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarMode/MINIMAL"))))))
+
+  (describe "HarContentPolicy enum"
+    (it "resolves HarContentPolicy/EMBED"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarContentPolicy/EMBED")))))
+
+    (it "resolves HarContentPolicy/OMIT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarContentPolicy/OMIT"))))))
+
+  (describe "HarNotFound enum"
+    (it "resolves HarNotFound/ABORT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarNotFound/ABORT")))))
+
+    (it "resolves HarNotFound/FALLBACK"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "HarNotFound/FALLBACK"))))))
+
+  (describe "RouteFromHarUpdateContentPolicy enum"
+    (it "resolves RouteFromHarUpdateContentPolicy/EMBED"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "RouteFromHarUpdateContentPolicy/EMBED")))))
+
+    (it "resolves RouteFromHarUpdateContentPolicy/ATTACH"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "RouteFromHarUpdateContentPolicy/ATTACH"))))))
+
+  (describe "SameSiteAttribute enum"
+    (it "resolves SameSiteAttribute/STRICT"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "SameSiteAttribute/STRICT")))))
+
+    (it "resolves SameSiteAttribute/LAX"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "SameSiteAttribute/LAX"))))))
+
+  (describe "ServiceWorkerPolicy enum"
+    (it "resolves ServiceWorkerPolicy/ALLOW"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ServiceWorkerPolicy/ALLOW")))))
+
+    (it "resolves ServiceWorkerPolicy/BLOCK"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (some? (sut/eval-string ctx "ServiceWorkerPolicy/BLOCK")))))))
+
+(defdescribe sci-require-test
+  "Unit tests for full qualified namespace require support in SCI"
+
+  (describe "require com.blockether.spel.core"
+    (it "can require and use core namespace"
+      (let [ctx (sut/create-sci-ctx)]
+        (sut/eval-string ctx "(require '[com.blockether.spel.core :as c])")
+        (expect (true? (sut/eval-string ctx "(fn? c/close!)"))))))
+
+  (describe "require com.blockether.spel.page"
+    (it "can require and use page namespace"
+      (let [ctx (sut/create-sci-ctx)]
+        (sut/eval-string ctx "(require '[com.blockether.spel.page :as p])")
+        (expect (true? (sut/eval-string ctx "(fn? p/navigate)"))))))
+
+  (describe "require com.blockether.spel.locator"
+    (it "can require and use locator namespace"
+      (let [ctx (sut/create-sci-ctx)]
+        (sut/eval-string ctx "(require '[com.blockether.spel.locator :as l])")
+        (expect (true? (sut/eval-string ctx "(fn? l/click)"))))))
+
+  (describe "require com.blockether.spel.assertions"
+    (it "can require and use assertions namespace"
+      (let [ctx (sut/create-sci-ctx)]
+        (sut/eval-string ctx "(require '[com.blockether.spel.assertions :as a])")
+        (expect (true? (sut/eval-string ctx "(fn? a/assert-that)")))))))
 
 (defdescribe sci-error-handling-test
   "Unit tests for SCI error handling"

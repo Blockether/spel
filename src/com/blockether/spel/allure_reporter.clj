@@ -440,16 +440,35 @@
 ;; Supplementary Files
 ;; =============================================================================
 
+(defn- spel-version
+  "Reads the spel version from the SPEL_VERSION classpath resource.
+   Returns nil when the resource is not on the classpath (e.g. consumer projects)."
+  []
+  (some-> (io/resource "SPEL_VERSION") slurp str/trim not-empty))
+
+(defn- project-version
+  "User-configurable project version for Allure reports.
+   Checked via system property, env var, then falls back to spel version."
+  []
+  (or (System/getProperty "lazytest.allure.version")
+    (System/getenv "LAZYTEST_ALLURE_VERSION")
+    (spel-version)))
+
 (defn- write-environment-properties!
   "Write environment.properties to the allure output directory."
   [^File output-dir]
-  (let [props [["java.version"    (System/getProperty "java.version")]
-               ["java.vendor"     (System/getProperty "java.vendor")]
-               ["os.name"         (System/getProperty "os.name")]
-               ["os.arch"         (System/getProperty "os.arch")]
-               ["os.version"      (System/getProperty "os.version")]
-               ["clojure.version" (clojure-version)]
-               ["file.encoding"   (System/getProperty "file.encoding")]]
+  (let [version (project-version)
+        props   (cond-> [["java.version"    (System/getProperty "java.version")]
+                         ["java.vendor"     (System/getProperty "java.vendor")]
+                         ["os.name"         (System/getProperty "os.name")]
+                         ["os.arch"         (System/getProperty "os.arch")]
+                         ["os.version"      (System/getProperty "os.version")]
+                         ["clojure.version" (clojure-version)]
+                         ["file.encoding"   (System/getProperty "file.encoding")]]
+                  (spel-version)
+                  (conj ["spel.version" (spel-version)])
+                  version
+                  (conj ["project.version" version]))
         content (->> props
                   (map (fn [[k v]] (str k " = " (or v ""))))
                   (str/join "\n"))]
@@ -477,16 +496,24 @@
     (System/getenv "LAZYTEST_ALLURE_REPORT")
     "allure-report"))
 
-(defn- copy-dir!
-  "Recursively copy all files from src directory to dest directory."
-  [^File src ^File dest]
-  (when (.isDirectory src)
-    (.mkdirs dest)
-    (doseq [^File f (.listFiles src)]
-      (let [target (io/file dest (.getName f))]
-        (if (.isDirectory f)
-          (copy-dir! f target)
-          (io/copy f target))))))
+(defn- copy-trace-viewer!
+  "Copy the embedded Playwright trace viewer from classpath resources
+   into the Allure report directory.  Reads `trace-viewer/MANIFEST`
+   (a newline-delimited list of relative paths) and copies each entry
+   via `io/resource`, so this works from both the filesystem and a JAR."
+  [^File dest]
+  (when-let [manifest-url (io/resource "trace-viewer/MANIFEST")]
+    (let [entries (->> (slurp manifest-url)
+                    str/split-lines
+                    (map str/trim)
+                    (remove str/blank?))]
+      (doseq [entry entries]
+        (when-let [res (io/resource (str "trace-viewer/" entry))]
+          (let [target (io/file dest entry)]
+            (.mkdirs (.getParentFile target))
+            (with-open [in (io/input-stream res)]
+              (io/copy in target)))))
+      (pos? (count entries)))))
 
 (defn- patch-trace-viewer-url!
   "Rewrite the Allure app JS to point the Playwright Trace Viewer iframe
@@ -640,7 +667,9 @@
 (defn- report-name
   ^String []
   (or (System/getProperty "lazytest.allure.report-name")
-    (System/getenv "LAZYTEST_ALLURE_REPORT_NAME")))
+    (System/getenv "LAZYTEST_ALLURE_REPORT_NAME")
+    (when-let [v (project-version)]
+      (str "spel v" v))))
 
 (defn- report-logo
   ^String []
@@ -651,50 +680,49 @@
 
 (defn- generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
-   available), embed the local trace viewer, and patch the report JS.
-   Returns true on success."
+   available), optionally embed the local trace viewer, and patch the
+   report JS.  Returns true on success."
   [^String results-dir ^String report-dir-path]
-  (let [report    (io/file report-dir-path)
-        trace-src (io/file "resources/trace-viewer")]
-    (when (.exists trace-src)
-      (println "Generating Allure HTML report...")
-      (flush)
-      (if-let [allure-cmd (resolve-allure-cmd!)]
-        (do
-          ;; Remove old report
-          (when (.exists report)
-            (doseq [^File f (reverse (file-seq report))]
-              (.delete f)))
-          ;; Build command — use `allure awesome` which supports --history-path
-          (let [history (io/file history-file)
-                cmd     (cond-> (into allure-cmd ["awesome" results-dir
-                                                  "-o" report-dir-path])
-                          (.isFile history)
-                          (into ["-h" (.getAbsolutePath history)])
-                          (report-name)
-                          (into ["--name" (report-name)])
-                          (report-logo)
-                          (into ["--logo" (report-logo)]))
-                exit    (long (run-proc! cmd))]
-            (if (zero? exit)
-              (do
-                (copy-dir! trace-src (io/file report "trace-viewer"))
-                (when-let [logo (report-logo)]
-                  (let [src (io/file logo)
-                        dst (io/file report (.getName src))]
-                    (io/copy src dst)))
+  (println "Generating Allure HTML report...")
+  (flush)
+  (let [report (io/file report-dir-path)]
+    (if-let [allure-cmd (resolve-allure-cmd!)]
+      (do
+        ;; Remove old report
+        (when (.exists report)
+          (doseq [^File f (reverse (file-seq report))]
+            (.delete f)))
+        ;; Build command — use `allure awesome` which supports --history-path
+        (let [history (io/file history-file)
+              cmd     (cond-> (into allure-cmd ["awesome" results-dir
+                                                "-o" report-dir-path])
+                        (.isFile history)
+                        (into ["-h" (.getAbsolutePath history)])
+                        (report-name)
+                        (into ["--name" (report-name)])
+                        (report-logo)
+                        (into ["--logo" (report-logo)]))
+              exit    (long (run-proc! cmd))]
+          (if (zero? exit)
+            (do
+              ;; Embed trace viewer from classpath resources
+              (when (copy-trace-viewer! (io/file report "trace-viewer"))
                 (patch-trace-viewer-url! report)
                 (inject-trace-viewer-prewarm! report)
-                (patch-sw-safari-compat! report)
-                (run-proc! (into allure-cmd ["history" results-dir
-                                             "-h" history-file
-                                             "--history-limit" (history-limit)]))
-                (println (str "  Report ready at " report-dir-path "/"))
-                true)
-              (do
-                (println (str "  x allure generate failed (exit " exit ")"))
-                false))))
-        false))))
+                (patch-sw-safari-compat! report))
+              (when-let [logo (report-logo)]
+                (let [src (io/file logo)
+                      dst (io/file report (.getName src))]
+                  (io/copy src dst)))
+              (run-proc! (into allure-cmd ["history" results-dir
+                                           "-h" history-file
+                                           "--history-limit" (history-limit)]))
+              (println (str "  Report ready at " report-dir-path "/"))
+              true)
+            (do
+              (println (str "  x allure generate failed (exit " exit ")"))
+              false))))
+      false)))
 
 ;; =============================================================================
 ;; Reporter

@@ -282,7 +282,7 @@
                     allure/*har-path*   har-file]
             (f))
           (finally
-                  ;; Close page first (matches Playwright's own test patterns)
+            ;; Close page first (matches Playwright's own test patterns)
             (when (instance? com.microsoft.playwright.Page page)
               (core/close-page! page))
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount

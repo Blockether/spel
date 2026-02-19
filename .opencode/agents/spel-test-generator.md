@@ -52,13 +52,13 @@ com.blockether.spel and Lazytest framework.
 
 ## Code Pattern
 
-ALWAYS use Lazytest's `:context` fixtures to share browser lifecycle across tests. NEVER create `with-playwright`/`with-browser`/`with-page` inside each `it` block.
+ALWAYS use Lazytest's `:context` fixtures to share browser lifecycle across tests. NEVER create `with-playwright`/`with-browser`/`with-traced-page` inside each `it` block.
 
 The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
 - `with-playwright` — `around` hook that binds `*pw*`
 - `with-browser` — `around` hook that binds `*browser*` (headless Chromium)
-- `with-page` — `around` hook that binds `*page*` (fresh page per test, with auto-tracing when Allure is active)
-- `with-traced-page` — like `with-page` but always enables tracing/HAR regardless of Allure
+- `with-traced-page` — **default** `around` hook that binds `*page*` (fresh page per test, always enables tracing/HAR)
+- `with-page` — like `with-traced-page` but tracing only when Allure is active (use only if you explicitly want no tracing)
 
 ```clojure
 (ns my-app.e2e.feature-test
@@ -66,14 +66,14 @@ The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright.options AriaRole]))
 
 (defdescribe feature-test
   (describe "Scenario Group"
-    {:context [with-playwright with-browser with-page]}
+    {:context [with-playwright with-browser with-traced-page]}
 
     (it "does specific thing"
       ;; 1. Navigate to the page
@@ -92,15 +92,15 @@ The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
 |---------|-------|-------|
 | `with-playwright` | `*pw*` | Shared across all `it` blocks in the `describe` |
 | `with-browser` | `*browser*` | Shared across all `it` blocks in the `describe` |
-| `with-page` | `*page*` | Fresh page for **each** `it` block (auto-cleanup) |
+| `with-traced-page` | `*page*` | **Default.** Fresh page for **each** `it` block (auto-cleanup, tracing/HAR always enabled) |
 
-The `with-page` hook creates a new BrowserContext + Page before each `it` and closes them after. This means each test gets isolation without paying the cost of launching a new browser.
+The `with-traced-page` hook creates a new BrowserContext + Page before each `it` and closes them after. This means each test gets isolation without paying the cost of launching a new browser. Tracing and HAR capture are always enabled so traces are available for debugging.
 
 Use `before-each` to set up page state (e.g. navigate) shared by multiple `it` blocks in the same `describe`:
 
 ```clojure
 (describe "after navigating to dashboard"
-  {:context [with-playwright with-browser with-page]}
+  {:context [with-playwright with-browser with-traced-page]}
 
   (before-each
     (page/navigate *page* "http://localhost:8080/dashboard"))
@@ -114,7 +114,7 @@ Use `before-each` to set up page state (e.g. navigate) shared by multiple `it` b
 
 ## Critical Rules
 
-- **Fixtures via `:context`**: ALWAYS use `{:context [with-playwright with-browser with-page]}` on `describe`. NEVER nest `with-playwright`/`with-browser`/`with-page` manually inside `it` blocks.
+- **Fixtures via `:context`**: ALWAYS use `{:context [with-playwright with-browser with-traced-page]}` on `describe`. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
 - **`*page*` dynamic var**: All test code uses `*page*` to access the current page. NEVER create pages manually in tests.
 - **`assert-that` first**: ALWAYS wrap locator/page with `(assert/assert-that ...)` before passing to assertion functions.
 - **`(expect (nil? ...))` for assertions**: Playwright assertions return `nil` on success. ALWAYS wrap in `(expect (nil? (assert/has-text ...)))` inside `it` blocks.
@@ -144,7 +144,7 @@ For a test plan:
 Generate:
 ```clojure
 (describe "homepage navigation"
-  {:context [with-playwright with-browser with-page]}
+  {:context [with-playwright with-browser with-traced-page]}
 
   (it "navigates to homepage and clicks Get Started"
     ;; 1. Navigate to http://localhost:8080

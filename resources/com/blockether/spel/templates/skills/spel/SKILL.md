@@ -45,19 +45,22 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `context-clear-permissions!` | [context] | Clears all granted permissions. |
 | `context-cookies` | [context] | Returns all cookies in the context. |
-| `context-save-storage-state!` | [context path] | Saves storage state (cookies, localStorage) to a JSON file. |
-| `context-storage-state` | [context] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `context-pages` | [context] | Returns all pages in a context. |
+| `context-route-from-har!` | [context har] \| [context har route-opts] | Routes requests in the context from a HAR file. Replays recorded responses |
+| `context-route-web-socket!` | [context pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
+| `context-save-storage-state!` | [context path] | Saves the storage state (cookies, localStorage) to a file. |
 | `context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |
 | `context-set-default-timeout!` | [context timeout] | Sets the default timeout for context operations. |
 | `context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
 | `context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
+| `context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `create` | [] | Creates a new Playwright instance. |
 | `firefox` | [pw] | Returns the Firefox BrowserType. |
 | `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
 | `launch-chromium` | [pw] \| [pw opts] | Launches Chromium browser. |
 | `launch-firefox` | [pw] \| [pw opts] | Launches Firefox browser. |
+| `launch-persistent-context` | [browser-type user-data-dir] \| [browser-type user-data-dir opts] | Launches a browser with a persistent user data directory (Chrome profile). |
 | `launch-webkit` | [pw] \| [pw opts] | Launches WebKit browser. |
 | `new-context` | [browser] \| [browser context-opts] | Creates a new browser context with optional configuration. |
 | `new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
@@ -116,6 +119,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `pdf` | [page] \| [page pdf-opts] | Generates a PDF of the page. Only works in Chromium headless. |
 | `reload` | [page] \| [page nav-opts] | Reloads the page. |
 | `route!` | [page pattern handler] | Registers a route handler for URL pattern. |
+| `route-from-har!` | [page har] \| [page har route-opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
+| `route-web-socket!` | [page pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
 | `screenshot` | [page] \| [page ss-opts] | Takes a screenshot of the page. |
 | `set-content!` | [page html] \| [page html set-opts] | Sets the HTML content of the page. |
 | `set-default-navigation-timeout!` | [page timeout] | Sets the default navigation timeout. |
@@ -388,30 +393,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 ### `allure` — Allure test reporting
 
-| Function | Args | Description |
-|----------|------|-------------|
-| _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
-| `attach` | [att-name content content-type] | Attach string content to the test report. |
-| `attach-api-response!` | [resp] | Attach APIResponse metadata to the current allure step as parameters, |
-| `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
-| `description` | [text] | Set the test description (markdown supported). |
-| `epic` | [value] | Set the epic label for this test. |
-| `feature` | [value] | Set the feature label for this test. |
-| `issue` | [name url] | Add an issue link. |
-| `link` | [name url] | Add a link to the test report. |
-| `make-context` | [] | Create a fresh context map for a test case. Called by the reporter. |
-| `owner` | [value] | Set the test owner. |
-| `parameter` | [name value] | Add a parameter to the test or current step. |
-| `reporter-active?` | [] | Returns true when the Allure reporter is active (i.e. we're |
-| `screenshot` | [pg att-name] | Take a Playwright screenshot and attach it to the report. |
-| `set-reporter-active!` | [active?] | Called by the Allure reporter at begin/end of test run. |
-| `severity` | [level] | Set the severity label. Level should be one of: |
-| _(macro)_ `step` | [step-name] \| [step-name & body] | Add a step to the test report. |
-| `step*` | [step-name] \| [step-name f] \| [step-name f loc-map] | Internal function backing the `step` macro. Prefer the macro. The 3-arity accepts a `{:file ... :line ...}` map for Trace Viewer source mapping (auto-provided by macros). |
-| `story` | [value] | Set the story label for this test. |
-| `tag` | [value] | Add a tag label. |
-| `tms` | [name url] | Add a test management system link. |
-| _(macro)_ `ui-step` | [step-name & body] | Execute a UI step with automatic before/after screenshots. |
+_Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:1:1)._
+
 
 ### `snapshot` — Accessibility snapshots
 
@@ -499,6 +482,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 |----------|------|-------------|
 | `->check-options` | [opts] | Converts a map to Locator$CheckOptions. |
 | `->click-options` | [opts] | Converts a map to Locator$ClickOptions. |
+| `->context-route-from-har-options` | [opts] | Converts a map to BrowserContext$RouteFromHAROptions. |
 | `->cookie` | [opts] | Creates a Cookie instance from a map. |
 | `->dblclick-options` | [opts] | Converts a map to Locator$DblclickOptions. |
 | `->dispatch-event-options` | [opts] | Converts a map to Locator$DispatchEventOptions. |
@@ -544,6 +528,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `->keyboard-press-options` | [opts] | Converts a map to Keyboard$PressOptions. |
 | `->keyboard-type-options` | [opts] | Converts a map to Keyboard$TypeOptions. |
 | `->launch-options` | [opts] | Converts a map to BrowserType$LaunchOptions. |
+| `->launch-persistent-context-options` | [opts] | Converts a map to BrowserType$LaunchPersistentContextOptions. |
 | `->locator-screenshot-options` | [opts] | Converts a map to Locator$ScreenshotOptions. |
 | `->mouse-click-options` | [opts] | Converts a map to Mouse$ClickOptions. |
 | `->mouse-dblclick-options` | [opts] | Converts a map to Mouse$DblclickOptions. |
@@ -555,6 +540,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `->new-page-options` | [opts] | Converts a map to Browser$NewPageOptions. |
 | `->page-add-script-tag-options` | [opts] | Converts a map to Page$AddScriptTagOptions. |
 | `->page-add-style-tag-options` | [opts] | Converts a map to Page$AddStyleTagOptions. |
+| `->page-route-from-har-options` | [opts] | Converts a map to Page$RouteFromHAROptions. |
 | `->page-wait-for-function-options` | [opts] | Converts a map to Page$WaitForFunctionOptions. |
 | `->page-wait-for-url-options` | [opts] | Converts a map to Page$WaitForURLOptions. |
 | `->pdf-options` | [opts] | Converts a map to Page$PdfOptions. |
@@ -1040,10 +1026,6 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (core/context-clear-permissions! ctx)
 (core/context-cookies ctx)
 (core/context-clear-cookies! ctx)
-(core/context-storage-state ctx)                          ;; => JSON string
-(core/context-save-storage-state! ctx "state.json")       ;; saves to file
-;; Load saved state into a NEW context (round-trip):
-(core/new-context browser {:storage-state "state.json"})
 (core/context-set-offline! ctx true)
 (core/context-set-extra-http-headers! ctx {"X-Test" "value"})
 (core/context-set-default-timeout! ctx 30000)
@@ -1400,21 +1382,29 @@ The built-in reporter generates the full HTML report automatically using Allure 
 | `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
 | `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
 | `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
-| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto)_ | Report title (shown in header and history) |
+| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto: "spel vX.Y.Z")_ | Report title (shown in header and history). Auto-includes version when not set. |
+| `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history and environment. Falls back to `SPEL_VERSION` resource. |
 | `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
 
+**Version in build listings**: When `lazytest.allure.version` is set (or `SPEL_VERSION` is on the classpath), each build in the Allure history is tagged with the version. The report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. The version also appears in `environment.properties` as `project.version` and `spel.version`.
+
 ```bash
-# Run tests with Allure reporter
+# Run tests + generate Allure HTML report (allure-results/ + allure-report/)
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Keep last 20 builds in history
-clojure -J-Dlazytest.allure.history-limit=20 -M:test \
+# Serve the generated report in browser (port 9999)
+npx http-server allure-report -o -p 9999
+
+# Tag build with custom version (overrides SPEL_VERSION)
+clojure -J-Dlazytest.allure.version=1.2.3 -M:test \
   --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Or via env var
+# Keep last 20 builds in history
 LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
   --output nested --output com.blockether.spel.allure-reporter/allure
 ```
+
+> **Note**: The report MUST be served via HTTP (not `file://`) because the embedded Playwright trace viewer uses a Service Worker.
 
 ### Trace Viewer Integration
 
@@ -1440,6 +1430,49 @@ For custom source directories, set `PLAYWRIGHT_JAVA_SRC` before creating the Pla
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
+### JUnit XML Reporter
+
+Produces JUnit XML output fully compliant with the Apache Ant JUnit schema — compatible with GitHub Actions, Jenkins, GitLab CI, and any CI system that consumes JUnit XML.
+
+```bash
+# Run with JUnit reporter (silent during run, writes XML on completion)
+clojure -M:test --output com.blockether.spel.junit-reporter/junit
+
+# Combine with visual output (recommended)
+clojure -M:test --output nested --output com.blockether.spel.junit-reporter/junit
+
+# Combine with both Allure and JUnit
+clojure -M:test --output nested \
+  --output com.blockether.spel.allure-reporter/allure \
+  --output com.blockether.spel.junit-reporter/junit
+```
+
+#### JUnit Configuration
+
+| Property | Env Var | Default | Description |
+|----------|---------|---------|-------------|
+| `lazytest.junit.output` | `LAZYTEST_JUNIT_OUTPUT` | `test-results/junit.xml` | Output file path |
+
+```bash
+# Custom output path
+clojure -J-Dlazytest.junit.output=reports/results.xml -M:test \
+  --output nested --output com.blockether.spel.junit-reporter/junit
+
+# Or via env var
+LAZYTEST_JUNIT_OUTPUT=reports/results.xml clojure -M:test \
+  --output nested --output com.blockether.spel.junit-reporter/junit
+```
+
+#### JUnit XML Features
+
+- `<testsuites>` root with aggregate counts (tests, failures, errors, skipped, time)
+- `<testsuite>` per namespace with timestamp, hostname, package, id
+- `<testcase>` with classname (namespace), name (describe > it path), time, file
+- `<failure>` vs `<error>` distinction (assertion failure vs unexpected exception)
+- `<skipped>` support for pending tests
+- `<properties>` with environment metadata (JVM version, OS, Clojure version)
+- `<system-out>` / `<system-err>` — per-test captured stdout/stderr output
+
 ---
 
 ## Codegen - Record & Transform
@@ -1463,7 +1496,7 @@ spel codegen --format=body recording.jsonl
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-page` |
+| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
 | `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
 | `:body` | Just action lines for pasting into existing code |
 
@@ -1824,7 +1857,7 @@ Three subagents work together in a plan → generate → heal loop:
 
 1. **@spel-test-planner** — Explores the app using `spel` CLI commands (e.g., `spel snapshot`) and inline Clojure scripts with spel. Catalogs pages/flows, writes structured test plans as markdown files in `test-e2e/specs/`. Uses `spel` skill for API reference.
 
-2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
+2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
 
 3. **@spel-test-healer** — Runs tests via `clojure -M:test`, captures failures, uses `spel` CLI commands and inline scripts for investigation, diagnoses root causes (stale selectors, timing, missing setup), and applies targeted fixes. Loops until green.
 
@@ -1843,36 +1876,10 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 - Framework: **Lazytest** (`defdescribe`, `describe`, `it`, `expect`)
 - Fixtures: **Lazytest `:context`** with shared `around` hooks from `test-fixtures`
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators
+- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators (all 16 Playwright enums are auto-available in `--eval` mode — see the Enums table in SCI Eval API Reference below)
 - Integration tests: Live against `example.com`
 
 ### Running Tests (Lazytest CLI)
-
-Usage: `clojure -M:test [options] [path...]` to run once, or `clojure -M:test --watch [options] [path...]` for watch mode.
-
-`[path...]` accepts any file or directory. By default, Lazytest only runs tests found in the `test/` directory.
-
-#### CLI Options
-
-| Flag | Description |
-|------|-------------|
-| `-d, --dir DIR` | Directory containing tests. Can be given multiple times. |
-| `-n, --namespace SYMBOL` | Run only the specified test namespaces. Can be given multiple times. |
-| `-v, --var SYMBOL` | Run only the specified fully-qualified symbol. Can be given multiple times. |
-| `-i, --include KEYWORD` | Run only test sequences or vars with this metadata keyword. Can be given multiple times. |
-| `-e, --exclude KEYWORD` | Exclude test sequences or vars with this metadata keyword. Can be given multiple times. |
-| `--output SYMBOL` | Output format. Can be given multiple times. (Defaults to `nested`.) |
-| `--md FILE` | Run doc tests in markdown file. Can be given multiple times. |
-| `--watch` | Watch mode — reloads and reruns test suite as code changes. |
-| `--delay NUM` | Milliseconds to wait before checking for changes (watch mode only, default: 500). |
-| `--help` | Print help information. |
-| `--version` | Print version information. |
-
-**Behavior notes:**
-- If both `--namespace` and `--var` are provided, Lazytest runs all tests within the namespaces **AND** the specified vars. They are **inclusive**, not exclusive.
-- `--exclude` overrides `--include` if both are provided.
-
-#### Examples
 
 ```bash
 # Run entire test suite
@@ -1901,41 +1908,11 @@ clojure -M:test --output nested --output com.blockether.spel.allure-reporter/all
 # Watch mode (re-runs on file changes)
 clojure -M:test --watch
 
-# Watch mode with custom delay
-clojure -M:test --watch --delay 1000
-
 # Run tests from a specific directory
 clojure -M:test -d test/com/blockether/spel
-
-# Run doc tests from markdown
-clojure -M:test --md docs/examples.md
 ```
 
 **IMPORTANT**: The `-v`/`--var` flag requires **fully-qualified symbols** (`namespace/var-name`), not bare var names. Using a bare name will throw `IllegalArgumentException: no conversion to symbol`.
-
-#### Interactive Mode (Headed Browser)
-
-By default, test fixtures run browsers in headless mode. To run with a visible browser (interactive/headed mode), set the `SPEL_INTERACTIVE` env var or `spel.interactive` system property:
-
-```bash
-# Via environment variable
-SPEL_INTERACTIVE=true clojure -M:test
-
-# Via system property
-clojure -J-Dspel.interactive=true -M:test
-
-# Combined with other options (e.g. single namespace + watch)
-SPEL_INTERACTIVE=true clojure -M:test -n my-app.login-test --watch
-```
-
-Any truthy value enables interactive mode. Both `with-browser` and `with-api-tracing` fixtures respect this setting.
-
-You can also check programmatically:
-
-```clojure
-(require '[com.blockether.spel.test-fixtures :as tf])
-(tf/interactive?)  ;; => true when SPEL_INTERACTIVE or -Dspel.interactive is set
-```
 
 ### Test Fixtures
 
@@ -1944,33 +1921,14 @@ The project provides shared `around` hooks in `com.blockether.spel.test-fixtures
 | Fixture | Binds | Scope |
 |---------|-------|-------|
 | `with-playwright` | `*pw*` | Shared Playwright instance |
-| `with-browser` | `*browser*` | Chromium browser (headless by default, headed with `SPEL_INTERACTIVE`) |
-| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, auto-tracing with Allure) |
-| `with-traced-page` | `*page*` | Like `with-page` but always enables tracing/HAR |
+| `with-browser` | `*browser*` | Shared headless Chromium browser |
+| `with-traced-page` | `*page*` | **Default.** Fresh page per `it` block with tracing/HAR always enabled (auto-cleanup) |
+| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, tracing only when Allure is active) |
 | `with-test-server` | `*test-server-url*` | Local HTTP test server |
 
-Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-page` manually inside `it` blocks.
+**Always use `with-traced-page` as the default** — it enables Playwright tracing and HAR capture on every test run, so traces are always available for debugging. Use `with-page` only if you explicitly want tracing disabled outside Allure.
 
-### Test Imports — ALWAYS Use `spel.allure` Wrappers
-
-**NEVER** import `defdescribe`, `describe`, `it`, `expect`, or `expect-it` from `lazytest.core` directly.
-**ALWAYS** use `com.blockether.spel.allure` instead — it re-exports the same macros with automatic Allure step integration (zero-overhead when Allure is not active):
-
-```clojure
-;; CORRECT — always use this
-[com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]]
-
-;; WRONG — never use this directly
-;; [lazytest.core :refer [defdescribe describe expect it]]
-```
-
-| Macro | Source | Allure Integration |
-|-------|--------|-------------------|
-| `defdescribe` | `spel.allure` | Re-export (name already visible in report) |
-| `describe` | `spel.allure` | Re-export (group name visible in report) |
-| `it` | `spel.allure` | Re-export (test name visible in report) |
-| `expect` | `spel.allure` | Creates Allure step per assertion with pass/fail status |
-| `expect-it` | `spel.allure` | Combines `it` + `expect` with auto-stepping |
+Use `{:context [with-playwright with-browser with-traced-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
 
 ### Test Example
 
@@ -1980,14 +1938,14 @@ Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. 
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright.options AriaRole]))
 
 (defdescribe my-test
   (describe "example.com"
-    {:context [with-playwright with-browser with-page]}
+    {:context [with-playwright with-browser with-traced-page]}
 
     (it "navigates and asserts"
       (page/navigate *page* "https://example.com")
@@ -2166,6 +2124,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `console / console clear` | View/clear console (auto-captured) |
 | `errors / errors clear` | View/clear errors (auto-captured) |
 | `highlight <sel>` | Highlight element |
+| `inspector [url]` | Launch Playwright Inspector (headed browser) |
+| `show-trace [trace]` | Open Playwright Trace Viewer |
 
 ### State Management
 
@@ -2200,7 +2160,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--session <name>` | Named session (default: \"default\") |
 | `--json` | JSON output (for agents) |
 | `--storage-state <path>` | Load storage state (cookies/localStorage JSON) |
-| `--profile <path>` | Chrome user data directory (real browser profile) |
+| `--profile <path>` | Chrome user data directory (persistent profile) |
 | `--executable-path <path>` | Custom browser executable |
 | `--user-agent <ua>` | Custom user agent string |
 | `--proxy <url>` | Proxy server URL |
@@ -2219,6 +2179,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
+| `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
 
 ### Utility
@@ -2233,11 +2194,58 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `--eval '<code>'` | Evaluate Clojure expression |
+| `--eval <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
+| `--eval --interactive` | Evaluate with visible browser (headed mode) |
+| `--eval --load-state FILE` | Load auth/storage state before evaluation |
 
 
 ## SCI Eval API Reference (`spel --eval`)
 
 Auto-generated from SCI namespace registrations. All functions are available in `spel --eval` mode without JVM startup.
+
+### Enums — Java types available in `--eval` mode
+
+All Playwright Java enums from `com.microsoft.playwright.options` are registered as SCI classes. Use them directly by `EnumName/VALUE` — no import needed.
+
+| Enum | Values | Used For |
+|------|--------|----------|
+| `AriaRole` | `ALERT`, `ALERTDIALOG`, `APPLICATION`, `ARTICLE`, `BANNER`, `BLOCKQUOTE`, ... | `page/get-by-role`, `locator/loc-get-by-role`, `assert/has-role` |
+| `ColorScheme` | `LIGHT`, `DARK`, `NO_PREFERENCE` | `page/emulate-media!` / context options `:color-scheme` |
+| `ForcedColors` | `ACTIVE`, `NONE` | Context options `:forced-colors` |
+| `HarContentPolicy` | `OMIT`, `EMBED`, `ATTACH` | HAR options `:record-har-content` |
+| `HarMode` | `FULL`, `MINIMAL` | HAR recording options `:record-har-mode` |
+| `HarNotFound` | `ABORT`, `FALLBACK` | Route-from-HAR options `:not-found` |
+| `LoadState` | `LOAD`, `DOMCONTENTLOADED`, `NETWORKIDLE` | `page/wait-for-load-state` |
+| `Media` | `SCREEN`, `PRINT` | `page/emulate-media!` options `:media` |
+| `MouseButton` | `LEFT`, `RIGHT`, `MIDDLE` | Click options `:button` |
+| `ReducedMotion` | `REDUCE`, `NO_PREFERENCE` | Context options `:reduced-motion` |
+| `RouteFromHarUpdateContentPolicy` | `EMBED`, `ATTACH` | Route-from-HAR options `:update-content` |
+| `SameSiteAttribute` | `STRICT`, `LAX`, `NONE` | Cookie options `:same-site` |
+| `ScreenshotType` | `PNG`, `JPEG` | Screenshot options `:type` |
+| `ServiceWorkerPolicy` | `ALLOW`, `BLOCK` | Context options `:service-workers` |
+| `WaitForSelectorState` | `ATTACHED`, `DETACHED`, `VISIBLE`, `HIDDEN` | `page/wait-for-selector` options `:state` |
+| `WaitUntilState` | `LOAD`, `DOMCONTENTLOADED`, `NETWORKIDLE`, `COMMIT` | Navigation options `:wait-until` |
+
+**Usage in `--eval` mode:**
+
+```clojure
+;; Enums are available directly — no import required
+(spel/$role AriaRole/BUTTON)
+(spel/$role AriaRole/HEADING {:name "Installation"})
+
+;; Use with library API (page/locator namespaces)
+(page/get-by-role (spel/page) AriaRole/NAVIGATION)
+(page/wait-for-load-state (spel/page) LoadState/NETWORKIDLE)
+
+;; Compare enum values
+(= AriaRole/BUTTON AriaRole/BUTTON)  ;; => true
+```
+
+**Usage in library code (requires import):**
+
+```clojure
+(:import [com.microsoft.playwright.options AriaRole LoadState WaitUntilState])
+```
 
 ### `spel/` — Simplified API with implicit page (lifecycle, navigation, actions, assertions)
 
@@ -2307,11 +2315,13 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
 | `spel/context-cookies` | [] | Returns all cookies in the context. |
-| `spel/context-save-storage-state!` | [path] | Saves storage state (cookies, localStorage) to a JSON file. |
-| `spel/context-storage-state` | [] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `spel/context-grant-permissions!` | [perms] | Grants permissions to the context. |
+| `spel/context-route-from-har!` | [har] \| [har opts] | Routes requests in the context from a HAR file. Replays recorded responses |
+| `spel/context-route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
+| `spel/context-save-storage-state!` | [path] | Saves the storage state (cookies, localStorage) to a file. |
 | `spel/context-set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests in the context. |
 | `spel/context-set-offline!` | [offline] | Sets the context to offline or online mode. |
+| `spel/context-storage-state` | [] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `spel/count-of` | [sel] | Returns the number of elements matching the locator. |
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
@@ -2376,6 +2386,8 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
 | `spel/restart!` | [] \| [opts] | Stops the current session and starts a new one with the given options. |
 | `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
+| `spel/route-from-har!` | [har] \| [har opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
+| `spel/route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
 | `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
@@ -2397,6 +2409,10 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `spel/text` | [sel] | Returns the text content of the element. |
 | `spel/title` | [] | Returns the page title. |
 | `spel/touchscreen` | [] | Returns the Touchscreen for this page. |
+| `spel/trace-group` | [name] | Opens a named group in the trace. Groups nest actions visually in Trace Viewer. |
+| `spel/trace-group-end` | [] | Closes the current trace group. |
+| `spel/trace-start!` | [] \| [opts] | Starts Playwright tracing on the current context. |
+| `spel/trace-stop!` | [] \| [opts] | Stops Playwright tracing and saves to a file. |
 | `spel/type-ref` | [ref-id text] | Types text into an element identified by a snapshot ref ID. |
 | `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
 | `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
@@ -2640,17 +2656,16 @@ Auto-generated from SCI namespace registrations. All functions are available in 
 | `core/context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `core/context-clear-permissions!` | [context] | Clears all granted permissions. |
 | `core/context-cookies` | [context] | Returns all cookies in the context. |
-| `core/context-save-storage-state!` | [context path] | Saves storage state (cookies, localStorage) to a JSON file. |
-| `core/context-storage-state` | [context] | Returns storage state (cookies, localStorage) as a JSON string. |
 | `core/context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `core/context-pages` | [context] | Returns all pages in a context. |
+| `core/context-route-from-har!` | [context har] \| [context har route-opts] | Routes requests in the context from a HAR file. Replays recorded responses |
+| `core/context-route-web-socket!` | [context pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
+| `core/context-save-storage-state!` | [context path] | Saves the storage state (cookies, localStorage) to a file. |
 | `core/context-set-default-navigation-timeout!` | [context timeout] | Sets the default navigation timeout. |
 | `core/context-set-default-timeout!` | [context timeout] | Sets the default timeout for context operations. |
 | `core/context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
 | `core/context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
-| `core/new-context` | [browser] \| [browser context-opts] | Creates a new browser context with optional configuration. |
-| `core/new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
-| `core/new-page-from-context` | [context] | Creates a new page in the given context. |
+| `core/context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
 
 
 ### Snapshot with Refs
@@ -3231,7 +3246,6 @@ Before the Allure workflow can deploy:
 | **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
 | **AriaRole import** | Always `(:import [com.microsoft.playwright.options AriaRole])` |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
-| **Interactive mode → `--interactive`** | When the user asks to work in "interactive mode", ALWAYS use `spel open <url> --interactive` to launch a headed (visible) browser. Never use plain `spel open` for interactive sessions. |
 
 ---
 

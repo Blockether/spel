@@ -270,14 +270,109 @@
               " |")))
         "\n"))))
 
+(def ^:private enum-descriptions
+  "Description of what each enum is used for in SCI eval mode."
+  {"AriaRole"                        "`page/get-by-role`, `locator/loc-get-by-role`, `assert/has-role`"
+   "ColorScheme"                     "`page/emulate-media!` / context options `:color-scheme`"
+   "ForcedColors"                    "Context options `:forced-colors`"
+   "HarContentPolicy"               "HAR options `:record-har-content`"
+   "HarMode"                         "HAR recording options `:record-har-mode`"
+   "HarNotFound"                     "Route-from-HAR options `:not-found`"
+   "LoadState"                       "`page/wait-for-load-state`"
+   "Media"                           "`page/emulate-media!` options `:media`"
+   "MouseButton"                     "Click options `:button`"
+   "ReducedMotion"                   "Context options `:reduced-motion`"
+   "RouteFromHarUpdateContentPolicy" "Route-from-HAR options `:update-content`"
+   "SameSiteAttribute"               "Cookie options `:same-site`"
+   "ScreenshotType"                  "Screenshot options `:type`"
+   "ServiceWorkerPolicy"             "Context options `:service-workers`"
+   "WaitForSelectorState"            "`page/wait-for-selector` options `:state`"
+   "WaitUntilState"                  "Navigation options `:wait-until`"})
+
+(defn- enum-values-str
+  "Returns a comma-separated string of enum constant names, truncated with ... if > 6."
+  [^Class enum-class]
+  (let [constants (.getEnumConstants enum-class)
+        names (mapv #(.name ^Enum %) constants)]
+    (if (> (count names) 6)
+      (str (str/join ", " (map #(str "`" % "`") (take 6 names))) ", ...")
+      (str/join ", " (map #(str "`" % "`") names)))))
+
+(defn- generate-sci-enums
+  "Generates markdown for Java enums available in SCI eval mode.
+   Reads the :classes map from sci_env.clj source to find registered enum
+   class names, then reflects on each class to enumerate its constants."
+  []
+  (let [src (slurp (io/resource "com/blockether/spel/sci_env.clj"))
+        ;; Find the :classes section in create-sci-ctx
+        classes-start (str/index-of src ":classes")
+        ;; Extract class symbol names from 'ClassName ClassName patterns
+        ;; These appear as: 'AriaRole AriaRole
+        class-pattern #"'([A-Z][A-Za-z]+)\s+\1(?:\s|,|\})"
+        class-section (when classes-start (subs src classes-start))
+        ;; Find the end of the :classes map (next keyword or closing brace)
+        section-end (when class-section
+                      (or (str/index-of class-section ":allow")
+                        (str/index-of class-section "}")))
+        classes-text (when (and class-section section-end)
+                       (subs class-section 0 section-end))
+        class-names (when classes-text
+                      (->> (re-seq class-pattern classes-text)
+                        (map second)
+                        sort))
+        ;; Resolve each class name to an actual Java class
+        enum-ns "com.microsoft.playwright.options."
+        enum-entries (when (seq class-names)
+                       (->> class-names
+                         (keep (fn [name]
+                                 (try
+                                   (let [cls (Class/forName (str enum-ns name))]
+                                     (when (.isEnum cls)
+                                       {:name name
+                                        :class cls
+                                        :values (enum-values-str cls)
+                                        :desc (get enum-descriptions name "")}))
+                                   (catch ClassNotFoundException _ nil))))
+                         vec))]
+    (if (seq enum-entries)
+      (str "### Enums — Java types available in `--eval` mode\n\n"
+        "All Playwright Java enums from `com.microsoft.playwright.options` are "
+        "registered as SCI classes. Use them directly by `EnumName/VALUE` — no import needed.\n\n"
+        "| Enum | Values | Used For |\n"
+        "|------|--------|----------|\n"
+        (str/join "\n"
+          (for [{:keys [name values desc]} enum-entries]
+            (str "| `" name "` | " (escape-md values) " | " (escape-md desc) " |")))
+        "\n\n"
+        "**Usage in `--eval` mode:**\n\n"
+        "```clojure\n"
+        ";; Enums are available directly — no import required\n"
+        "(spel/$role AriaRole/BUTTON)\n"
+        "(spel/$role AriaRole/HEADING {:name \"Installation\"})\n"
+        "\n"
+        ";; Use with library API (page/locator namespaces)\n"
+        "(page/get-by-role (spel/page) AriaRole/NAVIGATION)\n"
+        "(page/wait-for-load-state (spel/page) LoadState/NETWORKIDLE)\n"
+        "\n"
+        ";; Compare enum values\n"
+        "(= AriaRole/BUTTON AriaRole/BUTTON)  ;; => true\n"
+        "```\n\n"
+        "**Usage in library code (requires import):**\n\n"
+        "```clojure\n"
+        "(:import [com.microsoft.playwright.options AriaRole LoadState WaitUntilState])\n"
+        "```\n\n")
+      "")))
+
 (defn generate-sci-api
   "Generates markdown for SCI eval API tables."
   []
   (let [registrations (parse-sci-registrations)
-        src (slurp (io/resource "com/blockether/spel/sci_env.clj"))]
+        src (slurp (io/resource "com/blockether/spel/sci_env.clj"))
+        enums-md (generate-sci-enums)]
     (str "## SCI Eval API Reference (`spel --eval`)\n\n"
       "Auto-generated from SCI namespace registrations. "
       "All functions are available in `spel --eval` mode without JVM startup.\n\n"
+      enums-md
       (str/join "\n"
         (for [[ns-name description] sci-namespaces
               :let [entries (get registrations ns-name)]

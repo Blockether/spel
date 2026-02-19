@@ -667,9 +667,9 @@
               "alt"         (page/get-by-alt-text (pg) value)
               "title"       (page/get-by-title (pg) value)
               "testid"      (page/get-by-test-id (pg) value)
-              "first"       (locator/first-element (page/locator (pg) value))
-              "last"        (locator/last-element (page/locator (pg) value))
-              "nth"         (locator/nth-element (page/locator (pg) selector)
+              "first"       (locator/first-element (resolve-selector value))
+              "last"        (locator/last-element (resolve-selector value))
+              "nth"         (locator/nth-element (resolve-selector selector)
                               (Integer/parseInt value))
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action

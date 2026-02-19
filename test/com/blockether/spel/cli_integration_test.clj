@@ -919,7 +919,35 @@
     (it "find first button"
       (nav! "/test-page")
       (let [r (cmd "find" {"by" "first" "value" "button" "find_action" "text"})]
-        (expect (string? (:text r)))))))
+        (expect (string? (:text r)))))
+
+    ;; --- find with @e1 ref syntax ---
+
+    (it "find first with @ref resolves snapshot ref"
+      (nav! "/test-page")
+      ;; Take snapshot to populate refs
+      (cmd "snapshot" {})
+      ;; Find first match within a ref selector — refs are [data-pw-ref="eN"] selectors
+      (let [state @(deref #'daemon/!state)
+            refs (:refs state)]
+        ;; Pick any ref that maps to a visible element
+        (when-let [ref-id (first (keys refs))]
+          (let [r (cmd "find" {"by" "first" "value" (str "@" ref-id) "find_action" "visible"})]
+            (expect (contains? r :visible))))))
+
+    (it "find last with @ref resolves snapshot ref"
+      (nav! "/test-page")
+      (cmd "snapshot" {})
+      (let [state @(deref #'daemon/!state)
+            refs (:refs state)]
+        (when-let [ref-id (first (keys refs))]
+          (let [r (cmd "find" {"by" "last" "value" (str "@" ref-id) "find_action" "visible"})]
+            (expect (contains? r :visible))))))
+
+    (it "find first with CSS selector still works"
+      (nav! "/test-page")
+      (let [r (cmd "find" {"by" "first" "value" "h1" "find_action" "text"})]
+        (expect (str/includes? (:text r) "Test Heading"))))))
 
 ;; =============================================================================
 ;; 30. Frame
@@ -1196,6 +1224,182 @@
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]
         (expect (= ":started" (:result r)))))
 
+    (it "persists defs between eval calls"
+      (cmd "sci_eval" {"code" "(def my-val 42)"})
+      (let [r (cmd "sci_eval" {"code" "my-val"})]
+        (expect (= "42" (:result r)))))
+
+    ;; --- page/ namespace (raw Page-arg functions) ---
+
+    (it "page/navigate and page/title with explicit page arg"
+      (let [_ (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+            r (cmd "sci_eval" {"code" "(page/title (spel/page))"})]
+        (expect (= "\"Test Page\"" (:result r)))))
+
+    (it "page/url returns current URL"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
+        (expect (str/includes? (:result r) "/test-page"))))
+
+    (it "page/locator creates a locator"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(str (type (page/locator (spel/page) \"h1\")))"})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "page/get-by-role finds elements"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(locator/count-elements (page/get-by-role (spel/page) AriaRole/BUTTON))"})]
+        (expect (pos? (parse-long (:result r))))))
+
+    ;; --- locator/ namespace (raw Locator-arg functions) ---
+
+    (it "locator/text-content reads element text"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(locator/text-content (page/locator (spel/page) \"h1\"))"})]
+        (expect (str/includes? (:result r) "Test Heading"))))
+
+    (it "locator/is-visible? checks visibility"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(locator/is-visible? (page/locator (spel/page) \"h1\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "locator/count-elements counts matches"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(locator/count-elements (page/locator (spel/page) \"button\"))"})]
+        (expect (pos? (parse-long (:result r))))))
+
+    (it "locator/fill and locator/input-value round-trip"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(locator/fill (page/get-by-label (spel/page) \"Name\") \"test-value\")"})
+      (let [r (cmd "sci_eval" {"code" "(locator/input-value (page/get-by-label (spel/page) \"Name\"))"})]
+        (expect (= "\"test-value\"" (:result r)))))
+
+    ;; --- core/ macros (with-playwright, with-browser, with-page) ---
+
+    (it "core/with-playwright expands and binds nil"
+      (let [r (cmd "sci_eval" {"code" "(core/with-playwright [pw] (nil? pw))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "core/with-browser binds the daemon browser"
+      (let [r (cmd "sci_eval" {"code" "(core/with-browser [b (core/launch-chromium nil)] (some? b))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "core/with-context binds the daemon context"
+      (let [r (cmd "sci_eval" {"code" "(core/with-context [ctx (core/new-context nil)] (some? ctx))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "core/with-page binds the daemon page"
+      (let [r (cmd "sci_eval" {"code" "(core/with-page [p (core/new-page-from-context nil)] (some? p))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "nested core/with-* chain works like codegen output"
+      (cmd "sci_eval" {"code" (str "(page/navigate (spel/page) \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code"
+                               (str "(core/with-playwright [pw]"
+                                 "  (core/with-browser [browser (core/launch-chromium pw)]"
+                                 "    (core/with-context [ctx (core/new-context browser)]"
+                                 "      (core/with-page [pg (core/new-page-from-context ctx)]"
+                                 "        (page/title pg)))))")})]
+        (expect (= "\"Test Page\"" (:result r)))))
+
+    ;; --- core/ launch functions ---
+
+    (it "core/launch-chromium returns daemon browser"
+      (let [r (cmd "sci_eval" {"code" "(some? (core/launch-chromium nil))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "core/new-context returns daemon context"
+      (let [r (cmd "sci_eval" {"code" "(some? (core/new-context nil))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "core/new-page-from-context returns daemon page"
+      (let [r (cmd "sci_eval" {"code" "(some? (core/new-page-from-context nil))"})]
+        (expect (= "true" (:result r)))))
+
+    ;; --- Full qualified require ---
+
+    (it "require com.blockether.spel.page works"
+      (let [r (cmd "sci_eval" {"code" "(do (require '[com.blockether.spel.page :as p]) (fn? p/navigate))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "require com.blockether.spel.locator works"
+      (let [r (cmd "sci_eval" {"code" "(do (require '[com.blockether.spel.locator :as l]) (fn? l/click))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "require com.blockether.spel.core works"
+      (let [r (cmd "sci_eval" {"code" "(do (require '[com.blockether.spel.core :as c]) (fn? c/close!))"})]
+        (expect (= "true" (:result r)))))
+
+    ;; --- Enum access in SCI eval ---
+    ;; NOTE: daemon sci_eval returns (pr-str result), so (str Enum/VALUE) produces
+    ;; "\"VALUE\"" (double-quoted). Use (some? ...) which yields "true" via pr-str.
+
+    (it "AriaRole enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? AriaRole/BUTTON)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "LoadState enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? LoadState/LOAD)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "WaitUntilState enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? WaitUntilState/DOMCONTENTLOADED)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "MouseButton enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? MouseButton/LEFT)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "ColorScheme enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? ColorScheme/DARK)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "ScreenshotType enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? ScreenshotType/PNG)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "WaitForSelectorState enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? WaitForSelectorState/VISIBLE)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "HarMode enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? HarMode/FULL)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "ServiceWorkerPolicy enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? ServiceWorkerPolicy/ALLOW)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "Media enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? Media/SCREEN)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "ForcedColors enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? ForcedColors/ACTIVE)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "ReducedMotion enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? ReducedMotion/REDUCE)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "HarContentPolicy enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? HarContentPolicy/EMBED)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "HarNotFound enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? HarNotFound/ABORT)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "RouteFromHarUpdateContentPolicy enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? RouteFromHarUpdateContentPolicy/EMBED)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "SameSiteAttribute enum is accessible"
+      (let [r (cmd "sci_eval" {"code" "(some? SameSiteAttribute/STRICT)"})]
+        (expect (= "true" (:result r)))))
+
+    ;; --- Destructive tests last (stop! nils daemon page state) ---
+
     (it "stop! does not kill daemon browser"
       (let [_ (cmd "sci_eval" {"code" "(spel/stop!)"})
             ;; After stop!, daemon re-syncs state on next call, so page still works
@@ -1205,9 +1409,4 @@
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
                         (catch Exception _ true))]
-        (expect threw?)))
-
-    (it "persists defs between eval calls"
-      (cmd "sci_eval" {"code" "(def my-val 42)"})
-      (let [r (cmd "sci_eval" {"code" "my-val"})]
-        (expect (= "42" (:result r)))))))
+        (expect threw?)))))

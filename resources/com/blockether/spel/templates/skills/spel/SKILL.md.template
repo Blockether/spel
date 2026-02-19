@@ -837,21 +837,29 @@ The built-in reporter generates the full HTML report automatically using Allure 
 | `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
 | `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
 | `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
-| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto)_ | Report title (shown in header and history) |
+| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto: "spel vX.Y.Z")_ | Report title (shown in header and history). Auto-includes version when not set. |
+| `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history and environment. Falls back to `SPEL_VERSION` resource. |
 | `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
 
+**Version in build listings**: When `lazytest.allure.version` is set (or `SPEL_VERSION` is on the classpath), each build in the Allure history is tagged with the version. The report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. The version also appears in `environment.properties` as `project.version` and `spel.version`.
+
 ```bash
-# Run tests with Allure reporter
+# Run tests + generate Allure HTML report (allure-results/ + allure-report/)
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Keep last 20 builds in history
-clojure -J-Dlazytest.allure.history-limit=20 -M:test \
+# Serve the generated report in browser (port 9999)
+npx http-server allure-report -o -p 9999
+
+# Tag build with custom version (overrides SPEL_VERSION)
+clojure -J-Dlazytest.allure.version=1.2.3 -M:test \
   --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Or via env var
+# Keep last 20 builds in history
 LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
   --output nested --output com.blockether.spel.allure-reporter/allure
 ```
+
+> **Note**: The report MUST be served via HTTP (not `file://`) because the embedded Playwright trace viewer uses a Service Worker.
 
 ### Trace Viewer Integration
 
@@ -877,6 +885,49 @@ For custom source directories, set `PLAYWRIGHT_JAVA_SRC` before creating the Pla
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
+### JUnit XML Reporter
+
+Produces JUnit XML output fully compliant with the Apache Ant JUnit schema — compatible with GitHub Actions, Jenkins, GitLab CI, and any CI system that consumes JUnit XML.
+
+```bash
+# Run with JUnit reporter (silent during run, writes XML on completion)
+clojure -M:test --output com.blockether.spel.junit-reporter/junit
+
+# Combine with visual output (recommended)
+clojure -M:test --output nested --output com.blockether.spel.junit-reporter/junit
+
+# Combine with both Allure and JUnit
+clojure -M:test --output nested \
+  --output com.blockether.spel.allure-reporter/allure \
+  --output com.blockether.spel.junit-reporter/junit
+```
+
+#### JUnit Configuration
+
+| Property | Env Var | Default | Description |
+|----------|---------|---------|-------------|
+| `lazytest.junit.output` | `LAZYTEST_JUNIT_OUTPUT` | `test-results/junit.xml` | Output file path |
+
+```bash
+# Custom output path
+clojure -J-Dlazytest.junit.output=reports/results.xml -M:test \
+  --output nested --output com.blockether.spel.junit-reporter/junit
+
+# Or via env var
+LAZYTEST_JUNIT_OUTPUT=reports/results.xml clojure -M:test \
+  --output nested --output com.blockether.spel.junit-reporter/junit
+```
+
+#### JUnit XML Features
+
+- `<testsuites>` root with aggregate counts (tests, failures, errors, skipped, time)
+- `<testsuite>` per namespace with timestamp, hostname, package, id
+- `<testcase>` with classname (namespace), name (describe > it path), time, file
+- `<failure>` vs `<error>` distinction (assertion failure vs unexpected exception)
+- `<skipped>` support for pending tests
+- `<properties>` with environment metadata (JVM version, OS, Clojure version)
+- `<system-out>` / `<system-err>` — per-test captured stdout/stderr output
+
 ---
 
 ## Codegen - Record & Transform
@@ -900,7 +951,7 @@ spel codegen --format=body recording.jsonl
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-page` |
+| `:test` (default) | Full Lazytest file with `defdescribe`/`it`, `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
 | `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
 | `:body` | Just action lines for pasting into existing code |
 
@@ -1261,7 +1312,7 @@ Three subagents work together in a plan → generate → heal loop:
 
 1. **@spel-test-planner** — Explores the app using `spel` CLI commands (e.g., `spel snapshot`) and inline Clojure scripts with spel. Catalogs pages/flows, writes structured test plans as markdown files in `test-e2e/specs/`. Uses `spel` skill for API reference.
 
-2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
+2. **@spel-test-generator** — Reads test plans from `test-e2e/specs/`, generates Clojure Lazytest test files using `spel` test fixtures (`{:context [with-playwright with-browser with-traced-page]}`) and `*page*` dynamic var. Verifies selectors with inline scripts and runs tests to confirm. Outputs to `test-e2e/`.
 
 3. **@spel-test-healer** — Runs tests via `clojure -M:test`, captures failures, uses `spel` CLI commands and inline scripts for investigation, diagnoses root causes (stale selectors, timing, missing setup), and applies targeted fixes. Loops until green.
 
@@ -1280,7 +1331,7 @@ Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsin
 - Framework: **Lazytest** (`defdescribe`, `describe`, `it`, `expect`)
 - Fixtures: **Lazytest `:context`** with shared `around` hooks from `test-fixtures`
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators
+- Import: `[com.microsoft.playwright.options AriaRole]` for role-based locators (all 16 Playwright enums are auto-available in `--eval` mode — see the Enums table in SCI Eval API Reference below)
 - Integration tests: Live against `example.com`
 
 ### Running Tests (Lazytest CLI)
@@ -1326,11 +1377,13 @@ The project provides shared `around` hooks in `com.blockether.spel.test-fixtures
 |---------|-------|-------|
 | `with-playwright` | `*pw*` | Shared Playwright instance |
 | `with-browser` | `*browser*` | Shared headless Chromium browser |
-| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, auto-tracing with Allure) |
-| `with-traced-page` | `*page*` | Like `with-page` but always enables tracing/HAR |
+| `with-traced-page` | `*page*` | **Default.** Fresh page per `it` block with tracing/HAR always enabled (auto-cleanup) |
+| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, tracing only when Allure is active) |
 | `with-test-server` | `*test-server-url*` | Local HTTP test server |
 
-Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-page` manually inside `it` blocks.
+**Always use `with-traced-page` as the default** — it enables Playwright tracing and HAR capture on every test run, so traces are always available for debugging. Use `with-page` only if you explicitly want tracing disabled outside Allure.
+
+Use `{:context [with-playwright with-browser with-traced-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
 
 ### Test Example
 
@@ -1340,14 +1393,14 @@ Use `{:context [with-playwright with-browser with-page]}` on `describe` blocks. 
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright.options AriaRole]))
 
 (defdescribe my-test
   (describe "example.com"
-    {:context [with-playwright with-browser with-page]}
+    {:context [with-playwright with-browser with-traced-page]}
 
     (it "navigates and asserts"
       (page/navigate *page* "https://example.com")

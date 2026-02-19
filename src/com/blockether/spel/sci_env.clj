@@ -45,7 +45,11 @@
     Route Touchscreen Tracing WebSocket WebSocketFrame WebSocketRoute]
    [com.microsoft.playwright.assertions
     PlaywrightAssertions LocatorAssertions PageAssertions APIResponseAssertions]
-   [com.microsoft.playwright.options AriaRole]))
+   [com.microsoft.playwright.options
+    AriaRole ColorScheme ForcedColors HarContentPolicy HarMode HarNotFound
+    LoadState Media MouseButton ReducedMotion RouteFromHarUpdateContentPolicy
+    SameSiteAttribute ScreenshotType ServiceWorkerPolicy
+    WaitForSelectorState WaitUntilState]))
 
 ;; =============================================================================
 ;; Session State (shared with SCI)
@@ -118,14 +122,6 @@
     (instance? LocatorAssertions sel-or-la) sel-or-la
     (instance? Locator sel-or-la) (assert/assert-that sel-or-la)
     :else (assert/assert-that (page/locator (require-page!) (str sel-or-la)))))
-
-(defn- eval-mode-stub
-  "Returns a function that throws a helpful error for library macros
-   not available in --eval mode."
-  [fn-name suggestion]
-  (fn [& _args]
-    (throw (ex-info (str "'" fn-name "' is a library macro not available in --eval mode. Use " suggestion " instead.")
-             {:spel/mode :eval :spel/suggestion suggestion}))))
 
 ;; =============================================================================
 ;; Lifecycle Functions (exposed to SCI)
@@ -706,11 +702,15 @@
 ;; =============================================================================
 
 (defn- make-ns-map
-  "Creates a SCI namespace map from a seq of [name fn] pairs."
+  "Creates a SCI namespace map from a seq of [name fn] pairs.
+   Preserves :sci/macro metadata from with-meta on the function."
   [sci-ns pairs]
   (into {}
     (map (fn [[sym f]]
-           [sym (sci/new-var sym f {:ns sci-ns})]))
+           (let [m (meta f)
+                 var-meta (cond-> {:ns sci-ns}
+                            (:sci/macro m) (assoc :sci/macro true))]
+             [sym (sci/new-var sym f var-meta)])))
     pairs))
 
 (defn create-sci-ctx
@@ -1398,7 +1398,23 @@
                     'PageAssertions      PageAssertions
                     'APIResponseAssertions APIResponseAssertions
                     'PlaywrightAssertions PlaywrightAssertions
-                    'AriaRole          AriaRole
+                    ;; Enums (com.microsoft.playwright.options)
+                    'AriaRole                       AriaRole
+                    'ColorScheme                    ColorScheme
+                    'ForcedColors                   ForcedColors
+                    'HarContentPolicy               HarContentPolicy
+                    'HarMode                        HarMode
+                    'HarNotFound                    HarNotFound
+                    'LoadState                      LoadState
+                    'Media                          Media
+                    'MouseButton                    MouseButton
+                    'ReducedMotion                  ReducedMotion
+                    'RouteFromHarUpdateContentPolicy RouteFromHarUpdateContentPolicy
+                    'SameSiteAttribute              SameSiteAttribute
+                    'ScreenshotType                 ScreenshotType
+                    'ServiceWorkerPolicy            ServiceWorkerPolicy
+                    'WaitForSelectorState           WaitForSelectorState
+                    'WaitUntilState                 WaitUntilState
                     :allow             :all}})))
 
 ;; =============================================================================
