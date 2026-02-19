@@ -3144,6 +3144,7 @@ Before the Allure workflow can deploy:
 | **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
 | **AriaRole import** | Always `(:import [com.microsoft.playwright.options AriaRole])` |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
+| **Interactive mode → `--interactive`** | When the user asks to work in "interactive mode", ALWAYS use `spel open <url> --interactive` to launch a headed (visible) browser. Never use plain `spel open` for interactive sessions. |
 
 ---
 

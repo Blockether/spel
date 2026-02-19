@@ -1512,10 +1512,30 @@
         (expect (not (some #{"--session"} (:command-args g))))
         (expect (not (some #{"work"} (:command-args g)))))))
 
+  (describe "--interactive flag"
+    (it "defaults to false"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (false? (:interactive? g)))))
+
+    (it "sets interactive? to true"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--interactive" "--eval" "(+ 1 2)"])]
+        (expect (true? (:interactive? g)))))
+
+    (it "strips --interactive from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--interactive" "--eval" "(+ 1 2)"])]
+        (expect (not (some #{"--interactive"} (:command-args g)))))))
+
   (describe "combined flags"
     (it "parses --autoclose --session --timeout together"
       (let [g (#'com.blockether.spel.native/parse-global-flags
                ["--autoclose" "--session" "dev" "--timeout" "5000" "--eval" "(+ 1 2)"])]
         (expect (true? (:autoclose? g)))
         (expect (= "dev" (:session g)))
-        (expect (= 5000 (:timeout-ms g)))))))
+        (expect (= 5000 (:timeout-ms g)))))
+
+    (it "parses --interactive with other flags"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--interactive" "--autoclose" "--session" "dev" "--eval" "(+ 1 2)"])]
+        (expect (true? (:interactive? g)))
+        (expect (true? (:autoclose? g)))
+        (expect (= "dev" (:session g)))))))

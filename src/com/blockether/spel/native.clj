@@ -214,6 +214,7 @@
   (println "")
   (println "Modes:")
   (println "  --eval '<code>'           Evaluate Clojure expression")
+  (println "  --eval --interactive      Evaluate with visible browser (headed mode)")
   (println "")
   (println "Examples:")
   (println "  spel open example.com")
@@ -314,13 +315,13 @@
 (defn- parse-global-flags
   "Pre-parses global flags from args.
    Returns {:timeout-ms long?, :debug? bool, :json? bool, :autoclose? bool,
-            :session str?, :command-args vec}.
+            :interactive? bool, :session str?, :command-args vec}.
    :command-args has global flags stripped for dispatch (finding the command).
    Original args are preserved for modes that do their own parsing (CLI daemon)."
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :session nil}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -350,6 +351,10 @@
           (= "--autoclose" arg)
           (recur (rest remaining) cmd-args (assoc opts :autoclose? true))
 
+          ;; --interactive (headed browser for --eval mode)
+          (= "--interactive" arg)
+          (recur (rest remaining) cmd-args (assoc opts :interactive? true))
+
           ;; --session=<name>
           (and (string? arg) (str/starts-with? arg "--session="))
           (recur (rest remaining) cmd-args
@@ -376,7 +381,8 @@
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)
-      (cli/ensure-daemon! session {:headless true})
+      ;; --interactive launches headed (visible) browser for eval mode
+      (cli/ensure-daemon! session {:headless (not (:interactive? global))})
       ;; Set timeout on daemon side if provided
       (when (:timeout-ms global)
         (sci-env/set-default-timeout! (:timeout-ms global)))
@@ -392,10 +398,10 @@
               (println result-str)))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (binding [*out* *err*]
-                (println (str "Error: " (or (get-in response [:data :error])
-                                          (:error response)
-                                          "Unknown error")))))))
+            (binding [*out* *err*]
+              (println (str "Error: " (or (get-in response [:data :error])
+                                        (:error response)
+                                        "Unknown error")))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]
@@ -451,7 +457,7 @@
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)
@@ -459,7 +465,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "inspector"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["open"] rest-args)))))
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
@@ -467,7 +473,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -483,8 +489,8 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))]
-            (daemon/start-daemon! opts)))
+        (let [opts (parse-daemon-args (rest cmd-args))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       (= "--eval" first-arg)
@@ -493,7 +499,7 @@
           (run-eval! code global)
           (do (binding [*out* *err*]
                 (println "Error: --eval requires a code argument"))
-              (System/exit 1))))
+            (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
       (run-eval! (subs first-arg 7) global)
@@ -501,5 +507,5 @@
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))
