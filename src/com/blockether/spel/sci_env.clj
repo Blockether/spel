@@ -35,7 +35,8 @@
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.snapshot :as snapshot])
+   [com.blockether.spel.snapshot :as snapshot]
+   [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright
     APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -591,6 +592,39 @@
 (defn sci-browser-version    [] (core/browser-version (require-browser!)))
 
 ;; =============================================================================
+;; Tracing
+;; =============================================================================
+
+(defn sci-trace-start!
+  "Starts Playwright tracing on the current context.
+
+   Opts:
+   :name        - String. Trace name (appears in Trace Viewer).
+   :screenshots - Boolean. Capture screenshots (default: false).
+   :snapshots   - Boolean. Capture DOM snapshots (default: false).
+   :sources     - Boolean. Include source files (default: false)."
+  ([]     (throw-if-anomaly (util/tracing-start! (util/context-tracing (require-context!)))))
+  ([opts] (throw-if-anomaly (util/tracing-start! (util/context-tracing (require-context!)) opts))))
+
+(defn sci-trace-stop!
+  "Stops Playwright tracing and saves to a file.
+
+   Opts:
+   :path - String. Output path (default: \"trace.zip\")."
+  ([]     (throw-if-anomaly (util/tracing-stop! (util/context-tracing (require-context!)))))
+  ([opts] (throw-if-anomaly (util/tracing-stop! (util/context-tracing (require-context!)) opts))))
+
+(defn sci-trace-group
+  "Opens a named group in the trace. Groups nest actions visually in Trace Viewer."
+  [name]
+  (.group ^com.microsoft.playwright.Tracing (util/context-tracing (require-context!)) ^String name))
+
+(defn sci-trace-group-end
+  "Closes the current trace group."
+  []
+  (.groupEnd ^com.microsoft.playwright.Tracing (util/context-tracing (require-context!))))
+
+;; =============================================================================
 ;; Network
 ;; =============================================================================
 
@@ -884,6 +918,11 @@
                   ['context-route-web-socket!  sci-context-route-web-socket!]
                   ['browser-connected? sci-browser-connected?]
                   ['browser-version    sci-browser-version]
+                  ;; Tracing
+                  ['trace-start!     sci-trace-start!]
+                  ['trace-stop!      sci-trace-stop!]
+                  ['trace-group      sci-trace-group]
+                  ['trace-group-end  sci-trace-group-end]
                   ;; Network
                   ['last-response  sci-last-response]
                   ;; Info
