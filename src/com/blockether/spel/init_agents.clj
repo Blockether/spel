@@ -6,6 +6,10 @@
    - claude             — .claude/agents/, .claude/prompts/, .claude/docs/
    - vscode             — .github/agents/, .github/prompts/, .github/docs/
 
+   Supports test framework flavours via --flavour:
+   - lazytest (default) — defdescribe/it/expect from spel.allure, :context fixtures
+   - clojure-test       — deftest/testing/is from clojure.test, use-fixtures
+
    Also generates:
    - test-e2e/specs/ — test plans directory (colocated with tests)
    - test-e2e/<ns>/e2e/ — seed test (path derived from --ns)
@@ -14,6 +18,7 @@
      spel init-agents --ns my-app
      spel init-agents --ns my-app --loop=claude
      spel init-agents --ns my-app --loop=vscode
+     spel init-agents --ns my-app --flavour=clojure-test
      spel init-agents --ns my-app --no-tests
      spel init-agents --ns my-app --test-dir test-e2e --specs-dir test-e2e/specs
      spel init-agents --dry-run"
@@ -60,13 +65,21 @@
                :agent-ref-fmt "#agent:%s"
                :desc "VS Code / Copilot"}})
 
+(def ^:private valid-flavours
+  "Supported test framework flavours."
+  #{"lazytest" "clojure-test"})
+
 (defn- files-to-create
-  "Returns file specs based on loop target and whether tests are included.
+  "Returns file specs based on loop target, flavour, and whether tests are included.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for agent templates that need frontmatter transformation.
    When no-tests is true, only the SKILL file is generated (no test agents/prompts)."
-  [loop-target no-tests]
+  [loop-target no-tests flavour]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
+        ct? (= "clojure-test" flavour)
+        generator-template (if ct?
+                             "agents/spel-test-generator-ct.md"
+                             "agents/spel-test-generator.md")
         skill-file [["skills/spel/SKILL.md"
                      (str skill-dir "/SKILL.md")
                      "API reference skill"
@@ -77,7 +90,7 @@
                      "test planner agent"
                      "+"
                      "spel-test-planner"]
-                    ["agents/spel-test-generator.md"
+                    [generator-template
                      (str agent-dir "/spel-test-generator" agent-ext)
                      "test generator agent"
                      "+"
@@ -96,10 +109,14 @@
       skill-file
       (into test-files skill-file))))
 
-(def ^:private seed-template-resource
-  "Resource path for the seed test template (uses .template extension to
-   avoid clojure-lsp trying to parse the {{ns}} placeholder as Clojure)."
-  "seed_test.clj.template")
+(defn- seed-template-resource
+  "Resource path for the seed test template based on flavour.
+   Uses .template extension to avoid clojure-lsp trying to parse
+   the {{ns}} placeholder as Clojure."
+  [flavour]
+  (if (= "clojure-test" flavour)
+    "seed_test_ct.clj.template"
+    "seed_test.clj.template"))
 
 ;; =============================================================================
 ;; Namespace Derivation
@@ -160,11 +177,24 @@
 ;; Template Processing
 ;; =============================================================================
 
+(defn- read-flavour-section
+  "Reads a flavour-specific template section from classpath.
+   Returns the content string, or nil if not found."
+  [section-name flavour]
+  (let [path (str template-base "flavours/" flavour "/" section-name)
+        resource (io/resource path)]
+    (when resource
+      (slurp resource))))
+
 (defn- process-template
   "Processes a template by replacing placeholders.
-   Currently only replaces {{ns}} with the derived namespace."
-  [content ns-name]
-  (str/replace content "{{ns}}" ns-name))
+   Replaces {{ns}} and {{testing-conventions}} (flavour-specific testing section)."
+  [content ns-name flavour]
+  (let [testing-section (or (read-flavour-section "testing-conventions.md" flavour)
+                          "")]
+    (-> content
+      (str/replace "{{ns}}" ns-name)
+      (str/replace "{{testing-conventions}}" testing-section))))
 
 ;; =============================================================================
 ;; Frontmatter Transformation
@@ -267,6 +297,7 @@
          opts {:dry-run false
                :force false
                :no-tests false
+               :flavour "lazytest"
                :ns nil
                :loop "opencode"
                :test-dir "test-e2e"
@@ -283,6 +314,14 @@
 
           (= "--no-tests" arg)
           (recur (rest remaining) (assoc opts :no-tests true))
+
+          (= "--flavour" arg)
+          (recur (drop 2 remaining)
+            (assoc opts :flavour (second remaining)))
+
+          (str/starts-with? arg "--flavour=")
+          (recur (rest remaining)
+            (assoc opts :flavour (subs arg (count "--flavour="))))
 
           (= "--ns" arg)
           (recur (drop 2 remaining)
@@ -332,7 +371,8 @@
    Returns {:created true/false :skipped true/false :reason string}."
   [resource-path output-path _description _icon opts ns-name loop-target agent-name]
   (let [dry-run (:dry-run opts)
-        force (:force opts)]
+        force (:force opts)
+        flavour (:flavour opts "lazytest")]
     (cond
       ;; Check if template exists
       (nil? (read-template resource-path))
@@ -344,7 +384,7 @@
 
       :else
       (let [content (-> (read-template resource-path)
-                      (process-template ns-name)
+                      (process-template ns-name flavour)
                       (transform-agent-references loop-target)
                       (transform-agent-template loop-target agent-name))
             written? (write-file! output-path content dry-run)]
@@ -375,6 +415,7 @@
   (println "  spel init-agents --ns my-app --loop=claude")
   (println "  spel init-agents --ns my-app --loop=vscode")
   (println "  spel init-agents --ns my-app --test-dir test/e2e --specs-dir test-e2e/specs")
+  (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
   (println "  spel init-agents --ns my-app --dry-run")
   (println "  spel init-agents --ns my-app --force")
@@ -383,6 +424,9 @@
   (println "  --loop TARGET     Agent format: opencode (default), claude, vscode")
   (println "  --ns NS           Base namespace for generated tests (e.g. my-app → my-app.e2e.seed-test)")
   (println "                    If omitted, derived from the current directory name")
+  (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
+  (println "                    lazytest: defdescribe/it/expect from spel.allure, :context fixtures")
+  (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
   (println "  --no-tests        Scaffold only the SKILL (API reference) — no test agents, specs, or seed test.")
   (println "                    Use this when spel is for interactive development, not E2E testing.")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
@@ -413,7 +457,7 @@
 
 (defn- print-footer
   "Prints the completion message and next steps for the user."
-  [loop-target test-dir no-tests]
+  [loop-target test-dir no-tests flavour]
   (println "")
   (if no-tests
     (do
@@ -431,7 +475,7 @@
       (println "  3. Use spel for browser automation:")
       (println "     spel open https://example.com")
       (println "     spel --eval '(page/navigate \"https://example.com\")'"))
-    (do
+    (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
         (println "Done! Use @spel-test-planner to start planning tests.")
         (println "Done! Use the spel-test-planner agent to start planning tests."))
@@ -443,9 +487,17 @@
       (println "")
       (println "  2. Add the :e2e alias to your deps.edn:")
       (println "")
-      (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
-      (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
-      (println (str "           :main-opts [\"-m\" \"lazytest.main\" \"--dir\" \"" test-dir "\"]}"))
+      (if ct?
+        (do
+          (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
+          (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}"))
+          (println (str "                        io.github.cognitect-labs/test-runner"))
+          (println (str "                        {:git/tag \"v0.5.1\" :git/sha \"dfb30dd\"}}"))
+          (println (str "           :main-opts [\"-m\" \"cognitect.test-runner\" \"-d\" \"" test-dir "\"]}")))
+        (do
+          (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
+          (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
+          (println (str "           :main-opts [\"-m\" \"lazytest.main\" \"--dir\" \"" test-dir "\"]}"))))
       (println "")
       (println "  3. Run the E2E tests:")
       (println "     clojure -M:e2e")
@@ -473,9 +525,17 @@
           (println (str "Valid targets: " (str/join ", " (sort (keys loop-targets))))))
         (System/exit 1))
 
+      (not (contains? valid-flavours (:flavour opts)))
+      (do
+        (binding [*out* *err*]
+          (println (str "Error: Unknown --flavour: " (:flavour opts)))
+          (println (str "Valid flavours: " (str/join ", " (sort valid-flavours)))))
+        (System/exit 1))
+
       :else
       (let [loop-target (:loop opts)
             no-tests (:no-tests opts)
+            flavour (:flavour opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
                         (println "         Tip: use --ns my-app to set namespace explicitly.")
@@ -486,7 +546,7 @@
         (print-banner loop-target no-tests)
 
         ;; Scaffold files (skill only when --no-tests, full set otherwise)
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests)]
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests flavour)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 
@@ -500,7 +560,7 @@
           ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
           (let [seed-ns (str ns-name ".e2e.seed-test")
                 seed-path (ns->path test-dir seed-ns)
-                seed-result (scaffold-file seed-template-resource seed-path "seed test" "+" opts ns-name loop-target nil)]
+                seed-result (scaffold-file (seed-template-resource flavour) seed-path "seed test" "+" opts ns-name loop-target nil)]
             (print-result "+" seed-path "seed test" seed-result)))
 
-        (print-footer loop-target test-dir no-tests)))))
+        (print-footer loop-target test-dir no-tests flavour)))))

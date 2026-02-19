@@ -584,9 +584,11 @@ Signals: `dialog`, `popup`, `download` — handled automatically in generated co
 Scaffold E2E testing agents for OpenCode, Claude Code, or VS Code:
 
 ```bash
-spel init-agents                      # OpenCode (default)
-spel init-agents --loop=claude        # Claude Code
-spel init-agents --loop=vscode        # VS Code / Copilot
+spel init-agents                              # OpenCode (default)
+spel init-agents --loop=claude                # Claude Code
+spel init-agents --loop=vscode                # VS Code / Copilot
+spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
+spel init-agents --no-tests                   # SKILL only (interactive dev)
 ```
 
 ### Generated Files
@@ -594,7 +596,7 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | File | Purpose |
 |------|---------|
 | `agents/spel-test-planner` | Explores app, writes structured test plans |
-| `agents/spel-test-generator` | Reads test plans, generates Clojure Lazytest code |
+| `agents/spel-test-generator` | Reads test plans, generates Clojure test code |
 | `agents/spel-test-healer` | Runs failing tests, diagnoses issues, applies fixes |
 | `prompts/spel-test-workflow` | Orchestrator: plan → generate → heal cycle |
 | `skills/spel/SKILL.md` | API reference for agents |
@@ -605,9 +607,11 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 |------|---------|---------|
 | `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
 | `--ns NS` | dir name | Base namespace for generated tests |
+| `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
+| `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
 | `--dry-run` | — | Preview files without writing |
 | `--force` | — | Overwrite existing files |
-| `--test-dir DIR` | `test/e2e` | E2E test output directory |
+| `--test-dir DIR` | `test-e2e` | E2E test output directory |
 | `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
 
 ### Oh My OpenCode

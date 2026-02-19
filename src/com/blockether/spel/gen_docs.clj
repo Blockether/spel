@@ -467,7 +467,9 @@
 
 (defn generate-skill-md
   "Reads the SKILL.md.template, replaces {{library-api}}, {{sci-api}},
-   and {{cli-commands}} placeholders with generated content, writes to SKILL.md."
+   and {{cli-commands}} placeholders with generated content, writes to SKILL.md.
+   The {{testing-conventions}} and {{ns}} placeholders pass through unchanged —
+   they are replaced later by init-agents at scaffolding time."
   []
   (let [template (slurp (io/file template-input-path))
         library-api (generate-library-api)

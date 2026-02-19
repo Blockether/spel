@@ -2022,6 +2022,7 @@ All `*browser-context*` and `*browser-api*` bindings work the same as with the d
       (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Example Domain"))))))
 ```
 
+
 ---
 
 ## Native Image CLI
