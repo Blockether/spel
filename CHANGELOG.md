@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.0.2] - 2026-02-19
+
+### Changed
+- Consolidate README: replace verbose Usage with SKILL reference, fix lint warning, update docs and tests
+- Fix Trace Viewer source path resolution: prepend source directory prefix
+- Fix Trace Viewer source mapping and codegen CLI improvements
+- Add corporate CA certificate support for SSL-inspecting proxies
+- feat(allure): integrate Allure reporting with lazytest macros
+- Auto-save in-flight traces when daemon shuts down or context is replaced
+- Fix codegen selector translation: extract role name, exact flag, and wrap assertions with assert-that
+- Add tracing API to SCI --eval environment
+- Add routeFromHAR and routeWebSocket wrappers for complete mock API coverage
+- Add inspector and show-trace commands for Playwright visual tools
+- Replace inline changelog in README with reference to CHANGELOG.md
+- Make landing page title, subtitle, and logo configurable via env vars
+- Fix spel install, update SKILL.md docs, add changelog, remove Makefile refs from templates
+- Add clickable CI pipeline link to run number in Allure landing page
+- Fix Allure report logo 404: copy logo file into report output dir
+- Add landing page with clickable SHA links, date grouping, and pass/fail status
+- Add logo support for Allure report header
+- Add commit SHA and message to Allure report history entries
+- Add per-build Allure report archives with clickable history links
+- Fix reflection warning in detect-source-dirs String/join call
+- Fix Allure history: switch to JSONL mechanism with configurable limit
+- Auto-detect Clojure source dirs for Playwright trace sources
+- Update clj-kondo sinker hook import
+- Add --full flag to annotate: annotate all elements, not just viewport
+- Fix try plus hook
+- Fix Allure report history: preserve history/ across runs for trend dropdown
+- release: update README and CHANGELOG for v0.0.1
+
+
 ## [v0.0.1] - 2026-02-18
 
 ### Changed
@@ -58,5 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.0.2...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
+[v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
