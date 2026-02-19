@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-02-19
+
+### Changed
+- chore: set SPEL_VERSION to 0.2.0 for release
+- feat: Allure version in builds, classpath trace viewer, with-traced-page default, cljfmt
+- feat: eval file support, --load-state flag, SCI page/locator namespaces
+- release: update version files for v0.1.0, bump to next dev version
+
+
 ## [v0.1.0] - 2026-02-19
 
 ### Changed
@@ -99,7 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.2.0...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
+[v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
