@@ -206,10 +206,10 @@
                 (core/close-page! page))
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
-                   (catch Exception _))
+                (catch Exception _))
               (let [t (doto (Thread. (fn []
                                        (try (core/close-context! ctx)
-                                            (catch Exception _))))
+                                         (catch Exception _))))
                         (.setDaemon true)
                         (.start))]
                 (.join t 5000))))))
@@ -299,7 +299,7 @@
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
-                 (catch Exception _))
+              (catch Exception _))
                   ;; Close context → writes HAR via harExport.
                   ;; BrowserContextImpl.close() calls harExport with NO_TIMEOUT,
                   ;; which can hang indefinitely when tracing was active on the
@@ -308,7 +308,7 @@
                   ;; JVM exit and browser.close() from with-browser cleans up.
             (let [t (doto (Thread. (fn []
                                      (try (core/close-context! ctx)
-                                          (catch Exception _))))
+                                       (catch Exception _))))
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
@@ -358,9 +358,31 @@
   [context-opts]
   {:around (make-traced-page-around-fn context-opts)})
 
+;; =============================================================================
+;; clojure.test-compatible fixture functions
+;;
+;; Lazytest uses {:around fn} maps. clojure.test expects plain (fn [f] ...).
+;; These are the same fixtures extracted as plain functions for use-fixtures.
+;; =============================================================================
+
+(defn ct-fixture
+  "Extract the underlying function from a Lazytest around hook.
+
+   Lazytest around hooks are maps {:around fn}. clojure.test needs plain
+   functions. This helper extracts the :around fn so you can use Lazytest
+   fixtures with clojure.test/use-fixtures:
+
+     (use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
+     (use-fixtures :each (ct-fixture with-traced-page) with-allure-context)"
+  [around-hook]
+  (if-let [f (:around around-hook)]
+    f
+    (throw (ex-info "Not a Lazytest around hook (no :around key)"
+             {:hook around-hook}))))
+
 (def with-api-tracing
   "Around hook: creates a BrowserContext with Playwright tracing
-   for API-only tests (no page needed).
+    for API-only tests (no page needed).
 
    Headless by default. Set `SPEL_INTERACTIVE=true` env var or
    `-Dspel.interactive=true` system property to run headed (interactive).
@@ -413,10 +435,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                     (catch Exception _))
+                  (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                              (catch Exception _))))
+                                           (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000)))))

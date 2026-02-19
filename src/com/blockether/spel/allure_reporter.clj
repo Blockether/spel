@@ -159,7 +159,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -490,7 +490,7 @@
 ;; HTML Report Generation & Trace Viewer Embedding
 ;; =============================================================================
 
-(defn- report-dir
+(defn report-dir
   ^String []
   (or (System/getProperty "lazytest.allure.report")
     (System/getenv "LAZYTEST_ALLURE_REPORT")
@@ -630,27 +630,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
+      ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -678,7 +678,7 @@
     (when (and path (.isFile (io/file path)))
       path)))
 
-(defn- generate-html-report!
+(defn generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
    available), optionally embed the local trace viewer, and patch the
    report JS.  Returns true on success."
@@ -728,7 +728,7 @@
 ;; Reporter
 ;; =============================================================================
 
-(defn- output-dir
+(defn output-dir
   "Determine the output directory. Checks system property, then env var,
    then falls back to allure-results."
   ^String []
@@ -739,11 +739,19 @@
 (defn- clean-output-dir!
   "Remove old results and recreate the output directory.
    History is managed externally via `.allure-history.jsonl` (Allure 3
-   JSONL mechanism), so nothing inside the results dir needs preserving."
+   JSONL mechanism), so nothing inside the results dir needs preserving.
+
+   When `lazytest.allure.append` system property or `LAZYTEST_ALLURE_APPEND`
+   env var is set to \"true\", skips cleaning so results from a previous
+   test phase (e.g. clojure.test) are preserved."
   [^File dir]
-  (when (.exists dir)
-    (doseq [^File f (reverse (file-seq dir))]
-      (.delete f)))
+  (when-not (Boolean/parseBoolean
+              (or (System/getProperty "lazytest.allure.append")
+                (System/getenv "LAZYTEST_ALLURE_APPEND")
+                "false"))
+    (when (.exists dir)
+      (doseq [^File f (reverse (file-seq dir))]
+        (.delete f))))
   (.mkdirs dir))
 
 (defmulti allure
