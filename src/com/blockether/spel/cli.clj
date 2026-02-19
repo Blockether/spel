@@ -1913,6 +1913,21 @@
           :else           (println (str "Unknown command: " cmd-name ". Run 'spel --help' for usage."))))
       (System/exit 0))
 
+    ;; Install — handled directly, not via daemon
+    (when (= "install" (:action command))
+      (let [extra-args (cond-> []
+                         (:with-deps command) (conj "--with-deps"))]
+        (println (str "Installing Playwright browsers"
+                   (when (seq extra-args) (str " (" (clojure.string/join " " extra-args) ")"))
+                   "..."))
+        (flush)
+        (com.microsoft.playwright.CLI/main
+          (into-array String (into ["install"] extra-args)))
+        ;; CLI/main may call System.exit — if we get here, print done
+        (println "Done.")
+        (flush)
+        (System/exit 0)))
+
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)
 

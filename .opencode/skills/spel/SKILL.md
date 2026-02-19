@@ -1273,6 +1273,14 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
   (api/api-get users "/me")
   (api/api-get billing "/invoices"))
 
+;; JSON encoding — MUST bind *json-encoder* before using :json option
+(require '[cheshire.core :as json])
+(binding [api/*json-encoder* json/generate-string]
+  (api/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
+;; Or set globally:
+(alter-var-root #'api/*json-encoder* (constantly json/generate-string))
+;; Using :json WITHOUT binding *json-encoder* will throw!
+
 ;; HTTP methods
 (api/api-get ctx "/users" {:params {:page 1}})
 (api/api-post ctx "/users" {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
@@ -1367,6 +1375,52 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (allure/screenshot pg "After navigation")        ; convenience: attach PNG screenshot
 (allure/attach-api-response! resp)               ; attach full API response
 ```
+
+### Allure Reporter Pipeline
+
+The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx):
+
+1. Writes Allure JSON results to `allure-results/` (Allure 2+ compatible format)
+2. Resolves Allure 3 CLI via `npx allure@3.1.0` (no manual install needed)
+3. Generates HTML report to `allure-report/` using `allure awesome`
+4. Embeds a local Playwright trace viewer (no dependency on `trace.playwright.dev`)
+5. Patches report JS to load traces from `./trace-viewer/` and pre-registers the Service Worker for instant loading
+6. Manages run history via `.allure-history.jsonl` (Allure 3 JSONL mechanism, configurable limit)
+
+### Allure Configuration
+
+| Property | Env Var | Default | Description |
+|----------|---------|---------|-------------|
+| `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
+| `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
+| `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
+| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto)_ | Report title (shown in header and history) |
+| `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
+
+```bash
+# Run tests with Allure reporter
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+
+# Keep last 20 builds in history
+clojure -J-Dlazytest.allure.history-limit=20 -M:test \
+  --output nested --output com.blockether.spel.allure-reporter/allure
+
+# Or via env var
+LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
+  --output nested --output com.blockether.spel.allure-reporter/allure
+```
+
+### Trace Viewer Integration
+
+When using test fixtures (`with-page` / `with-traced-page`) with Allure reporter active, Playwright tracing is automatically enabled:
+
+- Screenshots captured on every action
+- DOM snapshots included
+- Network activity recorded
+- Sources captured
+- HAR file generated
+
+Trace and HAR files are automatically attached to test results (MIME type `application/vnd.allure.playwright-trace`) and viewable directly in the Allure report via an embedded local trace viewer — no external service dependency.
 
 ---
 
@@ -2495,7 +2549,7 @@ Inject visual overlays (bounding boxes, ref badges, dimension labels) onto the p
 
 | Rule | Detail |
 |------|--------|
-| **No per-file reflection warnings** | Root Makefile `validate-safe-graal-package` handles globally |
+| **No per-file reflection warnings** | Handled globally by build tooling |
 | **No `clj-kondo` CLI** | All linting via `clojure-lsp diagnostics --raw` |
 | **Anomalies not exceptions** | Use `com.blockether.anomaly` pattern |
 | **Error type keywords** | `:playwright.error/timeout`, `:playwright.error/target-closed`, etc. |

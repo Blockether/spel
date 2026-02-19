@@ -9,7 +9,7 @@ tools:
 permission:
   bash:
     "clojure *": allow
-    "make *": allow
+    "spel *": allow
     "*": ask
 ---
 

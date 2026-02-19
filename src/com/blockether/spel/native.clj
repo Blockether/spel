@@ -225,12 +225,46 @@
 (defn- print-version []
   (println "spel 0.1.0"))
 
+(defn- driver-cli-path
+  "Returns the path to the Playwright Node.js CLI entry point.
+   The driver must already be downloaded via driver/ensure-driver!."
+  ^java.nio.file.Path []
+  (let [cli-dir (System/getProperty "playwright.cli.dir")]
+    (when-not cli-dir
+      (throw (ex-info "Playwright driver not initialized. Call driver/ensure-driver! first." {})))
+    (let [dir (java.nio.file.Paths/get cli-dir (into-array String []))]
+      (.resolve dir (java.nio.file.Paths/get "package" (into-array String ["cli.js"]))))))
+
+(defn- driver-node-path
+  "Returns the path to the Node.js binary bundled with the Playwright driver."
+  ^java.nio.file.Path []
+  (let [cli-dir (System/getProperty "playwright.cli.dir")
+        dir     (java.nio.file.Paths/get cli-dir (into-array String []))
+        node    (if (clojure.string/includes? (System/getProperty "os.name" "") "Windows")
+                  "node.exe" "node")]
+    (.resolve dir ^String node)))
+
 (defn- run-install!
-  "Installs Playwright browsers using the Playwright CLI.
-   Forwards extra args like --with-deps."
+  "Installs Playwright browsers by running the driver CLI as a subprocess.
+   Inherits stdout/stderr so users see progress. Forwards extra args like --with-deps."
   [extra-args]
-  (let [args (into ["install"] extra-args)]
-    (com.microsoft.playwright.CLI/main (into-array String args))))
+  (println (str "Installing Playwright browsers"
+             (when (seq extra-args) (str " (" (clojure.string/join " " extra-args) ")"))
+             "..."))
+  (flush)
+  (let [node (str (driver-node-path))
+        cli  (str (driver-cli-path))
+        args (into [node cli "install"] extra-args)
+        pb   (doto (ProcessBuilder. ^java.util.List args)
+               (.inheritIO))
+        proc (.start pb)
+        exit (.waitFor proc)]
+    (if (zero? exit)
+      (do (println "Done.") (flush))
+      (do (binding [*out* *err*]
+            (println (str "Install failed with exit code " exit)))
+        (flush)
+        (System/exit exit)))))
 
 ;; =============================================================================
 ;; Daemon Argument Parsing
