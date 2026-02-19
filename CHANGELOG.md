@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-02-19
+
+### Changed
+- feat: interactive test mode, spel.allure imports, init-agents --dir, code formatting
+- feat: add storage state API, version management, and SKILL docs
+- feat: add --interactive to eval mode, storage state examples to codegen help
+- release: update README and CHANGELOG for v0.0.2
+
+
 ## [v0.0.2] - 2026-02-19
 
 ### Changed
@@ -90,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.1.0...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
+[v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
