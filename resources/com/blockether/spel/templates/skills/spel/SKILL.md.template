@@ -957,6 +957,46 @@ spel open URL                       # Open browser
 spel screenshot URL                 # Take screenshot
 ```
 
+### Playwright Tools
+
+Launch Playwright's built-in visual tools directly from `spel`:
+
+```bash
+# Inspector — opens a headed browser with the Playwright Inspector panel.
+# Use to explore the page, pick locators, and record actions interactively.
+spel inspector                                      # Open Inspector (blank page)
+spel inspector https://example.com                  # Open Inspector on URL
+spel inspector -b firefox https://example.com       # Use Firefox
+spel inspector --device "iPhone 14" https://example.com  # Emulate device
+
+# Trace Viewer — opens the Playwright Trace Viewer to inspect recorded traces.
+# Traces are created via `spel trace start` / `spel trace stop` or automatically
+# by test fixtures with Allure reporter active.
+spel show-trace                     # Open Trace Viewer (blank)
+spel show-trace trace.zip           # Open specific trace file
+spel show-trace --port 8080 trace.zip  # Serve on specific port
+```
+
+**Inspector options** (all Playwright `open` flags are supported):
+
+| Flag | Description |
+|------|-------------|
+| `-b, --browser <type>` | Browser engine: `cr`/`chromium`, `ff`/`firefox`, `wk`/`webkit` (default: chromium) |
+| `--channel <channel>` | Chromium channel: `chrome`, `chrome-beta`, `msedge-dev`, etc. |
+| `--device <name>` | Emulate device (e.g. `"iPhone 14"`, `"Pixel 7"`) |
+| `--color-scheme <scheme>` | `light` or `dark` |
+| `--geolocation <lat,lng>` | Geolocation coordinates |
+| `--lang <locale>` | Language locale (e.g. `en-GB`) |
+| `--timezone <tz>` | Timezone (e.g. `Europe/Rome`) |
+| `--viewport-size <w,h>` | Viewport size (e.g. `1280,720`) |
+| `--user-agent <ua>` | Custom user agent |
+| `--proxy-server <url>` | Proxy server |
+| `--ignore-https-errors` | Ignore HTTPS certificate errors |
+| `--load-storage <file>` | Load saved storage state |
+| `--save-storage <file>` | Save storage state on exit |
+| `--save-har <file>` | Save HAR file on exit |
+| `--timeout <ms>` | Action timeout in ms |
+
 ---
 
 ## Page Exploration (spel)

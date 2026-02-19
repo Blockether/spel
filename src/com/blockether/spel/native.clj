@@ -165,6 +165,8 @@
   (println "  console / console clear   View/clear console (auto-captured)")
   (println "  errors / errors clear     View/clear errors (auto-captured)")
   (println "  highlight <sel>           Highlight element")
+  (println "  inspector [url]           Launch Playwright Inspector (headed browser)")
+  (println "  show-trace [trace]        Open Playwright Trace Viewer")
   (println "")
   (println "State Management:")
   (println "  state save [path]         Save auth/storage state")
@@ -244,6 +246,21 @@
                   "node.exe" "node")]
     (.resolve dir ^String node)))
 
+(defn- run-playwright-cmd!
+  "Runs a Playwright CLI command as a subprocess via the Node.js driver.
+   Inherits stdout/stderr so users see output. Returns the exit code.
+   Calls System/exit on non-zero exit."
+  [cmd-args]
+  (let [node (str (driver-node-path))
+        cli  (str (driver-cli-path))
+        args (into [node cli] cmd-args)
+        pb   (doto (ProcessBuilder. ^java.util.List args)
+               (.inheritIO))
+        proc (.start pb)
+        exit (.waitFor proc)]
+    (when-not (zero? exit)
+      (System/exit exit))))
+
 (defn- run-install!
   "Installs Playwright browsers by running the driver CLI as a subprocess.
    Inherits stdout/stderr so users see progress. Forwards extra args like --with-deps."
@@ -252,19 +269,9 @@
              (when (seq extra-args) (str " (" (clojure.string/join " " extra-args) ")"))
              "..."))
   (flush)
-  (let [node (str (driver-node-path))
-        cli  (str (driver-cli-path))
-        args (into [node cli "install"] extra-args)
-        pb   (doto (ProcessBuilder. ^java.util.List args)
-               (.inheritIO))
-        proc (.start pb)
-        exit (.waitFor proc)]
-    (if (zero? exit)
-      (do (println "Done.") (flush))
-      (do (binding [*out* *err*]
-            (println (str "Install failed with exit code " exit)))
-        (flush)
-        (System/exit exit)))))
+  (run-playwright-cmd! (into ["install"] extra-args))
+  (println "Done.")
+  (flush))
 
 ;; =============================================================================
 ;; Daemon Argument Parsing
@@ -430,6 +437,16 @@
       (= "install" first-arg)
       (do (driver/ensure-driver!)
         (run-install! (rest cmd-args)))
+
+      ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
+      (= "inspector" first-arg)
+      (do (driver/ensure-driver!)
+        (run-playwright-cmd! (into ["open"] (rest cmd-args))))
+
+      ;; Show-trace — launch Playwright Trace Viewer
+      (= "show-trace" first-arg)
+      (do (driver/ensure-driver!)
+        (run-playwright-cmd! (into ["show-trace"] (rest cmd-args))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!

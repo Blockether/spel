@@ -824,7 +824,62 @@
       "  spel install --with-deps"
       ""
       "Flags:"
-      "  --with-deps    Install system dependencies alongside browsers"])})
+      "  --with-deps    Install system dependencies alongside browsers"])
+
+   "inspector"
+   (str/join \newline
+     ["inspector - Launch Playwright Inspector"
+      ""
+      "Opens a headed browser with the Playwright Inspector attached."
+      "Use the Inspector to explore the page, pick locators, and record actions."
+      ""
+      "Usage:"
+      "  spel inspector [options] [url]"
+      ""
+      "Examples:"
+      "  spel inspector"
+      "  spel inspector https://example.com"
+      "  spel inspector -b firefox https://example.com"
+      "  spel inspector --device \"iPhone 14\" https://example.com"
+      ""
+      "Options:"
+      "  -b, --browser <type>         Browser: cr, chromium, ff, firefox, wk, webkit (default: chromium)"
+      "  --channel <channel>          Chromium channel: chrome, chrome-beta, msedge-dev, etc."
+      "  --device <name>              Emulate device (e.g. \"iPhone 14\")"
+      "  --color-scheme <scheme>      Color scheme: light, dark"
+      "  --geolocation <lat,lng>      Geolocation coordinates"
+      "  --lang <locale>              Language locale (e.g. en-GB)"
+      "  --timezone <tz>              Timezone (e.g. Europe/Rome)"
+      "  --viewport-size <w,h>        Viewport size (e.g. 1280,720)"
+      "  --user-agent <ua>            Custom user agent"
+      "  --proxy-server <url>         Proxy server"
+      "  --ignore-https-errors        Ignore HTTPS errors"
+      "  --load-storage <file>        Load saved storage state"
+      "  --save-storage <file>        Save storage state on exit"
+      "  --save-har <file>            Save HAR file on exit"
+      "  --timeout <ms>               Action timeout in ms"
+      "  --user-data-dir <dir>        Custom browser user data directory"])
+
+   "show-trace"
+   (str/join \newline
+     ["show-trace - Open Playwright Trace Viewer"
+      ""
+      "Opens the Playwright Trace Viewer to inspect recorded traces."
+      "Traces are recorded via `spel trace start` / `spel trace stop`"
+      "or automatically by test fixtures with Allure reporter active."
+      ""
+      "Usage:"
+      "  spel show-trace [options] [trace-file]"
+      ""
+      "Examples:"
+      "  spel show-trace"
+      "  spel show-trace trace.zip"
+      "  spel show-trace --port 8080 trace.zip"
+      ""
+      "Options:"
+      "  -b, --browser <type>    Browser for viewer: cr, ff, wk (default: chromium)"
+      "  -h, --host <host>       Host to serve trace on (opens in browser tab)"
+      "  -p, --port <port>       Port to serve trace on (0 = any free port)"])})
 
 (defn top-level-help
   "Returns the top-level help string shown by `spel --help`."
@@ -923,6 +978,10 @@
      ""
      "Connection:"
      "  connect                 Connect via CDP"
+     ""
+     "Playwright Tools:"
+     "  inspector [url]         Launch Playwright Inspector (headed browser)"
+     "  show-trace [trace]      Open Playwright Trace Viewer"
      ""
      "Lifecycle:"
      "  close, quit, exit       Close browser and daemon"
@@ -1528,6 +1587,14 @@
             "install"  {:action "install"
                         :with-deps (some #{"--with-deps"} cmd-args)}
 
+          ;; Inspector — launch Playwright Inspector (passthrough to Playwright CLI)
+            "inspector" {:action "inspector"
+                         :cli-args cmd-args}
+
+          ;; Show-trace — launch Trace Viewer (passthrough to Playwright CLI)
+            "show-trace" {:action "show-trace"
+                          :cli-args cmd-args}
+
           ;; No command given
             (nil)      {:error "No command specified. Run with --help for usage."}
 
@@ -1927,6 +1994,18 @@
         (println "Done.")
         (flush)
         (System/exit 0)))
+
+    ;; Inspector — launch Playwright Inspector (bypasses daemon)
+    (when (= "inspector" (:action command))
+      (com.microsoft.playwright.CLI/main
+        (into-array String (into ["open"] (:cli-args command))))
+      (System/exit 0))
+
+    ;; Show-trace — launch Playwright Trace Viewer (bypasses daemon)
+    (when (= "show-trace" (:action command))
+      (com.microsoft.playwright.CLI/main
+        (into-array String (into ["show-trace"] (:cli-args command))))
+      (System/exit 0))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)

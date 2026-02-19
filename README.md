@@ -982,6 +982,12 @@ spel tab 0                             # Switch to tab
 
 # Close
 spel close
+
+# Playwright Tools
+spel inspector                         # Launch Playwright Inspector
+spel inspector https://example.com     # Inspector on URL
+spel inspector -b firefox https://x.com  # Inspector with Firefox
+spel show-trace trace.zip              # Open Trace Viewer
 ```
 
 ### Global Flags

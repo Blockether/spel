@@ -1042,7 +1042,7 @@
                         "eval" "wait" "tab" "get" "is" "count" "bbox" "highlight"
                         "find" "set" "cookies" "storage" "network" "frame" "dialog"
                         "trace" "console" "errors" "state" "session" "connect"
-                        "close" "install"]]
+                        "close" "install" "inspector" "show-trace"]]
         (expect (string? (get sut/command-help cmd-name))
           (str "Missing help for command: " cmd-name)))))
 
@@ -1438,7 +1438,42 @@
     (it "parses open --interactive"
       (let [c (cmd ["open" "https://example.com" "--interactive"])]
         (expect (= "navigate" (:action c)))
-        (expect (true? (:interactive c)))))))
+        (expect (true? (:interactive c))))))
+
+  (describe "inspector command"
+    (it "parses inspector"
+      (let [c (cmd ["inspector"])]
+        (expect (= "inspector" (:action c)))))
+
+    (it "parses inspector with url"
+      (let [c (cmd ["inspector" "https://example.com"])]
+        (expect (= "inspector" (:action c)))
+        (expect (= ["https://example.com"] (:cli-args c)))))
+
+    (it "parses inspector with browser flag"
+      (let [c (cmd ["inspector" "-b" "firefox" "https://example.com"])]
+        (expect (= "inspector" (:action c)))
+        (expect (= ["-b" "firefox" "https://example.com"] (:cli-args c)))))
+
+    (it "parses inspector with device flag"
+      (let [c (cmd ["inspector" "--device" "iPhone 14" "https://example.com"])]
+        (expect (= "inspector" (:action c)))
+        (expect (= ["--device" "iPhone 14" "https://example.com"] (:cli-args c))))))
+
+  (describe "show-trace command"
+    (it "parses show-trace"
+      (let [c (cmd ["show-trace"])]
+        (expect (= "show-trace" (:action c)))))
+
+    (it "parses show-trace with file"
+      (let [c (cmd ["show-trace" "trace.zip"])]
+        (expect (= "show-trace" (:action c)))
+        (expect (= ["trace.zip"] (:cli-args c)))))
+
+    (it "parses show-trace with port flag"
+      (let [c (cmd ["show-trace" "--port" "8080" "trace.zip"])]
+        (expect (= "show-trace" (:action c)))
+        (expect (= ["--port" "8080" "trace.zip"] (:cli-args c)))))))
 
 ;; =============================================================================
 ;; Native parse-global-flags (--autoclose, --session for --eval mode)
