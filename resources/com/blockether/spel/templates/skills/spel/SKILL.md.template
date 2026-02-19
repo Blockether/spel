@@ -1011,6 +1011,8 @@ In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 
 Wraps Playwright CLI commands via the `spel` native binary.
 
+> **Prefer `--eval` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e1`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel --eval '<clojure-code>'` or `spel --eval script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel --eval --stdin`.
+
 > **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
 
 ```bash
@@ -2033,6 +2035,7 @@ Before the Allure workflow can deploy:
 | **`new-page-from-context`** | For creating pages from BrowserContext (not `new-page`) |
 | **Roles require** | Always `[com.blockether.spel.roles :as role]` in requires. Use `role/button`, `role/heading`, etc. |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
+| **Prefer `--eval` over CLI** | For multi-step browser automation, use `spel --eval '<code>'` or `spel --eval script.clj` instead of chaining standalone CLI commands. `--eval` gives full Clojure composition (loops, conditionals, variables, error handling) in a single browser session. Use standalone CLI commands only for quick one-off actions (e.g. `spel open`, `spel screenshot`). Pipe support: `echo '(code)' \| spel --eval --stdin` for LLM-generated scripts. |
 
 ---
 
