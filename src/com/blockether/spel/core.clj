@@ -18,8 +18,9 @@
    [com.blockether.spel.options :as opts])
   (:import
    [java.io File]
+   [java.nio.file Path]
    [com.microsoft.playwright Browser BrowserContext BrowserType
-    Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError]
+    Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError Video]
    [com.microsoft.playwright.impl TargetClosedError]))
 
 ;; =============================================================================
@@ -643,3 +644,47 @@
        (finally
          (when (instance? Page ~sym)
            (close-page! ~sym))))))
+
+;; =============================================================================
+;; Video Recording
+;; =============================================================================
+
+(defn video-path
+  "Returns the video file path for a page, or nil if not recording.
+   Video is finalized when the browser context closes.
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   String path to video file, or nil."
+  [^Page page]
+  (when-let [^Video v (.video page)]
+    (str (.path v))))
+
+(defn video-save-as!
+  "Saves the video to the specified path. Context must be closed first.
+
+   Params:
+   `page` - Page instance.
+   `path` - String destination path.
+
+   Returns:
+   nil."
+  [^Page page ^String path]
+  (when-let [^Video v (.video page)]
+    (.saveAs v (Path/of path (into-array String [])))
+    nil))
+
+(defn video-delete!
+  "Deletes the video file for a page.
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   nil."
+  [^Page page]
+  (when-let [^Video v (.video page)]
+    (.delete v)
+    nil))

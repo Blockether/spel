@@ -308,6 +308,46 @@
   [context-opts]
   {:around (make-page-around-fn context-opts)})
 
+(def ^{:dynamic true :doc "Dynamic var holding the video path after recording."}
+  *video-path* nil)
+
+(defn with-video-page-opts
+  "Like `with-page-opts` but enables video recording.
+   After the test, the video is attached to the Allure report if active.
+
+   Opts:
+   :video-dir  - String. Directory for video files (default: \"test-videos\").
+   :video-size - Map with :width :height (default: 1280x720).
+   Plus all standard context opts."
+  [opts]
+  {:around
+   (fn video-page-around [f]
+     (let [video-dir  (or (:video-dir opts) "test-videos")
+           video-size (or (:video-size opts) {:width 1280 :height 720})
+           ctx-opts   (merge (dissoc opts :video-dir :video-size)
+                        {:record-video-dir  video-dir
+                         :record-video-size video-size})
+           ctx        (ensure! (core/new-context *browser* ctx-opts))
+           page       (core/new-page-from-context ctx)]
+       (try
+         (binding [*page*            page
+                   *browser-context* ctx
+                   *browser-api*     (.request ^com.microsoft.playwright.BrowserContext ctx)
+                   allure/*page*     page]
+           (f))
+         (finally
+           (let [vpath (core/video-path page)]
+             (when (instance? com.microsoft.playwright.Page page)
+               (core/close-page! page))
+             (try (core/close-context! ctx) (catch Exception _))
+             ;; Attach video to Allure report if available
+             (when (and vpath (allure/reporter-active?))
+               (allure/attach-file "Video Recording" vpath "video/webm")))))))})
+
+(def with-video-page
+  "Around hook: creates a page with video recording enabled (default opts)."
+  (with-video-page-opts {}))
+
 (defn- make-traced-page-around-fn
   "Creates the around function for a traced-page hook with optional context-opts.
    Returns a 1-arg function (fn [f] ...) that Lazytest uses via clojure.test/join-fixtures."

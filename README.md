@@ -593,6 +593,71 @@ When using test fixtures with Allure reporter active, Playwright tracing is auto
 
 Trace and HAR files are automatically attached to test results (MIME type `application/vnd.allure.playwright-trace`) and viewable directly in the Allure report via an embedded local trace viewer — no external service dependency. The report JS is patched to load traces from `./trace-viewer/` instead of `trace.playwright.dev`, and a Service Worker is pre-registered for instant loading.
 
+## Video Recording
+
+Record browser sessions as video files (WebM). Useful for debugging test failures and CI artifacts.
+
+### Library API
+
+```clojure
+;; Create context with video recording
+(def ctx (core/new-context browser {:record-video-dir "videos"
+                                     :record-video-size {:width 1280 :height 720}}))
+(def page (core/new-page-from-context ctx))
+
+;; Do actions...
+(page/navigate page "https://example.com")
+
+;; Get video path (available while recording)
+(core/video-path page) ;=> "videos/abc123.webm"
+
+;; Close context to finalize video
+(core/close-page! page)
+(core/close-context! ctx)
+
+;; Optionally save a copy
+(core/video-save-as! page "artifacts/test-recording.webm")
+```
+
+### SCI / Eval Mode
+
+```clojure
+;; Start video recording (creates new context with video enabled)
+(spel/start-video-recording {:video-dir "videos"})
+
+;; Do actions...
+(spel/goto "https://example.com")
+
+;; Check video path
+(spel/video-path) ;=> "videos/abc123.webm"
+
+;; Stop recording and get video path
+(spel/finish-video-recording) ;=> {:status "stopped" :video-path "videos/abc123.webm"}
+```
+
+### Test Fixtures
+
+```clojure
+;; Use with-video-page for automatic video recording in tests
+(defdescribe my-test
+  (describe "with video"
+    {:context [with-playwright with-browser with-video-page]}
+    (it "records video"
+      ;; Video is automatically attached to Allure report
+      (page/navigate *page* "https://example.com"))))
+
+;; Or with custom options
+(defdescribe my-test
+  (describe "with video"
+    {:context [with-playwright with-browser
+               (with-video-page-opts {:video-dir "my-videos"
+                                       :video-size {:width 1920 :height 1080}})]}
+    (it "records HD video"
+      (page/navigate *page* "https://example.com"))))
+```
+
+Videos are automatically attached to Allure reports when using `with-video-page` fixtures.
+
 ## Test Generation (Codegen)
 
 Record browser sessions and transform to idiomatic Clojure code.

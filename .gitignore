@@ -38,3 +38,4 @@ allure-review/
 .allure-history.jsonl
 /data/
 /debug/
+test-videos*

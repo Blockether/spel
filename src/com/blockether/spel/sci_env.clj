@@ -638,6 +638,65 @@
   (.groupEnd ^com.microsoft.playwright.Tracing (util/context-tracing (require-context!))))
 
 ;; =============================================================================
+;; Video Recording
+;; =============================================================================
+
+(defn sci-start-video-recording
+  "Starts video recording by creating a new context with video recording enabled.
+   Closes the current context/page and creates new ones with video.
+
+   Opts:
+   :video-dir  - String. Directory for video files (default: \"videos\").
+   :video-size - Map with :width :height (default: 1280x720)."
+  ([] (sci-start-video-recording {}))
+  ([opts]
+   (let [video-dir  (or (:video-dir opts) "videos")
+         video-size (or (:video-size opts) {:width 1280 :height 720})
+         browser    (require-browser!)
+         ;; Close existing context if any
+         _          (when-let [p @!page] (try (core/close-page! p) (catch Exception _)))
+         _          (when-let [c @!context] (try (core/close-context! c) (catch Exception _)))
+         ctx-opts   {:record-video-dir  video-dir
+                     :record-video-size video-size}
+         ctx        (core/new-context browser ctx-opts)
+         pg         (core/new-page-from-context ctx)]
+     (when-let [timeout @!default-timeout]
+       (page/set-default-timeout! pg timeout))
+     (reset! !context ctx)
+     (reset! !page pg)
+     {:status "recording" :video-dir video-dir})))
+
+(defn sci-finish-video-recording
+  "Stops video recording by closing the context to finalize the video.
+   Returns the video file path. Creates a new context/page without video.
+
+   Opts:
+   :save-as - String. Copy video to this path before cleanup."
+  ([] (sci-finish-video-recording {}))
+  ([opts]
+   (let [pg      (require-page!)
+         video-path (core/video-path pg)
+         _       (when-let [save-path (:save-as opts)]
+                   (core/video-save-as! pg save-path))
+         ;; Close page first, then context to finalize video
+         _       (core/close-page! pg)
+         _       (when-let [c @!context] (core/close-context! c))
+         ;; Create fresh context without video
+         browser (require-browser!)
+         ctx     (core/new-context browser)
+         new-pg  (core/new-page-from-context ctx)]
+     (when-let [timeout @!default-timeout]
+       (page/set-default-timeout! new-pg timeout))
+     (reset! !context ctx)
+     (reset! !page new-pg)
+     {:status "stopped" :video-path video-path})))
+
+(defn sci-video-path
+  "Returns the video file path for the current page, or nil if not recording."
+  []
+  (core/video-path (require-page!)))
+
+;; =============================================================================
 ;; Network
 ;; =============================================================================
 
@@ -957,6 +1016,10 @@
                   ['trace-stop!      sci-trace-stop!]
                   ['trace-group      sci-trace-group]
                   ['trace-group-end  sci-trace-group-end]
+                  ;; Video Recording
+                  ['start-video-recording  sci-start-video-recording]
+                  ['finish-video-recording sci-finish-video-recording]
+                  ['video-path             sci-video-path]
                   ;; Network
                   ['last-response  sci-last-response]
                   ;; Info

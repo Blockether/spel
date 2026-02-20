@@ -351,6 +351,34 @@
                 (swap! ctx update-in (conj step-path :attachments)
                   (fnil conj []) attachment)))))))))
 
+(defn attach-file
+  "Attach a file from disk to the test report.
+   `att-name` is the display name. `source-path` is the path to the file.
+   `content-type` is the MIME type."
+  [att-name ^String source-path content-type]
+  (with-context
+    (fn [ctx]
+      (when-let [^java.io.File dir *output-dir*]
+        (let [src-file (io/file source-path)]
+          (when (.exists src-file)
+            (let [ext (case content-type
+                        "video/webm"       "webm"
+                        "video/mp4"        "mp4"
+                        "image/png"        "png"
+                        "image/jpeg"       "jpg"
+                        "application/pdf"  "pdf"
+                        "bin")
+                  filename (str (uuid-str) "-attachment." ext)
+                  att-file (io/file dir filename)]
+              (io/copy src-file att-file)
+              (let [attachment {:name att-name :source filename :type content-type}
+                    stack (:step-stack @ctx)]
+                (if (empty? stack)
+                  (swap! ctx update :attachments conj attachment)
+                  (let [step-path (stack->step-path stack)]
+                    (swap! ctx update-in (conj step-path :attachments)
+                      (fnil conj []) attachment)))))))))))
+
 (defn screenshot
   "Take a Playwright screenshot and attach it to the report.
    `pg` is a Playwright Page instance. `att-name` is the display name."
