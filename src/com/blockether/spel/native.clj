@@ -425,18 +425,22 @@
               (println (str "Warning: failed to load state from " state-path ": "
                          (or (get-in resp [:data :error]) (:error resp))))))))
       ;; Send eval command to daemon
-      (let [response (cli/send-command! session
-                       {"action" "sci_eval" "code" code}
-                       timeout)]
+      (let [response   (cli/send-command! session
+                         {"action" "sci_eval" "code" code}
+                         timeout)
+            stdout-str (get-in response [:data :stdout])
+            stderr-str (get-in response [:data :stderr])]
+        ;; Print captured stdout/stderr (from println/binding *err* in evaluated code)
+        (when (and stdout-str (not (str/blank? stdout-str)))
+          (print stdout-str)
+          (flush))
+        (when (and stderr-str (not (str/blank? stderr-str)))
+          (binding [*out* *err*]
+            (print stderr-str)
+            (flush)))
         (if (and response (:success response))
-          ;; Success — print captured stdout first (if any), then result
-          (let [stdout-str (get-in response [:data :stdout])
-                result-str (get-in response [:data :result])]
-            ;; Print captured stdout (println output from evaluated code)
-            (when (and stdout-str (not (str/blank? stdout-str)))
-              (print stdout-str)
-              (flush))
-            ;; Print the result
+          ;; Success — print the result
+          (let [result-str (get-in response [:data :result])]
             (if (:json? global)
               (println result-str)
               (println result-str)))
