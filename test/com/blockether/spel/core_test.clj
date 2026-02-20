@@ -106,6 +106,59 @@
       (expect (not (tf/interactive?))))))
 
 ;; =============================================================================
+;; Slow-Mo
+;; =============================================================================
+
+(defdescribe slow-mo-test
+  "Tests for slow-mo fixture helper"
+
+  (describe "slow-mo without env or property"
+    (it "returns 0 by default"
+      (expect (= 0 (tf/slow-mo)))))
+
+  (describe "slow-mo with system property"
+    (it "returns parsed value when spel.slow-mo is set"
+      (try
+        (System/setProperty "spel.slow-mo" "500")
+        (expect (= 500 (tf/slow-mo)))
+        (finally
+          (System/clearProperty "spel.slow-mo")))))
+
+  (describe "slow-mo after clearing property"
+    (it "returns 0 again"
+      (expect (= 0 (tf/slow-mo))))))
+
+;; =============================================================================
+;; Browser Engine
+;; =============================================================================
+
+(defdescribe browser-engine-test
+  "Tests for browser-engine fixture helper"
+
+  (describe "browser-engine without env or property"
+    (it "returns :chromium by default"
+      (expect (= :chromium (tf/browser-engine)))))
+
+  (describe "browser-engine with system property"
+    (it "returns :firefox when spel.browser=firefox"
+      (try
+        (System/setProperty "spel.browser" "firefox")
+        (expect (= :firefox (tf/browser-engine)))
+        (finally
+          (System/clearProperty "spel.browser"))))
+
+    (it "returns :webkit when spel.browser=webkit"
+      (try
+        (System/setProperty "spel.browser" "webkit")
+        (expect (= :webkit (tf/browser-engine)))
+        (finally
+          (System/clearProperty "spel.browser")))))
+
+  (describe "browser-engine after clearing property"
+    (it "returns :chromium again"
+      (expect (= :chromium (tf/browser-engine))))))
+
+;; =============================================================================
 ;; Browser Context
 ;; =============================================================================
 

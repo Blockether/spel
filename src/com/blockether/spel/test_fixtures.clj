@@ -94,7 +94,7 @@
       (reset! original-try-test-case nil))))
 
 ;; =============================================================================
-;; Interactive Mode
+;; Test Configuration (system properties + env vars)
 ;; =============================================================================
 
 (defn interactive?
@@ -108,6 +108,48 @@
   []
   (some? (or (System/getProperty "spel.interactive")
            (System/getenv "SPEL_INTERACTIVE"))))
+
+(defn slow-mo
+  "Returns the slow-mo delay in milliseconds for browser actions.
+   Checks system property `spel.slow-mo` first, then env var `SPEL_SLOW_MO`.
+   Returns 0 when unset. Useful for watching tests step-by-step in headed mode.
+
+   Usage:
+     clojure -J-Dspel.slow-mo=500 -J-Dspel.interactive=true -M:test
+     SPEL_SLOW_MO=500 SPEL_INTERACTIVE=true clojure -M:test"
+  []
+  (let [v (or (System/getProperty "spel.slow-mo")
+            (System/getenv "SPEL_SLOW_MO"))]
+    (if v (parse-long v) 0)))
+
+(defn browser-engine
+  "Returns the browser engine keyword to launch.
+   Checks system property `spel.browser` first, then env var `SPEL_BROWSER`.
+   Returns :chromium when unset. Supported: :chromium, :firefox, :webkit.
+
+   Usage:
+     clojure -J-Dspel.browser=firefox -M:test
+     SPEL_BROWSER=webkit clojure -M:test"
+  []
+  (let [v (or (System/getProperty "spel.browser")
+            (System/getenv "SPEL_BROWSER"))]
+    (if v (keyword v) :chromium)))
+
+(defn- launch-browser
+  "Launches the configured browser engine with headless/slow-mo settings.
+   Reads `browser-engine`, `interactive?`, and `slow-mo` for configuration."
+  [pw]
+  (let [engine  (browser-engine)
+        opts    (cond-> {:headless (not (interactive?))}
+                  (pos? (slow-mo)) (assoc :slow-mo (slow-mo)))
+        launch  (case engine
+                  :chromium core/launch-chromium
+                  :firefox  core/launch-firefox
+                  :webkit   core/launch-webkit
+                  (throw (ex-info (str "Unknown browser engine: " (pr-str engine)
+                                    ". Supported: :chromium, :firefox, :webkit")
+                           {:engine engine})))]
+    (ensure! (launch pw opts))))
 
 ;; =============================================================================
 ;; Dynamic Vars
@@ -156,15 +198,17 @@
           (uninstall-test-info!))))))
 
 (def with-browser
-  "Around hook: launches and closes a Chromium browser.
+  "Around hook: launches and closes a browser.
 
-   Headless by default. Set `SPEL_INTERACTIVE=true` env var or
-   `-Dspel.interactive=true` system property to run headed (interactive).
+   Configuration via system properties / env vars:
+     spel.interactive / SPEL_INTERACTIVE — headed mode (default: headless)
+     spel.slow-mo     / SPEL_SLOW_MO    — action delay in ms (default: 0)
+     spel.browser     / SPEL_BROWSER    — engine: chromium|firefox|webkit (default: chromium)
 
    Requires *pw* to be bound (use with with-playwright).
    Binds the Browser instance to *browser*."
   (around [f]
-    (let [browser (ensure! (core/launch-chromium *pw* {:headless (not (interactive?))}))]
+    (let [browser (launch-browser *pw*)]
       (try
         (binding [*browser* browser]
           (f))
@@ -385,8 +429,10 @@
   "Around hook: creates a BrowserContext with Playwright tracing
     for API-only tests (no page needed).
 
-   Headless by default. Set `SPEL_INTERACTIVE=true` env var or
-   `-Dspel.interactive=true` system property to run headed (interactive).
+   Configuration via system properties / env vars:
+     spel.interactive / SPEL_INTERACTIVE — headed mode (default: headless)
+     spel.slow-mo     / SPEL_SLOW_MO    — action delay in ms (default: 0)
+     spel.browser     / SPEL_BROWSER    — engine: chromium|firefox|webkit (default: chromium)
 
    Requires *pw* to be bound (use with with-playwright).
    Binds:
@@ -410,7 +456,7 @@
                                (str *test-server-url* \"/health\"))]
          (expect (= 200 (api/api-response-status resp)))))"
   (around [f]
-    (let [browser (ensure! (core/launch-chromium *pw* {:headless (not (interactive?))}))]
+    (let [browser (launch-browser *pw*)]
       (try
         (if (allure/reporter-active?)
                 ;; Traced mode: HAR + tracing, no screenshots/snapshots (no page)

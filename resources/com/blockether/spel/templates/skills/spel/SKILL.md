@@ -1453,6 +1453,28 @@ LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
 
 > **Note**: The report MUST be served via HTTP (not `file://`) because the embedded Playwright trace viewer uses a Service Worker.
 
+### Browser Configuration
+
+Control browser behavior during tests via JVM system properties or environment variables.
+These are read by the test fixtures (`with-browser`, `with-api-tracing`).
+
+| Property | Env Var | Default | Description |
+|----------|---------|---------|-------------|
+| `spel.interactive` | `SPEL_INTERACTIVE` | _(unset = headless)_ | Run browser in headed mode. Any value enables it. |
+| `spel.slow-mo` | `SPEL_SLOW_MO` | `0` | Slow down every browser action by N milliseconds. |
+| `spel.browser` | `SPEL_BROWSER` | `chromium` | Browser engine: `chromium`, `firefox`, or `webkit`. |
+
+```bash
+# Watch tests run step-by-step in a visible browser
+clojure -J-Dspel.interactive=true -J-Dspel.slow-mo=500 -M:test
+
+# Run tests in Firefox
+clojure -J-Dspel.browser=firefox -M:test
+
+# Same via env vars
+SPEL_INTERACTIVE=true SPEL_SLOW_MO=300 SPEL_BROWSER=webkit clojure -M:test
+```
+
 ### Trace Viewer Integration
 
 When using test fixtures (`with-page` / `with-traced-page`) with Allure reporter active, Playwright tracing is automatically enabled:
