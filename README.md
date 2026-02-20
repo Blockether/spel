@@ -131,6 +131,82 @@ spel install
 spel version
 ```
 
+### Headless Environments (CI/CD, Servers)
+
+On Linux servers without a display (no X11/Wayland), `spel codegen`, `spel open`, and `spel show-trace` automatically detect the headless environment and wrap the Playwright subprocess with `xvfb-run` to provide a virtual display.
+
+**Requirements:**
+- `xvfb` package installed
+- Linux environment
+- No `DISPLAY` or `WAYLAND_DISPLAY` set
+
+**Installation:**
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install xvfb
+
+# RHEL/CentOS/Fedora
+sudo yum install xorg-x11-server-Xvfb
+
+# Arch Linux
+sudo pacman -S xorg-server-xvfb
+```
+
+**Automatic xvfb-run wrapping:**
+
+When spel detects a headless environment, it automatically wraps commands:
+
+```bash
+# You run:
+spel codegen record https://example.com
+
+# spel runs internally:
+xvfb-run --auto-servernum spel codegen record https://example.com
+```
+
+No configuration needed — it just works.
+
+**Manual xvfb-run (optional):**
+
+You can also wrap spel commands manually:
+
+```bash
+# Single command
+xvfb-run -a spel open https://example.com --screenshot output.png
+
+# With specific display settings
+xvfb-run --server-args="-screen 0 1920x1080x24" spel codegen record https://app.com
+
+# Keep xvfb running for multiple commands
+Xvfb :99 -screen 0 1920x1080x24 &
+export DISPLAY=:99
+spel open https://example.com
+spel click "button"
+spel screenshot
+```
+
+**CI/CD Examples:**
+
+```yaml
+# GitHub Actions
+- name: Install xvfb
+  run: sudo apt-get install -y xvfb
+
+- name: Record browser session
+  run: spel codegen record https://app.com  # Auto-detects headless
+
+# GitLab CI
+before_script:
+  - apt-get update && apt-get install -y xvfb
+  
+test:
+  script:
+    - spel codegen record https://app.com
+```
+
+**Note:** Browser automation (e.g., `spel open`, `spel click`) works normally in headless environments — only `codegen record`, `inspector`, and `show-trace` require a virtual display because they launch interactive GUI tools.
+
 ### Corporate Proxy / Custom CA Certificates
 
 If you're behind a corporate SSL-inspecting proxy, `spel install` may fail with *"PKIX path building failed"* because the native binary uses certificates baked at build time. Set one of these environment variables to add your corporate CA:
