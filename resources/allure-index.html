@@ -70,7 +70,7 @@
     .latest .sha-link:hover { background: var(--green-border); color: var(--green-text); }
     .failed .sha { background: var(--red-bg); color: var(--red-text); }
     .failed .sha-link:hover { background: var(--red-border); color: var(--red-text); }
-    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); margin-left: 8px; }
     .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .latest .msg { color: var(--text); }
 
@@ -94,12 +94,13 @@
     html.dark .theme-toggle .icon-sun { display: none; }
     html.dark .theme-toggle .icon-moon { display: block; }
 
-    .version-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px; }
-    .version-badge.release { background: #28a745; color: white; }
-    .version-badge.candidate { background: #ffc107; color: #212529; }
-    .test-badge { display: inline-flex; align-items: center; margin-left: 8px; }
-    .test-badge img { height: 18px; vertical-align: middle; }
-    html.dark .version-badge.candidate { color: #000; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; margin-left: 8px; letter-spacing: 0.03em; border: 1px solid; vertical-align: middle; }
+    .pill-green { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+    .pill-yellow { background: rgba(255,193,7,0.10); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
+    .pill-blue { background: rgba(0,126,198,0.08); color: #006bb3; border-color: rgba(0,126,198,0.3); }
+    .pill-red { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+    html.dark .pill-yellow { background: rgba(255,193,7,0.12); color: #ffd54f; border-color: rgba(255,193,7,0.35); }
+    html.dark .pill-blue { background: rgba(0,126,198,0.12); color: #64b5f6; border-color: rgba(0,126,198,0.35); }
 
     @media (max-width: 640px) { .meta { display: none; } .card { padding: 0.75rem 1rem; gap: 0.75rem; } .info-top { flex-wrap: wrap; } }
   </style>
@@ -188,11 +189,20 @@
 
       var versionBadge = '';
       if (b.version) {
-        var badgeClass = b.badge === 'release' ? 'release' : 'candidate';
-        versionBadge = '<span class="version-badge ' + badgeClass + '">' + b.version + '</span>';
+        var pillClass = b.badge === 'release' ? 'pill-green' : 'pill-yellow';
+        versionBadge = '<span class="pill ' + pillClass + '">' + b.version + '</span>';
       }
 
-      var testBadge = '<span class="test-badge"><img src="' + b.run + '/badge.svg" alt="tests" onerror="this.style.display=\'none\'"></span>';
+      var testBadge = '';
+      if (b.tests) {
+        var tp = b.tests.passed || 0;
+        var tf = (b.tests.failed || 0) + (b.tests.broken || 0);
+        if (tp > 0 || tf > 0) {
+          var testMsg = tf > 0 ? tp + ' passed, ' + tf + ' failed' : tp + ' passed';
+          var testPill = tf > 0 ? 'pill-red' : 'pill-blue';
+          testBadge = '<span class="pill ' + testPill + '">' + testMsg + '</span>';
+        }
+      }
 
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" onclick="window.location.href=\'' + b.run + '/\'" role="link" tabindex="0">'
         + '<div class="run"><div class="run-label">Run</div>'
