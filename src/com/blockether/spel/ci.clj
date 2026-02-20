@@ -176,9 +176,9 @@
     (when (seq builds)
       (let [latest (first builds)
             latest-tests (get latest "tests" {})
-            tp (get latest-tests "passed" 0)
-            tf (+ (get latest-tests "failed" 0)
-                 (get latest-tests "broken" 0))
+            tp (long (get latest-tests "passed" 0))
+            tf (+ (long (get latest-tests "failed" 0))
+                 (long (get latest-tests "broken" 0)))
             badge-msg (if (pos? tf)
                         (str tp " passed, " tf " failed")
                         (str tp " passed"))
@@ -418,7 +418,7 @@ Example:
                          :failed tc-failed
                          :broken tc-broken
                          :skipped tc-skipped
-                         :total (+ tc-passed tc-failed tc-broken tc-skipped)}
+                         :total (+ (long tc-passed) (long tc-failed) (long tc-broken) (long tc-skipped))}
             history-file (or (:history-file opts)
                            (System/getenv "ALLURE_HISTORY_FILE")
                            ".allure-history.jsonl")

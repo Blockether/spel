@@ -684,9 +684,8 @@
 
 (defn- text-width
   "Approximate text width for badge label/message (based on typical font metrics)."
-  [^String text]
-  (let [char-width 6.5]  ; average character width in px for 11px Verdana
-    (* (count text) char-width)))
+  ^long [^String text]
+  (long (* (count text) 6.5)))
 
 (defn generate-badge-svg
   "Generate a shields.io-style SVG badge.
@@ -711,8 +710,8 @@
         label-width (+ (text-width label) 10)
         message-width (+ (text-width message) 10)
         total-width (+ label-width message-width)
-        label-x (/ label-width 2)
-        message-x (+ label-width (/ message-width 2))
+        label-x (quot label-width 2)
+        message-x (+ label-width (quot message-width 2))
         radius (if (= style :flat-square) 0 3)]
     (str
       "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -753,17 +752,17 @@
                        :when status]
                    status)
         counts (frequencies statuses)]
-    {:passed (get counts "passed" 0)
-     :failed (get counts "failed" 0)
-     :broken (get counts "broken" 0)
-     :skipped (get counts "skipped" 0)
+    {:passed (long (get counts "passed" 0))
+     :failed (long (get counts "failed" 0))
+     :broken (long (get counts "broken" 0))
+     :skipped (long (get counts "skipped" 0))
      :total (count statuses)}))
 
 (defn generate-badge-file!
   "Generate badge.svg file in the given directory based on test results.
    Returns the badge message string."
   [^String results-dir ^String output-dir]
-  (let [{:keys [passed failed broken]} (count-test-results results-dir)
+  (let [{:keys [^long passed ^long failed ^long broken]} (count-test-results results-dir)
         failures (+ failed broken)
         message (if (pos? failures)
                   (str passed " passed, " failures " failed")

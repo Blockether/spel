@@ -750,13 +750,17 @@
    "core"     "Lifecycle and browser management"})
 
 (defn- pad-right [s n]
-  (let [s (str s)]
-    (if (>= (count s) n) s (str s (apply str (repeat (- n (count s)) \space))))))
+  (let [s (str s)
+        len (long (count s))
+        n (long n)]
+    (if (>= len n) s (str s (apply str (repeat (- n len) \space))))))
 
 (defn- truncate [s n]
-  (if (> (count s) n)
-    (str (subs s 0 (- n 3)) "...")
-    s))
+  (let [len (long (count s))
+        n (long n)]
+    (if (> len n)
+      (str (subs s 0 (- n 3)) "...")
+      s)))
 
 (defn- format-help-table
   "Formats help entries as an aligned text table."

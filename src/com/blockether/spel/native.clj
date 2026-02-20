@@ -279,7 +279,7 @@
   "Returns true if xvfb-run is available on the system."
   []
   (try
-    (let [pb (ProcessBuilder. ^java.util.List ["which" "xvfb-run"])
+    (let [pb (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String ["which" "xvfb-run"]))
           proc (.start pb)
           exit (.waitFor proc)]
       (zero? exit))
