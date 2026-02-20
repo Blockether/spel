@@ -1654,18 +1654,18 @@
     (it "captures stdout from println"
       (let [r (cmd "sci_eval" {"code" "(println \"hello stdout\") 42"})]
         (expect (= "42" (:result r)))
-        (expect (= "hello stdout\n" (:stdout r)))))
+        (expect (= "hello stdout\n" (str/replace (str (:stdout r)) "\r\n" "\n")))))
 
     (it "captures stderr from binding *out* *err*"
       (let [r (cmd "sci_eval" {"code" "(binding [*out* *err*] (println \"hello stderr\")) 99"})]
         (expect (= "99" (:result r)))
-        (expect (= "hello stderr\n" (:stderr r)))))
+        (expect (= "hello stderr\n" (str/replace (str (:stderr r)) "\r\n" "\n")))))
 
     (it "captures both stdout and stderr simultaneously"
       (let [r (cmd "sci_eval" {"code" "(println \"out\") (binding [*out* *err*] (println \"err\")) :done"})]
         (expect (= ":done" (:result r)))
-        (expect (= "out\n" (:stdout r)))
-        (expect (= "err\n" (:stderr r)))))
+        (expect (= "out\n" (str/replace (str (:stdout r)) "\r\n" "\n")))
+        (expect (= "err\n" (str/replace (str (:stderr r)) "\r\n" "\n")))))
 
     (it "omits stdout/stderr keys when no output"
       (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
@@ -1679,7 +1679,7 @@
                     (catch Exception e e))]
         (expect (some? threw))
         (let [data (ex-data threw)]
-          (expect (= "before boom\n" (:stdout data))))))
+          (expect (= "before boom\n" (str/replace (str (:stdout data)) "\r\n" "\n")))))))
 
     ;; --- Console/error auto-inclusion in sci_eval response ---
 

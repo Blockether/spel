@@ -122,12 +122,12 @@
                      (str "| "
                        (str/join " | "
                          (map-indexed (fn [i cell]
-                                        (let [w (nth col-widths i)
-                                              pad (- w (cell-width cell))]
+                                        (let [w (long (nth col-widths i))
+                                              pad (- w (long (cell-width cell)))]
                                           (case (get align-map (nth cols i) :left)
                                             :right (str (apply str (repeat pad \space)) cell)
-                                            :center (let [l (quot pad 2)
-                                                          r (- pad l)]
+                                            :center (let [l (long (quot pad 2))
+                                                          r (long (- pad l))]
                                                       (str (apply str (repeat l \space))
                                                         cell
                                                         (apply str (repeat r \space))))
@@ -139,7 +139,7 @@
            separator (str "| "
                        (str/join " | "
                          (map-indexed (fn [i _]
-                                        (let [w (nth col-widths i)
+                                        (let [w (long (nth col-widths i))
                                               dashes (apply str (repeat w \-))]
                                           (case (get align-map (nth cols i) :left)
                                             :right  (str (subs dashes 0 (dec w)) ":")

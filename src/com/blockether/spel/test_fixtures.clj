@@ -141,7 +141,7 @@
   [pw]
   (let [engine  (browser-engine)
         opts    (cond-> {:headless (not (interactive?))}
-                  (pos? (slow-mo)) (assoc :slow-mo (slow-mo)))
+                  (pos? (long (slow-mo))) (assoc :slow-mo (slow-mo)))
         launch  (case engine
                   :chromium core/launch-chromium
                   :firefox  core/launch-firefox
