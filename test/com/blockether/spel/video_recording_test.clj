@@ -3,7 +3,7 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.test-fixtures :as tf :refer [*page* *browser* with-playwright with-browser with-video-page with-video-page-opts]])
+   [com.blockether.spel.test-fixtures :as tf :refer [*page* *browser* with-playwright with-browser with-video-page-opts]])
 )
 
 ;; =============================================================================
