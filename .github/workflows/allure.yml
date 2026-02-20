@@ -99,6 +99,28 @@ jobs:
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
+      - name: Upload Allure report artifact (PR/branch)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-pr-${{ github.event.pull_request.number }}
+          path: allure-report/
+          retention-days: 7
+
+      - name: Comment PR with report link
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const comment = `## 📊 Allure Report\n\nTest report generated for this PR.\n\n[Download Allure Report Artifact](${runUrl})\n\n- Lazytest: ${{ steps.tests-lazytest.outcome }}\n- CT: ${{ steps.tests-ct.outcome }}`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
       - name: Inject report URL and commit info into history
         if: github.ref == 'refs/heads/main'
         env:
