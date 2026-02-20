@@ -260,20 +260,76 @@
                   "node.exe" "node")]
     (.resolve dir ^String node)))
 
+(defn- needs-display?
+  "Returns true if the Playwright command requires a display (X11/Wayland).
+   Commands like codegen, open (inspector), and show-trace open headed browsers."
+  [cmd-args]
+  (let [first-cmd (first cmd-args)]
+    (boolean (#{"codegen" "open" "show-trace"} first-cmd))))
+
+(defn- has-display?
+  "Returns true if a display server (X11 or Wayland) is available."
+  []
+  (or (not (str/blank? (System/getenv "DISPLAY")))
+      (not (str/blank? (System/getenv "WAYLAND_DISPLAY")))))
+
+(defn- xvfb-run-available?
+  "Returns true if xvfb-run is available on the system."
+  []
+  (try
+    (let [pb (ProcessBuilder. ^java.util.List ["which" "xvfb-run"])
+          proc (.start pb)
+          exit (.waitFor proc)]
+      (zero? exit))
+    (catch Exception _ false)))
+
+(defn- linux?
+  "Returns true if running on Linux."
+  []
+  (str/starts-with? (str/lower-case (System/getProperty "os.name" "")) "linux"))
+
 (defn- run-playwright-cmd!
   "Runs a Playwright CLI command as a subprocess via the Node.js driver.
    Inherits stdout/stderr so users see output. Returns the exit code.
-   Calls System/exit on non-zero exit."
+   Calls System/exit on non-zero exit.
+
+   On headless Linux systems (no DISPLAY/WAYLAND_DISPLAY), automatically wraps
+   display-requiring commands (codegen, open, show-trace) with xvfb-run if available."
   [cmd-args]
   (let [node (str (driver-node-path))
         cli  (str (driver-cli-path))
-        args (into [node cli] cmd-args)
-        pb   (doto (ProcessBuilder. ^java.util.List args)
+        base-args (into [node cli] cmd-args)
+        use-xvfb? (and (linux?)
+                       (needs-display? cmd-args)
+                       (not (has-display?))
+                       (xvfb-run-available?))
+        args (if use-xvfb?
+               (into ["xvfb-run" "--auto-servernum" "--server-args=-screen 0 1280x960x24"] base-args)
+               base-args)]
+    (when use-xvfb?
+      (println "No display detected — using xvfb-run for virtual display.")
+      (flush))
+    (when (and (linux?)
+               (needs-display? cmd-args)
+               (not (has-display?))
+               (not (xvfb-run-available?)))
+      (binding [*out* *err*]
+        (println "Warning: No display server detected and xvfb-run is not installed.")
+        (println "This command requires a display (X11/Wayland).")
+        (println "")
+        (println "To fix, install Xvfb:")
+        (println "  sudo apt-get install -y xvfb    # Debian/Ubuntu")
+        (println "  sudo dnf install -y xorg-x11-server-Xvfb  # Fedora/RHEL")
+        (println "")
+        (println "Or set DISPLAY if you have a remote display:")
+        (println "  export DISPLAY=:0")
+        (flush)))
+    (let [pb (doto (ProcessBuilder. ^java.util.List args)
                (.inheritIO))
-        proc (.start pb)
-        exit (.waitFor proc)]
-    (when-not (zero? exit)
-      (System/exit exit))))
+          proc (.start pb)
+          exit (.waitFor proc)]
+      (when-not (zero? exit)
+        (System/exit exit)))))
 
 (defn- run-install!
   "Installs Playwright browsers by running the driver CLI as a subprocess.
