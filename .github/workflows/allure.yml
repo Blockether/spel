@@ -66,6 +66,9 @@ jobs:
           key: allure-site-${{ github.run_number }}
           restore-keys: allure-site-
 
+      - name: Clean Allure results before test run
+        run: rm -rf allure-results allure-report
+
       - name: Run lazytest suite with Allure reporter
         id: tests-lazytest
         env:
