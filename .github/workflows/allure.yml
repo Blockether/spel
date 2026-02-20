@@ -66,6 +66,19 @@ jobs:
           key: allure-site-${{ github.run_number }}
           restore-keys: allure-site-
 
+      - name: Detect version
+        id: version
+        run: |
+          VERSION=$(cat resources/SPEL_VERSION 2>/dev/null || echo "unknown")
+          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            echo "version=$TAG" >> $GITHUB_OUTPUT
+            echo "badge=release" >> $GITHUB_OUTPUT
+          else
+            echo "version=v${VERSION}-candidate" >> $GITHUB_OUTPUT
+            echo "badge=candidate" >> $GITHUB_OUTPUT
+          fi
+
       - name: Clean Allure results before test run
         run: rm -rf allure-results allure-report
 
@@ -166,6 +179,8 @@ jobs:
           TEST_PASSED: ${{ steps.tests-lazytest.outcome == 'success' && steps.tests-ct.outcome == 'success' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_BADGE: ${{ steps.version.outputs.badge }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -208,14 +223,16 @@ jobs:
           passed = os.environ.get('TEST_PASSED', 'false') == 'true'
           repo_url = os.environ.get('REPO_URL', '')
           run_url = os.environ.get('RUN_URL', '')
-          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url}
+          version = os.environ.get('VERSION', '')
+          version_badge = os.environ.get('VERSION_BADGE', '')
+          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url, 'version': version, 'badge': version_badge}
           dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
           pruned = {k: v for k, v in meta.items() if k in dirs}
           json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
           builds = []
           for d in dirs:
               entry = pruned.get(d, {})
-              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', '')})
+              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', ''), 'version': entry.get('version', ''), 'badge': entry.get('badge', '')})
           json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
           print(f'Generated builds.json with {len(builds)} entries')
           "

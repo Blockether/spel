@@ -1,7 +1,7 @@
 ---
 name: spel
 description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when working with browser automation, E2E tests, Playwright API, or visual testing in Clojure."
-license: MIT
+license: Apache-2.0
 compatibility: opencode
 ---
 
@@ -3145,6 +3145,19 @@ jobs:
           key: allure-site-${{ github.run_number }}
           restore-keys: allure-site-
 
+      - name: Detect version
+        id: version
+        run: |
+          VERSION=$(cat resources/SPEL_VERSION 2>/dev/null || echo "unknown")
+          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            echo "version=$TAG" >> $GITHUB_OUTPUT
+            echo "badge=release" >> $GITHUB_OUTPUT
+          else
+            echo "version=v${VERSION}-candidate" >> $GITHUB_OUTPUT
+            echo "badge=candidate" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run tests with Allure reporter
         id: tests
         env:
@@ -3207,6 +3220,8 @@ jobs:
           TEST_PASSED: ${{ steps.tests.outcome == 'success' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_BADGE: ${{ steps.version.outputs.badge }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -3247,14 +3262,16 @@ jobs:
           passed = os.environ.get('TEST_PASSED', 'false') == 'true'
           repo_url = os.environ.get('REPO_URL', '')
           run_url = os.environ.get('RUN_URL', '')
-          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url}
+          version = os.environ.get('VERSION', '')
+          version_badge = os.environ.get('VERSION_BADGE', '')
+          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url, 'version': version, 'badge': version_badge}
           dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
           pruned = {k: v for k, v in meta.items() if k in dirs}
           json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
           builds = []
           for d in dirs:
               entry = pruned.get(d, {})
-              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', '')})
+              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', ''), 'version': entry.get('version', ''), 'badge': entry.get('badge', '')})
           json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
           "
 
@@ -3299,6 +3316,11 @@ jobs:
 - **`/latest` redirect**: `gh-pages-site/latest/index.html` meta-refreshes to the newest report number
 - **`continue-on-error: true`**: Test failures don't block report generation — the report shows what failed
 - **Report naming**: `#<run> · <sha8> · <commit msg first line>` for clear identification in Allure history
+- **Version badges**: Each build shows a version badge on the landing page:
+  - **Release** (green): Commits with an exact git tag (e.g., `v0.3.1`) — detected via `git describe --tags --exact-match`
+  - **Candidate** (amber): Untagged commits — shows `vX.Y.Z-candidate` from `resources/SPEL_VERSION`
+  - Version is detected in the `Detect version` step and passed as `VERSION`/`VERSION_BADGE` env vars to the site assembly
+  - The `builds.json` includes `version` and `badge` fields; `allure-index.html` renders them as styled pill badges
 
 ### Native Image Build + Release (`native-image.yml`)
 
