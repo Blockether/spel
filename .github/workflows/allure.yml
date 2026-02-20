@@ -25,9 +25,7 @@ env:
 jobs:
   report:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'github-pages' || '' }}
 
     steps:
       - uses: actions/checkout@v4
