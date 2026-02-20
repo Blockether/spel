@@ -1431,6 +1431,8 @@ The built-in reporter generates the full HTML report automatically using Allure 
 | `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
 | `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto: "spel vX.Y.Z")_ | Report title (shown in header and history). Auto-includes version when not set. |
 | `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history and environment. Falls back to `SPEL_VERSION` resource. |
+| `lazytest.allure.generate-report` | `LAZYTEST_ALLURE_GENERATE_REPORT` | `true` | Generate HTML report after tests. Set `false` when combining suites. |
+| `lazytest.allure.clean` | `LAZYTEST_ALLURE_CLEAN` | `true` | Clean output dir before writing. Set `false` to append to prior results. |
 | `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
 
 **Version in build listings**: When `lazytest.allure.version` is set (or `SPEL_VERSION` is on the classpath), each build in the Allure history is tagged with the version. The report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. The version also appears in `environment.properties` as `project.version` and `spel.version`.

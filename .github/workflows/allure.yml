@@ -68,16 +68,36 @@ jobs:
           key: allure-site-${{ github.run_number }}
           restore-keys: allure-site-
 
-      - name: Run tests with Allure reporter
-        id: tests
+      - name: Run lazytest suite with Allure reporter
+        id: tests-lazytest
         env:
-          LAZYTEST_ALLURE_LOGO: logo.svg
+          LAZYTEST_ALLURE_GENERATE_REPORT: "false"
           FULL_MSG: ${{ github.event.head_commit.message }}
         run: |
           FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
           export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${FIRST_LINE}"
           clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
+
+      - name: Run clojure.test suite with Allure reporter
+        id: tests-ct
+        env:
+          ALLURE_CLOJURE_TEST_ENABLED: "true"
+          ALLURE_CLOJURE_TEST_CLEAN: "false"
+          ALLURE_CLOJURE_TEST_REPORT: "false"
+        run: clojure -M:test-ct
+        continue-on-error: true
+
+      - name: Generate combined Allure report
+        env:
+          LAZYTEST_ALLURE_LOGO: logo.svg
+          FULL_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
+          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${FIRST_LINE}"
+          clojure -M -e "
+            (require '[com.blockether.spel.allure-reporter :as r])
+            (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
       - name: Inject report URL and commit info into history
         if: github.ref == 'refs/heads/main'
@@ -120,7 +140,7 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           COMMIT_TS: ${{ github.event.head_commit.timestamp }}
-          TEST_PASSED: ${{ steps.tests.outcome == 'success' }}
+          TEST_PASSED: ${{ steps.tests-lazytest.outcome == 'success' && steps.tests-ct.outcome == 'success' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

@@ -736,6 +736,25 @@
     (System/getenv "LAZYTEST_ALLURE_OUTPUT")
     "allure-results"))
 
+(defn- generate-report?
+  "Whether to generate HTML report after tests.
+   Defaults to true. Set to false when multiple suites share one output dir
+   and the report is generated once at the end."
+  []
+  (Boolean/parseBoolean
+    (or (System/getProperty "lazytest.allure.generate-report")
+      (System/getenv "LAZYTEST_ALLURE_GENERATE_REPORT")
+      "true")))
+
+(defn- clean?
+  "Whether to clean the output dir before writing results.
+   Defaults to true. Set to false when appending results from a prior suite."
+  []
+  (Boolean/parseBoolean
+    (or (System/getProperty "lazytest.allure.clean")
+      (System/getenv "LAZYTEST_ALLURE_CLEAN")
+      "true")))
+
 (defn- clean-output-dir!
   "Remove old results and recreate the output directory.
    History is managed externally via `.allure-history.jsonl` (Allure 3
@@ -760,7 +779,9 @@
 
 (defmethod allure :begin-test-run [_ _]
   (let [dir (io/file (output-dir))]
-    (clean-output-dir! dir)
+    (if (clean?)
+      (clean-output-dir! dir)
+      (.mkdirs dir))
     (reset! run-state {:hostname (hostname)
                        :start-ms (System/currentTimeMillis)
                        :output-dir dir})
@@ -786,4 +807,5 @@
     (write-categories-json! dir)
     (println (str "\nAllure results written to " (output-dir) "/ (" n " test cases)"))
     ;; Generate HTML report with embedded trace viewer
-    (generate-html-report! (output-dir) (report-dir))))
+    (when (generate-report?)
+      (generate-html-report! (output-dir) (report-dir)))))
