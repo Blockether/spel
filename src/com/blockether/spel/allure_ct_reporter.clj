@@ -185,6 +185,39 @@
   (let [idx (.lastIndexOf ns-name ".")]
     (if (pos? idx) (subs ns-name 0 idx) "")))
 
+(defn- common-segment-prefix
+  "Longest common dot-separated prefix of a collection of package strings.
+   E.g. [\"com.blockether.spel\" \"com.blockether.spel.ct\"] => \"com.blockether.spel\""
+  ^String [packages]
+  (let [packages (vec (distinct (remove str/blank? packages)))]
+    (when (seq packages)
+      (if (= 1 (count packages))
+        (first packages)
+        (let [segments (mapv #(str/split % #"\.") packages)
+              min-len  (long (apply min (map count segments)))]
+          (loop [i (long 0) acc []]
+            (if (>= i min-len)
+              (when (seq acc) (str/join "." acc))
+              (let [seg (nth (first segments) i)]
+                (if (every? #(= seg (nth % i)) (rest segments))
+                  (recur (inc i) (conj acc seg))
+                  (when (seq acc) (str/join "." acc)))))))))))
+
+(defn- scan-existing-packages
+  "Extract package label values from existing result JSONs in output dir.
+   Used to compute common parent prefix across multiple test runs."
+  [^File output-dir]
+  (when (.exists output-dir)
+    (->> (.listFiles output-dir)
+         (filter #(str/ends-with? (.getName ^File %) "-result.json"))
+         (keep (fn [^File f]
+                 (try
+                   (let [content (slurp f)]
+                     (second (re-find #"\"name\"\s*:\s*\"package\"\s*,\s*\n\s*\"value\"\s*:\s*\"([^\"]+)\"" content)))
+                   (catch Exception _ nil))))
+         distinct
+         vec)))
+
 ;; =============================================================================
 ;; State
 ;; =============================================================================
@@ -203,6 +236,10 @@
 (def ^:private fixture-originals
   "Original :each fixtures per namespace, for restoration on :end-test-ns."
   (atom {}))
+
+(def ^:private pending-results
+  "Buffered test results. Written to disk at finalize with corrected parentSuite."
+  (atom []))
 
 ;; =============================================================================
 ;; Supplementary Files
@@ -386,8 +423,7 @@
                       (seq all-atts) (assoc :attachments all-atts)
                       (seq steps)    (assoc :steps steps)
                       ctx-desc       (assoc :description ctx-desc))]
-    (spit (io/file dir (str result-uuid "-result.json"))
-      (->json-pretty result))))
+    (swap! pending-results conj result)))
 
 ;; =============================================================================
 ;; Lifecycle
@@ -410,13 +446,44 @@
                          :output-dir-path dir-path})
       (reset! counters {:test 0 :pass 0 :fail 0 :error 0})
       (reset! fixture-originals {})
+      (reset! pending-results [])
       (allure/set-reporter-active! true))))
 
+(defn- flush-pending-results!
+  "Compute common parent namespace from all packages (existing + current run),
+   update parentSuite labels, and write all buffered results to disk."
+  []
+  (let [dir      (:output-dir @run-state)
+        results  @pending-results
+        ;; Collect packages from this run's results
+        current-pkgs (->> results
+                          (mapcat :labels)
+                          (filter #(= "package" (:name %)))
+                          (map :value))
+        ;; Also scan existing results from prior runs (e.g. lazytest)
+        existing-pkgs (scan-existing-packages dir)
+        all-pkgs      (into (vec existing-pkgs) current-pkgs)
+        common-parent (common-segment-prefix all-pkgs)]
+    (doseq [result results]
+      (let [updated (if common-parent
+                      (update result :labels
+                        (fn [labels]
+                          (mapv (fn [l]
+                                  (if (= "parentSuite" (:name l))
+                                    (assoc l :value common-parent)
+                                    l))
+                            labels)))
+                      result)]
+        (spit (io/file dir (str (:uuid updated) "-result.json"))
+          (->json-pretty updated))))
+    (reset! pending-results [])))
+
 (defn- finalize-run!
-  "Write supplementary files and optionally generate HTML report."
+  "Flush buffered results, write supplementary files, optionally generate HTML report."
   []
   (when @run-state
     (allure/set-reporter-active! false)
+    (flush-pending-results!)
     (let [dir (:output-dir @run-state)]
       (write-environment-properties! dir)
       (write-categories-json! dir))
