@@ -62,7 +62,7 @@
     .failed .divider { background: var(--red-border); }
 
     .info { flex: 1; min-width: 0; }
-    .info-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; flex-wrap: wrap; }
+    .info-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
     .sha { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); }
     .sha-link { text-decoration: none; transition: background 0.2s, color 0.2s; }
     .sha-link:hover { background: var(--border-hover); color: var(--text); }
@@ -71,10 +71,6 @@
     .failed .sha { background: var(--red-bg); color: var(--red-text); }
     .failed .sha-link:hover { background: var(--red-border); color: var(--red-text); }
     .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); }
-    .version-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em; margin-left: 0.25rem; }
-    .version-badge.release { background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); }
-    .version-badge.candidate { background: rgba(255,193,7,0.1); color: #b8860b; border: 1px solid rgba(255,193,7,0.3); }
-    html.dark .version-badge.candidate { background: rgba(255,193,7,0.1); color: #ffc107; border: 1px solid rgba(255,193,7,0.25); }
     .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .latest .msg { color: var(--text); }
 
@@ -98,7 +94,12 @@
     html.dark .theme-toggle .icon-sun { display: none; }
     html.dark .theme-toggle .icon-moon { display: block; }
 
-    @media (max-width: 640px) { .meta { display: none; } .card { padding: 0.75rem 1rem; gap: 0.75rem; } }
+    .version-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+    .version-badge.release { background: #28a745; color: white; }
+    .version-badge.candidate { background: #ffc107; color: #212529; }
+    html.dark .version-badge.candidate { color: #000; }
+
+    @media (max-width: 640px) { .meta { display: none; } .card { padding: 0.75rem 1rem; gap: 0.75rem; } .info-top { flex-wrap: wrap; } }
   </style>
 </head>
 <body>
@@ -183,6 +184,12 @@
         statusDot = '<span class="status-dot status-pass" title="Passed">✓</span>';
       }
 
+      var versionBadge = '';
+      if (b.version) {
+        var badgeClass = b.badge === 'release' ? 'release' : 'candidate';
+        versionBadge = '<span class="version-badge ' + badgeClass + '">' + b.version + '</span>';
+      }
+
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" onclick="window.location.href=\'' + b.run + '/\'" role="link" tabindex="0">'
         + '<div class="run"><div class="run-label">Run</div>'
         + (runUrl
@@ -193,7 +200,7 @@
         + '<div class="divider"></div>'
         + '<div class="info"><div class="info-top">'
         + shaHtml
-        + (b.version ? '<span class="version-badge ' + (b.badge || 'candidate') + '">' + b.version + '</span>' : '')
+        + versionBadge
         + (isLatest ? '<span class="badge">Latest</span>' : '')
         + '</div><p class="msg">' + (msg || 'No commit message') + '</p></div>'
         + '<div class="meta">'
