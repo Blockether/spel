@@ -1679,7 +1679,7 @@
                     (catch Exception e e))]
         (expect (some? threw))
         (let [data (ex-data threw)]
-          (expect (= "before boom\n" (str/replace (str (:stdout data)) "\r\n" "\n")))))))
+          (expect (= "before boom\n" (str/replace (str (:stdout data)) "\r\n" "\n"))))))
 
     ;; --- Console/error auto-inclusion in sci_eval response ---
 
