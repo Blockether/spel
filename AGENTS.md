@@ -144,18 +144,6 @@ Every code change **MUST** include corresponding tests. No exceptions.
 5. **Core library changes → test in the relevant `*_test.clj`** — each source namespace has a corresponding test namespace (e.g. `core.clj` → `core_test.clj`, `page.clj` → `page_test.clj`).
 6. **Test style** — use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`. Follow the existing patterns in each test file.
 
-### Where Tests Live
-
-| Source file changed | Test file |
-|---------------------|-----------|
-| `sci_env.clj` | `cli_integration_test.clj` (sci_eval handler tests) |
-| `daemon.clj` | `cli_integration_test.clj` (handler integration tests) or `daemon_test.clj` (unit tests) |
-| `cli.clj` | `cli_test.clj` (arg parsing unit tests) |
-| `native.clj` | `cli_test.clj` (flag parsing) + manual `spel --eval` smoke test |
-| `core.clj`, `page.clj`, etc. | Corresponding `*_test.clj` in same directory |
-| `allure_reporter.clj` | Run `clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure` and verify report |
-| `allure_ct_reporter.clj` | Run `clojure -M:test-ct` and verify Allure results |
-
 ---
 
 ## Verification Checklist (MANDATORY before completing any change)
