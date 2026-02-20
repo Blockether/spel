@@ -43,14 +43,11 @@
 
     .card { display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border); background: var(--bg-card); box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: all 0.2s ease; animation: fade-in 0.4s ease-out both; cursor: pointer; }
     .card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
-    .card.latest { border-color: var(--green-border); background: var(--green-bg); }
-    .card.latest:hover { border-color: var(--green); }
     .card.failed { border-color: var(--red-border); background: var(--red-bg); }
     .card.failed:hover { border-color: var(--red); }
 
     .run { flex-shrink: 0; width: 3.5rem; text-align: center; }
     .run-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-    .latest .run-label { color: var(--green-text); }
     .run-num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
     a.run-link { text-decoration: none; color: var(--text); transition: color 0.2s; }
     a.run-link:hover { color: var(--green); }
@@ -58,7 +55,6 @@
     .status-pass { color: var(--green); }
     .status-fail { color: var(--red); }
     .divider { width: 1px; height: 2.5rem; background: var(--border); flex-shrink: 0; }
-    .latest .divider { background: var(--green-border); }
     .failed .divider { background: var(--red-border); }
 
     .info { flex: 1; min-width: 0; }
@@ -66,13 +62,9 @@
     .sha { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); }
     .sha-link { text-decoration: none; transition: background 0.2s, color 0.2s; }
     .sha-link:hover { background: var(--border-hover); color: var(--text); }
-    .latest .sha { background: var(--green-bg); color: var(--green-text); }
-    .latest .sha-link:hover { background: var(--green-border); color: var(--green-text); }
     .failed .sha { background: var(--red-bg); color: var(--red-text); }
     .failed .sha-link:hover { background: var(--red-border); color: var(--red-text); }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); margin-left: 8px; }
     .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .latest .msg { color: var(--text); }
     .author { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .meta { flex-shrink: 0; text-align: right; }
@@ -160,7 +152,7 @@
       return f.length > n ? f.slice(0, n) + '\u2026' : f;
     }
 
-    function renderBuild(b, i, isLatest) {
+    function renderBuild(b, i) {
       var sha = (b.sha || '').slice(0, 8);
       var fullSha = b.sha || '';
       var repoUrl = b.repo_url || '';
@@ -171,7 +163,7 @@
       var rel = b.timestamp ? relativeTime(b.timestamp) : '';
       var delay = Math.min(i, 9) * 0.05;
       var failed = b.passed === false;
-      var cardClass = 'card' + (isLatest ? ' latest' : '') + (failed ? ' failed' : '');
+      var cardClass = 'card' + (failed ? ' failed' : '');
 
       var shaHtml = '';
       if (sha) {
@@ -218,7 +210,6 @@
         + shaHtml
         + testBadge
         + versionBadge
-        + (isLatest ? '<span class="badge">Latest</span>' : '')
         + '</div><p class="msg">' + (msg || 'No commit message') + '</p>'
         + (author ? '<p class="author">by ' + author + '</p>' : '')
         + '</div>'
@@ -256,7 +247,7 @@
               lastGroup = group;
             }
           }
-          html += renderBuild(b, i, i === 0);
+          html += renderBuild(b, i);
         });
         el.innerHTML = html;
       })
