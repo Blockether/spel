@@ -100,15 +100,16 @@
      :site-dir     - path to gh-pages-site directory
      :run-number   - current CI run number
      :commit-sha   - full commit SHA
-     :commit-msg   - commit message
-     :commit-ts    - commit timestamp (ISO 8601)
-     :tests-passed - whether tests passed (boolean)
-     :repo-url     - repository URL
-     :run-url      - CI run URL
-     :version      - project version
-     :version-badge - version badge type (release/candidate)
-     :test-counts  - map with :passed :failed :broken :skipped :total"
-  [{:keys [site-dir run-number commit-sha commit-msg commit-ts
+      :commit-msg   - commit message
+      :commit-author - commit author name
+      :commit-ts    - commit timestamp (ISO 8601)
+      :tests-passed - whether tests passed (boolean)
+      :repo-url     - repository URL
+      :run-url      - CI run URL
+      :version      - project version
+      :version-badge - version badge type (release/candidate)
+      :test-counts  - map with :passed :failed :broken :skipped :total"
+  [{:keys [site-dir run-number commit-sha commit-msg commit-author commit-ts
            tests-passed repo-url run-url version version-badge test-counts]}]
   (let [site (io/file site-dir)
         meta-file (io/file site "builds-meta.json")
@@ -131,6 +132,7 @@
         ;; Current run metadata
         run-meta {"sha" (or commit-sha "")
                   "message" (or msg-first "")
+                  "author" (or commit-author "")
                   "timestamp" ts
                   "passed" (boolean tests-passed)
                   "repo_url" (or repo-url "")
@@ -160,6 +162,7 @@
                    {"run" d
                     "sha" (get entry "sha" "")
                     "message" (get entry "message" "")
+                    "author" (get entry "author" "")
                     "timestamp" (get entry "timestamp" 0)
                     "passed" (get entry "passed" true)
                     "repo_url" (get entry "repo_url" "")
@@ -258,6 +261,7 @@ Options:
   --run NUMBER           CI run number (required)
   --commit-sha SHA       Git commit SHA
   --commit-msg MSG       Git commit message
+  --commit-author AUTHOR Git commit author
   --commit-ts TS         Commit timestamp (ISO 8601)
   --tests-passed BOOL    Whether tests passed (true/false)
   --repo-url URL         Repository URL
@@ -318,6 +322,9 @@ Example:
 
           (str/starts-with? arg "--commit-msg=")
           (recur (rest args) (assoc opts :commit-msg (subs arg 13)))
+
+          (str/starts-with? arg "--commit-author=")
+          (recur (rest args) (assoc opts :commit-author (subs arg 16)))
 
           (str/starts-with? arg "--commit-ts=")
           (recur (rest args) (assoc opts :commit-ts (subs arg 12)))
@@ -388,6 +395,9 @@ Example:
                          (System/getenv "GITHUB_SHA"))
             commit-msg (or (:commit-msg opts)
                          (System/getenv "COMMIT_MSG"))
+            commit-author (or (:commit-author opts)
+                            (System/getenv "COMMIT_AUTHOR")
+                            (System/getenv "GITHUB_ACTOR"))
             commit-ts (or (:commit-ts opts)
                         (System/getenv "COMMIT_TS"))
             tests-passed (if (contains? opts :tests-passed)
@@ -451,6 +461,7 @@ Example:
                                       :run-number run-number
                                       :commit-sha commit-sha
                                       :commit-msg commit-msg
+                                      :commit-author commit-author
                                       :commit-ts commit-ts
                                       :tests-passed tests-passed
                                       :repo-url repo-url

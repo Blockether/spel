@@ -73,6 +73,7 @@
     .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); margin-left: 8px; }
     .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .latest .msg { color: var(--text); }
+    .author { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .meta { flex-shrink: 0; text-align: right; }
     .meta-date { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
@@ -165,6 +166,7 @@
       var repoUrl = b.repo_url || '';
       var runUrl = b.run_url || '';
       var msg = truncate(b.message, 80);
+      var author = b.author || '';
       var date = b.timestamp ? formatDate(b.timestamp) : '';
       var rel = b.timestamp ? relativeTime(b.timestamp) : '';
       var delay = Math.min(i, 9) * 0.05;
@@ -217,7 +219,9 @@
         + testBadge
         + versionBadge
         + (isLatest ? '<span class="badge">Latest</span>' : '')
-        + '</div><p class="msg">' + (msg || 'No commit message') + '</p></div>'
+        + '</div><p class="msg">' + (msg || 'No commit message') + '</p>'
+        + (author ? '<p class="author">by ' + author + '</p>' : '')
+        + '</div>'
         + '<div class="meta">'
         + (date ? '<div class="meta-date">' + date + '</div>' : '')
         + (rel ? '<div class="meta-rel">' + rel + '</div>' : '')

@@ -458,6 +458,7 @@
   "Write environment.properties to the allure output directory."
   [^File output-dir]
   (let [version (project-version)
+        commit-author (System/getenv "COMMIT_AUTHOR")
         props   (cond-> [["java.version"    (System/getProperty "java.version")]
                          ["java.vendor"     (System/getProperty "java.vendor")]
                          ["os.name"         (System/getProperty "os.name")]
@@ -468,7 +469,9 @@
                   (spel-version)
                   (conj ["spel.version" (spel-version)])
                   version
-                  (conj ["project.version" version]))
+                  (conj ["project.version" version])
+                  commit-author
+                  (conj ["commit.author" commit-author]))
         content (->> props
                   (map (fn [[k v]] (str k " = " (or v ""))))
                   (str/join "\n"))]
