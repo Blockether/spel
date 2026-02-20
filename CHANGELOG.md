@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-02-20
+
+### Changed
+- BLO-86: Release v0.3.0
+- fix: add missing closing paren in navigate handler defmethod
+- BLO-85: Fix --screenshot flag not saving file when used with open command
+- feat: add report/clean config to both Allure reporters, run clojure.test in CI
+- feat: browser config via system properties (slow-mo, engine, interactive)
+- feat: polymorphic report builder (report->html, report->pdf) with typed entries
+- feat: auto-capture console/errors in --eval, add anti-sleep and SPA wait guidance
+- feat: auto-resolve @eN refs in all spel/ functions, fix eval timeout architecture
+- docs: remove verbose test mapping table from AGENTS.md
+- docs: add testing policy to AGENTS.md, add stdout/stderr capture tests
+- fix: capture both stdout and stderr, preserve output on error
+- fix: capture stdout during sci_eval to enable println in --eval mode
+- fix: resolve lint errors in markdown_test and init_agents
+- refactor: global defmethod hooks for clojure.test Allure reporter
+- feat: add clojure.test Allure reporter with auto-injected fixtures
+- feat: add --flavour flag to init-agents for clojure.test support
+- fix: replace Lazytest references with spel.allure in all templates, fix test-e2e paths
+- feat: add spel.markdown (from/to-markdown-table), replace data.json with charred
+- feat: add --no-tests flag to init-agents for interactive-only scaffolding
+- docs: add prefer --eval over standalone CLI rule to SKILL template
+- feat: include test-e2e in Playwright tracing source directories
+- fix: promote Native CLI to top-level README section, fix broken nav anchor
+- feat: add spel.roles namespace, replace AriaRole imports with idiomatic Clojure vars
+- release: update version files for v0.2.0, bump to next dev version
+
+
 ## [v0.2.0] - 2026-02-19
 
 ### Changed
@@ -108,8 +137,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.3.0...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
 [v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
+[v0.3.0]: https://github.com/Blockether/spel/releases/tag/v0.3.0
