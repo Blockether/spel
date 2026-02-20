@@ -429,8 +429,14 @@
                        {"action" "sci_eval" "code" code}
                        timeout)]
         (if (and response (:success response))
-          ;; Success — print the result
-          (let [result-str (get-in response [:data :result])]
+          ;; Success — print captured stdout first (if any), then result
+          (let [stdout-str (get-in response [:data :stdout])
+                result-str (get-in response [:data :result])]
+            ;; Print captured stdout (println output from evaluated code)
+            (when (and stdout-str (not (str/blank? stdout-str)))
+              (print stdout-str)
+              (flush))
+            ;; Print the result
             (if (:json? global)
               (println result-str)
               (println result-str)))

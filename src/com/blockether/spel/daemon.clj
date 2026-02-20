@@ -1202,17 +1202,24 @@
     (let [ctx (or @!sci-ctx
                 (let [c (sci-env/create-sci-ctx)]
                   (reset! !sci-ctx c)
-                  c))]
-      (sci-env/set-throw-on-error! true)
-      (try
-        (let [result (sci-env/eval-string ctx code)]
-          (sync-sci-to-state!)
-          (if (anomaly/anomaly? result)
-            {:error (::anomaly/message result)}
-            {:result (pr-str result)}))
-        (catch Exception e
-          (sync-sci-to-state!)
-          (throw e))))))
+                  c))
+          ;; Capture stdout during evaluation so println works in --eval mode
+          stdout-writer (java.io.StringWriter.)
+          result (do
+                   (sci-env/set-throw-on-error! true)
+                   (try
+                     (binding [*out* stdout-writer]
+                       (let [r (sci-env/eval-string ctx code)]
+                         (sync-sci-to-state!)
+                         r))
+                     (catch Exception e
+                       (sync-sci-to-state!)
+                       (throw e))))
+          captured-stdout (str stdout-writer)]
+      (if (anomaly/anomaly? result)
+        {:error (::anomaly/message result)}
+        {:result (pr-str result)
+         :stdout captured-stdout}))))
 
 ;; --- Close & Default ---
 
