@@ -93,16 +93,6 @@ jobs:
               {:index-file \"gh-pages-site/index.html\"
                :logo-file  \"logo.svg\"})"
 
-      - name: Deploy in-progress page
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages-site
-
-      - name: Deploy in-progress to GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        uses: actions/deploy-pages@v4
-
       - name: Detect version
         id: version
         run: |
