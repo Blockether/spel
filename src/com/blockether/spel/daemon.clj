@@ -1203,23 +1203,34 @@
                 (let [c (sci-env/create-sci-ctx)]
                   (reset! !sci-ctx c)
                   c))
-          ;; Capture stdout during evaluation so println works in --eval mode
+          ;; Capture stdout and stderr during evaluation so println/prn work in --eval mode
           stdout-writer (java.io.StringWriter.)
-          result (do
-                   (sci-env/set-throw-on-error! true)
-                   (try
-                     (binding [*out* stdout-writer]
+          stderr-writer (java.io.StringWriter.)]
+      (sci-env/set-throw-on-error! true)
+      (try
+        (let [result (binding [*out* stdout-writer
+                               *err* stderr-writer]
                        (let [r (sci-env/eval-string ctx code)]
                          (sync-sci-to-state!)
                          r))
-                     (catch Exception e
-                       (sync-sci-to-state!)
-                       (throw e))))
-          captured-stdout (str stdout-writer)]
-      (if (anomaly/anomaly? result)
-        {:error (::anomaly/message result)}
-        {:result (pr-str result)
-         :stdout captured-stdout}))))
+              captured-stdout (str stdout-writer)
+              captured-stderr (str stderr-writer)]
+          (if (anomaly/anomaly? result)
+            (cond-> {:error (::anomaly/message result)}
+              (seq captured-stdout) (assoc :stdout captured-stdout)
+              (seq captured-stderr) (assoc :stderr captured-stderr))
+            (cond-> {:result (pr-str result)}
+              (seq captured-stdout) (assoc :stdout captured-stdout)
+              (seq captured-stderr) (assoc :stderr captured-stderr))))
+        (catch Exception e
+          (sync-sci-to-state!)
+          (let [captured-stdout (str stdout-writer)
+                captured-stderr (str stderr-writer)]
+            (throw (ex-info (.getMessage e)
+                     (cond-> {}
+                       (seq captured-stdout) (assoc :stdout captured-stdout)
+                       (seq captured-stderr) (assoc :stderr captured-stderr))
+                     e))))))))
 
 ;; --- Close & Default ---
 
@@ -1289,8 +1300,11 @@
                                     :error (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")}))
             (json/write-json-str {:success true :data result})))
         (catch Throwable e
-          (let [msg (or (reflection-error-hint e) (.getMessage e))]
-            (json/write-json-str {:success false :error msg})))))
+          (let [msg  (or (reflection-error-hint e) (.getMessage e))
+                data (ex-data e)]
+            (json/write-json-str (cond-> {:success false :error msg}
+                                   (:stdout data) (assoc :data {:stdout (:stdout data)
+                                                                :stderr (:stderr data)})))))))
     (catch Throwable e
       (json/write-json-str {:success false :error (str "Parse error: " (.getMessage e))}))))
 
