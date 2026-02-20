@@ -1416,6 +1416,30 @@ Operations performed (in order):
 2. Generates `builds.json`, `builds-meta.json`, and `badge.json` (when site directory exists)
 3. Patches `index.html` with logo and title placeholders (when `--index-file` set)
 
+**In-Progress Build Tracking:**
+
+The CI module supports tracking builds as "in progress" with a yellow animated badge on the landing page:
+
+```clojure
+;; At start of CI run — registers build with yellow "In Progress" badge
+(ci/register-build-start!
+  {:site-dir "gh-pages-site"
+   :run-number "123"
+   :commit-sha "abc123..."
+   :commit-msg "feat: add feature"
+   :commit-author "developer"
+   :repo-url "https://github.com/org/repo"
+   :run-url "https://github.com/org/repo/actions/runs/456"})
+
+;; After tests complete — updates status to completed/failed
+(ci/finalize-build!
+  {:site-dir "gh-pages-site"
+   :run-number "123"
+   :passed true})
+```
+
+Flow: register → deploy pages (shows yellow badge) → run tests → finalize → regenerate metadata → re-deploy pages.
+
 In CI workflows, call via JVM (Clojure CLI) rather than native binary:
 
 ```clojure

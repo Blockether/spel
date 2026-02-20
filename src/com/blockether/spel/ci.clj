@@ -135,6 +135,7 @@
                   "author" (or commit-author "")
                   "timestamp" ts
                   "passed" (boolean tests-passed)
+                  "status" "completed"
                   "repo_url" (or repo-url "")
                   "run_url" (or run-url "")
                   "version" (or version "")
@@ -165,6 +166,7 @@
                     "author" (get entry "author" "")
                     "timestamp" (get entry "timestamp" 0)
                     "passed" (get entry "passed" true)
+                    "status" (get entry "status" "completed")
                     "repo_url" (get entry "repo_url" "")
                     "run_url" (get entry "run_url" "")
                     "version" (get entry "version" "")
@@ -194,6 +196,100 @@
         (println (str "Generated badge.json: " badge-msg))))
 
     (println (str "Generated builds.json with " (count builds) " entries"))))
+
+;; =============================================================================
+;; In-Progress Build Tracking
+;; =============================================================================
+
+(defn register-build-start!
+  "Register a build as in-progress. Adds entry to builds-meta.json and
+   regenerates builds.json so the landing page shows a yellow 'In Progress' badge.
+   
+   Options:
+     :site-dir    - path to gh-pages-site directory
+     :run-number  - CI run number (string)
+     :commit-sha  - full commit SHA
+     :commit-msg  - commit message
+     :commit-author - commit author name
+     :repo-url    - repository URL
+     :run-url     - CI run URL
+     :version     - project version
+     :version-badge - version badge type"
+  [{:keys [site-dir run-number commit-sha commit-msg commit-author
+           repo-url run-url version version-badge]}]
+  (let [site (io/file (or site-dir "gh-pages-site"))
+        meta-file (io/file site "builds-meta.json")
+        builds-file (io/file site "builds.json")
+        meta (if (.isFile meta-file)
+               (json/read-json (slurp meta-file))
+               {})
+        msg-first (when commit-msg
+                    (first (str/split-lines commit-msg)))
+        ts (.toEpochMilli (Instant/now))
+        run-meta {"sha" (or commit-sha "")
+                  "message" (or msg-first "")
+                  "author" (or commit-author "")
+                  "timestamp" ts
+                  "passed" nil
+                  "status" "in_progress"
+                  "repo_url" (or repo-url "")
+                  "run_url" (or run-url "")
+                  "version" (or version "")
+                  "badge" (or version-badge "")
+                  "tests" {"passed" 0 "failed" 0 "broken" 0 "skipped" 0 "total" 0}}
+        meta' (assoc meta run-number run-meta)
+        ;; Get existing report dirs
+        dirs (if (.isDirectory site)
+               (list-report-dirs site)
+               [])
+        ;; Include the in-progress run even though it has no report dir yet
+        all-runs (distinct (cons run-number dirs))
+        builds (vec
+                 (for [d all-runs
+                       :let [entry (get meta' d {})
+                             tests (get entry "tests" {})]]
+                   {"run" d
+                    "sha" (get entry "sha" "")
+                    "message" (get entry "message" "")
+                    "author" (get entry "author" "")
+                    "timestamp" (get entry "timestamp" 0)
+                    "passed" (get entry "passed")
+                    "status" (get entry "status" "completed")
+                    "repo_url" (get entry "repo_url" "")
+                    "run_url" (get entry "run_url" "")
+                    "version" (get entry "version" "")
+                    "badge" (get entry "badge" "")
+                    "tests" tests}))]
+    (.mkdirs site)
+    (spit meta-file (json/write-json-str meta'))
+    (spit builds-file (json/write-json-str builds))
+    (println (str "Registered build #" run-number " as in-progress"))
+    run-number))
+
+(defn finalize-build!
+  "Update a build from in-progress to completed/failed.
+   Removes the 'in_progress' status from builds-meta.json.
+   Should be called before generate-builds-metadata! which will
+   regenerate builds.json with full test results.
+   
+   Options:
+     :site-dir    - path to gh-pages-site directory
+     :run-number  - CI run number (string)
+     :passed      - whether tests passed (boolean)"
+  [{:keys [site-dir run-number passed]}]
+  (let [site (io/file (or site-dir "gh-pages-site"))
+        meta-file (io/file site "builds-meta.json")
+        meta (if (.isFile meta-file)
+               (json/read-json (slurp meta-file))
+               {})
+        entry (get meta run-number)
+        updated (when entry
+                  (-> entry
+                    (assoc "status" "completed")
+                    (assoc "passed" (boolean passed))))]
+    (when updated
+      (spit meta-file (json/write-json-str (assoc meta run-number updated)))
+      (println (str "Finalized build #" run-number " as " (if passed "passed" "failed"))))))
 
 ;; =============================================================================
 ;; Index HTML Patching
