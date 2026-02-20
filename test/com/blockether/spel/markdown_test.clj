@@ -1,7 +1,9 @@
 (ns com.blockether.spel.markdown-test
   (:require
+   [clojure.string]
    [com.blockether.spel.allure :refer [defdescribe describe it expect]]
-   [com.blockether.spel.markdown :as md]))
+   [com.blockether.spel.markdown :as md]
+   [com.blockether.spel.sci-env]))
 
 (defdescribe markdown-table-test
 

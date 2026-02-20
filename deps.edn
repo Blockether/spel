@@ -28,13 +28,8 @@
            :main-opts   ["-m" "lazytest.main" "--dir" "test-e2e"]}
 
   :test-ct  {:extra-paths ["test"]
-             :main-opts   ["-m" "com.blockether.spel.allure-ct-reporter"
-                           "com.blockether.spel.ct.smoke-test"
-                           "com.blockether.spel.ct.markdown-test"
-                           "com.blockether.spel.ct.data-test"]}
-
-  :test-all {:extra-paths ["test"]
-             :main-opts   ["-m" "com.blockether.spel.test-runner"]}
+             :jvm-opts    ["-Dallure.clojure-test.enabled=true"]
+             :main-opts   ["-e" "(require 'com.blockether.spel.ct.smoke-test 'com.blockether.spel.ct.markdown-test 'com.blockether.spel.ct.data-test) (let [{:keys [fail error]} (clojure.test/run-tests 'com.blockether.spel.ct.smoke-test 'com.blockether.spel.ct.markdown-test 'com.blockether.spel.ct.data-test)] (when (pos? (+ fail error)) (System/exit 1)))"]}
 
   :native {:extra-deps {com.github.clj-easy/graal-build-time {:mvn/version "1.0.5"}}
            :jvm-opts   ["-Dclojure.compiler.direct-linking=true"]}}}

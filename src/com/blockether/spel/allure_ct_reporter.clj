@@ -1,17 +1,18 @@
 (ns com.blockether.spel.allure-ct-reporter
-  "Allure 2+ reporter for clojure.test.
+  "Global clojure.test Allure reporter via defmethod hooks.
 
-   Writes JSON result files to allure-results/, compatible with the
-   Lazytest Allure reporter. Both reporters write to the same directory,
-   and the Allure CLI merges everything into one HTML report.
+   Activated by system property or env var:
 
-   Two usage modes:
+     -Dallure.clojure-test.enabled=true
+     ALLURE_CLOJURE_TEST_ENABLED=true
 
-   1. Combined (Lazytest + clojure.test) via test-runner:
-        clojure -M:test-all
+   Once activated, ALL clojure.test runs automatically produce Allure
+   results — works with any test runner (Kaocha, Cognitect test-runner,
+   plain clojure.test/run-tests, REPL).
 
-   2. Standalone clojure.test:
-        clojure -M:test-ct
+   The defmethod overrides chain the original clojure.test handlers so
+   standard test output is preserved. Our handlers run additionally when
+   enabled. When disabled (default), zero overhead — just a nil check.
 
    In test namespaces:
 
@@ -30,8 +31,17 @@
        (testing \"something\"
          (is (= 1 1))))
 
-   `with-allure-context` is injected automatically by `run-ct-tests!` as
-   the innermost :each fixture — no need to add it in test files."
+   `with-allure-context` is auto-injected as the outermost :each fixture
+   for every namespace — test files never reference it.
+
+   Configuration (system properties / env vars):
+
+   | Property                         | Env Var                        | Default          |
+   |----------------------------------|--------------------------------|------------------|
+   | allure.clojure-test.enabled      | ALLURE_CLOJURE_TEST_ENABLED    | false            |
+   | allure.clojure-test.output       | ALLURE_CLOJURE_TEST_OUTPUT     | allure-results   |
+   | allure.clojure-test.report       | ALLURE_CLOJURE_TEST_REPORT     | true             |
+   | allure.clojure-test.clean        | ALLURE_CLOJURE_TEST_CLEAN      | true             |"
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -44,7 +54,41 @@
    [java.util UUID]))
 
 ;; =============================================================================
-;; Shared Utilities (duplicated from allure_reporter.clj to avoid coupling)
+;; Configuration
+;; =============================================================================
+
+(defn enabled?
+  "Check if the clojure.test Allure reporter is enabled."
+  []
+  (Boolean/parseBoolean
+    (or (System/getProperty "allure.clojure-test.enabled")
+      (System/getenv "ALLURE_CLOJURE_TEST_ENABLED")
+      "false")))
+
+(defn- output-dir-path
+  ^String []
+  (or (System/getProperty "allure.clojure-test.output")
+    (System/getenv "ALLURE_CLOJURE_TEST_OUTPUT")
+    "allure-results"))
+
+(defn- report?
+  "Whether to generate HTML report on summary."
+  []
+  (Boolean/parseBoolean
+    (or (System/getProperty "allure.clojure-test.report")
+      (System/getenv "ALLURE_CLOJURE_TEST_REPORT")
+      "true")))
+
+(defn- clean?
+  "Whether to clean output dir on start."
+  []
+  (Boolean/parseBoolean
+    (or (System/getProperty "allure.clojure-test.clean")
+      (System/getenv "ALLURE_CLOJURE_TEST_CLEAN")
+      "true")))
+
+;; =============================================================================
+;; Shared Utilities
 ;; =============================================================================
 
 (defn- hostname
@@ -57,7 +101,6 @@
   (str (UUID/randomUUID)))
 
 (defn- md5-hex
-  "MD5 hash of a string, returned as lowercase hex."
   ^String [^String s]
   (let [md (MessageDigest/getInstance "MD5")
         bytes (.digest md (.getBytes s "UTF-8"))]
@@ -72,7 +115,6 @@
       (str sw))))
 
 (defn- json-escape
-  "Escape a string for JSON."
   ^String [^String s]
   (-> s
     (str/replace "\\" "\\\\")
@@ -82,7 +124,6 @@
     (str/replace "\t" "\\t")))
 
 (defn- ->json-pretty
-  "Convert to JSON with basic indentation for readability."
   ^String [v]
   (let [indent (fn indent [v depth]
                  (let [depth (long depth)
@@ -121,7 +162,6 @@
     (indent v 0)))
 
 (defn- write-attachment!
-  "Write an attachment file, return the attachment metadata map, or nil."
   [output-dir content att-name]
   (when (and content (not (str/blank? content)))
     (let [att-uuid (uuid)
@@ -131,8 +171,6 @@
       {:name att-name :source filename :type "text/plain"})))
 
 (defn- copy-file-attachment!
-  "Copy a file into the output dir and return an attachment metadata map.
-   Returns nil if the source file doesn't exist or is empty."
   [^File output-dir ^String source-path att-name ^String mime-type ^String ext]
   (let [src (io/file source-path)]
     (when (and (.exists src) (pos? (.length src)))
@@ -148,11 +186,11 @@
     (if (pos? idx) (subs ns-name 0 idx) "")))
 
 ;; =============================================================================
-;; Run State & Per-Test State
+;; State
 ;; =============================================================================
 
 (def ^:private run-state
-  "Mutable state for the current CT test run. nil when not active."
+  "Mutable state for the current test run. nil when not active."
   (atom nil))
 
 (def ^:private test-state
@@ -160,8 +198,11 @@
   (atom nil))
 
 (def ^:private counters
-  "Test result counters."
   (atom {:test 0 :pass 0 :fail 0 :error 0}))
+
+(def ^:private fixture-originals
+  "Original :each fixtures per namespace, for restoration on :end-test-ns."
+  (atom {}))
 
 ;; =============================================================================
 ;; Supplementary Files
@@ -209,9 +250,7 @@
 ;; Result Building
 ;; =============================================================================
 
-(defn- testing-context-str
-  "Build a context string from clojure.test's *testing-contexts*."
-  []
+(defn- testing-context-str []
   (when (seq ct/*testing-contexts*)
     (str/join " > " (reverse ct/*testing-contexts*))))
 
@@ -233,7 +272,6 @@
       true    (conj {:name "testMethod" :value (:test-name ts)}))))
 
 (defn- build-steps-from-assertions
-  "Auto-generate Allure steps from the assertions list."
   [assertions start-ms stop-ms]
   (mapv (fn [a]
           (let [ctx    (:context a)
@@ -273,7 +311,6 @@
     assertions))
 
 (defn- strip-step-stack
-  "Remove internal :step-stack from step trees (not part of Allure schema)."
   [steps]
   (mapv (fn [step]
           (-> step
@@ -299,7 +336,6 @@
         trace (assoc :trace trace)))))
 
 (defn- write-test-result!
-  "Build and write the Allure JSON result for a completed test."
   [ts]
   (let [dir         (:output-dir @run-state)
         result-uuid (uuid)
@@ -310,7 +346,6 @@
                       :pass  "passed"
                       :fail  "failed"
                       :error "broken")
-        ;; Allure context from with-allure-context fixture
         ctx         (:allure-context ts)
         ctx-labels  (when ctx (:labels ctx))
         ctx-links   (when ctx (:links ctx))
@@ -318,11 +353,9 @@
         ctx-atts    (when ctx (:attachments ctx))
         ctx-steps   (when ctx (seq (:steps ctx)))
         ctx-desc    (when ctx (:description ctx))
-        ;; Steps: prefer explicit allure/step calls, else auto-generate from assertions
         steps       (if ctx-steps
                       (strip-step-stack (vec ctx-steps))
                       (build-steps-from-assertions (:assertions ts) start-ms stop-ms))
-        ;; IO attachments
         out-att     (write-attachment! dir (:system-out ts) "Full stdout log")
         err-att     (write-attachment! dir (:system-err ts) "Full stderr log")
         trace-att   (when-let [tp (:allure/trace-path ts)]
@@ -332,7 +365,6 @@
                       (copy-file-attachment! dir hp "Network Activity (HAR)"
                         "application/json" ".har"))
         io-atts     (filterv some? [out-att err-att trace-att har-att])
-        ;; Merge
         all-labels  (into (build-labels ts) ctx-labels)
         all-links   (or (seq ctx-links) [])
         all-params  (or (seq ctx-params) [])
@@ -358,14 +390,104 @@
       (->json-pretty result))))
 
 ;; =============================================================================
+;; Lifecycle
+;; =============================================================================
+
+(defn- ensure-run-started!
+  "Lazy-init on first :begin-test-ns. Creates output dir, resets state."
+  []
+  (when-not @run-state
+    (let [dir-path (output-dir-path)
+          dir      (io/file dir-path)]
+      (when (clean?)
+        (when (.exists dir)
+          (doseq [^File f (reverse (file-seq dir))]
+            (.delete f))))
+      (.mkdirs dir)
+      (reset! run-state {:hostname        (hostname)
+                         :start-ms        (System/currentTimeMillis)
+                         :output-dir      dir
+                         :output-dir-path dir-path})
+      (reset! counters {:test 0 :pass 0 :fail 0 :error 0})
+      (reset! fixture-originals {})
+      (allure/set-reporter-active! true))))
+
+(defn- finalize-run!
+  "Write supplementary files and optionally generate HTML report."
+  []
+  (when @run-state
+    (allure/set-reporter-active! false)
+    (let [dir (:output-dir @run-state)]
+      (write-environment-properties! dir)
+      (write-categories-json! dir))
+    (when (report?)
+      (require 'com.blockether.spel.allure-reporter)
+      (let [gen-fn (resolve 'com.blockether.spel.allure-reporter/generate-html-report!)
+            out-fn (resolve 'com.blockether.spel.allure-reporter/output-dir)
+            rpt-fn (resolve 'com.blockether.spel.allure-reporter/report-dir)]
+        (when (and gen-fn out-fn rpt-fn)
+          (gen-fn (out-fn) (rpt-fn)))))
+    (reset! run-state nil)))
+
+;; =============================================================================
+;; Allure Context Fixture (auto-injected as outermost :each)
+;; =============================================================================
+
+(defn with-allure-context
+  "clojure.test :each fixture that binds the Allure in-test API context.
+
+   Enables allure/step, allure/epic, allure/screenshot, etc. within
+   clojure.test deftest blocks. Also captures stdout/stderr per test.
+
+   Auto-injected as the OUTERMOST :each fixture by the global reporter
+   hooks — test files never reference this directly.
+
+   Being outermost is critical: inner fixtures (e.g. with-traced-page)
+   tear down BEFORE this fixture's post-`(f)` code runs, so trace/HAR
+   files are fully written by the time we copy them into allure-results."
+  [f]
+  (if-not @run-state
+    (f)
+    (let [ctx-atom (atom (allure/make-context))
+          out-sw   (StringWriter.)
+          err-sw   (StringWriter.)]
+      (binding [allure/*context*    ctx-atom
+                allure/*output-dir* (:output-dir @run-state)
+                allure/*test-title* (some-> @test-state :test-name)
+                allure/*test-out*   out-sw
+                allure/*test-err*   err-sw
+                *out*               (PrintWriter. out-sw true)
+                *err*               (PrintWriter. err-sw true)]
+        (f))
+      ;; After (f): inner fixtures have torn down, trace files are written.
+      (when-let [ts @test-state]
+        (when (:ended? ts)
+          (write-test-result! ts)
+          (reset! test-state nil))))))
+
+;; =============================================================================
 ;; Event Handlers
 ;; =============================================================================
 
 (defn- on-begin-ns [m]
-  (swap! run-state assoc :current-ns (str (ns-name (:ns m)))))
+  (let [ns-obj   (:ns m)
+        existing (::ct/each-fixtures (meta ns-obj))]
+    ;; Save original fixtures for restoration
+    (swap! fixture-originals assoc ns-obj existing)
+    ;; Auto-inject with-allure-context as outermost :each fixture
+    (alter-meta! ns-obj assoc ::ct/each-fixtures
+      (into [with-allure-context] (or existing [])))
+    (swap! run-state assoc :current-ns (str (ns-name ns-obj)))))
 
-(defn- on-end-ns [_m]
-  (swap! run-state dissoc :current-ns))
+(defn- on-end-ns [m]
+  (let [ns-obj   (:ns m)
+        original (get @fixture-originals ns-obj)]
+    ;; Restore original fixtures
+    (if original
+      (alter-meta! ns-obj assoc ::ct/each-fixtures original)
+      (alter-meta! ns-obj dissoc ::ct/each-fixtures))
+    (swap! fixture-originals dissoc ns-obj)
+    (swap! run-state dissoc :current-ns)))
 
 (defn- on-begin-var [m]
   (let [v       (:var m)
@@ -426,8 +548,6 @@
 
 (defn- on-end-var [_m]
   (when-let [ts @test-state]
-    ;; Capture allure data from dynamic vars — still bound because
-    ;; :end-test-var fires INSIDE the fixture chain's (f) call.
     (let [ts (cond-> ts
                allure/*context*
                (assoc :allure-context @allure/*context*)
@@ -444,10 +564,9 @@
                allure/*test-err*
                (assoc :system-err (str allure/*test-err*)))]
       (reset! test-state (assoc ts :ended? true))
-      ;; When with-allure-context is active (outermost fixture), defer
-      ;; writing until after inner fixtures tear down — so trace/HAR
-      ;; files are written before we try to copy them.
-      ;; When NOT active, write immediately (standalone report-fn usage).
+      ;; When with-allure-context is active, defer writing until after
+      ;; inner fixtures tear down (trace files written).
+      ;; When NOT active (shouldn't happen, but defensive), write immediately.
       (when-not allure/*context*
         (write-test-result! ts)
         (reset! test-state nil)))))
@@ -455,186 +574,68 @@
 (defn- on-summary [_m]
   (let [{:keys [test pass fail error]} @counters]
     (println)
-    (println (str "clojure.test Allure results: "
+    (println (str "clojure.test Allure: "
                test " tests, "
                pass " passed, "
                fail " failed, "
                error " errors"))
-    (println (str "Results written to " (:output-dir-path @run-state) "/"))))
+    (println (str "Results written to " (:output-dir-path @run-state) "/")))
+  (finalize-run!))
 
 ;; =============================================================================
-;; Allure Context Fixture
+;; Global defmethod hooks
+;;
+;; Save originals with defonce (survives REPL reloads), then install
+;; chained defmethods that call original + our handler when enabled.
 ;; =============================================================================
 
-(defn with-allure-context
-  "clojure.test :each fixture that binds the Allure in-test API context.
+(defonce ^:private originals
+  {:begin-test-ns  (get-method ct/report :begin-test-ns)
+   :end-test-ns    (get-method ct/report :end-test-ns)
+   :begin-test-var (get-method ct/report :begin-test-var)
+   :end-test-var   (get-method ct/report :end-test-var)
+   :pass           (get-method ct/report :pass)
+   :fail           (get-method ct/report :fail)
+   :error          (get-method ct/report :error)
+   :summary        (get-method ct/report :summary)})
 
-   Enables allure/step, allure/epic, allure/screenshot, etc. within
-   clojure.test deftest blocks. Also captures stdout/stderr per test.
+(defmethod ct/report :begin-test-ns [m]
+  (when (enabled?)
+    (ensure-run-started!)
+    (on-begin-ns m))
+  ((:begin-test-ns originals) m))
 
-   Injected automatically by `run-ct-tests!` as the OUTERMOST :each
-   fixture — no need to add it in test files.
+(defmethod ct/report :end-test-ns [m]
+  (when (enabled?)
+    (on-end-ns m))
+  ((:end-test-ns originals) m))
 
-   Being outermost is critical: inner fixtures (e.g. with-traced-page)
-   tear down BEFORE this fixture's post-`(f)` code runs, so trace/HAR
-   files are fully written by the time we copy them into allure-results."
-  [f]
-  (if-not @run-state
-    ;; Not running under Allure reporter -- just run the test
-    (f)
-    (let [ctx-atom (atom (allure/make-context))
-          out-sw   (StringWriter.)
-          err-sw   (StringWriter.)]
-      (binding [allure/*context*    ctx-atom
-                allure/*output-dir* (:output-dir @run-state)
-                allure/*test-title* (some-> @test-state :test-name)
-                allure/*test-out*   out-sw
-                allure/*test-err*   err-sw
-                *out*               (PrintWriter. out-sw true)
-                *err*               (PrintWriter. err-sw true)]
-        (f))
-      ;; After (f): inner fixtures (with-traced-page etc.) have torn down,
-      ;; so trace zips and HAR files are now written and ready to copy.
-      ;; on-end-var saved all allure data but deferred writing.
-      (when-let [ts @test-state]
-        (when (:ended? ts)
-          (write-test-result! ts)
-          (reset! test-state nil))))))
+(defmethod ct/report :begin-test-var [m]
+  (when (enabled?)
+    (on-begin-var m))
+  ((:begin-test-var originals) m))
 
-;; =============================================================================
-;; Report Function
-;; =============================================================================
+(defmethod ct/report :end-test-var [m]
+  (when (enabled?)
+    (on-end-var m))
+  ((:end-test-var originals) m))
 
-(defn- make-report-fn
-  "Create the Allure report function for binding over clojure.test/report."
-  []
-  (fn allure-report [m]
-    (case (:type m)
-      :begin-test-ns  (on-begin-ns m)
-      :end-test-ns    (on-end-ns m)
-      :begin-test-var (on-begin-var m)
-      :end-test-var   (on-end-var m)
-      :pass           (on-pass m)
-      :fail           (on-fail m)
-      :error          (on-error m)
-      :summary        (on-summary m)
-      nil)))
+(defmethod ct/report :pass [m]
+  ((:pass originals) m)
+  (when (enabled?)
+    (on-pass m)))
 
-;; =============================================================================
-;; Output Directory
-;; =============================================================================
+(defmethod ct/report :fail [m]
+  ((:fail originals) m)
+  (when (enabled?)
+    (on-fail m)))
 
-(defn- output-dir-path
-  ^String []
-  (or (System/getProperty "ct.allure.output")
-    (System/getenv "CT_ALLURE_OUTPUT")
-    "allure-results"))
+(defmethod ct/report :error [m]
+  ((:error originals) m)
+  (when (enabled?)
+    (on-error m)))
 
-;; =============================================================================
-;; Entry Points
-;; =============================================================================
-
-(defn begin-run!
-  "Initialize the CT Allure reporter.
-
-   Options:
-     :clean?     - clean output dir before writing (default: true)
-     :output-dir - override output directory path"
-  ([] (begin-run! {}))
-  ([{:keys [clean? output-dir] :or {clean? true}}]
-   (let [dir-path (or output-dir (output-dir-path))
-         dir      (io/file dir-path)]
-     (when clean?
-       (when (.exists dir)
-         (doseq [^File f (reverse (file-seq dir))]
-           (.delete f))))
-     (.mkdirs dir)
-     (reset! run-state {:hostname       (hostname)
-                        :start-ms       (System/currentTimeMillis)
-                        :output-dir     dir
-                        :output-dir-path dir-path})
-     (reset! counters {:test 0 :pass 0 :fail 0 :error 0})
-     (allure/set-reporter-active! true))))
-
-(defn end-run!
-  "Finalize the CT Allure reporter. Writes supplementary files.
-
-   Options:
-     :report? - generate HTML report via Allure CLI (default: false)"
-  ([] (end-run! {}))
-  ([{:keys [report?] :or {report? false}}]
-   (allure/set-reporter-active! false)
-   (let [dir (:output-dir @run-state)]
-     (write-environment-properties! dir)
-     (write-categories-json! dir)
-     (when report?
-       ;; Use the public generate-html-report! from allure-reporter ns
-       (require 'com.blockether.spel.allure-reporter)
-       (let [gen-fn (resolve 'com.blockether.spel.allure-reporter/generate-html-report!)
-             out-fn (resolve 'com.blockether.spel.allure-reporter/output-dir)
-             rpt-fn (resolve 'com.blockether.spel.allure-reporter/report-dir)]
-         (when (and gen-fn out-fn rpt-fn)
-           (gen-fn (out-fn) (rpt-fn))))))))
-
-(defn- inject-allure-fixtures!
-  "Prepend `with-allure-context` as the OUTERMOST :each fixture for each
-   namespace. Being outermost means inner fixtures (with-traced-page etc.)
-   tear down before we write the result — so trace/HAR files exist.
-   Returns {ns-obj -> original-seq} for restoration."
-  [namespaces]
-  (reduce
-    (fn [originals ns-sym]
-      (let [ns-obj   (the-ns ns-sym)
-            existing (::ct/each-fixtures (meta ns-obj))]
-        (alter-meta! ns-obj assoc ::ct/each-fixtures
-          (into [with-allure-context] (or existing [])))
-        (assoc originals ns-obj existing)))
-    {} namespaces))
-
-(defn- restore-fixtures!
-  "Restore original :each fixtures saved by `inject-allure-fixtures!`."
-  [originals]
-  (doseq [[ns-obj original] originals]
-    (if original
-      (alter-meta! ns-obj assoc ::ct/each-fixtures original)
-      (alter-meta! ns-obj dissoc ::ct/each-fixtures))))
-
-(defn run-ct-tests!
-  "Discover and run clojure.test namespaces with the Allure reporter.
-
-   Automatically injects `with-allure-context` as the innermost :each
-   fixture for every namespace — test files don't need to add it manually.
-
-   Options:
-     :namespaces - list of namespace symbols to test
-     :clean?     - clean output dir before writing (default: true)
-     :report?    - generate HTML report after (default: false)
-
-   Returns the counters map {:test N :pass N :fail N :error N}."
-  [{:keys [namespaces clean? report?]
-    :or   {clean? true report? false}}]
-  (begin-run! {:clean? clean?})
-  (doseq [ns-sym namespaces]
-    (require ns-sym))
-  (let [originals (inject-allure-fixtures! namespaces)
-        report-fn (make-report-fn)]
-    (try
-      (binding [ct/report report-fn]
-        (apply ct/run-tests namespaces))
-      (finally
-        (restore-fixtures! originals))))
-  (end-run! {:report? report?})
-  @counters)
-
-(defn -main
-  "CLI entry point. Takes namespace name strings as arguments.
-
-   Usage:
-     clojure -M:test-ct com.blockether.spel.ct.smoke-test ..."
-  [& ns-strings]
-  (let [ns-syms (mapv symbol ns-strings)
-        results (run-ct-tests! {:namespaces ns-syms
-                                :clean?     true
-                                :report?    true})]
-    (when (pos? (+ (:fail results) (:error results)))
-      (System/exit 1))))
+(defmethod ct/report :summary [m]
+  ((:summary originals) m)
+  (when (and (enabled?) @run-state)
+    (on-summary m)))
