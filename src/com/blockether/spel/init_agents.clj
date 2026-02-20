@@ -491,8 +491,8 @@
         (do
           (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
           (println (str "           :extra-deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}"))
-          (println (str "                        io.github.cognitect-labs/test-runner"))
-          (println (str "                        {:git/tag \"v0.5.1\" :git/sha \"dfb30dd\"}}"))
+          (println "                        io.github.cognitect-labs/test-runner")
+          (println "                        {:git/tag \"v0.5.1\" :git/sha \"dfb30dd\"}}")
           (println (str "           :main-opts [\"-m\" \"cognitect.test-runner\" \"-d\" \"" test-dir "\"]}")))
         (do
           (println (str "     :e2e {:extra-paths [\"" test-dir "\"]"))
