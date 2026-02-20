@@ -1166,8 +1166,8 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (page/wait-for-load-state pg :domcontentloaded)
 (page/wait-for-load-state pg :networkidle)
 
-;; Wait for timeout (sleep)
-(page/wait-for-timeout pg 1000)
+;; Wait for timeout (sleep) — AVOID: prefer event-driven waits above
+;; (page/wait-for-timeout pg 1000)  ; Use only as absolute last resort
 
 ;; Locator wait-for (wait for locator to satisfy condition)
 (locator/wait-for (page/locator pg ".spinner") {:state :hidden})
@@ -3234,6 +3234,9 @@ Before the Allure workflow can deploy:
 | **Roles require** | Always `[com.blockether.spel.roles :as role]` in requires. Use `role/button`, `role/heading`, etc. |
 | **`with-*` macros** | Always use for resource cleanup (never manual try/finally) |
 | **Prefer `--eval` over CLI** | For multi-step browser automation, use `spel --eval '<code>'` or `spel --eval script.clj` instead of chaining standalone CLI commands. `--eval` gives full Clojure composition (loops, conditionals, variables, error handling) in a single browser session. Use standalone CLI commands only for quick one-off actions (e.g. `spel open`, `spel screenshot`). Pipe support: `echo '(code)' \| spel --eval --stdin` for LLM-generated scripts. |
+| **Never use `sleep` / `wait-for-timeout`** | `spel/sleep` and `page/wait-for-timeout` are **anti-patterns**. They introduce flaky timing dependencies and slow down tests. Instead, use event-driven waits: `spel/wait-for` (element condition), `spel/wait-for-url` (navigation), `spel/wait-for-function` (JS predicate), `spel/wait-for-load` (load state), `locator/wait-for` (locator condition). The only acceptable use of sleep is waiting for an animation or transition with no observable state change — and even then, prefer `wait-for-function` with a CSS/JS check. |
+| **Console auto-captured in `--eval`** | `spel --eval` automatically captures browser console messages (`console.log`, `console.warn`, `console.error`) and page errors during evaluation. They are printed to **stderr** after the eval result (format: `[console.TYPE] text`, `[page-error] message`). This is essential for debugging — if something fails silently in the browser, check stderr. In library code, use `page/on-console` and `page/on-page-error` handlers directly. |
+| **SPA navigation: wait after interactions** | In Single Page Applications, elements may not exist in the DOM until their parent is expanded, a tab is clicked, or a route transition completes. After any interaction that changes the DOM (click, navigate, tab switch), always `spel/wait-for` the expected child element before interacting with it. Never assume elements appear synchronously. Pattern: `(spel/click "parent") → (spel/wait-for "child") → (spel/click "child")`. |
 
 ---
 

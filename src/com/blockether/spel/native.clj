@@ -406,11 +406,12 @@
         ;; Bootstrap timeout: 30s for single-action setup commands (state_load, nil eval).
         ;; These are short operations that should never take long.
         boot-timeout 30000
-        ;; Eval timeout: nil = block forever. Each Playwright action has its own
-        ;; timeout (configurable via --timeout flag). The transport layer should NOT
-        ;; race against it — a (do (spel/goto ...) (spel/sleep 60000) (spel/click ...))
-        ;; can legitimately take minutes. If an action hangs, Playwright throws.
-        eval-timeout nil
+        ;; Eval timeout: 4x the per-action timeout, floor 120s.
+        ;; Each Playwright action has its own timeout (--timeout flag, default 30s).
+        ;; The transport needs headroom for multi-action scripts but should fail
+        ;; fast if something truly hangs — not block forever.
+        action-timeout (or (:timeout-ms global) 30000)
+        eval-timeout   (max 120000 (* 4 (long action-timeout)))
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)
@@ -433,11 +434,13 @@
                          (or (get-in resp [:data :error]) (:error resp))))))))
       ;; Send eval command to daemon — no transport timeout.
       ;; Playwright action timeouts are the correct control mechanism.
-      (let [response   (cli/send-command! session
-                         {"action" "sci_eval" "code" code}
-                         eval-timeout)
-            stdout-str (get-in response [:data :stdout])
-            stderr-str (get-in response [:data :stderr])]
+      (let [response     (cli/send-command! session
+                           {"action" "sci_eval" "code" code}
+                           eval-timeout)
+            stdout-str   (get-in response [:data :stdout])
+            stderr-str   (get-in response [:data :stderr])
+            console-msgs (get-in response [:data :console])
+            page-errors  (get-in response [:data :page-errors])]
         ;; Print captured stdout/stderr (from println/binding *err* in evaluated code)
         (when (and stdout-str (not (str/blank? stdout-str)))
           (print stdout-str)
@@ -445,6 +448,17 @@
         (when (and stderr-str (not (str/blank? stderr-str)))
           (binding [*out* *err*]
             (print stderr-str)
+            (flush)))
+        ;; Print browser console messages and page errors to stderr
+        (when (seq console-msgs)
+          (binding [*out* *err*]
+            (doseq [{:strs [type text]} console-msgs]
+              (println (str "[console." type "] " text)))
+            (flush)))
+        (when (seq page-errors)
+          (binding [*out* *err*]
+            (doseq [{:strs [message]} page-errors]
+              (println (str "[page-error] " message)))
             (flush)))
         (if (and response (:success response))
           ;; Success — print the result

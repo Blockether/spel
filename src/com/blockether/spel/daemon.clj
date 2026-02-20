@@ -1205,7 +1205,10 @@
                   c))
           ;; Capture stdout and stderr during evaluation so println/prn work in --eval mode
           stdout-writer (java.io.StringWriter.)
-          stderr-writer (java.io.StringWriter.)]
+          stderr-writer (java.io.StringWriter.)
+          ;; Snapshot console/error state before eval to detect new messages
+          console-before (count @!console-messages)
+          errors-before  (count @!page-errors)]
       (sci-env/set-throw-on-error! true)
       (try
         (let [result (binding [*out* stdout-writer
@@ -1214,22 +1217,33 @@
                          (sync-sci-to-state!)
                          r))
               captured-stdout (str stdout-writer)
-              captured-stderr (str stderr-writer)]
+              captured-stderr (str stderr-writer)
+              ;; Collect NEW console messages and page errors from this eval
+              new-console (subvec @!console-messages console-before)
+              new-errors  (subvec @!page-errors errors-before)]
           (if (anomaly/anomaly? result)
             (cond-> {:error (::anomaly/message result)}
               (seq captured-stdout) (assoc :stdout captured-stdout)
-              (seq captured-stderr) (assoc :stderr captured-stderr))
+              (seq captured-stderr) (assoc :stderr captured-stderr)
+              (seq new-console)     (assoc :console new-console)
+              (seq new-errors)      (assoc :page-errors new-errors))
             (cond-> {:result (pr-str result)}
               (seq captured-stdout) (assoc :stdout captured-stdout)
-              (seq captured-stderr) (assoc :stderr captured-stderr))))
+              (seq captured-stderr) (assoc :stderr captured-stderr)
+              (seq new-console)     (assoc :console new-console)
+              (seq new-errors)      (assoc :page-errors new-errors))))
         (catch Exception e
           (sync-sci-to-state!)
           (let [captured-stdout (str stdout-writer)
-                captured-stderr (str stderr-writer)]
+                captured-stderr (str stderr-writer)
+                new-console (subvec @!console-messages console-before)
+                new-errors  (subvec @!page-errors errors-before)]
             (throw (ex-info (.getMessage e)
                      (cond-> {}
                        (seq captured-stdout) (assoc :stdout captured-stdout)
-                       (seq captured-stderr) (assoc :stderr captured-stderr))
+                       (seq captured-stderr) (assoc :stderr captured-stderr)
+                       (seq new-console)     (assoc :console new-console)
+                       (seq new-errors)      (assoc :page-errors new-errors))
                      e))))))))
 
 ;; --- Close & Default ---

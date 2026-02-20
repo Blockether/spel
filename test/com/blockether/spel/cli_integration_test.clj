@@ -1484,6 +1484,52 @@
         (let [data (ex-data threw)]
           (expect (= "before boom\n" (:stdout data))))))
 
+    ;; --- Console/error auto-inclusion in sci_eval response ---
+
+    (it "sci_eval includes console messages from page in response"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      ;; Page has console.log('test-page-loaded') on load — clear and trigger fresh
+      (cmd "console_clear" {})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"console.log('eval-console-test')\" )"})]
+        (expect (= "nil" (:result r)))
+        (expect (some? (:console r)))
+        (expect (some #(= "eval-console-test" (:text %)) (:console r)))))
+
+    (it "sci_eval includes page errors in response"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "errors_clear" {})
+      ;; Trigger an async error and wait inside the eval for it to fire+propagate
+      (let [r (cmd "sci_eval" {"code" (str "(spel/eval-js \"setTimeout(function(){ throw new Error('test-page-err'); }, 0)\")"
+                                        "(spel/sleep 300)"
+                                        ":done")})]
+        (expect (= ":done" (:result r)))
+        ;; Page errors captured during this eval should be in the response
+        (expect (some? (:page-errors r)))
+        (expect (some #(str/includes? (:message %) "test-page-err") (:page-errors r)))))
+
+    (it "sci_eval omits console/page-errors keys when none during eval"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      ;; Clear existing messages
+      (cmd "console_clear" {})
+      (cmd "errors_clear" {})
+      ;; Eval pure computation — no console output
+      (let [r (cmd "sci_eval" {"code" "(+ 100 200)"})]
+        (expect (= "300" (:result r)))
+        (expect (nil? (:console r)))
+        (expect (nil? (:page-errors r)))))
+
+    (it "sci_eval includes console messages even on eval error"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "console_clear" {})
+      (let [threw (try
+                    (cmd "sci_eval" {"code" "(do (spel/eval-js \"console.warn('before-error')\") (throw (ex-info \"boom\" {})))"})
+                    nil
+                    (catch Exception e e))]
+        (expect (some? threw))
+        (let [data (ex-data threw)]
+          (expect (some? (:console data)))
+          (expect (some #(= "before-error" (:text %)) (:console data))))))
+
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
     (it "stop! does not kill daemon browser"
