@@ -1525,6 +1525,13 @@ jobs:
 
 Runs tests with Allure reporter, generates HTML report with embedded Playwright traces, assembles a multi-build landing page, and deploys to GitHub Pages.
 
+**Version Badges:**
+The landing page displays version badges for each build:
+- **Green "release" badge** for tagged commits (e.g., `v0.3.0`)
+- **Yellow "candidate" badge** for untagged commits (e.g., `v0.3.1-candidate`)
+
+Version is read from `resources/SPEL_VERSION` file and matched against git tags. The workflow automatically detects version and badge type, stores them in `builds-meta.json` and `builds.json`, and renders them in the landing page template.
+
 ```yaml
 name: Allure Report
 
