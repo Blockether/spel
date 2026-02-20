@@ -200,7 +200,7 @@
   (println "  --cdp <url>               Connect via CDP endpoint")
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
-  (println "  --timeout <ms>            Command timeout in ms (default: 30000)")
+  (println "  --timeout <ms>            Playwright action timeout in ms (default: 30000)")
   (println "  --debug                   Debug output")
   (println "  --help, -h                Show this help")
   (println "")
@@ -402,8 +402,15 @@
    from a JSON file before evaluating the code."
   [code global]
   (driver/ensure-driver!)
-  (let [session  (or (:session global) "default")
-        timeout  (or (:timeout-ms global) 30000)
+  (let [session   (or (:session global) "default")
+        ;; Bootstrap timeout: 30s for single-action setup commands (state_load, nil eval).
+        ;; These are short operations that should never take long.
+        boot-timeout 30000
+        ;; Eval timeout: nil = block forever. Each Playwright action has its own
+        ;; timeout (configurable via --timeout flag). The transport layer should NOT
+        ;; race against it — a (do (spel/goto ...) (spel/sleep 60000) (spel/click ...))
+        ;; can legitimately take minutes. If an action hangs, Playwright throws.
+        eval-timeout nil
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)
@@ -415,19 +422,20 @@
       ;; Load state if --load-state specified
       (when-let [state-path (:load-state global)]
         ;; Bootstrap browser first (sci_eval triggers ensure-browser!)
-        (cli/send-command! session {"action" "sci_eval" "code" "nil"} timeout)
+        (cli/send-command! session {"action" "sci_eval" "code" "nil"} boot-timeout)
         ;; Load state into context (replaces context with saved cookies/storage)
         (let [resp (cli/send-command! session
                      {"action" "state_load" "path" state-path}
-                     timeout)]
+                     boot-timeout)]
           (when-not (:success resp)
             (binding [*out* *err*]
               (println (str "Warning: failed to load state from " state-path ": "
                          (or (get-in resp [:data :error]) (:error resp))))))))
-      ;; Send eval command to daemon
+      ;; Send eval command to daemon — no transport timeout.
+      ;; Playwright action timeouts are the correct control mechanism.
       (let [response   (cli/send-command! session
                          {"action" "sci_eval" "code" code}
-                         timeout)
+                         eval-timeout)
             stdout-str (get-in response [:data :stdout])
             stderr-str (get-in response [:data :stderr])]
         ;; Print captured stdout/stderr (from println/binding *err* in evaluated code)

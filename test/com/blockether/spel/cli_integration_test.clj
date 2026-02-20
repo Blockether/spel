@@ -1398,6 +1398,60 @@
       (let [r (cmd "sci_eval" {"code" "(some? SameSiteAttribute/STRICT)"})]
         (expect (= "true" (:result r)))))
 
+    ;; --- @eN ref auto-resolution in SCI ---
+
+    (it "spel/click with @eN ref resolves via snapshot"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      ;; @e1 should resolve to a real element and click without CSS parse error
+      (let [r (cmd "sci_eval" {"code" "(do (spel/click \"@e1\") :clicked)"})]
+        (expect (= ":clicked" (:result r)))))
+
+    (it "spel/$ auto-resolves @eN to a Locator"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      ;; @e1 should resolve to [data-pw-ref="e1"] locator, not throw CSS parse error
+      (let [r (cmd "sci_eval" {"code" "(str (type (spel/$ \"@e1\")))"})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "spel/$ auto-resolves eN (without @) to a Locator"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (let [r (cmd "sci_eval" {"code" "(str (type (spel/$ \"e1\")))"})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "spel/text reads text content via @eN ref"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      ;; e1 is typically the heading or first meaningful element — just verify no error
+      (let [r (cmd "sci_eval" {"code" "(string? (spel/text \"@e1\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "spel/visible? works with @eN ref"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (let [r (cmd "sci_eval" {"code" "(boolean? (spel/visible? \"@e1\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "spel/highlight works with @eN ref"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      ;; highlight returns nil but should not throw
+      (let [r (cmd "sci_eval" {"code" "(do (spel/highlight \"@e1\") :highlighted)"})]
+        (expect (= ":highlighted" (:result r)))))
+
+    (it "spel/$ still works with regular CSS selectors"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(str (type (spel/$ \"h1\")))"})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "spel/assert-visible works with @eN ref"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      ;; assert-visible should not throw for a visible element
+      (let [r (cmd "sci_eval" {"code" "(do (spel/assert-visible \"@e1\") :passed)"})]
+        (expect (= ":passed" (:result r)))))
+
     ;; --- stdout/stderr capture ---
 
     (it "captures stdout from println"

@@ -25,6 +25,7 @@
       (eval-string ctx \"(spel/snapshot)\")
       (eval-string ctx \"(spel/stop!)\")"
   (:require
+   [clojure.string :as str]
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
@@ -114,16 +115,25 @@
 ;; Helpers
 ;; =============================================================================
 
+(defn- ref?
+  "Returns true if the string looks like a snapshot ref (@e1, e1, @e42, e42)."
+  [^String s]
+  (boolean (re-matches #"@?e\d+" s)))
+
 (defn- ->locator-assertions
   "Coerces input to LocatorAssertions. Accepts:
    - LocatorAssertions (pass-through)
    - Locator (wraps with assert-that)
-   - String/other (resolves via page/locator then assert-that)"
+   - String/other (resolves via page/locator or snapshot ref, then assert-that)"
   [sel-or-la]
   (cond
     (instance? LocatorAssertions sel-or-la) sel-or-la
     (instance? Locator sel-or-la) (assert/assert-that sel-or-la)
-    :else (assert/assert-that (page/locator (require-page!) (str sel-or-la)))))
+    :else (let [s (str sel-or-la)]
+            (assert/assert-that
+              (if (ref? s)
+                (snapshot/resolve-ref (require-page!) (str/replace s #"^@" ""))
+                (page/locator (require-page!) s))))))
 
 ;; =============================================================================
 ;; Lifecycle Functions (exposed to SCI)
@@ -239,7 +249,10 @@
 (defn sci-$            [sel-or-loc]
   (if (instance? Locator sel-or-loc)
     sel-or-loc
-    (page/locator (require-page!) (str sel-or-loc))))
+    (let [s (str sel-or-loc)]
+      (if (ref? s)
+        (snapshot/resolve-ref (require-page!) (str/replace s #"^@" ""))
+        (page/locator (require-page!) s)))))
 (defn sci-$$           [sel]  (locator/all (sci-$ sel)))
 (defn sci-$text        [text] (page/get-by-text (require-page!) text))
 (defn sci-$role
@@ -668,22 +681,7 @@
   (snapshot/resolve-ref (require-page!) ref-id))
 (defn sci-clear-refs! []
   (snapshot/clear-refs! (require-page!)))
-(defn sci-click-ref
-  "Clicks an element identified by a snapshot ref ID."
-  [ref-id]
-  (throw-if-anomaly (locator/click (snapshot/resolve-ref (require-page!) ref-id))))
-(defn sci-fill-ref
-  "Fills an input element identified by a snapshot ref ID."
-  [ref-id value]
-  (throw-if-anomaly (locator/fill (snapshot/resolve-ref (require-page!) ref-id) value)))
-(defn sci-type-ref
-  "Types text into an element identified by a snapshot ref ID."
-  [ref-id text]
-  (throw-if-anomaly (locator/type-text (snapshot/resolve-ref (require-page!) ref-id) text)))
-(defn sci-hover-ref
-  "Hovers over an element identified by a snapshot ref ID."
-  [ref-id]
-  (throw-if-anomaly (locator/hover (snapshot/resolve-ref (require-page!) ref-id))))
+
 (defn sci-annotate
   "Injects annotation overlays into the current page for visible elements.
    Takes refs from snapshot and optional display opts."
@@ -938,10 +936,7 @@
                   ['full-snapshot       sci-full-snapshot]
                   ['resolve-ref         sci-resolve-ref]
                   ['clear-refs!         sci-clear-refs!]
-                  ['click-ref           sci-click-ref]
-                  ['fill-ref            sci-fill-ref]
-                  ['type-ref            sci-type-ref]
-                  ['hover-ref           sci-hover-ref]
+
                   ['annotate                 sci-annotate]
                   ['unannotate               sci-unannotate]
                   ['annotated-screenshot     sci-annotated-screenshot]

@@ -1663,7 +1663,12 @@
 
    Connects to the daemon's Unix domain socket, writes one JSON line,
    reads one JSON response line, and closes the connection.
-   `timeout-ms` controls how long to wait for a response (default 30000ms)."
+
+   `timeout-ms` controls how long to wait for a response:
+   - positive long: wait up to that many milliseconds (default 30000)
+   - nil: block indefinitely until the daemon responds or throws.
+     Use nil for --eval mode where each Playwright action has its own
+     timeout — the transport layer should not race against it."
   ([^String session command-map]
    (send-command! session command-map 30000))
   ([^String session command-map timeout-ms]
@@ -1679,10 +1684,15 @@
          (.write writer "\n")
          (.flush writer)
          (let [f      (future (.readLine reader))
-               result (deref f timeout-ms ::timeout)]
-           (when (= ::timeout result)
-             (future-cancel f)
-             (throw (ex-info "Daemon response timed out" {:timeout-ms timeout-ms})))
+               result (if timeout-ms
+                        (let [r (deref f (long timeout-ms) ::timeout)]
+                          (when (= ::timeout r)
+                            (future-cancel f)
+                            (throw (ex-info "Daemon response timed out" {:timeout-ms timeout-ms})))
+                          r)
+                        ;; nil timeout = block forever. Playwright action timeouts
+                        ;; are the correct control mechanism — not the transport layer.
+                        (deref f))]
            (when result
              (json/read-json result :key-fn keyword))))
        (finally

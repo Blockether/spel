@@ -2319,9 +2319,29 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 
 ### `spel/` — Simplified API with implicit page (lifecycle, navigation, actions, assertions)
 
+> **`@eN` ref auto-resolution**: All `spel/` functions that accept a `sel` argument (e.g. `spel/click`, `spel/text`, `spel/fill`, `spel/hover`, `spel/visible?`, `spel/highlight`, `spel/assert-visible`, etc.) automatically resolve `@eN` and `eN` snapshot refs to the correct Playwright Locator. No special helpers needed — just pass the ref directly:
+>
+> ```clojure
+> ;; Preferred — direct ref resolution
+> (spel/click "@e2")
+> (spel/fill "@e3" "hello@example.com")
+> (spel/text "@e1")
+> (spel/visible? "@e1")
+> (spel/highlight "@e1")
+> (spel/assert-visible "@e1")
+>
+> ;; Also works without @ prefix
+> (spel/click "e2")
+> (spel/text "e1")
+>
+> ;; CSS selectors still work as before
+> (spel/click "button.submit")
+> (spel/text "h1")
+> ```
+
 | Function | Args | Description |
 |----------|------|-------------|
-| `spel/$` | [sel-or-loc] | Creates a Locator for finding elements on the page. |
+| `spel/$` | [sel-or-loc] | Creates a Locator. Accepts CSS selector, `@eN`/`eN` snapshot ref, or existing Locator. |
 | `spel/$$` | [sel] | Returns all elements matching the locator as individual locators. |
 | `spel/$alt-text` | [text] | Locates elements by alt text. |
 | `spel/$label` | [text] | Locates elements by their label text. |
@@ -2380,7 +2400,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/clear` | [sel] | Clears input field content. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `spel/click` | [sel] \| [sel opts] | Clicks an element. |
-| `spel/click-ref` | [ref-id] | Clicks an element identified by a snapshot ref ID. |
+
 | `spel/context` | [] | Returns the current BrowserContext instance. |
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
@@ -2407,7 +2427,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
 | `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
 | `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
-| `spel/fill-ref` | [ref-id value] | Fills an input element identified by a snapshot ref ID. |
+
 | `spel/first` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
 | `spel/forward` | [] | Navigates forward in history. |
@@ -2419,7 +2439,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/hidden?` | [sel] | Returns whether the element is hidden. |
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
-| `spel/hover-ref` | [ref-id] | Hovers over an element identified by a snapshot ref ID. |
+
 | `spel/html` | [] | Returns the full HTML content of the page. |
 | `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
@@ -2483,7 +2503,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/trace-group-end` | [] | Closes the current trace group. |
 | `spel/trace-start!` | [] \| [opts] | Starts Playwright tracing on the current context. |
 | `spel/trace-stop!` | [] \| [opts] | Stops Playwright tracing and saves to a file. |
-| `spel/type-ref` | [ref-id text] | Types text into an element identified by a snapshot ref ID. |
+
 | `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
 | `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
 | `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
@@ -2753,14 +2773,18 @@ The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) t
 ;; => {"e1" {:role "heading" :name "Example Domain" :tag "h1" :bbox {:x 0 :y 0 :width 500 :height 40}}
 ;;     "e2" {:role "link" :name "More information..." :tag "a" :bbox {:x 10 :y 100 :width 200 :height 20}}}
 
-;; Click by ref
-(spel/click-ref "e2")
+;; Use refs directly in ANY spel/ function — @eN and eN both work
+(spel/click "@e2")
+(spel/fill "@e3" "hello@example.com")
+(spel/hover "@e1")
+(spel/text "@e1")            ;; read text content of ref
+(spel/visible? "@e1")        ;; check visibility of ref
+(spel/highlight "@e1")       ;; highlight ref element for debugging
+(spel/assert-visible "@e1")  ;; assert ref is visible
 
-;; Fill by ref
-(spel/fill-ref "e3" "hello@example.com")
-
-;; Hover by ref
-(spel/hover-ref "e1")
+;; CSS selectors still work as before
+(spel/click "button.submit")
+(spel/text "h1")
 ```
 
 ### Page Annotation

@@ -1366,14 +1366,18 @@ The snapshot system walks the DOM and assigns numbered refs (`e1`, `e2`, etc.) t
 ;; => {"e1" {:role "heading" :name "Example Domain" :tag "h1" :bbox {:x 0 :y 0 :width 500 :height 40}}
 ;;     "e2" {:role "link" :name "More information..." :tag "a" :bbox {:x 10 :y 100 :width 200 :height 20}}}
 
-;; Click by ref
-(spel/click-ref "e2")
+;; Use refs directly in ANY spel/ function — @eN and eN both work
+(spel/click "@e2")
+(spel/fill "@e3" "hello@example.com")
+(spel/hover "@e1")
+(spel/text "@e1")            ;; read text content of ref
+(spel/visible? "@e1")        ;; check visibility of ref
+(spel/highlight "@e1")       ;; highlight ref element for debugging
+(spel/assert-visible "@e1")  ;; assert ref is visible
 
-;; Fill by ref
-(spel/fill-ref "e3" "hello@example.com")
-
-;; Hover by ref
-(spel/hover-ref "e1")
+;; CSS selectors still work as before
+(spel/click "button.submit")
+(spel/text "h1")
 ```
 
 ### Page Annotation
