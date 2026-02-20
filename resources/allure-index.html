@@ -129,14 +129,41 @@
   </footer>
 
   <script>
+    // --- localStorage scoping by report path + 30-day auto-cleanup ---
     (function() {
-      var saved = localStorage.getItem('spel-theme');
+      var THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+      var prefix = location.pathname.replace(/\/[^/]*$/, '/') + ':';
+      var cleanKey = prefix + '__lastCleaned';
+
+      // Auto-cleanup: clear scoped keys older than 30 days
+      try {
+        var lastCleaned = parseInt(localStorage.getItem(cleanKey), 10);
+        if (!lastCleaned || (Date.now() - lastCleaned) > THIRTY_DAYS) {
+          for (var i = localStorage.length - 1; i >= 0; i--) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf(prefix) === 0) localStorage.removeItem(k);
+          }
+          localStorage.setItem(cleanKey, String(Date.now()));
+        }
+      } catch(e) {}
+
+      // Scoped wrappers
+      var _getItem = localStorage.getItem.bind(localStorage);
+      var _setItem = localStorage.setItem.bind(localStorage);
+      var _removeItem = localStorage.removeItem.bind(localStorage);
+
+      window.__spelGetItem = function(key) { return _getItem(prefix + key); };
+      window.__spelSetItem = function(key, val) { _setItem(prefix + key, val); };
+      window.__spelRemoveItem = function(key) { _removeItem(prefix + key); };
+    })();
+    (function() {
+      var saved = window.__spelGetItem('spel-theme');
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches))
         document.documentElement.classList.add('dark');
     })();
     function toggleTheme() {
       var d = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('spel-theme', d ? 'dark' : 'light');
+      window.__spelSetItem('spel-theme', d ? 'dark' : 'light');
     }
 
     function relativeTime(ts) {
