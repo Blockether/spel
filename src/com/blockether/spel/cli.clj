@@ -38,15 +38,20 @@
       "Usage:"
       "  spel open <url>"
       "  spel open <url> --interactive"
+      "  spel open <url> --screenshot [path]"
       ""
       "Examples:"
       "  spel open https://example.com"
       "  spel open example.com"
       "  spel open file:///tmp/page.html"
       "  spel open https://example.com --interactive"
+      "  spel open https://example.com --screenshot page.png"
+      "  spel open https://example.com --screenshot"
       ""
       "Flags:"
-      "  --interactive    Show browser window (headed mode)"])
+      "  --interactive          Show browser window (headed mode)"
+      "  --screenshot [path]    Take screenshot after navigation; saves to <path> or"
+      "                         a timestamped file in the system temp dir if omitted"])
 
    "back"
    (str/join \newline
@@ -1215,18 +1220,34 @@
           ;; restarted if it was previously running headless. This is the only
           ;; way to get a visible browser window — there is no global --headed flag.
             ("open" "goto" "navigate")
-            (let [interactive? (some #{"--interactive"} cmd-args)
-                  url-args (remove #(str/starts-with? % "-") cmd-args)
-                  raw-url  (first url-args)
-                  url      (when raw-url
-                             (if (or (str/starts-with? raw-url "http://")
-                                   (str/starts-with? raw-url "https://")
-                                   (str/starts-with? raw-url "file://")
-                                   (str/starts-with? raw-url "data:"))
-                               raw-url
-                               (str "https://" raw-url)))]
+            (let [interactive?  (some #{"--interactive"} cmd-args)
+                  ;; Parse --screenshot [path]: flag triggers screenshot after navigation.
+                  ;; Path is optional — if omitted a timestamped temp file is used.
+                  cmd-args-vec  (vec cmd-args)
+                  screenshot?   (some #{"--screenshot"} cmd-args)
+                  ss-idx        (when screenshot?
+                                  (long (.indexOf ^java.util.List cmd-args-vec "--screenshot")))
+                  ss-next       (when (and ss-idx (>= ss-idx 0))
+                                  (nth cmd-args-vec (inc ss-idx) nil))
+                  ;; Only treat the next token as a path if it isn't itself a flag
+                  ss-path       (when (and ss-next (not (str/starts-with? ss-next "-")))
+                                  ss-next)
+                  ;; Exclude flag tokens (and the screenshot path arg) before URL detection
+                  skip-tokens   (cond-> #{"--interactive" "--screenshot"}
+                                  ss-path (conj ss-path))
+                  url-args      (remove #(or (str/starts-with? % "-") (skip-tokens %)) cmd-args)
+                  raw-url       (first url-args)
+                  url           (when raw-url
+                                  (if (or (str/starts-with? raw-url "http://")
+                                        (str/starts-with? raw-url "https://")
+                                        (str/starts-with? raw-url "file://")
+                                        (str/starts-with? raw-url "data:"))
+                                    raw-url
+                                    (str "https://" raw-url)))]
               (cond-> {:action "navigate" :url url}
-                interactive? (assoc :interactive true)))
+                interactive? (assoc :interactive true)
+                screenshot?  (assoc :screenshot true)
+                ss-path      (assoc :screenshot-path ss-path)))
 
           ;; Snapshot (with filter options)
             "snapshot" (let [snap-flags (set cmd-args)]

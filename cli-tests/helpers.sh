@@ -157,6 +157,18 @@ assert_not_empty() {
   fi
 }
 
+# assert_exists: check that a file path exists on disk
+assert_exists() {
+  local name="$1"
+  local path="$2"
+  TOTAL_COUNT=$((TOTAL_COUNT + 1))
+  if [[ -f "$path" ]]; then
+    pass "$name"
+  else
+    fail "$name" "Expected file to exist: $path"
+  fi
+}
+
 # Navigate helper — opens URL (synchronous, blocks until page loads)
 nav() {
   "$SPEL" open "$1" >/dev/null 2>&1
