@@ -697,6 +697,36 @@
   ([refs path] (throw-if-anomaly (annotate/save-annotated-screenshot! (require-page!) refs path)))
   ([refs path opts] (throw-if-anomaly (annotate/save-annotated-screenshot! (require-page!) refs path opts))))
 
+;; Pre-action markers
+(defn sci-mark
+  "Highlights specific snapshot refs with prominent pre-action markers.
+   Accepts ref strings with or without @ prefix."
+  [& refs]
+  (annotate/inject-action-markers! (require-page!) refs))
+(defn sci-unmark
+  "Removes all pre-action markers from the current page."
+  [] (annotate/remove-action-markers! (require-page!)))
+
+;; Audit screenshots
+(defn sci-audit-screenshot
+  "Takes a screenshot with a caption bar at the bottom."
+  ([caption] (throw-if-anomaly (annotate/audit-screenshot (require-page!) caption)))
+  ([caption opts] (throw-if-anomaly (annotate/audit-screenshot (require-page!) caption opts))))
+(defn sci-save-audit-screenshot!
+  "Takes an audit screenshot and saves it to a file."
+  ([caption path] (throw-if-anomaly (annotate/save-audit-screenshot! (require-page!) caption path)))
+  ([caption path opts] (throw-if-anomaly (annotate/save-audit-screenshot! (require-page!) caption path opts))))
+
+;; Report builder (polymorphic entries -> HTML / PDF)
+(defn sci-report->html
+  "Builds a rich HTML report from typed entries. No page needed."
+  ([entries] (annotate/report->html entries))
+  ([entries opts] (annotate/report->html entries opts)))
+(defn sci-report->pdf
+  "Renders a rich HTML report to PDF via Playwright's page.pdf()."
+  ([entries] (throw-if-anomaly (annotate/report->pdf (require-page!) entries)))
+  ([entries opts] (throw-if-anomaly (annotate/report->pdf (require-page!) entries opts))))
+
 ;; =============================================================================
 ;; SCI Namespace Registration
 ;; =============================================================================
@@ -940,7 +970,16 @@
                   ['annotate                 sci-annotate]
                   ['unannotate               sci-unannotate]
                   ['annotated-screenshot     sci-annotated-screenshot]
-                  ['save-annotated-screenshot! sci-save-annotated-screenshot!]])
+                  ['save-annotated-screenshot! sci-save-annotated-screenshot!]
+                  ;; Pre-action markers
+                  ['mark                     sci-mark]
+                  ['unmark                   sci-unmark]
+                  ;; Audit screenshots
+                  ['audit-screenshot         sci-audit-screenshot]
+                  ['save-audit-screenshot!   sci-save-audit-screenshot!]
+                   ;; Report builder (polymorphic entries)
+                  ['report->html             sci-report->html]
+                  ['report->pdf              sci-report->pdf]])
 
         ;; =================================================================
         ;; snapshot/ — Snapshot capture
@@ -957,7 +996,13 @@
         ;; =================================================================
         ann-map  (make-ns-map ann-ns
                    [['annotated-screenshot sci-annotated-screenshot]
-                    ['save!                sci-save-annotated-screenshot!]])
+                    ['save!                sci-save-annotated-screenshot!]
+                    ['mark!                sci-mark]
+                    ['unmark!              sci-unmark]
+                    ['audit-screenshot     sci-audit-screenshot]
+                    ['save-audit!          sci-save-audit-screenshot!]
+                    ['report->html         sci-report->html]
+                    ['report->pdf          sci-report->pdf]])
 
         ;; =================================================================
         ;; input/ — Keyboard, Mouse, Touchscreen (direct pass-throughs)

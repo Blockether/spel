@@ -549,3 +549,407 @@
        bytes
        ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
      nil)))
+
+;; =============================================================================
+;; Pre-action markers (highlight specific refs before interactions)
+;; =============================================================================
+
+(def ^:private remove-action-markers-js
+  "document.querySelectorAll('[data-spel-action-marker]').forEach(function(el){ el.remove(); });
+   var ss = document.getElementById('spel-marker-style'); if(ss) ss.remove();")
+
+(defn- build-action-marker-js
+  "Builds JavaScript that injects prominent action markers on specific refs.
+
+   Each marker consists of:
+   - A pulsing red/orange border (3px solid, CSS animation)
+   - A semi-transparent red fill
+   - A label '→ eN' at top-left identifying the target
+
+   Markers use `data-spel-action-marker` (independent of annotation overlays)."
+  [ref-ids]
+  (let [items (for [ref-id ref-ids]
+                (str "{id:'" ref-id "'}"))]
+    (str
+      "(function(){"
+      ;; Inject keyframe animation via <style> tag (once)
+      "if(!document.getElementById('spel-marker-style')){"
+      "  var style=document.createElement('style');"
+      "  style.id='spel-marker-style';"
+      "  style.textContent='@keyframes spel-pulse{0%,100%{border-color:#FF4444;box-shadow:0 0 8px rgba(255,68,68,0.6);}50%{border-color:#FF8800;box-shadow:0 0 12px rgba(255,136,0,0.8);}}';"
+      "  document.head.appendChild(style);"
+      "}"
+      "var sx=window.scrollX||0,sy=window.scrollY||0;"
+      "var items=[" (apply str (interpose "," items)) "];"
+      "var count=0;"
+      "items.forEach(function(item){"
+      "  var el=document.querySelector('[data-pw-ref=\"'+item.id+'\"]');"
+      "  if(!el)return;"
+      "  var r=el.getBoundingClientRect();"
+      "  if(r.width===0&&r.height===0)return;"
+      ;; Container
+      "  var mk=document.createElement('div');"
+      "  mk.setAttribute('data-spel-action-marker','box');"
+      "  mk.style.cssText='position:absolute;pointer-events:none;z-index:2147483646;"
+      "border:3px solid #FF4444;background:rgba(255,68,68,0.12);box-sizing:border-box;"
+      "animation:spel-pulse 2s ease-in-out infinite;';"
+      "  mk.style.top=(r.top+sy)+'px';"
+      "  mk.style.left=(r.left+sx)+'px';"
+      "  mk.style.width=r.width+'px';"
+      "  mk.style.height=r.height+'px';"
+      ;; Label
+      "  var lbl=document.createElement('div');"
+      "  lbl.setAttribute('data-spel-action-marker','label');"
+      "  lbl.textContent='\\u2192 '+item.id;"
+      "  lbl.style.cssText='position:absolute;top:-18px;left:0;background:#FF4444;color:#fff;"
+      "font:bold 10px/1 sans-serif;padding:2px 6px;white-space:nowrap;border-radius:2px;"
+      "pointer-events:none;';"
+      "  mk.appendChild(lbl);"
+      "  document.documentElement.appendChild(mk);"
+      "  count++;"
+      "});"
+      "return count;"
+      "})()")))
+
+(defn inject-action-markers!
+  "Injects prominent pre-action markers on specific snapshot refs.
+
+   Markers are visually distinct from annotation overlays: bright red/orange
+   pulsing border with a '→ eN' label. Used to highlight elements before
+   interacting with them, making screenshots self-documenting.
+
+   Markers use `data-spel-action-marker` attribute and are independent of
+   annotation overlays (`data-spel-annotate`).
+
+   Params:
+   `page`    - Playwright Page instance.
+   `ref-ids` - Collection of ref ID strings (e.g. [\"e5\" \"e12\"]).
+               Accepts both \"e5\" and \"@e5\" formats (@ is stripped).
+
+   Returns:
+   Count of successfully created markers (long)."
+  [^Page page ref-ids]
+  (let [clean-ids (mapv #(str/replace (str %) #"^@" "") ref-ids)]
+    (if (empty? clean-ids)
+      0
+      (long (page/evaluate page (build-action-marker-js clean-ids))))))
+
+(defn remove-action-markers!
+  "Removes all pre-action markers from the page DOM.
+
+   Returns: nil."
+  [^Page page]
+  (page/evaluate page remove-action-markers-js)
+  nil)
+
+;; =============================================================================
+;; Audit screenshots (screenshot with caption overlay)
+;; =============================================================================
+
+(defn- build-caption-js
+  "Builds JavaScript that injects a caption bar at the bottom of the viewport."
+  [^String caption-text]
+  (let [escaped (-> caption-text
+                  (str/replace "\\" "\\\\")
+                  (str/replace "'" "\\'")
+                  (str/replace "\n" "\\n"))]
+    (str
+      "(function(){"
+      "var bar=document.createElement('div');"
+      "bar.setAttribute('data-spel-caption','bar');"
+      "bar.textContent='" escaped "';"
+      "bar.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:2147483647;"
+      "background:rgba(0,0,0,0.85);color:#fff;font:bold 13px/1.4 -apple-system,sans-serif;"
+      "padding:8px 16px;pointer-events:none;text-align:center;';"
+      "document.documentElement.appendChild(bar);"
+      "})()")))
+
+(def ^:private remove-caption-js
+  "document.querySelectorAll('[data-spel-caption]').forEach(function(el){ el.remove(); });")
+
+(defn audit-screenshot
+  "Takes a screenshot with an optional caption bar at the bottom.
+
+   Can also include annotation overlays and/or action markers.
+   The caption is injected as a fixed-position bar, captured in the
+   screenshot, then removed — page state is not modified.
+
+   Params:
+   `page`    - Playwright Page instance.
+   `caption` - String. Caption text to display at the bottom of the screenshot.
+   `opts`    - Map, optional.
+     :refs      - Snapshot refs map. When provided, annotation overlays are included.
+     :markers   - Collection of ref IDs to mark (e.g. [\"e5\"]). Action markers are included.
+     :full-page - Boolean (default false). Capture full scrollable page.
+
+   Returns:
+   byte[] of the PNG."
+  ([^Page page ^String caption]
+   (audit-screenshot page caption {}))
+  ([^Page page ^String caption opts]
+   (let [has-refs    (seq (:refs opts))
+         has-markers (seq (:markers opts))]
+     ;; Inject layers
+     (when has-refs
+       (inject-overlays! page (:refs opts) (dissoc opts :refs :markers :full-page)))
+     (when has-markers
+       (inject-action-markers! page (:markers opts)))
+     (when (seq caption)
+       (page/evaluate page (build-caption-js caption)))
+     (try
+       (page/screenshot page (cond-> {}
+                               (:full-page opts) (assoc :full-page true)))
+       (finally
+         ;; Clean up all injected layers
+         (when (seq caption)
+           (page/evaluate page remove-caption-js))
+         (when has-markers
+           (remove-action-markers! page))
+         (when has-refs
+           (remove-overlays! page)))))))
+
+(defn save-audit-screenshot!
+  "Takes an audit screenshot and saves it to a file.
+
+   Params:
+   `page`    - Playwright Page instance.
+   `caption` - String. Caption text for the screenshot.
+   `path`    - String. File path for the output PNG.
+   `opts`    - Map, optional. Same as audit-screenshot.
+
+   Returns: nil."
+  ([^Page page ^String caption ^String path]
+   (save-audit-screenshot! page caption path {}))
+  ([^Page page ^String caption ^String path opts]
+   (let [^bytes bytes (audit-screenshot page caption opts)]
+     (java.nio.file.Files/write
+       (java.nio.file.Paths/get path (into-array String []))
+       bytes
+       ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+     nil)))
+
+;; =============================================================================
+;; Report Builder — Polymorphic HTML/PDF from typed entries
+;; =============================================================================
+
+(def ^:private report-css
+  "CSS styles for the report HTML document.
+   Designed for both browser viewing and Chromium's page.pdf() renderer."
+  (str
+    "body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+    "max-width:900px;margin:0 auto;padding:20px;color:#1a1a1a;line-height:1.6;}"
+    "h1{color:#2d2d2d;border-bottom:3px solid #4CAF50;padding-bottom:10px;font-size:22px;}"
+    "h2{color:#333;border-bottom:1px solid #ddd;padding-bottom:6px;margin-top:40px;font-size:18px;}"
+    "h3{color:#555;margin-top:25px;font-size:15px;}"
+    ".screenshot{width:100%;border:1px solid #ddd;border-radius:4px;margin:12px 0;"
+    "box-shadow:0 2px 4px rgba(0,0,0,0.1);}"
+    ".caption{color:#666;font-size:0.9em;font-style:italic;margin-top:-8px;margin-bottom:16px;}"
+    ".observation{background:#f8f9fa;border-left:4px solid #2196F3;padding:12px 16px;"
+    "margin:12px 0;border-radius:0 4px 4px 0;}"
+    ".issue{background:#fff3cd;border-left:4px solid #FF9800;padding:12px 16px;"
+    "margin:12px 0;border-radius:0 4px 4px 0;}"
+    ".good{background:#d4edda;border-left:4px solid #4CAF50;padding:12px 16px;"
+    "margin:12px 0;border-radius:0 4px 4px 0;}"
+    "table{border-collapse:collapse;width:100%;margin:12px 0;}"
+    "th,td{border:1px solid #ddd;padding:8px 12px;text-align:left;}"
+    "th{background:#f5f5f5;font-weight:600;}"
+    "code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:0.9em;}"
+    ".page-break{page-break-before:always;}"
+    ".meta{color:#555;font-size:0.95em;margin-bottom:20px;}"
+    ".meta strong{color:#333;}"
+    "ul{margin:6px 0;padding-left:24px;}"
+    "li{margin:2px 0;}"
+    "hr{border:none;border-top:1px solid #ddd;margin:30px 0;}"))
+
+(defn- escape-html
+  "Escapes HTML special characters in a string."
+  [^String s]
+  (when s
+    (-> s
+      (.replace "&" "&amp;")
+      (.replace "<" "&lt;")
+      (.replace ">" "&gt;")
+      (.replace "\"" "&quot;"))))
+
+(defn- encode-b64
+  "Base64-encodes a byte array to a string."
+  [^bytes bs]
+  (.encodeToString (java.util.Base64/getEncoder) bs))
+
+(defn- render-items
+  "Renders an optional :items sequence as a <ul> list."
+  [items]
+  (when (seq items)
+    (str "<ul>"
+      (apply str (map #(str "<li>" (escape-html (str %)) "</li>") items))
+      "</ul>")))
+
+(defn- render-entry
+  "Renders a single report entry to HTML based on its :type.
+
+   Supported types:
+   :screenshot  — {:image byte[] :caption str}
+   :section     — {:text str :level int :page-break bool}
+   :observation — {:text str :items [str...]}
+   :issue       — {:text str :items [str...]}
+   :good        — {:text str :items [str...]}
+   :table       — {:headers [str...] :rows [[str...]...]}
+   :meta        — {:fields [[label value]...]}
+   :text        — {:text str}
+   :html        — {:content str}  (raw HTML, no escaping)"
+  [entry idx]
+  (case (:type entry)
+    :screenshot
+    (let [img (:image entry)
+          caption (:caption entry)]
+      (str (when (:page-break entry) "<div class='page-break'></div>")
+        "<img class='screenshot' src='data:image/png;base64," (encode-b64 img)
+        "' alt='Screenshot " (inc idx) "'/>"
+        (when caption
+          (str "<p class='caption'>" (escape-html caption) "</p>"))))
+
+    :section
+    (let [level (min 3 (max 1 (or (:level entry) 2)))
+          tag   (str "h" level)]
+      (str (when (:page-break entry) "<div class='page-break'></div>")
+        "<" tag ">" (escape-html (:text entry)) "</" tag ">"))
+
+    :observation
+    (str "<div class='observation'>"
+      (when-let [t (:text entry)]
+        (str "<strong>" (escape-html t) "</strong>"))
+      (render-items (:items entry))
+      "</div>")
+
+    :issue
+    (str "<div class='issue'>"
+      (when-let [t (:text entry)]
+        (str "<strong>" (escape-html t) "</strong>"))
+      (render-items (:items entry))
+      "</div>")
+
+    :good
+    (str "<div class='good'>"
+      (when-let [t (:text entry)]
+        (str "<strong>" (escape-html t) "</strong>"))
+      (render-items (:items entry))
+      "</div>")
+
+    :table
+    (let [{:keys [headers rows]} entry]
+      (str "<table>"
+        (when (seq headers)
+          (str "<tr>"
+            (apply str (map #(str "<th>" (escape-html (str %)) "</th>") headers))
+            "</tr>"))
+        (apply str
+          (map (fn [row]
+                 (str "<tr>"
+                   (apply str (map #(str "<td>" (escape-html (str %)) "</td>") row))
+                   "</tr>"))
+            rows))
+        "</table>"))
+
+    :meta
+    (str "<div class='meta'>"
+      (apply str
+        (map (fn [[label value]]
+               (str "<strong>" (escape-html (str label)) ":</strong> "
+                 (escape-html (str value)) "<br>"))
+          (:fields entry)))
+      "</div>")
+
+    :text
+    (str "<p>" (escape-html (:text entry)) "</p>")
+
+    :html
+    (str (:content entry))
+
+    ;; Unknown type — throw
+    (throw (ex-info (str "Unknown report entry type: " (pr-str (:type entry))
+                      ". Supported: :screenshot :section :observation :issue :good :table :meta :text :html")
+             {:entry entry}))))
+
+(defn- build-report-html
+  "Builds an HTML document from a sequence of typed report entries.
+
+   Each entry is a map with a :type key that determines rendering.
+   See `render-entry` for supported types.
+
+   The HTML is designed for both browser viewing and Chromium's page.pdf()."
+  [entries title]
+  (str
+    "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
+    "<title>" (escape-html (or title "Report")) "</title>"
+    "<style>" report-css "</style>"
+    "</head><body>"
+    (when title
+      (str "<h1>" (escape-html title) "</h1>"))
+    (apply str (map-indexed (fn [i entry] (render-entry entry i)) entries))
+    "<hr><p><em>Generated by spel</em></p>"
+    "</body></html>"))
+
+(defn report->html
+  "Builds a rich HTML report from a sequence of typed entries.
+
+   Each entry is a map with a :type key that determines rendering:
+
+   :screenshot  — {:type :screenshot :image byte[] :caption str :page-break bool}
+   :section     — {:type :section :text str :level (1|2|3) :page-break bool}
+   :observation — {:type :observation :text str :items [str...]}
+   :issue       — {:type :issue :text str :items [str...]}
+   :good        — {:type :good :text str :items [str...]}
+   :table       — {:type :table :headers [str...] :rows [[str...]...]}
+   :meta        — {:type :meta :fields [[label value]...]}
+   :text        — {:type :text :text str}
+   :html        — {:type :html :content str}  (raw HTML, no escaping)
+
+   Params:
+   `entries` - Sequence of typed entry maps.
+   `opts`    - Map, optional.
+     :title  - String. Document title and h1 heading.
+
+   Returns:
+   String of the HTML document."
+  ([entries]
+   (report->html entries {}))
+  ([entries opts]
+   (build-report-html entries (:title opts))))
+
+(defn report->pdf
+  "Renders a rich HTML report to PDF via Playwright's page.pdf().
+
+   Same entry types as `report->html`. Requires a Chromium headless page.
+
+   Params:
+   `page`    - Playwright Page instance (Chromium headless only).
+   `entries` - Sequence of typed entry maps (see `report->html`).
+   `opts`    - Map, optional.
+     :title  - String. Document title and h1 heading.
+     :path   - String. Output file path. If nil, returns byte[].
+     :format - String. Page format (default \"A4\").
+     :margin - Map with :top :bottom :left :right (default 20px each).
+
+   Returns:
+   byte[] of the PDF, or nil if :path was provided."
+  ([^Page page entries]
+   (report->pdf page entries {}))
+  ([^Page page entries opts]
+   (let [html     (build-report-html entries (:title opts))
+         old-url  (page/url page)
+         pdf-opts (cond-> {:format (or (:format opts) "A4")
+                           :print-background true
+                           :margin (or (:margin opts)
+                                     {:top "20px" :bottom "20px"
+                                      :left "20px" :right "20px"})}
+                    (:path opts) (assoc :path (:path opts)))]
+     ;; Load the HTML into the page, render PDF, then restore
+     (page/set-content! page html)
+     (page/wait-for-load-state page)
+     (let [result (page/pdf page pdf-opts)]
+       ;; Restore previous page state
+       (when (and old-url (not= old-url "about:blank"))
+         (try (page/navigate page old-url) (catch Exception _)))
+       (if (:path opts)
+         nil
+         result)))))

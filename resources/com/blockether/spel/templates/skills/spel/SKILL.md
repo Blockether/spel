@@ -453,12 +453,18 @@ Auto-generated from source code. Each namespace lists public functions with args
 | Function | Args | Description |
 |----------|------|-------------|
 | `annotated-screenshot` | [page refs] \| [page refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `audit-screenshot` | [page caption] \| [page caption opts] | Takes a screenshot with caption bar at bottom. Opts: `:refs`, `:markers`, `:full-page`. |
 | `check-visible-refs` | [page refs] | Runs JavaScript in the page to determine which refs are truly visible. |
 | `filter-annotatable` | [refs] | Filters refs to only those worth rendering as overlays. |
+| `inject-action-markers!` | [page ref-ids] | Injects prominent pre-action markers (pulsing red border + label) on specific refs. Returns count. |
 | `inject-overlays!` | [page refs] \| [page refs opts] | Injects annotation overlays into the page DOM for visible elements only. |
+| `remove-action-markers!` | [page] | Removes all pre-action markers from the page DOM. |
 | `remove-containers` | [refs] | Removes refs whose bbox fully contains another ref's bbox. |
 | `remove-overlays!` | [page] | Removes all annotation overlays from the page DOM. |
 | `save-annotated-screenshot!` | [page refs path] \| [page refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `save-audit-screenshot!` | [page caption path] \| [page caption path opts] | Takes an audit screenshot and saves it to a file. |
+| `report->html` | [entries] \| [entries opts] | Builds rich HTML report from typed entries. Opts: `:title`. No page needed. |
+| `report->pdf` | [page entries] \| [page entries opts] | Renders typed entries to PDF via page.pdf(). Opts: `:title`, `:path`, `:format`, `:margin`. |
 | `visible-refs` | [viewport refs] | Filters refs to only those whose bbox is at least partially visible |
 
 ### `codegen` — JSONL to Clojure transformer
@@ -2249,6 +2255,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/all-text-contents` | [sel] | Returns all text contents for matching elements. |
 | `spel/annotate` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `spel/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `spel/audit-screenshot` | [caption] \| [caption opts] | Screenshot with caption bar at bottom. Opts: `:refs`, `:markers`, `:full-page`. |
 | `spel/assert-accessible-description` | [sel desc] | Asserts the locator has the specified accessible description. |
 | `spel/assert-accessible-error-message` | [sel msg] | Asserts the locator has the specified accessible error message. |
 | `spel/assert-accessible-name` | [sel name-val] | Asserts the locator has the specified accessible name. |
@@ -2349,6 +2356,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/loc-wait-for` | [sel] \| [sel opts] | Waits for the locator to satisfy a condition. |
 | `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
 | `spel/main-frame` | [] | Returns the main frame of the page. |
+| `spel/mark` | [& refs] | Highlights specific @eN refs with prominent pre-action markers (pulsing red border + arrow label). Returns count. |
 | `spel/mouse` | [] | Returns the Mouse for this page. |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
 | `spel/nth` | [sel n] | Returns the nth element matching the locator. |
@@ -2372,7 +2380,10 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/route-from-har!` | [har] \| [har opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
 | `spel/route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
 | `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `spel/save-audit-screenshot!` | [caption path] \| [caption path opts] | Takes an audit screenshot with caption and saves to file. |
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
+| `spel/report->html` | [entries] \| [entries opts] | Builds rich HTML report from typed entries. No page needed. Opts: `:title`. |
+| `spel/report->pdf` | [entries] \| [entries opts] | Renders typed entries to PDF via page.pdf(). Opts: `:title`, `:path`, `:format`, `:margin`. |
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
 | `spel/select` | [sel values] | Selects options in a select element. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
@@ -2400,6 +2411,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
 | `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
 | `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
+| `spel/unmark` | [] | Removes all pre-action markers from the current page. |
 | `spel/unroute!` | [pattern] | Removes a route handler. |
 | `spel/url` | [] | Returns the current page URL. |
 | `spel/value` | [sel] | Returns the input value of an input element. |
@@ -2427,7 +2439,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | Function | Args | Description |
 |----------|------|-------------|
 | `annotate/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
+| `annotate/audit-screenshot` | [caption] \| [caption opts] | Screenshot with caption bar. Opts: `:refs`, `:markers`, `:full-page`. |
+| `annotate/mark!` | [& refs] | Highlights specific @eN refs with pre-action markers. Returns count. |
 | `annotate/save!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `annotate/save-audit!` | [caption path] \| [caption path opts] | Audit screenshot saved to file. |
+| `annotate/report->html` | [entries] \| [entries opts] | Builds rich HTML report from typed entries. No page needed. |
+| `annotate/report->pdf` | [entries] \| [entries opts] | Renders typed entries to PDF. |
+| `annotate/unmark!` | [] | Removes all pre-action markers. |
 
 ### `input/` — Keyboard, mouse, touchscreen (explicit device arg)
 
@@ -2698,6 +2716,109 @@ Inject visual overlays (bounding boxes, ref badges, dimension labels) onto the p
 
 ;; One-shot convenience (inject → screenshot → cleanup):
 (spel/save-annotated-screenshot! (:refs snap) "annotated.png")
+```
+
+### Pre-action Markers
+
+Highlight specific refs before interacting with them — makes screenshots self-documenting:
+
+```clojure
+;; Mark elements you're about to interact with
+(def snap (spel/snapshot))
+(spel/mark "@e5" "@e12")              ;; red pulsing border + "→ e5" label
+(spel/screenshot "before-click.png")  ;; screenshot shows which elements are targeted
+(spel/unmark)                         ;; clean up
+
+;; Markers coexist with annotation overlays
+(spel/annotate (:refs snap))
+(spel/mark "@e5")
+(spel/screenshot "annotated-with-target.png")
+(spel/unmark)
+(spel/unannotate)
+```
+
+### Audit Screenshots
+
+Take screenshots with captions baked in:
+
+```clojure
+;; Screenshot with caption bar at bottom
+(spel/audit-screenshot "Overview shows 100% pass rate")
+
+;; With annotations and markers included
+(def snap (spel/snapshot))
+(spel/audit-screenshot "About to click trace viewer"
+  {:refs (:refs snap) :markers ["e5" "e12"]})
+
+;; Save directly to file
+(spel/save-audit-screenshot! "Login page loaded" "01-login.png")
+```
+
+### Report Builder (`report->html` / `report->pdf`)
+
+Build rich HTML or PDF reports from a sequence of **typed entries**. Each entry is a map with a `:type` key.
+
+#### Supported Entry Types
+
+| Type | Required Keys | Optional Keys | Description |
+|------|---------------|---------------|-------------|
+| `:screenshot` | `:image` (byte[]) | `:caption` (str), `:page-break` (bool) | Screenshot with caption |
+| `:section` | `:text` (str) | `:level` (1\|2\|3, default 2), `:page-break` (bool) | Section heading (h1/h2/h3) |
+| `:observation` | `:text` (str) | `:items` ([str...]) | Blue callout — neutral finding |
+| `:issue` | `:text` (str) | `:items` ([str...]) | Orange callout — warning/problem |
+| `:good` | `:text` (str) | `:items` ([str...]) | Green callout — positive finding |
+| `:table` | `:headers` ([str...]), `:rows` ([[str...]...]) | — | Data table |
+| `:meta` | `:fields` ([[label value]...]) | — | Metadata block (key-value pairs) |
+| `:text` | `:text` (str) | — | Plain paragraph |
+| `:html` | `:content` (str) | — | Raw HTML (no escaping) |
+
+#### Options
+
+| Key | Description |
+|-----|-------------|
+| `:title` | Document title — rendered as `<h1>` and `<title>` |
+| `:path` | (PDF only) Output file path. If nil, returns byte[] |
+| `:format` | (PDF only) Page format, default `"A4"` |
+| `:margin` | (PDF only) Map with `:top` `:bottom` `:left` `:right` |
+
+#### Example — Full Audit Report
+
+```clojure
+;; Build a rich report mixing screenshots, callouts, tables, and text
+(spel/goto "https://example.com/dashboard")
+(def img1 (spel/audit-screenshot "Dashboard overview"))
+
+(spel/goto "https://example.com/settings")
+(def img2 (spel/audit-screenshot "Settings page"))
+
+(def entries
+  [{:type :meta :fields [["Date" "2026-02-20"]
+                          ["URL" "https://example.com"]
+                          ["Build" "#62"]]}
+   {:type :section :text "1. Executive Summary" :level 2}
+   {:type :good :text "All tests pass — 100% success rate"
+    :items ["1040 tests executed" "No flaky tests" "Trace viewer works"]}
+   {:type :issue :text "Missing clojure-test results in CI"
+    :items ["CI only runs lazytest" "Need to add test-ct step"]}
+   {:type :section :text "2. Dashboard" :level 2}
+   {:type :screenshot :image img1 :caption "Fig 1. Dashboard overview"}
+   {:type :observation :text "Dashboard loads correctly"
+    :items ["Charts render" "Navigation works" "Data up to date"]}
+   {:type :section :text "3. Settings" :level 2 :page-break true}
+   {:type :screenshot :image img2 :caption "Fig 2. Settings page"}
+   {:type :table :headers ["#" "Finding" "Severity"]
+    :rows [["1" "No clojure-test results" "Medium"]
+           ["2" "Trace viewer works" "Verified"]
+           ["3" "Severity tagging sparse" "Low"]]}
+   {:type :text :text "Report complete."}])
+
+;; Save as HTML (no page needed — pure data)
+(spit "audit-report.html"
+  (spel/report->html entries {:title "Audit Report #62"}))
+
+;; Render to PDF (needs Chromium page for page.pdf())
+(spel/report->pdf entries
+  {:title "Audit Report #62" :path "audit-report.pdf"})
 ```
 
 ### Daemon Architecture
@@ -3237,6 +3358,7 @@ Before the Allure workflow can deploy:
 | **Never use `sleep` / `wait-for-timeout`** | `spel/sleep` and `page/wait-for-timeout` are **anti-patterns**. They introduce flaky timing dependencies and slow down tests. Instead, use event-driven waits: `spel/wait-for` (element condition), `spel/wait-for-url` (navigation), `spel/wait-for-function` (JS predicate), `spel/wait-for-load` (load state), `locator/wait-for` (locator condition). The only acceptable use of sleep is waiting for an animation or transition with no observable state change — and even then, prefer `wait-for-function` with a CSS/JS check. |
 | **Console auto-captured in `--eval`** | `spel --eval` automatically captures browser console messages (`console.log`, `console.warn`, `console.error`) and page errors during evaluation. They are printed to **stderr** after the eval result (format: `[console.TYPE] text`, `[page-error] message`). This is essential for debugging — if something fails silently in the browser, check stderr. In library code, use `page/on-console` and `page/on-page-error` handlers directly. |
 | **SPA navigation: wait after interactions** | In Single Page Applications, elements may not exist in the DOM until their parent is expanded, a tab is clicked, or a route transition completes. After any interaction that changes the DOM (click, navigate, tab switch), always `spel/wait-for` the expected child element before interacting with it. Never assume elements appear synchronously. Pattern: `(spel/click "parent") → (spel/wait-for "child") → (spel/click "child")`. |
+| **Reports via `report->html` / `report->pdf`** | When asked to produce a report, audit, review, or visual summary, **always** use `spel/report->html` and `spel/report->pdf` from `--eval`. Build entries as typed maps (`:screenshot`, `:section`, `:observation`, `:issue`, `:good`, `:table`, `:meta`, `:text`, `:html`), then render. Save HTML with `(spit path (spel/report->html entries opts))` — no page needed. For PDF, use `(spel/report->pdf entries {:path "file.pdf"})`. Never hand-craft HTML strings for reports — the report builder handles layout, CSS, page breaks, and base64 image encoding. |
 
 ---
 

@@ -34,6 +34,7 @@ lancedb
 test-results/
 allure-results/
 allure-report/
+allure-review/
 .allure-history.jsonl
 /data/
 /debug/

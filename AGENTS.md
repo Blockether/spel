@@ -131,6 +131,18 @@ git tag v0.1.0 && git push --tags
 
 ---
 
+## API Design Policy
+
+**No backward compatibility.** This project is pre-1.0. When improving an API:
+
+- **Break old callers freely** — do not add shims, fallbacks, or "if old format then..." branches.
+- **Remove deprecated functions immediately** — no deprecation period, no `-legacy` suffixes.
+- **Prefer clean APIs over migration paths** — if the new design is better, ship it and update all call sites.
+
+This applies to library functions, SCI wrappers, CLI commands, and entry formats alike.
+
+---
+
 ## Testing Policy (MANDATORY)
 
 Every code change **MUST** include corresponding tests. No exceptions.

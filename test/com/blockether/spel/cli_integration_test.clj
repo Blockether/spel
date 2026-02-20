@@ -1178,7 +1178,204 @@
         (expect (true? (:removed r)))))))
 
 ;; =============================================================================
-;; 41. Console Start / Errors Start
+;; 41a. Pre-action Markers (mark/unmark)
+;; =============================================================================
+
+(defdescribe action-markers-integration-test
+  "Integration tests for pre-action markers (mark/unmark) via sci_eval"
+
+  (describe "action markers via sci_eval"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "mark returns count of marked elements"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (let [r (cmd "sci_eval" {"code" "(spel/mark \"@e1\")"})]
+        (expect (= "1" (:result r)))))
+
+    (it "mark handles multiple refs"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (let [r (cmd "sci_eval" {"code" "(spel/mark \"@e1\" \"e2\")"})]
+        (expect (pos? (parse-long (:result r))))))
+
+    (it "unmark removes all markers"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (cmd "sci_eval" {"code" "(spel/mark \"@e1\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/unmark)"})]
+        (expect (= "nil" (:result r)))))
+
+    (it "mark returns 0 for non-existent refs"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(spel/mark \"e999\")"})]
+        (expect (= "0" (:result r)))))
+
+    (it "markers coexist with annotation overlays"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [_snap (cmd "sci_eval" {"code" "(spel/snapshot)"})
+            _      (cmd "sci_eval" {"code" "(spel/annotate (:refs (read-string (str (spel/snapshot)))))"})
+            _mark  (cmd "sci_eval" {"code" "(spel/mark \"@e1\")"})
+            ;; Verify markers are present (data-spel-action-marker)
+            marker-check (cmd "sci_eval" {"code" "(spel/eval-js \"document.querySelectorAll('[data-spel-action-marker]').length\")"})
+            ;; Verify annotations are also present (data-spel-annotate)
+            annot-check  (cmd "sci_eval" {"code" "(spel/eval-js \"document.querySelectorAll('[data-spel-annotate]').length\")"})]
+        (expect (pos? (parse-long (:result marker-check))))
+        (expect (pos? (parse-long (:result annot-check))))
+        ;; Cleanup
+        (cmd "sci_eval" {"code" "(spel/unmark)"})
+        (cmd "sci_eval" {"code" "(spel/unannotate)"})))))
+
+;; =============================================================================
+;; 41b. Audit Screenshots
+;; =============================================================================
+
+(defdescribe audit-screenshot-integration-test
+  "Integration tests for audit-screenshot with caption"
+
+  (describe "audit screenshot via sci_eval"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "audit-screenshot returns bytes"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(type (spel/audit-screenshot \"Test caption\"))"})]
+        (expect (str/includes? (:result r) "byte"))))
+
+    (it "audit-screenshot with markers option"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/snapshot)"})
+      (let [r (cmd "sci_eval" {"code" "(type (spel/audit-screenshot \"With markers\" {:markers [\"e1\"]}))"})]
+        (expect (str/includes? (:result r) "byte"))
+        ;; Verify markers were cleaned up
+        (let [check (cmd "sci_eval" {"code" "(spel/eval-js \"document.querySelectorAll('[data-spel-action-marker]').length\")"})]
+          (expect (= "0" (:result check))))))
+
+    (it "caption is cleaned up after screenshot"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (cmd "sci_eval" {"code" "(spel/audit-screenshot \"Temporary caption\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"document.querySelectorAll('[data-spel-caption]').length\")"})]
+        (expect (= "0" (:result r)))))))
+
+;; =============================================================================
+;; 41c. Report Builder (report->html / report->pdf)
+;; =============================================================================
+
+(defdescribe report-builder-integration-test
+  "Integration tests for report->html and report->pdf with polymorphic entries"
+
+  (describe "report->html entry types"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it ":screenshot entry renders image + caption"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(let [img (spel/screenshot)
+                                              html (spel/report->html [{:type :screenshot :image img :caption \"Test shot\"}])]
+                                          (and (clojure.string/includes? html \"data:image/png;base64,\")
+                                               (clojure.string/includes? html \"Test shot\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":section entry renders heading"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :section :text \"My Section\" :level 2}])]
+                                          (clojure.string/includes? html \"<h2>My Section</h2>\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":section with page-break"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :section :text \"Break\" :level 2 :page-break true}])]
+                                          (clojure.string/includes? html \"page-break\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":observation entry renders blue callout"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :observation :text \"Noted\" :items [\"Item A\" \"Item B\"]}])]
+                                          (and (clojure.string/includes? html \"observation\")
+                                               (clojure.string/includes? html \"Noted\")
+                                               (clojure.string/includes? html \"Item A\")
+                                               (clojure.string/includes? html \"Item B\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":issue entry renders orange callout"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :issue :text \"Problem found\"}])]
+                                          (and (clojure.string/includes? html \"issue\")
+                                               (clojure.string/includes? html \"Problem found\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":good entry renders green callout"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :good :text \"All good\" :items [\"Passed\"]}])]
+                                          (and (clojure.string/includes? html \"good\")
+                                               (clojure.string/includes? html \"All good\")
+                                               (clojure.string/includes? html \"Passed\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":table entry renders headers and rows"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :table :headers [\"Name\" \"Value\"] :rows [[\"A\" \"1\"] [\"B\" \"2\"]]}])]
+                                          (and (clojure.string/includes? html \"<th>Name</th>\")
+                                               (clojure.string/includes? html \"<td>A</td>\")
+                                               (clojure.string/includes? html \"<td>2</td>\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":meta entry renders field pairs"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :meta :fields [[\"Date\" \"2026-02-20\"] [\"Build\" \"#62\"]]}])]
+                                          (and (clojure.string/includes? html \"Date\")
+                                               (clojure.string/includes? html \"2026-02-20\")
+                                               (clojure.string/includes? html \"#62\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":text entry renders paragraph"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :text :text \"Hello world\"}])]
+                                          (clojure.string/includes? html \"<p>Hello world</p>\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it ":html entry passes raw content"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :html :content \"<div class='custom'>Raw</div>\"}])]
+                                          (clojure.string/includes? html \"<div class='custom'>Raw</div>\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "title option renders h1"
+      (let [r (cmd "sci_eval" {"code" "(let [html (spel/report->html [{:type :text :text \"Body\"}] {:title \"My Report\"})]
+                                          (clojure.string/includes? html \"<h1>My Report</h1>\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "mixed entries render in order"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(let [img (spel/screenshot)
+                                              html (spel/report->html
+                                                     [{:type :section :text \"Section 1\" :level 2}
+                                                      {:type :good :text \"All passed\"}
+                                                      {:type :screenshot :image img :caption \"Overview\"}
+                                                      {:type :table :headers [\"A\"] :rows [[\"1\"]]}]
+                                                     {:title \"Mixed Report\"})]
+                                          (and (string? html)
+                                               (clojure.string/includes? html \"Mixed Report\")
+                                               (clojure.string/includes? html \"Section 1\")
+                                               (clojure.string/includes? html \"All passed\")
+                                               (clojure.string/includes? html \"data:image/png;base64,\")))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "unknown entry type throws error"
+      (let [r (cmd "sci_eval" {"code" "(try (spel/report->html [{:type :bogus}]) (catch Exception e (str \"error:\" (.getMessage e))))"})]
+        (expect (str/includes? (:result r) "Unknown report entry type")))))
+
+  (describe "report->pdf rendering"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "report->pdf returns bytes from typed entries"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(let [img (spel/screenshot)]
+                                          (type (spel/report->pdf
+                                                  [{:type :section :text \"Report\" :level 2}
+                                                   {:type :screenshot :image img :caption \"Shot\"}])))"})]
+        (expect (str/includes? (:result r) "byte"))))
+
+    (it "report->pdf with title option"
+      (cmd "sci_eval" {"code" (str "(spel/goto \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(let [img (spel/screenshot)]
+                                          (type (spel/report->pdf
+                                                  [{:type :good :text \"Pass\"}
+                                                   {:type :screenshot :image img :caption \"Done\"}]
+                                                  {:title \"Final Report\"})))"})]
+        (expect (str/includes? (:result r) "byte"))))))
+
+;; =============================================================================
+;; 41d. Console Start / Errors Start
 ;; =============================================================================
 
 (defdescribe console-start-errors-start-integration-test
