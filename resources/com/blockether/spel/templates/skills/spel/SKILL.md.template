@@ -1,7 +1,7 @@
 ---
 name: spel
 description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when working with browser automation, E2E tests, Playwright API, or visual testing in Clojure."
-license: MIT
+license: Apache-2.0
 compatibility: opencode
 ---
 
@@ -1348,6 +1348,82 @@ clojure -T:build native-image
 ```
 
 {{cli-commands}}
+
+### CLI Configuration
+
+Global flags apply to all commands and modes:
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--timeout <ms>` | `30000` | Playwright action timeout in milliseconds |
+| `--session <name>` | `default` | Named browser session (isolates state between sessions) |
+| `--json` | off | JSON output format (for agent/machine consumption) |
+| `--debug` | off | Debug output |
+| `--autoclose` | off | Close daemon after `--eval` completes |
+| `--interactive` | off | Headed (visible) browser for `--eval` mode |
+| `--load-state <path>` | - | Load browser storage state (cookies/localStorage JSON) before evaluation |
+| `--storage-state <path>` | - | Load storage state for CLI commands |
+| `--profile <path>` | - | Chrome user data directory (persistent profile) |
+| `--executable-path <path>` | - | Custom browser executable |
+| `--user-agent <ua>` | - | Custom user agent string |
+| `--proxy <url>` | - | Proxy server URL |
+| `--proxy-bypass <domains>` | - | Proxy bypass domains |
+| `--headers <json>` | - | Extra HTTP headers (JSON string) |
+| `--args <args>` | - | Browser args (comma-separated) |
+| `--cdp <url>` | - | Connect via Chrome DevTools Protocol endpoint |
+| `--ignore-https-errors` | off | Ignore HTTPS certificate errors |
+| `--allow-file-access` | off | Allow file:// access |
+
+### CI Assemble (`spel ci-assemble`)
+
+Assembles Allure report sites for CI/CD deployment. Replaces shell/Python scripts in CI workflows with a single Clojure command.
+
+```bash
+spel ci-assemble \
+  --site-dir=gh-pages-site \
+  --run=123 \
+  --commit-sha=abc123def \
+  --commit-msg="feat: add feature" \
+  --report-url=https://example.github.io/repo/123/ \
+  --test-passed=100 --test-failed=2
+```
+
+| Flag | Env Var | Purpose |
+|------|---------|---------|
+| `--site-dir DIR` | `SPEL_CI_SITE_DIR` | Site directory (default: `gh-pages-site`) |
+| `--run NUMBER` | `RUN_NUMBER` | CI run number (required) |
+| `--commit-sha SHA` | `COMMIT_SHA` | Git commit SHA |
+| `--commit-msg MSG` | `COMMIT_MSG` | Commit message |
+| `--commit-ts TS` | `COMMIT_TS` | Commit timestamp (ISO 8601) |
+| `--tests-passed BOOL` | `TEST_PASSED` | Whether tests passed (`true`/`false`) |
+| `--repo-url URL` | `REPO_URL` | Repository URL |
+| `--run-url URL` | `RUN_URL` | CI run URL |
+| `--version VER` | `VERSION` | Project version string |
+| `--version-badge TYPE` | `VERSION_BADGE` | Badge type: `release` or `candidate` |
+| `--test-passed N` | `TEST_COUNTS_PASSED` | Number of passed tests |
+| `--test-failed N` | `TEST_COUNTS_FAILED` | Number of failed tests |
+| `--test-broken N` | `TEST_COUNTS_BROKEN` | Number of broken tests |
+| `--test-skipped N` | `TEST_COUNTS_SKIPPED` | Number of skipped tests |
+| `--history-file FILE` | `ALLURE_HISTORY_FILE` | Allure history file (default: `.allure-history.jsonl`) |
+| `--report-url URL` | `REPORT_URL` | Report URL for history patching |
+| `--logo-file FILE` | `LOGO_FILE` | Logo SVG file path |
+| `--index-file FILE` | `INDEX_FILE` | Index HTML file path |
+| `--title TEXT` | `LANDING_TITLE` | Title to inject into index.html |
+| `--subtitle TEXT` | `LANDING_SUBTITLE` | Subtitle to inject into index.html |
+
+Operations performed (in order):
+1. Patches `.allure-history.jsonl` with report URL and commit info (when `--report-url` set)
+2. Generates `builds.json`, `builds-meta.json`, and `badge.json` (when site directory exists)
+3. Patches `index.html` with logo and title placeholders (when `--index-file` set)
+
+In CI workflows, call via JVM (Clojure CLI) rather than native binary:
+
+```clojure
+clojure -M -e "
+  (require '[com.blockether.spel.ci :as ci])
+  (ci/generate-builds-metadata! {:site-dir \"gh-pages-site\" ...})
+  (ci/patch-index-html! {:index-file \"gh-pages-site/index.html\" ...})"
+```
 
 {{sci-api}}
 

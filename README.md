@@ -15,7 +15,7 @@
       <img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License - Apache 2.0">
     </a>
     <a href="https://blockether.github.io/spel/">
-      <img src="https://img.shields.io/badge/Allure_Report-845_passed-brightgreen" alt="Allure Report">
+      <img src="https://blockether.github.io/spel/badge.svg" alt="Allure Report">
     </a>
   </h2>
 </div>
@@ -429,7 +429,7 @@ Request/response interceptors — composable, nestable:
 
 Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/). Compatible with Allure 2+ result format. The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx) with an embedded local Playwright trace viewer — no external `allure generate` step needed.
 
-> **[View live test report](https://blockether.github.io/spel/)** — 845 tests, 100% pass rate, with embedded Playwright traces.
+> **[View live test report](https://blockether.github.io/spel/)** — with embedded Playwright traces.
 
 <table>
 <tr>
@@ -437,7 +437,7 @@ Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehe
 <td width="50%" align="center"><b>Embedded&nbsp;Playwright&nbsp;Traces</b></td>
 </tr>
 <tr>
-<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-report.png" alt="Allure Report — 845 tests passed"/></a></td>
+<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-report.png" alt="Allure Report"/></a></td>
 <td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-trace-viewer.png" alt="Playwright Trace Viewer embedded in Allure"/></a></td>
 </tr>
 </table>

@@ -66,6 +66,9 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
 | `new-page-from-context` | [context] | Creates a new page in the given context. |
 | _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
+| `video-delete!` | [page] | Deletes the video file for a page. |
+| `video-path` | [page] | Returns the video file path for a page, or nil if not recording. |
+| `video-save-as!` | [page path] | Saves the video to the specified path. Context must be closed first. |
 | `webkit` | [pw] | Returns the WebKit BrowserType. |
 | _(macro)_ `with-browser` | [[sym expr] & body] | Binds a browser instance and ensures cleanup. |
 | _(macro)_ `with-context` | [[sym expr] & body] | Binds a browser context and ensures cleanup. |
@@ -2216,6 +2219,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
+| `ci-assemble [opts]` | Assemble Allure site for CI deployment (--help for details) |
 
 ### Utility
 
@@ -2233,6 +2237,82 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--eval --interactive` | Evaluate with visible browser (headed mode) |
 | `--eval --load-state FILE` | Load auth/storage state before evaluation |
 
+
+### CLI Configuration
+
+Global flags apply to all commands and modes:
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--timeout <ms>` | `30000` | Playwright action timeout in milliseconds |
+| `--session <name>` | `default` | Named browser session (isolates state between sessions) |
+| `--json` | off | JSON output format (for agent/machine consumption) |
+| `--debug` | off | Debug output |
+| `--autoclose` | off | Close daemon after `--eval` completes |
+| `--interactive` | off | Headed (visible) browser for `--eval` mode |
+| `--load-state <path>` | - | Load browser storage state (cookies/localStorage JSON) before evaluation |
+| `--storage-state <path>` | - | Load storage state for CLI commands |
+| `--profile <path>` | - | Chrome user data directory (persistent profile) |
+| `--executable-path <path>` | - | Custom browser executable |
+| `--user-agent <ua>` | - | Custom user agent string |
+| `--proxy <url>` | - | Proxy server URL |
+| `--proxy-bypass <domains>` | - | Proxy bypass domains |
+| `--headers <json>` | - | Extra HTTP headers (JSON string) |
+| `--args <args>` | - | Browser args (comma-separated) |
+| `--cdp <url>` | - | Connect via Chrome DevTools Protocol endpoint |
+| `--ignore-https-errors` | off | Ignore HTTPS certificate errors |
+| `--allow-file-access` | off | Allow file:// access |
+
+### CI Assemble (`spel ci-assemble`)
+
+Assembles Allure report sites for CI/CD deployment. Replaces shell/Python scripts in CI workflows with a single Clojure command.
+
+```bash
+spel ci-assemble \
+  --site-dir=gh-pages-site \
+  --run=123 \
+  --commit-sha=abc123def \
+  --commit-msg="feat: add feature" \
+  --report-url=https://example.github.io/repo/123/ \
+  --test-passed=100 --test-failed=2
+```
+
+| Flag | Env Var | Purpose |
+|------|---------|---------|
+| `--site-dir DIR` | `SPEL_CI_SITE_DIR` | Site directory (default: `gh-pages-site`) |
+| `--run NUMBER` | `RUN_NUMBER` | CI run number (required) |
+| `--commit-sha SHA` | `COMMIT_SHA` | Git commit SHA |
+| `--commit-msg MSG` | `COMMIT_MSG` | Commit message |
+| `--commit-ts TS` | `COMMIT_TS` | Commit timestamp (ISO 8601) |
+| `--tests-passed BOOL` | `TEST_PASSED` | Whether tests passed (`true`/`false`) |
+| `--repo-url URL` | `REPO_URL` | Repository URL |
+| `--run-url URL` | `RUN_URL` | CI run URL |
+| `--version VER` | `VERSION` | Project version string |
+| `--version-badge TYPE` | `VERSION_BADGE` | Badge type: `release` or `candidate` |
+| `--test-passed N` | `TEST_COUNTS_PASSED` | Number of passed tests |
+| `--test-failed N` | `TEST_COUNTS_FAILED` | Number of failed tests |
+| `--test-broken N` | `TEST_COUNTS_BROKEN` | Number of broken tests |
+| `--test-skipped N` | `TEST_COUNTS_SKIPPED` | Number of skipped tests |
+| `--history-file FILE` | `ALLURE_HISTORY_FILE` | Allure history file (default: `.allure-history.jsonl`) |
+| `--report-url URL` | `REPORT_URL` | Report URL for history patching |
+| `--logo-file FILE` | `LOGO_FILE` | Logo SVG file path |
+| `--index-file FILE` | `INDEX_FILE` | Index HTML file path |
+| `--title TEXT` | `LANDING_TITLE` | Title to inject into index.html |
+| `--subtitle TEXT` | `LANDING_SUBTITLE` | Subtitle to inject into index.html |
+
+Operations performed (in order):
+1. Patches `.allure-history.jsonl` with report URL and commit info (when `--report-url` set)
+2. Generates `builds.json`, `builds-meta.json`, and `badge.json` (when site directory exists)
+3. Patches `index.html` with logo and title placeholders (when `--index-file` set)
+
+In CI workflows, call via JVM (Clojure CLI) rather than native binary:
+
+```clojure
+clojure -M -e "
+  (require '[com.blockether.spel.ci :as ci])
+  (ci/generate-builds-metadata! {:site-dir \"gh-pages-site\" ...})
+  (ci/patch-index-html! {:index-file \"gh-pages-site/index.html\" ...})"
+```
 
 ## SCI Eval API Reference (`spel --eval`)
 
@@ -2372,6 +2452,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
 | `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
 | `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
+| `spel/finish-video-recording` | [] \| [opts] | Stops video recording by closing the context to finalize the video. |
 | `spel/first` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
 | `spel/forward` | [] | Navigates forward in history. |
@@ -2437,7 +2518,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
 | `spel/sleep` | [ms] | Waits for the specified time in milliseconds. |
 | `spel/snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
+| `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
 | `spel/stop!` | [] | Stops the Playwright session, closing browser and cleaning up resources. |
 | `spel/switch-tab!` | [idx] | Switches to the tab at the given index. |
 | `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
@@ -2456,6 +2539,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/unroute!` | [pattern] | Removes a route handler. |
 | `spel/url` | [] | Returns the current page URL. |
 | `spel/value` | [sel] | Returns the input value of an input element. |
+| `spel/video-path` | [] | Returns the video file path for the current page, or nil if not recording. |
 | `spel/visible?` | [sel] | Returns whether the element is visible. |
 | `spel/wait-for` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
 | `spel/wait-for-download` | [action] \| [action opts] | Waits for a download to start while executing `action`. |
@@ -2957,19 +3041,6 @@ jobs:
           key: allure-site-${{ github.run_number }}
           restore-keys: allure-site-
 
-      - name: Detect version
-        id: version
-        run: |
-          VERSION=$(cat resources/SPEL_VERSION 2>/dev/null || echo "unknown")
-          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-          if [ -n "$TAG" ]; then
-            echo "version=$TAG" >> $GITHUB_OUTPUT
-            echo "badge=release" >> $GITHUB_OUTPUT
-          else
-            echo "version=v${VERSION}-candidate" >> $GITHUB_OUTPUT
-            echo "badge=candidate" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run tests with Allure reporter
         id: tests
         env:
@@ -3032,8 +3103,6 @@ jobs:
           TEST_PASSED: ${{ steps.tests.outcome == 'success' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          VERSION: ${{ steps.version.outputs.version }}
-          VERSION_BADGE: ${{ steps.version.outputs.badge }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -3074,16 +3143,14 @@ jobs:
           passed = os.environ.get('TEST_PASSED', 'false') == 'true'
           repo_url = os.environ.get('REPO_URL', '')
           run_url = os.environ.get('RUN_URL', '')
-          version = os.environ.get('VERSION', '')
-          version_badge = os.environ.get('VERSION_BADGE', '')
-          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url, 'version': version, 'badge': version_badge}
+          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url}
           dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
           pruned = {k: v for k, v in meta.items() if k in dirs}
           json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
           builds = []
           for d in dirs:
               entry = pruned.get(d, {})
-              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', ''), 'version': entry.get('version', ''), 'badge': entry.get('badge', '')})
+              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', '')})
           json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
           "
 
@@ -3128,11 +3195,6 @@ jobs:
 - **`/latest` redirect**: `gh-pages-site/latest/index.html` meta-refreshes to the newest report number
 - **`continue-on-error: true`**: Test failures don't block report generation — the report shows what failed
 - **Report naming**: `#<run> · <sha8> · <commit msg first line>` for clear identification in Allure history
-- **Version badges**: Each build shows a version badge on the landing page:
-  - **Release** (green): Commits with an exact git tag (e.g., `v0.3.1`) — detected via `git describe --tags --exact-match`
-  - **Candidate** (amber): Untagged commits — shows `vX.Y.Z-candidate` from `resources/SPEL_VERSION`
-  - Version is detected in the `Detect version` step and passed as `VERSION`/`VERSION_BADGE` env vars to the site assembly
-  - The `builds.json` includes `version` and `badge` fields; `allure-index.html` renders them as styled pill badges
 
 ### Native Image Build + Release (`native-image.yml`)
 
@@ -3326,7 +3388,23 @@ Before the Allure workflow can deploy:
 | **Prefer `networkidle` for SPA initial load** | When navigating to a SPA (Single Page Application) that renders client-side (React, Allure, etc.), the default load state (`load`) fires before JS frameworks finish rendering. Use `(spel/wait-for-load "networkidle")` after `spel/goto` to wait until all network requests settle. Then use `spel/wait-for-function` for app-specific readiness checks (e.g. `"() => document.body.innerText.length > 100"`). Pattern: `(spel/goto url) (spel/wait-for-load "networkidle") (spel/wait-for-function "() => ...")`. For non-SPA pages, the default `load` state is sufficient. |
 | **Reports via `report->html` / `report->pdf`** | When asked to produce a report, audit, review, or visual summary, **always** use `spel/report->html` and `spel/report->pdf` from `--eval`. Build entries as typed maps (`:screenshot`, `:section`, `:observation`, `:issue`, `:good`, `:table`, `:meta`, `:text`, `:html`), then render. Save HTML with `(spit path (spel/report->html entries opts))` — no page needed. For PDF, use `(spel/report->pdf entries {:path "file.pdf"})`. Never hand-craft HTML strings for reports — the report builder handles layout, CSS, page breaks, and base64 image encoding. |
 | **Delegation: ALWAYS pass `load_skills=["spel"]`** | When delegating ANY browser-related task to a subagent (via `task()`, Sisyphus-Junior, or any other agent), you **MUST** include `load_skills=["spel"]` in the delegation call. Subagents are **stateless** — they have zero knowledge of spel's API, CLI, SCI functions, or conventions unless they load this skill. Without it, agents will attempt to use generic Playwright MCP tools (which are disabled in this project) or hallucinate APIs. This applies to ALL delegations involving: browser automation, screenshots, E2E tests, Allure reports, scraping, form filling, visual audits, or anything that touches a browser. No exceptions. |
-| **Use `(spel/help)` for API discovery** | In `--eval` mode, call `(spel/help)` to list all available namespaces and function counts. Call `(spel/help "spel")` to see all functions in a namespace with arglists and descriptions. Call `(spel/help "click")` to search across all namespaces. This is the canonical way to discover available API in eval mode. |
+
+---
+
+### API Discovery in `--eval` Mode
+
+Use `spel/help` and `spel/source` to explore the eval API at runtime:
+
+| Command | What it does |
+|---------|-------------|
+| `(spel/help)` | List all namespaces with function counts |
+| `(spel/help "spel")` | List all functions in a namespace (table: name, arglists, description) |
+| `(spel/help "click")` | Search across all namespaces by function name or description |
+| `(spel/help "spel/click")` | Show details for a specific function (arglists, description, backing library function) |
+| `(spel/source "spel/click")` | Show the SCI wrapper source code and which library function it delegates to |
+| `(spel/source "goto")` | Search by bare name — shows source if unique match, lists candidates if multiple |
+
+These are the **canonical** way to discover and understand the eval API. Prefer `spel/help` over reading this SKILL file when working in `--eval` mode.
 
 ---
 

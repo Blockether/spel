@@ -678,6 +678,105 @@
     (when (and path (.isFile (io/file path)))
       path)))
 
+;; ---------------------------------------------------------------------------
+;; Badge SVG Generation
+;; ---------------------------------------------------------------------------
+
+(defn- text-width
+  "Approximate text width for badge label/message (based on typical font metrics)."
+  [^String text]
+  (let [char-width 6.5]  ; average character width in px for 11px Verdana
+    (* (count text) char-width)))
+
+(defn generate-badge-svg
+  "Generate a shields.io-style SVG badge.
+   Returns the SVG string.
+   
+   Options:
+     :label   - left side text (default: \"tests\")
+     :message - right side text (e.g. \"42 passed\")
+     :color   - right side color (default: \"brightgreen\")
+     :style   - badge style: :flat (default), :flat-square, :for-the-badge"
+  [{:keys [label message color style]
+    :or {label "tests" message "0 passed" color "brightgreen" style :flat}}]
+  (let [color-map {"brightgreen" "#4c1"
+                   "green" "#97ca00"
+                   "yellow" "#dfb317"
+                   "orange" "#fe7d37"
+                   "red" "#e05d44"
+                   "blue" "#007ec6"
+                   "lightgrey" "#9f9f9f"
+                   "gray" "#555"}
+        bg-color (get color-map (name color) (name color))
+        label-width (+ (text-width label) 10)
+        message-width (+ (text-width message) 10)
+        total-width (+ label-width message-width)
+        label-x (/ label-width 2)
+        message-x (+ label-width (/ message-width 2))
+        radius (if (= style :flat-square) 0 3)]
+    (str
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" total-width "\" height=\"20\" role=\"img\" aria-label=\"" label ": " message "\">\n"
+      "  <title>" label ": " message "</title>\n"
+      "  <linearGradient id=\"s\" x2=\"0\" y2=\"100%\">\n"
+      "    <stop offset=\"0\" stop-color=\"#bbb\" stop-opacity=\".1\"/>\n"
+      "    <stop offset=\"1\" stop-opacity=\".1\"/>\n"
+      "  </linearGradient>\n"
+      "  <clipPath id=\"r\">\n"
+      "    <rect width=\"" total-width "\" height=\"20\" rx=\"" radius "\" fill=\"#fff\"/>\n"
+      "  </clipPath>\n"
+      "  <g clip-path=\"url(#r)\">\n"
+      "    <rect width=\"" label-width "\" height=\"20\" fill=\"#555\"/>\n"
+      "    <rect x=\"" label-width "\" width=\"" message-width "\" height=\"20\" fill=\"" bg-color "\"/>\n"
+      "    <rect width=\"" total-width "\" height=\"20\" fill=\"url(#s)\"/>\n"
+      "  </g>\n"
+      "  <g fill=\"#fff\" text-anchor=\"middle\" font-family=\"Verdana,Geneva,DejaVu Sans,sans-serif\" text-rendering=\"geometricPrecision\" font-size=\"11\">\n"
+      "    <text x=\"" label-x "\" y=\"14\" fill=\"#010101\" fill-opacity=\".3\">" label "</text>\n"
+      "    <text x=\"" label-x "\" y=\"13\" fill=\"#fff\">" label "</text>\n"
+      "    <text x=\"" message-x "\" y=\"14\" fill=\"#010101\" fill-opacity=\".3\">" message "</text>\n"
+      "    <text x=\"" message-x "\" y=\"13\" fill=\"#fff\">" message "</text>\n"
+      "  </g>\n"
+      "</svg>")))
+
+(defn count-test-results
+  "Count test results from allure-results directory.
+   Returns map with :passed, :failed, :broken, :skipped, :total."
+  [^String results-dir]
+  (let [dir (io/file results-dir)
+        result-files (when (.isDirectory dir)
+                       (filter #(str/ends-with? (.getName ^File %) "-result.json")
+                         (.listFiles dir)))
+        statuses (for [^File f result-files
+                       :let [content (slurp f)
+                             ;; Simple regex extraction - avoids JSON parsing dependency
+                             status (second (re-find #"\"status\"\s*:\s*\"(\w+)\"" content))]
+                       :when status]
+                   status)
+        counts (frequencies statuses)]
+    {:passed (get counts "passed" 0)
+     :failed (get counts "failed" 0)
+     :broken (get counts "broken" 0)
+     :skipped (get counts "skipped" 0)
+     :total (count statuses)}))
+
+(defn generate-badge-file!
+  "Generate badge.svg file in the given directory based on test results.
+   Returns the badge message string."
+  [^String results-dir ^String output-dir]
+  (let [{:keys [passed failed broken]} (count-test-results results-dir)
+        failures (+ failed broken)
+        message (if (pos? failures)
+                  (str passed " passed, " failures " failed")
+                  (str passed " passed"))
+        color (if (pos? failures) "red" "brightgreen")
+        svg (generate-badge-svg {:label "Allure Report"
+                                 :message message
+                                 :color color})
+        badge-file (io/file output-dir "badge.svg")]
+    (spit badge-file svg)
+    (println (str "  Generated badge.svg: " message))
+    message))
+
 (defn generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
    available), optionally embed the local trace viewer, and patch the
@@ -714,6 +813,8 @@
                 (let [src (io/file logo)
                       dst (io/file report (.getName src))]
                   (io/copy src dst)))
+              ;; Generate badge.svg in report directory
+              (generate-badge-file! results-dir report-dir-path)
               (run-proc! (into allure-cmd ["history" results-dir
                                            "-h" history-file
                                            "--history-limit" (history-limit)]))

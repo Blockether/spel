@@ -144,30 +144,30 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           if [ -f .allure-history.jsonl ]; then
-            python3 -c "
-          import json, os
-          report_url = os.environ['REPORT_URL']
-          sha = os.environ.get('COMMIT_SHA', '')[:8]
-          msg = os.environ.get('COMMIT_MSG', '').split('\n')[0][:100]
-          run = os.environ.get('RUN_NUMBER', '')
-          name = f'#{run} \u00b7 {sha} \u00b7 {msg}'
-          lines = open('.allure-history.jsonl').read().strip().split('\n')
-          result = []
-          for i, line in enumerate(lines):
-              if not line.strip():
-                  continue
-              entry = json.loads(line)
-              if i == len(lines) - 1:
-                  entry['url'] = report_url
-                  entry['name'] = name
-                  for tid in entry.get('testResults', {}):
-                      entry['testResults'][tid]['url'] = report_url
-              result.append(json.dumps(entry, separators=(',', ':')))
-          with open('.allure-history.jsonl', 'w') as f:
-              f.write('\n'.join(result) + '\n')
-          "
-            echo "Injected URL ${REPORT_URL} and commit info into latest history entry"
+            clojure -M -e "
+              (require '[com.blockether.spel.ci :as ci])
+              (ci/patch-allure-history!
+                {:history-file \".allure-history.jsonl\"
+                 :report-url   (System/getenv \"REPORT_URL\")
+                 :commit-sha   (System/getenv \"COMMIT_SHA\")
+                 :commit-msg   (System/getenv \"COMMIT_MSG\")
+                 :run-number   (System/getenv \"RUN_NUMBER\")})"
           fi
+
+      - name: Extract test counts from Allure results
+        id: test-counts
+        run: |
+          PASSED=$(grep -l '"status": *"passed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          FAILED=$(grep -l '"status": *"failed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          BROKEN=$(grep -l '"status": *"broken"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          SKIPPED=$(grep -l '"status": *"skipped"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          TOTAL=$((PASSED + FAILED + BROKEN + SKIPPED))
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "broken=$BROKEN" >> $GITHUB_OUTPUT
+          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "Test counts: passed=$PASSED, failed=$FAILED, broken=$BROKEN, skipped=$SKIPPED, total=$TOTAL"
 
       - name: Assemble site with per-build reports
         if: github.ref == 'refs/heads/main'
@@ -181,6 +181,11 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           VERSION: ${{ steps.version.outputs.version }}
           VERSION_BADGE: ${{ steps.version.outputs.badge }}
+          TEST_COUNTS_PASSED: ${{ steps.test-counts.outputs.passed }}
+          TEST_COUNTS_FAILED: ${{ steps.test-counts.outputs.failed }}
+          TEST_COUNTS_BROKEN: ${{ steps.test-counts.outputs.broken }}
+          TEST_COUNTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
+          TEST_COUNTS_TOTAL: ${{ steps.test-counts.outputs.total }}
         run: |
           RUN="${{ github.run_number }}"
           mkdir -p gh-pages-site
@@ -200,71 +205,45 @@ jobs:
             done
           fi
 
-          # Generate builds.json from available report dirs + metadata cache
-          BUILDS_META="builds-meta.json"
-          [ -f "$BUILDS_META" ] || echo '{}' > "$BUILDS_META"
-
-          python3 -c "
-          import json, os, time
-          meta_file = '$BUILDS_META'
-          meta = json.load(open(meta_file))
-          run = os.environ['RUN_NUMBER']
-          sha = os.environ.get('COMMIT_SHA', '')
-          msg = os.environ.get('COMMIT_MSG', '').split('\n')[0]
-          ts_str = os.environ.get('COMMIT_TS', '')
-          ts = int(time.time() * 1000)
-          if ts_str:
-              from datetime import datetime
-              try:
-                  dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
-                  ts = int(dt.timestamp() * 1000)
-              except Exception:
-                  pass
-          passed = os.environ.get('TEST_PASSED', 'false') == 'true'
-          repo_url = os.environ.get('REPO_URL', '')
-          run_url = os.environ.get('RUN_URL', '')
-          version = os.environ.get('VERSION', '')
-          version_badge = os.environ.get('VERSION_BADGE', '')
-          meta[run] = {'sha': sha, 'message': msg, 'timestamp': ts, 'passed': passed, 'repo_url': repo_url, 'run_url': run_url, 'version': version, 'badge': version_badge}
-          dirs = sorted([d for d in os.listdir('.') if d.isdigit()], key=int, reverse=True)
-          pruned = {k: v for k, v in meta.items() if k in dirs}
-          json.dump(pruned, open(meta_file, 'w'), separators=(',', ':'))
-          builds = []
-          for d in dirs:
-              entry = pruned.get(d, {})
-              builds.append({'run': d, 'sha': entry.get('sha', ''), 'message': entry.get('message', ''), 'timestamp': entry.get('timestamp', 0), 'passed': entry.get('passed', True), 'repo_url': entry.get('repo_url', ''), 'run_url': entry.get('run_url', ''), 'version': entry.get('version', ''), 'badge': entry.get('badge', '')})
-          json.dump(builds, open('builds.json', 'w'), separators=(',', ':'))
-          print(f'Generated builds.json with {len(builds)} entries')
-          "
-
+          # Generate builds metadata + patch index.html (Clojure replaces Python)
+          [ -f "builds-meta.json" ] || echo '{}' > "builds-meta.json"
           cp ../resources/allure-index.html index.html
-          python3 -c "
-          import re, os
-          html = open('index.html').read()
-
-          # Logo: inject SVG from file if present
-          logo_file = '../logo.svg'
-          if os.path.isfile(logo_file):
-              logo = open(logo_file).read()
-              logo = logo.replace('viewBox=\"0 0 400 350\"', 'viewBox=\"60 10 280 230\"')
-              logo = logo.replace('width=\"400\" height=\"350\"', '')
-              html = html.replace('<!--LOGO_PLACEHOLDER-->', logo)
-
-          # Title & subtitle: replace between placeholder markers if env vars set
-          title = os.environ.get('LANDING_TITLE', '')
-          subtitle = os.environ.get('LANDING_SUBTITLE', '')
-          if title:
-              html = re.sub(r'<!--TITLE_PLACEHOLDER-->.*?<!--/TITLE_PLACEHOLDER-->', title, html)
-          if subtitle:
-              html = re.sub(r'<!--SUBTITLE_PLACEHOLDER-->.*?<!--/SUBTITLE_PLACEHOLDER-->', subtitle, html)
-
-          open('index.html', 'w').write(html)
-          "
+          cd ..
+          clojure -M -e "
+            (require '[com.blockether.spel.ci :as ci])
+            (ci/generate-builds-metadata!
+              {:site-dir       \"gh-pages-site\"
+               :run-number     (System/getenv \"RUN_NUMBER\")
+               :commit-sha     (System/getenv \"COMMIT_SHA\")
+               :commit-msg     (System/getenv \"COMMIT_MSG\")
+               :commit-ts      (System/getenv \"COMMIT_TS\")
+               :tests-passed   (= \"true\" (System/getenv \"TEST_PASSED\"))
+               :repo-url       (System/getenv \"REPO_URL\")
+               :run-url        (System/getenv \"RUN_URL\")
+               :version        (System/getenv \"VERSION\")
+               :version-badge  (System/getenv \"VERSION_BADGE\")
+               :test-counts    {:passed  (parse-long (or (System/getenv \"TEST_COUNTS_PASSED\") \"0\"))
+                                :failed  (parse-long (or (System/getenv \"TEST_COUNTS_FAILED\") \"0\"))
+                                :broken  (parse-long (or (System/getenv \"TEST_COUNTS_BROKEN\") \"0\"))
+                                :skipped (parse-long (or (System/getenv \"TEST_COUNTS_SKIPPED\") \"0\"))
+                                :total   (parse-long (or (System/getenv \"TEST_COUNTS_TOTAL\") \"0\"))}})
+            (ci/patch-index-html!
+              {:index-file \"gh-pages-site/index.html\"
+               :logo-file  \"logo.svg\"
+               :title      (System/getenv \"LANDING_TITLE\")
+               :subtitle   (System/getenv \"LANDING_SUBTITLE\")})"
+          cd gh-pages-site
 
           mkdir -p latest
           cat > latest/index.html <<EOF
           <!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../${RUN}/"></head><body></body></html>
           EOF
+
+          # Copy badge.svg from latest report to root for README consumption
+          if [ -f "${RUN}/badge.svg" ]; then
+            cp "${RUN}/badge.svg" badge.svg
+            echo "Copied badge.svg to site root"
+          fi
 
           cd ..
           echo "Site ready with $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) reports"

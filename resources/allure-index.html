@@ -97,6 +97,8 @@
     .version-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px; }
     .version-badge.release { background: #28a745; color: white; }
     .version-badge.candidate { background: #ffc107; color: #212529; }
+    .test-badge { display: inline-flex; align-items: center; margin-left: 8px; }
+    .test-badge img { height: 18px; vertical-align: middle; }
     html.dark .version-badge.candidate { color: #000; }
 
     @media (max-width: 640px) { .meta { display: none; } .card { padding: 0.75rem 1rem; gap: 0.75rem; } .info-top { flex-wrap: wrap; } }
@@ -190,6 +192,8 @@
         versionBadge = '<span class="version-badge ' + badgeClass + '">' + b.version + '</span>';
       }
 
+      var testBadge = '<span class="test-badge"><img src="' + b.run + '/badge.svg" alt="tests" onerror="this.style.display=\'none\'"></span>';
+
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" onclick="window.location.href=\'' + b.run + '/\'" role="link" tabindex="0">'
         + '<div class="run"><div class="run-label">Run</div>'
         + (runUrl
@@ -200,6 +204,7 @@
         + '<div class="divider"></div>'
         + '<div class="info"><div class="info-top">'
         + shaHtml
+        + testBadge
         + versionBadge
         + (isLatest ? '<span class="badge">Latest</span>' : '')
         + '</div><p class="msg">' + (msg || 'No commit message') + '</p></div>'

@@ -20,6 +20,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.daemon :as daemon]
@@ -208,6 +209,7 @@
   (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
+  (println "  ci-assemble [opts]        Assemble Allure site for CI deployment (--help for details)")
   (println "")
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
@@ -271,7 +273,7 @@
   "Returns true if a display server (X11 or Wayland) is available."
   []
   (or (not (str/blank? (System/getenv "DISPLAY")))
-      (not (str/blank? (System/getenv "WAYLAND_DISPLAY")))))
+    (not (str/blank? (System/getenv "WAYLAND_DISPLAY")))))
 
 (defn- xvfb-run-available?
   "Returns true if xvfb-run is available on the system."
@@ -300,9 +302,9 @@
         cli  (str (driver-cli-path))
         base-args (into [node cli] cmd-args)
         use-xvfb? (and (linux?)
-                       (needs-display? cmd-args)
-                       (not (has-display?))
-                       (xvfb-run-available?))
+                    (needs-display? cmd-args)
+                    (not (has-display?))
+                    (xvfb-run-available?))
         args (if use-xvfb?
                (into ["xvfb-run" "--auto-servernum" "--server-args=-screen 0 1280x960x24"] base-args)
                base-args)]
@@ -310,9 +312,9 @@
       (println "No display detected — using xvfb-run for virtual display.")
       (flush))
     (when (and (linux?)
-               (needs-display? cmd-args)
-               (not (has-display?))
-               (not (xvfb-run-available?)))
+            (needs-display? cmd-args)
+            (not (has-display?))
+            (not (xvfb-run-available?)))
       (binding [*out* *err*]
         (println "Warning: No display server detected and xvfb-run is not installed.")
         (println "This command requires a display (X11/Wayland).")
@@ -563,6 +565,9 @@
       ;; Subcommands — dispatch BEFORE global --help so each tool handles its own --help
       (= "init-agents" first-arg)
       (apply init-agents/-main (rest cmd-args))
+
+      (= "ci-assemble" first-arg)
+      (apply ci/-main (rest cmd-args))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]
