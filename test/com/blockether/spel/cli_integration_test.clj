@@ -413,7 +413,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -432,7 +432,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -1398,6 +1398,38 @@
       (let [r (cmd "sci_eval" {"code" "(some? SameSiteAttribute/STRICT)"})]
         (expect (= "true" (:result r)))))
 
+    ;; --- stdout/stderr capture ---
+
+    (it "captures stdout from println"
+      (let [r (cmd "sci_eval" {"code" "(println \"hello stdout\") 42"})]
+        (expect (= "42" (:result r)))
+        (expect (= "hello stdout\n" (:stdout r)))))
+
+    (it "captures stderr from binding *out* *err*"
+      (let [r (cmd "sci_eval" {"code" "(binding [*out* *err*] (println \"hello stderr\")) 99"})]
+        (expect (= "99" (:result r)))
+        (expect (= "hello stderr\n" (:stderr r)))))
+
+    (it "captures both stdout and stderr simultaneously"
+      (let [r (cmd "sci_eval" {"code" "(println \"out\") (binding [*out* *err*] (println \"err\")) :done"})]
+        (expect (= ":done" (:result r)))
+        (expect (= "out\n" (:stdout r)))
+        (expect (= "err\n" (:stderr r)))))
+
+    (it "omits stdout/stderr keys when no output"
+      (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
+        (expect (= "3" (:result r)))
+        (expect (nil? (:stdout r)))
+        (expect (nil? (:stderr r)))))
+
+    (it "preserves stdout on error via ex-data"
+      (let [threw (try (cmd "sci_eval" {"code" "(println \"before boom\") (throw (ex-info \"boom\" {}))"})
+                    nil
+                    (catch Exception e e))]
+        (expect (some? threw))
+        (let [data (ex-data threw)]
+          (expect (= "before boom\n" (:stdout data))))))
+
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
     (it "stop! does not kill daemon browser"
@@ -1408,5 +1440,5 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))))

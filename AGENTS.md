@@ -131,6 +131,33 @@ git tag v0.1.0 && git push --tags
 
 ---
 
+## Testing Policy (MANDATORY)
+
+Every code change **MUST** include corresponding tests. No exceptions.
+
+### Rules
+
+1. **Every change needs tests** — new features, bug fixes, refactors. If you change behavior, prove it works with a test.
+2. **SCI environment changes → test in CLI integration tests** — when modifying `src/com/blockether/spel/sci_env.clj` (adding/removing namespaces, functions, bindings), add tests in `test/com/blockether/spel/cli_integration_test.clj` under the `sci-eval-integration-test` describe block. These tests exercise the daemon's `sci_eval` handler with a real browser.
+3. **Daemon handler changes → test in CLI integration tests** — when modifying `src/com/blockether/spel/daemon.clj` (adding/modifying command handlers), add integration tests in `cli_integration_test.clj`.
+4. **CLI arg parsing changes → test in CLI unit tests** — when modifying `src/com/blockether/spel/cli.clj` (parse-args, flags), add tests in `test/com/blockether/spel/cli_test.clj`.
+5. **Core library changes → test in the relevant `*_test.clj`** — each source namespace has a corresponding test namespace (e.g. `core.clj` → `core_test.clj`, `page.clj` → `page_test.clj`).
+6. **Test style** — use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`. Follow the existing patterns in each test file.
+
+### Where Tests Live
+
+| Source file changed | Test file |
+|---------------------|-----------|
+| `sci_env.clj` | `cli_integration_test.clj` (sci_eval handler tests) |
+| `daemon.clj` | `cli_integration_test.clj` (handler integration tests) or `daemon_test.clj` (unit tests) |
+| `cli.clj` | `cli_test.clj` (arg parsing unit tests) |
+| `native.clj` | `cli_test.clj` (flag parsing) + manual `spel --eval` smoke test |
+| `core.clj`, `page.clj`, etc. | Corresponding `*_test.clj` in same directory |
+| `allure_reporter.clj` | Run `clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure` and verify report |
+| `allure_ct_reporter.clj` | Run `clojure -M:test-ct` and verify Allure results |
+
+---
+
 ## Verification Checklist (MANDATORY before completing any change)
 
 Every code change MUST pass this full checklist before it's considered done:
