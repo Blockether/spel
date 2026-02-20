@@ -739,19 +739,11 @@
 (defn- clean-output-dir!
   "Remove old results and recreate the output directory.
    History is managed externally via `.allure-history.jsonl` (Allure 3
-   JSONL mechanism), so nothing inside the results dir needs preserving.
-
-   When `lazytest.allure.append` system property or `LAZYTEST_ALLURE_APPEND`
-   env var is set to \"true\", skips cleaning so results from a previous
-   test phase (e.g. clojure.test) are preserved."
+   JSONL mechanism), so nothing inside the results dir needs preserving."
   [^File dir]
-  (when-not (Boolean/parseBoolean
-              (or (System/getProperty "lazytest.allure.append")
-                (System/getenv "LAZYTEST_ALLURE_APPEND")
-                "false"))
-    (when (.exists dir)
-      (doseq [^File f (reverse (file-seq dir))]
-        (.delete f))))
+  (when (.exists dir)
+    (doseq [^File f (reverse (file-seq dir))]
+      (.delete f)))
   (.mkdirs dir))
 
 (defmulti allure

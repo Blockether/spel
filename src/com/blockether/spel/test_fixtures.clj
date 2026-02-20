@@ -23,6 +23,7 @@
    reporter."
   (:require
    [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.allure-ct-reporter]
    [com.blockether.spel.core :as core]
    [lazytest.core :refer [around]]
    [lazytest.test-case :as tc])
