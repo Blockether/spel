@@ -1944,6 +1944,26 @@ Before the Allure workflow can deploy:
 | **Never use `sleep` / `wait-for-timeout`** | `spel/sleep` and `page/wait-for-timeout` are **anti-patterns**. They introduce flaky timing dependencies and slow down tests. Instead, use event-driven waits: `spel/wait-for` (element condition), `spel/wait-for-url` (navigation), `spel/wait-for-function` (JS predicate), `spel/wait-for-load` (load state), `locator/wait-for` (locator condition). The only acceptable use of sleep is waiting for an animation or transition with no observable state change — and even then, prefer `wait-for-function` with a CSS/JS check. |
 | **Console auto-captured in `--eval`** | `spel --eval` automatically captures browser console messages (`console.log`, `console.warn`, `console.error`) and page errors during evaluation. They are printed to **stderr** after the eval result (format: `[console.TYPE] text`, `[page-error] message`). This is essential for debugging — if something fails silently in the browser, check stderr. In library code, use `page/on-console` and `page/on-page-error` handlers directly. |
 | **SPA navigation: wait after interactions** | In Single Page Applications, elements may not exist in the DOM until their parent is expanded, a tab is clicked, or a route transition completes. After any interaction that changes the DOM (click, navigate, tab switch), always `spel/wait-for` the expected child element before interacting with it. Never assume elements appear synchronously. Pattern: `(spel/click "parent") → (spel/wait-for "child") → (spel/click "child")`. |
+| **Prefer `networkidle` for SPA initial load** | When navigating to a SPA (Single Page Application) that renders client-side (React, Allure, etc.), the default load state (`load`) fires before JS frameworks finish rendering. Use `(spel/wait-for-load "networkidle")` after `spel/goto` to wait until all network requests settle. Then use `spel/wait-for-function` for app-specific readiness checks (e.g. `"() => document.body.innerText.length > 100"`). Pattern: `(spel/goto url) (spel/wait-for-load "networkidle") (spel/wait-for-function "() => ...")`. For non-SPA pages, the default `load` state is sufficient. |
+| **Reports via `report->html` / `report->pdf`** | When asked to produce a report, audit, review, or visual summary, **always** use `spel/report->html` and `spel/report->pdf` from `--eval`. Build entries as typed maps (`:screenshot`, `:section`, `:observation`, `:issue`, `:good`, `:table`, `:meta`, `:text`, `:html`), then render. Save HTML with `(spit path (spel/report->html entries opts))` — no page needed. For PDF, use `(spel/report->pdf entries {:path "file.pdf"})`. Never hand-craft HTML strings for reports — the report builder handles layout, CSS, page breaks, and base64 image encoding. |
+| **Delegation: ALWAYS pass `load_skills=["spel"]`** | When delegating ANY browser-related task to a subagent (via `task()`, Sisyphus-Junior, or any other agent), you **MUST** include `load_skills=["spel"]` in the delegation call. Subagents are **stateless** — they have zero knowledge of spel's API, CLI, SCI functions, or conventions unless they load this skill. Without it, agents will attempt to use generic Playwright MCP tools (which are disabled in this project) or hallucinate APIs. This applies to ALL delegations involving: browser automation, screenshots, E2E tests, Allure reports, scraping, form filling, visual audits, or anything that touches a browser. No exceptions. |
+
+---
+
+### API Discovery in `--eval` Mode
+
+Use `spel/help` and `spel/source` to explore the eval API at runtime:
+
+| Command | What it does |
+|---------|-------------|
+| `(spel/help)` | List all namespaces with function counts |
+| `(spel/help "spel")` | List all functions in a namespace (table: name, arglists, description) |
+| `(spel/help "click")` | Search across all namespaces by function name or description |
+| `(spel/help "spel/click")` | Show details for a specific function (arglists, description, backing library function) |
+| `(spel/source "spel/click")` | Show the SCI wrapper source code and which library function it delegates to |
+| `(spel/source "goto")` | Search by bare name — shows source if unique match, lists candidates if multiple |
+
+These are the **canonical** way to discover and understand the eval API. Prefer `spel/help` over reading this SKILL file when working in `--eval` mode.
 
 ---
 

@@ -134,7 +134,9 @@
    to produce markdown tables that replace {{library-api}}, {{sci-api}}, and
    {{cli-commands}} placeholders in the template.
 
+   Also generates the help registry EDN for `spel/help` in --eval mode.
+
    Usage: clojure -T:build gen-docs"
   [_]
-  (requiring-resolve 'com.blockether.spel.gen-docs/generate-skill-md)
-  ((resolve 'com.blockether.spel.gen-docs/generate-skill-md)))
+  (requiring-resolve 'com.blockether.spel.gen-docs/-main)
+  ((resolve 'com.blockether.spel.gen-docs/-main)))

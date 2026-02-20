@@ -1727,6 +1727,38 @@
           (expect (some? (:console data)))
           (expect (some #(= "before-error" (:text %)) (:console data))))))
 
+    ;; --- Help function ---
+    ;; spel/help prints to stdout (captured as :stdout in daemon response)
+    ;; and returns nil (captured as :result "nil")
+
+    (it "spel/help with no args lists namespaces"
+      (let [r (cmd "sci_eval" {"code" "(spel/help)"})]
+        (expect (= "nil" (:result r)))
+        (expect (str/includes? (:stdout r) "spel/"))
+        (expect (str/includes? (:stdout r) "snapshot/"))
+        (expect (str/includes? (:stdout r) "annotate/"))
+        (expect (str/includes? (:stdout r) "Usage:"))))
+
+    (it "spel/help with namespace shows function table"
+      (let [r (cmd "sci_eval" {"code" "(spel/help \"spel\")"})]
+        (expect (str/includes? (:stdout r) "spel/click"))
+        (expect (str/includes? (:stdout r) "spel/goto"))
+        (expect (str/includes? (:stdout r) "Arglists"))))
+
+    (it "spel/help with search term finds matches"
+      (let [r (cmd "sci_eval" {"code" "(spel/help \"click\")"})]
+        (expect (str/includes? (:stdout r) "click"))
+        (expect (str/includes? (:stdout r) "match"))))
+
+    (it "spel/help with ns/fn shows specific function"
+      (let [r (cmd "sci_eval" {"code" "(spel/help \"spel/goto\")"})]
+        (expect (str/includes? (:stdout r) "spel/goto"))
+        (expect (str/includes? (:stdout r) "Arglists:"))))
+
+    (it "spel/help returns nil"
+      (let [r (cmd "sci_eval" {"code" "(spel/help \"spel/goto\")"})]
+        (expect (= "nil" (:result r)))))
+
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
     (it "stop! does not kill daemon browser"

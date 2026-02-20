@@ -479,6 +479,108 @@
                   (catch Exception _ true)))))))
 
 ;; =============================================================================
+;; Help Function Tests
+;; =============================================================================
+
+(defdescribe help-function-test
+  "Tests for spel/help in SCI eval mode"
+
+  (describe "help registry loading"
+    (it "help registry is non-empty"
+      (expect (pos? (count (#'sut/load-help-registry)))))
+
+    (it "help registry entries have required keys"
+      (let [entry (first (#'sut/load-help-registry))]
+        (expect (contains? entry :ns))
+        (expect (contains? entry :name))
+        (expect (contains? entry :arglists))
+        (expect (contains? entry :doc)))))
+
+  (describe "spel/help output"
+    ;; sci-help prints to JVM *out* (bound via sci/with-bindings in eval-string).
+    ;; Use Clojure's with-out-str around eval-string to capture output.
+    (it "help with no args prints namespace summary"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help)"))]
+        (expect (string? output))
+        (expect (.contains ^String output "spel/"))
+        (expect (.contains ^String output "snapshot/"))
+        (expect (.contains ^String output "Usage:"))))
+
+    (it "help with namespace prints function table"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel\")"))]
+        (expect (.contains ^String output "spel/click"))
+        (expect (.contains ^String output "spel/goto"))
+        (expect (.contains ^String output "Arglists"))))
+
+    (it "help with search term finds matches"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"screenshot\")"))]
+        (expect (.contains ^String output "screenshot"))
+        (expect (.contains ^String output "match"))))
+
+    (it "help with ns/fn shows specific function"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
+        (expect (.contains ^String output "spel/goto"))
+        (expect (.contains ^String output "Arglists:"))))
+
+    (it "help returns nil"
+      (let [ctx (sut/create-sci-ctx)
+            sw (java.io.StringWriter.)]
+        (binding [*out* sw]
+          (let [result (sut/eval-string ctx "(spel/help \"spel/click\")")]
+            (expect (nil? result))))))
+
+    (it "help with unknown function prints 'No function found'"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/nonexistent999\")"))]
+        (expect (.contains ^String output "No function found"))))
+
+    (it "help with unknown search term prints 'No matches'"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"zzz_not_a_real_function_zzz\")"))]
+        (expect (.contains ^String output "No matches"))))
+
+    (it "help for specific function shows Source field"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
+        (expect (.contains ^String output "Source:")))))
+
+  (describe "spel/source output"
+    (it "source for ns/fn shows wrapper source code"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/goto\")"))]
+        (expect (.contains ^String output ";; spel/goto"))
+        (expect (.contains ^String output "Delegates to:"))
+        (expect (.contains ^String output "defn"))))
+
+    (it "source for bare name with unique match shows source"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/source \"full-snapshot\")"))]
+        (expect (.contains ^String output ";; spel/full-snapshot"))
+        (expect (.contains ^String output "defn"))))
+
+    (it "source for bare name with multiple matches lists candidates"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/source \"click\")"))]
+        (expect (.contains ^String output "Multiple matches"))
+        (expect (.contains ^String output "spel/click"))))
+
+    (it "source for unknown function prints error"
+      (let [ctx (sut/create-sci-ctx)
+            output (with-out-str (sut/eval-string ctx "(spel/source \"nonexistent999\")"))]
+        (expect (.contains ^String output "No matches"))))
+
+    (it "source returns nil"
+      (let [ctx (sut/create-sci-ctx)
+            sw (java.io.StringWriter.)]
+        (binding [*out* sw]
+          (let [result (sut/eval-string ctx "(spel/source \"spel/click\")")]
+            (expect (nil? result))))))))
+
+;; =============================================================================
 ;; Integration Tests — SCI-driven Playwright session
 ;; =============================================================================
 

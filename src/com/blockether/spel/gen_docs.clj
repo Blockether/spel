@@ -231,25 +231,76 @@
       {}
       (range (count marker-positions)))))
 
+(defn- extract-defn-source
+  "Extracts the source code of a defn/defn- form from sci_env.clj.
+   Returns the complete defn form as a string, or nil."
+  [fn-name src]
+  (let [;; Match both (defn and (defn-
+        defn-marker (str "(defn" (when-not (str/starts-with? fn-name "sci-") "") " " fn-name)
+        defn-marker-private (str "(defn- " fn-name)]
+    (when-let [defn-start (or (str/index-of src defn-marker)
+                            (str/index-of src defn-marker-private))]
+      (let [;; Find next top-level form: (def at column 0, or EOF
+            defn-end (or (str/index-of src "\n(def" (+ (long defn-start) 10))
+                       (count src))
+            raw (str/trim (subs src defn-start defn-end))]
+        (when (seq raw) raw)))))
+
+(defn- resolve-library-source
+  "Resolves the underlying library function that a SCI wrapper delegates to.
+   Returns a string like 'com.blockether.spel.page/navigate' or nil."
+  [backing-name src]
+  (when-let [lib-var (extract-library-fn-from-source backing-name src)]
+    (let [m (meta lib-var)]
+      (str (:ns m) "/" (:name m)))))
+
 (defn- sci-var-entry
   "Extracts SCI function documentation from its backing var.
    When the backing var has no docstring (common for sci-* wrappers),
-   follows through to the underlying library function and uses its docstring."
+   follows through to the underlying library function and uses its docstring.
+   Also captures source code of the SCI wrapper and the library function it delegates to."
   [{:keys [exposed backing-var backing-name]} src]
   (if backing-var
     (let [m (meta backing-var)
           doc (first-doc-line (:doc m))
-          ;; If no docstring on the wrapper, try the underlying library function
+          lib-var (when (and (not doc) backing-name src)
+                    (extract-library-fn-from-source backing-name src))
           resolved-doc (or doc
-                         (when (and (not doc) backing-name src)
-                           (when-let [lib-var (extract-library-fn-from-source backing-name src)]
-                             (first-doc-line (:doc (meta lib-var))))))]
+                         (when lib-var
+                           (first-doc-line (:doc (meta lib-var)))))
+          lib-source (or (resolve-library-source backing-name src)
+                       ;; Direct namespace reference (e.g. input/key-press)
+                       (when (str/includes? (str backing-name) "/")
+                         (when-let [v (resolve-qualified-fn (str backing-name))]
+                           (let [vm (meta v)]
+                             (str (:ns vm) "/" (:name vm))))))
+          wrapper-source (extract-defn-source (str backing-name) src)]
       {:name exposed
        :arglists (:arglists m)
-       :doc resolved-doc})
+       :doc resolved-doc
+       :lib-source lib-source
+       :wrapper-source wrapper-source})
     {:name exposed
      :arglists nil
-     :doc nil}))
+     :doc nil
+     :lib-source nil
+     :wrapper-source nil}))
+
+(defn- sci-ns-entries
+  "Extracts help entries for a single SCI namespace.
+   Returns a vec of {:ns ns-name :name fn-name :arglists str :doc str
+                     :lib-source str :wrapper-source str}."
+  [ns-name entries src]
+  (->> entries
+    (map #(sci-var-entry % src))
+    (sort-by :name)
+    (mapv (fn [{:keys [name arglists doc lib-source wrapper-source]}]
+            (cond-> {:ns ns-name
+                     :name name
+                     :arglists (or (format-arglists arglists) "")
+                     :doc (or doc "")}
+              lib-source (assoc :lib-source lib-source)
+              wrapper-source (assoc :wrapper-source wrapper-source))))))
 
 (defn- sci-ns-table
   "Generates a markdown table for a single SCI namespace."
@@ -486,7 +537,38 @@
     (println "  - CLI commands:" (count (re-seq #"\| `" cli-commands)) "commands")
     (println "  Written to:" template-output-path)))
 
+;; =============================================================================
+;; Help Registry Generation (EDN for SCI runtime)
+;; =============================================================================
+
+(def ^:private help-registry-path
+  "EDN file baked into the JAR/native-image for spel/help."
+  "resources/com/blockether/spel/help-registry.edn")
+
+(defn generate-help-registry
+  "Generates an EDN help registry from SCI namespace registrations.
+   Each entry: {:ns str :name str :arglists str :doc str}.
+   Entries are grouped by namespace and sorted by name.
+   Saves to resources/com/blockether/spel/help-registry.edn."
+  []
+  (let [registrations (parse-sci-registrations)
+        src (slurp (io/resource "com/blockether/spel/sci_env.clj"))
+        entries (vec
+                  (mapcat
+                    (fn [[ns-name _description]]
+                      (when-let [regs (get registrations ns-name)]
+                        (sci-ns-entries ns-name regs src)))
+                    sci-namespaces))
+        edn-str (with-out-str
+                  (binding [*print-length* nil
+                            *print-level* nil]
+                    (pr entries)))]
+    (spit (io/file help-registry-path) edn-str)
+    (println "  - Help registry:" (count entries) "entries")
+    (println "  Written to:" help-registry-path)))
+
 (defn -main
   "CLI entry point."
   [& _args]
-  (generate-skill-md))
+  (generate-skill-md)
+  (generate-help-registry))
