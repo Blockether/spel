@@ -355,10 +355,10 @@
     ;; temp directory when no path is given. Throws on write failure so the
     ;; daemon surfaces the error to the CLI (never silently fails).
     (let [path-str    (or screenshot-path
-                         (str (System/getProperty "java.io.tmpdir")
-                           java.io.File/separator
-                           "spel-screenshot-"
-                           (System/currentTimeMillis) ".png"))
+                        (str (System/getProperty "java.io.tmpdir")
+                          java.io.File/separator
+                          "spel-screenshot-"
+                          (System/currentTimeMillis) ".png"))
           ^bytes ss-bytes (page/screenshot (pg))]
       (snapshot-after-action!)
       (java.nio.file.Files/write
@@ -367,7 +367,7 @@
         ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)})
     (let [tree (snapshot-after-action!)]
-      {:snapshot tree :url (page/url (pg)) :title (page/title (pg))}))
+      {:snapshot tree :url (page/url (pg)) :title (page/title (pg))})))
 
 (defmethod handle-cmd "snapshot" [_ params]
   (ensure-browser!)
