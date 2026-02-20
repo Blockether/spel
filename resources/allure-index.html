@@ -212,6 +212,7 @@
       }
 
       var clickHandler = inProgress ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
+      var arrowHtml = inProgress ? '' : '<svg class="arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
         + '<div class="run"><div class="run-label">Run</div>'
         + (runUrl
@@ -231,7 +232,7 @@
         + (date ? '<div class="meta-date">' + date + '</div>' : '')
         + (rel ? '<div class="meta-rel">' + rel + '</div>' : '')
         + '</div>'
-        + '<svg class="arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
+        + arrowHtml
         + '</div>';
     }
 
