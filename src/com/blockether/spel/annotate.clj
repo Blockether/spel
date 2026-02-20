@@ -804,12 +804,12 @@
           caption (:caption entry)]
       (str (when (:page-break entry) "<div class='page-break'></div>")
         "<img class='screenshot' src='data:image/png;base64," (encode-b64 img)
-        "' alt='Screenshot " (inc idx) "'/>"
+        "' alt='Screenshot " (inc (long idx)) "'/>"
         (when caption
           (str "<p class='caption'>" (escape-html caption) "</p>"))))
 
     :section
-    (let [level (min 3 (max 1 (or (:level entry) 2)))
+    (let [level (long (min 3 (max 1 (long (or (:level entry) 2)))))
           tag   (str "h" level)]
       (str (when (:page-break entry) "<div class='page-break'></div>")
         "<" tag ">" (escape-html (:text entry)) "</" tag ">"))

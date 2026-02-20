@@ -1226,9 +1226,9 @@
                   cmd-args-vec  (vec cmd-args)
                   screenshot?   (some #{"--screenshot"} cmd-args)
                   ss-idx        (when screenshot?
-                                  (long (.indexOf ^java.util.List cmd-args-vec "--screenshot")))
-                  ss-next       (when (and ss-idx (>= ss-idx 0))
-                                  (nth cmd-args-vec (inc ss-idx) nil))
+                                  (.indexOf ^java.util.List cmd-args-vec "--screenshot"))
+                  ss-next       (when (and ss-idx (>= (long ss-idx) 0))
+                                  (nth cmd-args-vec (inc (long ss-idx)) nil))
                   ;; Only treat the next token as a path if it isn't itself a flag
                   ss-path       (when (and ss-next (not (str/starts-with? ss-next "-")))
                                   ss-next)
