@@ -178,8 +178,14 @@
      :has-touch       - Boolean.
      :base-url        - String.
      :accept-downloads - Boolean.
-     :offline         - Boolean.
-     :extra-http-headers - Map of string->string.
+      :offline         - Boolean.
+      :extra-http-headers - Map of string->string.
+      ;; HAR recording
+      :record-har-path - String. Path to write HAR file.
+      :record-har-mode - Keyword. :full (default) or :minimal.
+      :record-har-content - Keyword. :embed (default), :attach, or :omit.
+      :record-har-omit-content - Boolean. Shorthand for omitting content.
+      :record-har-url-filter - String. Glob pattern to filter URLs.
 
    Returns:
    BrowserType$LaunchPersistentContextOptions instance."
@@ -244,6 +250,22 @@
       (.setOffline o (boolean (:offline opts))))
     (when-let [v (:extra-http-headers opts)]
       (.setExtraHTTPHeaders o ^java.util.Map v))
+    ;; HAR recording
+    (when-let [v (:record-har-path opts)]
+      (.setRecordHarPath o (->path v)))
+    (when-let [v (:record-har-mode opts)]
+      (.setRecordHarMode o (case v
+                             :full    HarMode/FULL
+                             :minimal HarMode/MINIMAL)))
+    (when-let [v (:record-har-content opts)]
+      (.setRecordHarContent o (case v
+                                :embed  HarContentPolicy/EMBED
+                                :attach HarContentPolicy/ATTACH
+                                :omit   HarContentPolicy/OMIT)))
+    (when (contains? opts :record-har-omit-content)
+      (.setRecordHarOmitContent o (boolean (:record-har-omit-content opts))))
+    (when-let [v (:record-har-url-filter opts)]
+      (.setRecordHarUrlFilter o ^String v))
     o))
 
 ;; =============================================================================

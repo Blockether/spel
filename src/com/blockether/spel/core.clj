@@ -705,17 +705,27 @@
                (dissoc result :playwright/exception))))
     result))
 
+(def ^:private launch-opt-keys
+  "Keys that belong to browser launch (not context). Used to split user opts."
+  #{:headless :slow-mo :executable-path :channel :proxy :args
+    :downloads-path :timeout :chromium-sandbox})
+
+(def ^:private non-context-keys
+  "Keys that must be stripped from context opts (launch keys + meta keys)."
+  (conj launch-opt-keys :device :viewport :browser-type :profile))
+
 (defn- resolve-context-opts
   "Resolves `:device` and `:viewport` in opts to context-ready options.
 
    - `:device` keyword → merges device descriptor (viewport, user-agent, etc.)
    - `:viewport` keyword → resolves to {:width :height}
    - `:viewport` map → used as-is
-   - Both are removed from the returned map; their effects are merged in."
+   - Both are removed from the returned map; their effects are merged in.
+   - Launch keys and :profile are stripped."
   [opts]
   (let [device-kw  (:device opts)
         viewport   (:viewport opts)
-        base-opts  (dissoc opts :device :viewport :browser-type :headless :slow-mo)
+        base-opts  (apply dissoc opts non-context-keys)
         device-map (when device-kw (devices/resolve-device device-kw))
         vp         (or (:viewport device-map)
                      (devices/resolve-viewport viewport))]
@@ -725,9 +735,11 @@
 (defn- resolve-launch-opts
   "Extracts browser launch options from the user opts map."
   [opts]
-  (cond-> {}
-    (contains? opts :headless) (assoc :headless (:headless opts))
-    (contains? opts :slow-mo)  (assoc :slow-mo (:slow-mo opts))))
+  (reduce-kv (fn [m k v]
+               (if (contains? launch-opt-keys k)
+                 (assoc m k v)
+                 m))
+    {} opts))
 
 (defn- resolve-launcher
   "Returns the launch fn for the given `:browser-type` keyword."
@@ -737,85 +749,148 @@
     :firefox  launch-firefox
     :webkit   launch-webkit))
 
+(defn- resolve-browser-type
+  "Returns the BrowserType accessor fn for the given `:browser-type` keyword."
+  [browser-type]
+  (case (or browser-type :chromium)
+    :chromium chromium
+    :firefox  firefox
+    :webkit   webkit))
+
+(defn- run-traced-page
+  "Runs `f` on a page with Allure tracing and HAR recording.
+   `ctx` is a BrowserContext (from new-context or launch-persistent-context).
+   `allure-vars` is a map of {:page :tracing-var :trace :har :title} var references."
+  [^BrowserContext ctx allure-vars f]
+  (let [trace-file (File/createTempFile "pw-trace-" ".zip")
+        har-file   (File/createTempFile "pw-har-" ".har")
+        tracing    (.tracing ctx)
+        {:keys [page tracing-var trace har title]} allure-vars]
+    ;; For non-persistent contexts, HAR is configured via context opts.
+    ;; For persistent contexts, HAR is configured via launch-persistent-context opts.
+    ;; Either way, tracing is started here.
+    (.start tracing (doto (Tracing$StartOptions.)
+                      (.setScreenshots true)
+                      (.setSnapshots true)
+                      (.setSources true)
+                      (.setTitle (or (when title @title) "spel"))))
+    (let [pg (new-page-from-context ctx)]
+      (try
+        (with-bindings (cond-> {}
+                         page        (assoc page pg)
+                         tracing-var (assoc tracing-var tracing)
+                         trace       (assoc trace trace-file)
+                         har         (assoc har har-file))
+          (f pg))
+        (finally
+          (when (instance? Page pg) (close-page! pg))
+          (try (.stop tracing (doto (Tracing$StopOptions.)
+                                (.setPath (.toPath trace-file))))
+            (catch Exception _))
+          (let [t (doto (Thread. (fn []
+                                   (try (close-context! ctx)
+                                     (catch Exception _))))
+                    (.setDaemon true)
+                    (.start))]
+            (.join t 5000)))))))
+
+(defn- run-plain-page
+  "Runs `f` on a page without tracing. Binds allure *page* if available."
+  [^BrowserContext ctx allure-page-var f]
+  (let [pg (new-page-from-context ctx)]
+    (try
+      (with-bindings (cond-> {}
+                       allure-page-var (assoc allure-page-var pg))
+        (f pg))
+      (finally
+        (when (instance? Page pg) (close-page! pg))
+        (try (close-context! ctx) (catch Exception _))))))
+
+(defn- resolve-allure-vars
+  "Dynamically resolves Allure vars and the active? predicate.
+   Returns [active?-fn vars-map]."
+  []
+  (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
+                  (catch Exception _ (constantly false)))]
+    [active?
+     {:page        (resolve 'com.blockether.spel.allure/*page*)
+      :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
+      :trace       (resolve 'com.blockether.spel.allure/*trace-path*)
+      :har         (resolve 'com.blockether.spel.allure/*har-path*)
+      :title       (resolve 'com.blockether.spel.allure/*test-title*)}]))
+
 (defn run-with-testing-page
   "Functional core of `with-testing-page`. Sets up a complete Playwright stack
-   (playwright → browser → context → page) and calls `(f page)`.
+   and calls `(f page)`.
+
+   Two modes:
+   - **Normal** (no :profile): playwright → launch browser → new-context → page
+   - **Persistent** (:profile given): playwright → launch-persistent-context → page
 
    When the Allure reporter is active, automatically enables Playwright tracing
    (screenshots + DOM snapshots + sources) and HAR recording, and binds the
    allure dynamic vars so traces/HARs are attached to the test result.
 
    Opts:
-     :browser-type  - :chromium (default), :firefox, or :webkit
-     :headless      - Boolean (default true)
-     :slow-mo       - Millis to slow down operations
-     :device        - Device preset keyword (e.g. :iphone-14, :pixel-7)
-     :viewport      - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
-     + any key accepted by `new-context` (e.g. :locale, :color-scheme, :timezone-id)
+     :browser-type    - :chromium (default), :firefox, or :webkit
+     :headless        - Boolean (default true)
+     :slow-mo         - Millis to slow down operations
+     :device          - Device preset keyword (e.g. :iphone-14, :pixel-7)
+     :viewport        - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
+     :profile         - String. Path to persistent user data dir (Chrome profile).
+                        Pass empty string for a temporary profile.
+     :executable-path - String. Path to browser executable.
+     :channel         - String. Browser channel (e.g. \"chrome\", \"msedge\").
+     :proxy           - Map with :server, :bypass, :username, :password.
+     :args            - Vector of additional browser args.
+     :downloads-path  - String. Path to download files.
+     :timeout         - Double. Max time in ms to wait for browser launch.
+     :chromium-sandbox - Boolean. Enable Chromium sandbox.
+     + any key accepted by `new-context` (e.g. :locale, :color-scheme,
+       :timezone-id, :storage-state)
 
    When :device is given, its viewport/user-agent/device-scale-factor/is-mobile/has-touch
    are merged into context opts. Explicit :viewport overrides the device viewport."
   [opts f]
-  (let [;; Dynamically resolve allure vars to avoid cyclic dependency (core → allure → page → core)
-        allure-active?  (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                          (catch Exception _ (constantly false)))
-        allure-page     (resolve 'com.blockether.spel.allure/*page*)
-        allure-tracing  (resolve 'com.blockether.spel.allure/*tracing*)
-        allure-trace    (resolve 'com.blockether.spel.allure/*trace-path*)
-        allure-har      (resolve 'com.blockether.spel.allure/*har-path*)
-        allure-title    (resolve 'com.blockether.spel.allure/*test-title*)
-        launch-fn       (resolve-launcher (:browser-type opts))
-        launch-opts     (resolve-launch-opts opts)
-        ctx-opts        (resolve-context-opts opts)]
+  (let [[allure-active? allure-vars] (resolve-allure-vars)
+        profile      (:profile opts)
+        launch-opts  (resolve-launch-opts opts)
+        ctx-opts     (resolve-context-opts opts)]
     (with-playwright [pw]
-      (with-browser [browser (ensure-not-anomaly!
-                               (if (seq launch-opts)
-                                 (launch-fn pw launch-opts)
-                                 (launch-fn pw)))]
-        (if (allure-active?)
-          ;; Traced mode: HAR + Playwright tracing for Allure attachment
-          (let [trace-file (File/createTempFile "pw-trace-" ".zip")
-                har-file   (File/createTempFile "pw-har-" ".har")
-                ctx        (ensure-not-anomaly!
-                             (new-context browser
-                               (merge ctx-opts
+      (if profile
+        ;; Persistent context mode: launch-persistent-context returns BrowserContext directly
+        (let [bt-fn    (resolve-browser-type (:browser-type opts))
+              bt       (bt-fn pw)
+              combined (merge launch-opts ctx-opts)
+              ctx      (ensure-not-anomaly!
+                         (if (allure-active?)
+                           (let [har-file (File/createTempFile "pw-har-" ".har")]
+                             (launch-persistent-context bt profile
+                               (merge combined
                                  {:record-har-path (str har-file)
                                   :record-har-mode :full})))
-                tracing    (.tracing ^BrowserContext ctx)]
-            (.start tracing (doto (Tracing$StartOptions.)
-                              (.setScreenshots true)
-                              (.setSnapshots true)
-                              (.setSources true)
-                              (.setTitle (or (when allure-title @allure-title) "spel"))))
-            (let [page (new-page-from-context ctx)]
-              (try
-                (with-bindings (cond-> {}
-                                 allure-page    (assoc allure-page page)
-                                 allure-tracing (assoc allure-tracing tracing)
-                                 allure-trace   (assoc allure-trace trace-file)
-                                 allure-har     (assoc allure-har har-file))
-                  (f page))
-                (finally
-                  (when (instance? Page page) (close-page! page))
-                  (try (.stop tracing (doto (Tracing$StopOptions.)
-                                        (.setPath (.toPath trace-file))))
-                    (catch Exception _))
-                  (let [t (doto (Thread. (fn []
-                                           (try (close-context! ctx)
-                                             (catch Exception _))))
-                            (.setDaemon true)
-                            (.start))]
-                    (.join t 5000))))))
-          ;; Normal mode: plain page, no tracing overhead
-          (let [ctx  (ensure-not-anomaly! (new-context browser (or ctx-opts {})))
-                page (new-page-from-context ctx)]
-            (try
-              (with-bindings (cond-> {}
-                               allure-page (assoc allure-page page))
-                (f page))
-              (finally
-                (when (instance? Page page) (close-page! page))
-                (try (close-context! ctx) (catch Exception _))))))))))
+                           (if (seq combined)
+                             (launch-persistent-context bt profile combined)
+                             (launch-persistent-context bt profile))))]
+          (if (allure-active?)
+            (run-traced-page ctx allure-vars f)
+            (run-plain-page ctx (:page allure-vars) f)))
+        ;; Normal mode: launch browser → new-context → page
+        (let [launch-fn (resolve-launcher (:browser-type opts))]
+          (with-browser [browser (ensure-not-anomaly!
+                                   (if (seq launch-opts)
+                                     (launch-fn pw launch-opts)
+                                     (launch-fn pw)))]
+            (if (allure-active?)
+              (let [har-file (File/createTempFile "pw-har-" ".har")
+                    ctx      (ensure-not-anomaly!
+                               (new-context browser
+                                 (merge ctx-opts
+                                   {:record-har-path (str har-file)
+                                    :record-har-mode :full})))]
+                (run-traced-page ctx allure-vars f))
+              (let [ctx (ensure-not-anomaly! (new-context browser (or ctx-opts {})))]
+                (run-plain-page ctx (:page allure-vars) f)))))))))
 
 (defmacro with-testing-page
   "All-in-one macro for quick browser testing with automatic resource management.
@@ -823,16 +898,31 @@
    Creates a complete Playwright stack (playwright → browser → context → page),
    binds the page to `sym`, executes body, and tears everything down.
 
+   Two modes:
+   - **Normal** (no :profile): playwright → launch browser → new-context → page
+   - **Persistent** (:profile given): playwright → launch-persistent-context → page
+     Use :profile for persistent user data (login sessions, cookies, extensions).
+
    When the Allure reporter is active, automatically enables Playwright tracing
    (screenshots + DOM snapshots + network) and HAR recording — zero configuration.
 
    Opts (an optional map expression, evaluated at runtime):
-     :browser-type  - :chromium (default), :firefox, :webkit
-     :headless      - Boolean (default true)
-     :slow-mo       - Millis to slow down operations
-     :device        - Device preset keyword (e.g. :iphone-14, :pixel-7)
-     :viewport      - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
-     + any key accepted by `new-context` (:locale, :color-scheme, :timezone-id, etc.)
+     :browser-type    - :chromium (default), :firefox, or :webkit
+     :headless        - Boolean (default true)
+     :slow-mo         - Millis to slow down operations
+     :device          - Device preset keyword (e.g. :iphone-14, :pixel-7)
+     :viewport        - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
+     :profile         - String. Path to persistent user data dir (Chrome profile).
+                        When set, uses launch-persistent-context instead of launch + new-context.
+     :executable-path - String. Path to browser executable.
+     :channel         - String. Browser channel (e.g. \"chrome\", \"msedge\").
+     :proxy           - Map with :server, :bypass, :username, :password.
+     :args            - Vector of additional browser args.
+     :downloads-path  - String. Path to download files.
+     :timeout         - Double. Max time in ms to wait for browser launch.
+     :chromium-sandbox - Boolean. Enable Chromium sandbox.
+     + any key accepted by `new-context` (:locale, :color-scheme, :timezone-id,
+       :storage-state, etc.)
 
    Usage:
      ;; Minimal — headless Chromium, default viewport (opts omitted)
@@ -850,6 +940,15 @@
 
      ;; Firefox, headed mode
      (with-testing-page {:browser-type :firefox :headless false} [page]
+       (page/navigate page \"https://example.com\"))
+
+     ;; Persistent profile (keeps login sessions across runs)
+     (with-testing-page {:profile \"/tmp/my-chrome-profile\"} [page]
+       (page/navigate page \"https://example.com\"))
+
+     ;; Custom browser executable + extra args
+     (with-testing-page {:executable-path \"/usr/bin/chromium\"
+                         :args [\"--disable-gpu\"]} [page]
        (page/navigate page \"https://example.com\"))"
   [opts-or-binding & args]
   (if (vector? opts-or-binding)

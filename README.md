@@ -240,6 +240,15 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 ;; Firefox, headed mode
 (core/with-testing-page {:browser-type :firefox :headless false} [pg]
   (page/navigate pg "https://example.com"))
+
+;; Persistent profile (keeps login sessions across runs)
+(core/with-testing-page {:profile "/tmp/my-chrome-profile"} [pg]
+  (page/navigate pg "https://example.com"))
+
+;; Custom browser executable + extra args
+(core/with-testing-page {:executable-path "/usr/bin/chromium"
+                         :args ["--disable-gpu"]} [pg]
+  (page/navigate pg "https://example.com"))
 ```
 
 | Option | Values | Default |
@@ -249,7 +258,15 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 | `:device` | `:iphone-14`, `:pixel-7`, `:ipad`, `:desktop-chrome`, [etc.](#device-presets) | — |
 | `:viewport` | `:mobile`, `:tablet`, `:desktop-hd`, `{:width N :height N}` | browser default |
 | `:slow-mo` | Millis to slow down operations | — |
-| + any key accepted by `new-context` | `:locale`, `:color-scheme`, `:timezone-id`, etc. | — |
+| `:profile` | String path to persistent user data dir | — |
+| `:executable-path` | String path to browser executable | — |
+| `:channel` | `"chrome"`, `"msedge"`, etc. | — |
+| `:proxy` | `{:server "..." :bypass "..." :username "..." :password "..."}` | — |
+| `:args` | Vector of extra browser CLI args | — |
+| `:downloads-path` | String path for downloaded files | — |
+| `:timeout` | Max ms to wait for browser launch | — |
+| `:chromium-sandbox` | `true`, `false` | — |
+| + any key accepted by `new-context` | `:locale`, `:color-scheme`, `:timezone-id`, `:storage-state`, etc. | — |
 
 When the [Allure reporter](#allure-test-reporting) is active, tracing (screenshots + DOM snapshots + network) and HAR recording are enabled automatically — zero configuration.
 

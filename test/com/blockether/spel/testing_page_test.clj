@@ -206,3 +206,69 @@
                      (page/navigate pg "https://example.com")
                      (page/title pg))]
         (expect (= "Example Domain" result))))))
+
+;; =============================================================================
+;; Integration Tests — profile + launch opts
+;; =============================================================================
+
+(defdescribe with-testing-page-profile-test
+  "Integration tests for with-testing-page :profile mode (persistent context)"
+
+  (describe "persistent context with temp profile"
+    (it "creates a page via launch-persistent-context"
+      (let [profile-dir (str (java.io.File/createTempFile "spel-profile-" ""))]
+        ;; createTempFile creates a file; we need a directory
+        (.delete (java.io.File. profile-dir))
+        (core/with-testing-page {:profile profile-dir} [pg]
+          (expect (instance? Page pg))
+          (page/navigate pg "https://example.com")
+          (expect (= "Example Domain" (page/title pg)))))))
+
+  (describe "persistent context with viewport"
+    (it "applies viewport to persistent context"
+      (let [profile-dir (str (doto (java.io.File/createTempFile "spel-profile-" "")
+                               (.delete)))]
+        (core/with-testing-page {:profile profile-dir
+                                 :viewport {:width 800 :height 600}} [pg]
+          (page/navigate pg "https://example.com")
+          (let [vp (page/viewport-size pg)]
+            (expect (= 800 (:width vp)))
+            (expect (= 600 (:height vp))))))))
+
+  (describe "persistent context with device"
+    (it "applies device preset to persistent context"
+      (let [profile-dir (str (doto (java.io.File/createTempFile "spel-profile-" "")
+                               (.delete)))]
+        (core/with-testing-page {:profile profile-dir
+                                 :device :iphone-14} [pg]
+          (page/navigate pg "https://example.com")
+          (let [vp (page/viewport-size pg)]
+            (expect (= 390 (:width vp)))
+            (expect (= 844 (:height vp)))))))))
+
+(defdescribe with-testing-page-launch-opts-test
+  "Integration tests for with-testing-page launch opts"
+
+  (describe "extra browser args"
+    (it "passes :args to browser launch without error"
+      (core/with-testing-page {:args ["--disable-extensions"]} [pg]
+        (expect (instance? Page pg))
+        (page/navigate pg "https://example.com")
+        (expect (= "Example Domain" (page/title pg))))))
+
+  (describe "slow-mo option"
+    (it "accepts :slow-mo without error"
+      (core/with-testing-page {:slow-mo 10} [pg]
+        (expect (instance? Page pg))
+        (page/navigate pg "https://example.com")
+        (expect (= "Example Domain" (page/title pg))))))
+
+  (describe "combined launch + context opts"
+    (it "accepts launch opts and context opts together"
+      (core/with-testing-page {:args ["--disable-extensions"]
+                               :viewport :desktop-hd
+                               :locale "en-US"} [pg]
+        (page/navigate pg "https://example.com")
+        (let [vp (page/viewport-size pg)]
+          (expect (= 1920 (:width vp)))
+          (expect (= 1080 (:height vp))))))))
