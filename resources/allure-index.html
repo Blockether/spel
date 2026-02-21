@@ -157,13 +157,14 @@
       window.__spelRemoveItem = function(key) { _removeItem(prefix + key); };
     })();
     (function() {
-      var saved = window.__spelGetItem('spel-theme');
+      // Theme is stored globally (shared across all builds)
+      var saved = localStorage.getItem('spel-theme');
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches))
         document.documentElement.classList.add('dark');
     })();
     function toggleTheme() {
       var d = document.documentElement.classList.toggle('dark');
-      window.__spelSetItem('spel-theme', d ? 'dark' : 'light');
+      localStorage.setItem('spel-theme', d ? 'dark' : 'light');
     }
 
     function relativeTime(ts) {
