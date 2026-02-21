@@ -646,6 +646,63 @@
            (close-page! ~sym))))))
 
 ;; =============================================================================
+;; Testing Page (Convenience Macro)
+;; =============================================================================
+
+(defmacro with-testing-page
+  "Convenience macro that wraps with-playwright, with-browser, with-context, and with-page.
+   Provides sane defaults for browser testing - 4x less nesting.
+   
+   Options (map as first argument):
+   :browser-type - :chromium (default), :firefox, :webkit
+   :headless     - true (default) or false
+   :trace?       - false (default) or true (auto-trace to allure)
+   :slow-mo      - 0 (default) or ms delay
+   :viewport     - {:width 1280 :height 720} default
+   
+   Usage:
+   ;; Basic usage with defaults
+   (with-testing-page {}
+     [pg]
+     (navigate pg \"https://example.com\")
+     (click pg \"button\"))
+   
+   ;; With tracing for Allure reports
+   (with-testing-page {:trace? true}
+     [pg]
+     (navigate pg \"https://example.com\"))
+   
+   ;; Firefox headed with slow-mo
+   (with-testing-page {:browser-type :firefox 
+                        :headless false 
+                        :slow-mo 500}
+     [pg]
+     (navigate pg \"https://example.com\"))"
+  [opts [sym] & body]
+  (let [browser-type (or (:browser-type opts) :chromium)
+        headless (or (:headless opts) true)
+        trace? (or (:trace? opts) false)
+        slow-mo (or (:slow-mo opts) 0)
+        viewport (or (:viewport opts) {:width 1280 :height 720})
+        launcher-sym (gensym "launcher")]
+    `(with-playwright [pw#]
+       (let [~launcher-sym (case ~browser-type
+                             :chromium launch-chromium
+                             :firefox launch-firefox
+                             :webkit launch-webkit)]
+         (with-browser [browser# (~launcher-sym pw# {:headless ~headless
+                                                      :slow-mo ~slow-mo})]
+           (with-context [ctx# (new-context browser# {:viewport ~viewport})]
+             (with-page [~sym (new-page-from-context ctx#)]
+               ~@(when trace?
+                   [`(start-trace ~sym)])
+               (try
+                 ~@body
+                 (finally
+                   ~@(when trace?
+                       [`(stop-trace ~sym)]))))))))))
+
+;; =============================================================================
 ;; Video Recording
 ;; =============================================================================
 

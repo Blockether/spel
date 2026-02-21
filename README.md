@@ -81,6 +81,50 @@ spel install  # requires spel CLI — see "As a Native CLI Binary" below
 ;; => "Example Domain"
 ```
 
+**Simplified with `with-testing-page`:**
+
+For most testing scenarios, use `with-testing-page` which wraps all 4 macros with sane defaults:
+
+```clojure
+(require '[com.blockether.spel.core :as core]
+         '[com.blockether.spel.page :as page])
+
+(core/with-testing-page {}
+  [pg]
+  (page/navigate pg "https://example.com")
+  (println (locator/text-content (page/locator pg "h1"))))
+;; => "Example Domain"
+```
+
+**Options:**
+
+- `:browser-type` - `:chromium` (default), `:firefox`, `:webkit`
+- `:headless` - `true` (default) or `false`
+- `:trace?` - `false` (default) or `true` (auto-trace to Allure)
+- `:slow-mo` - `0` (default) or ms delay
+- `:viewport` - `{:width 1280 :height 720}` (default)
+
+**Examples:**
+
+```clojure
+;; Basic - chromium, headless
+(core/with-testing-page {}
+  [pg]
+  (page/navigate pg "https://example.com"))
+
+;; With tracing for Allure reports
+(core/with-testing-page {:trace? true}
+  [pg]
+  (page/navigate pg "https://example.com"))
+
+;; Firefox headed with slow-mo for debugging
+(core/with-testing-page {:browser-type :firefox
+                          :headless false
+                          :slow-mo 500}
+  [pg]
+  (page/navigate pg "https://example.com"))
+```
+
 ## Native CLI
 
 ### Releases
