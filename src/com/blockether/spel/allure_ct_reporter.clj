@@ -94,7 +94,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-    (catch Exception _ "localhost")))
+       (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -209,14 +209,14 @@
   [^File output-dir]
   (when (.exists output-dir)
     (->> (.listFiles output-dir)
-         (filter #(str/ends-with? (.getName ^File %) "-result.json"))
-         (keep (fn [^File f]
-                 (try
-                   (let [content (slurp f)]
-                     (second (re-find #"\"name\"\s*:\s*\"package\"\s*,\s*\n\s*\"value\"\s*:\s*\"([^\"]+)\"" content)))
-                   (catch Exception _ nil))))
-         distinct
-         vec)))
+      (filter #(str/ends-with? (.getName ^File %) "-result.json"))
+      (keep (fn [^File f]
+              (try
+                (let [content (slurp f)]
+                  (second (re-find #"\"name\"\s*:\s*\"package\"\s*,\s*\n\s*\"value\"\s*:\s*\"([^\"]+)\"" content)))
+                (catch Exception _ nil))))
+      distinct
+      vec)))
 
 ;; =============================================================================
 ;; State
@@ -457,9 +457,9 @@
         results  @pending-results
         ;; Collect packages from this run's results
         current-pkgs (->> results
-                          (mapcat :labels)
-                          (filter #(= "package" (:name %)))
-                          (map :value))
+                       (mapcat :labels)
+                       (filter #(= "package" (:name %)))
+                       (map :value))
         ;; Also scan existing results from prior runs (e.g. lazytest)
         existing-pkgs (scan-existing-packages dir)
         all-pkgs      (into (vec existing-pkgs) current-pkgs)

@@ -3,8 +3,7 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.test-fixtures :as tf :refer [*page* *browser* with-playwright with-browser with-video-page-opts]])
-)
+   [com.blockether.spel.test-fixtures :as tf :refer [*page* *browser* with-playwright with-browser with-video-page-opts]]))
 
 ;; =============================================================================
 ;; Video Recording Tests
@@ -30,7 +29,7 @@
     (it "creates a video file"
       (let [video-dir "test-videos-lifecycle"
             ctx  (core/new-context *browser* {:record-video-dir video-dir
-                                               :record-video-size {:width 1280 :height 720}})
+                                              :record-video-size {:width 1280 :height 720}})
             pg   (core/new-page-from-context ctx)]
         (page/navigate pg "https://example.com")
         (Thread/sleep 500)
@@ -51,7 +50,7 @@
       (let [video-dir "test-videos-save"
             save-path "test-videos-save/copy.webm"
             ctx  (core/new-context *browser* {:record-video-dir video-dir
-                                               :record-video-size {:width 640 :height 480}})
+                                              :record-video-size {:width 640 :height 480}})
             pg   (core/new-page-from-context ctx)]
         (page/navigate pg "https://example.com")
         (Thread/sleep 500)

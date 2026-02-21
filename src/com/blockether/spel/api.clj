@@ -712,9 +712,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry

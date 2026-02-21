@@ -93,7 +93,7 @@
   (describe "unknown keyword throws"
     (it "throws on :nonexistent"
       (let [threw? (try (devices/resolve-device :nonexistent) false
-                     (catch clojure.lang.ExceptionInfo _ true))]
+                        (catch clojure.lang.ExceptionInfo _ true))]
         (expect (true? threw?))))))
 
 (defdescribe resolve-viewport-test
@@ -121,7 +121,7 @@
   (describe "unknown keyword throws"
     (it "throws on :nonexistent"
       (let [threw? (try (devices/resolve-viewport :nonexistent) false
-                     (catch clojure.lang.ExceptionInfo _ true))]
+                        (catch clojure.lang.ExceptionInfo _ true))]
         (expect (true? threw?))))))
 
 (defdescribe resolve-device-by-name-test

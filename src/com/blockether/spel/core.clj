@@ -824,12 +824,12 @@
           (when (instance? Page pg) (close-page! pg))
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))
-            (catch Exception _))
+               (catch Exception _))
           ;; Close context (writes HAR file) before attaching, so both
           ;; trace and HAR are fully written when we copy them.
           (let [t (doto (Thread. (fn []
                                    (try (close-context! ctx)
-                                     (catch Exception _))))
+                                        (catch Exception _))))
                     (.setDaemon true)
                     (.start))]
             (.join t 5000))
@@ -855,7 +855,7 @@
    Returns [active?-fn vars-map]."
   []
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                  (catch Exception _ (constantly false)))]
+                     (catch Exception _ (constantly false)))]
     [active?
      {:page        (resolve 'com.blockether.spel.allure/*page*)
       :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)

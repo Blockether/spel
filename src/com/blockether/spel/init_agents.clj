@@ -538,9 +538,9 @@
             flavour (:flavour opts)
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
-                        (println "         Tip: use --ns my-app to set namespace explicitly.")
-                        (println "")
-                        (derive-namespace)))
+                          (println "         Tip: use --ns my-app to set namespace explicitly.")
+                          (println "")
+                          (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
         (print-banner loop-target no-tests)

@@ -2,8 +2,7 @@
   "Tests for video recording through SCI eval."
   (:require
    [com.blockether.spel.sci-env :as sut]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
-)
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe sci-video-recording-test
   "Video recording via SCI eval"

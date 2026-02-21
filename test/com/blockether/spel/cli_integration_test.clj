@@ -413,7 +413,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))
+             (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -432,7 +432,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -1675,8 +1675,8 @@
 
     (it "preserves stdout on error via ex-data"
       (let [threw (try (cmd "sci_eval" {"code" "(println \"before boom\") (throw (ex-info \"boom\" {}))"})
-                    nil
-                    (catch Exception e e))]
+                       nil
+                       (catch Exception e e))]
         (expect (some? threw))
         (let [data (ex-data threw)]
           (expect (= "before boom\n" (str/replace (str (:stdout data)) "\r\n" "\n"))))))
@@ -1769,5 +1769,5 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                     (catch Exception _ true))]
+                        (catch Exception _ true))]
         (expect threw?)))))
