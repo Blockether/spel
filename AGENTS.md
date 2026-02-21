@@ -168,32 +168,38 @@ Every code change MUST pass this full checklist before it's considered done:
    ```
    All test cases must report 0 failures. Pre-existing failures must be noted explicitly.
 
-2. **Regenerate SKILL.md from template** (ALWAYS — run every time)
+2. **Lint changed files** (ALWAYS — run every time)
+   ```
+   lsp_diagnostics on every file you changed
+   ```
+   Run `lsp_diagnostics` on **each file** you modified or created. Fix all errors and warnings before proceeding. Public vars flagged as unused are intentional API surface — suppress or ignore those. This catches issues that tests alone won't find (unused imports, type mismatches, shadowed vars, etc.).
+
+3. **Regenerate SKILL.md from template** (ALWAYS — run every time)
    ```bash
    clojure -T:build gen-docs
    ```
    This reads `SKILL.md.template`, introspects all source namespaces, and writes the final `SKILL.md`. It auto-populates the `{{library-api}}`, `{{sci-api}}`, and `{{cli-commands}}` placeholders from code — so any new/changed public functions with docstrings are picked up automatically. **Must run before `make install-local`** because the generated `SKILL.md` is baked into the native binary.
 
-3. **Native CLI builds**
+4. **Native CLI builds**
    ```bash
    make install-local
    ```
    Builds uberjar → native-image → copies to `~/.local/bin/spel`. Must exit 0.
 
-4. **Native CLI smoke test**
+5. **Native CLI smoke test**
    ```bash
    spel version
    spel --help
    ```
    The freshly built binary must respond correctly.
 
-5. **Regenerate agents/skills/docs** (if templates or source changed)
+6. **Regenerate agents/skills/docs** (if templates or source changed)
    ```bash
    make init-agents ARGS="--ns com.blockether.spel --force"
    ```
    Scaffolded files in `.opencode/` must be regenerated from templates.
 
-6. **Check SKILL template** (after ANY feature or API change)
+7. **Check SKILL template** (after ANY feature or API change)
    - **Never hand-edit** `resources/.../SKILL.md` — it is **auto-generated** by `gen_docs.clj`
    - Edit `resources/com/blockether/spel/templates/skills/spel/SKILL.md.template` instead
    - API tables (`{{library-api}}`, `{{sci-api}}`, `{{cli-commands}}`) are auto-populated from code introspection — adding a new public function with a docstring is enough

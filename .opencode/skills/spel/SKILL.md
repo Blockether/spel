@@ -1468,16 +1468,13 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 (allure/attach-api-response! resp)               ; attach full API response
 ```
 
-### Allure Reporter Pipeline
+### Allure Reporter
 
-The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx):
+The built-in reporter handles everything automatically — JSON results, HTML report generation, embedded trace viewer, and build history. Just run:
 
-1. Writes Allure JSON results to `allure-results/` (Allure 2+ compatible format)
-2. Resolves Allure 3 CLI via `npx allure@3.1.0` (no manual install needed)
-3. Generates HTML report to `allure-report/` using `allure awesome`
-4. Embeds a local Playwright trace viewer (no dependency on `trace.playwright.dev`)
-5. Patches report JS to load traces from `./trace-viewer/` and pre-registers the Service Worker for instant loading
-6. Manages run history via `.allure-history.jsonl` (Allure 3 JSONL mechanism, configurable limit)
+```bash
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+```
 
 ### Allure Configuration
 
@@ -1493,9 +1490,6 @@ The built-in reporter generates the full HTML report automatically using Allure 
 **Version in build listings**: When `lazytest.allure.version` is set (or `SPEL_VERSION` is on the classpath), each build in the Allure history is tagged with the version. The report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. The version also appears in `environment.properties` as `project.version` and `spel.version`.
 
 ```bash
-# Run tests + generate Allure HTML report (allure-results/ + allure-report/)
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-
 # Serve the generated report in browser (port 9999)
 npx http-server allure-report -o -p 9999
 

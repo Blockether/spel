@@ -444,7 +444,7 @@ Request/response interceptors — composable, nestable:
 
 ## Allure Test Reporting
 
-Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/). Compatible with Allure 2+ result format. The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.1.0 via npx) with an embedded local Playwright trace viewer — no external `allure generate` step needed.
+Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for comprehensive test reports using [Allure](https://allurereport.org/). Compatible with Allure 2+ result format. The built-in reporter generates the full HTML report automatically using Allure 3 (pinned to 3.2.0 via npx) with an embedded local Playwright trace viewer — no external `allure generate` step needed.
 
 > **[View live test report](https://blockether.github.io/spel/)** — with embedded Playwright traces.
 
@@ -571,7 +571,7 @@ make allure          # run tests + generate + open in browser
 
 The reporter handles the full pipeline:
 1. Writes Allure JSON results to `allure-results/` (Allure 2+ compatible format)
-2. Resolves Allure 3 CLI via `npx allure@3.1.0` (no manual install needed)
+2. Resolves Allure 3 CLI via `npx allure@3.2.0` (no manual install needed)
 3. Generates HTML report to `allure-report/` using `allure awesome`
 4. Embeds a local Playwright trace viewer (no dependency on `trace.playwright.dev`)
 5. Patches report JS to load traces from `./trace-viewer/` and pre-registers the Service Worker for instant loading
