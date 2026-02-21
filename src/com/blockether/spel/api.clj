@@ -35,11 +35,15 @@
 
     (api/delete ctx \"/users/1\")"
   (:require
+   [clojure.java.io :as io]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe]])
+   [com.blockether.spel.core :as core :refer [safe]])
   (:import
+   [java.io File]
+   [java.util UUID]
    [com.microsoft.playwright APIRequest APIRequestContext APIResponse
-    Playwright]
+    BrowserContext Page Playwright
+    Tracing$StartOptions Tracing$StopOptions]
    [com.microsoft.playwright.options FormData RequestOptions]))
 
 ;; =============================================================================
@@ -712,9 +716,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-              (catch Exception e
-                (binding [*out* *err*]
-                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+           (catch Exception e
+             (binding [*out* *err*]
+               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -821,4 +825,313 @@
   (if (and (map? opts-or-body) (seq body))
     `(retry (fn [] ~@body) ~opts-or-body)
     `(retry (fn [] ~opts-or-body ~@body))))
+
+;; =============================================================================
+;; Page / Context API Access
+;; =============================================================================
+
+(defn page-api
+  "Returns the APIRequestContext for a Page.
+
+   The returned context shares cookies and storage with the page's browser
+   context. API calls through it appear in Playwright traces automatically.
+
+   Params:
+   `pg` - Page instance.
+
+   Returns:
+   APIRequestContext bound to the page's browser context.
+
+   Examples:
+   (core/with-testing-page [pg]
+     (page/navigate pg \"https://example.com/login\")
+     ;; API calls share the browser session (cookies, auth)
+     (let [resp (api-get (page-api pg) \"/api/me\")]
+       (api-response-status resp)))"
+  ^APIRequestContext [^Page pg]
+  (.request pg))
+
+(defn context-api
+  "Returns the APIRequestContext for a BrowserContext.
+
+   The returned context shares cookies and storage with the browser context.
+   API calls through it appear in Playwright traces automatically.
+
+   Params:
+   `ctx` - BrowserContext instance.
+
+   Returns:
+   APIRequestContext bound to the browser context.
+
+   Examples:
+   (core/with-playwright [pw]
+     (core/with-browser [browser (core/launch-chromium pw)]
+       (core/with-context [ctx (core/new-context browser {:base-url \"https://api.example.com\"})]
+         (let [resp (api-get (context-api ctx) \"/users\")]
+           (api-response-status resp)))))"
+  ^APIRequestContext [^BrowserContext ctx]
+  (.request ctx))
+
+;; =============================================================================
+;; Standalone API Testing — with-testing-api
+;; =============================================================================
+
+(defn- resolve-allure-vars
+  "Dynamically resolves Allure vars and the active? predicate.
+   Returns [active?-fn vars-map]."
+  []
+  (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
+                  (catch Exception _ (constantly false)))]
+    [active?
+     {:tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
+      :trace       (resolve 'com.blockether.spel.allure/*trace-path*)
+      :har         (resolve 'com.blockether.spel.allure/*har-path*)
+      :title       (resolve 'com.blockether.spel.allure/*test-title*)}]))
+
+(defn- attach-trace-to-allure!
+  "When allure/*context* and *output-dir* are bound, copy trace/HAR files
+   into the allure-results directory and add attachment entries."
+  [^File trace-file ^File har-file]
+  (try
+    (let [ctx-var     (resolve 'com.blockether.spel.allure/*context*)
+          out-dir-var (resolve 'com.blockether.spel.allure/*output-dir*)
+          ctx-atom    (when ctx-var @ctx-var)
+          output-dir  (when out-dir-var @out-dir-var)]
+      (when (and ctx-atom output-dir (instance? clojure.lang.Atom ctx-atom))
+        (when (and (.exists trace-file) (pos? (.length trace-file)))
+          (let [att-uuid (str (UUID/randomUUID))
+                filename (str att-uuid "-attachment.zip")
+                dest     (io/file output-dir filename)]
+            (io/copy trace-file dest)
+            (swap! ctx-atom update :attachments
+              (fnil conj [])
+              {:name "Playwright Trace"
+               :source filename
+               :type "application/vnd.allure.playwright-trace"})))
+        (when (and (.exists har-file) (pos? (.length har-file)))
+          (let [att-uuid (str (UUID/randomUUID))
+                filename (str att-uuid "-attachment.har")
+                dest     (io/file output-dir filename)]
+            (io/copy har-file dest)
+            (swap! ctx-atom update :attachments
+              (fnil conj [])
+              {:name "Network Activity (HAR)"
+               :source filename
+               :type "application/json"})))))
+    (catch Exception _)))
+
+(defn- ensure-not-anomaly!
+  "Throws on anomaly, returns value otherwise."
+  [result]
+  (if (anomaly/anomaly? result)
+    (throw (ex-info (str "Playwright error: "
+                      (:cognitect.anomalies/message result))
+             result))
+    result))
+
+(defn run-with-testing-api
+  "Functional core of `with-testing-api`. Sets up a complete Playwright stack
+   for API testing and calls `(f api-request-context)`.
+
+   Creates: Playwright → Browser (headless Chromium) → BrowserContext → APIRequestContext.
+   The APIRequestContext comes from `BrowserContext.request()`, so all API calls
+   share cookies with the context and appear in Playwright traces.
+
+   When the Allure reporter is active, automatically enables tracing
+   (DOM snapshots + sources) and HAR recording — zero configuration.
+
+   Opts:
+     :base-url            - String. Base URL for all requests.
+     :extra-http-headers  - Map. Headers sent with every request.
+     :ignore-https-errors - Boolean. Ignore SSL certificate errors.
+     :json-encoder        - Function. Binds `*json-encoder*` for the body.
+     :storage-state       - String. Storage state JSON or path.
+     + any key accepted by `core/new-context` (:locale, :timezone-id, etc.)
+
+   Examples:
+   (run-with-testing-api {:base-url \"https://api.example.com\"}
+     (fn [ctx]
+       (api-get ctx \"/users\")))"
+  [opts f]
+  (let [json-enc  (:json-encoder opts)
+        ctx-opts  (dissoc opts :json-encoder)
+        [allure-active? allure-vars] (resolve-allure-vars)]
+    (core/with-playwright [pw]
+      (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+        (if (allure-active?)
+          ;; Traced mode: HAR recording + Playwright tracing
+          (let [trace-file (File/createTempFile "pw-trace-" ".zip")
+                har-file   (File/createTempFile "pw-har-" ".har")
+                ctx        (ensure-not-anomaly!
+                             (core/new-context browser
+                               (merge ctx-opts
+                                 {:record-har-path (str har-file)
+                                  :record-har-mode :full})))
+                tracing    (.tracing ^BrowserContext ctx)
+                api-ctx    (.request ^BrowserContext ctx)
+                {:keys [tracing-var trace har title]} allure-vars]
+            (.start tracing (doto (Tracing$StartOptions.)
+                              (.setScreenshots false)
+                              (.setSnapshots true)
+                              (.setSources true)
+                              (.setTitle (or (when title @title) "spel"))))
+            (try
+              (with-bindings (cond-> {}
+                               tracing-var (assoc tracing-var tracing)
+                               trace       (assoc trace trace-file)
+                               har         (assoc har har-file)
+                               json-enc    (assoc #'*json-encoder* json-enc))
+                (f api-ctx))
+              (finally
+                (try (.stop tracing (doto (Tracing$StopOptions.)
+                                      (.setPath (.toPath trace-file))))
+                  (catch Exception _))
+                (let [t (doto (Thread. (fn []
+                                         (try (core/close-context! ctx)
+                                           (catch Exception _))))
+                          (.setDaemon true)
+                          (.start))]
+                  (.join t 5000))
+                (attach-trace-to-allure! trace-file har-file))))
+          ;; Non-traced mode
+          (let [ctx     (ensure-not-anomaly!
+                          (core/new-context browser (or ctx-opts {})))
+                api-ctx (.request ^BrowserContext ctx)]
+            (try
+              (if json-enc
+                (binding [*json-encoder* json-enc]
+                  (f api-ctx))
+                (f api-ctx))
+              (finally
+                (try (core/close-context! ctx) (catch Exception _))))))))))
+
+(defmacro with-testing-api
+  "All-in-one macro for API testing with automatic resource management.
+
+   Creates a complete Playwright stack (playwright → browser → context),
+   extracts the context-bound APIRequestContext, binds it to `sym`,
+   executes body, and tears everything down.
+
+   The APIRequestContext comes from `BrowserContext.request()`, so all API
+   calls share cookies with the context and appear in Playwright traces.
+
+   When the Allure reporter is active, tracing (DOM snapshots + sources)
+   and HAR recording are enabled automatically — zero configuration.
+
+   Opts (an optional map expression, evaluated at runtime):
+     :base-url            - String. Base URL for all requests.
+     :extra-http-headers  - Map. Headers sent with every request.
+     :ignore-https-errors - Boolean. Ignore SSL certificate errors.
+     :json-encoder        - Function. Binds `*json-encoder*` for the body.
+     :storage-state       - String. Storage state JSON or path.
+     + any key accepted by `core/new-context` (:locale, :timezone-id, etc.)
+
+   Usage:
+     ;; Minimal — hit a base URL
+     (with-testing-api {:base-url \"https://api.example.com\"} [ctx]
+       (api-get ctx \"/users\"))
+
+     ;; With custom headers and JSON encoder
+     (with-testing-api {:base-url \"https://api.example.com\"
+                        :extra-http-headers {\"Authorization\" \"Bearer token\"}
+                        :json-encoder cheshire.core/generate-string} [ctx]
+       (api-post ctx \"/users\" {:json {:name \"Alice\"}}))
+
+     ;; Minimal — no opts
+     (with-testing-api [ctx]
+       (api-get ctx \"https://api.example.com/health\"))"
+  [opts-or-binding & args]
+  (if (vector? opts-or-binding)
+    ;; No opts: (with-testing-api [sym] body...)
+    (let [[sym] opts-or-binding
+          body  args]
+      `(run-with-testing-api {} (fn [~sym] ~@body)))
+    ;; With opts: (with-testing-api opts [sym] body...)
+    (let [opts           opts-or-binding
+          [[sym] & body] args]
+      `(run-with-testing-api ~opts (fn [~sym] ~@body)))))
+
+;; =============================================================================
+;; Page-bound API with custom base-url — with-page-api
+;; =============================================================================
+
+(defn run-with-page-api
+  "Functional core of `with-page-api`. Creates an APIRequestContext from a Page
+   with custom options (base-url, headers, etc.) while sharing cookies via
+   storage-state.
+
+   Copies storage-state (cookies, localStorage) from the page's browser context,
+   creates a new APIRequestContext with the provided opts, and disposes it after.
+
+   Params:
+   `pg`   - Page instance to extract cookies from.
+   `pw`   - Playwright instance (for creating new APIRequest).
+   `opts` - Map. Options for the new APIRequestContext:
+     :base-url            - String. Base URL for all requests.
+     :extra-http-headers  - Map. Headers sent with every request.
+     :ignore-https-errors - Boolean.
+     :json-encoder        - Function. Binds `*json-encoder*` for the body.
+   `f`    - Function receiving the new APIRequestContext.
+
+   Returns:
+   Result of calling `f`.
+
+   Examples:
+   (run-with-page-api pg pw {:base-url \"https://api.example.com\"}
+     (fn [ctx]
+       (api-get ctx \"/users\")))"
+  [^Page pg ^Playwright pw opts f]
+  (let [json-enc      (:json-encoder opts)
+        ctx-opts      (dissoc opts :json-encoder)
+        browser-ctx   (.context pg)
+        storage-state (.storageState browser-ctx)
+        api-req       (api-request pw)
+        merged-opts   (merge ctx-opts {:storage-state storage-state})]
+    (with-api-context [ctx (new-api-context api-req merged-opts)]
+      (if json-enc
+        (binding [*json-encoder* json-enc]
+          (f ctx))
+        (f ctx)))))
+
+(defmacro with-page-api
+  "Create an APIRequestContext from a Page with custom options.
+
+   Copies cookies from the page's browser context (via storage-state), creates
+   a new APIRequestContext with the provided options, and disposes it after.
+
+   This lets you use a custom base-url while still sharing the browser's
+   login session / cookies.
+
+   Params:
+   `pg`   - Page instance (shares cookies from its browser context).
+   `pw`   - Playwright instance (needed to create new APIRequestContext).
+   `opts` - Map of options for the new context:
+     :base-url            - String. Base URL for all requests.
+     :extra-http-headers  - Map. Headers sent with every request.
+     :ignore-https-errors - Boolean.
+     :json-encoder        - Function. Binds `*json-encoder*` for the body.
+
+   Usage:
+     ;; API calls to different domain, sharing browser cookies
+     (with-testing-page [pg]
+       (page/navigate pg \"https://example.com/login\")
+       ;; ... login via UI ...
+       (with-page-api pg pw {:base-url \"https://api.example.com\"} [ctx]
+         ;; ctx has cookies from the browser session
+         (api-get ctx \"/me\")))
+
+     ;; In test fixtures where *pw* is bound:
+     (it \"calls API with browser cookies\"
+       (with-page-api *page* *pw* {:base-url *api-url*} [ctx]
+         (api-get ctx \"/me\")))
+
+     ;; With JSON encoder:
+     (with-page-api pg pw {:base-url \"https://api.example.com\"
+                           :json-encoder cheshire.core/generate-string} [ctx]
+       (api-post ctx \"/users\" {:json {:name \"Alice\"}}))"
+
+  [pg pw opts binding-vec & body]
+  (let [[sym] binding-vec]
+    `(run-with-page-api ~pg ~pw ~opts (fn [~sym] ~@body))))
+
 

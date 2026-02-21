@@ -383,18 +383,24 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `api-response-status-text` | [resp] | Returns the HTTP status text. |
 | `api-response-text` | [resp] | Returns the response body as text. |
 | `api-response-url` | [resp] | Returns the response URL. |
+| `context-api` | [ctx] | Returns the APIRequestContext for a BrowserContext. |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
 | `form-data` | [] | Creates a new FormData instance. |
 | `map->form-data` | [m] | Converts a Clojure map to FormData. |
 | `new-api-context` | [api-req] \| [api-req opts] | Creates a new APIRequestContext. |
+| `page-api` | [pg] | Returns the APIRequestContext for a Page. |
 | `request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `request-options` | [opts] | Creates RequestOptions from a map. |
 | `retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
+| `run-with-page-api` | [pg pw opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
+| `run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
 | _(macro)_ `with-api-context` | [[sym expr] & body] | Binds a single APIRequestContext and ensures disposal. |
 | _(macro)_ `with-api-contexts` | [bindings & body] | Binds multiple APIRequestContexts and disposes all on exit. |
 | _(macro)_ `with-hooks` | [hooks & body] | Execute body with the given hooks merged into `*hooks*`. |
+| _(macro)_ `with-page-api` | [pg pw opts binding-vec & body] | Create an APIRequestContext from a Page with custom options. |
 | _(macro)_ `with-retry` | [opts-or-body & body] | Execute body with retry logic. |
+| _(macro)_ `with-testing-api` | [opts-or-binding & args] | All-in-one macro for API testing with automatic resource management. |
 
 ### `allure` — Allure test reporting
 

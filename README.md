@@ -138,16 +138,24 @@ spel version
 
 ## API Testing
 
-Playwright-backed HTTP testing with context lifecycle, hooks, and retry.
+Playwright-backed HTTP testing with automatic tracing.
 
 ```clojure
-(require '[com.blockether.spel.core :as core]
-         '[com.blockether.spel.api :as api])
+(require '[com.blockether.spel.api :as api])
 
-(api/with-api-context [ctx (api/new-api-context (api/api-request pw)
-                             {:base-url "https://api.example.com"})]
-  (let [resp (api/api-get ctx "/users")]
-    (api/api-response-status resp)))  ;; => 200
+;; Zero ceremony — base-url, automatic cleanup
+(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (api/api-get ctx "/users"))
+```
+
+For API calls from a browser page (sharing cookies/session):
+
+```clojure
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  ;; API calls share the browser session
+  (let [resp (api/api-get (api/page-api pg) "/api/me")]
+    (api/api-response-status resp)))
 ```
 
 [API reference covers the full feature set](.opencode/skills/spel/SKILL.md).
