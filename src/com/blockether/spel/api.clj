@@ -1065,7 +1065,6 @@
 
    Params:
    `pg`   - Page instance to extract cookies from.
-   `pw`   - Playwright instance (for creating new APIRequest).
    `opts` - Map. Options for the new APIRequestContext:
      :base-url            - String. Base URL for all requests.
      :extra-http-headers  - Map. Headers sent with every request.
@@ -1077,21 +1076,27 @@
    Result of calling `f`.
 
    Examples:
-   (run-with-page-api pg pw {:base-url \"https://api.example.com\"}
+   (run-with-page-api pg {:base-url \"https://api.example.com\"}
      (fn [ctx]
        (api-get ctx \"/users\")))"
-  [^Page pg ^Playwright pw opts f]
+  [^Page pg opts f]
   (let [json-enc      (:json-encoder opts)
-        ctx-opts      (dissoc opts :json-encoder)
-        browser-ctx   (.context pg)
+        ctx-opts     (dissoc opts :json-encoder)
+        browser-ctx  (.context pg)
         storage-state (.storageState browser-ctx)
-        api-req       (api-request pw)
-        merged-opts   (merge ctx-opts {:storage-state storage-state})]
-    (with-api-context [ctx (new-api-context api-req merged-opts)]
-      (if json-enc
-        (binding [*json-encoder* json-enc]
-          (f ctx))
-        (f ctx)))))
+        ;; Create fresh Playwright just for this API context - it will be closed
+        pw          (core/create)
+        api-req     (api-request pw)
+        merged-opts (merge ctx-opts {:storage-state storage-state})]
+    (try
+      (with-api-context [ctx (new-api-context api-req merged-opts)]
+        (if json-enc
+          (binding [*json-encoder* json-enc]
+            (f ctx))
+          (f ctx)))
+      (finally
+        (try (core/close! pw)
+          (catch Exception _))))))
 
 (defmacro with-page-api
   "Create an APIRequestContext from a Page with custom options.
@@ -1104,7 +1109,6 @@
 
    Params:
    `pg`   - Page instance (shares cookies from its browser context).
-   `pw`   - Playwright instance (needed to create new APIRequestContext).
    `opts` - Map of options for the new context:
      :base-url            - String. Base URL for all requests.
      :extra-http-headers  - Map. Headers sent with every request.
@@ -1116,22 +1120,17 @@
      (with-testing-page [pg]
        (page/navigate pg \"https://example.com/login\")
        ;; ... login via UI ...
-       (with-page-api pg pw {:base-url \"https://api.example.com\"} [ctx]
+       (with-page-api pg {:base-url \"https://api.example.com\"} [ctx]
          ;; ctx has cookies from the browser session
          (api-get ctx \"/me\")))
 
-     ;; In test fixtures where *pw* is bound:
-     (it \"calls API with browser cookies\"
-       (with-page-api *page* *pw* {:base-url *api-url*} [ctx]
-         (api-get ctx \"/me\")))
-
-     ;; With JSON encoder:
-     (with-page-api pg pw {:base-url \"https://api.example.com\"
-                           :json-encoder cheshire.core/generate-string} [ctx]
+     ;; With JSON encoder
+     (with-page-api pg {:base-url \"https://api.example.com\"
+                       :json-encoder cheshire.core/generate-string} [ctx]
        (api-post ctx \"/users\" {:json {:name \"Alice\"}}))"
 
-  [pg pw opts binding-vec & body]
+  [pg opts binding-vec & body]
   (let [[sym] binding-vec]
-    `(run-with-page-api ~pg ~pw ~opts (fn [~sym] ~@body))))
+    `(run-with-page-api ~pg ~opts (fn [~sym] ~@body))))
 
 

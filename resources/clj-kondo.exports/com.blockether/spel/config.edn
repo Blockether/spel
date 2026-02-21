@@ -9,11 +9,13 @@
     ;; core — standalone testing macro
    com.blockether.spel.core/with-testing-page hooks.com.blockether.spel/with-testing-page
 
-   ;; api — lifecycle macros
+    ;; api — lifecycle macros
    com.blockether.spel.api/with-api-context  hooks.com.blockether.spel/with-resource
    com.blockether.spel.api/with-api-contexts hooks.com.blockether.spel/with-api-contexts
    com.blockether.spel.api/with-hooks        hooks.com.blockether.spel/with-hooks
    com.blockether.spel.api/with-retry        hooks.com.blockether.spel/with-retry
+   com.blockether.spel.api/with-testing-api  hooks.com.blockether.spel/with-testing-api
+   com.blockether.spel.api/with-page-api    hooks.com.blockether.spel/with-page-api
 
    ;; allure — step macros
    com.blockether.spel.allure/step     hooks.allure/step
@@ -58,8 +60,10 @@
 
   ;; api — lifecycle macros
   com.blockether.spel.api/with-api-context   clojure.core/with-open
-  com.blockether.spel.api/with-api-contexts  clojure.core/with-open
-  com.blockether.spel.api/with-retry         clojure.core/when}
+  com.blockether.spel.api/with-api-contexts clojure.core/with-open
+  com.blockether.spel.api/with-retry       clojure.core/when
+  com.blockether.spel.api/with-testing-api clojure.core/with-open
+  com.blockether.spel.api/with-page-api    clojure.core/with-open}
 
  :linters
  {:clojure-lsp/unused-public-var

@@ -88,6 +88,60 @@
     {:node new-node}))
 
 ;; =============================================================================
+;; API — with-testing-api
+;; =============================================================================
+
+(defn with-testing-api
+  "Hook for api/with-testing-api.
+
+   Handles two forms:
+     (with-testing-api [sym] body...)       — opts omitted
+     (with-testing-api opts [sym] body...)  — opts provided
+
+   Rewrites into (let [_ opts sym nil] body...)
+   so clj-kondo analyzes the opts expression and binds sym."
+  [{:keys [node]}]
+  (let [args       (rest (:children node))
+        first-arg  (first args)
+        ;; If first arg is a vector, opts were omitted
+        vector?    (= :vector (api/tag first-arg))
+        opts-node  (if vector?
+                     (api/map-node [])
+                     first-arg)
+        binding-vec (if vector? first-arg (second args))
+        body        (if vector? (rest args) (drop 2 args))
+        sym         (first (:children binding-vec))
+        new-node    (api/list-node
+                      (list*
+                        (api/token-node 'let)
+                        (api/vector-node [(api/token-node '_) opts-node
+                                          sym (api/token-node nil)])
+                        body))]
+    {:node new-node}))
+
+;; =============================================================================
+;; API — with-page-api
+;; =============================================================================
+
+(defn with-page-api
+  "Hook for api/with-page-api.
+
+   Takes three arguments: pg, opts, [sym].
+   Rewrites into (let [pg pg opts opts sym nil] body...)
+   so clj-kondo analyzes all expressions and binds sym."
+  [{:keys [node]}]
+  (let [[pg-node opts-node binding-vec & body] (rest (:children node))
+        sym (first (:children binding-vec))
+        new-node (api/list-node
+                   (list*
+                     (api/token-node 'let)
+                     (api/vector-node [pg-node pg-node
+                                       opts-node opts-node
+                                       sym (api/token-node nil)])
+                     body))]
+    {:node new-node}))
+
+;; =============================================================================
 ;; Core — with-testing-page
 ;; =============================================================================
 

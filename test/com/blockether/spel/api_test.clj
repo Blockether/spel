@@ -1767,13 +1767,13 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "creates an APIRequestContext with custom base-url"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-get ctx "/health")]
           (expect (instance? APIResponse resp))
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "returns the body expression value"
-      (let [result (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (let [result (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
                      (sut/api-response-status (sut/api-get ctx "/health")))]
         (expect (= 200 result))))
 
@@ -1781,7 +1781,7 @@
       ;; Navigate to set a cookie via the page
       (page/navigate *page* (str *test-server-url* "/set-cookie?name=session&value=abc123"))
       ;; API context should have the same cookies
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-get ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp)))))))
 
@@ -1789,33 +1789,33 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "supports GET"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health"))))))
 
     (it "supports POST with data"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-post ctx "/echo"
                      {:data "{\"name\":\"Alice\"}"
                       :headers {"Content-Type" "application/json"}})]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "supports PUT"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (expect (= 200 (sut/api-response-status
                          (sut/api-put ctx "/echo" {:data "update"}))))))
 
     (it "supports DELETE"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (expect (= 200 (sut/api-response-status
                          (sut/api-delete ctx "/echo"))))))
 
     (it "supports PATCH"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (expect (= 200 (sut/api-response-status
                          (sut/api-patch ctx "/echo" {:data "patch"}))))))
 
     (it "supports HEAD"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-head ctx "/health")]
           (expect (= 200 (sut/api-response-status resp)))))))
 
@@ -1823,8 +1823,8 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "binds *json-encoder* when :json-encoder is provided"
-      (sut/with-page-api *page* *pw* {:base-url     *test-server-url*
-                                      :json-encoder simple-json-encode} [ctx]
+      (sut/with-page-api *page* {:base-url     *test-server-url*
+                                 :json-encoder simple-json-encode} [ctx]
         (let [resp (sut/api-post ctx "/echo" {:json {:name "Alice" :age 30}})]
           (expect (= 200 (sut/api-response-status resp)))))))
 
@@ -1834,7 +1834,7 @@
     (it "disposes the API context after body completes"
       ;; Just verify no exception is thrown and body executes
       (let [executed? (atom false)]
-        (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+        (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
           (reset! executed? true)
           (sut/api-get ctx "/health"))
         (expect (true? @executed?)))))
@@ -1843,27 +1843,27 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "accepts extra-http-headers"
-      (sut/with-page-api *page* *pw* {:base-url           *test-server-url*
-                                      :extra-http-headers {"X-Test" "value"}} [ctx]
+      (sut/with-page-api *page* {:base-url           *test-server-url*
+                                 :extra-http-headers {"X-Test" "value"}} [ctx]
         (let [resp (sut/api-get ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "accepts ignore-https-errors"
-      (sut/with-page-api *page* *pw* {:base-url            *test-server-url*
-                                      :ignore-https-errors true} [ctx]
+      (sut/with-page-api *page* {:base-url            *test-server-url*
+                                 :ignore-https-errors true} [ctx]
         (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health")))))))
 
   (describe "error handling"
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "handles 404 responses"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-get ctx "/status/404")]
           (expect (= 404 (sut/api-response-status resp)))
           (expect (false? (sut/api-response-ok? resp))))))
 
     (it "handles 500 responses"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-get ctx "/status/500")]
           (expect (= 500 (sut/api-response-status resp)))))))
 
@@ -1871,14 +1871,14 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "can read response text"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp (sut/api-get ctx "/health")
               body (sut/api-response-text resp)]
           (expect (some? body))
           (expect (str/includes? body "ok")))))
 
     (it "can read response headers"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp     (sut/api-get ctx "/health")
               headers  (sut/api-response-headers resp)
               ct       (get headers "content-type")]
@@ -1886,7 +1886,7 @@
           (expect (str/includes? ct "application/json")))))
 
     (it "can convert response to map"
-      (sut/with-page-api *page* *pw* {:base-url *test-server-url*} [ctx]
+      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
         (let [resp  (sut/api-get ctx "/health")
               m     (sut/api-response->map resp)]
           (expect (= 200 (:status m)))
@@ -1905,13 +1905,13 @@
     {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "works with function argument"
-      (let [result (sut/run-with-page-api *page* *pw* {:base-url *test-server-url*}
+      (let [result (sut/run-with-page-api *page* {:base-url *test-server-url*}
                      (fn [ctx]
                        (sut/api-response-status (sut/api-get ctx "/health"))))]
         (expect (= 200 result))))
 
     (it "returns nil for side-effect-only body"
-      (let [result (sut/run-with-page-api *page* *pw* {:base-url *test-server-url*}
+      (let [result (sut/run-with-page-api *page* {:base-url *test-server-url*}
                      (fn [ctx]
                        (sut/api-get ctx "/health")
                        nil))]
