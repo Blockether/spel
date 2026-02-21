@@ -89,7 +89,7 @@ jobs:
           FULL_MSG: ${{ github.event.head_commit.message }}
         run: |
           FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
-          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${FIRST_LINE}"
+          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${{ github.event.head_commit.author.name }} · ${FIRST_LINE}"
           clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
         continue-on-error: true
 
@@ -108,7 +108,7 @@ jobs:
           FULL_MSG: ${{ github.event.head_commit.message }}
         run: |
           FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
-          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${FIRST_LINE}"
+          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${{ github.event.head_commit.author.name }} · ${FIRST_LINE}"
           clojure -M -e "
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
