@@ -67,5 +67,8 @@
 
  :linters
  {:clojure-lsp/unused-public-var
-  {:exclude-when-defined-by
-   #{com.blockether.spel.allure/defdescribe}}}}
+  {:level :info
+   :exclude-when-defined-by
+   #{clojure.test/deftest
+     lazytest.core/defdescribe
+     com.blockether.spel.allure/defdescribe}}}}
