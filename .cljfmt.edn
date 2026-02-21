@@ -70,6 +70,20 @@
   com.blockether.spel.allure/api-step                [[:inner 0]]
   allure/api-step                                    [[:inner 0]]
 
+    ;; spel.api - API testing macros
+  com.blockether.spel.api/with-api-context         [[:inner 0]]
+  with-api-context                                  [[:inner 0]]
+  com.blockether.spel.api/with-api-contexts        [[:inner 0]]
+  with-api-contexts                                 [[:inner 0]]
+  com.blockether.spel.api/with-testing-api         [[:inner 0]]
+  with-testing-api                                  [[:inner 0]]
+  com.blockether.spel.api/with-page-api            [[:inner 0]]
+  with-page-api                                     [[:inner 0]]
+  com.blockether.spel.api/with-hooks               [[:inner 0]]
+  with-hooks                                       [[:inner 0]]
+  com.blockether.spel.api/with-retry              [[:inner 0]]
+  with-retry                                       [[:inner 1]]
+
    ;; darkleaf/di dependency injection
   darkleaf.di.core/start                             [[:inner 1]]
 
