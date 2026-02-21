@@ -69,12 +69,18 @@ spel install  # requires spel CLI — see "Native CLI" below
 
 ```clojure
 (require '[com.blockether.spel.core :as core]
-         '[com.blockether.spel.page :as page])
+         '[com.blockether.spel.page :as page]
+         '[com.blockether.spel.api :as api])
 
+;; Browser automation
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com")
   (page/title pg))
 ;; => "Example Domain"
+
+;; API testing — Playwright-backed HTTP with automatic tracing
+(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (api/api-get ctx "/users"))
 ```
 
 Pass an opts map for device emulation:
@@ -139,16 +145,6 @@ spel version
 ## API Testing
 
 Playwright-backed HTTP testing with automatic tracing.
-
-### Quick Start
-
-```clojure
-(require '[com.blockether.spel.api :as api])
-
-;; Zero ceremony — base-url, automatic cleanup
-(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
-  (api/api-get ctx "/users"))
-```
 
 ### API Functions
 

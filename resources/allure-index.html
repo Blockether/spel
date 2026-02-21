@@ -36,17 +36,28 @@
     .subtitle { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.15em; text-transform: uppercase; }
 
     .main { max-width: 52rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
-    .builds { display: flex; flex-direction: column; gap: 0.5rem; }
+    .builds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
 
-    .date-group { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.75rem 0.25rem 0.35rem; border-bottom: 1px solid var(--border); margin-top: 0.5rem; }
+    @media (max-width: 900px) {
+      .builds { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .builds { grid-template-columns: 1fr; }
+    }
+
+    .date-group { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.75rem 0.25rem 0.35rem; border-bottom: 1px solid var(--border); margin-top: 0.5rem; grid-column: 1 / -1; }
     .date-group:first-child { margin-top: 0; }
 
-    .card { display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border); background: var(--bg-card); box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: all 0.2s ease; animation: fade-in 0.4s ease-out both; cursor: pointer; }
+    .card { display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border); background: var(--bg-card); box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: all 0.2s ease; animation: fade-in 0.4s ease-out both; cursor: pointer; flex-direction: column; align-items: stretch; }
     .card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
     .card.failed { border-color: var(--red-border); background: var(--red-bg); }
     .card.failed:hover { border-color: var(--red); }
 
-    .run { flex-shrink: 0; width: 3.5rem; text-align: center; }
+    .card > .run { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
+    .card > .status-dot { position: absolute; top: 0.75rem; right: 0.75rem; }
+    .card { position: relative; }
+
+    .run { display: flex; align-items: center; gap: 0.5rem; }
     .run-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
     .run-num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
     a.run-link { text-decoration: none; color: var(--text); transition: color 0.2s; }
@@ -54,11 +65,11 @@
     .status-dot { flex-shrink: 0; width: 1.25rem; font-size: 0.75rem; text-align: center; font-weight: 700; line-height: 1; }
     .status-pass { color: var(--green); }
     .status-fail { color: var(--red); }
-    .divider { width: 1px; height: 2.5rem; background: var(--border); flex-shrink: 0; }
+    .divider { width: 1px; height: 2.5rem; background: var(--border); flex-shrink: 0; display: none; }
     .failed .divider { background: var(--red-border); }
 
     .info { flex: 1; min-width: 0; }
-    .info-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
+    .info-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; flex-wrap: wrap; }
     .sha { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); }
     .sha-link { text-decoration: none; transition: background 0.2s, color 0.2s; }
     .sha-link:hover { background: var(--border-hover); color: var(--text); }
@@ -67,10 +78,10 @@
     .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .author { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .meta { flex-shrink: 0; text-align: right; }
+    .meta { flex-shrink: 0; text-align: right; margin-top: 0.25rem; }
     .meta-date { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .meta-rel { font-size: 0.6rem; color: var(--text-muted); opacity: 0.7; font-variant-numeric: tabular-nums; }
-    .arrow { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--text-muted); transition: all 0.2s; }
+    .arrow { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--text-muted); transition: all 0.2s; display: none; }
     .card:hover .arrow { color: var(--text-sec); transform: translateX(2px); }
 
     .empty { display: none; text-align: center; color: var(--text-muted); margin-top: 4rem; font-size: 1rem; }
@@ -160,7 +171,7 @@
       .view-toggle { top: 0.75rem; right: 0.75rem; }
       .builds.compact .meta { display: none; }
       .builds.compact .card { padding: 0.5rem 0.6rem; min-height: 100px; }
-      .builds.compact { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+      .builds.compact { grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
       .builds.compact .info-top { flex-wrap: wrap; }
     }
   </style>
@@ -351,13 +362,12 @@
       var clickHandler = inProgress ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
       var arrowHtml = inProgress ? '' : '<svg class="arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
-        + '<div class="run"><div class="run-label">Run</div>'
+        + '<div class="run">'
         + (runUrl
           ? '<a href="' + runUrl + '" class="run-num run-link" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View CI pipeline">#' + b.run + '</a>'
           : '<div class="run-num">#' + b.run + '</div>')
-        + '</div>'
         + statusDot
-        + '<div class="divider"></div>'
+        + '</div>'
         + '<div class="info"><div class="info-top">'
         + shaHtml
         + testBadge
@@ -369,7 +379,6 @@
         + (date ? '<div class="meta-date">' + date + '</div>' : '')
         + (rel ? '<div class="meta-rel">' + rel + '</div>' : '')
         + '</div>'
-        + arrowHtml
         + '</div>';
     }
 
