@@ -828,6 +828,121 @@
       false)))
 
 ;; =============================================================================
+;; Merge Results
+;; =============================================================================
+
+(defn- allure-result-file?
+  "True if the file is an allure result, attachment, or supplementary file."
+  [^File f]
+  (let [name (.getName f)]
+    (or (str/ends-with? name "-result.json")
+      (str/ends-with? name "-container.json")
+      (str/includes? name "-attachment.")
+      (= name "environment.properties")
+      (= name "categories.json"))))
+
+(defn- merge-environment-properties
+  "Merge multiple environment.properties files. Later values win for
+   duplicate keys."
+  [^File output-dir source-dirs]
+  (let [props (into {}
+                (for [^File dir source-dirs
+                      :let [f (io/file dir "environment.properties")]
+                      :when (.isFile f)
+                      line (str/split-lines (slurp f))
+                      :when (not (str/blank? line))
+                      :let [[k v] (str/split line #"\s*=\s*" 2)]
+                      :when k]
+                  [k (or v "")]))]
+    (when (seq props)
+      (let [content (->> props
+                      (sort-by key)
+                      (map (fn [[k v]] (str k " = " v)))
+                      (str/join "\n"))]
+        (spit (io/file output-dir "environment.properties") (str content "\n"))))))
+
+(defn- merge-categories-json
+  "Merge multiple categories.json files. Deduplicates by :name."
+  [^File output-dir source-dirs]
+  (let [all-cats (for [^File dir source-dirs
+                       :let [f (io/file dir "categories.json")]
+                       :when (.isFile f)
+                       :let [content (str/trim (slurp f))]
+                       :when (not (str/blank? content))
+                       ;; Parse JSON array manually — each entry has "name" key
+                       :let [entries (re-seq #"\{[^}]+\}" content)]
+                       entry entries]
+                   entry)
+        ;; Deduplicate by extracting name from JSON string
+        unique (vals (into {}
+                       (for [entry all-cats
+                             :let [name-match (re-find #"\"name\"\s*:\s*\"([^\"]+)\"" entry)]
+                             :when name-match]
+                         [(second name-match) entry])))]
+    (when (seq unique)
+      (spit (io/file output-dir "categories.json")
+        (str "[\n  " (str/join ",\n  " unique) "\n]\n")))))
+
+(defn merge-results!
+  "Merge N allure-results directories into one output directory.
+
+   Copies all result JSON files, attachment files, and supplementary
+   files (environment.properties, categories.json) from each source dir
+   into the output dir. UUID-prefixed files are copied directly (no
+   collision risk). Supplementary files are merged intelligently:
+   environment.properties uses last-wins per key, categories.json is
+   deduplicated by name.
+
+   Options:
+     :output-dir  - target directory (default: \"allure-results\")
+     :clean       - whether to clean output dir first (default: true)
+     :report      - whether to generate HTML report after merge (default: true)
+     :report-dir  - HTML report output dir (default: \"allure-report\")
+
+   Returns map with :merged count and :output-dir path."
+  [source-dirs {:keys [output-dir clean report report-dir]
+                :or   {output-dir "allure-results"
+                       clean      true
+                       report     true
+                       report-dir "allure-report"}}]
+  (let [out     (io/file output-dir)
+        sources (mapv io/file source-dirs)
+        valid   (filterv #(.isDirectory ^File %) sources)]
+    (when (empty? valid)
+      (println "Error: no valid source directories found")
+      (println (str "  Checked: " (str/join ", " source-dirs)))
+      (System/exit 1))
+    ;; Clean output if requested
+    (when clean
+      (when (.exists out)
+        (doseq [^File f (reverse (file-seq out))]
+          (.delete f))))
+    (.mkdirs out)
+    ;; Copy UUID-prefixed files (results + attachments)
+    (let [copied (atom 0)]
+      (doseq [^File dir valid
+              ^File f (.listFiles dir)
+              :when (.isFile f)
+              :let [name (.getName f)]
+              :when (and (not= name "environment.properties")
+                      (not= name "categories.json"))]
+        (io/copy f (io/file out name))
+        (swap! copied inc))
+      ;; Merge supplementary files
+      (merge-environment-properties out valid)
+      (merge-categories-json out valid)
+      (let [result-count (count (filter #(str/ends-with? (.getName ^File %) "-result.json")
+                                  (.listFiles out)))]
+        (println (str "Merged " @copied " files from " (count valid) " directories into " output-dir "/"))
+        (println (str "  " result-count " test results"))
+        ;; Generate HTML report if requested
+        (when report
+          (generate-html-report! output-dir report-dir))
+        {:merged @copied
+         :results result-count
+         :output-dir output-dir}))))
+
+;; =============================================================================
 ;; Reporter
 ;; =============================================================================
 

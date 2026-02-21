@@ -20,6 +20,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [com.blockether.spel.allure-reporter :as allure-reporter]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -210,6 +211,7 @@
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
   (println "  ci-assemble [opts]        Assemble Allure site for CI deployment (--help for details)")
+  (println "  merge-reports [dirs]      Merge N allure-results dirs into one (--help for details)")
   (println "")
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
@@ -542,6 +544,74 @@
             (catch Exception _)))
         (System/exit @exit-code)))))
 
+;; =============================================================================
+;; merge-reports helpers
+;; =============================================================================
+
+(defn- merge-reports-help
+  "Help text for the merge-reports subcommand."
+  ^String []
+  (str/join \newline
+    ["merge-reports - Merge multiple allure-results directories into one"
+     ""
+     "Usage:"
+     "  spel merge-reports <dir1> <dir2> ... [options]"
+     ""
+     "Copies all result JSON files, attachments, and supplementary files"
+     "(environment.properties, categories.json) from each source directory"
+     "into a single output directory. Optionally generates the combined"
+     "HTML report."
+     ""
+     "Options:"
+     "  --output DIR          Output directory (default: allure-results)"
+     "  --report-dir DIR      HTML report directory (default: allure-report)"
+     "  --no-report           Skip HTML report generation"
+     "  --no-clean            Don't clean output directory before merging"
+     "  --help, -h            Show this help"
+     ""
+     "Examples:"
+     "  spel merge-reports results-lazytest results-ct"
+     "  spel merge-reports results-* --output combined-results"
+     "  spel merge-reports dir1 dir2 dir3 --no-report"
+     "  spel merge-reports dir1 dir2 --output merged --report-dir report"]))
+
+(defn- parse-merge-reports-args
+  "Parse merge-reports CLI arguments into {:dirs [...] :opts {...}}."
+  [args]
+  (loop [args   args
+         dirs   []
+         opts   {}]
+    (if (empty? args)
+      {:dirs dirs :opts opts}
+      (let [arg (first args)]
+        (cond
+          (or (= arg "--help") (= arg "-h"))
+          {:dirs dirs :opts (assoc opts :help true)}
+
+          (str/starts-with? arg "--output=")
+          (recur (rest args) dirs (assoc opts :output-dir (subs arg 9)))
+
+          (= arg "--output")
+          (recur (drop 2 args) dirs (assoc opts :output-dir (second args)))
+
+          (str/starts-with? arg "--report-dir=")
+          (recur (rest args) dirs (assoc opts :report-dir (subs arg 13)))
+
+          (= arg "--report-dir")
+          (recur (drop 2 args) dirs (assoc opts :report-dir (second args)))
+
+          (= arg "--no-report")
+          (recur (rest args) dirs (assoc opts :report false))
+
+          (= arg "--no-clean")
+          (recur (rest args) dirs (assoc opts :clean false))
+
+          (str/starts-with? arg "--")
+          (recur (rest args) dirs opts)
+
+          :else
+          (recur (rest args) (conj dirs arg) opts))))))
+
 (defn -main
   "Main entry point for the native-image binary.
 
@@ -568,6 +638,19 @@
 
       (= "ci-assemble" first-arg)
       (apply ci/-main (rest cmd-args))
+
+      (= "merge-reports" first-arg)
+      (let [sub-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} sub-args)
+          (println (merge-reports-help))
+          (let [{:keys [dirs opts]} (parse-merge-reports-args sub-args)]
+            (if (empty? dirs)
+              (do (println "Error: at least one source directory is required")
+                (println "")
+                (println "Usage: spel merge-reports <dir1> <dir2> ... [options]")
+                (println "Run 'spel merge-reports --help' for details.")
+                (System/exit 1))
+              (allure-reporter/merge-results! dirs opts)))))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]

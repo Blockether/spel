@@ -1539,3 +1539,59 @@
         (expect (true? (:interactive? g)))
         (expect (true? (:autoclose? g)))
         (expect (= "dev" (:session g)))))))
+
+;; =============================================================================
+;; merge-reports arg parsing
+;; =============================================================================
+
+(defdescribe merge-reports-args-test
+  "Tests for parse-merge-reports-args"
+
+  (it "parses positional directories"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["results-a" "results-b"])]
+      (expect (= ["results-a" "results-b"] dirs))
+      (expect (empty? opts))))
+
+  (it "parses --output= flag"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--output=combined" "dir2"])]
+      (expect (= ["dir1" "dir2"] dirs))
+      (expect (= "combined" (:output-dir opts)))))
+
+  (it "parses --output flag with space"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--output" "combined"])]
+      (expect (= ["dir1"] dirs))
+      (expect (= "combined" (:output-dir opts)))))
+
+  (it "parses --report-dir= flag"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--report-dir=my-report"])]
+      (expect (= ["dir1"] dirs))
+      (expect (= "my-report" (:report-dir opts)))))
+
+  (it "parses --no-report flag"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--no-report"])]
+      (expect (= ["dir1"] dirs))
+      (expect (false? (:report opts)))))
+
+  (it "parses --no-clean flag"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--no-clean"])]
+      (expect (= ["dir1"] dirs))
+      (expect (false? (:clean opts)))))
+
+  (it "parses all options together"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "dir2" "--output=merged" "--report-dir=report"
+                                "--no-clean" "dir3"])]
+      (expect (= ["dir1" "dir2" "dir3"] dirs))
+      (expect (= "merged" (:output-dir opts)))
+      (expect (= "report" (:report-dir opts)))
+      (expect (false? (:clean opts)))))
+
+  (it "returns empty dirs for no args"
+    (let [{:keys [dirs]} (#'com.blockether.spel.native/parse-merge-reports-args [])]
+      (expect (empty? dirs)))))

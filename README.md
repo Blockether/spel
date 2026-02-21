@@ -610,6 +610,59 @@ When using test fixtures with Allure reporter active, Playwright tracing is auto
 
 Trace and HAR files are automatically attached to test results (MIME type `application/vnd.allure.playwright-trace`) and viewable directly in the Allure report via an embedded local trace viewer — no external service dependency. The report JS is patched to load traces from `./trace-viewer/` instead of `trace.playwright.dev`, and a Service Worker is pre-registered for instant loading.
 
+### Merging Reports
+
+When running multiple test suites independently (e.g. Lazytest + clojure.test, or parallel CI jobs), each suite writes to its own `allure-results` directory. Use `merge-reports` to combine them into a single unified report:
+
+```bash
+# Merge two result directories and generate combined HTML report
+spel merge-reports results-lazytest results-ct
+
+# Merge with custom output directory
+spel merge-reports results-* --output combined-results
+
+# Merge without generating HTML report (results only)
+spel merge-reports dir1 dir2 dir3 --no-report
+
+# Merge into existing directory without cleaning first
+spel merge-reports dir1 dir2 --no-clean
+
+# Custom report directory
+spel merge-reports dir1 dir2 --output merged --report-dir my-report
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output DIR` | `allure-results` | Output directory for merged results |
+| `--report-dir DIR` | `allure-report` | HTML report output directory |
+| `--no-report` | _(generate)_ | Skip HTML report generation |
+| `--no-clean` | _(clean)_ | Don't clean output directory before merging |
+
+The merge copies all UUID-prefixed result and attachment files directly (no collision risk). Supplementary files are merged intelligently: `environment.properties` combines all keys (last value wins for duplicates), `categories.json` is deduplicated by name.
+
+#### Library API
+
+```clojure
+(require '[com.blockether.spel.allure-reporter :as reporter])
+
+;; Merge and generate report
+(reporter/merge-results!
+  ["results-lazytest" "results-ct"]
+  {:output-dir "allure-results"
+   :report-dir "allure-report"})
+
+;; Merge without report
+(reporter/merge-results!
+  ["dir1" "dir2" "dir3"]
+  {:report false})
+
+;; Append to existing results
+(reporter/merge-results!
+  ["new-results"]
+  {:output-dir "existing-results"
+   :clean false})
+```
+
 ## Video Recording
 
 Record browser sessions as video files (WebM). Useful for debugging test failures and CI artifacts.
