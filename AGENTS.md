@@ -42,7 +42,7 @@ The E2E testing agents (planner, generator, healer) are scaffolded from template
 
 Use **clojure-lsp diagnostics** (not the `clj-kondo` CLI) for all lint checks. The LSP integrates clj-kondo under the hood and provides richer analysis (e.g. `clojure-lsp/unused-public-var`).
 
-- Run `lsp_diagnostics` on changed files — never shell out to `clj-kondo` directly.
+- Run `lsp_diagnostics` on changed files — **never shell out to `clj-kondo` directly**. The `clj-kondo` CLI is not installed on this machine. Always use `lsp_diagnostics` instead.
 - This is a **library** — public vars flagged as unused are intentional API surface. Do **not** remove them; suppress with `#_:clj-kondo/ignore` or linter config if needed.
 - Private vars / bindings flagged as unused should be evaluated case-by-case: remove if truly dead, suppress if kept for future use.
 
