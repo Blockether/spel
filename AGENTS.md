@@ -21,6 +21,19 @@ task(category="...", load_skills=["spel"], prompt="...")
 
 ---
 
+## IMPORTANT: Fix Parens With clj-paren-repair, NOT By Hand
+
+**NEVER fix unbalanced parentheses/brackets/braces by hand.** Always use the `clj-paren-repair` tool:
+
+```bash
+# Fix unbalanced parens in a Clojure file
+clj-paren-repair path/to/file.clj
+```
+
+Using manual edits to fix brackets causes subtle bugs. The tool handles all edge cases correctly.
+
+---
+
 # Agent Templates
 
 The E2E testing agents (planner, generator, healer) are scaffolded from templates in `resources/com/blockether/spel/templates/`. The scaffolded output lives in `.opencode/agents/`, `.opencode/prompts/`, and `.opencode/skills/`.

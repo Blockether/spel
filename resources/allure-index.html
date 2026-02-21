@@ -112,31 +112,46 @@
     .view-btn.active { background: var(--green-bg); color: var(--green-text); }
     .view-btn svg { width: 1rem; height: 1rem; }
 
-    /* Compact view */
-    .builds.compact { gap: 0.35rem; }
-    .builds.compact .card { flex-direction: row; padding: 0.5rem 0.75rem; gap: 0.5rem; border-radius: 0.5rem; }
-    .builds.compact .run { width: auto; display: flex; align-items: center; gap: 0.35rem; }
-    .builds.compact .run-label { font-size: 0.55rem; }
-    .builds.compact .run-num { font-size: 0.9rem; }
-    .builds.compact .status-dot { width: auto; font-size: 0.65rem; }
-    .builds.compact .divider { height: 1.5rem; }
-    .builds.compact .info { flex: 1; min-width: 0; }
-    .builds.compact .info-top { margin-bottom: 0.1rem; gap: 4px; }
-    .builds.compact .sha { padding: 1px 5px; font-size: 0.6rem; }
+    /* Compact view - grid layout with equal-sized cards */
+    .builds.compact { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+      gap: 0.5rem; 
+    }
+    .builds.compact .card { 
+      flex-direction: column; 
+      padding: 0.75rem; 
+      border-radius: 0.5rem; 
+      align-items: flex-start;
+    }
+    .builds.compact .run { 
+      width: 100%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+    }
+    .builds.compact .run-label { display: none; }
+    .builds.compact .run-num { font-size: 1rem; }
+    .builds.compact .status-dot { width: auto; font-size: 0.7rem; }
+    .builds.compact .divider { display: none; }
+    .builds.compact .info { flex: 1; width: 100%; }
+    .builds.compact .info-top { flex-wrap: wrap; margin-bottom: 0.25rem; }
+    .builds.compact .sha { padding: 2px 6px; font-size: 0.65rem; }
     .builds.compact .pill { font-size: 0.5rem; padding: 1px 5px; margin-left: 4px; }
-    .builds.compact .msg { font-size: 0.7rem; }
-    .builds.compact .author { font-size: 0.6rem; margin: 0; }
-    .builds.compact .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+    .builds.compact .msg { font-size: 0.75rem; }
+    .builds.compact .author { font-size: 0.65rem; margin: 0.15rem 0 0; }
+    .builds.compact .meta { display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; margin-top: 0.25rem; }
     .builds.compact .meta-date { font-size: 0.55rem; }
     .builds.compact .meta-rel { font-size: 0.5rem; }
-    .builds.compact .arrow { width: 0.75rem; height: 0.75rem; }
-    .builds.compact .date-group { font-size: 0.65rem; padding: 0.5rem 0.25rem 0.25rem; margin-top: 0.35rem; }
+    .builds.compact .arrow { display: none; }
+    .builds.compact .date-group { font-size: 0.65rem; padding: 0.5rem 0.25rem 0.25rem; margin-top: 0.35rem; grid-column: 1 / -1; }
 
     @media (max-width: 640px) {
       .view-toggle { top: 0.75rem; right: 0.75rem; }
       .builds.compact .meta { display: none; }
       .builds.compact .card { padding: 0.5rem 0.6rem; }
-      .builds.compact .run-label { display: none; }
+      .builds.compact { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
       .builds.compact .info-top { flex-wrap: wrap; }
     }
   </style>

@@ -140,6 +140,8 @@ spel version
 
 Playwright-backed HTTP testing with automatic tracing.
 
+### Quick Start
+
 ```clojure
 (require '[com.blockether.spel.api :as api])
 
@@ -148,8 +150,29 @@ Playwright-backed HTTP testing with automatic tracing.
   (api/api-get ctx "/users"))
 ```
 
-For API calls from a browser page (sharing cookies/session):
+### API Functions
 
+| Function | Description | Auto-Traces? |
+|----------|-------------|--------------|
+| `page-api pg` | Extract APIRequestContext from a Page | ✅ Yes |
+| `context-api ctx` | Extract APIRequestContext from a BrowserContext | ✅ Yes |
+| `with-testing-api [ctx] body` | Standalone API testing with full Playwright stack | ✅ Yes (when Allure active) |
+| `with-page-api pg opts [ctx] body` | Page-bound API with custom base-url + cookie sharing | ❌ No |
+
+### Usage Examples
+
+**1. Standalone API testing** — creates full Playwright stack:
+```clojure
+;; With base-url
+(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (api/api-get ctx "/users"))
+
+;; Without base-url (full URLs required)
+(api/with-testing-api [ctx]
+  (api/api-get ctx "https://api.example.com/users"))
+```
+
+**2. API from Page** — share browser cookies/session:
 ```clojure
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com/login")
@@ -157,6 +180,24 @@ For API calls from a browser page (sharing cookies/session):
   (let [resp (api/api-get (api/page-api pg) "/api/me")]
     (api/api-response-status resp)))
 ```
+
+**3. API from BrowserContext** — extract from existing context:
+```clojure
+(core/with-playwright [pw]
+  (core/with-browser [browser (core/launch-chromium pw)]
+    (core/with-context [ctx (core/new-context browser)]
+      (let [resp (api/api-get (api/context-api ctx) "/users")]
+        (api/api-response-status resp)))))
+```
+
+**4. Page-bound API with custom base-url** — cookies + different domain:
+```clojure
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  ;; ... login via UI ...
+  ;; Use different base-url while sharing browser cookies
+  (api/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+    (api/api-get ctx "/me")))
 
 [API reference covers the full feature set](.opencode/skills/spel/SKILL.md).
 
