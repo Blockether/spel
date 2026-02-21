@@ -187,6 +187,12 @@ Every code change MUST pass this full checklist before it's considered done:
    ```
    Scaffolded files in `.opencode/` must be regenerated from templates.
 
+5. **Check SKILL template** (after ANY feature or API change)
+   - Review `resources/com/blockether/spel/templates/skills/spel/SKILL.md`
+   - If the feature adds/changes public API, macros, CLI commands, or usage patterns → update the SKILL template to match
+   - Cross-check against `README.md` — everything documented in README must also be in the SKILL template
+   - The SKILL template is the agent-facing API reference; if it's missing a feature, agents won't know about it
+
 **Skipping any step = incomplete work.** If a step fails, fix it before moving on.
 
 ## Running Tests (Lazytest)
@@ -209,3 +215,33 @@ clojure -M:test --watch
 ```
 
 **IMPORTANT**: `-v`/`--var` requires fully-qualified symbols. Bare var names throw `IllegalArgumentException`.
+
+---
+
+## MCP Tools (nREPL Eval & Paren Repair)
+
+Two MCP tools are available for Clojure development workflows. Both are installed via [bbin](https://github.com/babashka/bbin).
+
+### Installation
+
+```bash
+# nREPL eval tool — evaluate Clojure expressions against a running nREPL server
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
+
+# On-demand paren repair tool — fix unbalanced parentheses in Clojure code
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+```
+
+### Verify installation
+
+```bash
+clj-nrepl-eval --help
+clj-paren-repair --help
+```
+
+### Usage
+
+| Tool | Purpose | When to use |
+|------|---------|-------------|
+| `clj-nrepl-eval` | Evaluate Clojure forms against a running nREPL | Interactive development, testing expressions, inspecting runtime state |
+| `clj-paren-repair` | Fix unbalanced parens/brackets/braces | After edits that break paren matching — run this instead of manually counting parens |
