@@ -7,6 +7,7 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.spel.daemon :as sut]
+   [com.blockether.spel.devices :as devices]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
@@ -171,35 +172,42 @@
           (expect (= "http://proxy:8080" (get flags "proxy"))))))))
 
 ;; =============================================================================
-;; Unit Tests — device-presets
+;; Unit Tests — device-presets (shared from devices.clj)
 ;; =============================================================================
 
 (defdescribe device-presets-test
   "Unit tests for device presets"
 
-  (describe "presets exist"
+  (describe "presets exist via string lookup"
     (it "has iphone 14"
-      (expect (some? (get @#'sut/device-presets "iphone 14"))))
+      (expect (some? (devices/resolve-device-by-name "iphone 14"))))
 
     (it "has pixel 7"
-      (expect (some? (get @#'sut/device-presets "pixel 7"))))
+      (expect (some? (devices/resolve-device-by-name "pixel 7"))))
 
     (it "has ipad"
-      (expect (some? (get @#'sut/device-presets "ipad"))))
+      (expect (some? (devices/resolve-device-by-name "ipad"))))
 
-    (it "has desktop"
-      (expect (some? (get @#'sut/device-presets "desktop"))))
+    (it "has desktop chrome"
+      (expect (some? (devices/resolve-device-by-name "desktop chrome"))))
 
-    (it "has desktop hd"
-      (expect (some? (get @#'sut/device-presets "desktop hd")))))
+    (it "has desktop safari"
+      (expect (some? (devices/resolve-device-by-name "desktop safari")))))
+
+  (describe "case-insensitive lookup"
+    (it "resolves iPhone 14"
+      (expect (some? (devices/resolve-device-by-name "iPhone 14"))))
+
+    (it "resolves PIXEL 7"
+      (expect (some? (devices/resolve-device-by-name "PIXEL 7")))))
 
   (describe "preset values"
     (it "iphone 14 has mobile settings"
-      (let [preset (get @#'sut/device-presets "iphone 14")]
+      (let [preset (devices/resolve-device-by-name "iphone 14")]
         (expect (true? (:is-mobile preset)))
         (expect (true? (:has-touch preset)))
         (expect (= 3 (:device-scale-factor preset)))
-        (expect (= 390 (:width preset)))))))
+        (expect (= 390 (get-in preset [:viewport :width])))))))
 
 ;; =============================================================================
 ;; Unit Tests — session-state-path

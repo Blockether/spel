@@ -15,6 +15,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.devices :as devices]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as network]
@@ -795,30 +796,8 @@
     (page/emulate-media! (pg) {:color-scheme scheme})
     {:media {:colorScheme colorScheme}}))
 
-(def ^:private device-presets
-  "Common device presets for set_device."
-  {"iphone 14"        {:width 390  :height 844  :device-scale-factor 3     :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"}
-   "iphone 14 pro"    {:width 393  :height 852  :device-scale-factor 3     :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"}
-   "iphone 12"        {:width 390  :height 844  :device-scale-factor 3     :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"}
-   "pixel 7"          {:width 412  :height 915  :device-scale-factor 2.625 :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"}
-   "pixel 5"          {:width 393  :height 851  :device-scale-factor 2.75  :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (Linux; Android 12; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.0.0 Mobile Safari/537.36"}
-   "ipad"             {:width 810  :height 1080 :device-scale-factor 2     :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"}
-   "ipad pro"         {:width 1024 :height 1366 :device-scale-factor 2     :is-mobile true  :has-touch true
-                       :user-agent "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"}
-   "desktop"          {:width 1280 :height 720  :device-scale-factor 1     :is-mobile false :has-touch false
-                       :user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"}
-   "desktop hd"       {:width 1920 :height 1080 :device-scale-factor 1     :is-mobile false :has-touch false
-                       :user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"}})
-
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
-  (let [device-name (str/lower-case (or device ""))
-        preset      (get device-presets device-name)]
+  (let [preset (devices/resolve-device-by-name device)]
     (if preset
       (let [current-url (try (page/url (pg)) (catch Exception _ nil))]
         ;; Save in-flight trace before destroying context
@@ -826,10 +805,7 @@
         ;; Close current page and context, recreate with device settings
         (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-        (let [new-ctx (core/new-context (:browser @!state)
-                        (-> preset
-                          (dissoc :width :height)
-                          (assoc :viewport {:width (:width preset) :height (:height preset)})))
+        (let [new-ctx (core/new-context (:browser @!state) preset)
               new-pg  (core/new-page-from-context new-ctx)]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
           ;; Re-register console, error, and request listeners on new page
@@ -847,7 +823,7 @@
           (when current-url (page/navigate new-pg current-url))
           {:device device :preset preset}))
       {:error (str "Unknown device: " device
-                ". Available: " (str/join ", " (keys device-presets)))})))
+                ". Available: " (clojure.string/join ", " (devices/available-device-names)))})))
 
 (defmethod handle-cmd "set_geo" [_ {:strs [latitude longitude accuracy]}]
   (core/context-grant-permissions! (ctx) ["geolocation"])
