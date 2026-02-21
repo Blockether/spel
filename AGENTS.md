@@ -168,28 +168,36 @@ Every code change MUST pass this full checklist before it's considered done:
    ```
    All test cases must report 0 failures. Pre-existing failures must be noted explicitly.
 
-2. **Native CLI builds**
+2. **Regenerate SKILL.md from template** (ALWAYS — run every time)
+   ```bash
+   clojure -T:build gen-docs
+   ```
+   This reads `SKILL.md.template`, introspects all source namespaces, and writes the final `SKILL.md`. It auto-populates the `{{library-api}}`, `{{sci-api}}`, and `{{cli-commands}}` placeholders from code — so any new/changed public functions with docstrings are picked up automatically. **Must run before `make install-local`** because the generated `SKILL.md` is baked into the native binary.
+
+3. **Native CLI builds**
    ```bash
    make install-local
    ```
    Builds uberjar → native-image → copies to `~/.local/bin/spel`. Must exit 0.
 
-3. **Native CLI smoke test**
+4. **Native CLI smoke test**
    ```bash
    spel version
    spel --help
    ```
    The freshly built binary must respond correctly.
 
-4. **Regenerate agents/skills/docs** (if templates or source changed)
+5. **Regenerate agents/skills/docs** (if templates or source changed)
    ```bash
    make init-agents ARGS="--ns com.blockether.spel --force"
    ```
    Scaffolded files in `.opencode/` must be regenerated from templates.
 
-5. **Check SKILL template** (after ANY feature or API change)
-   - Review `resources/com/blockether/spel/templates/skills/spel/SKILL.md`
-   - If the feature adds/changes public API, macros, CLI commands, or usage patterns → update the SKILL template to match
+6. **Check SKILL template** (after ANY feature or API change)
+   - **Never hand-edit** `resources/.../SKILL.md` — it is **auto-generated** by `gen_docs.clj`
+   - Edit `resources/com/blockether/spel/templates/skills/spel/SKILL.md.template` instead
+   - API tables (`{{library-api}}`, `{{sci-api}}`, `{{cli-commands}}`) are auto-populated from code introspection — adding a new public function with a docstring is enough
+   - Prose sections (usage examples, common patterns, trace docs) live in the `.template` and must be updated manually when features change
    - Cross-check against `README.md` — everything documented in README must also be in the SKILL template
    - The SKILL template is the agent-facing API reference; if it's missing a feature, agents won't know about it
 

@@ -65,6 +65,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `new-context` | [browser] \| [browser context-opts] | Creates a new browser context with optional configuration. |
 | `new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
 | `new-page-from-context` | [context] | Creates a new page in the given context. |
+| `run-with-testing-page` | [opts f] | Functional core of `with-testing-page`. Sets up a complete Playwright stack |
 | _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
 | `video-delete!` | [page] | Deletes the video file for a page. |
 | `video-path` | [page] | Returns the video file path for a page, or nil if not recording. |
@@ -74,7 +75,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `with-context` | [[sym expr] & body] | Binds a browser context and ensures cleanup. |
 | _(macro)_ `with-page` | [[sym expr] & body] | Binds a page instance and ensures cleanup. |
 | _(macro)_ `with-playwright` | [binding-vec & body] | Binds a Playwright instance and ensures cleanup. |
-| _(macro)_ `with-testing-page` | [opts? binding-vec & body] | Creates entire Playwright stack (pw → browser → context → page) in one shot. Accepts optional opts map for device emulation, viewport presets, browser selection, profile, and launch opts. Auto-enables tracing when Allure reporter is active. |
+| _(macro)_ `with-testing-page` | [opts-or-binding & args] | All-in-one macro for quick browser testing with automatic resource management. |
 | `wrap-error` | [e] | Wraps Playwright exceptions into anomaly maps. |
 
 ### `page` — Navigation, locators, content, events
@@ -665,7 +666,7 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 |--------|--------|---------|
 | `:browser-type` | `:chromium`, `:firefox`, `:webkit` | `:chromium` |
 | `:headless` | `true`, `false` | `true` |
-| `:device` | `:iphone-14`, `:pixel-7`, `:ipad`, `:desktop-chrome`, [etc.](#device-presets) | — |
+| `:device` | `:iphone-14`, `:pixel-7`, `:ipad`, `:desktop-chrome`, etc. | — |
 | `:viewport` | `:mobile`, `:tablet`, `:desktop-hd`, `{:width N :height N}` | browser default |
 | `:slow-mo` | Millis to slow down operations | — |
 | `:profile` | String path to persistent user data dir | — |
@@ -2316,6 +2317,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
 | `ci-assemble [opts]` | Assemble Allure site for CI deployment (--help for details) |
+| `merge-reports [dirs]` | Merge N allure-results dirs into one (--help for details) |
 
 ### Utility
 
@@ -2400,6 +2402,30 @@ Operations performed (in order):
 1. Patches `.allure-history.jsonl` with report URL and commit info (when `--report-url` set)
 2. Generates `builds.json`, `builds-meta.json`, and `badge.json` (when site directory exists)
 3. Patches `index.html` with logo and title placeholders (when `--index-file` set)
+
+**In-Progress Build Tracking:**
+
+The CI module supports tracking builds as "in progress" with a yellow animated badge on the landing page:
+
+```clojure
+;; At start of CI run — registers build with yellow "In Progress" badge
+(ci/register-build-start!
+  {:site-dir "gh-pages-site"
+   :run-number "123"
+   :commit-sha "abc123..."
+   :commit-msg "feat: add feature"
+   :commit-author "developer"
+   :repo-url "https://github.com/org/repo"
+   :run-url "https://github.com/org/repo/actions/runs/456"})
+
+;; After tests complete — updates status to completed/failed
+(ci/finalize-build!
+  {:site-dir "gh-pages-site"
+   :run-number "123"
+   :passed true})
+```
+
+Flow: register → deploy pages (shows yellow badge) → run tests → finalize → regenerate metadata → re-deploy pages.
 
 In CI workflows, call via JVM (Clojure CLI) rather than native binary:
 
