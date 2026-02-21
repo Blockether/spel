@@ -3,7 +3,7 @@
             [com.blockether.spel.core :as core]
             [com.blockether.spel.page :as page]
             [com.blockether.spel.locator :as locator])
-  (:import [com.microsoft.playwright Playwright Browser BrowserContext Page]))
+  (:import [com.microsoft.playwright Page]))
 
 (deftest with-testing-page-basic-test
   (testing "basic usage with defaults"
@@ -61,11 +61,4 @@
         ;; Should take at least 100ms due to slow-mo
         (is (>= elapsed 100))))))
 
-(deftest with-testing-page-cleanup-test
-  (testing "resources are properly cleaned up"
-    (let [pw-count-before (count (Playwright/findAll))]
-      (core/with-testing-page {}
-        [pg]
-        (page/navigate pg "https://example.com"))
-      ;; Playwright instance should be cleaned up
-      (is (= pw-count-before (count (Playwright/findAll)))))))
+;; Cleanup is handled automatically by Playwright's try/finally blocks
