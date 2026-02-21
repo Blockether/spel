@@ -831,16 +831,6 @@
 ;; Merge Results
 ;; =============================================================================
 
-(defn- allure-result-file?
-  "True if the file is an allure result, attachment, or supplementary file."
-  [^File f]
-  (let [name (.getName f)]
-    (or (str/ends-with? name "-result.json")
-      (str/ends-with? name "-container.json")
-      (str/includes? name "-attachment.")
-      (= name "environment.properties")
-      (= name "categories.json"))))
-
 (defn- merge-environment-properties
   "Merge multiple environment.properties files. Later values win for
    duplicate keys."
