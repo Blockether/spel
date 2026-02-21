@@ -211,6 +211,82 @@ Launch specific browser engines:
 | `with-context` | BrowserContext |
 | `with-page` | Page instance |
 
+### Standalone Testing Page
+
+For quick tests and scripts, `with-testing-page` creates the entire stack in one shot — no nesting required:
+
+```clojure
+(require '[com.blockether.spel.core :as core]
+         '[com.blockether.spel.page :as page])
+
+;; Minimal — headless Chromium, default viewport
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com")
+  (page/title pg))
+;; => "Example Domain"
+```
+
+Pass an opts map for device emulation, viewport presets, or browser selection:
+
+```clojure
+;; Device emulation
+(core/with-testing-page {:device :iphone-14} [pg]
+  (page/navigate pg "https://example.com"))
+
+;; Viewport preset
+(core/with-testing-page {:viewport :desktop-hd :locale "fr-FR"} [pg]
+  (page/navigate pg "https://example.com"))
+
+;; Firefox, headed mode
+(core/with-testing-page {:browser-type :firefox :headless false} [pg]
+  (page/navigate pg "https://example.com"))
+```
+
+| Option | Values | Default |
+|--------|--------|---------|
+| `:browser-type` | `:chromium`, `:firefox`, `:webkit` | `:chromium` |
+| `:headless` | `true`, `false` | `true` |
+| `:device` | `:iphone-14`, `:pixel-7`, `:ipad`, `:desktop-chrome`, [etc.](#device-presets) | — |
+| `:viewport` | `:mobile`, `:tablet`, `:desktop-hd`, `{:width N :height N}` | browser default |
+| `:slow-mo` | Millis to slow down operations | — |
+| + any key accepted by `new-context` | `:locale`, `:color-scheme`, `:timezone-id`, etc. | — |
+
+When the [Allure reporter](#allure-test-reporting) is active, tracing (screenshots + DOM snapshots + network) and HAR recording are enabled automatically — zero configuration.
+
+#### Device Presets
+
+| Keyword | Viewport | Mobile |
+|---------|----------|--------|
+| `:iphone-se` | 375×667 | ✓ |
+| `:iphone-12` | 390×844 | ✓ |
+| `:iphone-14` | 390×844 | ✓ |
+| `:iphone-14-pro` | 393×852 | ✓ |
+| `:iphone-15` | 393×852 | ✓ |
+| `:iphone-15-pro` | 393×852 | ✓ |
+| `:ipad` | 810×1080 | ✓ |
+| `:ipad-mini` | 768×1024 | ✓ |
+| `:ipad-pro-11` | 834×1194 | ✓ |
+| `:ipad-pro` | 1024×1366 | ✓ |
+| `:pixel-5` | 393×851 | ✓ |
+| `:pixel-7` | 412×915 | ✓ |
+| `:galaxy-s24` | 360×780 | ✓ |
+| `:galaxy-s9` | 360×740 | ✓ |
+| `:desktop-chrome` | 1280×720 | ✗ |
+| `:desktop-firefox` | 1280×720 | ✗ |
+| `:desktop-safari` | 1280×720 | ✗ |
+
+#### Viewport Presets
+
+| Keyword | Size |
+|---------|------|
+| `:mobile` | 375×667 |
+| `:mobile-lg` | 428×926 |
+| `:tablet` | 768×1024 |
+| `:tablet-lg` | 1024×1366 |
+| `:desktop` | 1280×720 |
+| `:desktop-hd` | 1920×1080 |
+| `:desktop-4k` | 3840×2160 |
+
 ## API Testing
 
 ### Creating API Context
