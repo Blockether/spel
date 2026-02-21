@@ -115,7 +115,7 @@
     /* Compact view - grid layout with equal-sized cards */
     .builds.compact { 
       display: grid; 
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
       gap: 0.5rem; 
     }
     .builds.compact .card { 
@@ -123,6 +123,7 @@
       padding: 0.75rem; 
       border-radius: 0.5rem; 
       align-items: flex-start;
+      min-height: 120px;
     }
     .builds.compact .run { 
       width: 100%; 
@@ -141,7 +142,7 @@
     .builds.compact .pill { font-size: 0.5rem; padding: 1px 5px; margin-left: 4px; }
     .builds.compact .msg { font-size: 0.75rem; }
     .builds.compact .author { font-size: 0.65rem; margin: 0.15rem 0 0; }
-    .builds.compact .meta { display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; margin-top: 0.25rem; }
+    .builds.compact .meta { display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; margin-top: auto; }
     .builds.compact .meta-date { font-size: 0.55rem; }
     .builds.compact .meta-rel { font-size: 0.5rem; }
     .builds.compact .arrow { display: none; }
@@ -150,7 +151,7 @@
     @media (max-width: 640px) {
       .view-toggle { top: 0.75rem; right: 0.75rem; }
       .builds.compact .meta { display: none; }
-      .builds.compact .card { padding: 0.5rem 0.6rem; }
+      .builds.compact .card { padding: 0.5rem 0.6rem; min-height: 100px; }
       .builds.compact { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
       .builds.compact .info-top { flex-wrap: wrap; }
     }
