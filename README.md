@@ -77,14 +77,14 @@ spel install  # requires spel CLI — see "Native CLI" below
 ;; => "Example Domain"
 ```
 
-Pass an opts map for device emulation, viewport presets, or browser selection:
+Pass an opts map for device emulation:
 
 ```clojure
 (core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [pg]
   (page/navigate pg "https://example.com"))
 ```
 
-For fine-grained control, explicit `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [**SKILL reference**](.opencode/skills/spel/SKILL.md) for the full API including all options, device presets, and viewports.
+Need explicit control over lifecycle? `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. The [full API reference](.opencode/skills/spel/SKILL.md) covers all options.
 
 ## Native CLI
 
@@ -138,7 +138,7 @@ spel version
 
 ## API Testing
 
-Playwright-backed HTTP testing with context lifecycle, hooks, and retry. See the [**SKILL reference**](.opencode/skills/spel/SKILL.md) for the full API.
+Playwright-backed HTTP testing with context lifecycle, hooks, and retry.
 
 ```clojure
 (require '[com.blockether.spel.core :as core]
@@ -150,11 +150,13 @@ Playwright-backed HTTP testing with context lifecycle, hooks, and retry. See the
     (api/api-response-status resp)))  ;; => 200
 ```
 
+[API reference covers the full feature set](.opencode/skills/spel/SKILL.md).
+
 ## Allure Test Reporting
 
-Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test reports using [Allure](https://allurereport.org/). The built-in reporter generates the full HTML report automatically using Allure 3 with an embedded local Playwright trace viewer.
+Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test reports using [Allure](https://allurereport.org/). Generates the HTML report automatically with embedded Playwright traces and trace viewer.
 
-> **[View live test report](https://blockether.github.io/spel/)** — with embedded Playwright traces.
+> **[View live test report](https://blockether.github.io/spel/)** — with embedded traces.
 
 <table>
 <tr>
@@ -187,24 +189,28 @@ Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test rep
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 ```
 
-See the [**SKILL reference**](.opencode/skills/spel/SKILL.md) for metadata, steps, attachments, and fixtures.
+Automatic tracing, trace viewer, and history included. See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
 ## Video Recording
 
-Record browser sessions as WebM files for debugging and CI artifacts. See the [**SKILL reference**](.opencode/skills/spel/SKILL.md) for details.
+Record browser sessions as WebM files for debugging and CI artifacts.
 
 ```clojure
 (def ctx (core/new-context browser {:record-video-dir "videos"}))
 ```
 
+[Recording options and test fixtures are documented here](.opencode/skills/spel/SKILL.md).
+
 ## Test Generation (Codegen)
 
-Record browser sessions and transform to idiomatic Clojure code. See the [**SKILL reference**](.opencode/skills/spel/SKILL.md) for the full API including all supported actions and output formats.
+Record browser sessions and transform to idiomatic Clojure code.
 
 ```bash
 spel codegen record -o recording.jsonl https://example.com
 spel codegen recording.jsonl > my_test.clj
 ```
+
+[Full actions and output formats in the SKILL reference](.opencode/skills/spel/SKILL.md).
 
 ## Agent Scaffolding
 
