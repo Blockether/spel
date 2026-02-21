@@ -87,6 +87,14 @@
     html.dark .theme-toggle .icon-sun { display: none; }
     html.dark .theme-toggle .icon-moon { display: block; }
 
+    /* Video modal */
+    .video-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
+    .video-modal.show { display: flex; }
+    .video-modal-content { max-width: 90vw; max-height: 90vh; position: relative; }
+    .video-modal video { max-width: 100%; max-height: 85vh; border-radius: 8px; background: #000; }
+    .video-modal-close { position: absolute; top: -40px; right: 0; background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; padding: 0.5rem; }
+    .video-modal-title { position: absolute; bottom: 20px; left: 20px; right: 60px; color: #fff; font-size: 0.9rem; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 4px; }
+
     .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; margin-left: 8px; letter-spacing: 0.03em; border: 1px solid; vertical-align: middle; }
     .pill-green { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
     .pill-yellow { background: rgba(255,193,7,0.10); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
@@ -182,6 +190,15 @@
     <p id="empty" class="empty">No reports yet. Push to main to generate one.</p>
   </main>
 
+  <!-- Video Modal -->
+  <div id="videoModal" class="video-modal" onclick="if(event.target === this) closeVideoModal()">
+    <div class="video-modal-content">
+      <button class="video-modal-close" onclick="closeVideoModal()" title="Close">&times;</button>
+      <video id="videoPlayer" controls playsinline></video>
+      <div id="videoModalTitle" class="video-modal-title"></div>
+    </div>
+  </div>
+
   <footer class="footer">
     Powered by <a href="https://github.com/Blockether/spel">spel</a>
     &middot; Reports by <a href="https://allurereport.org">Allure</a>
@@ -237,6 +254,27 @@
       var view = localStorage.getItem('spel-view') || 'columns';
       setView(view);
     })();
+
+    // Video modal functions
+    function openVideoModal(src, title) {
+      var modal = document.getElementById('videoModal');
+      var player = document.getElementById('videoPlayer');
+      var titleEl = document.getElementById('videoModalTitle');
+      player.src = src;
+      titleEl.textContent = title || 'Video Recording';
+      modal.classList.add('show');
+      player.play();
+    }
+    function closeVideoModal() {
+      var modal = document.getElementById('videoModal');
+      var player = document.getElementById('videoPlayer');
+      player.pause();
+      player.src = '';
+      modal.classList.remove('show');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeVideoModal();
+    });
 
     function relativeTime(ts) {
       var diff = Date.now() - ts, m = Math.floor(diff / 60000);
