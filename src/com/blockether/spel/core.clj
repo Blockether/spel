@@ -15,12 +15,13 @@
   (:require
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.data]
+   [com.blockether.spel.devices :as devices]
    [com.blockether.spel.options :as opts])
   (:import
    [java.io File]
    [java.nio.file Path]
    [com.microsoft.playwright Browser BrowserContext BrowserType
-    Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError Video]
+    Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError Tracing$StartOptions Tracing$StopOptions Video]
    [com.microsoft.playwright.impl TargetClosedError]))
 
 ;; =============================================================================
@@ -688,3 +689,175 @@
   (when-let [^Video v (.video page)]
     (.delete v)
     nil))
+
+;; =============================================================================
+;; Standalone Testing Page
+;; =============================================================================
+
+(defn- ensure-not-anomaly!
+  "Throws when `result` is an anomaly map (from any safe-wrapped call),
+   preventing confusing ClassCastException later. Returns result on success."
+  [result]
+  (if (anomaly? result)
+    (throw (or (:playwright/exception result)
+             (ex-info (str "Playwright operation failed: "
+                        (:cognitect.anomalies/message result))
+               (dissoc result :playwright/exception))))
+    result))
+
+(defn- resolve-context-opts
+  "Resolves `:device` and `:viewport` in opts to context-ready options.
+
+   - `:device` keyword → merges device descriptor (viewport, user-agent, etc.)
+   - `:viewport` keyword → resolves to {:width :height}
+   - `:viewport` map → used as-is
+   - Both are removed from the returned map; their effects are merged in."
+  [opts]
+  (let [device-kw  (:device opts)
+        viewport   (:viewport opts)
+        base-opts  (dissoc opts :device :viewport :browser-type :headless :slow-mo)
+        device-map (when device-kw (devices/resolve-device device-kw))
+        vp         (or (:viewport device-map)
+                     (devices/resolve-viewport viewport))]
+    (cond-> (merge device-map base-opts)
+      vp (assoc :viewport vp))))
+
+(defn- resolve-launch-opts
+  "Extracts browser launch options from the user opts map."
+  [opts]
+  (cond-> {}
+    (contains? opts :headless) (assoc :headless (:headless opts))
+    (contains? opts :slow-mo)  (assoc :slow-mo (:slow-mo opts))))
+
+(defn- resolve-launcher
+  "Returns the launch fn for the given `:browser-type` keyword."
+  [browser-type]
+  (case (or browser-type :chromium)
+    :chromium launch-chromium
+    :firefox  launch-firefox
+    :webkit   launch-webkit))
+
+(defn run-with-testing-page
+  "Functional core of `with-testing-page`. Sets up a complete Playwright stack
+   (playwright → browser → context → page) and calls `(f page)`.
+
+   When the Allure reporter is active, automatically enables Playwright tracing
+   (screenshots + DOM snapshots + sources) and HAR recording, and binds the
+   allure dynamic vars so traces/HARs are attached to the test result.
+
+   Opts:
+     :browser-type  - :chromium (default), :firefox, or :webkit
+     :headless      - Boolean (default true)
+     :slow-mo       - Millis to slow down operations
+     :device        - Device preset keyword (e.g. :iphone-14, :pixel-7)
+     :viewport      - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
+     + any key accepted by `new-context` (e.g. :locale, :color-scheme, :timezone-id)
+
+   When :device is given, its viewport/user-agent/device-scale-factor/is-mobile/has-touch
+   are merged into context opts. Explicit :viewport overrides the device viewport."
+  [opts f]
+  (let [;; Dynamically resolve allure vars to avoid cyclic dependency (core → allure → page → core)
+        allure-active?  (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
+                          (catch Exception _ (constantly false)))
+        allure-page     (resolve 'com.blockether.spel.allure/*page*)
+        allure-tracing  (resolve 'com.blockether.spel.allure/*tracing*)
+        allure-trace    (resolve 'com.blockether.spel.allure/*trace-path*)
+        allure-har      (resolve 'com.blockether.spel.allure/*har-path*)
+        allure-title    (resolve 'com.blockether.spel.allure/*test-title*)
+        launch-fn       (resolve-launcher (:browser-type opts))
+        launch-opts     (resolve-launch-opts opts)
+        ctx-opts        (resolve-context-opts opts)]
+    (with-playwright [pw]
+      (with-browser [browser (ensure-not-anomaly!
+                               (if (seq launch-opts)
+                                 (launch-fn pw launch-opts)
+                                 (launch-fn pw)))]
+        (if (allure-active?)
+          ;; Traced mode: HAR + Playwright tracing for Allure attachment
+          (let [trace-file (File/createTempFile "pw-trace-" ".zip")
+                har-file   (File/createTempFile "pw-har-" ".har")
+                ctx        (ensure-not-anomaly!
+                             (new-context browser
+                               (merge ctx-opts
+                                 {:record-har-path (str har-file)
+                                  :record-har-mode :full})))
+                tracing    (.tracing ^BrowserContext ctx)]
+            (.start tracing (doto (Tracing$StartOptions.)
+                              (.setScreenshots true)
+                              (.setSnapshots true)
+                              (.setSources true)
+                              (.setTitle (or (when allure-title @allure-title) "spel"))))
+            (let [page (new-page-from-context ctx)]
+              (try
+                (with-bindings (cond-> {}
+                                 allure-page    (assoc allure-page page)
+                                 allure-tracing (assoc allure-tracing tracing)
+                                 allure-trace   (assoc allure-trace trace-file)
+                                 allure-har     (assoc allure-har har-file))
+                  (f page))
+                (finally
+                  (when (instance? Page page) (close-page! page))
+                  (try (.stop tracing (doto (Tracing$StopOptions.)
+                                        (.setPath (.toPath trace-file))))
+                    (catch Exception _))
+                  (let [t (doto (Thread. (fn []
+                                           (try (close-context! ctx)
+                                             (catch Exception _))))
+                            (.setDaemon true)
+                            (.start))]
+                    (.join t 5000))))))
+          ;; Normal mode: plain page, no tracing overhead
+          (let [ctx  (ensure-not-anomaly! (new-context browser (or ctx-opts {})))
+                page (new-page-from-context ctx)]
+            (try
+              (with-bindings (cond-> {}
+                               allure-page (assoc allure-page page))
+                (f page))
+              (finally
+                (when (instance? Page page) (close-page! page))
+                (try (close-context! ctx) (catch Exception _))))))))))
+
+(defmacro with-testing-page
+  "All-in-one macro for quick browser testing with automatic resource management.
+
+   Creates a complete Playwright stack (playwright → browser → context → page),
+   binds the page to `sym`, executes body, and tears everything down.
+
+   When the Allure reporter is active, automatically enables Playwright tracing
+   (screenshots + DOM snapshots + network) and HAR recording — zero configuration.
+
+   Opts (an optional map expression, evaluated at runtime):
+     :browser-type  - :chromium (default), :firefox, :webkit
+     :headless      - Boolean (default true)
+     :slow-mo       - Millis to slow down operations
+     :device        - Device preset keyword (e.g. :iphone-14, :pixel-7)
+     :viewport      - Viewport keyword (:mobile, :desktop-hd) or {:width :height}
+     + any key accepted by `new-context` (:locale, :color-scheme, :timezone-id, etc.)
+
+   Usage:
+     ;; Minimal — headless Chromium, default viewport (opts omitted)
+     (with-testing-page [page]
+       (page/navigate page \"https://example.com\")
+       (page/title page))
+
+     ;; With device emulation
+     (with-testing-page {:device :iphone-14} [page]
+       (page/navigate page \"https://example.com\"))
+
+     ;; With viewport preset
+     (with-testing-page {:viewport :desktop-hd :locale \"fr-FR\"} [page]
+       (page/navigate page \"https://example.com\"))
+
+     ;; Firefox, headed mode
+     (with-testing-page {:browser-type :firefox :headless false} [page]
+       (page/navigate page \"https://example.com\"))"
+  [opts-or-binding & args]
+  (if (vector? opts-or-binding)
+    ;; No opts: (with-testing-page [sym] body...)
+    (let [[sym] opts-or-binding
+          body  args]
+      `(run-with-testing-page {} (fn [~sym] ~@body)))
+    ;; With opts: (with-testing-page opts [sym] body...)
+    (let [opts           opts-or-binding
+          [[sym] & body] args]
+      `(run-with-testing-page ~opts (fn [~sym] ~@body)))))

@@ -3,7 +3,6 @@
    
    Converts idiomatic Clojure maps to Playwright's typed option objects.
    All functions use reflection-free type hints."
-  (:refer-clojure :exclude [proxy])
   (:import
    [com.microsoft.playwright BrowserType$LaunchOptions
     BrowserType$LaunchPersistentContextOptions
