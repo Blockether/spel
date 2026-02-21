@@ -4,7 +4,8 @@
 target/
 
 # Editor/tooling caches (recursive)
-
+.clj-kondo/**
+.lsp/**
 .calva/**
 .pytest_cache/**
 resources-frontend/public/dist
