@@ -86,3 +86,35 @@
                    (api/list-node
                      (list* (api/token-node 'do) args)))]
     {:node new-node}))
+
+;; =============================================================================
+;; Core — with-testing-page
+;; =============================================================================
+
+(defn with-testing-page
+  "Hook for core/with-testing-page.
+
+   Handles two forms:
+     (with-testing-page [sym] body...)       — opts omitted
+     (with-testing-page opts [sym] body...)  — opts provided
+
+   Rewrites into (let [_ opts sym nil] body...)
+   so clj-kondo analyzes the opts expression and binds sym."
+  [{:keys [node]}]
+  (let [args       (rest (:children node))
+        first-arg  (first args)
+        ;; If first arg is a vector, opts were omitted
+        vector?    (= :vector (api/tag first-arg))
+        opts-node  (if vector?
+                     (api/map-node [])
+                     first-arg)
+        binding-vec (if vector? first-arg (second args))
+        body        (if vector? (rest args) (drop 2 args))
+        sym         (first (:children binding-vec))
+        new-node    (api/list-node
+                      (list*
+                        (api/token-node 'let)
+                        (api/vector-node [(api/token-node '_) opts-node
+                                          sym (api/token-node nil)])
+                        body))]
+    {:node new-node}))

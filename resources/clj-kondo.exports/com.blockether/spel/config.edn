@@ -6,6 +6,9 @@
    com.blockether.spel.core/with-context    hooks.com.blockether.spel/with-resource
    com.blockether.spel.core/with-page       hooks.com.blockether.spel/with-resource
 
+    ;; core — standalone testing macro
+   com.blockether.spel.core/with-testing-page hooks.com.blockether.spel/with-testing-page
+
    ;; api — lifecycle macros
    com.blockether.spel.api/with-api-context  hooks.com.blockether.spel/with-resource
    com.blockether.spel.api/with-api-contexts hooks.com.blockether.spel/with-api-contexts
