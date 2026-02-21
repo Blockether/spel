@@ -13,6 +13,7 @@
     
     All operations return anomaly maps on failure instead of throwing exceptions."
   (:require
+   [clojure.java.io :as io]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.data]
    [com.blockether.spel.devices :as devices]
@@ -20,6 +21,7 @@
   (:import
    [java.io File]
    [java.nio.file Path]
+   [java.util UUID]
    [com.microsoft.playwright Browser BrowserContext BrowserType
     Page Playwright Playwright$CreateOptions PlaywrightException TimeoutError Tracing$StartOptions Tracing$StopOptions Video]
    [com.microsoft.playwright.impl TargetClosedError]))
@@ -757,6 +759,42 @@
     :firefox  firefox
     :webkit   webkit))
 
+(defn- attach-trace-to-allure-context!
+  "When allure/*context* and *output-dir* are bound (ct reporter mode), copy
+   trace/HAR files into the allure-results directory and add attachment entries
+   to the context atom. This enables with-testing-page to produce trace
+   attachments without relying on the Lazytest reporter's var-capture flow."
+  [^File trace-file ^File har-file]
+  (try
+    (let [ctx-var     (resolve 'com.blockether.spel.allure/*context*)
+          out-dir-var (resolve 'com.blockether.spel.allure/*output-dir*)
+          ctx-atom    (when ctx-var @ctx-var)
+          output-dir  (when out-dir-var @out-dir-var)]
+      (when (and ctx-atom output-dir (instance? clojure.lang.Atom ctx-atom))
+        ;; Attach trace zip
+        (when (and (.exists trace-file) (pos? (.length trace-file)))
+          (let [att-uuid (str (UUID/randomUUID))
+                filename (str att-uuid "-attachment.zip")
+                dest     (io/file output-dir filename)]
+            (io/copy trace-file dest)
+            (swap! ctx-atom update :attachments
+              (fnil conj [])
+              {:name "Playwright Trace"
+               :source filename
+               :type "application/vnd.allure.playwright-trace"})))
+        ;; Attach HAR file
+        (when (and (.exists har-file) (pos? (.length har-file)))
+          (let [att-uuid (str (UUID/randomUUID))
+                filename (str att-uuid "-attachment.har")
+                dest     (io/file output-dir filename)]
+            (io/copy har-file dest)
+            (swap! ctx-atom update :attachments
+              (fnil conj [])
+              {:name "Network Activity (HAR)"
+               :source filename
+               :type "application/json"})))))
+    (catch Exception _)))
+
 (defn- run-traced-page
   "Runs `f` on a page with Allure tracing and HAR recording.
    `ctx` is a BrowserContext (from new-context or launch-persistent-context).
@@ -787,12 +825,18 @@
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))
             (catch Exception _))
+          ;; Close context (writes HAR file) before attaching, so both
+          ;; trace and HAR are fully written when we copy them.
           (let [t (doto (Thread. (fn []
                                    (try (close-context! ctx)
                                      (catch Exception _))))
                     (.setDaemon true)
                     (.start))]
-            (.join t 5000)))))))
+            (.join t 5000))
+          ;; In ct reporter mode, allure/*context* is bound but *trace-path*
+          ;; exits scope before on-end-var captures it. Attach directly here
+          ;; while we still have the trace/HAR files.
+          (attach-trace-to-allure-context! trace-file har-file))))))
 
 (defn- run-plain-page
   "Runs `f` on a page without tracing. Binds allure *page* if available."
