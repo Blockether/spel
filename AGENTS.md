@@ -58,18 +58,19 @@ clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ## Verification Checklist
 Run these in order. On ANY failure → fix → restart from step 1.
 
-1. `make test` — 0 failures (runs Clojure + CLI bash tests)
-2. `make format` — auto-format source
-3. `make lint` — clojure-lsp diagnostics clean
-4. `make validate-safe-graal` — no reflection/boxed-math warnings
-5. `make gen-docs` — regenerate SKILL.md
-6. `make install-local` — exit 0
-7. `spel version && spel --help` — responds correctly
-8. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
+1. `make test-cli-clj` — Clojure tests (lazytest): 0 failures
+2. `make test-cli` — CLI bash regression: 0 failures
+3. `make format` — auto-format source
+4. `make lint` — clojure-lsp diagnostics clean
+5. `make validate-safe-graal` — no reflection/boxed-math warnings
+6. `make gen-docs` — regenerate SKILL.md
+7. `make install-local` — exit 0
+8. `spel version && spel --help` — responds correctly
+9. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 
 ## Regeneration Triggers
 
-ANY of these changed → MUST run steps 5-8:
+ANY of these changed → MUST run steps 6-9:
 - Templates in `resources/com/blockether/spel/templates/`
 - `src/com/blockether/spel/sci_env.clj`
 - `src/com/blockether/spel/gen_docs.clj`
