@@ -1805,7 +1805,7 @@
       (let [tmpdir (System/getProperty "java.io.tmpdir")
             ;; Escape backslashes for Windows paths in SCI code strings
             escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
-            r (cmd "sci_eval" {"code" (str "(do (require '[clojure.java.io :as cjio]) (str (cjio/file \"" escaped-tmpdir\")))")})]
+            r (cmd "sci_eval" {"code" (str "(do (require '[clojure.java.io :as cjio]) (str (cjio/file \"" escaped-tmpdir "\")))")})]
         (expect (some? (:result r)))))
 
     (it "Base64 encoder/decoder works"
