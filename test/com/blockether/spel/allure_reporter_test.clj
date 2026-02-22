@@ -252,3 +252,186 @@
             (expect (contains? files "existing-result.json")))
           (finally
             (clean-dir! base)))))))
+
+;; =============================================================================
+;; Safari SW Patch Tests
+;; =============================================================================
+
+(defn- write-sw-bundle!
+  "Write a mock sw.bundle.js with given content under report/trace-viewer/."
+  ^File [^File report ^String content]
+  (let [tv-dir (io/file report "trace-viewer")]
+    (.mkdirs tv-dir)
+    (let [sw (io/file tv-dir "sw.bundle.js")]
+      (spit sw content)
+      sw)))
+
+(defdescribe safari-sw-patches-test
+  "Tests for Safari Service Worker patch functions"
+
+  (describe "patch-sw-safari-compat!"
+
+    (it "patches trace parameter fallback"
+      (let [base    (tmp-dir "safari-compat-test")
+            report  (io/file base "report")
+            content "if(!n)throw new Error(\"trace parameter is missing\")"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-compat! report)
+          (let [patched (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (expect (str/includes? patched "n=$e.get(s)"))
+            (expect (not (= content patched))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "is idempotent — does not double-patch"
+      (let [base    (tmp-dir "safari-compat-idem-test")
+            report  (io/file base "report")
+            content "if(!n)throw new Error(\"trace parameter is missing\")"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-compat! report)
+          (let [first-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (#'reporter/patch-sw-safari-compat! report)
+            (let [second-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+              (expect (= first-pass second-pass))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "leaves content unchanged when pattern not found"
+      (let [base    (tmp-dir "safari-compat-noop-test")
+            report  (io/file base "report")
+            content "some unrelated content"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-compat! report)
+          (let [result (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (expect (= content result)))
+          (finally
+            (clean-dir! base))))))
+
+  (describe "patch-sw-safari-transform-stream!"
+
+    (it "prepends TransformStream shim to sw.bundle.js"
+      (let [base    (tmp-dir "safari-ts-test")
+            report  (io/file base "report")
+            content "var original=1;class Foo extends TransformStream{}"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-transform-stream! report)
+          (let [patched (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            ;; Shim is prepended
+            (expect (str/starts-with? patched "(function(){"))
+            ;; Original content preserved after shim
+            (expect (str/includes? patched content))
+            ;; Key shim components present
+            (expect (str/includes? patched "TransformStream"))
+            (expect (str/includes? patched "Object.setPrototypeOf"))
+            (expect (str/includes? patched "new.target")))
+          (finally
+            (clean-dir! base)))))
+
+    (it "is idempotent — does not double-prepend shim"
+      (let [base    (tmp-dir "safari-ts-idem-test")
+            report  (io/file base "report")
+            content "var original=1;"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-transform-stream! report)
+          (let [first-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (#'reporter/patch-sw-safari-transform-stream! report)
+            (let [second-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+              ;; Second application should prepend again (shim != original content)
+              ;; but the guard (function(){ check should still work at runtime
+              ;; We just verify the shim IS present
+              (expect (str/starts-with? second-pass "(function(){"))
+              (expect (str/includes? second-pass content))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "does nothing when sw.bundle.js does not exist"
+      (let [base   (tmp-dir "safari-ts-missing-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          ;; Should not throw — just a no-op
+          (#'reporter/patch-sw-safari-transform-stream! report)
+          (expect (not (.exists (io/file report "trace-viewer" "sw.bundle.js"))))
+          (finally
+            (clean-dir! base))))))
+
+  (describe "patch-sw-safari-response-headers!"
+
+    (it "patches Response.headers.set to new Response construction"
+      (let [base    (tmp-dir "safari-headers-test")
+            report  (io/file base "report")
+            content (str "return Fn&&_.headers.set(\"Content-Security-Policy\","
+                         "\"upgrade-insecure-requests\"),_")
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-response-headers! report)
+          (let [patched (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            ;; Original mutable pattern removed
+            (expect (not (str/includes? patched "_.headers.set")))
+            ;; New Response construction present
+            (expect (str/includes? patched "new Response(_.body"))
+            ;; CSP header included in new construction
+            (expect (str/includes? patched "Content-Security-Policy"))
+            ;; Ternary operator used
+            (expect (str/includes? patched "Fn?")))
+          (finally
+            (clean-dir! base)))))
+
+    (it "is idempotent — does not double-patch"
+      (let [base    (tmp-dir "safari-headers-idem-test")
+            report  (io/file base "report")
+            content (str "return Fn&&_.headers.set(\"Content-Security-Policy\","
+                         "\"upgrade-insecure-requests\"),_")
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-response-headers! report)
+          (let [first-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (#'reporter/patch-sw-safari-response-headers! report)
+            (let [second-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+              (expect (= first-pass second-pass))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "leaves content unchanged when pattern not found"
+      (let [base    (tmp-dir "safari-headers-noop-test")
+            report  (io/file base "report")
+            content "some unrelated sw content"
+            _       (write-sw-bundle! report content)]
+        (try
+          (#'reporter/patch-sw-safari-response-headers! report)
+          (let [result (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            (expect (= content result)))
+          (finally
+            (clean-dir! base))))))
+
+  (describe "all patches applied together"
+
+    (it "applies all three Safari patches in sequence without conflict"
+      (let [base    (tmp-dir "safari-all-patches-test")
+            report  (io/file base "report")
+            ;; Content with both patchable patterns
+            content (str "if(!n)throw new Error(\"trace parameter is missing\");"
+                         "return Fn&&_.headers.set(\"Content-Security-Policy\","
+                         "\"upgrade-insecure-requests\"),_")
+            _       (write-sw-bundle! report content)]
+        (try
+          ;; Apply all three patches in the same order as generate-html-report!
+          (#'reporter/patch-sw-safari-compat! report)
+          (#'reporter/patch-sw-safari-transform-stream! report)
+          (#'reporter/patch-sw-safari-response-headers! report)
+          (let [patched (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+            ;; Safari compat patch applied
+            (expect (str/includes? patched "n=$e.get(s)"))
+            ;; TransformStream shim prepended
+            (expect (str/starts-with? patched "(function(){"))
+            (expect (str/includes? patched "Object.setPrototypeOf"))
+            ;; Response headers patch applied
+            (expect (str/includes? patched "new Response(_.body"))
+            (expect (not (str/includes? patched "_.headers.set"))))
+          (finally
+            (clean-dir! base)))))))

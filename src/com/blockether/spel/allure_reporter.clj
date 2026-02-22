@@ -549,12 +549,91 @@
   [^File report]
   (let [sw (io/file report "trace-viewer" "sw.bundle.js")]
     (when (.isFile sw)
+      (let [content (slurp sw)]
+        ;; Guard: skip if already patched (replacement contains the search
+        ;; pattern as a substring, so str/replace would re-match).
+        (when-not (str/includes? content "n=$e.get(s)")
+          (let [patched (str/replace content
+                         "if(!n)throw new Error(\"trace parameter is missing\")"
+                         "if(!n){n=$e.get(s);if(!n)throw new Error(\"trace parameter is missing\")}")]
+            (when (not= content patched)
+              (spit sw patched))))))))
+
+
+(defn- patch-sw-safari-transform-stream!
+  "Patch the trace viewer Service Worker to fix Safari TransformStream
+   subclassing bug (WebKit Bug 226201).
+
+   The Playwright SW bundles zip.js which defines classes that extend the
+   native TransformStream Web API (CRC32 verification, codec streams, etc.).
+   Safari has an unfixed bug where extending built-in classes like
+   TransformStream, WritableStream, ReadableStream, WebSocket, Request, and
+   Response fails — the native constructor doesn't properly create own
+   data properties on subclass instances. In strict mode (service workers
+   always run in strict mode) this throws:
+
+     TypeError: Attempted to assign to readonly property
+
+   because TransformStream.prototype.readable and .writable are getter-only
+   and Safari fails to shadow them with own data properties on the instance.
+
+   The fix: prepend a shim that detects the bug at runtime and replaces
+   TransformStream with a wrapper that creates a native instance, then
+   re-prototypes it to the subclass via Object.setPrototypeOf + new.target."
+  [^File report]
+  (let [sw (io/file report "trace-viewer" "sw.bundle.js")]
+    (when (.isFile sw)
       (let [content (slurp sw)
-            ;; Original: if(!n)throw new Error("trace parameter is missing");
-            ;; Patched:  if(!n){n=$e.get(s);if(!n)throw new Error("trace parameter is missing");}
+            shim    (str
+                      ;; Self-invoking function to avoid polluting global scope.
+                      ;; Tests TransformStream subclassing; patches only when broken.
+                      "(function(){"
+                      "if(typeof TransformStream==='undefined')return;"
+                      "try{"
+                      "var T=class extends TransformStream{constructor(){super({})}};"
+                      "new T()"
+                      "}catch(e){"
+                      "var _TS=TransformStream;"
+                      "self.TransformStream=function TransformStream(t,w,r){"
+                      "var s=new _TS(t,w,r);"
+                      "if(new.target&&new.target!==_TS)"
+                      "Object.setPrototypeOf(s,new.target.prototype);"
+                      "return s};"
+                      "self.TransformStream.prototype=_TS.prototype;"
+                      "Object.setPrototypeOf(self.TransformStream,_TS)"
+                      "}"
+                      "}());\n")
+            patched (str shim content)]
+        (when (not= content patched)
+          (spit sw patched))))))
+
+(defn- patch-sw-safari-response-headers!
+  "Patch the trace viewer Service Worker to fix Safari Response.headers
+   immutability.
+
+   After serving a snapshot, the Playwright SW does:
+
+     response.headers.set('Content-Security-Policy', 'upgrade-insecure-requests')
+
+   on an already-constructed Response object. Safari enforces stricter
+   immutability on Response headers than Chrome/Firefox — even on responses
+   created via `new Response()`. The fix: construct a new Response with the
+   CSP header included, instead of mutating the existing response's headers."
+  [^File report]
+  (let [sw (io/file report "trace-viewer" "sw.bundle.js")]
+    (when (.isFile sw)
+      (let [content (slurp sw)
+            ;; Original (minified):
+            ;;   return Fn&&_.headers.set("Content-Security-Policy","upgrade-insecure-requests"),_
+            ;; Patched:
+            ;;   return Fn?new Response(_.body,{status:_.status,statusText:_.statusText,
+            ;;     headers:[..._.headers.entries()].concat([["Content-Security-Policy",
+            ;;     "upgrade-insecure-requests"]])}):_
             patched (str/replace content
-                      "if(!n)throw new Error(\"trace parameter is missing\")"
-                      "if(!n){n=$e.get(s);if(!n)throw new Error(\"trace parameter is missing\")}")]
+                      "Fn&&_.headers.set(\"Content-Security-Policy\",\"upgrade-insecure-requests\"),_"
+                      (str "Fn?new Response(_.body,{status:_.status,statusText:_.statusText,"
+                           "headers:[..._.headers.entries()].concat([[\"Content-Security-Policy\","
+                           "\"upgrade-insecure-requests\"]])}):_"))]
         (when (not= content patched)
           (spit sw patched))))))
 
@@ -850,7 +929,9 @@
               (when (copy-trace-viewer! (io/file report "trace-viewer"))
                 (patch-trace-viewer-url! report)
                 (inject-trace-viewer-prewarm! report)
-                (patch-sw-safari-compat! report))
+                (patch-sw-safari-compat! report)
+                (patch-sw-safari-transform-stream! report)
+                (patch-sw-safari-response-headers! report))
               ;; Inject video player modal
               (inject-video-modal! report)
               (when-let [logo (report-logo)]
