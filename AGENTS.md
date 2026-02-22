@@ -71,6 +71,26 @@ Run these in order. On ANY failure → fix → restart from step 1.
 11. Pre-push: `git diff origin/main..HEAD | grep -iE "(sk_|lin_api_|nvapi-|AIzaSy|ghp_|password\s*=\s*\S{8})"` — must return nothing
 12. After push: verify GitHub Actions CI is green before declaring done
 
+## Allure Report Verification (MANDATORY for PRs)
+
+After CI passes on a PR — verify the Allure report visually before merging:
+
+```bash
+./scripts/verify-allure-report.sh <PR_NUMBER>
+```
+
+What the script does:
+1. Downloads `allure-report-pr-{N}` artifact from the latest successful Allure CI run
+2. Serves it locally on port 8299
+3. Takes 3 screenshots (overview, results, test details) using spel
+4. Generates a PDF report with embedded screenshots
+5. Posts a verification comment on the PR with test counts
+
+Output: `/tmp/allure-pr{N}-report.pdf` + PR comment
+
+**When to run:** After every PR CI completes. Before merging.
+**CI green ≠ report is correct** — always verify visually.
+
 ## Regeneration Triggers
 
 ANY of these changed → MUST run steps 4-9:
