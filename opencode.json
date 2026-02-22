@@ -51,7 +51,7 @@
     }
   },
   "plugin": [
-    "oh-my-opencode@3.7.3",
+    "oh-my-opencode@3.8.3",
     "opencode-anthropic-auth@latest"
   ]
 }

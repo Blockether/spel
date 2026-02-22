@@ -5,6 +5,7 @@ target/
 
 # Editor/tooling caches (recursive) - but allow config files
 .clj-kondo/.cache/**
+.clj-kondo/imports/**
 !.clj-kondo/config.edn
 .lsp/.cache/**
 .calva/**
