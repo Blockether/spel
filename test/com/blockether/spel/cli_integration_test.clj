@@ -1776,14 +1776,18 @@
 
     (it "slurp reads files"
       (let [tmp-path (str (Files/createTempFile "spel-test" ".txt" (into-array java.nio.file.attribute.FileAttribute [])))
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-path (clojure.string/replace tmp-path "\\" "\\\\")
             _ (spit tmp-path "hello-sci")
-            r (cmd "sci_eval" {"code" (str "(slurp \"" tmp-path "\")")})]
+            r (cmd "sci_eval" {"code" (str "(slurp \"" escaped-path "\")")})]
         (expect (= "\"hello-sci\"" (:result r)))
         (io/delete-file tmp-path true)))
 
     (it "spit writes files"
       (let [tmp-path (str (Files/createTempFile "spel-test" ".txt" (into-array java.nio.file.attribute.FileAttribute [])))
-            _ (cmd "sci_eval" {"code" (str "(spit \"" tmp-path "\" \"written-from-sci\")")})
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-path (clojure.string/replace tmp-path "\\" "\\\\")
+            _ (cmd "sci_eval" {"code" (str "(spit \"" escaped-path "\" \"written-from-sci\")")})
             content (slurp tmp-path)]
         (expect (= "written-from-sci" content))
         (io/delete-file tmp-path true)))
