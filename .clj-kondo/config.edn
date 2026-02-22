@@ -1,0 +1,14 @@
+{:linters
+ {:clojure-lsp/unused-public-var
+  {:level :info
+   :exclude-when-defined-by
+   #{clojure.test/deftest
+     lazytest.core/defdescribe
+     com.blockether.spel.allure/defdescribe}}
+  
+  ;; Reduce unused-binding to info - false positives with test fixtures/macros
+  ;; The bindings ARE used, but linter doesn't understand context patterns
+  :unused-binding {:level :info}}
+ 
+ :config-in-comment
+ {:linters {:unresolved-symbol {:level :off}}}}
