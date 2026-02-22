@@ -8,7 +8,10 @@
   
   ;; Reduce unused-binding to info - false positives with test fixtures/macros
   ;; The bindings ARE used, but linter doesn't understand context patterns
-  :unused-binding {:level :info}}
+  :unused-binding {:level :info}
+  ;; SCI env imports classes for user scripts at runtime - they appear unused
+  ;; in static analysis but are exposed to the SCI interpreter
+  :unused-import {:level :off}}
  
  :config-in-comment
  {:linters {:unresolved-symbol {:level :off}}}}
