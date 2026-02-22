@@ -23,7 +23,7 @@
 <div align="center">
 <h3>
 
-[Rationale](#rationale) • [Quick Start](#quick-start) • [Native CLI](#native-cli) • [API Testing](#api-testing) • [Allure Test Reporting](#allure-test-reporting) • [Agent Scaffolding](#agent-scaffolding)
+[Rationale](#rationale) • [Quick Start](#quick-start) • [Native CLI](#native-cli) • [Allure Test Reporting](#allure-test-reporting) • [Agent Scaffolding](#agent-scaffolding)
 
 </h3>
 </div>
@@ -67,20 +67,17 @@ spel wraps the official Playwright Java 1.58.0 library with idiomatic Clojure: m
 spel install  # requires spel CLI — see "Native CLI" below
 ```
 
+### Browser Automation
+
 ```clojure
 (require '[com.blockether.spel.core :as core]
          '[com.blockether.spel.page :as page]
          '[com.blockether.spel.api :as api])
 
-;; Browser automation
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com")
   (page/title pg))
 ;; => "Example Domain"
-
-;; API testing — Playwright-backed HTTP with automatic tracing
-(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
-  (api/api-get ctx "/users"))
 ```
 
 Pass an opts map for device emulation:
@@ -91,6 +88,64 @@ Pass an opts map for device emulation:
 ```
 
 Need explicit control over lifecycle? `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. The [full API reference](.opencode/skills/spel/SKILL.md) covers all options.
+
+### API Testing
+
+Playwright-backed HTTP testing with automatic tracing.
+
+| Function | Description | Auto-Traces? |
+|----------|-------------|--------------|
+| `with-testing-api [ctx] body` | Standalone API testing with full Playwright stack | ✅ Yes (when Allure active) |
+| `page-api pg` | Extract APIRequestContext from a Page | ✅ Yes |
+| `context-api ctx` | Extract APIRequestContext from a BrowserContext | ✅ Yes |
+| `with-page-api pg opts [ctx] body` | Page-bound API with custom base-url + cookie sharing | ❌ No |
+
+**Standalone API testing** — creates full Playwright stack:
+```clojure
+(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (api/api-get ctx "/users"))
+```
+
+**API from Page** — share browser cookies/session:
+```clojure
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  (let [resp (api/api-get (api/page-api pg) "/api/me")]
+    (api/api-response-status resp)))
+```
+
+**Page-bound API with custom base-url** — cookies + different domain:
+```clojure
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  ;; ... login via UI ...
+  (api/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+    (api/api-get ctx "/me")))
+```
+
+### Writing Tests
+
+```clojure
+(ns my-app.test
+  (:require
+   [com.blockether.spel.locator :as locator]
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+
+(defdescribe my-test
+  (describe "example.com"
+    {:context [with-playwright with-browser with-page]}
+    (it "navigates and asserts"
+      (page/navigate *page* "https://example.com")
+      (expect (= "Example Domain" (page/title *page*))))))
+```
+
+```bash
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+```
+
+[Full API reference covers fixtures, steps, attachments, and more](.opencode/skills/spel/SKILL.md).
 
 ## Native CLI
 
@@ -142,61 +197,6 @@ spel install
 spel version
 ```
 
-## API Testing
-
-Playwright-backed HTTP testing with automatic tracing.
-
-### API Functions
-
-| Function | Description | Auto-Traces? |
-|----------|-------------|--------------|
-| `page-api pg` | Extract APIRequestContext from a Page | ✅ Yes |
-| `context-api ctx` | Extract APIRequestContext from a BrowserContext | ✅ Yes |
-| `with-testing-api [ctx] body` | Standalone API testing with full Playwright stack | ✅ Yes (when Allure active) |
-| `with-page-api pg opts [ctx] body` | Page-bound API with custom base-url + cookie sharing | ❌ No |
-
-### Usage Examples
-
-**1. Standalone API testing** — creates full Playwright stack:
-```clojure
-;; With base-url
-(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
-  (api/api-get ctx "/users"))
-
-;; Without base-url (full URLs required)
-(api/with-testing-api [ctx]
-  (api/api-get ctx "https://api.example.com/users"))
-```
-
-**2. API from Page** — share browser cookies/session:
-```clojure
-(core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  ;; API calls share the browser session
-  (let [resp (api/api-get (api/page-api pg) "/api/me")]
-    (api/api-response-status resp)))
-```
-
-**3. API from BrowserContext** — extract from existing context:
-```clojure
-(core/with-playwright [pw]
-  (core/with-browser [browser (core/launch-chromium pw)]
-    (core/with-context [ctx (core/new-context browser)]
-      (let [resp (api/api-get (api/context-api ctx) "/users")]
-        (api/api-response-status resp)))))
-```
-
-**4. Page-bound API with custom base-url** — cookies + different domain:
-```clojure
-(core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  ;; ... login via UI ...
-  ;; Use different base-url while sharing browser cookies
-  (api/with-page-api pg {:base-url "https://api.example.com"} [ctx]
-    (api/api-get ctx "/me")))
-
-[API reference covers the full feature set](.opencode/skills/spel/SKILL.md).
-
 ## Allure Test Reporting
 
 Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test reports using [Allure](https://allurereport.org/). Generates the HTML report automatically with embedded Playwright traces and trace viewer.
@@ -213,26 +213,6 @@ Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test rep
 <td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-trace-viewer.png" alt="Playwright Trace Viewer embedded in Allure"/></a></td>
 </tr>
 </table>
-
-```clojure
-(ns my-app.test
-  (:require
-   [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
-
-(defdescribe my-test
-  (describe "example.com"
-    {:context [with-playwright with-browser with-page]}
-    (it "navigates and asserts"
-      (page/navigate *page* "https://example.com")
-      (expect (= "Example Domain" (page/title *page*))))))
-```
-
-```bash
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-```
 
 Automatic tracing, trace viewer, and history included. See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 

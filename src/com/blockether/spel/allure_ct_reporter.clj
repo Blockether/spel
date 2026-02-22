@@ -294,7 +294,6 @@
   (when (seq ct/*testing-contexts*)
     (str/join " > " (reverse ct/*testing-contexts*))))
 
-
 (defn- common-testing-context
   "Extract common testing context prefix from a test's assertions.
    Returns the longest \" > \"-delimited prefix shared by all assertions
@@ -302,10 +301,10 @@
    Returns nil when no assertions carry a testing context."
   [assertions]
   (let [contexts (->> assertions
-                      (keep :context)
-                      (remove str/blank?)
-                      distinct
-                      vec)]
+                   (keep :context)
+                   (remove str/blank?)
+                   distinct
+                   vec)]
     (when (seq contexts)
       (if (= 1 (count contexts))
         (first contexts)

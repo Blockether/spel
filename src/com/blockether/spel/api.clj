@@ -716,9 +716,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -881,7 +881,7 @@
    Returns [active?-fn vars-map]."
   []
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                  (catch Exception _ (constantly false)))]
+                     (catch Exception _ (constantly false)))]
     [active?
      {:tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
       :trace       (resolve 'com.blockether.spel.allure/*trace-path*)
@@ -985,10 +985,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                  (catch Exception _))
+                     (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                           (catch Exception _))))
+                                              (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000))
@@ -1096,7 +1096,7 @@
           (f ctx)))
       (finally
         (try (core/close! pw)
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 (defmacro with-page-api
   "Create an APIRequestContext from a Page with custom options.

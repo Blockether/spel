@@ -345,7 +345,6 @@
              (when (and vpath (allure/reporter-active?))
                (allure/attach-file "Video Recording" vpath "video/webm")))))))})
 
-
 (def with-video-page
   "Around hook: creates a page with video recording enabled (default opts)."
   (with-video-page-opts {}))

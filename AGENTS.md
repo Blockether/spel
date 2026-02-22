@@ -1,277 +1,85 @@
 # Agent Instructions
 
-## Browser Automation — USE `spel` SKILL, NOT `playwright`
+## Critical Rules
 
-The built-in oh-my-opencode `playwright` skill is **disabled** in this project (see `.opencode/oh-my-opencode.json`). For ALL browser automation, testing, screenshots, scraping, and browser interactions, use the **`spel` skill** instead.
+Browser Automation:
+- ALWAYS use `load_skills=["spel"]` for browser tasks. Load skill first: `skill(name="spel")`
+- NEVER use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` — disabled in this project
 
-**Why spel is superior for this project:**
+Paren Repair:
+- NEVER fix unbalanced parens/brackets by hand — always: `clj-paren-repair path/to/file.clj`
 
-- `spel` is this project's own Clojure wrapper for Playwright — it knows our API, patterns, and idioms natively
-- It includes accessibility snapshots with numbered refs, a persistent browser daemon, `--eval` scripting via SCI, codegen recording, and Allure reporting integration
-- The spel skill (`.opencode/skills/spel/SKILL.md`) contains the full API reference agents need — locators, assertions, page operations, network, frames, and the native CLI
-- The built-in `playwright` skill is a generic MCP wrapper with no knowledge of our Clojure API
+Linting:
+- ALWAYS use `lsp_diagnostics` on changed files — `clj-kondo` CLI is NOT installed
+- This is a library — public vars flagged unused are intentional API surface, do NOT remove
 
-**When delegating browser-related tasks**, always pass `load_skills=["spel"]`:
+Templates:
+- NEVER edit scaffolded files in `.opencode/agents/`, `.opencode/skills/`, `.opencode/prompts/`
+- ALWAYS edit source templates in `resources/com/blockether/spel/templates/` and regenerate
 
-```
-task(category="...", load_skills=["spel"], prompt="...")
-```
+Versioning:
+- Single source of truth: `resources/SPEL_VERSION` (bare semver, no `v` prefix)
+- NEVER hardcode versions — read via `(slurp (io/resource "SPEL_VERSION"))` + `str/trim`
 
-**Never use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` in this project.** They are disabled / irrelevant.
+API Policy:
+- Pre-1.0: break old callers freely, no shims, no deprecation periods
 
+## Testing
 
-**When working directly with spel** (not delegating), ALWAYS load the spel skill first via `skill(name="spel")` before attempting any `spel` CLI commands, `--eval` scripts, or browser automation. The skill contains SCI function names (which differ from library names), sandbox limitations, and device emulation guidance that prevent common errors.
+Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`.
 
----
+| Source changed | Test location |
+|---|---|
+| `sci_env.clj` | `cli_integration_test.clj` → `sci-eval-integration-test` block |
+| `daemon.clj` | `cli_integration_test.clj` |
+| `cli.clj` | `cli_test.clj` |
+| Everything else | Corresponding `*_test.clj` (e.g. `page.clj` → `page_test.clj`) |
 
-## IMPORTANT: Fix Parens With clj-paren-repair, NOT By Hand
-
-**NEVER fix unbalanced parentheses/brackets/braces by hand.** Always use the `clj-paren-repair` tool:
-
-```bash
-# Fix unbalanced parens in a Clojure file
-clj-paren-repair path/to/file.clj
-```
-
-Using manual edits to fix brackets causes subtle bugs. The tool handles all edge cases correctly.
-
----
-
-# Agent Templates
-
-The E2E testing agents (planner, generator, healer) are scaffolded from templates in `resources/com/blockether/spel/templates/`. The scaffolded output lives in `.opencode/agents/`, `.opencode/prompts/`, and `.opencode/skills/`.
-
-**Never edit the scaffolded files directly.** Always edit the templates and regenerate.
-
-## Template Sources
-
-| Template | Scaffolded To |
-|----------|---------------|
-| `resources/.../templates/agents/spel-test-planner.md` | `.opencode/agents/spel-test-planner.md` |
-| `resources/.../templates/agents/spel-test-generator.md` | `.opencode/agents/spel-test-generator.md` |
-| `resources/.../templates/agents/spel-test-healer.md` | `.opencode/agents/spel-test-healer.md` |
-| `resources/.../templates/prompts/spel-test-workflow.md` | `.opencode/prompts/spel-test-workflow.md` |
-| `resources/.../templates/skills/spel/SKILL.md` | `.opencode/skills/spel/SKILL.md` |
-| `resources/.../templates/seed_test.clj.template` | `test-e2e/<ns>/e2e/seed_test.clj` |
-
-## Linting
-
-Use **clojure-lsp diagnostics** (not the `clj-kondo` CLI) for all lint checks. The LSP integrates clj-kondo under the hood and provides richer analysis (e.g. `clojure-lsp/unused-public-var`).
-
-- Run `lsp_diagnostics` on changed files — **never shell out to `clj-kondo` directly**. The `clj-kondo` CLI is not installed on this machine. Always use `lsp_diagnostics` instead.
-- This is a **library** — public vars flagged as unused are intentional API surface. Do **not** remove them; suppress with `#_:clj-kondo/ignore` or linter config if needed.
-- Private vars / bindings flagged as unused should be evaluated case-by-case: remove if truly dead, suppress if kept for future use.
-
-## Regenerating After Template Changes
-
-**Trigger: ANY of these files changed → MUST regenerate:**
-- Any template in `resources/com/blockether/spel/templates/`
-- `src/com/blockether/spel/sci_env.clj` — adding/removing namespaces or functions from the SCI eval environment means the SKILL docs are stale (they reference what's available in `--eval` mode)
-- `src/com/blockether/spel/gen_docs.clj` — the auto-generated API tables in SKILL come from here
-
-After editing any of the above:
+## Commands (via Makefile)
 
 ```bash
-# 1. Rebuild the native binary (templates are baked into the JAR/binary)
-make install-local
-
-# 2. Regenerate agents with --force to overwrite existing files
-make init-agents ARGS="--ns com.blockether.spel --force"
+make test                    # ALL tests: Clojure (lazytest) + CLI bash regression
+make test-cli                # CLI bash regression tests only
+make test-cli-clj            # CLI Clojure integration tests only
+make format                  # auto-format all source files
+make lint                    # clojure-lsp diagnostics --raw
+make validate-safe-graal     # check for reflection/boxed-math warnings
+make gen-docs                # regenerate SKILL.md from template (run BEFORE install-local)
+make install-local           # uberjar → native-image → ~/.local/bin/spel
+make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding
 ```
 
-Or as a one-liner:
-
+Single test namespace / var:
 ```bash
-make install-local && make init-agents ARGS="--ns com.blockether.spel --force"
+clojure -M:test -n <ns>                  # e.g. com.blockether.spel.core-test
+clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ```
 
-### What This Does
+## Verification Checklist
+Run these in order. On ANY failure → fix → restart from step 1.
 
-1. `make install-local` — builds the uberjar, compiles the native image, and copies `spel` to `~/.local/bin/`
-2. `make init-agents` — runs `spel init-agents` which reads templates from the classpath and writes them to `.opencode/`
+1. `make test` — 0 failures (runs Clojure + CLI bash tests)
+2. `make format` — auto-format source
+3. `make lint` — clojure-lsp diagnostics clean
+4. `make validate-safe-graal` — no reflection/boxed-math warnings
+5. `make gen-docs` — regenerate SKILL.md
+6. `make install-local` — exit 0
+7. `spel version && spel --help` — responds correctly
+8. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 
-The `--force` flag overwrites existing agent files. Without it, existing files are skipped.
+## Regeneration Triggers
 
-### Dry Run
+ANY of these changed → MUST run steps 5-8:
+- Templates in `resources/com/blockether/spel/templates/`
+- `src/com/blockether/spel/sci_env.clj`
+- `src/com/blockether/spel/gen_docs.clj`
 
-To preview what would be generated without writing files:
+## Key References
 
-```bash
-make init-agents ARGS="--ns com.blockether.spel --dry-run"
-```
-
-### Other Targets
-
-For Claude Code or VS Code users consuming the library:
-
-```bash
-# Claude Code
-spel init-agents --ns my-app --loop=claude --force
-
-# VS Code / Copilot
-spel init-agents --ns my-app --loop=vscode --force
-```
-
-## Versioning
-
-The single source of truth for the project version is `resources/SPEL_VERSION`. **Never hardcode version strings anywhere else.**
-
-### How It Works
-
-| Context | How version is resolved |
-|---------|------------------------|
-| **Local dev** (`build.clj`) | No `VERSION` env → reads `resources/SPEL_VERSION` |
-| **Local dev** (`spel version`) | `native.clj` reads `SPEL_VERSION` from classpath resource |
-| **CI release** (`git tag v0.1.0`) | `VERSION=v0.1.0` env → `build.clj` strips `v` prefix → publishes `0.1.0` to Clojars |
-| **Post-release bump** | Deploy workflow parses tag, increments patch, writes next dev version back to `SPEL_VERSION` |
-| **`init-agents` output** | `init_agents.clj` reads `SPEL_VERSION` for the deps.edn snippet shown to users |
-
-### Release Flow (what happens when you push a tag)
-
-```
-git tag v0.1.0 && git push --tags
-```
-
-1. Deploy workflow triggers on `v*` tag
-2. `build.clj` uses `VERSION=v0.1.0` env → publishes `0.1.0` JAR to Clojars
-3. Workflow generates changelog entry in `CHANGELOG.md`
-4. Workflow bumps `resources/SPEL_VERSION` to `0.1.1` (next patch)
-5. Workflow commits `README.md`, `CHANGELOG.md`, `resources/SPEL_VERSION` back to main
-
-### Rules for Agents
-
-- **Never hardcode versions** in `native.clj`, `build.clj`, `init_agents.clj`, or anywhere else — always read from `SPEL_VERSION`
-- **Never manually edit `SPEL_VERSION`** unless intentionally setting a pre-release dev version
-- **The file contains a bare semver string** (e.g. `0.1.0`), no `v` prefix, no newline padding
-- When adding new code that needs the version, read it the same way: `(slurp (io/resource "SPEL_VERSION"))` + `str/trim`
-
----
-
-## API Design Policy
-
-**No backward compatibility.** This project is pre-1.0. When improving an API:
-
-- **Break old callers freely** — do not add shims, fallbacks, or "if old format then..." branches.
-- **Remove deprecated functions immediately** — no deprecation period, no `-legacy` suffixes.
-- **Prefer clean APIs over migration paths** — if the new design is better, ship it and update all call sites.
-
-This applies to library functions, SCI wrappers, CLI commands, and entry formats alike.
-
----
-
-## Testing Policy (MANDATORY)
-
-Every code change **MUST** include corresponding tests. No exceptions.
-
-### Rules
-
-1. **Every change needs tests** — new features, bug fixes, refactors. If you change behavior, prove it works with a test.
-2. **SCI environment changes → test in CLI integration tests** — when modifying `src/com/blockether/spel/sci_env.clj` (adding/removing namespaces, functions, bindings), add tests in `test/com/blockether/spel/cli_integration_test.clj` under the `sci-eval-integration-test` describe block. These tests exercise the daemon's `sci_eval` handler with a real browser.
-3. **Daemon handler changes → test in CLI integration tests** — when modifying `src/com/blockether/spel/daemon.clj` (adding/modifying command handlers), add integration tests in `cli_integration_test.clj`.
-4. **CLI arg parsing changes → test in CLI unit tests** — when modifying `src/com/blockether/spel/cli.clj` (parse-args, flags), add tests in `test/com/blockether/spel/cli_test.clj`.
-5. **Core library changes → test in the relevant `*_test.clj`** — each source namespace has a corresponding test namespace (e.g. `core.clj` → `core_test.clj`, `page.clj` → `page_test.clj`).
-6. **Test style** — use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`. Follow the existing patterns in each test file.
-
----
-
-## Verification Checklist (MANDATORY before completing any change)
-
-Every code change MUST pass this full checklist before it's considered done:
-
-1. **All tests pass**
-   ```bash
-   clojure -M:test
-   ```
-   All test cases must report 0 failures. Pre-existing failures must be noted explicitly.
-
-2. **Lint changed files** (ALWAYS — run every time)
-   ```
-   lsp_diagnostics on every file you changed
-   ```
-   Run `lsp_diagnostics` on **each file** you modified or created. Fix all errors and warnings before proceeding. Public vars flagged as unused are intentional API surface — suppress or ignore those. This catches issues that tests alone won't find (unused imports, type mismatches, shadowed vars, etc.).
-
-3. **Regenerate SKILL.md from template** (ALWAYS — run every time)
-   ```bash
-   clojure -T:build gen-docs
-   ```
-   This reads `SKILL.md.template`, introspects all source namespaces, and writes the final `SKILL.md`. It auto-populates the `{{library-api}}`, `{{sci-api}}`, and `{{cli-commands}}` placeholders from code — so any new/changed public functions with docstrings are picked up automatically. **Must run before `make install-local`** because the generated `SKILL.md` is baked into the native binary.
-
-4. **Native CLI builds**
-   ```bash
-   make install-local
-   ```
-   Builds uberjar → native-image → copies to `~/.local/bin/spel`. Must exit 0.
-
-5. **Native CLI smoke test**
-   ```bash
-   spel version
-   spel --help
-   ```
-   The freshly built binary must respond correctly.
-
-6. **Regenerate agents/skills/docs** (if templates or source changed)
-   ```bash
-   make init-agents ARGS="--ns com.blockether.spel --force"
-   ```
-   Scaffolded files in `.opencode/` must be regenerated from templates.
-
-7. **Check SKILL template** (after ANY feature or API change)
-   - **Never hand-edit** `resources/.../SKILL.md` — it is **auto-generated** by `gen_docs.clj`
-   - Edit `resources/com/blockether/spel/templates/skills/spel/SKILL.md.template` instead
-   - API tables (`{{library-api}}`, `{{sci-api}}`, `{{cli-commands}}`) are auto-populated from code introspection — adding a new public function with a docstring is enough
-   - Prose sections (usage examples, common patterns, trace docs) live in the `.template` and must be updated manually when features change
-   - Cross-check against `README.md` — everything documented in README must also be in the SKILL template
-   - The SKILL template is the agent-facing API reference; if it's missing a feature, agents won't know about it
-
-**Skipping any step = incomplete work.** If a step fails, fix it before moving on.
-
-## Running Tests (Lazytest)
-
-```bash
-# Full suite
-clojure -M:test
-
-# Single namespace
-clojure -M:test -n com.blockether.spel.core-test
-
-# Single var (MUST be fully-qualified: namespace/var-name)
-clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
-
-# With Allure report
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-
-# Watch mode
-clojure -M:test --watch
-```
-
-**IMPORTANT**: `-v`/`--var` requires fully-qualified symbols. Bare var names throw `IllegalArgumentException`.
-
----
-
-## MCP Tools (nREPL Eval & Paren Repair)
-
-Two MCP tools are available for Clojure development workflows. Both are installed via [bbin](https://github.com/babashka/bbin).
-
-### Installation
-
-```bash
-# nREPL eval tool — evaluate Clojure expressions against a running nREPL server
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
-
-# On-demand paren repair tool — fix unbalanced parentheses in Clojure code
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
-```
-
-### Verify installation
-
-```bash
-clj-nrepl-eval --help
-clj-paren-repair --help
-```
-
-### Usage
-
-| Tool | Purpose | When to use |
-|------|---------|-------------|
-| `clj-nrepl-eval` | Evaluate Clojure forms against a running nREPL | Interactive development, testing expressions, inspecting runtime state |
-| `clj-paren-repair` | Fix unbalanced parens/brackets/braces | After edits that break paren matching — run this instead of manually counting parens |
+| Resource | Location |
+|---|---|
+| API reference (agents) | `.opencode/skills/spel/SKILL.md` |
+| SKILL template (edit this) | `resources/.../templates/skills/spel/SKILL.md.template` |
+| Project docs | `README.md` |
+| nREPL eval | `clj-nrepl-eval` (eval Clojure against running nREPL) |
+| Paren repair | `clj-paren-repair <file>` |

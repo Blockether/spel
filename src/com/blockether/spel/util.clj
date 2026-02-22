@@ -301,7 +301,6 @@
 
 ;; Public API functions - some may be unused in current codebase but kept for API completeness
 
-
 (defn page-clock
   "Returns the Clock for a page.
    
@@ -483,7 +482,6 @@
 ;; WebError
 ;; =============================================================================
 
-
 (defn web-error-page
   "Returns the page that generated this web error, if any.
 
@@ -494,7 +492,6 @@
    Page instance or nil."
   [^WebError we]
   (.page we))
-
 
 (defn web-error-error
   "Returns the underlying error for this web error.

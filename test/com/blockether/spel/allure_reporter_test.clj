@@ -366,7 +366,7 @@
       (let [base    (tmp-dir "safari-headers-test")
             report  (io/file base "report")
             content (str "return Fn&&_.headers.set(\"Content-Security-Policy\","
-                         "\"upgrade-insecure-requests\"),_")
+                      "\"upgrade-insecure-requests\"),_")
             _       (write-sw-bundle! report content)]
         (try
           (#'reporter/patch-sw-safari-response-headers! report)
@@ -386,7 +386,7 @@
       (let [base    (tmp-dir "safari-headers-idem-test")
             report  (io/file base "report")
             content (str "return Fn&&_.headers.set(\"Content-Security-Policy\","
-                         "\"upgrade-insecure-requests\"),_")
+                      "\"upgrade-insecure-requests\"),_")
             _       (write-sw-bundle! report content)]
         (try
           (#'reporter/patch-sw-safari-response-headers! report)
@@ -416,8 +416,8 @@
             report  (io/file base "report")
             ;; Content with both patchable patterns
             content (str "if(!n)throw new Error(\"trace parameter is missing\");"
-                         "return Fn&&_.headers.set(\"Content-Security-Policy\","
-                         "\"upgrade-insecure-requests\"),_")
+                      "return Fn&&_.headers.set(\"Content-Security-Policy\","
+                      "\"upgrade-insecure-requests\"),_")
             _       (write-sw-bundle! report content)]
         (try
           ;; Apply all three patches in the same order as generate-html-report!
