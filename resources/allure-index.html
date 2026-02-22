@@ -42,7 +42,7 @@
     .main { max-width: 95rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
 
     /* --- Builds list (default = list view) --- */
-    .builds { display: flex; flex-direction: column; gap: 0.3rem; }
+    .builds { display: flex; flex-direction: column; gap: 0.3rem; max-width: 56rem; margin: 0 auto; }
 
     /* --- Date groups --- */
     .date-group { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.6rem 0.25rem 0.3rem; border-bottom: 1px solid var(--border); margin-top: 0.4rem; }
@@ -156,6 +156,7 @@
        Grid view — square cards in wider multi-column layout
        ================================================================ */
     .builds.grid {
+      max-width: none;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
       gap: 0.75rem;
@@ -205,14 +206,13 @@
     .builds.grid .meta-rel { font-size: 0.5rem; }
     /* --- Tablet: grid view (3 columns) --- */
     @media (max-width: 1024px) {
-      .main { max-width: 85rem; }
       .builds.grid { grid-template-columns: repeat(3, 1fr); }
     }
 
     /* --- Mobile: grid view (2 columns) --- */
     @media (max-width: 640px) {
       .main { max-width: 100%; padding: 0.5rem 1rem 3rem; }
-      .view-toggle { top: 0.75rem; right: 0.75rem; }
+      .view-toggle { top: 0.75rem; right: 3.75rem; }
       .builds.grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
       .builds.grid .meta-date { font-size: 0.5rem; }
       .builds.grid .meta-rel { display: none; }
