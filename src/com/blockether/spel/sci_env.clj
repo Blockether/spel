@@ -54,7 +54,11 @@
     AriaRole ColorScheme ForcedColors HarContentPolicy HarMode HarNotFound
     LoadState Media MouseButton ReducedMotion RouteFromHarUpdateContentPolicy
     SameSiteAttribute ScreenshotType ServiceWorkerPolicy
-    WaitForSelectorState WaitUntilState]))
+    WaitForSelectorState WaitUntilState]
+   [java.io File]
+   [java.nio.file Files LinkOption Path Paths]
+   [java.nio.file.attribute FileAttribute]
+   [java.util Base64]))
 
 ;; =============================================================================
 ;; Session State (shared with SCI)
@@ -182,21 +186,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1014,6 +1018,7 @@
                   ['tabs          sci-tabs]
                   ;; Navigation
                   ['goto          sci-goto]
+                  ['navigate      sci-goto]
                   ['back          sci-back]
                   ['forward       sci-forward]
                   ['reload!       sci-reload!]
@@ -1721,7 +1726,24 @@
         md-ns  (sci/create-ns 'markdown nil)
         md-map (make-ns-map md-ns
                  [['from-markdown-table markdown/from-markdown-table]
-                  ['to-markdown-table   markdown/to-markdown-table]])]
+                  ['to-markdown-table   markdown/to-markdown-table]])
+
+        ;; =================================================================
+        ;; clojure.java.io — File I/O functions
+        ;; =================================================================
+        io-ns  (sci/create-ns 'clojure.java.io nil)
+        io-map (make-ns-map io-ns
+                 [['file          io/file]
+                  ['reader        io/reader]
+                  ['writer        io/writer]
+                  ['input-stream  io/input-stream]
+                  ['output-stream io/output-stream]
+                  ['copy          io/copy]
+                  ['as-file       io/as-file]
+                  ['as-url        io/as-url]
+                  ['resource      io/resource]
+                  ['make-parents  io/make-parents]
+                  ['delete-file   io/delete-file]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1746,7 +1768,12 @@
                     'com.blockether.spel.roles      roles-map
                      ;; Utility namespaces
                     'markdown                            md-map
-                    'com.blockether.spel.markdown        md-map}
+                    'com.blockether.spel.markdown        md-map
+                     ;; File I/O namespaces
+                    'clojure.java.io                     io-map
+                    'io                                  io-map}
+       :bindings   {'slurp slurp
+                    'spit  spit}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext
@@ -1793,6 +1820,21 @@
                     'ServiceWorkerPolicy            ServiceWorkerPolicy
                     'WaitForSelectorState           WaitForSelectorState
                     'WaitUntilState                 WaitUntilState
+                    ;; File I/O classes
+                    'File                java.io.File
+                    'java.io.File        java.io.File
+                    'Base64              java.util.Base64
+                    'java.util.Base64    java.util.Base64
+                    'Files               java.nio.file.Files
+                    'java.nio.file.Files java.nio.file.Files
+                    'Path                java.nio.file.Path
+                    'java.nio.file.Path  java.nio.file.Path
+                    'Paths               java.nio.file.Paths
+                    'java.nio.file.Paths java.nio.file.Paths
+                    'LinkOption          java.nio.file.LinkOption
+                    'java.nio.file.LinkOption java.nio.file.LinkOption
+                    'FileAttribute       java.nio.file.attribute.FileAttribute
+                    'java.nio.file.attribute.FileAttribute java.nio.file.attribute.FileAttribute
                     :allow             :all}})))
 
 ;; =============================================================================

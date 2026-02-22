@@ -9,6 +9,7 @@
    5. Cleans up properly between test groups"
   (:require
    [clojure.string :as str]
+   [clojure.java.io :as io]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.page :as page]
@@ -1758,6 +1759,58 @@
     (it "spel/help returns nil"
       (let [r (cmd "sci_eval" {"code" "(spel/help \"spel/goto\")"})]
         (expect (= "nil" (:result r)))))
+
+    ;; --- spel/navigate alias (same as spel/goto) ---
+
+    (it "spel/navigate is an alias for spel/goto"
+      (let [_ (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+            r (cmd "sci_eval" {"code" "(spel/title)"})]
+        (expect (= "\"Test Page\"" (:result r)))))
+
+    (it "spel/navigate works alongside page/navigate"
+      (let [_ (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+            r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
+        (expect (str/includes? (:result r) "/test-page"))))
+
+    ;; --- File I/O in SCI ---
+
+    (it "slurp reads files"
+      (let [tmp-path (str (Files/createTempFile "spel-test" ".txt" (into-array java.nio.file.attribute.FileAttribute [])))
+            _ (spit tmp-path "hello-sci")
+            r (cmd "sci_eval" {"code" (str "(slurp \"" tmp-path "\")")})]
+        (expect (= "\"hello-sci\"" (:result r)))
+        (io/delete-file tmp-path true)))
+
+    (it "spit writes files"
+      (let [tmp-path (str (Files/createTempFile "spel-test" ".txt" (into-array java.nio.file.attribute.FileAttribute [])))
+            _ (cmd "sci_eval" {"code" (str "(spit \"" tmp-path "\" \"written-from-sci\")")})
+            content (slurp tmp-path)]
+        (expect (= "written-from-sci" content))
+        (io/delete-file tmp-path true)))
+
+    (it "io/file creates File objects"
+      (let [r (cmd "sci_eval" {"code" "(str (io/file \"/tmp\"))"})]
+        (expect (= "\"/tmp\"" (:result r)))))
+
+    (it "io/file is available via clojure.java.io alias"
+      (let [r (cmd "sci_eval" {"code" "(do (require '[clojure.java.io :as cjio]) (str (cjio/file \"/tmp\")))"})]
+        (expect (= "\"/tmp\"" (:result r)))))
+
+    (it "Base64 encoder/decoder works"
+      (let [r (cmd "sci_eval" {"code" "(.encodeToString (java.util.Base64/getEncoder) (.getBytes \"hello\"))"})]
+        (expect (= "\"aGVsbG8=\"" (:result r)))))
+
+    (it "java.io.File class is accessible"
+      (let [r (cmd "sci_eval" {"code" "(.exists (java.io.File. \"/tmp\"))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "java.nio.file.Paths creates Path"
+      (let [r (cmd "sci_eval" {"code" "(str (java.nio.file.Paths/get \"/tmp\" (into-array String [])))"})]
+        (expect (= "\"/tmp\"" (:result r)))))
+
+    (it "java.nio.file.Files/exists works"
+      (let [r (cmd "sci_eval" {"code" "(java.nio.file.Files/exists (java.nio.file.Paths/get \"/tmp\" (into-array String [])) (into-array java.nio.file.LinkOption []))"})]
+        (expect (= "true" (:result r)))))
 
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
