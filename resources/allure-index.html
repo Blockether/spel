@@ -14,8 +14,9 @@
       --green: #2EAD33; --green-bg: rgba(46,173,51,0.06); --green-border: rgba(46,173,51,0.2);
       --green-text: #1d7a22; --red: #d94040; --red-bg: rgba(217,64,64,0.05); --red-border: rgba(217,64,64,0.2);
       --red-text: #b33030; --code-bg: #eef0f4; --code-text: #5a6070;
-      --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-      --shadow-h: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+      --yellow: #d4a017; --yellow-bg: rgba(255,193,7,0.06); --yellow-border: rgba(255,193,7,0.3);
+      --shadow: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-h: 0 3px 8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
     }
     html.dark {
       --bg: #0f1219; --bg-card: #1a2030; --bg-card-hover: #1f2738;
@@ -24,70 +25,109 @@
       --green-bg: rgba(46,173,51,0.08); --green-border: rgba(46,173,51,0.25);
       --green-text: #4cd952; --red-bg: rgba(217,64,64,0.08); --red-border: rgba(217,64,64,0.25);
       --red-text: #f06060; --code-bg: #252d3d; --code-text: #9ba3b5;
-      --shadow: 0 1px 3px rgba(0,0,0,0.2); --shadow-h: 0 4px 16px rgba(0,0,0,0.3);
+      --yellow-bg: rgba(255,193,7,0.08); --yellow-border: rgba(255,193,7,0.35);
+      --shadow: 0 1px 2px rgba(0,0,0,0.2); --shadow-h: 0 4px 12px rgba(0,0,0,0.3);
     }
     body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
-    @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-    .header { padding: 1.5rem 1rem 1rem; text-align: center; }
-    .logo { width: 64px; height: 64px; margin: 0 auto; opacity: 0.9; }
+    /* --- Header --- */
+    .header { padding: 1.25rem 1rem 0.75rem; text-align: center; }
+    .logo { width: 56px; height: 56px; margin: 0 auto; opacity: 0.9; }
     .logo svg { width: 100%; height: 100%; }
-    .title { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-size: 1.75rem; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
-    .subtitle { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.15em; text-transform: uppercase; }
+    .title { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-size: 1.6rem; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.15rem; }
+    .subtitle { font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.15em; text-transform: uppercase; }
 
+    /* --- Main container --- */
     .main { max-width: 52rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
-    .builds { display: flex; flex-direction: column; gap: 0.5rem; }
 
-    .date-group { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.75rem 0.25rem 0.35rem; border-bottom: 1px solid var(--border); margin-top: 0.5rem; }
+    /* --- Builds list (default = list view) --- */
+    .builds { display: flex; flex-direction: column; gap: 0.3rem; }
+
+    /* --- Date groups --- */
+    .date-group { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.6rem 0.25rem 0.3rem; border-bottom: 1px solid var(--border); margin-top: 0.4rem; }
     .date-group:first-child { margin-top: 0; }
 
-    .card { display: flex; align-items: center; gap: 1rem; padding: 0.875rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border); background: var(--bg-card); box-shadow: var(--shadow); text-decoration: none; color: inherit; transition: all 0.2s ease; animation: fade-in 0.4s ease-out both; cursor: pointer; }
-    .card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
-    .card.failed { border-color: var(--red-border); background: var(--red-bg); }
-    .card.failed:hover { border-color: var(--red); }
+    /* --- Card (list view) --- */
+    .card {
+      display: flex; align-items: center; gap: 0.65rem;
+      padding: 0.5rem 0.9rem 0.5rem 0;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+      text-decoration: none; color: inherit;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.15s;
+      animation: fade-in 0.3s ease-out both;
+      cursor: pointer;
+    }
+    .card:hover { border-color: var(--border-hover); border-left-color: var(--green); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
+    .card.failed { border-left-color: var(--red); background: var(--red-bg); }
+    .card.failed:hover { border-color: var(--red-border); border-left-color: var(--red); }
+    .card.in-progress { border-left-color: var(--yellow); background: var(--yellow-bg); }
+    .card.in-progress:hover { border-color: var(--yellow-border); border-left-color: var(--yellow); }
+    html.dark .card.in-progress { background: var(--yellow-bg); }
 
-    .run { flex-shrink: 0; width: 3.5rem; text-align: center; }
-    .run-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-    .run-num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
-    a.run-link { text-decoration: none; color: var(--text); transition: color 0.2s; }
+    /* --- Run area (inline: number + status) --- */
+    .run { flex-shrink: 0; display: flex; align-items: center; gap: 0.2rem; padding-left: 0.75rem; min-width: 3.5rem; }
+    .run-label { display: none; }
+    .run-num { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); line-height: 1; }
+    a.run-link { text-decoration: none; color: var(--text); transition: color 0.15s; }
     a.run-link:hover { color: var(--green); }
-    .status-dot { flex-shrink: 0; width: 1.25rem; font-size: 0.75rem; text-align: center; font-weight: 700; line-height: 1; }
+    .status-dot { flex-shrink: 0; font-size: 0.65rem; font-weight: 700; line-height: 1; }
     .status-pass { color: var(--green); }
     .status-fail { color: var(--red); }
-    .divider { width: 1px; height: 2.5rem; background: var(--border); flex-shrink: 0; display: none; }
-    .failed .divider { background: var(--red-border); }
+    .status-in-progress { color: var(--yellow); }
+    .divider { display: none; }
 
+    /* --- Info --- */
     .info { flex: 1; min-width: 0; }
-    .info-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; flex-wrap: wrap; }
-    .sha { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); }
-    .sha-link { text-decoration: none; transition: background 0.2s, color 0.2s; }
+    .info-top { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.1rem; flex-wrap: wrap; }
+    .sha { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 0.2rem; font-size: 0.65rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); line-height: 1.3; }
+    .sha-link { text-decoration: none; transition: background 0.15s, color 0.15s; }
     .sha-link:hover { background: var(--border-hover); color: var(--text); }
     .failed .sha { background: var(--red-bg); color: var(--red-text); }
     .failed .sha-link:hover { background: var(--red-border); color: var(--red-text); }
-    .msg { font-size: 0.82rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .author { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg { font-size: 0.78rem; color: var(--text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+    .author { margin: 0.05rem 0 0; font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .meta { flex-shrink: 0; text-align: right; margin-top: 0.25rem; }
-    .meta-date { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-    .meta-rel { font-size: 0.6rem; color: var(--text-muted); opacity: 0.7; font-variant-numeric: tabular-nums; }
-    .arrow { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--text-muted); transition: all 0.2s; display: none; }
-    .card:hover .arrow { color: var(--text-sec); transform: translateX(2px); }
+    /* --- Meta (date/time) --- */
+    .meta { flex-shrink: 0; text-align: right; }
+    .meta-date { font-size: 0.65rem; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1.3; }
+    .meta-rel { font-size: 0.58rem; color: var(--text-muted); opacity: 0.7; font-variant-numeric: tabular-nums; }
+    .arrow { display: none; }
 
+    /* --- Pills / badges --- */
+    .pill { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid; vertical-align: middle; }
+    .pill-green { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+    .pill-yellow { background: rgba(255,193,7,0.10); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
+    .pill-blue { background: rgba(0,126,198,0.08); color: #006bb3; border-color: rgba(0,126,198,0.3); }
+    .pill-red { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+    html.dark .pill-yellow { background: rgba(255,193,7,0.12); color: #ffd54f; border-color: rgba(255,193,7,0.35); }
+    html.dark .pill-blue { background: rgba(0,126,198,0.12); color: #64b5f6; border-color: rgba(0,126,198,0.35); }
+    .pill-in-progress { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); animation: pulse 2s infinite; }
+    html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* --- Empty state --- */
     .empty { display: none; text-align: center; color: var(--text-muted); margin-top: 4rem; font-size: 1rem; }
     .empty.show { display: block; }
 
+    /* --- Footer --- */
     .footer { text-align: center; padding-bottom: 2rem; font-size: 0.7rem; color: var(--text-muted); }
-    .footer a { color: var(--text-sec); text-decoration: none; transition: color 0.2s; }
+    .footer a { color: var(--text-sec); text-decoration: none; transition: color 0.15s; }
     .footer a:hover { color: var(--green); }
 
-    .theme-toggle { position: fixed; top: 1rem; right: 1rem; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-sec); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; z-index: 50; box-shadow: var(--shadow); }
+    /* --- Theme toggle --- */
+    .theme-toggle { position: fixed; top: 1rem; right: 1rem; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-sec); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; z-index: 50; box-shadow: var(--shadow); }
     .theme-toggle:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
     .theme-toggle svg { width: 1rem; height: 1rem; }
     .theme-toggle .icon-moon { display: none; }
     html.dark .theme-toggle .icon-sun { display: none; }
     html.dark .theme-toggle .icon-moon { display: block; }
 
-    /* Video modal */
+    /* --- Video modal --- */
     .video-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
     .video-modal.show { display: flex; }
     .video-modal-content { max-width: 90vw; max-height: 90vh; position: relative; }
@@ -95,83 +135,77 @@
     .video-modal-close { position: absolute; top: -40px; right: 0; background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; padding: 0.5rem; }
     .video-modal-title { position: absolute; bottom: 20px; left: 20px; right: 60px; color: #fff; font-size: 0.9rem; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 4px; }
 
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; margin-left: 8px; letter-spacing: 0.03em; border: 1px solid; vertical-align: middle; }
-    .pill-green { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
-    .pill-yellow { background: rgba(255,193,7,0.10); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
-    .pill-blue { background: rgba(0,126,198,0.08); color: #006bb3; border-color: rgba(0,126,198,0.3); }
-    .pill-red { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
-    html.dark .pill-yellow { background: rgba(255,193,7,0.12); color: #ffd54f; border-color: rgba(255,193,7,0.35); }
-    html.dark .pill-blue { background: rgba(0,126,198,0.12); color: #64b5f6; border-color: rgba(0,126,198,0.35); }
-
-    .status-in-progress { color: #ffc107; }
-    .card.in-progress { border-color: rgba(255,193,7,0.4); background: rgba(255,193,7,0.04); }
-    .card.in-progress:hover { border-color: #ffc107; }
-    html.dark .card.in-progress { background: rgba(255,193,7,0.06); }
-    .pill-in-progress { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); animation: pulse 2s infinite; }
-    html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-
-    @media (max-width: 640px) { .meta { display: none; } .card { padding: 0.75rem 1rem; gap: 0.75rem; } .info-top { flex-wrap: wrap; gap: 6px; align-items: flex-start; } .pill { margin-left: 0; } }
-
-    /* View toggle */
+    /* --- View toggle --- */
     .view-toggle { position: fixed; top: 1rem; right: 3.25rem; display: flex; gap: 2px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 2px; z-index: 50; box-shadow: var(--shadow); }
-    .view-btn { width: 2rem; height: 2rem; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .view-btn { width: 2rem; height: 2rem; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .view-btn:hover { color: var(--text-sec); background: var(--bg-card-hover); }
     .view-btn.active { background: var(--green-bg); color: var(--green-text); }
     .view-btn svg { width: 1rem; height: 1rem; }
 
-    /* Compact view - grid layout with equal-sized cards */
-    .builds.compact { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
-      gap: 0.5rem; 
+    /* --- Mobile: list view --- */
+    @media (max-width: 640px) {
+      .meta { display: none; }
+      .card { padding: 0.45rem 0.75rem 0.45rem 0; gap: 0.5rem; }
+      .run { padding-left: 0.5rem; min-width: 2.75rem; }
+      .run-num { font-size: 0.95rem; }
+      .info-top { flex-wrap: wrap; gap: 4px; align-items: flex-start; }
+      .pill { margin-left: 0; }
     }
-    .builds.compact .card { 
-      flex-direction: column; 
-      padding: 0.75rem; 
-      border-radius: 0.5rem; 
-      align-items: flex-start;
-      min-height: 120px;
-    }
-    .builds.compact .run { 
-      width: 100%; 
-      display: flex; 
-      align-items: center; 
-      justify-content: space-between;
-      margin-bottom: 0.25rem;
-    }
-    .builds.compact .run-label { display: none; }
-    .builds.compact .run-num { font-size: 1rem; }
-    .builds.compact .status-dot { width: auto; font-size: 0.7rem; }
-    .builds.compact .divider { display: none; }
-    .builds.compact .info { flex: 1; width: 100%; }
-    .builds.compact .info-top { flex-wrap: wrap; margin-bottom: 0.25rem; }
-    .builds.compact .sha { padding: 2px 6px; font-size: 0.65rem; }
-    .builds.compact .pill { font-size: 0.5rem; padding: 1px 5px; margin-left: 4px; }
-    .builds.compact .msg { font-size: 0.75rem; }
-    .builds.compact .author { font-size: 0.65rem; margin: 0.15rem 0 0; }
-    .builds.compact .meta { display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; margin-top: auto; }
-    .builds.compact .meta-date { font-size: 0.55rem; }
-    .builds.compact .meta-rel { font-size: 0.5rem; }
-    .builds.compact .arrow { display: none; }
-    .builds.compact .date-group { font-size: 0.65rem; padding: 0.5rem 0.25rem 0.25rem; margin-top: 0.35rem; grid-column: 1 / -1; }
 
+    /* ================================================================
+       Grid view — proper multi-column card grid
+       ================================================================ */
+    .builds.grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.5rem;
+    }
+    .builds.grid .date-group {
+      grid-column: 1 / -1;
+      font-size: 0.6rem; padding: 0.5rem 0.15rem 0.25rem; margin-top: 0.25rem;
+    }
+    .builds.grid .card {
+      flex-direction: column; align-items: stretch;
+      padding: 0.55rem 0.65rem 0.55rem 0;
+      border-left-width: 3px;
+      position: relative;
+      min-height: 0;
+    }
+    .builds.grid .run {
+      width: 100%; justify-content: flex-start;
+      padding-left: 0.6rem; margin-bottom: 0.15rem;
+    }
+    .builds.grid .run-num { font-size: 0.9rem; }
+    .builds.grid .status-dot { font-size: 0.6rem; }
+    .builds.grid .info { width: 100%; }
+    .builds.grid .info-top { margin-bottom: 0.1rem; gap: 0.25rem; flex-wrap: wrap; }
+    .builds.grid .sha { padding: 1px 5px; font-size: 0.6rem; }
+    .builds.grid .pill { font-size: 0.5rem; padding: 1px 5px; }
+    .builds.grid .msg { font-size: 0.72rem; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .builds.grid .author { font-size: 0.62rem; margin: 0.1rem 0 0; }
+    .builds.grid .meta {
+      position: absolute; top: 0.5rem; right: 0.65rem; text-align: right;
+    }
+    .builds.grid .meta-date { font-size: 0.55rem; }
+    .builds.grid .meta-rel { font-size: 0.5rem; }
+
+    /* --- Mobile: grid view --- */
     @media (max-width: 640px) {
       .view-toggle { top: 0.75rem; right: 0.75rem; }
-      .builds.compact .meta { display: none; }
-      .builds.compact .card { padding: 0.5rem 0.6rem; min-height: 100px; }
-      .builds.compact { grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
-      .builds.compact .info-top { flex-wrap: wrap; }
+      .builds.grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+      .builds.grid .meta { display: none; }
+      .builds.grid .card { padding: 0.45rem 0.5rem 0.45rem 0; }
+      .builds.grid .run { padding-left: 0.45rem; }
     }
   </style>
 </head>
 <body>
   <div class="view-toggle">
-    <button class="view-btn active" id="viewColumns" onclick="setView('columns')" title="Column view">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="10" rx="1"/></svg>
+    <button class="view-btn active" id="viewList" onclick="setView('list')" title="List view">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </button>
-    <button class="view-btn" id="viewCompact" onclick="setView('compact')" title="Compact view">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="6" rx="1"/><rect x="3" y="11" width="18" height="6" rx="1"/><rect x="3" y="19" width="18" height="2" rx="0.5"/></svg>
+    <button class="view-btn" id="viewGrid" onclick="setView('grid')" title="Grid view">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     </button>
   </div>
   <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
@@ -243,15 +277,18 @@
       localStorage.setItem('spel-theme', d ? 'dark' : 'light');
     }
 
-    // View mode toggle (global, persisted in localStorage)
+    // View mode toggle (persisted in localStorage)
+    // Migrate old mode names: columns→list, compact→grid
     function setView(mode) {
+      if (mode === 'columns') mode = 'list';
+      if (mode === 'compact') mode = 'grid';
       localStorage.setItem('spel-view', mode);
-      document.getElementById('viewColumns').classList.toggle('active', mode === 'columns');
-      document.getElementById('viewCompact').classList.toggle('active', mode === 'compact');
-      document.getElementById('builds').classList.toggle('compact', mode === 'compact');
+      document.getElementById('viewList').classList.toggle('active', mode === 'list');
+      document.getElementById('viewGrid').classList.toggle('active', mode === 'grid');
+      document.getElementById('builds').classList.toggle('grid', mode === 'grid');
     }
     (function() {
-      var view = localStorage.getItem('spel-view') || 'columns';
+      var view = localStorage.getItem('spel-view') || 'list';
       setView(view);
     })();
 
@@ -306,7 +343,7 @@
       var author = b.author || '';
       var date = b.timestamp ? formatDate(b.timestamp) : '';
       var rel = b.timestamp ? relativeTime(b.timestamp) : '';
-      var delay = Math.min(i, 9) * 0.05;
+      var delay = Math.min(i, 9) * 0.04;
       var inProgress = b.status === 'in_progress';
       var failed = !inProgress && b.passed === false;
       var cardClass = 'card' + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
@@ -349,7 +386,6 @@
       }
 
       var clickHandler = inProgress ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
-      var arrowHtml = inProgress ? '' : '<svg class="arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
         + '<div class="run">'
         + (runUrl

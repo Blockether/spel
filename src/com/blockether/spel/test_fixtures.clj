@@ -309,7 +309,7 @@
   {:around (make-page-around-fn context-opts)})
 
 (def ^{:dynamic true :doc "Dynamic var holding the video path after recording."}
-  #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+
   *video-path* nil)
 
 (defn with-video-page-opts
@@ -345,7 +345,7 @@
              (when (and vpath (allure/reporter-active?))
                (allure/attach-file "Video Recording" vpath "video/webm")))))))})
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+
 (def with-video-page
   "Around hook: creates a page with video recording enabled (default opts)."
   (with-video-page-opts {}))

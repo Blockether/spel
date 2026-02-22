@@ -255,7 +255,8 @@
 
 (defn- write-environment-properties!
   [^File output-dir]
-  (let [version (project-version)
+  (let [version       (project-version)
+        commit-author (System/getenv "COMMIT_AUTHOR")
         props   (cond-> [["java.version"    (System/getProperty "java.version")]
                          ["java.vendor"     (System/getProperty "java.vendor")]
                          ["os.name"         (System/getProperty "os.name")]
@@ -266,7 +267,9 @@
                   (spel-version)
                   (conj ["spel.version" (spel-version)])
                   version
-                  (conj ["project.version" version]))
+                  (conj ["project.version" version])
+                  commit-author
+                  (conj ["commit.author" commit-author]))
         content (->> props
                   (map (fn [[k v]] (str k " = " (or v ""))))
                   (str/join "\n"))]
@@ -291,22 +294,55 @@
   (when (seq ct/*testing-contexts*)
     (str/join " > " (reverse ct/*testing-contexts*))))
 
+
+(defn- common-testing-context
+  "Extract common testing context prefix from a test's assertions.
+   Returns the longest \" > \"-delimited prefix shared by all assertions
+   that have a testing context, or the single context when only one exists.
+   Returns nil when no assertions carry a testing context."
+  [assertions]
+  (let [contexts (->> assertions
+                      (keep :context)
+                      (remove str/blank?)
+                      distinct
+                      vec)]
+    (when (seq contexts)
+      (if (= 1 (count contexts))
+        (first contexts)
+        (let [parts   (mapv #(str/split % #" > ") contexts)
+              min-len (long (apply min (map count parts)))]
+          (loop [i (long 0) acc []]
+            (if (>= i min-len)
+              (when (seq acc) (str/join " > " acc))
+              (let [seg (nth (first parts) i)]
+                (if (every? #(= seg (nth % i)) (rest parts))
+                  (recur (inc i) (conj acc seg))
+                  (when (seq acc) (str/join " > " acc)))))))))))
+
 (defn- build-labels
-  [ts]
+  [ts sub-suite]
   (let [ns-name  (:ns-name ts)
         pkg      (when ns-name (ns-package ns-name))
         hn       (:hostname @run-state)]
     (cond-> []
-      ns-name (conj {:name "suite" :value ns-name})
-      pkg     (conj {:name "parentSuite" :value pkg})
-      hn      (conj {:name "host" :value hn})
-      true    (conj {:name "thread" :value "main"})
-      true    (conj {:name "language" :value "clojure"})
-      true    (conj {:name "framework" :value "clojure.test"})
-      true    (conj {:name "tag" :value "clojure-test"})
-      pkg     (conj {:name "package" :value pkg})
-      ns-name (conj {:name "testClass" :value ns-name})
+      ns-name   (conj {:name "suite" :value ns-name})
+      pkg       (conj {:name "parentSuite" :value pkg})
+      sub-suite (conj {:name "subSuite" :value sub-suite})
+      hn        (conj {:name "host" :value hn})
+      true      (conj {:name "thread" :value "main"})
+      true      (conj {:name "language" :value "clojure"})
+      true      (conj {:name "framework" :value "clojure.test"})
+      true      (conj {:name "tag" :value "clojure-test"})
+      pkg       (conj {:name "package" :value pkg})
+      ns-name   (conj {:name "testClass" :value ns-name})
       true    (conj {:name "testMethod" :value (:test-name ts)}))))
+(defn- build-display-name
+  "Build a human-readable test name including testing context.
+   Mirrors the Lazytest reporter's \"path > name\" convention."
+  ^String [ts common-ctx]
+  (if common-ctx
+    (str common-ctx " > " (:test-name ts))
+    (:test-name ts)))
 
 (defn- build-steps-from-assertions
   [assertions start-ms stop-ms]
@@ -383,6 +419,10 @@
                       :pass  "passed"
                       :fail  "failed"
                       :error "broken")
+        ;; Derive testing context for subSuite and display name
+        common-ctx  (common-testing-context (:assertions ts))
+        sub-suite   (when common-ctx
+                      (first (str/split common-ctx #" > ")))
         ctx         (:allure-context ts)
         ctx-labels  (when ctx (:labels ctx))
         ctx-links   (when ctx (:links ctx))
@@ -402,7 +442,7 @@
                       (copy-file-attachment! dir hp "Network Activity (HAR)"
                         "application/json" ".har"))
         io-atts     (filterv some? [out-att err-att trace-att har-att])
-        all-labels  (into (build-labels ts) ctx-labels)
+        all-labels  (into (build-labels ts sub-suite) ctx-labels)
         all-links   (or (seq ctx-links) [])
         all-params  (or (seq ctx-params) [])
         all-atts    (into (vec io-atts) ctx-atts)
@@ -411,7 +451,7 @@
                              :historyId   (md5-hex full-name)
                              :testCaseId  (md5-hex full-name)
                              :fullName    full-name
-                             :name        (:test-name ts)
+                             :name        (build-display-name ts common-ctx)
                              :status      status
                              :stage       "finished"
                              :start       start-ms

@@ -300,7 +300,7 @@
   (.resume clock))
 
 ;; Public API functions - some may be unused in current codebase but kept for API completeness
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+
 
 (defn page-clock
   "Returns the Clock for a page.
@@ -483,7 +483,7 @@
 ;; WebError
 ;; =============================================================================
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+
 (defn web-error-page
   "Returns the page that generated this web error, if any.
 
@@ -495,7 +495,7 @@
   [^WebError we]
   (.page we))
 
-#_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
+
 (defn web-error-error
   "Returns the underlying error for this web error.
 
