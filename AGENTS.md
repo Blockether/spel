@@ -59,7 +59,7 @@ clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 Run these in order. On ANY failure → fix → restart from step 1.
 
 1. `make test-cli-clj` — Clojure tests (lazytest): 0 failures
-2. `make test-cli` — CLI bash regression: 0 failures
+2. `make test-cli` — CLI bash regression: 0 failures ⚠️ needs `./target/spel` — run `make install-local` first if binary absent
 3. `make test` — full suite (both): 0 failures
 4. `make format` — auto-format source
 5. `make lint` — clojure-lsp diagnostics clean
@@ -68,6 +68,8 @@ Run these in order. On ANY failure → fix → restart from step 1.
 8. `make install-local` — exit 0
 9. `spel version && spel --help` — responds correctly
 10. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
+11. Pre-push secret scan: `git diff HEAD | grep -iE "(sk_|lin_api_|password\s*=)"` — must return nothing
+12. After push: verify GitHub Actions CI is green before declaring done
 
 ## Regeneration Triggers
 
