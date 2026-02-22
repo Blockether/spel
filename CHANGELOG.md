@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.1] - 2026-02-22
+
+### Changed
+- BLO-93: Fix CI lint - commit clj-kondo config to suppress unused-binding
+- BLO-93: Fix CI lint failure - reduce unused-binding to info level
+- Restore .lsp/config.edn with unused-public-var linter disabled
+- Restore original LIST view - flex column with horizontal cards
+- Fix lint issues: suppress unused public var warnings for API functions
+- Make build cards full-width on mobile for better list experience
+- Fix mobile responsiveness: 3-column grid on builds page, integrate API testing into Quick Start
+- Add inline video player modal to Allure reports
+- Fix compact view: equal-sized grid cards with min-height
+- Add cljfmt indents for new API testing macros
+- Add clojure.test version for new API testing functions
+- Update README with full API testing docs and fix compact view on mobile
+- Never commit lsp and clj-kondo
+- Remove clj-kondo and .lsp configs
+- Add clj-kondo hooks for with-testing-api and with-page-api macros
+- feat: add page-api, context-api, with-testing-api, with-page-api for easy API testing
+- feat: add compact view toggle to builds list + keep 50 builds
+- fix: use workflow_run trigger so in-progress build shows correct run number
+- fix: remove unused private var allure-result-file?
+- ci: add commit author to Allure report name
+- docs: vary SKILL link phrasing, tighten README prose
+- docs: revamp README — lean landing page, merge Quick Start with with-testing-page
+- chore: bump Allure CLI 3.1.0 → 3.2.0, add lint rule, clean up SKILL template
+- docs: update SKILL.md.template with with-testing-page section and verification checklist
+- style: format 14 namespaces with clojure-lsp
+- docs: add with-testing-page to SKILL template and SKILL check rule to AGENTS.md
+- feat: auto-attach traces to clojure.test Allure reporter
+- feat: add merge-reports CLI command and library API
+- feat: add :profile and browser launch opts to with-testing-page
+- docs: add with-testing-page section to README
+- docs: clarify clj-kondo CLI unavailability in AGENTS.md
+- test: add with-testing-page tests for Lazytest and clojure.test
+- feat: add clj-kondo hooks for with-testing-page dual-arity
+- refactor: use shared devices namespace in daemon
+- feat: add with-testing-page macro with device/viewport support and auto-tracing
+- feat: add shared device and viewport presets namespace
+- BLO-93: Align badges to left on mobile
+- BLO-93: Fix version badge spacing on mobile
+- Split Allure into two workflows to fix artifact conflict
+- BLO-92: Store theme globally (shared across all builds)
+- BLO-92: Remove unused with-video-page refer to fix lint
+- BLO-92: Scope Allure localStorage by report path with 30-day auto-cleanup
+- Fix artifact conflict - remove duplicate in-progress pages deploy
+- Hide chevron arrow on in-progress build cards
+- feat: add in-progress build tracking to Allure landing page
+- Remove headless environments documentation from README
+- Delete ARCHITECTURE-NOTES.md
+- BLO-90: Remove LATEST badge from builds list
+- feat: add commit author to build list and Allure report
+- fix: eliminate boxed math and reflection warnings for GraalVM safety
+- fix: unify landing page badges as HTML pills with visible borders
+- feat: replace Python CI scripts with Clojure ci-assemble command
+- feat: add spel/help and spel/source for runtime API discovery
+- BLO-91: Update SKILL template with version badges documentation
+- BLO-91: Add version badges to Allure landing page
+- Add video recording support for browser sessions
+- BLO-89: Add headless environments documentation to README
+- BLO-89: Add xvfb-run auto-detection for headless codegen record
+- BLO-90: Add version badges to Allure landing page
+- Add cleanup step before Allure test runs
+- BLO-87: Fix unmatched paren in test file
+- BLO-87: Fix boxed math warnings and Windows line-ending test failures
+- BLO-87: Fix ct namespace nesting in Allure - use common parent
+- BLO-88: Fix Allure workflow - make github-pages environment conditional for PRs
+- BLO-88: Enable Allure reports for PR/branches
+- release: update version files for v0.3.0, bump to next dev version
+
+
 ## [v0.3.0] - 2026-02-20
 
 ### Changed
@@ -137,9 +208,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.3.1...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
 [v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
 [v0.3.0]: https://github.com/Blockether/spel/releases/tag/v0.3.0
+[v0.3.1]: https://github.com/Blockether/spel/releases/tag/v0.3.1
