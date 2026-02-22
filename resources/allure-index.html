@@ -39,7 +39,7 @@
     .subtitle { font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.15em; text-transform: uppercase; }
 
     /* --- Main container --- */
-    .main { max-width: 52rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
+    .main { max-width: 95rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
 
     /* --- Builds list (default = list view) --- */
     .builds { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -153,12 +153,12 @@
     }
 
     /* ================================================================
-       Grid view — proper multi-column card grid
+       Grid view — square cards in wider multi-column layout
        ================================================================ */
     .builds.grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.75rem;
     }
     .builds.grid .date-group {
       grid-column: 1 / -1;
@@ -166,36 +166,59 @@
     }
     .builds.grid .card {
       flex-direction: column; align-items: stretch;
-      padding: 0.55rem 0.65rem 0.55rem 0;
+      padding: 0.75rem 0.85rem 0.75rem 0;
       border-left-width: 3px;
       position: relative;
+      aspect-ratio: 1 / 1;
       min-height: 0;
     }
     .builds.grid .run {
       width: 100%; justify-content: flex-start;
-      padding-left: 0.6rem; margin-bottom: 0.15rem;
+      padding-left: 0.6rem; margin-bottom: 0.2rem;
     }
-    .builds.grid .run-num { font-size: 0.9rem; }
-    .builds.grid .status-dot { font-size: 0.6rem; }
-    .builds.grid .info { width: 100%; }
-    .builds.grid .info-top { margin-bottom: 0.1rem; gap: 0.25rem; flex-wrap: wrap; }
-    .builds.grid .sha { padding: 1px 5px; font-size: 0.6rem; }
-    .builds.grid .pill { font-size: 0.5rem; padding: 1px 5px; }
-    .builds.grid .msg { font-size: 0.72rem; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .builds.grid .author { font-size: 0.62rem; margin: 0.1rem 0 0; }
+    .builds.grid .run-num { font-size: 0.95rem; }
+    .builds.grid .status-dot { font-size: 0.65rem; }
+    .builds.grid .info { width: 100%; flex: 1; display: flex; flex-direction: column; }
+    .builds.grid .info-top { margin-bottom: 0.15rem; gap: 0.3rem; flex-wrap: wrap; }
+    .builds.grid .sha { padding: 2px 6px; font-size: 0.6rem; }
+    .builds.grid .pill { font-size: 0.52rem; padding: 2px 6px; }
+    .builds.grid .msg {
+      font-size: 0.7rem;
+      line-height: 1.4;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      flex: 1;
+      margin-bottom: 0.1rem;
+    }
+    .builds.grid .author { font-size: 0.6rem; margin: 0.1rem 0 0.15rem; }
     .builds.grid .meta {
-      position: absolute; top: 0.5rem; right: 0.65rem; text-align: right;
+      position: static;
+      margin-top: auto;
+      text-align: left;
+      padding-top: 0.25rem;
+      border-top: 1px solid var(--border);
     }
     .builds.grid .meta-date { font-size: 0.55rem; }
     .builds.grid .meta-rel { font-size: 0.5rem; }
+    /* --- Tablet: grid view (3 columns) --- */
+    @media (max-width: 1024px) {
+      .main { max-width: 85rem; }
+      .builds.grid { grid-template-columns: repeat(3, 1fr); }
+    }
 
-    /* --- Mobile: grid view --- */
+    /* --- Mobile: grid view (2 columns) --- */
     @media (max-width: 640px) {
+      .main { max-width: 100%; padding: 0.5rem 1rem 3rem; }
       .view-toggle { top: 0.75rem; right: 0.75rem; }
-      .builds.grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
-      .builds.grid .meta { display: none; }
-      .builds.grid .card { padding: 0.45rem 0.5rem 0.45rem 0; }
+      .builds.grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+      .builds.grid .meta-date { font-size: 0.5rem; }
+      .builds.grid .meta-rel { display: none; }
+      .builds.grid .card { padding: 0.6rem 0.7rem 0.6rem 0; }
       .builds.grid .run { padding-left: 0.45rem; }
+      .builds.grid .msg { -webkit-line-clamp: 2; }
     }
   </style>
 </head>
