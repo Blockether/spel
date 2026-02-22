@@ -1,3 +1,6 @@
 {;; This is a library — public vars are API surface consumed by users.
  ;; Suppress unused-public-var to avoid false positives on intentional API.
- :linters {:clojure-lsp/unused-public-var {:level :off}}}
+ :linters {:clojure-lsp/unused-public-var {:level :off}
+           ;; Reduce unused-binding to info - false positives with test fixtures/macros
+           ;; Bindings like *page* are used via test context but linter doesn't understand
+           :unused-binding {:level :info}}}
