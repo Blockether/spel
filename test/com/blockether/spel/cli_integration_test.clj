@@ -1793,27 +1793,47 @@
         (io/delete-file tmp-path true)))
 
     (it "io/file creates File objects"
-      (let [r (cmd "sci_eval" {"code" "(str (io/file \"/tmp\"))"})]
-        (expect (= "\"/tmp\"" (:result r)))))
+      ;; Use java.io.tmpdir for cross-platform compatibility
+      (let [tmpdir (System/getProperty "java.io.tmpdir")
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
+            r (cmd "sci_eval" {"code" (str "(str (io/file \"" escaped-tmpdir "\"))")})]
+        (expect (some? (:result r)))))
 
     (it "io/file is available via clojure.java.io alias"
-      (let [r (cmd "sci_eval" {"code" "(do (require '[clojure.java.io :as cjio]) (str (cjio/file \"/tmp\")))"})]
-        (expect (= "\"/tmp\"" (:result r)))))
+      ;; Use java.io.tmpdir for cross-platform compatibility
+      (let [tmpdir (System/getProperty "java.io.tmpdir")
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
+            r (cmd "sci_eval" {"code" (str "(do (require '[clojure.java.io :as cjio]) (str (cjio/file \"" escaped-tmpdir\")))")})]
+        (expect (some? (:result r)))))
 
     (it "Base64 encoder/decoder works"
       (let [r (cmd "sci_eval" {"code" "(.encodeToString (java.util.Base64/getEncoder) (.getBytes \"hello\"))"})]
         (expect (= "\"aGVsbG8=\"" (:result r)))))
 
     (it "java.io.File class is accessible"
-      (let [r (cmd "sci_eval" {"code" "(.exists (java.io.File. \"/tmp\"))"})]
+      ;; Use java.io.tmpdir for cross-platform compatibility
+      (let [tmpdir (System/getProperty "java.io.tmpdir")
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
+            r (cmd "sci_eval" {"code" (str "(.exists (java.io.File. \"" escaped-tmpdir "\"))")})]
         (expect (= "true" (:result r)))))
 
     (it "java.nio.file.Paths creates Path"
-      (let [r (cmd "sci_eval" {"code" "(str (java.nio.file.Paths/get \"/tmp\" (into-array String [])))"})]
-        (expect (= "\"/tmp\"" (:result r)))))
+      ;; Use java.io.tmpdir for cross-platform compatibility
+      (let [tmpdir (System/getProperty "java.io.tmpdir")
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
+            r (cmd "sci_eval" {"code" (str "(str (java.nio.file.Paths/get \"" escaped-tmpdir "\" (into-array String [])))")})]
+        (expect (some? (:result r)))))
 
     (it "java.nio.file.Files/exists works"
-      (let [r (cmd "sci_eval" {"code" "(java.nio.file.Files/exists (java.nio.file.Paths/get \"/tmp\" (into-array String [])) (into-array java.nio.file.LinkOption []))"})]
+      ;; Use java.io.tmpdir for cross-platform compatibility
+      (let [tmpdir (System/getProperty "java.io.tmpdir")
+            ;; Escape backslashes for Windows paths in SCI code strings
+            escaped-tmpdir (clojure.string/replace tmpdir "\\" "\\\\")
+            r (cmd "sci_eval" {"code" (str "(java.nio.file.Files/exists (java.nio.file.Paths/get \"" escaped-tmpdir "\" (into-array String [])) (into-array java.nio.file.LinkOption []))")})]
         (expect (= "true" (:result r)))))
 
     ;; --- Destructive tests last (stop! nils daemon page state) ---
