@@ -19,6 +19,9 @@ task(category="...", load_skills=["spel"], prompt="...")
 
 **Never use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` in this project.** They are disabled / irrelevant.
 
+
+**When working directly with spel** (not delegating), ALWAYS load the spel skill first via `skill(name="spel")` before attempting any `spel` CLI commands, `--eval` scripts, or browser automation. The skill contains SCI function names (which differ from library names), sandbox limitations, and device emulation guidance that prevent common errors.
+
 ---
 
 ## IMPORTANT: Fix Parens With clj-paren-repair, NOT By Hand

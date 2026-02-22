@@ -20,6 +20,110 @@ compatibility: opencode
 | `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
 | `spel init-agents --loop=vscode` | Scaffold E2E agents for VS Code / Copilot |
 
+## ⚠️ SCI Eval vs Library — Key Naming Differences
+
+In `--eval` mode, functions live in the `spel/` namespace with **different names** than the library:
+
+| You want to... | Library (Clojure) | SCI (`--eval` / daemon) |
+|---|---|---|
+| Navigate to URL | `(page/navigate pg url)` | `(spel/goto url)` or `(spel/navigate url)` |
+| Get page title | `(page/title pg)` | `(spel/title)` |
+| Get page URL | `(page/url pg)` | `(spel/url)` |
+| Get page HTML | `(page/content pg)` | `(spel/html)` |
+| Evaluate JS | `(page/evaluate pg expr)` | `(spel/eval-js expr)` |
+| Get text content | `(locator/text-content loc)` | `(spel/text loc)` |
+| Get inner text | `(locator/inner-text loc)` | `(spel/inner-text loc)` |
+| Take screenshot | `(page/screenshot pg opts)` | `(spel/screenshot opts)` |
+| Generate PDF | `(page/pdf pg opts)` | `(spel/pdf opts)` |
+| Set viewport | `(page/set-viewport-size pg w h)` | `(spel/set-viewport-size! w h)` |
+| CSS selector | `(page/locator pg sel)` | `(spel/$ sel)` |
+| Multiple matches | `(page/locator-all pg sel)` | `(spel/$$ sel)` |
+| By text | `(page/get-by-text pg text)` | `(spel/$text text)` |
+| By role | `(page/get-by-role pg role)` | `(spel/$role role)` |
+
+**Key difference**: Library functions take an explicit `page`/`locator` argument. SCI functions use the implicit page from `spel/start!`.
+
+## SCI Sandbox Capabilities
+
+The SCI eval environment (`--eval` mode) runs in a sandbox with registered namespaces and classes.
+### ✅ Available in SCI
+- All `spel/`, `snapshot/`, `annotate/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
+- `clojure.core`, `clojure.string`, `clojure.set`, `clojure.walk`, `clojure.edn`, `clojure.repl`, `clojure.template`
+- `clojure.java.io` (aliased as `io`): `io/file`, `io/reader`, `io/writer`, `io/input-stream`, `io/output-stream`, `io/copy`, `io/as-file`, `io/as-url`, `io/resource`, `io/make-parents`, `io/delete-file`
+- `slurp`, `spit` — full file read/write
+- `java.io.File` — file path operations
+- `java.nio.file.Files`, `java.nio.file.Path`, `java.nio.file.Paths` — NIO file operations
+- `java.util.Base64` — encoding/decoding
+- Playwright Java classes: `Page`, `Browser`, `BrowserContext`, `Locator`, `Frame`, `Request`, `Response`, `Route`, `ElementHandle`, `JSHandle`, `ConsoleMessage`, `Dialog`, `Download`, `WebSocket`, `Tracing`, `Keyboard`, `Mouse`, `Touchscreen`
+- All Playwright enums: `AriaRole`, `LoadState`, `WaitUntilState`, `ScreenshotType`, etc.
+- Method calls on registered classes (`:allow :all`)
+- `role/` namespace for AriaRole constants (e.g., `role/button`, `role/link`)
+- `markdown/` namespace for markdown rendering
+### File I/O Examples in `--eval`
+```clojure
+;; Read a file
+(slurp "/tmp/data.txt")
+
+;; Write a file
+(spit "/tmp/output.txt" "hello world")
+
+;; Use clojure.java.io
+(io/make-parents "/tmp/deep/nested/file.txt")
+(spit (io/file "/tmp/deep/nested/file.txt") "content")
+
+;; Base64 encode/decode
+(let [encoder (java.util.Base64/getEncoder)
+      decoder (java.util.Base64/getDecoder)]
+  (->> (.getBytes "hello")
+       (.encodeToString encoder)
+       (.decode decoder)
+       (String.)))
+
+;; NIO file operations
+(java.nio.file.Files/exists
+  (java.nio.file.Paths/get "/tmp" (into-array String []))
+  (into-array java.nio.file.LinkOption []))
+```
+### ❌ NOT Available in SCI
+- Arbitrary Java class construction — only registered classes work
+- `require`, `use`, `import` — namespaces are pre-registered, cannot load new ones
+
+## Device Emulation in `--eval` Mode
+
+There are multiple approaches to device emulation depending on what you need:
+
+### Approach 1: Viewport Only (`spel/set-viewport-size!`)
+Sets width and height but NOT device pixel ratio, user agent, or touch support.
+```clojure
+(spel/start!)
+(spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
+(spel/goto "https://example.com")
+(spel/screenshot {:path "/tmp/iphone14.png"})
+```
+
+### Approach 2: Full Device Preset (CLI daemon `set device`)
+Sets viewport + DPR + user agent + touch. Requires the daemon running.
+```bash
+# From shell (daemon must be running via spel start)
+spel set device "iPhone 14"
+spel screenshot /tmp/iphone14.png
+```
+
+### Approach 3: Restart with Device (library only)
+```clojure
+;; In library code (NOT --eval), use :device option
+(core/with-testing-page {:device :iphone-14} [pg]
+  (page/navigate pg "https://example.com"))
+```
+
+### Comparison
+
+| Approach | Viewport | DPR | User Agent | Touch | Available in |
+|---|---|---|---|---|---|
+| `spel/set-viewport-size!` | ✅ | ❌ | ❌ | ❌ | `--eval` |
+| `spel set device "Name"` | ✅ | ✅ | ✅ | ✅ | CLI daemon |
+| `{:device :name}` option | ✅ | ✅ | ✅ | ✅ | Library only |
+
 ---
 
 ## Architecture
