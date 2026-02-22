@@ -60,11 +60,11 @@ Run these in order. On ANY failure → fix → restart from step 1.
 
 1. `make format` — auto-format source (must run BEFORE tests — format changes must be tested)
 2. `make lint` — clojure-lsp diagnostics clean
-3. `make test-cli-clj` — Clojure tests (lazytest): 0 failures (no binary needed)
-4. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)
-5. `make gen-docs` — regenerate SKILL.md
-6. `make install-local` — builds `./target/spel` → `~/.local/bin/spel`: exit 0
-7. `spel version && spel --help` — responds correctly
+3. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)
+4. `make gen-docs` — regenerate SKILL.md
+5. `make install-local` — builds `./target/spel` → `~/.local/bin/spel`: exit 0
+6. `spel version && spel --help` — responds correctly
+7. `make test-cli-clj` — Clojure integration tests (lazytest): 0 failures
 8. `make test` — full suite against fresh binary: 0 failures (Clojure + CLI bash)
 9. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 10. `git diff --check` — no conflict markers, no trailing whitespace
@@ -73,7 +73,7 @@ Run these in order. On ANY failure → fix → restart from step 1.
 
 ## Regeneration Triggers
 
-ANY of these changed → MUST run steps 5-9:
+ANY of these changed → MUST run steps 4-9:
 - Templates in `resources/com/blockether/spel/templates/`
 - `src/com/blockether/spel/sci_env.clj`
 - `src/com/blockether/spel/gen_docs.clj`
