@@ -60,17 +60,18 @@ Run these in order. On ANY failure → fix → restart from step 1.
 
 1. `make test-cli-clj` — Clojure tests (lazytest): 0 failures
 2. `make test-cli` — CLI bash regression: 0 failures
-3. `make format` — auto-format source
-4. `make lint` — clojure-lsp diagnostics clean
-5. `make validate-safe-graal` — no reflection/boxed-math warnings
-6. `make gen-docs` — regenerate SKILL.md
-7. `make install-local` — exit 0
-8. `spel version && spel --help` — responds correctly
-9. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
+3. `make test` — full suite (both): 0 failures
+4. `make format` — auto-format source
+5. `make lint` — clojure-lsp diagnostics clean
+6. `make validate-safe-graal` — no reflection/boxed-math warnings
+7. `make gen-docs` — regenerate SKILL.md
+8. `make install-local` — exit 0
+9. `spel version && spel --help` — responds correctly
+10. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 
 ## Regeneration Triggers
 
-ANY of these changed → MUST run steps 6-9:
+ANY of these changed → MUST run steps 7-10:
 - Templates in `resources/com/blockether/spel/templates/`
 - `src/com/blockether/spel/sci_env.clj`
 - `src/com/blockether/spel/gen_docs.clj`
