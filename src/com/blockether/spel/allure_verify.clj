@@ -9,6 +9,7 @@
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as reporter]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page])
   (:import
    [com.sun.net.httpserver HttpServer SimpleFileServer]
@@ -122,6 +123,7 @@
   (page/wait-for-load-state pg :networkidle)
   (page/screenshot pg {:path path}))
 
+#_{:clj-kondo/ignore [:unused-private-var]}
 (defn- scroll-and-screenshot!
   "Scroll the current page to scroll-y pixels and take a viewport screenshot.
    The url parameter is kept for API symmetry with screenshot-url!."
@@ -214,10 +216,25 @@
         s3-path     (.getAbsolutePath (io/file out "verify-3.png"))
         screenshots (try
                       (core/with-testing-page [pg]
-                        (screenshot-url! pg base-url s1-path)
-                        (scroll-and-screenshot! pg base-url 600 s2-path)
-                        (scroll-and-screenshot! pg base-url 1200 s3-path)
-                        [s1-path s2-path s3-path])
+                        (let [awesome-url (str base-url "awesome/")]
+                          (screenshot-url! pg awesome-url s1-path)
+                          ;; Scroll internal container to show test groups
+                          (page/evaluate pg "document.querySelector('.CfGgwYiF').scrollTop = 200")
+                          (page/wait-for-timeout pg 500)
+                          (page/screenshot pg {:path s2-path})
+                          ;; Expand the namespace group to show sub-groups
+                          (try
+                            (locator/click (page/locator pg "button[data-testid='tree-arrow']"))
+                            (page/wait-for-timeout pg 2000)
+                            (page/evaluate pg "document.querySelector('.CfGgwYiF').scrollTop = 300")
+                            (page/wait-for-timeout pg 500)
+                            (page/screenshot pg {:path s3-path})
+                            (catch Exception _
+                              ;; Fallback: just scroll down further
+                              (page/evaluate pg "document.querySelector('.CfGgwYiF').scrollTop = 600")
+                              (page/wait-for-timeout pg 500)
+                              (page/screenshot pg {:path s3-path})))
+                          [s1-path s2-path s3-path]))
                       (catch Exception e
                         (println (str "Warning: screenshots failed: " (.getMessage e)))
                         [])
