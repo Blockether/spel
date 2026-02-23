@@ -7,9 +7,7 @@ on:
     types: [requested]
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: allure-in-progress
@@ -18,7 +16,6 @@ concurrency:
 jobs:
   in-progress:
     runs-on: ubuntu-latest
-    environment: github-pages
 
     steps:
       - uses: actions/checkout@v4
@@ -92,10 +89,17 @@ jobs:
               {:index-file \"gh-pages-site/index.html\"
                :logo-file  \"logo.svg\"})"
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages-site
+      - name: Preserve PR reports from gh-pages
+        run: |
+          git fetch origin gh-pages --depth=1 || true
+          if git show gh-pages:pr/ >/dev/null 2>&1; then
+            git checkout gh-pages -- pr/
+            cp -r pr gh-pages-site/pr/
+          fi
 
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-site
+          keep_files: false

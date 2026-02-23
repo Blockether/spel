@@ -1,0 +1,33 @@
+name: Cleanup PR Report
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Remove PR report directory
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -d "pr/${PR_NUM}" ]; then
+            git rm -rf "pr/${PR_NUM}"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "cleanup: remove PR #${PR_NUM} report"
+            git push origin gh-pages
+            echo "Removed report for PR #${PR_NUM}"
+          else
+            echo "No report found for PR #${PR_NUM}, skipping"
+          fi
