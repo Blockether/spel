@@ -251,10 +251,10 @@
                 (core/close-page! page))
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
-                   (catch Exception _))
+                (catch Exception _))
               (let [t (doto (Thread. (fn []
                                        (try (core/close-context! ctx)
-                                            (catch Exception _))))
+                                         (catch Exception _))))
                         (.setDaemon true)
                         (.start))]
                 (.join t 5000))))))
@@ -329,21 +329,21 @@
                         {:record-video-dir  video-dir
                          :record-video-size video-size})
            ctx        (ensure! (core/new-context *browser* ctx-opts))
-           page       (core/new-page-from-context ctx)]
+           page       (core/new-page-from-context ctx)
+           vpath      (core/video-path page)]
        (try
          (binding [*page*            page
                    *browser-context* ctx
                    *browser-api*     (.request ^com.microsoft.playwright.BrowserContext ctx)
-                   allure/*page*     page]
+                   allure/*page*     page
+                   *video-path*      vpath]
            (f))
          (finally
-           (let [vpath (core/video-path page)]
-             (when (instance? com.microsoft.playwright.Page page)
-               (core/close-page! page))
-             (try (core/close-context! ctx) (catch Exception _))
-             ;; Attach video to Allure report if available
-             (when (and vpath (allure/reporter-active?))
-               (allure/attach-file "Video Recording" vpath "video/webm")))))))})
+           (when (instance? com.microsoft.playwright.Page page)
+             (core/close-page! page))
+           (try (core/close-context! ctx) (catch Exception _))
+           (when (and vpath (allure/reporter-active?))
+             (allure/attach-file "Video Recording" vpath "video/webm"))))))})
 
 (def with-video-page
   "Around hook: creates a page with video recording enabled (default opts)."
@@ -385,7 +385,7 @@
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
-                 (catch Exception _))
+              (catch Exception _))
                   ;; Close context → writes HAR via harExport.
                   ;; BrowserContextImpl.close() calls harExport with NO_TIMEOUT,
                   ;; which can hang indefinitely when tracing was active on the
@@ -394,7 +394,7 @@
                   ;; JVM exit and browser.close() from with-browser cleans up.
             (let [t (doto (Thread. (fn []
                                      (try (core/close-context! ctx)
-                                          (catch Exception _))))
+                                       (catch Exception _))))
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
@@ -523,10 +523,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                     (catch Exception _))
+                  (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                              (catch Exception _))))
+                                           (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000)))))
