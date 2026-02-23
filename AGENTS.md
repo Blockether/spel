@@ -33,7 +33,17 @@ Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect`
 | `sci_env.clj` | `cli_integration_test.clj` → `sci-eval-integration-test` block |
 | `daemon.clj` | `cli_integration_test.clj` |
 | `cli.clj` | `cli_test.clj` |
+| `native.clj` (new CLI command) | `test-cli.sh` — add section with `assert_jq` / `assert_contains` assertions |
+| `native.clj` (tool command, e.g. stitch/codegen) | `test-cli.sh` — at minimum `--help` smoke test |
 | Everything else | Corresponding `*_test.clj` (e.g. `page.clj` → `page_test.clj`) |
+### CLI bash regression (`test-cli.sh`)
+When adding a new CLI command or daemon action:
+- Add a new `section "Name (N)"` block in `test-cli.sh` before the SUMMARY section
+- Use `assert_jq`, `assert_jq_eq`, `assert_jq_contains` for `--json` output
+- Use `assert_contains` for plain text output (e.g. `--help`)
+- Register temp files in `TEMP_FILES+=("path")` for cleanup
+- Quote the binary: always `"$SPEL"`, never `$SPEL`
+- Tool commands (stitch, codegen, init-agents, ci-assemble, merge-reports, show-trace) MUST have at least a `--help` assertion
 
 ## Commands (via Makefile)
 
@@ -66,7 +76,7 @@ Run these in order. On ANY failure -> fix -> restart from step 1.
 6. `spel version && spel --help` — responds correctly
 7. `make test` — full suite: 0 failures. This runs TWO things:
    - `clojure -M:test` — Lazytest: **~1268 test cases** (if significantly fewer, you ran a subset — investigate)
-   - `./test-cli.sh` — CLI bash regression: **~164 assertions** across 21 sections (requires binary from step 5)
+   - `./test-cli.sh` — CLI bash regression: **~179 assertions** across 24 sections (requires binary from step 5)
    - Both summary lines MUST appear — report exact numbers from `Ran N test cases` and `Total: N`
 8. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 9. `git diff --check` — no conflict markers, no trailing whitespace
@@ -76,7 +86,7 @@ Run these in order. On ANY failure -> fix -> restart from step 1.
 ### Test count sanity check
 The full `make test` runs **two test suites** (as of 2026-02-23):
 - `clojure -M:test` — **~1268 lazytest cases**
-- `./test-cli.sh` — **~164 bash assertions** (requires `./target/spel` binary)
+- `./test-cli.sh` — **~179 bash assertions** (requires `./target/spel` binary)
 
 CI also runs a separate clojure.test suite (23 tests, 63 assertions) via the Allure Report workflow.
 CI runs `test-cli.sh` on Linux and macOS after native image build (not on Windows — bash script).

@@ -843,6 +843,117 @@ assert_jq_contains "headless reopen → snapshot" "$OUT" '.data.snapshot' '[ref=
 "$SPEL" close 2>/dev/null || true
 
 # =============================================================================
+# STITCH (5)
+# =============================================================================
+section "Stitch (5)"
+
+# Create two small test PNGs using the spel binary itself
+"$SPEL" open https://example.com >/dev/null 2>&1
+"$SPEL" set viewport 320 240 >/dev/null 2>&1
+STITCH_A="/tmp/test-stitch-a.png"
+STITCH_B="/tmp/test-stitch-b.png"
+STITCH_OUT="/tmp/test-stitched.png"
+STITCH_OVL="/tmp/test-stitched-ovl.png"
+TEMP_FILES+=("$STITCH_A" "$STITCH_B" "$STITCH_OUT" "$STITCH_OVL")
+"$SPEL" screenshot "$STITCH_A" >/dev/null 2>&1
+"$SPEL" screenshot "$STITCH_B" >/dev/null 2>&1
+"$SPEL" close >/dev/null 2>&1
+
+# stitch two images with -o flag
+OUT=$("$SPEL" stitch "$STITCH_A" "$STITCH_B" -o "$STITCH_OUT" 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ -f "$STITCH_OUT" ]]; then
+  pass "stitch -o → output file exists"
+else
+  fail "stitch -o → output file exists" "File not found: $STITCH_OUT"
+fi
+
+# stitch with --overlap flag
+OUT=$("$SPEL" stitch "$STITCH_A" "$STITCH_B" --overlap 20 -o "$STITCH_OVL" 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ -f "$STITCH_OVL" ]]; then
+  pass "stitch --overlap → output file exists"
+else
+  fail "stitch --overlap → output file exists" "File not found: $STITCH_OVL"
+fi
+
+# stitch with no -o flag → prints default path to stdout
+OUT=$("$SPEL" stitch "$STITCH_A" "$STITCH_B" 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+DEFAULT_STITCH=$(echo "$OUT" | grep -o '/tmp/spel-stitched-[0-9]*.png')
+if [[ -n "$DEFAULT_STITCH" && -f "$DEFAULT_STITCH" ]]; then
+  pass "stitch (no -o) → default output written"
+  TEMP_FILES+=("$DEFAULT_STITCH")
+else
+  fail "stitch (no -o) → default output written" "Expected /tmp/spel-stitched-*.png, got: $OUT"
+fi
+
+# stitch with non-existent file → should error
+OUT=$("$SPEL" stitch "$STITCH_A" /tmp/nonexistent-image.png -o /tmp/fail.png 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -qi "not found\|error"; then
+  pass "stitch non-existent file → error message"
+else
+  fail "stitch non-existent file → error message" "Expected error, got: $OUT"
+fi
+
+# stitch --help
+OUT=$("$SPEL" stitch --help 2>&1)
+assert_contains "stitch --help mentions stitch" "$OUT" "stitch"
+
+# =============================================================================
+# ANNOTATE & UNANNOTATE (4)
+# =============================================================================
+section "Annotate & Unannotate (4)"
+
+"$SPEL" open https://example.com >/dev/null 2>&1
+
+OUT=$("$SPEL" --json annotate 2>&1)
+assert_jq_gt "annotate → .data.annotated > 0" "$OUT" '.data.annotated' 0
+
+VIEWPORT_COUNT=$(echo "$OUT" | jq -r '.data.annotated' 2>/dev/null)
+OUT=$("$SPEL" --json annotate --full 2>&1)
+FULL_COUNT=$(echo "$OUT" | jq -r '.data.annotated' 2>/dev/null)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$FULL_COUNT" =~ ^[0-9]+$ ]] && [[ "$VIEWPORT_COUNT" =~ ^[0-9]+$ ]] && (( FULL_COUNT >= VIEWPORT_COUNT )); then
+  pass "annotate --full → count >= viewport-only count"
+else
+  fail "annotate --full → count >= viewport-only count" "full=$FULL_COUNT viewport=$VIEWPORT_COUNT"
+fi
+
+OUT=$("$SPEL" --json unannotate 2>&1)
+assert_jq "unannotate → .data.removed" "$OUT" '.data.removed == true'
+
+# unannotate again (idempotent)
+OUT=$("$SPEL" --json unannotate 2>&1)
+assert_jq "unannotate (idempotent) → .data.removed" "$OUT" '.data.removed == true'
+
+"$SPEL" close >/dev/null 2>&1
+
+# =============================================================================
+# TOOL COMMANDS (6)
+# =============================================================================
+section "Tool Commands (6)"
+
+OUT=$("$SPEL" codegen --help 2>&1)
+assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
+
+OUT=$("$SPEL" init-agents --help 2>&1)
+assert_contains "init-agents --help mentions scaffold" "$OUT" "scaffold"
+
+OUT=$("$SPEL" ci-assemble --help 2>&1)
+assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"
+
+OUT=$("$SPEL" merge-reports --help 2>&1)
+assert_contains "merge-reports --help mentions merge" "$OUT" "merge"
+
+OUT=$("$SPEL" show-trace --help 2>&1)
+assert_contains "show-trace --help mentions trace" "$OUT" "trace"
+
+OUT=$("$SPEL" stitch --help 2>&1)
+assert_contains "stitch --help mentions vertical" "$OUT" "vertically"
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
