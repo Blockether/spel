@@ -15,6 +15,7 @@
       --green-text: #1d7a22; --red: #d94040; --red-bg: rgba(217,64,64,0.05); --red-border: rgba(217,64,64,0.2);
       --red-text: #b33030; --code-bg: #eef0f4; --code-text: #5a6070;
       --yellow: #d4a017; --yellow-bg: rgba(255,193,7,0.06); --yellow-border: rgba(255,193,7,0.3);
+      --purple: #7c3aed; --purple-bg: rgba(124,58,237,0.06); --purple-border: rgba(124,58,237,0.2); --purple-text: #6d28d9;
       --shadow: 0 1px 2px rgba(0,0,0,0.04);
       --shadow-h: 0 3px 8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
     }
@@ -26,6 +27,7 @@
       --green-text: #4cd952; --red-bg: rgba(217,64,64,0.08); --red-border: rgba(217,64,64,0.25);
       --red-text: #f06060; --code-bg: #252d3d; --code-text: #9ba3b5;
       --yellow-bg: rgba(255,193,7,0.08); --yellow-border: rgba(255,193,7,0.35);
+      --purple-bg: rgba(124,58,237,0.08); --purple-border: rgba(124,58,237,0.25); --purple-text: #a78bfa;
       --shadow: 0 1px 2px rgba(0,0,0,0.2); --shadow-h: 0 4px 12px rgba(0,0,0,0.3);
     }
     body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
@@ -63,6 +65,8 @@
       cursor: pointer;
     }
     .card:hover { border-color: var(--border-hover); border-left-color: var(--green); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
+    .card.pr { border-left-color: var(--purple); }
+    .card.pr:hover { border-color: var(--purple-border); border-left-color: var(--purple); }
     .card.failed { border-left-color: var(--red); background: var(--red-bg); }
     .card.failed:hover { border-color: var(--red-border); border-left-color: var(--red); }
     .card.in-progress { border-left-color: var(--yellow); background: var(--yellow-bg); }
@@ -75,6 +79,7 @@
     .run-num { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); line-height: 1; }
     a.run-link { text-decoration: none; color: var(--text); transition: color 0.15s; }
     a.run-link:hover { color: var(--green); }
+    .card.pr a.run-link:hover { color: var(--purple); }
     .status-dot { flex-shrink: 0; font-size: 0.65rem; font-weight: 700; line-height: 1; }
     .status-pass { color: var(--green); }
     .status-fail { color: var(--red); }
@@ -104,8 +109,10 @@
     .pill-yellow { background: rgba(255,193,7,0.10); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
     .pill-blue { background: rgba(0,126,198,0.08); color: #006bb3; border-color: rgba(0,126,198,0.3); }
     .pill-red { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+    .pill-purple { background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple-border); }
     html.dark .pill-yellow { background: rgba(255,193,7,0.12); color: #ffd54f; border-color: rgba(255,193,7,0.35); }
     html.dark .pill-blue { background: rgba(0,126,198,0.12); color: #64b5f6; border-color: rgba(0,126,198,0.35); }
+    html.dark .pill-purple { background: rgba(124,58,237,0.12); color: #c4b5fd; border-color: rgba(124,58,237,0.35); }
     .pill-in-progress { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); animation: pulse 2s infinite; }
     html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -369,7 +376,8 @@
       var delay = Math.min(i, 9) * 0.04;
       var inProgress = b.status === 'in_progress';
       var failed = !inProgress && b.passed === false;
-      var cardClass = 'card' + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
+      var isPR = b.type === 'pr';
+      var cardClass = 'card' + (isPR ? ' pr' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
 
       var shaHtml = '';
       if (sha) {
@@ -408,20 +416,25 @@
         }
       }
 
+      var prBadge = isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '';
+      var runLabel = isPR ? '#' + b.pr_number : '#' + b.run;
+      var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
+
       var clickHandler = inProgress ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
         + '<div class="run">'
         + (runUrl
-          ? '<a href="' + runUrl + '" class="run-num run-link" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View CI pipeline">#' + b.run + '</a>'
-          : '<div class="run-num">#' + b.run + '</div>')
+          ? '<a href="' + runUrl + '" class="run-num run-link" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View CI pipeline">' + runLabel + '</a>'
+          : '<div class="run-num">' + runLabel + '</div>')
         + statusDot
         + '</div>'
         + '<div class="info"><div class="info-top">'
+        + prBadge
         + shaHtml
         + testBadge
         + versionBadge
         + '</div><p class="msg">' + (msg || 'No commit message') + '</p>'
-        + (author ? '<p class="author">by ' + author + '</p>' : '')
+        + authorLine
         + '</div>'
         + '<div class="meta">'
         + (date ? '<div class="meta-date">' + date + '</div>' : '')
@@ -441,26 +454,29 @@
       return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    fetch('builds.json')
-      .then(function(r) { return r.json(); })
-      .then(function(builds) {
-        var el = document.getElementById('builds');
-        if (!builds.length) { document.getElementById('empty').classList.add('show'); return; }
-        var html = '';
-        var lastGroup = '';
-        builds.forEach(function(b, i) {
-          if (b.timestamp) {
-            var group = dateLabel(b.timestamp);
-            if (group !== lastGroup) {
-              html += '<div class="date-group">' + group + '</div>';
-              lastGroup = group;
-            }
+    Promise.all([
+      fetch('builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; }),
+      fetch('pr-builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
+    ]).then(function(results) {
+      var builds = results[0].concat(results[1]).sort(function(a, b) {
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+      var el = document.getElementById('builds');
+      if (!builds.length) { document.getElementById('empty').classList.add('show'); return; }
+      var html = '';
+      var lastGroup = '';
+      builds.forEach(function(b, i) {
+        if (b.timestamp) {
+          var group = dateLabel(b.timestamp);
+          if (group !== lastGroup) {
+            html += '<div class="date-group">' + group + '</div>';
+            lastGroup = group;
           }
-          html += renderBuild(b, i);
-        });
-        el.innerHTML = html;
-      })
-      .catch(function() { document.getElementById('empty').classList.add('show'); });
+        }
+        html += renderBuild(b, i);
+      });
+      el.innerHTML = html;
+    }).catch(function() { document.getElementById('empty').classList.add('show'); });
   </script>
 </body>
 </html>
