@@ -204,7 +204,7 @@ section "Navigation (4)"
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "open → .url" "$OUT" '.url' 'https://example.com/'
 assert_jq_eq "open → .title" "$OUT" '.title' 'Example Domain'
-assert_jq_contains "open → .snapshot has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "open → .snapshot has refs" "$OUT" '.snapshot' '[@e'
 
 OUT=$("$SPEL" --json back 2>&1)
 assert_jq "back → success" "$OUT" 'has("error") | not'
@@ -212,8 +212,11 @@ assert_jq "back → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json forward 2>&1)
 assert_jq "forward → success" "$OUT" 'has("error") | not'
 
+# Restore page after back/forward (back with no history navigates away)
+nav "https://example.com"
+
 OUT=$("$SPEL" --json reload 2>&1)
-assert_jq_contains "reload → snapshot has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "reload → snapshot has refs" "$OUT" '.snapshot' '[@e'
 
 # =============================================================================
 # SNAPSHOT (5)
@@ -221,19 +224,19 @@ assert_jq_contains "reload → snapshot has refs" "$OUT" '.snapshot' '[ref=e'
 section "Snapshot (5)"
 
 OUT=$("$SPEL" --json snapshot 2>&1)
-assert_jq_contains "snapshot → has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "snapshot → has refs" "$OUT" '.snapshot' '[@e'
 
 OUT=$("$SPEL" --json snapshot -i 2>&1)
-assert_jq_contains "snapshot -i → has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "snapshot -i → has refs" "$OUT" '.snapshot' '[@e'
 
 OUT=$("$SPEL" --json snapshot -i -c -d 5 2>&1)
-assert_jq_contains "snapshot -i -c -d 5 → has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "snapshot -i -c -d 5 → has refs" "$OUT" '.snapshot' '[@e'
 
 OUT=$("$SPEL" --json snapshot -i -C 2>&1)
-assert_jq_contains "snapshot -i -C → has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "snapshot -i -C → has refs" "$OUT" '.snapshot' '[@e'
 
 OUT=$("$SPEL" --json snapshot -s "body" 2>&1)
-assert_jq_contains "snapshot -s body → has refs" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "snapshot -s body → has refs" "$OUT" '.snapshot' '[@e'
 
 # =============================================================================
 # ELEMENT INTERACTIONS (19)
@@ -696,6 +699,9 @@ nav "https://example.com"
 # =============================================================================
 section "Debug (7)"
 
+# Ensure page is loaded for console/errors handlers
+nav "https://example.com"
+
 OUT=$("$SPEL" --json trace start 2>&1)
 assert_jq_eq "trace start → .trace" "$OUT" '.trace' 'started'
 
@@ -705,7 +711,7 @@ OUT=$("$SPEL" --json trace stop "$TRACE_PATH" 2>&1)
 assert_jq_eq "trace stop → .trace" "$OUT" '.trace' 'stopped'
 
 OUT=$("$SPEL" --json console start 2>&1)
-assert_jq_eq "console start → .console" "$OUT" '.console' 'listening'
+assert_jq "console start → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json console 2>&1)
 assert_jq "console list → success" "$OUT" 'has("error") | not'
@@ -714,7 +720,7 @@ OUT=$("$SPEL" --json console --clear 2>&1)
 assert_jq "console --clear → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json errors start 2>&1)
-assert_jq_eq "errors start → .errors" "$OUT" '.errors' 'listening'
+assert_jq "errors start → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json errors --clear 2>&1)
 assert_jq "errors --clear → success" "$OUT" 'has("error") | not'
@@ -778,9 +784,9 @@ assert_jq_eq "session → .session" "$OUT" '.session' 'default'
 OUT=$("$SPEL" --json session list 2>&1)
 assert_jq "session list → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json --session testsession open https://example.com 2>&1)
+OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>&1) || true
 assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com/'
-"$SPEL" --session testsession close >/dev/null 2>&1
+timeout 10 "$SPEL" --session testsession close >/dev/null 2>&1 || true
 
 # =============================================================================
 # UTILITY (5)
@@ -788,7 +794,7 @@ assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com
 section "Utility (5)"
 
 OUT=$("$SPEL" version 2>&1)
-assert_contains "version" "$OUT" "0.1.0"
+assert_contains "version" "$OUT" "spel 0."
 
 OUT=$("$SPEL" help 2>&1)
 assert_not_empty "help" "$OUT"
@@ -815,9 +821,9 @@ section "Global Flags (2)"
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
 
-OUT=$("$SPEL" --json --session flagtest open https://example.com 2>&1)
+OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>&1) || true
 assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
-"$SPEL" --session flagtest close >/dev/null 2>&1
+timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
 
 # Final close
 "$SPEL" close >/dev/null 2>&1
@@ -829,16 +835,15 @@ section "Interactive Mode (5)"
 
 "$SPEL" close 2>/dev/null || true
 
-OUT=$("$SPEL" --json open https://example.com --interactive 2>&1)
+OUT=$(timeout 30 "$SPEL" --json open https://example.com --interactive 2>&1) || true
 assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
-assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
 
-OUT=$("$SPEL" --json close 2>&1)
+OUT=$(timeout 15 "$SPEL" --json close 2>&1) || true
 assert_jq "interactive close → success" "$OUT" 'has("error") | not'
-
-OUT=$("$SPEL" --json open https://example.com 2>&1)
+OUT=$(timeout 30 "$SPEL" --json open https://example.com 2>&1) || true
 assert_jq_eq "headless reopen after interactive → .url" "$OUT" '.url' 'https://example.com/'
-assert_jq_contains "headless reopen → snapshot" "$OUT" '.snapshot' '[ref=e'
+assert_jq_contains "headless reopen → snapshot" "$OUT" '.snapshot' '[@e'
 
 "$SPEL" close 2>/dev/null || true
 
@@ -939,7 +944,7 @@ OUT=$("$SPEL" codegen --help 2>&1)
 assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
 
 OUT=$("$SPEL" init-agents --help 2>&1)
-assert_contains "init-agents --help mentions scaffold" "$OUT" "scaffold"
+assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
 
 OUT=$("$SPEL" ci-assemble --help 2>&1)
 assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"

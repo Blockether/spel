@@ -2084,5 +2084,29 @@
     "allPublicMethods": true,
     "allPublicFields": true,
     "allPublicConstructors": true
+  },
+  {
+    "name": "javax.imageio.ImageIO",
+    "allDeclaredFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "java.awt.image.BufferedImage",
+    "allDeclaredFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "java.awt.Graphics",
+    "allDeclaredFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "java.awt.Graphics2D",
+    "allDeclaredFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
   }
 ]
