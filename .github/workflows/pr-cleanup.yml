@@ -17,17 +17,34 @@ jobs:
           ref: gh-pages
           fetch-depth: 1
 
-      - name: Remove PR report directory
+      - name: Remove PR report and metadata
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
         run: |
+          CHANGED=false
           if [ -d "pr/${PR_NUM}" ]; then
             git rm -rf "pr/${PR_NUM}"
+            CHANGED=true
+            echo "Removed report for PR #${PR_NUM}"
+          else
+            echo "No report found for PR #${PR_NUM}"
+          fi
+
+          if [ -f "pr-builds.json" ]; then
+            jq --argjson pr_num "${PR_NUM}" \
+               '[ .[] | select(.pr_number != $pr_num) ]' \
+               pr-builds.json > pr-builds-updated.json
+            mv pr-builds-updated.json pr-builds.json
+            git add pr-builds.json
+            CHANGED=true
+            echo "Removed PR #${PR_NUM} from pr-builds.json"
+          fi
+
+          if [ "$CHANGED" = "true" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "cleanup: remove PR #${PR_NUM} report"
             git push origin gh-pages
-            echo "Removed report for PR #${PR_NUM}"
           else
-            echo "No report found for PR #${PR_NUM}, skipping"
+            echo "Nothing to clean up for PR #${PR_NUM}"
           fi

@@ -112,18 +112,24 @@ jobs:
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
+      - name: Extract test counts from Allure results
+        id: test-counts
+        run: |
+          PASSED=$(grep -l '"status": *"passed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          FAILED=$(grep -l '"status": *"failed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          BROKEN=$(grep -l '"status": *"broken"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          SKIPPED=$(grep -l '"status": *"skipped"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
+          TOTAL=$((PASSED + FAILED + BROKEN + SKIPPED))
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "broken=$BROKEN" >> $GITHUB_OUTPUT
+          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "Test counts: passed=$PASSED, failed=$FAILED, broken=$BROKEN, skipped=$SKIPPED, total=$TOTAL"
+
       # =========================================================================
       # PR: Deploy report to /pr/<number>/ on gh-pages (live hosted link)
       # =========================================================================
-
-      - name: Deploy PR report to GitHub Pages
-        if: github.event_name == 'pull_request'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./allure-report
-          destination_dir: pr/${{ github.event.pull_request.number }}
-          keep_files: true
 
       - name: Comment PR with live report link
         if: github.event_name == 'pull_request'
@@ -137,6 +143,8 @@ jobs:
               `## 📊 Allure Report`,
               ``,
               `🔗 **[View Report](${reportUrl})**`,
+              ``,
+              `Live report: ${reportUrl}`,
               ``,
               `| Suite | Status |`,
               `|-------|--------|`,
@@ -170,6 +178,74 @@ jobs:
               });
             }
 
+      - name: Build PR deploy with metadata
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          TEST_PASSED: ${{ steps.tests-lazytest.outcome == 'success' && steps.tests-ct.outcome == 'success' }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TESTS_PASSED: ${{ steps.test-counts.outputs.passed }}
+          TESTS_FAILED: ${{ steps.test-counts.outputs.failed }}
+          TESTS_BROKEN: ${{ steps.test-counts.outputs.broken }}
+          TESTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
+          TESTS_TOTAL: ${{ steps.test-counts.outputs.total }}
+        run: |
+          mkdir -p /tmp/pr-deploy/pr/${PR_NUM}
+          cp -r allure-report/* /tmp/pr-deploy/pr/${PR_NUM}/
+
+          # Fetch current pr-builds.json from live site (fallback to empty array)
+          curl -sSf "${PAGES_BASE_URL}/pr-builds.json" -o /tmp/pr-builds-current.json 2>/dev/null || echo '[]' > /tmp/pr-builds-current.json
+
+          # Build new entry with jq (handles JSON escaping properly)
+          TIMESTAMP=$(date +%s)000
+          PASSED_BOOL=$([ "${TEST_PASSED}" = "true" ] && echo "true" || echo "false")
+
+          jq -n \
+            --arg run "pr/${PR_NUM}" \
+            --argjson pr_number "${PR_NUM}" \
+            --arg pr_title "${PR_TITLE}" \
+            --arg branch "${PR_BRANCH}" \
+            --arg sha "${PR_SHA}" \
+            --arg author "${PR_AUTHOR}" \
+            --argjson timestamp "${TIMESTAMP}" \
+            --argjson passed "${PASSED_BOOL}" \
+            --argjson tp "${TESTS_PASSED:-0}" \
+            --argjson tf "${TESTS_FAILED:-0}" \
+            --argjson tb "${TESTS_BROKEN:-0}" \
+            --argjson ts "${TESTS_SKIPPED:-0}" \
+            --argjson tt "${TESTS_TOTAL:-0}" \
+            --arg run_url "${RUN_URL}" \
+            --arg repo_url "${REPO_URL}" \
+            '{
+              run: $run, pr_number: $pr_number, pr_title: $pr_title,
+              branch: $branch, type: "pr", sha: $sha, message: $pr_title,
+              author: $author, timestamp: $timestamp, passed: $passed,
+              status: "completed",
+              tests: { passed: $tp, failed: $tf, broken: $tb, skipped: $ts, total: $tt },
+              run_url: $run_url, repo_url: $repo_url
+            }' > /tmp/pr-entry.json
+
+          # Remove old entry for same PR, prepend new, keep max 20
+          jq --slurpfile entry /tmp/pr-entry.json \
+             --argjson pr_num "${PR_NUM}" \
+             '[ $entry[0] ] + [ .[] | select(.pr_number != $pr_num) ] | .[0:20]' \
+             /tmp/pr-builds-current.json > /tmp/pr-deploy/pr-builds.json
+
+          echo "PR #${PR_NUM} deploy ready with $(jq length /tmp/pr-deploy/pr-builds.json) entries in pr-builds.json"
+
+      - name: Deploy PR report to GitHub Pages
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: /tmp/pr-deploy
+          keep_files: true
+
       # =========================================================================
       # Main: Full site deploy with per-build reports
       # =========================================================================
@@ -194,20 +270,21 @@ jobs:
                  :run-number   (System/getenv \"RUN_NUMBER\")})"
           fi
 
-      - name: Extract test counts from Allure results
-        id: test-counts
+      - name: Preserve PR reports from gh-pages
+        if: github.ref == 'refs/heads/main'
         run: |
-          PASSED=$(grep -l '"status": *"passed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
-          FAILED=$(grep -l '"status": *"failed"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
-          BROKEN=$(grep -l '"status": *"broken"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
-          SKIPPED=$(grep -l '"status": *"skipped"' allure-results/*-result.json 2>/dev/null | wc -l | tr -d ' ')
-          TOTAL=$((PASSED + FAILED + BROKEN + SKIPPED))
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          echo "broken=$BROKEN" >> $GITHUB_OUTPUT
-          echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
-          echo "total=$TOTAL" >> $GITHUB_OUTPUT
-          echo "Test counts: passed=$PASSED, failed=$FAILED, broken=$BROKEN, skipped=$SKIPPED, total=$TOTAL"
+          git fetch origin gh-pages --depth=1 || true
+          mkdir -p gh-pages-site
+          if git ls-tree --name-only origin/gh-pages pr/ >/dev/null 2>&1; then
+            git checkout origin/gh-pages -- pr/
+            cp -r pr gh-pages-site/pr/
+            rm -rf pr
+            echo "Preserved $(ls -1d gh-pages-site/pr/*/ 2>/dev/null | wc -l) PR report(s)"
+          fi
+          if git show origin/gh-pages:pr-builds.json >/dev/null 2>&1; then
+            git show origin/gh-pages:pr-builds.json > gh-pages-site/pr-builds.json
+            echo "Preserved pr-builds.json"
+          fi
 
       - name: Assemble site with per-build reports
         if: github.ref == 'refs/heads/main'
@@ -313,19 +390,9 @@ jobs:
           path: gh-pages-site
           key: allure-site-${{ github.run_number }}
 
-      - name: Preserve PR reports from gh-pages
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git fetch origin gh-pages --depth=1 || true
-          if git show gh-pages:pr/ >/dev/null 2>&1; then
-            git checkout gh-pages -- pr/
-            cp -r pr gh-pages-site/pr/
-            echo "Preserved $(ls -1d gh-pages-site/pr/*/ 2>/dev/null | wc -l) PR report(s)"
-          fi
-
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./gh-pages-site
