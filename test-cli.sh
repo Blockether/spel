@@ -205,14 +205,14 @@ OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "open → .url" "$OUT" '.url' 'https://example.com/'
 assert_jq_eq "open → .title" "$OUT" '.title' 'Example Domain'
 assert_jq_contains "open → .snapshot has refs" "$OUT" '.snapshot' '[@e'
-
+# Navigate to a second URL so back/forward have history
+"$SPEL" open https://www.iana.org/help/example-domains >/dev/null 2>&1
 OUT=$("$SPEL" --json back 2>&1)
 assert_jq "back → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json forward 2>&1)
 assert_jq "forward → success" "$OUT" 'has("error") | not'
-
-# Restore page after back/forward (back with no history navigates away)
+# Restore page after back/forward
 nav "https://example.com"
 
 OUT=$("$SPEL" --json reload 2>&1)
@@ -387,8 +387,8 @@ assert_jq_eq "get html @e1 → .html" "$OUT" '.html' 'Example Domain'
 OUT=$("$SPEL" --json get value @e1 2>&1)
 assert_jq "get value @e1 → expected failure" "$OUT" 'has("error")'
 
-OUT=$("$SPEL" --json get attr @e2 href 2>&1)
-assert_jq_contains "get attr @e2 href → .value has iana" "$OUT" '.value' 'iana.org'
+OUT=$("$SPEL" --json get attr @e3 href 2>&1)
+assert_jq_contains "get attr @e3 href → .value has iana" "$OUT" '.value' 'iana.org'
 
 OUT=$("$SPEL" --json get url 2>&1)
 assert_jq_eq "get url → .url" "$OUT" '.url' 'https://example.com/'
@@ -784,7 +784,7 @@ assert_jq_eq "session → .session" "$OUT" '.session' 'default'
 OUT=$("$SPEL" --json session list 2>&1)
 assert_jq "session list → success" "$OUT" 'has("error") | not'
 
-OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>&1) || true
+OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session testsession close >/dev/null 2>&1 || true
 
@@ -821,7 +821,7 @@ section "Global Flags (2)"
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
 
-OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>&1) || true
+OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
 
@@ -834,8 +834,14 @@ timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
 section "Interactive Mode (5)"
 
 "$SPEL" close 2>/dev/null || true
+# --interactive launches headed browser; CI Linux has no display server.
+# Use xvfb-run to provide a virtual framebuffer when needed.
+HEADED_CMD=("$SPEL")
+if [[ "$(uname)" != "Darwin" ]] && [[ -z "${DISPLAY:-}" ]] && command -v xvfb-run >/dev/null 2>&1; then
+  HEADED_CMD=(xvfb-run "$SPEL")
+fi
 
-OUT=$(timeout 30 "$SPEL" --json open https://example.com --interactive 2>&1) || true
+OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.com --interactive 2>/dev/null) || true
 assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
 assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
 
