@@ -916,6 +916,22 @@
       "  --timeout <ms>               Action timeout in ms"
       "  --user-data-dir <dir>        Custom browser user data directory"])
 
+   "stitch"
+   (str/join \newline
+     ["stitch - Stitch multiple screenshots vertically into one image"
+      ""
+      "Usage:"
+      "  spel stitch <img1> <img2> [img3...] [-o output.png]"
+      ""
+      "Flags:"
+      "  -o, --output   Output file path (default: /tmp/spel-stitched-<timestamp>.png)"
+      "  --overlap <N>  Pixels to trim from top of each image after first (default: 0)"
+      ""
+      "Examples:"
+      "  spel stitch s1.png s2.png s3.png"
+      "  spel stitch s1.png s2.png -o full.png"
+      "  spel stitch s1.png s2.png --overlap 50"])
+
    "show-trace"
    (str/join \newline
      ["show-trace - Open Playwright Trace Viewer"
@@ -978,6 +994,7 @@
      ""
      "Capture:"
      "  screenshot              Take screenshot"
+     "  stitch                  Stitch multiple screenshots vertically"
      "  annotate                Inject annotation overlays"
      "  unannotate              Remove annotation overlays"
      "  pdf                     Save page as PDF"

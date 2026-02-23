@@ -27,7 +27,8 @@
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.driver :as driver]
    [com.blockether.spel.init-agents :as init-agents]
-   [com.blockether.spel.sci-env :as sci-env])
+   [com.blockether.spel.sci-env :as sci-env]
+   [com.blockether.spel.stitch :as stitch])
   (:gen-class))
 
 ;; =============================================================================
@@ -77,6 +78,7 @@
   (println "  snapshot -i -C            Interactive + cursor elements")
   (println "  snapshot -s \"#main\"       Scoped to selector")
   (println "  screenshot [path]         Take screenshot (-f full page)")
+  (println "  stitch <imgs...>          Stitch screenshots vertically (-o, --overlap)")
   (println "  annotate                  Show annotation overlays (visible elements)")
   (println "    -s, --scope <sel|@ref>  Scope annotations to a subtree")
   (println "    --no-badges             Hide ref labels")
@@ -707,6 +709,50 @@
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
               (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+
+      ;; Stitch — local image stitching, no daemon needed
+      (= "stitch" first-arg)
+      (let [rest-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} rest-args)
+          (println (get cli/command-help "stitch"))
+          (let [;; Parse -o/--output flag
+                args-v     (vec rest-args)
+                out-idx    (long (max (long (.indexOf ^java.util.List args-v "-o"))
+                                   (long (.indexOf ^java.util.List args-v "--output"))))
+                out-path   (when (>= out-idx 0) (nth args-v (inc out-idx) nil))
+                ;; Parse --overlap flag
+                ovl-idx    (long (.indexOf ^java.util.List args-v "--overlap"))
+                overlap-px (when (>= ovl-idx 0)
+                             (try (Long/parseLong (nth args-v (inc ovl-idx)))
+                                  (catch Exception _ 0)))
+                ;; Collect input paths (everything that's not a flag or flag value)
+                skip-idxs  (cond-> #{}
+                             (>= out-idx 0)   (conj out-idx (inc out-idx))
+                             (>= ovl-idx 0)   (conj ovl-idx (inc ovl-idx)))
+                inputs     (vec (keep-indexed (fn [i v]
+                                                (when-not (or (skip-idxs i)
+                                                            (str/starts-with? v "-"))
+                                                  v))
+                                  args-v))
+                output     (or out-path
+                             (str "/tmp/spel-stitched-" (System/currentTimeMillis) ".png"))]
+            (cond
+              (< (count inputs) 2)
+              (do (binding [*out* *err*]
+                    (println "Error: stitch requires at least 2 input images")
+                    (println "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]"))
+                  (System/exit 1))
+
+              (some #(not (.exists (java.io.File. ^String %))) inputs)
+              (let [missing (first (filter #(not (.exists (java.io.File. ^String %))) inputs))]
+                (binding [*out* *err*]
+                  (println (str "Error: file not found: " missing)))
+                (System/exit 1))
+
+              :else
+              (do (stitch/stitch-vertical-overlap inputs output
+                    {:overlap-px (or overlap-px 0)})
+                  (println output))))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
