@@ -1042,7 +1042,7 @@
                         "eval" "wait" "tab" "get" "is" "count" "bbox" "highlight"
                         "find" "set" "cookies" "storage" "network" "frame" "dialog"
                         "trace" "console" "errors" "state" "session" "connect"
-                        "close" "install" "inspector" "show-trace"]]
+                        "close" "install" "inspector" "show-trace" "stitch"]]
         (expect (string? (get sut/command-help cmd-name))))))
 
   (describe "top-level-help"
@@ -1595,3 +1595,17 @@
   (it "returns empty dirs for no args"
     (let [{:keys [dirs]} (#'com.blockether.spel.native/parse-merge-reports-args [])]
       (expect (empty? dirs)))))
+
+;; =============================================================================
+;; Stitch CLI Tests
+;; =============================================================================
+
+(defdescribe stitch-test
+  "Tests for the stitch CLI command"
+
+  (describe "command-help entry"
+    (it "has help text for stitch"
+      (expect (string? (get sut/command-help "stitch"))))
+
+    (it "help text mentions overlap"
+      (expect (.contains ^String (get sut/command-help "stitch") "overlap")))))

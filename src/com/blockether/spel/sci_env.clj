@@ -41,6 +41,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as roles]
    [com.blockether.spel.snapshot :as snapshot]
+   [com.blockether.spel.stitch :as stitch]
    [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright
@@ -1743,7 +1744,16 @@
                   ['as-url        io/as-url]
                   ['resource      io/resource]
                   ['make-parents  io/make-parents]
-                  ['delete-file   io/delete-file]])]
+                  ['delete-file   io/delete-file]])
+
+        ;; =================================================================
+        ;; stitch — Vertical image stitching
+        ;; =================================================================
+        stitch-ns  (sci/create-ns 'stitch nil)
+        stitch-map (make-ns-map stitch-ns
+                     [['stitch-vertical         stitch/stitch-vertical]
+                      ['stitch-vertical-overlap  stitch/stitch-vertical-overlap]
+                      ['read-image              stitch/read-image]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1771,7 +1781,10 @@
                     'com.blockether.spel.markdown        md-map
                      ;; File I/O namespaces
                     'clojure.java.io                     io-map
-                    'io                                  io-map}
+                    'io                                  io-map
+                     ;; Image stitching
+                    'stitch                              stitch-map
+                    'com.blockether.spel.stitch          stitch-map}
        :bindings   {'slurp slurp
                     'spit  spit}
        :classes    {'Page              Page

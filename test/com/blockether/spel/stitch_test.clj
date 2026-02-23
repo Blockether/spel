@@ -1,12 +1,13 @@
 (ns com.blockether.spel.stitch-test
   "Tests for the vertical image stitching utility."
   (:require
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.stitch :as sut])
   (:import
    [java.awt Color Graphics2D]
    [java.awt.image BufferedImage]
    [java.io File]
+   [java.nio.file Files]
    [javax.imageio ImageIO]))
 
 ;; =============================================================================
@@ -53,6 +54,11 @@
           (let [[w h] (read-dimensions out)]
             (expect (= 100 w))
             (expect (= 150 h)))
+          (allure/attach-file "input-1" f1 "image/png")
+          (allure/attach-file "input-2" f2 "image/png")
+          (allure/attach-file "input-3" f3 "image/png")
+          (allure/attach-bytes "stitched-output"
+            (Files/readAllBytes (.toPath (File. out))) "image/png")
           (finally
             (cleanup f1 f2 f3 out)))))
 
@@ -65,6 +71,10 @@
           (let [[w h] (read-dimensions out)]
             (expect (= 120 w))
             (expect (= 60 h)))
+          (allure/attach-file "input-1" f1 "image/png")
+          (allure/attach-file "input-2" f2 "image/png")
+          (allure/attach-bytes "stitched-output"
+            (Files/readAllBytes (.toPath (File. out))) "image/png")
           (finally
             (cleanup f1 f2 out)))))))
 
@@ -81,6 +91,10 @@
           (let [[w h] (read-dimensions out)]
             (expect (= 100 w))
             (expect (= 110 h)))
+          (allure/attach-file "input-1" f1 "image/png")
+          (allure/attach-file "input-2" f2 "image/png")
+          (allure/attach-bytes "stitched-output"
+            (Files/readAllBytes (.toPath (File. out))) "image/png")
           (finally
             (cleanup f1 f2 out)))))
 
@@ -95,6 +109,11 @@
           (let [[w h] (read-dimensions out)]
             (expect (= 100 w))
             (expect (= 130 h)))
+          (allure/attach-file "input-1" f1 "image/png")
+          (allure/attach-file "input-2" f2 "image/png")
+          (allure/attach-file "input-3" f3 "image/png")
+          (allure/attach-bytes "stitched-output"
+            (Files/readAllBytes (.toPath (File. out))) "image/png")
           (finally
             (cleanup f1 f2 f3 out)))))))
 
