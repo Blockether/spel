@@ -111,6 +111,18 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? annotate/save!)"))))))
 
+  (describe "stitch namespace"
+    (it "has stitch-vertical function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? stitch/stitch-vertical)")))))
+
+    (it "has stitch-vertical-overlap function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? stitch/stitch-vertical-overlap)")))))
+
+    (it "has read-image function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? stitch/read-image)"))))))
   (describe "page namespace (raw Page-arg functions)"
     (it "has navigate function"
       (let [ctx (sut/create-sci-ctx)]
