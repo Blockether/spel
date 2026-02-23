@@ -336,14 +336,13 @@
                    *browser-context* ctx
                    *browser-api*     (.request ^com.microsoft.playwright.BrowserContext ctx)
                    allure/*page*     page
+                   allure/*video-path* vpath
                    *video-path*      vpath]
            (f))
          (finally
            (when (instance? com.microsoft.playwright.Page page)
              (core/close-page! page))
-           (try (core/close-context! ctx) (catch Exception _))
-           (when (and vpath (allure/reporter-active?))
-             (allure/attach-file "Video Recording" vpath "video/webm"))))))})
+            (try (core/close-context! ctx) (catch Exception _))))))})
 
 (def with-video-page
   "Around hook: creates a page with video recording enabled (default opts)."
