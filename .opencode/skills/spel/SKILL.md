@@ -47,7 +47,7 @@ In `--eval` mode, functions live in the `spel/` namespace with **different names
 
 The SCI eval environment (`--eval` mode) runs in a sandbox with registered namespaces and classes.
 ### ✅ Available in SCI
-- All `spel/`, `snapshot/`, `annotate/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
+ All `spel/`, `snapshot/`, `annotate/`, `stitch/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
 - `clojure.core`, `clojure.string`, `clojure.set`, `clojure.walk`, `clojure.edn`, `clojure.repl`, `clojure.template`
 - `clojure.java.io` (aliased as `io`): `io/file`, `io/reader`, `io/writer`, `io/input-stream`, `io/output-stream`, `io/copy`, `io/as-file`, `io/as-url`, `io/resource`, `io/make-parents`, `io/delete-file`
 - `slurp`, `spit` — full file read/write
@@ -59,6 +59,7 @@ The SCI eval environment (`--eval` mode) runs in a sandbox with registered names
 - Method calls on registered classes (`:allow :all`)
 - `role/` namespace for AriaRole constants (e.g., `role/button`, `role/link`)
 - `markdown/` namespace for markdown rendering
+ `stitch/` namespace for vertical image stitching (`stitch/stitch-vertical`, `stitch/stitch-vertical-overlap`, `stitch/read-image`)
 ### File I/O Examples in `--eval`
 ```clojure
 ;; Read a file
@@ -1933,6 +1934,36 @@ spel pdf page.pdf                     # Save as PDF (Chromium only)
 spel highlight @e1                    # Highlight element visually
 ```
 
+
+### Image Stitching
+
+Stitch multiple screenshots vertically into one image. Useful for capturing full-page content from virtual-scroll pages.
+
+```bash
+# Basic stitch - combine screenshots vertically
+spel stitch s1.png s2.png s3.png
+
+# Custom output path
+spel stitch s1.png s2.png -o full-page.png
+
+# Overlap trimming - remove N pixels from top of each subsequent image
+# (removes duplicate content from overlapping scroll captures)
+spel stitch s1.png s2.png s3.png --overlap 50 -o full.png
+```
+
+Also available in SCI `--eval` mode:
+
+```clojure
+;; Stitch images programmatically
+(stitch/stitch-vertical ["s1.png" "s2.png" "s3.png"] "output.png")
+
+;; With overlap trimming (removes 50px from top of each image after first)
+(stitch/stitch-vertical-overlap ["s1.png" "s2.png"] "output.png" {:overlap-px 50})
+
+;; Read an image as BufferedImage for inspection
+(stitch/read-image "screenshot.png")
+```
+
 ### Network Exploration
 
 ```bash
@@ -2061,7 +2092,7 @@ spel init-agents --loop=vscode        # VS Code / Copilot
 | File | Purpose |
 |------|---------|
 | `test-e2e/specs/README.md` | Test plans directory README (colocated with tests) |
-| `test-e2e/<ns>/e2e/seed_test.clj` | Seed test with `com.blockether.spel` replaced by `--ns` value (or directory name) |
+| `test-e2e/<ns>/e2e/seed_test.clj` | Seed test with `{{ns}}` replaced by `--ns` value (or directory name) |
 
 ### Agent Workflow
 
@@ -2079,118 +2110,11 @@ Three subagents work together in a plan → generate → heal loop:
 
 ### Template System
 
-Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `com.blockether.spel` placeholders as Clojure code. The `process-template` function replaces `com.blockether.spel` with the `--ns` value (or falls back to the consuming project's directory name).
+Templates use `.clj.template` extension (not `.clj`) to avoid clojure-lsp parsing `{{ns}}` placeholders as Clojure code. The `process-template` function replaces `{{ns}}` with the `--ns` value (or falls back to the consuming project's directory name).
 
 ---
 
-## Testing Conventions
-
-- Framework: **`spel.allure`** (`defdescribe`, `describe`, `it`, `expect`) — NOT `lazytest.core`
-- Fixtures: `:context` with shared `around` hooks from `com.blockether.spel.test-fixtures`
-- Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
-- Integration tests: Live against `example.com`
-
-### Running Tests (Lazytest CLI)
-
-```bash
-# Run entire test suite
-clojure -M:test
-
-# Run a single namespace
-clojure -M:test -n com.blockether.spel.core-test
-
-# Run multiple namespaces
-clojure -M:test -n com.blockether.spel.core-test -n com.blockether.spel.page-test
-
-# Run a single test var (MUST be fully-qualified ns/var)
-clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
-
-# Run multiple vars
-clojure -M:test -v com.blockether.spel.options-test/launch-options-test \
-                -v com.blockether.spel.options-test/context-options-test
-
-# Run with metadata filter (include/exclude)
-clojure -M:test -i :smoke          # only tests tagged ^:smoke
-clojure -M:test -e :slow           # exclude tests tagged ^:slow
-
-# Run with Allure reporter
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-
-# Watch mode (re-runs on file changes)
-clojure -M:test --watch
-
-# Run tests from a specific directory
-clojure -M:test -d test/com/blockether/spel
-```
-
-**IMPORTANT**: The `-v`/`--var` flag requires **fully-qualified symbols** (`namespace/var-name`), not bare var names. Using a bare name will throw `IllegalArgumentException: no conversion to symbol`.
-
-### Test Fixtures
-
-The project provides shared `around` hooks in `com.blockether.spel.test-fixtures`:
-
-| Fixture | Binds | Scope |
-|---------|-------|-------|
-| `with-playwright` | `*pw*` | Shared Playwright instance |
-| `with-browser` | `*browser*` | Shared headless Chromium browser |
-| `with-traced-page` | `*page*` | **Default.** Fresh page per `it` block with tracing/HAR always enabled (auto-cleanup) |
-| `with-page` | `*page*` | Fresh page per `it` block (auto-cleanup, tracing only when Allure is active) |
-| `with-traced-page-opts` | `*page*` | Like `with-traced-page` but accepts context-opts map |
-| `with-page-opts` | `*page*` | Like `with-page` but accepts context-opts map |
-| `with-test-server` | `*test-server-url*` | Local HTTP test server |
-
-**Always use `with-traced-page` as the default** — it enables Playwright tracing and HAR capture on every test run, so traces are always available for debugging. Use `with-page` only if you explicitly want tracing disabled outside Allure.
-
-Use `{:context [with-playwright with-browser with-traced-page]}` on `describe` blocks. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
-
-#### Custom Context Options
-
-To pass `Browser$NewContextOptions` (viewport, locale, color-scheme, storage-state, user-agent, etc.) use `with-page-opts` or `with-traced-page-opts`:
-
-```clojure
-;; Mobile viewport with French locale
-(describe "mobile view"
-  {:context [with-playwright with-browser
-             (with-traced-page-opts {:viewport {:width 375 :height 812}
-                                     :locale "fr-FR"})]}
-  (it "renders mobile layout"
-    (page/navigate *page* "https://example.com")
-    (expect (= "fr-FR" (page/evaluate *page* "navigator.language")))))
-
-;; Load saved auth state
-(describe "authenticated tests"
-  {:context [with-playwright with-browser
-             (with-page-opts {:storage-state "auth.json"})]}
-  (it "is logged in"
-    (page/navigate *page* "https://app.example.com/dashboard")
-    (expect (nil? (assert/has-url (assert/assert-that *page*) "dashboard")))))
-```
-
-All `*browser-context*` and `*browser-api*` bindings work the same as with the default fixtures.
-
-### Test Example
-
-```clojure
-(ns my-app.test
-  (:require
-   [com.blockether.spel.assertions :as assert]
-   [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.roles :as role]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
-
-(defdescribe my-test
-  (describe "example.com"
-    {:context [with-playwright with-browser with-traced-page]}
-
-    (it "navigates and asserts"
-      (page/navigate *page* "https://example.com")
-      (expect (= "Example Domain" (page/title *page*)))
-      (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Example Domain"))))))
-```
-
+{{testing-conventions}}
 
 ---
 
@@ -2247,6 +2171,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `snapshot -i -C` | Interactive + cursor elements |
 | `snapshot -s \"#main\"` | Scoped to selector |
 | `screenshot [path]` | Take screenshot (-f full page) |
+| `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
 | `annotate` | Show annotation overlays (visible elements) |
 | `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |
 | `--no-badges` | Hide ref labels |

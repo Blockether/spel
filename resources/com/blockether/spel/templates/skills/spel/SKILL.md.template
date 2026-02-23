@@ -47,7 +47,7 @@ In `--eval` mode, functions live in the `spel/` namespace with **different names
 
 The SCI eval environment (`--eval` mode) runs in a sandbox with registered namespaces and classes.
 ### ✅ Available in SCI
-- All `spel/`, `snapshot/`, `annotate/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
+ All `spel/`, `snapshot/`, `annotate/`, `stitch/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
 - `clojure.core`, `clojure.string`, `clojure.set`, `clojure.walk`, `clojure.edn`, `clojure.repl`, `clojure.template`
 - `clojure.java.io` (aliased as `io`): `io/file`, `io/reader`, `io/writer`, `io/input-stream`, `io/output-stream`, `io/copy`, `io/as-file`, `io/as-url`, `io/resource`, `io/make-parents`, `io/delete-file`
 - `slurp`, `spit` — full file read/write
@@ -59,6 +59,7 @@ The SCI eval environment (`--eval` mode) runs in a sandbox with registered names
 - Method calls on registered classes (`:allow :all`)
 - `role/` namespace for AriaRole constants (e.g., `role/button`, `role/link`)
 - `markdown/` namespace for markdown rendering
+ `stitch/` namespace for vertical image stitching (`stitch/stitch-vertical`, `stitch/stitch-vertical-overlap`, `stitch/read-image`)
 ### File I/O Examples in `--eval`
 ```clojure
 ;; Read a file
@@ -1369,6 +1370,36 @@ spel screenshot shot.png              # Save to file
 spel screenshot -f full.png           # Full page screenshot
 spel pdf page.pdf                     # Save as PDF (Chromium only)
 spel highlight @e1                    # Highlight element visually
+```
+
+
+### Image Stitching
+
+Stitch multiple screenshots vertically into one image. Useful for capturing full-page content from virtual-scroll pages.
+
+```bash
+# Basic stitch - combine screenshots vertically
+spel stitch s1.png s2.png s3.png
+
+# Custom output path
+spel stitch s1.png s2.png -o full-page.png
+
+# Overlap trimming - remove N pixels from top of each subsequent image
+# (removes duplicate content from overlapping scroll captures)
+spel stitch s1.png s2.png s3.png --overlap 50 -o full.png
+```
+
+Also available in SCI `--eval` mode:
+
+```clojure
+;; Stitch images programmatically
+(stitch/stitch-vertical ["s1.png" "s2.png" "s3.png"] "output.png")
+
+;; With overlap trimming (removes 50px from top of each image after first)
+(stitch/stitch-vertical-overlap ["s1.png" "s2.png"] "output.png" {:overlap-px 50})
+
+;; Read an image as BufferedImage for inspection
+(stitch/read-image "screenshot.png")
 ```
 
 ### Network Exploration
