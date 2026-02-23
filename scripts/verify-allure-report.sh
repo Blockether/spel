@@ -63,18 +63,17 @@ if ! curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" | grep -q 
 fi
 echo "Server running on http://localhost:$PORT (pid $SERVER_PID)"
 
-# 5. Screenshot with spel
+# 5. Screenshot with spel — overview works, detail routes need wait
 REPORT_URL="http://localhost:${PORT}/"
 SS_OVERVIEW="/tmp/allure-pr${PR_NUMBER}-overview.png"
 SS_RESULTS="/tmp/allure-pr${PR_NUMBER}-results.png"
-SS_AWESOME="/tmp/allure-pr${PR_NUMBER}-awesome.png"
 
 echo "Taking screenshots..."
-spel open "$REPORT_URL" --device :desktop-1920 --screenshot "$SS_OVERVIEW" --timeout 12000 2>/dev/null || true
+# Overview — works reliably (uses widgets/summary.json)
+spel open "$REPORT_URL" --device :desktop-1920 --screenshot "$SS_OVERVIEW" --timeout 15000 2>/dev/null || true
 sleep 2
-spel open "${REPORT_URL}#results" --device :desktop-1920 --screenshot "$SS_RESULTS" --timeout 12000 2>/dev/null || true
-sleep 2
-spel open "${REPORT_URL}#awesome" --device :desktop-1920 --screenshot "$SS_AWESOME" --timeout 12000 2>/dev/null || true
+# Results page — wait for test list to load (may show 404 if data format mismatch)
+spel open "${REPORT_URL}#results" --device :desktop-1920 --screenshot "$SS_RESULTS" --timeout 15000 2>/dev/null || true
 
 # 6. Count test results from artifact data
 PASSED=0
@@ -101,20 +100,53 @@ TOTAL=$((PASSED + FAILED + BROKEN))
 
 echo "Test counts: passed=$PASSED failed=$FAILED broken=$BROKEN total=$TOTAL"
 
-# 7. Generate HTML report
+# 7. Generate HTML report with embedded test list from JSON data
 HTML_FILE="/tmp/allure-pr${PR_NUMBER}-report.html"
 PDF_FILE="/tmp/allure-pr${PR_NUMBER}-report.pdf"
+
+# Build test results table from individual JSON files
+TEST_ROWS=$(python3 - <<'PYEOF'
+import json, glob, sys, os
+
+results_dir = os.environ.get('RESULTS_DIR', '')
+files = sorted(glob.glob(f'{results_dir}/data/test-results/*.json'))
+rows = []
+for f in files:
+    try:
+        d = json.load(open(f))
+        name = d.get('name', d.get('testCaseName', '?'))
+        status = d.get('status', '?')
+        color = {'passed': '#2d7a2d', 'failed': '#c0392b', 'broken': '#e67e22', 'skipped': '#888'}.get(status, '#333')
+        rows.append(f'<tr><td style="color:{color};font-weight:bold">{status}</td><td>{name}</td></tr>')
+    except: pass
+print(''.join(rows) if rows else '<tr><td colspan="2">No test results found</td></tr>')
+PYEOF
+)
+export RESULTS_DIR="$REPORT_DIR"
+TEST_ROWS=$(python3 -c "
+import json, glob, os
+results_dir = '$REPORT_DIR'
+files = sorted(glob.glob(f'{results_dir}/data/test-results/*.json'))
+rows = []
+for f in files:
+    try:
+        d = json.load(open(f))
+        name = d.get('name', '?')
+        status = d.get('status', '?')
+        color = {'passed': '#2d7a2d', 'failed': '#c0392b', 'broken': '#e67e22', 'skipped': '#888'}.get(status, '#333')
+        rows.append(f'<tr><td style=\"color:{color};font-weight:bold\">{status}</td><td>{name}</td></tr>')
+    except: pass
+print(''.join(rows) if rows else '<tr><td colspan=\"2\">No test results found</td></tr>')
+" 2>/dev/null || echo '<tr><td colspan="2">Could not read test results</td></tr>')
 
 # Embed screenshots as base64
 b64_overview=""
 b64_results=""
-b64_awesome=""
 [ -f "$SS_OVERVIEW" ] && b64_overview=$(base64 -w0 "$SS_OVERVIEW")
 [ -f "$SS_RESULTS"  ] && b64_results=$(base64 -w0 "$SS_RESULTS")
-[ -f "$SS_AWESOME"  ] && b64_awesome=$(base64 -w0 "$SS_AWESOME")
 
 STATUS_COLOR="green"
-[ "$FAILED" -gt 0 ] || [ "$BROKEN" -gt 0 ] && STATUS_COLOR="red"
+{ [ "$FAILED" -gt 0 ] || [ "$BROKEN" -gt 0 ]; } && STATUS_COLOR="red"
 
 cat > "$HTML_FILE" <<HTMLEOF
 <!DOCTYPE html>
@@ -123,37 +155,40 @@ cat > "$HTML_FILE" <<HTMLEOF
   <meta charset="utf-8">
   <title>Allure Report Verification — PR #${PR_NUMBER}</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-    h1 { color: #333; }
-    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-    td, th { border: 1px solid #ddd; padding: 8px 12px; }
-    th { background: #f5f5f5; }
-    .status { color: ${STATUS_COLOR}; font-weight: bold; }
-    img { max-width: 100%; margin: 20px 0; border: 1px solid #ddd; }
-    h2 { margin-top: 40px; color: #555; }
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; color: #333; }
+    h1, h2 { color: #222; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    td, th { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; font-weight: bold; }
+    .stat { color: ${STATUS_COLOR}; font-weight: bold; font-size: 1.1em; }
+    img { max-width: 100%; margin: 16px 0; border: 1px solid #ccc; border-radius: 4px; }
+    h2 { margin-top: 36px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
   </style>
 </head>
 <body>
   <h1>Allure Report Verification — PR #${PR_NUMBER}</h1>
+
   <table>
     <tr><th>Repository</th><td>${REPO}</td></tr>
-    <tr><th>PR</th><td>#${PR_NUMBER} (branch: ${BRANCH})</td></tr>
+    <tr><th>Branch</th><td>${BRANCH}</td></tr>
     <tr><th>CI Run</th><td><a href="https://github.com/${REPO}/actions/runs/${RUN_ID}">${RUN_ID}</a></td></tr>
     <tr><th>Verified at</th><td>$(date -u '+%Y-%m-%d %H:%M UTC')</td></tr>
-    <tr><th>Tests passed</th><td class="status">${PASSED}</td></tr>
-    <tr><th>Tests failed</th><td>${FAILED}</td></tr>
-    <tr><th>Tests broken</th><td>${BROKEN}</td></tr>
-    <tr><th>Total</th><td>${TOTAL}</td></tr>
+    <tr><th>Passed</th><td class="stat">${PASSED} / ${TOTAL}</td></tr>
+    <tr><th>Failed</th><td>${FAILED}</td></tr>
+    <tr><th>Broken</th><td>${BROKEN}</td></tr>
   </table>
 
-  <h2>Overview</h2>
-  $([ -n "$b64_overview" ] && echo "<img src=\"data:image/png;base64,${b64_overview}\" alt=\"Overview\">" || echo "<p>Screenshot not available</p>")
+  <h2>Test Results (from artifact data)</h2>
+  <table>
+    <tr><th>Status</th><th>Test name</th></tr>
+    ${TEST_ROWS}
+  </table>
 
-  <h2>Results</h2>
-  $([ -n "$b64_results" ] && echo "<img src=\"data:image/png;base64,${b64_results}\" alt=\"Results\">" || echo "<p>Screenshot not available</p>")
+  <h2>Overview Screenshot</h2>
+  $([ -n "$b64_overview" ] && echo "<img src=\"data:image/png;base64,${b64_overview}\" alt=\"Allure Overview\">" || echo "<p><em>Screenshot not available</em></p>")
 
-  <h2>Awesome View</h2>
-  $([ -n "$b64_awesome" ] && echo "<img src=\"data:image/png;base64,${b64_awesome}\" alt=\"Awesome\">" || echo "<p>Screenshot not available</p>")
+  <h2>Results Page Screenshot</h2>
+  $([ -n "$b64_results" ] && echo "<img src=\"data:image/png;base64,${b64_results}\" alt=\"Allure Results\">" || echo "<p><em>Screenshot not available</em></p>")
 </body>
 </html>
 HTMLEOF
