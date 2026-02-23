@@ -33,11 +33,11 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Normalize Playwright browsers path
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
 
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1

@@ -27,12 +27,15 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      # Normalize Playwright browser path across all OSes (macOS default differs)
-      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Normalize Playwright browsers path
+        # Set PLAYWRIGHT_BROWSERS_PATH with proper $HOME expansion.
+        # Job-level env: with ~ is literal and breaks JVM/Node subprocesses.
+        # $GITHUB_ENV propagates to ALL subsequent steps and their subprocesses.
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
 
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -91,18 +94,27 @@ jobs:
       - name: Build spel native image
         run: clojure -T:build native-image
 
-
       - name: CLI bash regression tests (Unix)
         if: runner.os != 'Windows'
         run: |
-          # Override PLAYWRIGHT_BROWSERS_PATH with expanded $HOME (job-level ~ is literal)
-          export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
           echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
-          ls "$PLAYWRIGHT_BROWSERS_PATH/" 2>/dev/null | head -3 || echo 'WARNING: browser dir missing'
+          ls "$PLAYWRIGHT_BROWSERS_PATH/" 2>/dev/null | head -5 || echo 'WARNING: browser dir missing'
           chmod +x target/spel
+          # Quick sanity: can the binary launch a browser and navigate?
+          echo '--- Pre-flight: spel open (verbose) ---'
+          target/spel --json open https://example.com 2>&1 | head -5 || true
+          echo '--- Pre-flight: spel close ---'
+          target/spel close 2>&1 || true
+          echo '--- Running test-cli.sh ---'
           ./test-cli.sh ./target/spel
-          echo '--- Daemon log (last 30 lines) ---'
-          tail -30 /tmp/spel-default.log 2>/dev/null || echo 'No daemon log'
+
+      - name: Dump daemon log (Unix)
+        if: runner.os != 'Windows' && always()
+        run: |
+          echo '--- Daemon log (last 50 lines) ---'
+          tail -50 /tmp/spel-default.log 2>/dev/null || echo 'No daemon log found'
+          echo '--- Daemon log for testsession ---'
+          tail -20 /tmp/spel-testsession.log 2>/dev/null || echo 'No testsession log'
 
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'
