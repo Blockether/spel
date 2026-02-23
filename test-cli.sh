@@ -10,6 +10,15 @@
 
 set -o pipefail
 
+
+# macOS doesn't ship GNU coreutils timeout; provide a portable fallback.
+if ! command -v timeout >/dev/null 2>&1; then
+  timeout() {
+    local duration="$1"; shift
+    perl -e 'alarm shift; exec @ARGV' "$duration" "$@"
+  }
+fi
+
 SPEL="${1:-./target/spel}"
 PASS_COUNT=0
 FAIL_COUNT=0
