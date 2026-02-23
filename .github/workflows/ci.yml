@@ -94,10 +94,16 @@ jobs:
 
       - name: CLI bash regression tests (Unix)
         if: runner.os != 'Windows'
-        continue-on-error: true  # Many tests require network (example.com) - tracked for localhost migration
+        continue-on-error: true
         run: |
+          # Override PLAYWRIGHT_BROWSERS_PATH with expanded $HOME (job-level ~ is literal)
+          export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
+          echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
+          ls "$PLAYWRIGHT_BROWSERS_PATH/" 2>/dev/null | head -3 || echo 'WARNING: browser dir missing'
           chmod +x target/spel
-          ./test-cli.sh ./target/spel
+          ./test-cli.sh ./target/spel || true
+          echo '--- Daemon log (last 30 lines) ---'
+          tail -30 /tmp/spel-default.log 2>/dev/null || echo 'No daemon log'
 
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'
