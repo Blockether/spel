@@ -769,7 +769,12 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))]
+          (let [opts (parse-daemon-args (rest cmd-args))
+                ;; parse-global-flags may have consumed --session before it reached
+                ;; cmd-args; prefer the global value so daemon gets the right session.
+                opts (if-let [s (:session global)]
+                       (assoc opts :session s)
+                       opts)]
             (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
