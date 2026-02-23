@@ -159,7 +159,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -677,39 +677,40 @@
   [^File report]
   (let [idx (io/file report "index.html")]
     (when (.isFile idx)
-      (let [content  (slurp idx)
-            css      (str "\n<style>\n"
-                       ".video-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center}\n"
-                       ".video-modal.show{display:flex}\n"
-                       ".video-modal-content{max-width:90vw;max-height:90vh;position:relative}\n"
-                       ".video-modal video{max-width:100%;max-height:85vh;border-radius:8px;background:#000}\n"
-                       ".video-modal-close{position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer}\n"
-                       ".video-modal-title{position:absolute;bottom:20px;left:20px;right:60px;color:#fff;font-size:0.9rem;background:rgba(0,0,0,0.6);padding:0.5rem 1rem;border-radius:4px}\n"
-                       "</style>\n")
-            modal-html (str "\n<div id=\"videoModal\" class=\"video-modal\" onclick=\"if(event.target===this)closeVideoModal()\">\n"
-                         "<div class=\"video-modal-content\">\n"
-                         "<button class=\"video-modal-close\" onclick=\"closeVideoModal()\">&times;</button>\n"
-                         "<video id=\"videoPlayer\" controls playsinline></video>\n"
-                         "<div id=\"videoModalTitle\" class=\"video-modal-title\"></div>\n"
-                         "</div>\n"
-                         "</div>\n")
-            js (str "<script>\n"
-                 "function openVideoModal(e,t){var n=document.getElementById('videoModal'),r=document.getElementById('videoPlayer'),a=document.getElementById('videoModalTitle');r.src=e,a.textContent=t||'Video',n.classList.add('show'),r.play()}\n"
-                 "function closeVideoModal(){var e=document.getElementById('videoModal'),t=document.getElementById('videoPlayer');t.pause(),t.src='',e.classList.remove('show')}\n"
-                 "document.addEventListener('keydown',function(e){'Escape'===e.key&&closeVideoModal()});\n"
-                 "// Intercept video attachment clicks to open in modal\n"
-                 "(function(){\n"
-                 "  var observer=new MutationObserver(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})});\n"
-                 "  observer.observe(document.body,{childList:true,subtree:true});\n"
-                 "  setTimeout(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})},3000);\n"
-                 "}());\n"
-                 "</script>\n")
-            patched (-> content
-                      (str/replace "</head>" (str css "</head>"))
-                      (str/replace "<body>" (str "<body>" modal-html))
-                      (str/replace "</body>" (str js "</body>")))]
-        (when (not= content patched)
-          (spit idx patched))))))
+      (let [content (slurp idx)]
+        (when-not (str/includes? content "id=\"videoModal\"")
+          (let [css      (str "\n<style>\n"
+                           ".video-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center}\n"
+                           ".video-modal.show{display:flex}\n"
+                           ".video-modal-content{max-width:90vw;max-height:90vh;position:relative}\n"
+                           ".video-modal video{max-width:100%;max-height:85vh;border-radius:8px;background:#000}\n"
+                           ".video-modal-close{position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer}\n"
+                           ".video-modal-title{position:absolute;bottom:20px;left:20px;right:60px;color:#fff;font-size:0.9rem;background:rgba(0,0,0,0.6);padding:0.5rem 1rem;border-radius:4px}\n"
+                           "</style>\n")
+                modal-html (str "\n<div id=\"videoModal\" class=\"video-modal\" onclick=\"if(event.target===this)closeVideoModal()\">\n"
+                             "<div class=\"video-modal-content\">\n"
+                             "<button class=\"video-modal-close\" onclick=\"closeVideoModal()\">&times;</button>\n"
+                             "<video id=\"videoPlayer\" controls playsinline></video>\n"
+                             "<div id=\"videoModalTitle\" class=\"video-modal-title\"></div>\n"
+                             "</div>\n"
+                             "</div>\n")
+                js (str "<script>\n"
+                     "function openVideoModal(e,t){var n=document.getElementById('videoModal'),r=document.getElementById('videoPlayer'),a=document.getElementById('videoModalTitle');r.src=e,a.textContent=t||'Video',n.classList.add('show'),r.play()}\n"
+                     "function closeVideoModal(){var e=document.getElementById('videoModal'),t=document.getElementById('videoPlayer');t.pause(),t.src='',e.classList.remove('show')}\n"
+                     "document.addEventListener('keydown',function(e){'Escape'===e.key&&closeVideoModal()});\n"
+                     "// Intercept video attachment clicks to open in modal\n"
+                     "(function(){\n"
+                     "  var observer=new MutationObserver(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})});\n"
+                     "  observer.observe(document.body,{childList:true,subtree:true});\n"
+                     "  setTimeout(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})},3000);\n"
+                     "}());\n"
+                     "</script>\n")
+                patched (-> content
+                          (str/replace "</head>" (str css "</head>"))
+                          (str/replace "<body>" (str "<body>" modal-html))
+                          (str/replace "</body>" (str js "</body>")))]
+            (when (not= content patched)
+              (spit idx patched))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Allure CLI resolution
@@ -751,27 +752,27 @@
     ;; 1. npx available → always use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 2. Global allure on PATH
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
+      ["allure"])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation

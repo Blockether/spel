@@ -1,5 +1,6 @@
 (ns com.blockether.spel.video-recording-test
   (:require
+   [clojure.string]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
@@ -61,4 +62,11 @@
         ;; Cleanup
         (.delete (java.io.File. save-path))
         (let [vpath (core/video-path pg)]
-          (when vpath (.delete (java.io.File. vpath))))))))
+          (when vpath (.delete (java.io.File. vpath)))))))
+
+  (describe "with-video-page-opts fixture binds *video-path*"
+    {:context [with-playwright with-browser (with-video-page-opts {:video-dir "test-videos-fixture"})]}
+
+    (it "binds *video-path* to a string path during test body"
+      (expect (string? tf/*video-path*))
+      (expect (clojure.string/includes? tf/*video-path* "test-videos-fixture")))))

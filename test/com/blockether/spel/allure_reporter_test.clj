@@ -435,3 +435,147 @@
             (expect (not (str/includes? patched "_.headers.set"))))
           (finally
             (clean-dir! base)))))))
+
+;; =============================================================================
+;; Allure Reporter Helper Tests
+;; =============================================================================
+
+(defdescribe allure-reporter-helpers-test
+  "Tests for allure-reporter helper functions"
+
+  (describe "inject-video-modal!"
+
+    (it "injects modal HTML with all required components"
+      (let [base   (tmp-dir "inject-modal-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (spit (io/file report "index.html") "<html><head></head><body></body></html>")
+          (#'reporter/inject-video-modal! report)
+          (let [content (slurp (io/file report "index.html"))]
+            (expect (str/includes? content "id=\"videoModal\""))
+            (expect (str/includes? content ".video-modal"))
+            (expect (str/includes? content "openVideoModal"))
+            (expect (str/includes? content "closeVideoModal"))
+            (expect (str/includes? content "MutationObserver")))
+          (finally
+            (clean-dir! base)))))
+
+    (it "is idempotent — videoModal id appears exactly once after applying twice"
+      (let [base   (tmp-dir "inject-modal-idem-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (spit (io/file report "index.html") "<html><head></head><body></body></html>")
+          (#'reporter/inject-video-modal! report)
+          (#'reporter/inject-video-modal! report)
+          (let [content (slurp (io/file report "index.html"))
+                matches (re-seq #"id=\"videoModal\"" content)]
+            (expect (= 1 (count matches))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "does nothing when index.html does not exist"
+      (let [base   (tmp-dir "inject-modal-missing-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (#'reporter/inject-video-modal! report)
+          (expect (not (.exists (io/file report "index.html"))))
+          (finally
+            (clean-dir! base))))))
+
+  (describe "count-test-results"
+
+    (it "counts passed/failed/broken/skipped correctly"
+      (let [base (tmp-dir "count-results-test")
+            dir  (io/file base "results")]
+        (try
+          (write-result! dir "t1" "passed")
+          (write-result! dir "t2" "passed")
+          (write-result! dir "t3" "failed")
+          (write-result! dir "t4" "broken")
+          (write-result! dir "t5" "skipped")
+          (let [counts (reporter/count-test-results (.getPath dir))]
+            (expect (= 2 (:passed counts)))
+            (expect (= 1 (:failed counts)))
+            (expect (= 1 (:broken counts)))
+            (expect (= 1 (:skipped counts)))
+            (expect (= 5 (:total counts))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "returns all zeros for empty directory"
+      (let [base (tmp-dir "count-empty-test")
+            dir  (io/file base "results")]
+        (try
+          (.mkdirs dir)
+          (let [counts (reporter/count-test-results (.getPath dir))]
+            (expect (= 0 (:passed counts)))
+            (expect (= 0 (:failed counts)))
+            (expect (= 0 (:broken counts)))
+            (expect (= 0 (:skipped counts)))
+            (expect (= 0 (:total counts))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "returns all zeros for nonexistent path"
+      (let [counts (reporter/count-test-results "/tmp/nonexistent-allure-results-xyz")]
+        (expect (= 0 (:passed counts)))
+        (expect (= 0 (:failed counts)))
+        (expect (= 0 (:broken counts)))
+        (expect (= 0 (:skipped counts)))
+        (expect (= 0 (:total counts))))))
+
+  (describe "generate-badge-svg"
+
+    (it "generates valid SVG with label and message text"
+      (let [svg (reporter/generate-badge-svg {:label "tests" :message "42 passed" :color "brightgreen"})]
+        (expect (str/includes? svg "tests"))
+        (expect (str/includes? svg "42 passed"))
+        (expect (str/includes? svg "xmlns=\"http://www.w3.org/2000/svg\""))
+        (expect (str/includes? svg "aria-label"))))
+
+    (it "uses #e05d44 fill for red color"
+      (let [svg (reporter/generate-badge-svg {:label "tests" :message "1 failed" :color "red"})]
+        (expect (str/includes? svg "#e05d44"))))
+
+    (it "uses #4c1 fill for brightgreen color"
+      (let [svg (reporter/generate-badge-svg {:label "tests" :message "5 passed" :color "brightgreen"})]
+        (expect (str/includes? svg "#4c1")))))
+
+  (describe "generate-badge-file!"
+
+    (it "creates badge.svg and returns message for all-pass scenario"
+      (let [base        (tmp-dir "badge-pass-test")
+            results-dir (io/file base "results")
+            output-dir  (io/file base "output")]
+        (try
+          (write-result! results-dir "t1" "passed")
+          (write-result! results-dir "t2" "passed")
+          (.mkdirs output-dir)
+          (let [msg (reporter/generate-badge-file! (.getPath results-dir) (.getPath output-dir))]
+            (expect (string? msg))
+            (expect (str/includes? msg "passed"))
+            (expect (.exists (io/file output-dir "badge.svg")))
+            (let [svg (slurp (io/file output-dir "badge.svg"))]
+              (expect (str/includes? svg "#4c1"))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "creates badge.svg with red color when failures exist"
+      (let [base        (tmp-dir "badge-fail-test")
+            results-dir (io/file base "results")
+            output-dir  (io/file base "output")]
+        (try
+          (write-result! results-dir "t1" "passed")
+          (write-result! results-dir "t2" "failed")
+          (.mkdirs output-dir)
+          (let [msg (reporter/generate-badge-file! (.getPath results-dir) (.getPath output-dir))]
+            (expect (string? msg))
+            (expect (str/includes? msg "failed"))
+            (expect (.exists (io/file output-dir "badge.svg")))
+            (let [svg (slurp (io/file output-dir "badge.svg"))]
+              (expect (str/includes? svg "#e05d44"))))
+          (finally
+            (clean-dir! base)))))))
