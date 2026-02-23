@@ -155,7 +155,12 @@
   [results-map out-dir {:keys [pr-number] :as _opts}]
   (let [out (io/file out-dir)
         _   (.mkdirs out)
-        {:keys [total passed failed ct-total lt-total ct-suites lazytest-suites]} results-map
+        {:keys [ct-suites lazytest-suites]} results-map
+        total    (long (:total results-map))
+        passed   (long (:passed results-map))
+        failed   (long (:failed results-map))
+        ct-total (long (:ct-total results-map))
+        lt-total (long (:lt-total results-map))
         pr-label (if pr-number (str " &mdash; PR #" pr-number) "")
         ;; Page 1: Summary + CT suites
         ct-blocks (str/join
@@ -217,7 +222,7 @@
     (.mkdirs out)
     (vec
       (for [[idx ^String html-path] (map-indexed vector html-files)]
-        (let [ss-name (str "verify-" (inc idx) ".png")
+        (let [ss-name (str "verify-" (inc (long idx)) ".png")
               ss-file (io/file out ss-name)
               ss-path (.getAbsolutePath ss-file)]
           (page/navigate pg (str "file://" html-path))
