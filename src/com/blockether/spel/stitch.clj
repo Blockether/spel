@@ -41,6 +41,14 @@
                  base64-images))
          "</body></html>")))
 
+(defn- ensure-playwright!
+  "Guards against anomaly maps from core/create. Throws if Playwright
+   initialization failed instead of passing a map to browser launch."
+  [pw]
+  (when (core/anomaly? pw)
+    (throw (ex-info (str "Failed to create Playwright: " (:anomaly/message pw))
+                    (select-keys pw [:anomaly/category :anomaly/message])))))
+
 (defn stitch-vertical
   "Stitch multiple images vertically into one PNG using Playwright.
    Returns the output path."
@@ -51,6 +59,7 @@
         b64s  (mapv file->base64 paths)
         html  (build-html b64s {})]
     (core/with-playwright [pw]
+      (ensure-playwright! pw)
       (core/with-browser [browser (core/launch-chromium pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
@@ -69,6 +78,7 @@
         b64s  (mapv file->base64 paths)
         html  (build-html b64s {:overlap-px (or overlap-px 0)})]
     (core/with-playwright [pw]
+      (ensure-playwright! pw)
       (core/with-browser [browser (core/launch-chromium pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
