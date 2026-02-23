@@ -750,7 +750,8 @@
                 (System/exit 1))
 
               :else
-              (do (stitch/stitch-vertical-overlap inputs output
+              (do (driver/ensure-driver!)
+                  (stitch/stitch-vertical-overlap inputs output
                     {:overlap-px (or overlap-px 0)})
                   (println output))))))
 
