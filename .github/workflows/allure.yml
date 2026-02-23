@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
   pull-requests: write
   checks: write
 
@@ -25,10 +23,11 @@ env:
 jobs:
   report:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'github-pages' || '' }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -113,28 +112,67 @@ jobs:
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
-      - name: Upload Allure report artifact (PR/branch)
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-report-pr-${{ github.event.pull_request.number }}
-          path: allure-report/
-          retention-days: 7
+      # =========================================================================
+      # PR: Deploy report to /pr/<number>/ on gh-pages (live hosted link)
+      # =========================================================================
 
-      - name: Comment PR with report link
+      - name: Deploy PR report to GitHub Pages
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report
+          destination_dir: pr/${{ github.event.pull_request.number }}
+          keep_files: true
+
+      - name: Comment PR with live report link
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const prNum = context.issue.number;
+            const reportUrl = `https://blockether.github.io/spel/pr/${prNum}/`;
             const ciUrl = `${{ github.server_url }}/${{ github.repository }}/actions/workflows/ci.yml`;
-            const comment = `## \uD83D\uDCCA Allure Report\n\nTest report generated for this PR.\n\n[Download Allure Report Artifact](${runUrl})\n\n- Lazytest: ${{ steps.tests-lazytest.outcome }}\n- clojure-test: ${{ steps.tests-ct.outcome }}\n\n> CLI bash regression tests (~179 assertions) run separately in the [CI workflow](${ciUrl}).`;
-            github.rest.issues.createComment({
+            const body = [
+              `## 📊 Allure Report`,
+              ``,
+              `🔗 **[View Report](${reportUrl})**`,
+              ``,
+              `| Suite | Status |`,
+              `|-------|--------|`,
+              `| Lazytest | ${{ steps.tests-lazytest.outcome }} |`,
+              `| clojure-test | ${{ steps.tests-ct.outcome }} |`,
+              ``,
+              `> CLI bash regression tests (~179 assertions) run separately in the [CI workflow](${ciUrl}).`,
+            ].join('\n');
+            // Update existing comment or create new one
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: comment
+              issue_number: prNum,
             });
+            const existing = comments.find(c =>
+              c.user.login === 'github-actions[bot]' && c.body.includes('Allure Report')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNum,
+                body,
+              });
+            }
+
+      # =========================================================================
+      # Main: Full site deploy with per-build reports
+      # =========================================================================
 
       - name: Inject report URL and commit info into history
         if: github.ref == 'refs/heads/main'
@@ -275,13 +313,20 @@ jobs:
           path: gh-pages-site
           key: allure-site-${{ github.run_number }}
 
-      - name: Upload Pages artifact
+      - name: Preserve PR reports from gh-pages
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages-site
+        run: |
+          git fetch origin gh-pages --depth=1 || true
+          if git show gh-pages:pr/ >/dev/null 2>&1; then
+            git checkout gh-pages -- pr/
+            cp -r pr gh-pages-site/pr/
+            echo "Preserved $(ls -1d gh-pages-site/pr/*/ 2>/dev/null | wc -l) PR report(s)"
+          fi
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-site
+          keep_files: false
