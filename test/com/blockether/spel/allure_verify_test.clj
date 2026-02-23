@@ -1,8 +1,7 @@
 (ns com.blockether.spel.allure-verify-test
-  "Tests for allure-verify: parse-results, generate-html-pages!, verify-results!."
+  "Tests for allure-verify: parse-results, verify-results!."
   (:require
    [clojure.java.io :as io]
-   [clojure.string :as str]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.allure-verify :as av])
   (:import
@@ -118,60 +117,6 @@
             (clean-dir! dir)))))))
 
 ;; =============================================================================
-;; generate-html-pages! Tests
-;; =============================================================================
-
-(defdescribe generate-html-pages-test
-  "Tests for generate-html-pages!"
-
-  (describe "HTML generation"
-
-    (it "creates both HTML files in output directory"
-      (let [results (av/parse-results "test/resources/allure-verify/results-mixed")
-            out-dir (tmp-dir "av-html-test")]
-        (try
-          (let [paths (av/generate-html-pages! results (.getPath out-dir) {})]
-            (expect (= 2 (count paths)))
-            (expect (.exists (io/file (first paths))))
-            (expect (.exists (io/file (second paths))))
-            (expect (str/ends-with? (first paths) "verify-summary.html"))
-            (expect (str/ends-with? (second paths) "verify-lazytest.html")))
-          (finally
-            (clean-dir! out-dir)))))
-
-    (it "includes test counts in summary HTML"
-      (let [results (av/parse-results "test/resources/allure-verify/results-mixed")
-            out-dir (tmp-dir "av-html-counts")]
-        (try
-          (let [paths   (av/generate-html-pages! results (.getPath out-dir) {})
-                content (slurp (first paths))]
-            (expect (str/includes? content "3"))  ;; total
-            (expect (str/includes? content "clojure.test")))
-          (finally
-            (clean-dir! out-dir)))))
-
-    (it "includes PR number when provided"
-      (let [results (av/parse-results "test/resources/allure-verify/results-ct")
-            out-dir (tmp-dir "av-html-pr")]
-        (try
-          (let [paths   (av/generate-html-pages! results (.getPath out-dir)
-                          {:pr-number "99"})
-                content (slurp (first paths))]
-            (expect (str/includes? content "PR #99")))
-          (finally
-            (clean-dir! out-dir)))))
-
-    (it "shows lazytest warning when no lazytest results"
-      (let [results (av/parse-results "test/resources/allure-verify/results-ct")
-            out-dir (tmp-dir "av-html-lt-warn")]
-        (try
-          (let [paths   (av/generate-html-pages! results (.getPath out-dir) {})
-                content (slurp (first paths))]
-            (expect (str/includes? content "Lazytest results missing")))
-          (finally
-            (clean-dir! out-dir)))))))
-
-;; =============================================================================
 ;; verify-results! Tests (non-browser parts)
 ;; =============================================================================
 
@@ -184,7 +129,7 @@
       (let [results (av/parse-results "test/resources/allure-verify/results-mixed")
             out-dir (tmp-dir "av-verify-test")]
         (try
-          ;; Test parse-results directly (verify-results! needs Playwright)
+          ;; Test parse-results directly (verify-results! needs Playwright + Allure CLI)
           (expect (contains? results :total))
           (expect (contains? results :passed))
           (expect (contains? results :failed))

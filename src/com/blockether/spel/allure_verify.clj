@@ -1,15 +1,20 @@
 (ns com.blockether.spel.allure-verify
-  "Allure report verification: parse CT + lazytest results, generate HTML pages,
-   take screenshots, produce PDF. Works on both raw allure-results/ dirs and
-   downloaded CI artifact data/test-results/ dirs."
+  "Allure report verification: parse CT + lazytest results, serve real Allure
+   HTML report locally via HTTP, take screenshots with scrolling, produce PDF.
+   Works on both raw allure-results/ dirs and downloaded CI artifact
+   data/test-results/ dirs."
   (:require
    [charred.api :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [com.blockether.spel.allure-reporter :as reporter]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page])
   (:import
-   [java.io File]))
+   [com.sun.net.httpserver HttpServer SimpleFileServer]
+   [java.io File]
+   [java.net InetSocketAddress]
+   [java.nio.file Path]))
 
 ;; =============================================================================
 ;; JSON Parsing
@@ -86,148 +91,44 @@
          :lt-total        (count lt)}))))
 
 ;; =============================================================================
-;; HTML Generation
+;; HTTP Server
 ;; =============================================================================
 
-(def ^:private page-style
-  "CSS for verification HTML pages."
-  (str "body{font-family:Arial,sans-serif;max-width:1200px;margin:0 auto;padding:20px;color:#222;background:#f7f7f7}"
-    "h1,h2{color:#111;margin-top:0}"
-    ".subtitle{color:#666;font-size:13px;margin-bottom:18px}"
-    ".bars{display:flex;gap:12px;margin:16px 0;flex-wrap:wrap}"
-    ".stat{background:white;border:1px solid #ddd;border-radius:6px;padding:12px 18px;text-align:center;min-width:80px}"
-    ".stat .num{font-size:26px;font-weight:bold}"
-    ".stat .lbl{font-size:11px;color:#666;margin-top:2px;text-transform:uppercase}"
-    ".stat.pass .num{color:#27ae60}"
-    ".stat.fail .num{color:#e74c3c}"
-    ".stat.warn .num{color:#856404}"
-    ".warn{background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:13px}"
-    ".ok{background:#d4edda;border:1px solid #c3e6cb;border-radius:6px;padding:10px 14px;margin:12px 0;font-size:13px;color:#155724}"
-    ".section{font-size:16px;font-weight:bold;margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid #dee2e6}"
-    ".suite{background:white;border:1px solid #ddd;border-radius:6px;padding:14px;margin:10px 0}"
-    ".suite h3{margin:0 0 3px;font-size:14px}"
-    ".badge{background:#e9ecef;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:normal;color:#555;margin-left:5px}"
-    ".ns{font-size:11px;color:#999;margin-bottom:9px;font-family:monospace}"
-    "table{width:100%;border-collapse:collapse;font-size:12px}"
-    "th{background:#f5f5f5;padding:5px 10px;text-align:left;border-bottom:2px solid #ddd;font-size:10px;text-transform:uppercase;color:#666}"
-    "td{padding:4px 10px;border-bottom:1px solid #f0f0f0}"))
+(defn- start-http-server!
+  "Start a local HTTP file server for the given directory.
+   Returns the HttpServer instance."
+  ^HttpServer [^String dir ^long port]
+  (let [root    (Path/of dir (into-array String []))
+        handler (SimpleFileServer/createFileHandler root)
+        addr    (InetSocketAddress. port)
+        server  (HttpServer/create addr 0)]
+    (.createContext server "/" handler)
+    (.start server)
+    server))
 
-(def ^:private status-colors
-  {"passed"  "#27ae60"
-   "failed"  "#e74c3c"
-   "broken"  "#e67e22"
-   "skipped" "#95a5a6"})
-
-(defn- html-escape
-  "Escape HTML entities in a string."
-  ^String [^String s]
-  (-> s
-    (str/replace "&" "&amp;")
-    (str/replace "<" "&lt;")
-    (str/replace ">" "&gt;")
-    (str/replace "\"" "&quot;")))
-
-(defn- suite-html
-  "Generate HTML for a single suite block."
-  [suite-name tests]
-  (let [short-name (last (str/split suite-name #"\."))
-        rows (str/join
-               (for [t (sort-by :name tests)]
-                 (str "<tr><td style=\"color:" (get status-colors (:status t) "#333")
-                   ";font-weight:bold;text-transform:uppercase;font-size:10px\">"
-                   (html-escape (:status t)) "</td>"
-                   "<td style=\"font-family:monospace\">" (html-escape (:name t)) "</td>"
-                   "<td style=\"color:#888\">" (html-escape (:feature t)) "</td></tr>")))]
-    (str "<div class=\"suite\"><h3>" (html-escape short-name)
-      "<span class=\"badge\">" (count tests) "</span></h3>"
-      "<div class=\"ns\">" (html-escape suite-name) "</div>"
-      "<table><tr><th>Status</th><th>Test</th><th>Feature</th></tr>"
-      rows "</table></div>")))
-
-(defn generate-html-pages!
-  "Generate verification HTML pages from parsed results.
-
-   Generates 2 HTML files in out-dir:
-     - verify-summary.html  — summary stats + CT suites (all suites, all tests)
-     - verify-lazytest.html — lazytest suites (first 5 suites, 20 tests each)
-
-   Returns list of generated absolute file paths."
-  [results-map out-dir {:keys [pr-number] :as _opts}]
-  (let [out (io/file out-dir)
-        _   (.mkdirs out)
-        {:keys [ct-suites lazytest-suites]} results-map
-        total    (long (:total results-map))
-        passed   (long (:passed results-map))
-        failed   (long (:failed results-map))
-        ct-total (long (:ct-total results-map))
-        lt-total (long (:lt-total results-map))
-        pr-label (if pr-number (str " &mdash; PR #" pr-number) "")
-        ;; Page 1: Summary + CT suites
-        ct-blocks (str/join
-                    (for [[s tests] (sort ct-suites)]
-                      (suite-html s tests)))
-        lt-warning (if (zero? lt-total)
-                     "<div class=\"warn\"><strong>Warning: Lazytest results missing.</strong></div>"
-                     (str "<div class=\"ok\">Lazytest: " lt-total " results across "
-                       (count lazytest-suites) " suites.</div>"))
-        page1 (str "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
-                "<title>Allure Verify" pr-label "</title>"
-                "<style>" page-style "</style></head><body>"
-                "<h1>Allure Report Verification" pr-label "</h1>"
-                "<div class=\"bars\">"
-                "<div class=\"stat\"><div class=\"num\">" total "</div><div class=\"lbl\">Total</div></div>"
-                "<div class=\"stat pass\"><div class=\"num\">" passed "</div><div class=\"lbl\">Passed</div></div>"
-                "<div class=\"stat" (when (pos? failed) " fail") "\"><div class=\"num\">" failed "</div><div class=\"lbl\">Failed</div></div>"
-                "<div class=\"stat\"><div class=\"num\">" ct-total "</div><div class=\"lbl\">CT</div></div>"
-                "<div class=\"stat" (when (zero? lt-total) " warn") "\"><div class=\"num\">" lt-total "</div><div class=\"lbl\">Lazytest</div></div>"
-                "</div>"
-                lt-warning
-                "<div class=\"section\">clojure.test (CT) &mdash; " ct-total " tests, " (count ct-suites) " suites</div>"
-                ct-blocks
-                "</body></html>")
-        ;; Page 2: Lazytest suites (first 5, 20 tests each)
-        lt-shown  (take 5 (sort lazytest-suites))
-        lt-blocks (if (pos? lt-total)
-                    (str (str/join
-                           (for [[s tests] lt-shown]
-                             (suite-html s (take 20 tests))))
-                      (when (> (count lazytest-suites) 5)
-                        (str "<p style=\"color:#666;font-size:13px\">... and "
-                          (- (count lazytest-suites) 5) " more suites</p>")))
-                    "<div class=\"warn\"><strong>No lazytest results.</strong></div>")
-        page2 (str "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
-                "<title>Lazytest Results" pr-label "</title>"
-                "<style>" page-style "</style></head><body>"
-                "<h2>Lazytest Results" pr-label " (" lt-total " tests, "
-                (count lazytest-suites) " suites)</h2>"
-                lt-blocks
-                "</body></html>")
-        p1 (io/file out "verify-summary.html")
-        p2 (io/file out "verify-lazytest.html")]
-    (spit p1 page1)
-    (spit p2 page2)
-    [(.getAbsolutePath p1) (.getAbsolutePath p2)]))
+(defn- stop-http-server!
+  "Stop the local HTTP server."
+  [^HttpServer server]
+  (.stop server 0))
 
 ;; =============================================================================
 ;; Screenshots
 ;; =============================================================================
 
-(defn take-screenshots!
-  "Take screenshots of each HTML file using the provided spel page.
+(defn- screenshot-url!
+  "Navigate to URL, wait for load, and take a viewport screenshot."
+  [pg ^String url ^String path]
+  (page/navigate pg url)
+  (page/wait-for-load-state pg :networkidle)
+  (page/screenshot pg {:path path}))
 
-   Navigates to each file:// URL, takes a full-page screenshot, and saves it.
-   Returns vector of screenshot file paths."
-  [pg html-files out-dir]
-  (let [out (io/file out-dir)]
-    (.mkdirs out)
-    (vec
-      (for [[idx ^String html-path] (map-indexed vector html-files)]
-        (let [ss-name (str "verify-" (inc (long idx)) ".png")
-              ss-file (io/file out ss-name)
-              ss-path (.getAbsolutePath ss-file)]
-          (page/navigate pg (str "file://" html-path))
-          (page/screenshot pg {:path ss-path :full-page true})
-          ss-path)))))
+(defn- scroll-and-screenshot!
+  "Scroll the current page to scroll-y pixels and take a viewport screenshot.
+   The url parameter is kept for API symmetry with screenshot-url!."
+  [pg _url ^long scroll-y ^String path]
+  (page/evaluate pg (str "window.scrollTo(0, " scroll-y ")"))
+  (page/wait-for-timeout pg 500)
+  (page/screenshot pg {:path path}))
 
 ;; =============================================================================
 ;; Subprocess Helpers
@@ -278,35 +179,54 @@
   "Main verification entry point.
 
    Steps:
-     1. parse-results on the dir
-     2. generate-html-pages!
-     3. Launch headless browser, take screenshots of each page, close browser
-     4. Generate PDF via wkhtmltopdf (skip if not available)
-     5. If :post-comment true, post comment via gh pr comment
-     6. Return summary map
+     1. Parse results from the allure-results directory
+     2. Generate real Allure HTML report via allure-reporter
+     3. Serve the report directory locally via HTTP
+     4. Launch headless browser, take 3 screenshots with scrolling
+     5. Generate PDF via wkhtmltopdf (skip if not available)
+     6. If :post-comment true, post comment via gh pr comment
+     7. Return summary map
 
    Options:
-     :out-dir       — where to write HTML/screenshots/PDF (default: /tmp/allure-verify/)
+     :out-dir       — where to write screenshots/PDF (default: /tmp/allure-verify/)
+     :report-dir    — where to generate Allure report (default: <out-dir>/report)
+     :port          — HTTP server port (default: 8299)
      :pr-number     — PR number for labeling (optional)
      :repo          — GitHub repo (default: Blockether/spel)
      :post-comment  — whether to post PR comment via gh CLI (default: false)
      :generate-pdf  — whether to generate PDF via wkhtmltopdf (default: true)"
-  [results-dir {:keys [out-dir pr-number repo post-comment generate-pdf]
+  [results-dir {:keys [out-dir report-dir port pr-number repo post-comment generate-pdf]
                 :or   {out-dir      "/tmp/allure-verify/"
+                       port         8299
                        repo         "Blockether/spel"
                        post-comment false
                        generate-pdf true}}]
-  (let [results    (parse-results results-dir)
-        html-files (generate-html-pages! results out-dir {:pr-number pr-number})
+  (let [results     (parse-results results-dir)
+        out         (io/file out-dir)
+        _           (.mkdirs out)
+        report-path (or report-dir
+                      (.getAbsolutePath (io/file out "report")))
+        _           (reporter/generate-html-report! results-dir report-path)
+        server      (start-http-server! report-path (long port))
+        base-url    (str "http://localhost:" port "/")
+        s1-path     (.getAbsolutePath (io/file out "verify-1.png"))
+        s2-path     (.getAbsolutePath (io/file out "verify-2.png"))
+        s3-path     (.getAbsolutePath (io/file out "verify-3.png"))
         screenshots (try
                       (core/with-testing-page [pg]
-                        (take-screenshots! pg html-files out-dir))
+                        (screenshot-url! pg base-url s1-path)
+                        (scroll-and-screenshot! pg base-url 600 s2-path)
+                        (scroll-and-screenshot! pg base-url 1200 s3-path)
+                        [s1-path s2-path s3-path])
                       (catch Exception e
                         (println (str "Warning: screenshots failed: " (.getMessage e)))
-                        []))
-        pdf-path   (when generate-pdf
-                     (let [pdf (str (.getAbsolutePath (io/file out-dir "verify-report.pdf")))]
-                       (generate-pdf! html-files pdf)))]
+                        [])
+                      (finally
+                        (stop-http-server! server)))
+        pdf-path    (when generate-pdf
+                      (let [pdf (.getAbsolutePath (io/file out "verify-report.pdf"))
+                            idx (.getAbsolutePath (io/file report-path "index.html"))]
+                        (generate-pdf! [idx] pdf)))]
     (when (and post-comment pr-number)
       (post-pr-comment! pr-number results repo))
     (merge results
