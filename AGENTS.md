@@ -57,25 +57,31 @@ clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 
 ## Verification Checklist
 Run these in order. On ANY failure -> fix -> restart from step 1.
+
 1. `make format` — auto-format source (must run BEFORE tests — format changes must be tested)
 2. `make lint` — clojure-lsp diagnostics clean
 3. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)
 4. `make gen-docs` — regenerate SKILL.md
 5. `make install-local` — builds `./target/spel` -> `~/.local/bin/spel`: exit 0
 6. `spel version && spel --help` — responds correctly
-7. `make test` — full suite against fresh binary: 0 failures (Clojure + CLI bash)
-   - Lazytest: **~1268 test cases** (if significantly fewer, you are running a subset — investigate)
-   - CLI bash: all pass (requires binary from step 5)
-   - The summary line `Ran N test cases` MUST appear — report this exact number
+7. `make test` — full suite: 0 failures. This runs TWO things:
+   - `clojure -M:test` — Lazytest: **~1268 test cases** (if significantly fewer, you ran a subset — investigate)
+   - `./test-cli.sh` — CLI bash regression: **~164 assertions** across 21 sections (requires binary from step 5)
+   - Both summary lines MUST appear — report exact numbers from `Ran N test cases` and `Total: N`
 8. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
 9. `git diff --check` — no conflict markers, no trailing whitespace
 10. Pre-push: `git diff origin/main..HEAD | grep -iE "(sk_|lin_api_|nvapi-|AIzaSy|ghp_|password\s*=\s*\S{8})"` — must return nothing
 11. After push: verify GitHub Actions CI is green before declaring done
 
 ### Test count sanity check
-The full `clojure -M:test` suite runs **~1268 lazytest cases** (as of 2026-02-23).
-CI also runs a separate clojure.test suite (23 tests, 63 assertions) via the report workflow.
-If you see significantly fewer tests (e.g. <1000), something is wrong:
+The full `make test` runs **two test suites** (as of 2026-02-23):
+- `clojure -M:test` — **~1268 lazytest cases**
+- `./test-cli.sh` — **~164 bash assertions** (requires `./target/spel` binary)
+
+CI also runs a separate clojure.test suite (23 tests, 63 assertions) via the Allure Report workflow.
+CI does NOT run `test-cli.sh` — only `--help` smoke tests. The full bash regression runs locally only.
+
+If you see significantly fewer lazytest cases (e.g. <1000), something is wrong:
 - You may be running a single namespace (`-n`) instead of the full suite
 - A test file may have a compile error causing it to be silently skipped
 - Always report the exact `Ran N test cases` line from test output
