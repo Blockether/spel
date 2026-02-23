@@ -127,7 +127,8 @@ jobs:
         with:
           script: |
             const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            const comment = `## 📊 Allure Report\n\nTest report generated for this PR.\n\n[Download Allure Report Artifact](${runUrl})\n\n- Lazytest: ${{ steps.tests-lazytest.outcome }}\n- CT: ${{ steps.tests-ct.outcome }}`;
+            const ciUrl = `${{ github.server_url }}/${{ github.repository }}/actions/workflows/ci.yml`;
+            const comment = `## \uD83D\uDCCA Allure Report\n\nTest report generated for this PR.\n\n[Download Allure Report Artifact](${runUrl})\n\n- Lazytest: ${{ steps.tests-lazytest.outcome }}\n- clojure-test: ${{ steps.tests-ct.outcome }}\n\n> CLI bash regression tests (~179 assertions) run separately in the [CI workflow](${ciUrl}).`;
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
