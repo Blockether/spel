@@ -21,6 +21,7 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
+   [com.blockether.spel.allure-verify-cli :as verify-cli]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -212,6 +213,8 @@
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
   (println "  ci-assemble [opts]        Assemble Allure site for CI deployment (--help for details)")
   (println "  merge-reports [dirs]      Merge N allure-results dirs into one (--help for details)")
+  (println "  verify-pr <N> [opts]      Verify Allure report for a PR (--help for details)")
+  (println "  verify-results <dir>      Verify local allure-results dir (--help for details)")
   (println "")
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
@@ -567,6 +570,7 @@
      "  --report-dir DIR      HTML report directory (default: allure-report)"
      "  --no-report           Skip HTML report generation"
      "  --no-clean            Don't clean output directory before merging"
+     "  --verify              Run allure-verify after merging"
      "  --help, -h            Show this help"
      ""
      "Examples:"
@@ -606,6 +610,8 @@
           (= arg "--no-clean")
           (recur (rest args) dirs (assoc opts :clean false))
 
+          (= arg "--verify")
+          (recur (rest args) dirs (assoc opts :verify true))
           (str/starts-with? arg "--")
           (recur (rest args) dirs opts)
 
@@ -651,6 +657,12 @@
                   (println "Run 'spel merge-reports --help' for details.")
                   (System/exit 1))
               (allure-reporter/merge-results! dirs opts)))))
+
+      (= "verify-pr" first-arg)
+      (verify-cli/run-verify-pr! (rest cmd-args))
+
+      (= "verify-results" first-arg)
+      (verify-cli/run-verify-results! (rest cmd-args))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]

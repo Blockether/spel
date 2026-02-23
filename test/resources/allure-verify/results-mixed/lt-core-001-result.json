@@ -1,0 +1,19 @@
+{
+  "uuid": "mix-lt-001",
+  "historyId": "bb22cc33dd44ee55ff66aa11bb22cc33",
+  "testCaseId": "bb22cc33dd44ee55ff66aa11bb22cc33",
+  "fullName": "com.blockether.spel.core-test.creates-playwright",
+  "name": "creates-playwright",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1700000022000,
+  "stop": 1700000022500,
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.core-test"},
+    {"name": "framework", "value": "lazytest"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "core"}
+  ],
+  "parameters": [],
+  "links": []
+}

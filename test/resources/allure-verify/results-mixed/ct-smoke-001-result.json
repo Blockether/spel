@@ -1,0 +1,19 @@
+{
+  "uuid": "mix-ct-001",
+  "historyId": "aa11bb22cc33dd44ee55ff66aa11bb22",
+  "testCaseId": "aa11bb22cc33dd44ee55ff66aa11bb22",
+  "fullName": "com.blockether.spel.ct.smoke-test.basic-navigation",
+  "name": "basic-navigation",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1700000020000,
+  "stop": 1700000021000,
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.ct.smoke-test"},
+    {"name": "framework", "value": "clojure.test"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "smoke"}
+  ],
+  "parameters": [],
+  "links": []
+}

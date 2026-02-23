@@ -997,26 +997,25 @@
 
 (defn merge-results!
   "Merge N allure-results directories into one output directory.
-
-   Copies all result JSON files, attachment files, and supplementary
    files (environment.properties, categories.json) from each source dir
    into the output dir. UUID-prefixed files are copied directly (no
    collision risk). Supplementary files are merged intelligently:
    environment.properties uses last-wins per key, categories.json is
    deduplicated by name.
-
-   Options:
-     :output-dir  - target directory (default: \"allure-results\")
-     :clean       - whether to clean output dir first (default: true)
-     :report      - whether to generate HTML report after merge (default: true)
-     :report-dir  - HTML report output dir (default: \"allure-report\")
-
+     :output-dir   - target directory (default: \"allure-results\")
+     :clean        - whether to clean output dir first (default: true)
+     :report       - whether to generate HTML report after merge (default: true)
+     :report-dir   - HTML report output dir (default: \"allure-report\")
+     :verify       - whether to run allure-verify after merge (default: false)
+     :verify-opts  - options map passed to allure-verify/verify-results! (default: {})
    Returns map with :merged count and :output-dir path."
-  [source-dirs {:keys [output-dir clean report report-dir]
-                :or   {output-dir "allure-results"
-                       clean      true
-                       report     true
-                       report-dir "allure-report"}}]
+  [source-dirs {:keys [output-dir clean report report-dir verify verify-opts]
+                :or   {output-dir  "allure-results"
+                       clean       true
+                       report      true
+                       report-dir  "allure-report"
+                       verify      false
+                       verify-opts {}}}]
   (let [out     (io/file output-dir)
         sources (mapv io/file source-dirs)
         valid   (filterv #(.isDirectory ^File %) sources)]
@@ -1050,6 +1049,11 @@
         ;; Generate HTML report if requested
         (when report
           (generate-html-report! output-dir report-dir))
+        ;; Run verification if requested
+        (when verify
+          (require '[com.blockether.spel.allure-verify :as av])
+          ((resolve 'av/verify-results!) output-dir
+                                         (merge {:out-dir "/tmp/allure-verify/"} verify-opts)))
         {:merged @copied
          :results result-count
          :output-dir output-dir}))))

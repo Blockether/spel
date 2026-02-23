@@ -1,0 +1,23 @@
+{
+  "uuid": "lt-locator-003",
+  "historyId": "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+  "testCaseId": "f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+  "fullName": "com.blockether.spel.locator-test.locator-operations.clicks-element-by-selector",
+  "name": "locator-operations > clicks-element-by-selector",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1700000013000,
+  "stop": 1700000013700,
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.locator-test"},
+    {"name": "subSuite", "value": "locator-operations"},
+    {"name": "framework", "value": "lazytest"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "locator"},
+    {"name": "package", "value": "com.blockether.spel"},
+    {"name": "testClass", "value": "com.blockether.spel.locator-test"},
+    {"name": "testMethod", "value": "clicks-element-by-selector"}
+  ],
+  "parameters": [],
+  "links": []
+}

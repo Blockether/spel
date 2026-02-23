@@ -1,0 +1,23 @@
+{
+  "uuid": "lt-core-001",
+  "historyId": "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+  "testCaseId": "d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1",
+  "fullName": "com.blockether.spel.core-test.playwright-lifecycle.creates-playwright-instance",
+  "name": "playwright-lifecycle > creates-playwright-instance",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1700000010000,
+  "stop": 1700000010500,
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.core-test"},
+    {"name": "subSuite", "value": "playwright-lifecycle"},
+    {"name": "framework", "value": "lazytest"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "core"},
+    {"name": "package", "value": "com.blockether.spel"},
+    {"name": "testClass", "value": "com.blockether.spel.core-test"},
+    {"name": "testMethod", "value": "creates-playwright-instance"}
+  ],
+  "parameters": [],
+  "links": []
+}

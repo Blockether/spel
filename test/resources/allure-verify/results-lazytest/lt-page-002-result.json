@@ -1,0 +1,23 @@
+{
+  "uuid": "lt-page-002",
+  "historyId": "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "testCaseId": "e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "fullName": "com.blockether.spel.page-test.navigation.navigates-to-url",
+  "name": "navigation > navigates-to-url",
+  "status": "passed",
+  "stage": "finished",
+  "start": 1700000011000,
+  "stop": 1700000012000,
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.page-test"},
+    {"name": "subSuite", "value": "navigation"},
+    {"name": "framework", "value": "lazytest"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "page"},
+    {"name": "package", "value": "com.blockether.spel"},
+    {"name": "testClass", "value": "com.blockether.spel.page-test"},
+    {"name": "testMethod", "value": "navigates-to-url"}
+  ],
+  "parameters": [],
+  "links": []
+}

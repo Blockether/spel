@@ -1,0 +1,22 @@
+{
+  "uuid": "mix-lt-002",
+  "historyId": "cc33dd44ee55ff66aa11bb22cc33dd44",
+  "testCaseId": "cc33dd44ee55ff66aa11bb22cc33dd44",
+  "fullName": "com.blockether.spel.page-test.navigates-to-url",
+  "name": "navigates-to-url",
+  "status": "failed",
+  "stage": "finished",
+  "start": 1700000023000,
+  "stop": 1700000023900,
+  "statusDetails": {
+    "message": "Timeout waiting for navigation"
+  },
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.page-test"},
+    {"name": "framework", "value": "lazytest"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "page"}
+  ],
+  "parameters": [],
+  "links": []
+}

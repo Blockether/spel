@@ -1,0 +1,26 @@
+{
+  "uuid": "ct-markdown-003",
+  "historyId": "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+  "testCaseId": "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+  "fullName": "com.blockether.spel.ct.markdown-test.renders-bold-text",
+  "name": "renders-bold-text",
+  "status": "failed",
+  "stage": "finished",
+  "start": 1700000003000,
+  "stop": 1700000003800,
+  "statusDetails": {
+    "message": "Expected bold rendering\nExpected: \"<b>hello</b>\"\nActual: \"<strong>hello</strong>\""
+  },
+  "labels": [
+    {"name": "suite", "value": "com.blockether.spel.ct.markdown-test"},
+    {"name": "parentSuite", "value": "com.blockether.spel.ct"},
+    {"name": "framework", "value": "clojure.test"},
+    {"name": "language", "value": "clojure"},
+    {"name": "feature", "value": "markdown"},
+    {"name": "package", "value": "com.blockether.spel.ct"},
+    {"name": "testClass", "value": "com.blockether.spel.ct.markdown-test"},
+    {"name": "testMethod", "value": "renders-bold-text"}
+  ],
+  "parameters": [],
+  "links": []
+}
