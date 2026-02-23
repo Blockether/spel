@@ -79,7 +79,7 @@ The full `make test` runs **two test suites** (as of 2026-02-23):
 - `./test-cli.sh` — **~164 bash assertions** (requires `./target/spel` binary)
 
 CI also runs a separate clojure.test suite (23 tests, 63 assertions) via the Allure Report workflow.
-CI does NOT run `test-cli.sh` — only `--help` smoke tests. The full bash regression runs locally only.
+CI runs `test-cli.sh` on Linux and macOS after native image build (not on Windows — bash script).
 
 If you see significantly fewer lazytest cases (e.g. <1000), something is wrong:
 - You may be running a single namespace (`-n`) instead of the full suite
