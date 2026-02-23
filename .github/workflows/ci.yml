@@ -91,6 +91,13 @@ jobs:
       - name: Build spel native image
         run: clojure -T:build native-image
 
+
+      - name: CLI bash regression tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x target/spel
+          ./test-cli.sh ./target/spel
+
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'
         run: |
