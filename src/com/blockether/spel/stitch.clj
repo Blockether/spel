@@ -1,57 +1,67 @@
 (ns com.blockether.spel.stitch
-  "Vertical image stitching utility. Combines multiple screenshots into one."
+  "Vertical image stitching via Playwright browser rendering.
+   Combines multiple screenshot PNGs into one by rendering them as HTML
+   and taking a full-page screenshot — no AWT/ImageIO dependency."
+  (:require
+   [com.blockether.spel.core :as core]
+   [com.blockether.spel.page :as page])
   (:import
-   [java.awt.image BufferedImage]
-   [java.io File]
-   [javax.imageio ImageIO]))
+   [java.nio.file Files Path]
+   [java.util Base64]))
 
-(defn read-image ^BufferedImage [path]
-  (ImageIO/read (File. ^String path)))
+(defn- file->base64 [^String path]
+  (let [bytes (Files/readAllBytes (Path/of path (into-array String [])))]
+    (.encodeToString (Base64/getEncoder) bytes)))
+
+(defn- build-html [base64-images {:keys [overlap-px] :or {overlap-px 0}}]
+  (let [overlap (long overlap-px)]
+    (str "<!DOCTYPE html><html><head><style>"
+         "* { margin: 0; padding: 0; } "
+         "body { display: flex; flex-direction: column; width: fit-content; } "
+         "img { display: block; } "
+         (when (pos? overlap)
+           (str ".trimmed { margin-top: -" overlap "px; }"))
+         "</style></head><body>"
+         (apply str
+                (map-indexed
+                 (fn [i b64]
+                   (str "<img src=\"data:image/png;base64," b64 "\""
+                        (when (and (pos? overlap) (pos? i))
+                          " class=\"trimmed\"")
+                        "/>"))
+                 base64-images))
+         "</body></html>")))
 
 (defn stitch-vertical
-  "Stitch multiple images vertically into one PNG.
-   All images must have the same width (uses the max width, pads narrower images).
+  "Stitch multiple images vertically into one PNG using Playwright.
    Returns the output path."
   [paths ^String out-path]
-  (let [images  (mapv read-image paths)
-        width   (long (apply max (map #(.getWidth ^BufferedImage %) images)))
-        total-h (long (reduce + (map #(.getHeight ^BufferedImage %) images)))
-        out     (BufferedImage. width total-h BufferedImage/TYPE_INT_ARGB)
-        g       (.createGraphics out)]
-    (reduce (fn [^long y ^BufferedImage img]
-              (.drawImage g img (int 0) (int y) nil)
-              (+ y (.getHeight img)))
-      (long 0) images)
-    (.dispose g)
-    (ImageIO/write out "png" (File. ^String out-path))
+  (let [b64s (mapv file->base64 paths)
+        html (build-html b64s {})]
+    (core/with-playwright [pw]
+      (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+        (core/with-page [pg (core/new-page browser)]
+          (page/set-content! pg html)
+          (page/wait-for-load-state pg :networkidle)
+          (page/screenshot pg {:path out-path :full-page true}))))
     out-path))
 
 (defn stitch-vertical-overlap
-  "Stitch images vertically, trimming `overlap-px` from the top of each image
-   after the first (to remove duplicate content from scrolling).
-   overlap-px default: 0"
+  "Stitch images vertically, overlapping by `overlap-px` pixels.
+   Uses negative margin to overlap subsequent images."
   [paths out-path {:keys [overlap-px] :or {overlap-px 0}}]
-  (if (zero? (long overlap-px))
-    (stitch-vertical paths out-path)
-    (let [images    (mapv read-image paths)
-          first-img ^BufferedImage (first images)
-          rest-imgs (rest images)
-          overlap   (long overlap-px)
-          ;; Trim overlap-px from top of each subsequent image
-          trimmed   (mapv (fn [^BufferedImage img]
-                            (let [h    (long (.getHeight img))
-                                  trim (long (min overlap (dec h)))]
-                              (.getSubimage img 0 (int trim) (.getWidth img) (int (- h trim)))))
-                      rest-imgs)
-          all-imgs  (into [first-img] trimmed)
-          width     (long (apply max (map #(.getWidth ^BufferedImage %) all-imgs)))
-          total-h   (long (reduce + (map #(.getHeight ^BufferedImage %) all-imgs)))
-          out       (BufferedImage. width total-h BufferedImage/TYPE_INT_ARGB)
-          g         (.createGraphics out)]
-      (reduce (fn [^long y ^BufferedImage img]
-                (.drawImage g img (int 0) (int y) nil)
-                (+ y (.getHeight img)))
-        (long 0) all-imgs)
-      (.dispose g)
-      (ImageIO/write out "png" (File. ^String out-path))
-      out-path)))
+  (let [b64s (mapv file->base64 paths)
+        html (build-html b64s {:overlap-px (or overlap-px 0)})]
+    (core/with-playwright [pw]
+      (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+        (core/with-page [pg (core/new-page browser)]
+          (page/set-content! pg html)
+          (page/wait-for-load-state pg :networkidle)
+          (page/screenshot pg {:path out-path :full-page true}))))
+    out-path))
+
+(defn read-image
+  "Reads an image file and returns its base64 encoding.
+   (Replaces the old AWT BufferedImage version.)"
+  [path]
+  (file->base64 path))
