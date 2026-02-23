@@ -142,6 +142,14 @@
    completes. When nil (default), no HAR is captured."
   nil)
 
+
+(def ^:dynamic *video-path*
+  "Dynamic var holding the path to the video recording file.
+   Bound by `with-video-page-opts` fixture, captured by the reporter.
+   The Allure reporter copies the video file to allure-results/ after
+   the test completes. When nil (default), no video is attached."
+  nil)
+
 (def ^:dynamic *test-title*
   "Dynamic var holding the current test's display title.
    Bound by the reporter's `wrap-try-test-case` to the test case

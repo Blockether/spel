@@ -440,7 +440,10 @@
         har-att     (when-let [hp (:allure/har-path ts)]
                       (copy-file-attachment! dir hp "Network Activity (HAR)"
                         "application/json" ".har"))
-        io-atts     (filterv some? [out-att err-att trace-att har-att])
+        video-att   (when-let [vp (:allure/video-path ts)]
+                      (copy-file-attachment! dir vp "Video Recording"
+                        "video/webm" ".webm"))
+        io-atts     (filterv some? [out-att err-att trace-att har-att video-att])
         all-labels  (into (build-labels ts sub-suite) ctx-labels)
         all-links   (or (seq ctx-links) [])
         all-params  (or (seq ctx-params) [])
@@ -663,6 +666,10 @@
 
                allure/*har-path*
                (assoc :allure/har-path (str allure/*har-path*))
+
+
+               allure/*video-path*
+               (assoc :allure/video-path (str allure/*video-path*))
 
                allure/*test-out*
                (assoc :system-out (str allure/*test-out*))

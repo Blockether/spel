@@ -53,9 +53,10 @@
     (let [out-sw      (StringWriter.)
           err-sw      (StringWriter.)
           ctx-atom    (atom (allure/make-context))
-          ;; Capture trace/HAR paths (bound by with-traced-page fixture)
+          ;; Capture trace/HAR/video paths (bound by fixture dynamic vars)
           trace-path  allure/*trace-path*
           har-path    allure/*har-path*
+          video-path  allure/*video-path*
           start-ms    (System/currentTimeMillis)
           result      (binding [*out*                (PrintWriter. out-sw true)
                                 *err*                (PrintWriter. err-sw true)
@@ -135,7 +136,8 @@
                 :system-err    (str err-sw)
                 :allure/context ctx-val)
         trace-path (assoc :allure/trace-path (str trace-path))
-        har-path   (assoc :allure/har-path   (str har-path))))))
+        har-path   (assoc :allure/har-path   (str har-path))
+        video-path (assoc :allure/video-path (str video-path))))))
 
 (defn- install-output-capture!
   "Patches try-test-case for output capture. Skips if already patched
@@ -398,14 +400,17 @@
          ;; Write full test-level log (accumulated from all steps via tee-writer)
         out-att     (write-attachment! output-dir (:system-out tc) "Full stdout log")
         err-att     (write-attachment! output-dir (:system-err tc) "Full stderr log")
-        ;; Copy trace/HAR files if present (from with-traced-page fixture)
+        ;; Copy trace/HAR/video files if present (from fixture dynamic vars)
         trace-att   (when-let [tp (:allure/trace-path tc)]
                       (copy-file-attachment! output-dir tp "Playwright Trace"
                         "application/vnd.allure.playwright-trace" ".zip"))
         har-att     (when-let [hp (:allure/har-path tc)]
                       (copy-file-attachment! output-dir hp "Network Activity (HAR)"
                         "application/json" ".har"))
-        io-atts     (filterv some? [out-att err-att trace-att har-att])
+        video-att   (when-let [vp (:allure/video-path tc)]
+                      (copy-file-attachment! output-dir vp "Video Recording"
+                        "video/webm" ".webm"))
+        io-atts     (filterv some? [out-att err-att trace-att har-att video-att])
         ;; In-test API context data
         ctx         (:allure/context tc)
         ctx-labels  (when ctx (:labels ctx))
@@ -700,9 +705,9 @@
                      "document.addEventListener('keydown',function(e){'Escape'===e.key&&closeVideoModal()});\n"
                      "// Intercept video attachment clicks to open in modal\n"
                      "(function(){\n"
-                     "  var observer=new MutationObserver(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})});\n"
+                     "  var observer=new MutationObserver(function(){document.querySelectorAll('a[href]').forEach(function(link){if(link.href&&link.href.match(/\\.webm($|\\?)|video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})});\n"
                      "  observer.observe(document.body,{childList:true,subtree:true});\n"
-                     "  setTimeout(function(){document.querySelectorAll('.attachment__link').forEach(function(link){if(link.href&&link.href.match(/\\.webm|\\/video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})},3000);\n"
+                     "  setTimeout(function(){document.querySelectorAll('a[href]').forEach(function(link){if(link.href&&link.href.match(/\\.webm($|\\?)|video\\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})},3000);\n"
                      "}());\n"
                      "</script>\n")
                 patched (-> content
