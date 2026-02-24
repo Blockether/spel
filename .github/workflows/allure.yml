@@ -145,8 +145,6 @@ jobs:
               ``,
               `🔗 **[View Report](${reportUrl})**`,
               ``,
-              `Live report: ${reportUrl}`,
-              ``,
               `| Suite | Status |`,
               `|-------|--------|`,
               `| Lazytest | ${{ steps.tests-lazytest.outcome }} |`,
@@ -383,6 +381,23 @@ jobs:
                 (ci/mark-prs-merged!
                   {:site-dir \"gh-pages-site\"
                    :merged-prs [${MERGED}]})"
+            fi
+          fi
+
+      - name: Update PR check statuses
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f gh-pages-site/pr-builds.json ]; then
+            FAILING=$(gh pr list --state open --limit 50 --json number,statusCheckRollup \
+              --jq '[.[] | select(.statusCheckRollup | any(.conclusion == "FAILURE")) | .number] | join(",")' 2>/dev/null || true)
+            if [ -n "$FAILING" ]; then
+              clojure -M -e "
+                (require '[com.blockether.spel.ci :as ci])
+                (ci/update-pr-statuses!
+                  {:site-dir \"gh-pages-site\"
+                   :failing-prs [${FAILING}]})"
             fi
           fi
 

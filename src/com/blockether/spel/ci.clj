@@ -418,6 +418,28 @@
         (spit pr-file (json/write-json-str updated))
         (println (str "Marked " (count merged-set) " PR(s) as merged"))))))
 
+(defn update-pr-statuses!
+  "Update PR build pass/fail status based on actual CI check results.
+   Corrects status when external CI workflows (not just Allure) fail.
+
+   Options:
+     :site-dir     - path to site directory
+     :failing-prs  - sequence of PR numbers that have failing checks"
+  [{:keys [site-dir failing-prs]}]
+  (let [site        (io/file (or site-dir "gh-pages-site"))
+        pr-file     (io/file site "pr-builds.json")
+        failing-set (set (keep parse-num failing-prs))]
+    (when (and (.isFile pr-file) (seq failing-set))
+      (let [builds  (vec (json/read-json (slurp pr-file)))
+            updated (mapv
+                      (fn [b]
+                        (if (contains? failing-set (get b "pr_number"))
+                          (assoc b "passed" false)
+                          b))
+                      builds)]
+        (spit pr-file (json/write-json-str updated))
+        (println (str "Marked " (count failing-set) " PR(s) as failing"))))))
+
 ;; =============================================================================
 ;; Index HTML Patching
 ;; =============================================================================
