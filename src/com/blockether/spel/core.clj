@@ -22,12 +22,13 @@
   (:import
    [java.io File]
    [java.nio.file Path]
-   [java.util UUID]
-   [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
-    Browser BrowserContext BrowserType Page Playwright Playwright$CreateOptions
-    PlaywrightException TimeoutError Tracing$StartOptions Tracing$StopOptions Video]
-   [com.microsoft.playwright.impl TargetClosedError]
-   [com.microsoft.playwright.options FormData RequestOptions]))
+   [java.util UUID
+    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
+     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
+     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]]
+   [com.microsoft.playwright.impl TargetClosedError
+    [com.microsoft.playwright.options FormData RequestOptions]
+    [com.google.gson JsonObject]]))
 
 ;; =============================================================================
 ;; Error Handling
@@ -827,12 +828,12 @@
           (when (instance? Page pg) (close-page! pg))
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))
-               (catch Exception _))
+            (catch Exception _))
           ;; Close context (writes HAR file) before attaching, so both
           ;; trace and HAR are fully written when we copy them.
           (let [t (doto (Thread. (fn []
                                    (try (close-context! ctx)
-                                        (catch Exception _))))
+                                     (catch Exception _))))
                     (.setDaemon true)
                     (.start))]
             (.join t 5000))
@@ -858,7 +859,7 @@
    Returns [active?-fn vars-map]."
   []
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                     (catch Exception _ (constantly false)))]
+                  (catch Exception _ (constantly false)))]
     [active?
      {:page        (resolve 'com.blockether.spel.allure/*page*)
       :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
@@ -1707,9 +1708,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-              (catch Exception e
-                (binding [*out* *err*]
-                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+           (catch Exception e
+             (binding [*out* *err*]
+               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -1923,10 +1924,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                     (catch Exception _))
+                  (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (close-context! ctx)
-                                              (catch Exception _))))
+                                           (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000))
@@ -2034,7 +2035,7 @@
           (f ctx)))
       (finally
         (try (close! pw)
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 (defmacro with-page-api
   "Create an APIRequestContext from a Page with custom options.
@@ -2070,3 +2071,139 @@
   [pg opts binding-vec & body]
   (let [[sym] binding-vec]
     `(run-with-page-api ~pg ~opts (fn [~sym] ~@body))))
+
+;; =============================================================================
+;; CDPSession
+;; =============================================================================
+
+(defn cdp-send
+  "Sends a Chrome DevTools Protocol command.
+   
+   Params:
+   `session` - CDPSession instance.
+   `method`  - String. CDP method name.
+   `params`  - Map, optional. CDP parameters.
+   
+   Returns:
+   JSON result or anomaly map."
+  ([^CDPSession session ^String method]
+   (safe (.send session method)))
+  ([^CDPSession session ^String method params]
+   (let [json-obj (JsonObject.)]
+     (doseq [[k v] params]
+       (.addProperty json-obj (name k) (str v)))
+     (safe (.send session method json-obj)))))
+
+(defn cdp-detach!
+  "Detaches the CDP session.
+   
+   Params:
+   `session` - CDPSession instance."
+  [^CDPSession session]
+  (.detach session))
+
+(defn cdp-on
+  "Registers a handler for CDP events.
+   
+   Params:
+   `session` - CDPSession instance.
+   `event`   - String. Event name.
+   `handler` - Function that receives the event data."
+  [^CDPSession session ^String event handler]
+  (.on session event
+    (reify java.util.function.Consumer
+      (accept [_ data] (handler data)))))
+
+;; =============================================================================
+;; Tracing
+;; =============================================================================
+
+(defn context-tracing
+  "Returns the Tracing for a context.
+   
+   Params:
+   `context` - BrowserContext instance.
+   
+   Returns:
+   Tracing instance."
+  ^Tracing [^BrowserContext context]
+  (.tracing context))
+
+(defn tracing-start!
+  "Starts tracing.
+   
+   Params:
+   `tracing` - Tracing instance.
+   `opts`    - Map, optional. Tracing options."
+  ([^Tracing tracing]
+   (safe (.start tracing)))
+  ([^Tracing tracing trace-opts]
+   (safe (.start tracing (opts/->tracing-start-options trace-opts)))))
+
+(defn tracing-stop!
+  "Stops tracing and saves the trace file.
+   
+   Params:
+   `tracing` - Tracing instance.
+   `opts`    - Map, optional. {:path \"trace.zip\"}."
+  ([^Tracing tracing]
+   (safe (.stop tracing)))
+  ([^Tracing tracing stop-opts]
+   (safe (.stop tracing (opts/->tracing-stop-options stop-opts)))))
+
+;; =============================================================================
+;; Selectors
+;; =============================================================================
+
+(defn selectors
+  "Returns the Selectors for a Playwright instance.
+   
+   Params:
+   `pw` - Playwright instance.
+   
+   Returns:
+   Selectors instance."
+  ^Selectors [^com.microsoft.playwright.Playwright pw]
+  (.selectors pw))
+
+(defn selectors-register!
+  "Registers a custom selector engine.
+   
+   Params:
+   `sels`   - Selectors instance.
+   `name`   - String. Selector engine name.
+   `script` - String. JavaScript for the selector engine."
+  [^Selectors sels ^String name ^String script]
+  (safe (.register sels name script)))
+
+;; =============================================================================
+;; Video (on Video object)
+;; =============================================================================
+
+(defn video-obj-path
+  "Returns the path to the video file from a Video instance.
+   
+   Params:
+   `video` - Video instance.
+   
+   Returns:
+   Path or anomaly map."
+  [^Video video]
+  (safe (.path video)))
+
+(defn video-obj-save-as!
+  "Saves the video to the given path from a Video instance.
+   
+   Params:
+   `video` - Video instance.
+   `path`  - String. Destination path."
+  [^Video video ^String path]
+  (safe (.saveAs video (java.nio.file.Paths/get path (into-array String [])))))
+
+(defn video-obj-delete!
+  "Deletes the video file from a Video instance.
+   
+   Params:
+   `video` - Video instance."
+  [^Video video]
+  (safe (.delete video)))

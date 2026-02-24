@@ -4,7 +4,7 @@
    [com.blockether.spel.options :as sut]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
-   [com.microsoft.playwright BrowserType$LaunchOptions Browser$NewContextOptions]))
+   [com.microsoft.playwright BrowserType$LaunchOptions BrowserType$LaunchPersistentContextOptions Browser$NewContextOptions]))
 
 ;; =============================================================================
 ;; Launch Options
@@ -32,25 +32,25 @@
 
     (it "creates options with channel"
       (let [lo (sut/->launch-options {:channel "chrome"})]
-        (expect (instance? BrowserType$LaunchOptions lo)))))
+        (expect (instance? BrowserType$LaunchOptions lo))))
 
+    (it "creates options with ignore-default-args"
+      (let [lo (sut/->launch-options {:ignore-default-args ["--use-mock-keychain" "--password-store=basic"]})]
+        (expect (instance? BrowserType$LaunchOptions lo)))))
   (describe "proxy options"
     (it "creates options with proxy server only"
       (let [lo (sut/->launch-options {:proxy {:server "http://proxy:8080"}})]
         (expect (instance? BrowserType$LaunchOptions lo))))
-
     (it "creates options with proxy server and bypass"
       (let [lo (sut/->launch-options {:proxy {:server "http://proxy:8080"
                                               :bypass "localhost,127.0.0.1"}})]
         (expect (instance? BrowserType$LaunchOptions lo))))
-
     (it "creates options with proxy server, bypass, username, and password"
       (let [lo (sut/->launch-options {:proxy {:server "http://proxy:8080"
                                               :bypass "localhost"
                                               :username "user"
                                               :password "pass"}})]
         (expect (instance? BrowserType$LaunchOptions lo))))
-
     (it "does not set proxy when proxy key is absent"
       (let [lo (sut/->launch-options {:headless true})]
         (expect (instance? BrowserType$LaunchOptions lo)))))
@@ -87,3 +87,23 @@
     (it "creates context options with extra-http-headers"
       (let [co (sut/->new-context-options {:extra-http-headers {"Authorization" "Bearer tok"}})]
         (expect (instance? Browser$NewContextOptions co))))))
+
+;; =============================================================================
+;; Launch Persistent Context Options
+;; =============================================================================
+
+(defdescribe launch-persistent-context-options-test
+  "Tests for ->launch-persistent-context-options"
+
+  (describe "basic options"
+    (it "creates persistent context options with headless"
+      (let [o (sut/->launch-persistent-context-options {:headless true})]
+        (expect (instance? BrowserType$LaunchPersistentContextOptions o))))
+
+    (it "creates persistent context options with channel"
+      (let [o (sut/->launch-persistent-context-options {:channel "chrome"})]
+        (expect (instance? BrowserType$LaunchPersistentContextOptions o))))
+
+    (it "creates persistent context options with ignore-default-args"
+      (let [o (sut/->launch-persistent-context-options {:ignore-default-args ["--use-mock-keychain" "--password-store=basic"]})]
+        (expect (instance? BrowserType$LaunchPersistentContextOptions o))))))

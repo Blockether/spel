@@ -31,7 +31,6 @@
    ['com.blockether.spel.snapshot   "snapshot"   "Accessibility snapshots"]
    ['com.blockether.spel.annotate   "annotate"   "Page annotation overlays"]
    ['com.blockether.spel.codegen    "codegen"    "JSONL to Clojure transformer"]
-   ['com.blockether.spel.util       "util"       "Dialog, download, console, CDP, clock, tracing, video, workers"]
    ['com.blockether.spel.options    "options"    "Java option builders (80+)"]
    ['com.blockether.spel.data       "data"       "Datafy protocols"]])
 

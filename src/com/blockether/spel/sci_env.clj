@@ -41,8 +41,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as roles]
    [com.blockether.spel.snapshot :as snapshot]
-   [com.blockether.spel.stitch :as stitch]
-   [com.blockether.spel.util :as util])
+   [com.blockether.spel.stitch :as stitch])
   (:import
    [com.microsoft.playwright
     APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -187,21 +186,21 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+          (catch Exception e
+            (binding [*out* *err*]
+              (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -623,26 +622,26 @@
    :screenshots - Boolean. Capture screenshots (default: false).
    :snapshots   - Boolean. Capture DOM snapshots (default: false).
    :sources     - Boolean. Include source files (default: false)."
-  ([]     (throw-if-anomaly (util/tracing-start! (util/context-tracing (require-context!)))))
-  ([opts] (throw-if-anomaly (util/tracing-start! (util/context-tracing (require-context!)) opts))))
+  ([]     (throw-if-anomaly (core/tracing-start! (core/context-tracing (require-context!)))))
+  ([opts] (throw-if-anomaly (core/tracing-start! (core/context-tracing (require-context!)) opts))))
 
 (defn sci-trace-stop!
   "Stops Playwright tracing and saves to a file.
 
    Opts:
    :path - String. Output path (default: \"trace.zip\")."
-  ([]     (throw-if-anomaly (util/tracing-stop! (util/context-tracing (require-context!)))))
-  ([opts] (throw-if-anomaly (util/tracing-stop! (util/context-tracing (require-context!)) opts))))
+  ([]     (throw-if-anomaly (core/tracing-stop! (core/context-tracing (require-context!)))))
+  ([opts] (throw-if-anomaly (core/tracing-stop! (core/context-tracing (require-context!)) opts))))
 
 (defn sci-trace-group
   "Opens a named group in the trace. Groups nest actions visually in Trace Viewer."
   [name]
-  (.group ^com.microsoft.playwright.Tracing (util/context-tracing (require-context!)) ^String name))
+  (.group ^com.microsoft.playwright.Tracing (core/context-tracing (require-context!)) ^String name))
 
 (defn sci-trace-group-end
   "Closes the current trace group."
   []
-  (.groupEnd ^com.microsoft.playwright.Tracing (util/context-tracing (require-context!))))
+  (.groupEnd ^com.microsoft.playwright.Tracing (core/context-tracing (require-context!))))
 
 ;; =============================================================================
 ;; Video Recording

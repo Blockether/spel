@@ -1,13 +1,16 @@
 (ns com.blockether.spel.page
-  "Page operations - navigation, content, evaluation, screenshots.
-   
+  "Page operations - navigation, content, evaluation, screenshots,
+   events, and utility classes (Dialog, Download, ConsoleMessage,
+   Clock, FileChooser, Worker, WebError).
    The Page class is the central API surface of Playwright. Wraps all
    Page methods with idiomatic Clojure functions."
   (:require
    [com.blockether.spel.core :refer [safe]]
    [com.blockether.spel.options :as opts])
   (:import
-   [com.microsoft.playwright Page Locator Frame]
+   [com.microsoft.playwright Page Locator Frame
+    Dialog Download ConsoleMessage Clock
+    Worker FileChooser WebError BrowserContext]
    [com.microsoft.playwright.options LoadState
     FunctionCallback BindingCallback]))
 
@@ -568,7 +571,7 @@
    Example:
    (let [fc (page/wait-for-file-chooser pg
               #(locator/click (page/locator pg \"input[type=file]\")))]
-     (util/file-chooser-set-files! fc \"/path/to/file.txt\"))"
+      (page/file-chooser-set-files! fc "/path/to/file.txt"))"
   ([^Page page action]
    (safe (.waitForFileChooser page (reify Runnable (run [_] (action))))))
   ([^Page page action opts]
@@ -916,3 +919,369 @@
     (reify BindingCallback
       (call [_ source args]
         (apply f source (vec args))))))
+
+;; =============================================================================
+;; Dialog
+;; =============================================================================
+
+(defn dialog-type
+  "Returns the dialog type (alert, confirm, prompt, beforeunload).
+   
+   Params:
+   `dialog` - Dialog instance.
+   
+   Returns:
+   String."
+  ^String [^Dialog dialog]
+  (.type dialog))
+
+(defn dialog-message
+  "Returns the dialog message.
+   
+   Params:
+   `dialog` - Dialog instance.
+   
+   Returns:
+   String."
+  ^String [^Dialog dialog]
+  (.message dialog))
+
+(defn dialog-default-value
+  "Returns the default value for prompt dialogs.
+   
+   Params:
+   `dialog` - Dialog instance.
+   
+   Returns:
+   String."
+  ^String [^Dialog dialog]
+  (.defaultValue dialog))
+
+(defn dialog-accept!
+  "Accepts the dialog.
+   
+   Params:
+   `dialog`     - Dialog instance.
+   `prompt-text` - String, optional. Text for prompt dialogs."
+  ([^Dialog dialog]
+   (safe (.accept dialog)))
+  ([^Dialog dialog ^String prompt-text]
+   (safe (.accept dialog prompt-text))))
+
+(defn dialog-dismiss!
+  "Dismisses the dialog.
+   
+   Params:
+   `dialog` - Dialog instance."
+  [^Dialog dialog]
+  (safe (.dismiss dialog)))
+
+;; =============================================================================
+;; Download
+;; =============================================================================
+
+(defn download-url
+  "Returns the download URL.
+   
+   Params:
+   `download` - Download instance.
+   
+   Returns:
+   String."
+  ^String [^Download download]
+  (.url download))
+
+(defn download-suggested-filename
+  "Returns the suggested filename.
+   
+   Params:
+   `download` - Download instance.
+   
+   Returns:
+   String."
+  ^String [^Download download]
+  (.suggestedFilename download))
+
+(defn download-path
+  "Returns the local path to the downloaded file.
+   
+   Params:
+   `download` - Download instance.
+   
+   Returns:
+   Path or nil."
+  [^Download download]
+  (safe (.path download)))
+
+(defn download-save-as!
+  "Saves the download to the given path.
+   
+   Params:
+   `download` - Download instance.
+   `path`     - String. Destination path."
+  [^Download download ^String path]
+  (safe (.saveAs download (java.nio.file.Paths/get path (into-array String [])))))
+
+(defn download-cancel!
+  "Cancels the download.
+   
+   Params:
+   `download` - Download instance."
+  [^Download download]
+  (.cancel download))
+
+(defn download-failure
+  "Returns the download failure reason, or nil.
+   
+   Params:
+   `download` - Download instance.
+   
+   Returns:
+   String or nil."
+  [^Download download]
+  (.failure download))
+
+(defn download-page
+  "Returns the page the download belongs to.
+   
+   Params:
+   `download` - Download instance.
+   
+   Returns:
+   Page instance."
+  ^Page [^Download download]
+  (.page download))
+
+;; =============================================================================
+;; ConsoleMessage
+;; =============================================================================
+
+(defn console-type
+  "Returns the console message type (log, debug, info, error, warning, etc).
+   
+   Params:
+   `msg` - ConsoleMessage instance.
+   
+   Returns:
+   String."
+  ^String [^ConsoleMessage msg]
+  (.type msg))
+
+(defn console-text
+  "Returns the console message text.
+   
+   Params:
+   `msg` - ConsoleMessage instance.
+   
+   Returns:
+   String."
+  ^String [^ConsoleMessage msg]
+  (.text msg))
+
+(defn console-args
+  "Returns the console message arguments as JSHandles.
+   
+   Params:
+   `msg` - ConsoleMessage instance.
+   
+   Returns:
+   Vector of JSHandle."
+  [^ConsoleMessage msg]
+  (vec (.args msg)))
+
+(defn console-location
+  "Returns the source location of the console message.
+   
+   Params:
+   `msg` - ConsoleMessage instance.
+   
+   Returns:
+   String. The location string."
+  ^String [^ConsoleMessage msg]
+  (.location msg))
+
+(defn console-page
+  "Returns the page the console message belongs to.
+   
+   Params:
+   `msg` - ConsoleMessage instance.
+   
+   Returns:
+   Page instance."
+  ^Page [^ConsoleMessage msg]
+  (.page msg))
+
+;; =============================================================================
+;; Clock
+;; =============================================================================
+
+(defn page-clock
+  "Returns the Clock for a page.
+   
+   Params:
+   `page` - Page instance.
+   
+   Returns:
+   Clock instance."
+  ^Clock [^Page page]
+  (.clock page))
+
+(defn clock-install!
+  "Installs fake timers on the clock.
+   
+   Params:
+   `clock` - Clock instance."
+  [^Clock clock]
+  (.install clock))
+
+(defn clock-set-fixed-time!
+  "Sets the clock to a fixed time.
+   
+   Params:
+   `clock` - Clock instance.
+   `time`  - Long. Unix timestamp in ms."
+  [^Clock clock time]
+  (.setFixedTime clock (long time)))
+
+(defn clock-set-system-time!
+  "Sets the system time.
+   
+   Params:
+   `clock` - Clock instance.
+   `time`  - Long. Unix timestamp in ms."
+  [^Clock clock time]
+  (.setSystemTime clock (long time)))
+
+(defn clock-fast-forward!
+  "Fast-forwards the clock by the given time.
+   
+   Params:
+   `clock` - Clock instance.
+   `ticks` - Long. Time to advance in ms."
+  [^Clock clock ticks]
+  (.fastForward clock (long ticks)))
+
+(defn clock-pause-at!
+  "Pauses the clock at the given time.
+   
+   Params:
+   `clock` - Clock instance.
+   `time`  - Long. Unix timestamp in ms."
+  [^Clock clock time]
+  (.pauseAt clock (long time)))
+
+(defn clock-resume!
+  "Resumes the clock.
+   
+   Params:
+   `clock` - Clock instance."
+  ^Clock [^Clock clock]
+  (.resume clock))
+
+;; =============================================================================
+;; Worker
+;; =============================================================================
+
+(defn worker-url
+  "Returns the worker URL.
+   
+   Params:
+   `worker` - Worker instance.
+   
+   Returns:
+   String."
+  ^String [^Worker worker]
+  (.url worker))
+
+(defn worker-evaluate
+  "Evaluates JavaScript in the worker context.
+   
+   Params:
+   `worker`     - Worker instance.
+   `expression` - String.
+   `arg`        - Optional argument.
+   
+   Returns:
+   Result or anomaly map."
+  ([^Worker worker ^String expression]
+   (safe (.evaluate worker expression)))
+  ([^Worker worker ^String expression arg]
+   (safe (.evaluate worker expression arg))))
+
+;; =============================================================================
+;; FileChooser
+;; =============================================================================
+
+(defn file-chooser-page
+  "Returns the page the file chooser belongs to.
+   
+   Params:
+   `fc` - FileChooser instance.
+   
+   Returns:
+   Page instance."
+  ^Page [^FileChooser fc]
+  (.page fc))
+
+(defn file-chooser-element
+  "Returns the element handle for the file input.
+   
+   Params:
+   `fc` - FileChooser instance.
+   
+   Returns:
+   ElementHandle."
+  [^FileChooser fc]
+  (.element fc))
+
+(defn file-chooser-is-multiple?
+  "Returns whether the file chooser accepts multiple files.
+   
+   Params:
+   `fc` - FileChooser instance.
+   
+   Returns:
+   Boolean."
+  [^FileChooser fc]
+  (.isMultiple fc))
+
+(defn file-chooser-set-files!
+  "Sets the files for the file chooser.
+   
+   Params:
+   `fc`    - FileChooser instance.
+   `files` - String path or vector of paths."
+  [^FileChooser fc files]
+  (safe
+    (if (sequential? files)
+      (.setFiles fc ^"[Ljava.nio.file.Path;"
+        (into-array java.nio.file.Path
+          (map #(java.nio.file.Paths/get ^String % (into-array String []))
+            files)))
+      (.setFiles fc (java.nio.file.Paths/get ^String (str files) (into-array String []))))))
+
+;; =============================================================================
+;; WebError
+;; =============================================================================
+
+(defn web-error-page
+  "Returns the page that generated this web error, if any.
+
+   Params:
+   `we` - WebError instance.
+
+   Returns:
+   Page instance or nil."
+  [^WebError we]
+  (.page we))
+
+(defn web-error-error
+  "Returns the underlying error for this web error.
+
+   Params:
+   `we` - WebError instance.
+
+   Returns:
+   String. The error message."
+  [^WebError we]
+  (.error we))
