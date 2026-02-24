@@ -127,7 +127,7 @@
   "Hook for api/with-page-api.
 
    Takes three arguments: pg, opts, [sym].
-   Rewrites into (let [pg pg opts opts sym nil] body...)
+   Rewrites into (let [_ pg _ opts sym nil] body...)
    so clj-kondo analyzes all expressions and binds sym."
   [{:keys [node]}]
   (let [[pg-node opts-node binding-vec & body] (rest (:children node))
@@ -135,8 +135,8 @@
         new-node (api/list-node
                    (list*
                      (api/token-node 'let)
-                     (api/vector-node [pg-node pg-node
-                                       opts-node opts-node
+                     (api/vector-node [(api/token-node '_) pg-node
+                                       (api/token-node '_) opts-node
                                        sym (api/token-node nil)])
                      body))]
     {:node new-node}))

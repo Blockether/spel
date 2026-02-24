@@ -81,8 +81,8 @@
     .card.in-progress { border-left-color: var(--yellow); background: var(--yellow-bg); }
     .card.in-progress:hover { border-color: var(--yellow-border); border-left-color: var(--yellow); }
     html.dark .card.in-progress { background: var(--yellow-bg); }
-    .card.merged { opacity: 0.65; }
-    .card.merged:hover { opacity: 1; }
+    .card.merged { border-left-color: var(--text-muted); opacity: 0.65; }
+    .card.merged:hover { border-left-color: var(--purple); opacity: 1; }
     .card.cancelled { border-left-color: var(--text-muted); background: var(--code-bg); opacity: 0.7; }
     .card.cancelled:hover { border-color: var(--border-hover); border-left-color: var(--text-muted); opacity: 1; }
 
@@ -274,7 +274,7 @@
     }
 
     /* --- Search bar --- */
-    .search-bar { max-width: 64rem; margin: 0 auto 0.5rem; padding: 0; }
+    .search-bar { max-width: 64rem; margin: 0 auto 1rem; padding: 0; }
     .search-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
     .search-input-wrap { flex: 1; position: relative; display: flex; align-items: center; }
     .search-icon { position: absolute; left: 0.6rem; width: 0.85rem; height: 0.85rem; color: var(--text-muted); pointer-events: none; flex-shrink: 0; }
@@ -302,7 +302,7 @@
     .no-results-text { font-size: 0.8rem; }
     .no-results-hint { font-size: 0.65rem; margin-top: 0.25rem; opacity: 0.7; }
     @media (max-width: 640px) {
-      .search-bar { margin-bottom: 0.35rem; }
+      .search-bar { margin-bottom: 0.75rem; }
       .search-row { flex-direction: row; gap: 0.35rem; margin-bottom: 0.3rem; }
       .search-input { font-size: 0.7rem; padding: 0.4rem 1.6rem 0.4rem 1.8rem; }
       .search-icon { left: 0.5rem; width: 0.75rem; height: 0.75rem; }
@@ -533,7 +533,7 @@
 
       var prUrl = isPR ? (b.pr_url || ((b.repo_url || '') + '/pull/' + b.pr_number)) : '';
       var prBadge = isPR && prUrl ? '<a href="' + prUrl + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : (isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '');
-      var mergedBadge = isMerged ? '<span class="pill pill-muted">Merged</span>' : '';
+      var mergedBadge = isMerged ? '<span class="pill pill-purple" style="opacity:0.7">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
       var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
 
@@ -705,8 +705,8 @@
         statsEl.innerHTML = renderBuildStats(mainBuilds);
         statsEl.classList.add('show');
       } else {
-        statsEl.innerHTML = renderPRStats(prBuilds);
-        statsEl.classList.add('show');
+        statsEl.innerHTML = '';
+        statsEl.classList.remove('show');
       }
 
       if (filtered.length === 0) {
