@@ -274,7 +274,7 @@
     }
 
     /* --- Search bar --- */
-    .search-bar { max-width: 64rem; margin: 0 auto 0.5rem; }
+    .search-bar { max-width: 64rem; margin: 0 auto 0.5rem; padding: 0; }
     .search-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
     .search-input-wrap { flex: 1; position: relative; display: flex; align-items: center; }
     .search-icon { position: absolute; left: 0.6rem; width: 0.85rem; height: 0.85rem; color: var(--text-muted); pointer-events: none; flex-shrink: 0; }
@@ -302,9 +302,14 @@
     .no-results-text { font-size: 0.8rem; }
     .no-results-hint { font-size: 0.65rem; margin-top: 0.25rem; opacity: 0.7; }
     @media (max-width: 640px) {
-      .search-row { flex-direction: column; gap: 0.3rem; }
-      .search-count { align-self: flex-end; }
+      .search-bar { margin-bottom: 0.35rem; }
+      .search-row { flex-direction: row; gap: 0.35rem; margin-bottom: 0.3rem; }
+      .search-input { font-size: 0.7rem; padding: 0.4rem 1.6rem 0.4rem 1.8rem; }
+      .search-icon { left: 0.5rem; width: 0.75rem; height: 0.75rem; }
+      .search-count { font-size: 0.55rem; min-width: 3rem; }
       .search-kbd { display: none; }
+      .filter-pills { gap: 0.2rem; }
+      .filter-pill { padding: 2px 7px; font-size: 0.55rem; }
     }
   </style>
 </head>
@@ -348,6 +353,7 @@
         <button class="filter-pill" data-filter="passed" onclick="setFilter('passed')">Passed</button>
         <button class="filter-pill" data-filter="failed" onclick="setFilter('failed')">Failed</button>
         <button class="filter-pill" data-filter="in_progress" onclick="setFilter('in_progress')">In Progress</button>
+        <button class="filter-pill" data-filter="cancelled" onclick="setFilter('cancelled')">Cancelled</button>
       </div>
     </div>
     <div id="noResults" class="no-results">
@@ -858,6 +864,10 @@
           input.focus();
         }
       });
+      // Shorter placeholder on mobile
+      if (window.innerWidth <= 640) {
+        input.placeholder = 'Search builds\u2026';
+      }
     })();
   </script>
 </body>
