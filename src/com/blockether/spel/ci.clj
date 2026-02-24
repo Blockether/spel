@@ -291,7 +291,6 @@
       (spit meta-file (json/write-json-str (assoc meta run-number updated)))
       (println (str "Finalized build #" run-number " as " (if passed "passed" "failed"))))))
 
-
 ;; =============================================================================
 ;; PR Build Management
 ;; =============================================================================

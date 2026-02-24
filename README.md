@@ -68,8 +68,7 @@ spel install  # requires spel CLI — see "Native CLI" below
 
 ```clojure
 (require '[com.blockether.spel.core :as core]
-         '[com.blockether.spel.page :as page]
-         '[com.blockether.spel.api :as api])
+         '[com.blockether.spel.page :as page])
 
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com")
@@ -99,16 +98,16 @@ Playwright-backed HTTP testing with automatic tracing.
 
 **Standalone API testing** — creates full Playwright stack:
 ```clojure
-(api/with-testing-api {:base-url "https://api.example.com"} [ctx]
-  (api/api-get ctx "/users"))
+(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (core/api-get ctx "/users"))
 ```
 
 **API from Page** — share browser cookies/session:
 ```clojure
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com/login")
-  (let [resp (api/api-get (api/page-api pg) "/api/me")]
-    (api/api-response-status resp)))
+  (let [resp (core/api-get (core/page-api pg) "/api/me")]
+    (core/api-response-status resp)))
 ```
 
 **Page-bound API with custom base-url** — cookies + different domain:
@@ -116,8 +115,8 @@ Playwright-backed HTTP testing with automatic tracing.
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.com/login")
   ;; ... login via UI ...
-  (api/with-page-api pg {:base-url "https://api.example.com"} [ctx]
-    (api/api-get ctx "/me")))
+  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+    (core/api-get ctx "/me")))
 ```
 
 ### Writing Tests

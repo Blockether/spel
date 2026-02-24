@@ -267,6 +267,39 @@
       .builds.grid .run { padding-left: 0.45rem; }
       .builds.grid .msg { -webkit-line-clamp: 2; }
     }
+
+    /* --- Search bar --- */
+    .search-bar { max-width: 64rem; margin: 0 auto 0.5rem; }
+    .search-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+    .search-input-wrap { flex: 1; position: relative; display: flex; align-items: center; }
+    .search-icon { position: absolute; left: 0.6rem; width: 0.85rem; height: 0.85rem; color: var(--text-muted); pointer-events: none; flex-shrink: 0; }
+    .search-input { width: 100%; padding: 0.45rem 2rem 0.45rem 2rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--bg-card); color: var(--text); font-size: 0.75rem; font-family: inherit; outline: none; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: var(--shadow); }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus { border-color: var(--green-border); box-shadow: 0 0 0 2px rgba(46,173,51,0.1); }
+    html.dark .search-input:focus { box-shadow: 0 0 0 2px rgba(46,173,51,0.15); }
+    .search-clear { position: absolute; right: 0.4rem; width: 1.25rem; height: 1.25rem; border: none; background: var(--code-bg); color: var(--text-muted); border-radius: 50%; font-size: 0.75rem; cursor: pointer; display: none; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; }
+    .search-clear:hover { background: var(--border-hover); color: var(--text); }
+    .search-kbd { font-size: 0.55rem; color: var(--text-muted); background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; pointer-events: none; position: absolute; right: 0.5rem; opacity: 0.7; }
+    .search-input:focus ~ .search-kbd { display: none; }
+    .search-count { flex-shrink: 0; font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 4rem; text-align: right; }
+    .filter-pills { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+    .filter-pill { background: none; border: 1px solid var(--border); border-radius: 10px; padding: 2px 10px; font-size: 0.6rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+    .filter-pill:hover { color: var(--text-sec); border-color: var(--border-hover); }
+    .filter-pill.active { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+    .filter-pill[data-filter="failed"].active { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+    .filter-pill[data-filter="in_progress"].active { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
+    html.dark .filter-pill[data-filter="in_progress"].active { color: #ffd54f; }
+    .filter-pill[data-filter="merged"].active { background: var(--code-bg); color: var(--text-sec); border-color: var(--border-hover); }
+    .no-results { display: none; text-align: center; color: var(--text-muted); padding: 2.5rem 1rem; max-width: 64rem; margin: 0 auto; }
+    .no-results.show { display: block; }
+    .no-results-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .no-results-text { font-size: 0.8rem; }
+    .no-results-hint { font-size: 0.65rem; margin-top: 0.25rem; opacity: 0.7; }
+    @media (max-width: 640px) {
+      .search-row { flex-direction: column; gap: 0.3rem; }
+      .search-count { align-self: flex-end; }
+      .search-kbd { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -293,6 +326,28 @@
     <div class="tabs">
       <button class="tab active" id="tabBuilds" onclick="switchTab('builds')">Builds</button>
       <button class="tab" id="tabPRs" onclick="switchTab('prs')">Pull Requests <span id="prBadge" class="tab-badge"></span></button>
+    </div>
+    <div id="searchBar" class="search-bar">
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="searchInput" class="search-input" placeholder="Search by author, commit, message, branch, PR..." autocomplete="off" spellcheck="false">
+          <button id="searchClear" class="search-clear" onclick="clearSearch()">&times;</button>
+          <span id="searchKbd" class="search-kbd">/</span>
+        </div>
+        <span id="searchCount" class="search-count"></span>
+      </div>
+      <div id="filterPills" class="filter-pills">
+        <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="filter-pill" data-filter="passed" onclick="setFilter('passed')">Passed</button>
+        <button class="filter-pill" data-filter="failed" onclick="setFilter('failed')">Failed</button>
+        <button class="filter-pill" data-filter="in_progress" onclick="setFilter('in_progress')">In Progress</button>
+      </div>
+    </div>
+    <div id="noResults" class="no-results">
+      <div class="no-results-icon">&#128269;</div>
+      <div class="no-results-text">No matching builds found</div>
+      <div class="no-results-hint">Try a different search term or filter</div>
     </div>
     <div id="stats" class="stats-bar"></div>
     <div id="builds" class="builds"></div>
@@ -573,12 +628,16 @@
     var mainBuilds = [];
     var prBuilds = [];
     var currentTab = 'builds';
+    var searchQuery = '';
+    var activeFilter = 'all';
 
     function switchTab(tab) {
       currentTab = tab;
       localStorage.setItem('spel-tab', tab);
       document.getElementById('tabBuilds').classList.toggle('active', tab === 'builds');
       document.getElementById('tabPRs').classList.toggle('active', tab === 'prs');
+      updateFilterPills();
+      restoreSearchState();
       renderCurrentTab();
     }
 
@@ -601,30 +660,140 @@
 
     function renderCurrentTab() {
       var data = currentTab === 'builds' ? mainBuilds : prBuilds;
+      var filtered = filterData(data);
       var statsEl = document.getElementById('stats');
       var emptyEl = document.getElementById('empty');
+      var noResultsEl = document.getElementById('noResults');
 
       if (!data.length) {
         document.getElementById('builds').innerHTML = '';
         statsEl.innerHTML = '';
         statsEl.classList.remove('show');
+        noResultsEl.classList.remove('show');
         emptyEl.textContent = currentTab === 'builds'
           ? 'No reports yet. Push to main to generate one.'
           : 'No pull request builds yet.';
         emptyEl.classList.add('show');
+        updateSearchCount(0, 0);
         return;
       }
 
       emptyEl.classList.remove('show');
 
-      if (currentTab === 'builds') {
+      if (searchQuery || activeFilter !== 'all') {
+        statsEl.innerHTML = '';
+        statsEl.classList.remove('show');
+      } else if (currentTab === 'builds') {
         statsEl.innerHTML = renderBuildStats(mainBuilds);
+        statsEl.classList.add('show');
       } else {
         statsEl.innerHTML = renderPRStats(prBuilds);
+        statsEl.classList.add('show');
       }
-      statsEl.classList.add('show');
 
-      renderList(data);
+      if (filtered.length === 0) {
+        document.getElementById('builds').innerHTML = '';
+        noResultsEl.classList.add('show');
+        updateSearchCount(0, data.length);
+      } else {
+        noResultsEl.classList.remove('show');
+        renderList(filtered);
+        updateSearchCount(filtered.length, data.length);
+      }
+    }
+
+    // --- Search & Filter ---
+    function filterData(data) {
+      var result = data;
+      if (activeFilter !== 'all') {
+        result = result.filter(function(b) {
+          switch (activeFilter) {
+            case 'passed': return b.status !== 'in_progress' && b.passed !== false;
+            case 'failed': return b.status !== 'in_progress' && b.passed === false;
+            case 'in_progress': return b.status === 'in_progress';
+            case 'merged': return b.merged === true;
+            default: return true;
+          }
+        });
+      }
+      if (searchQuery) {
+        var terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+        result = result.filter(function(b) {
+          var haystack = [
+            b.author || '',
+            b.sha || '',
+            b.message || '',
+            b.branch || '',
+            b.version || '',
+            b.pr_title || '',
+            b.pr_number != null ? '#' + b.pr_number : '',
+            b.pr_number != null ? 'pr ' + b.pr_number : '',
+            b.run || '',
+            b.run_number != null ? String(b.run_number) : ''
+          ].join(' ').toLowerCase();
+          return terms.every(function(t) { return haystack.indexOf(t) !== -1; });
+        });
+      }
+      return result;
+    }
+
+    function setFilter(filter) {
+      activeFilter = filter;
+      __spelSetItem('filter-' + currentTab, filter);
+      document.querySelectorAll('#filterPills .filter-pill').forEach(function(p) {
+        p.classList.toggle('active', p.getAttribute('data-filter') === filter);
+      });
+      renderCurrentTab();
+    }
+
+    function clearSearch() {
+      searchQuery = '';
+      var input = document.getElementById('searchInput');
+      input.value = '';
+      document.getElementById('searchClear').style.display = 'none';
+      document.getElementById('searchKbd').style.display = '';
+      __spelRemoveItem('search-' + currentTab);
+      renderCurrentTab();
+      input.focus();
+    }
+
+    function updateSearchCount(shown, total) {
+      var el = document.getElementById('searchCount');
+      if (!total || (shown === total && !searchQuery && activeFilter === 'all')) {
+        el.textContent = '';
+      } else {
+        el.textContent = shown + ' of ' + total;
+      }
+    }
+
+    function updateFilterPills() {
+      var c = document.getElementById('filterPills');
+      if (currentTab === 'prs') {
+        c.innerHTML = '<button class="filter-pill active" data-filter="all" onclick="setFilter(\'all\')">All</button>'
+          + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
+          + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
+          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>'
+          + '<button class="filter-pill" data-filter="merged" onclick="setFilter(\'merged\')">Merged</button>';
+      } else {
+        c.innerHTML = '<button class="filter-pill active" data-filter="all" onclick="setFilter(\'all\')">All</button>'
+          + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
+          + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
+          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>';
+      }
+    }
+
+    function restoreSearchState() {
+      var savedSearch = __spelGetItem('search-' + currentTab) || '';
+      var savedFilter = __spelGetItem('filter-' + currentTab) || 'all';
+      searchQuery = savedSearch;
+      activeFilter = savedFilter;
+      var input = document.getElementById('searchInput');
+      input.value = savedSearch;
+      document.getElementById('searchClear').style.display = savedSearch ? 'flex' : 'none';
+      document.getElementById('searchKbd').style.display = savedSearch ? 'none' : '';
+      document.querySelectorAll('#filterPills .filter-pill').forEach(function(p) {
+        p.classList.toggle('active', p.getAttribute('data-filter') === savedFilter);
+      });
     }
 
     // --- Data loading ---
@@ -648,6 +817,34 @@
         switchTab('builds');
       }
     }).catch(function() { document.getElementById('empty').classList.add('show'); });
+    // --- Search event listeners ---
+    (function() {
+      var input = document.getElementById('searchInput');
+      var timer;
+      input.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+          searchQuery = input.value.trim();
+          document.getElementById('searchClear').style.display = searchQuery ? 'flex' : 'none';
+          document.getElementById('searchKbd').style.display = searchQuery ? 'none' : '';
+          if (searchQuery) {
+            __spelSetItem('search-' + currentTab, searchQuery);
+          } else {
+            __spelRemoveItem('search-' + currentTab);
+          }
+          renderCurrentTab();
+        }, 150);
+      });
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { clearSearch(); e.preventDefault(); }
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          input.focus();
+        }
+      });
+    })();
   </script>
 </body>
 </html>

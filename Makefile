@@ -1,5 +1,5 @@
 .PHONY: test test-cli test-cli-clj test-watch test-junit test-allure allure-serve allure \
-	clean jar install deploy lint repl format \
+	clean jar install deploy lint repl format preview \
 	spel uberjar install-local gen-docs init-agents validate-safe-graal
 
 REPL_PORT ?= 7600
@@ -101,3 +101,8 @@ repl: ## Start nREPL on port $(REPL_PORT)
 	@clj -M:dev \
 		-e "(require 'nrepl.cmdline)" \
 		-e "(nrepl.cmdline/-main \"--port\" \"$(REPL_PORT)\" \"--middleware\" \"[cider.nrepl/cider-middleware]\" \"--interactive\")"
+
+PREVIEW_PORT ?= 8765
+
+preview: ## Preview allure landing page with mock data
+	@./dev/preview-landing.sh --port=$(PREVIEW_PORT)

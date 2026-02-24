@@ -7,7 +7,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.api :as sut]
+   [com.blockether.spel.core :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :as tf
     :refer [*pw* *page* *browser-context*

@@ -488,25 +488,24 @@
           (finally
             (clean-dir! base))))))
 
-
-    (it "matches .webm href links in Allure 3.x reports"
-      (let [base   (tmp-dir "inject-modal-href-test")
-            report (io/file base "report")]
-        (try
-          (.mkdirs report)
+  (it "matches .webm href links in Allure 3.x reports"
+    (let [base   (tmp-dir "inject-modal-href-test")
+          report (io/file base "report")]
+      (try
+        (.mkdirs report)
           ;; HTML with a plain <a href> (no BEM classes) like Allure 3.x
-          (spit (io/file report "index.html")
-            (str "<html><head></head><body>"
-                 "<a href=\"data/attachments/abc123.webm\">Video Recording</a>"
-                 "</body></html>"))
-          (#'reporter/inject-video-modal! report)
-          (let [content (slurp (io/file report "index.html"))]
+        (spit (io/file report "index.html")
+          (str "<html><head></head><body>"
+            "<a href=\"data/attachments/abc123.webm\">Video Recording</a>"
+            "</body></html>"))
+        (#'reporter/inject-video-modal! report)
+        (let [content (slurp (io/file report "index.html"))]
             ;; The JS regex should match .webm hrefs
-            (expect (str/includes? content "\\.webm"))
+          (expect (str/includes? content "\\.webm"))
             ;; Verify the regex includes end-of-string or query-string anchor
-            (expect (str/includes? content "($|\\?)")))
-          (finally
-            (clean-dir! base)))))
+          (expect (str/includes? content "($|\\?)")))
+        (finally
+          (clean-dir! base)))))
 
   (describe "count-test-results"
 

@@ -667,7 +667,6 @@
                allure/*har-path*
                (assoc :allure/har-path (str allure/*har-path*))
 
-
                allure/*video-path*
                (assoc :allure/video-path (str allure/*video-path*))
 

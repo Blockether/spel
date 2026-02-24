@@ -27,7 +27,6 @@
    ['com.blockether.spel.frame      "frame"      "Frame/iframe operations"]
    ['com.blockether.spel.input      "input"      "Keyboard, mouse, touchscreen"]
    ['com.blockether.spel.network    "network"    "Request/response/routing"]
-   ['com.blockether.spel.api        "api"        "REST API testing"]
    ['com.blockether.spel.allure     "allure"     "Allure test reporting"]
    ['com.blockether.spel.snapshot   "snapshot"   "Accessibility snapshots"]
    ['com.blockether.spel.annotate   "annotate"   "Page annotation overlays"]

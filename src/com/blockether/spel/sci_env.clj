@@ -45,15 +45,15 @@
    [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright
-    APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
+    APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
     Dialog Download ElementHandle Frame FrameLocator JSHandle
     Keyboard Locator Mouse Page Playwright Request Response
     Route Touchscreen Tracing WebSocket WebSocketFrame WebSocketRoute]
    [com.microsoft.playwright.assertions
     PlaywrightAssertions LocatorAssertions PageAssertions APIResponseAssertions]
    [com.microsoft.playwright.options
-    AriaRole ColorScheme ForcedColors HarContentPolicy HarMode HarNotFound
-    LoadState Media MouseButton ReducedMotion RouteFromHarUpdateContentPolicy
+    AriaRole ColorScheme ForcedColors FormData HarContentPolicy HarMode HarNotFound
+    LoadState Media MouseButton ReducedMotion RequestOptions RouteFromHarUpdateContentPolicy
     SameSiteAttribute ScreenshotType ServiceWorkerPolicy
     WaitForSelectorState WaitUntilState]
    [java.io File]
@@ -1502,7 +1502,97 @@
                     ['context-set-default-timeout!           core/context-set-default-timeout!]
                     ['context-set-default-navigation-timeout! core/context-set-default-navigation-timeout!]
                     ['context-route-from-har!   core/context-route-from-har!]
-                    ['context-route-web-socket!  core/context-route-web-socket!]])
+                    ['context-route-web-socket!  core/context-route-web-socket!]
+                    ;; API — JSON encoding & hooks
+                    ['*json-encoder*  core/*json-encoder*]
+                    ['*hooks*         core/*hooks*]
+                    ;; API — FormData
+                    ['form-data       core/form-data]
+                    ['fd-set          core/fd-set]
+                    ['fd-append       core/fd-append]
+                    ['map->form-data  core/map->form-data]
+                    ;; API — RequestOptions
+                    ['request-options core/request-options]
+                    ;; API — APIRequest & context
+                    ['api-request     core/api-request]
+                    ['new-api-context core/new-api-context]
+                    ['api-dispose!    core/api-dispose!]
+                    ;; API — HTTP methods
+                    ['api-get         core/api-get]
+                    ['api-post        core/api-post]
+                    ['api-put         core/api-put]
+                    ['api-patch       core/api-patch]
+                    ['api-delete      core/api-delete]
+                    ['api-head        core/api-head]
+                    ['api-fetch       core/api-fetch]
+                    ;; API — Response helpers
+                    ['api-response-url           core/api-response-url]
+                    ['api-response-status        core/api-response-status]
+                    ['api-response-status-text   core/api-response-status-text]
+                    ['api-response-headers       core/api-response-headers]
+                    ['api-response-body          core/api-response-body]
+                    ['api-response-text          core/api-response-text]
+                    ['api-response-ok?           core/api-response-ok?]
+                    ['api-response-headers-array core/api-response-headers-array]
+                    ['api-response-dispose!      core/api-response-dispose!]
+                    ['api-response->map          core/api-response->map]
+                    ;; API — Standalone request & retry
+                    ['request!         core/request!]
+                    ['default-retry-opts core/default-retry-opts]
+                    ['retry            core/retry]
+                    ;; API — Page/context API access
+                    ['page-api         core/page-api]
+                    ['context-api      core/context-api]
+                    ;; API — Functional cores (for macro implementations)
+                    ['run-with-testing-api core/run-with-testing-api]
+                    ['run-with-page-api   core/run-with-page-api]
+                    ;; API — Macros
+                    ['with-hooks (with-meta
+                                   (fn [_&form _&env hooks & body]
+                                     (list 'binding ['core/*hooks* (list 'merge 'core/*hooks* hooks)]
+                                       (cons 'do body)))
+                                   {:sci/macro true})]
+                    ['with-api-context (with-meta
+                                         (fn [_&form _&env binding & body]
+                                           (let [[sym expr] binding]
+                                             (list 'let [sym expr]
+                                               (list 'try
+                                                 (cons 'do body)
+                                                 (list 'finally
+                                                   (list 'when (list 'instance? 'APIRequestContext sym)
+                                                     (list 'core/api-dispose! sym)))))))
+                                         {:sci/macro true})]
+                    ['with-testing-api (with-meta
+                                         (fn [_&form _&env opts-or-binding & args]
+                                           (if (vector? opts-or-binding)
+                                             (let [[sym] opts-or-binding]
+                                               (list 'core/run-with-testing-api {} (list 'fn [sym] (cons 'do args))))
+                                             (let [opts opts-or-binding
+                                                   [[sym] & body] args]
+                                               (list 'core/run-with-testing-api opts (list 'fn [sym] (cons 'do body))))))
+                                         {:sci/macro true})]
+                    ['with-page-api (with-meta
+                                      (fn [_&form _&env pg opts binding-vec & body]
+                                        (let [[sym] binding-vec]
+                                          (list 'core/run-with-page-api pg opts (list 'fn [sym] (cons 'do body)))))
+                                      {:sci/macro true})]
+                    ['with-retry (with-meta
+                                   (fn [_&form _&env opts-or-body & body]
+                                     (if (and (map? opts-or-body) (seq body))
+                                       (list 'core/retry (list 'fn [] (cons 'do body)) opts-or-body)
+                                       (list 'core/retry (list 'fn [] (cons 'do (cons opts-or-body body))))))
+                                   {:sci/macro true})]
+                    ;; with-testing-page — daemon-aware stub
+                    ['with-testing-page (with-meta
+                                          (fn [_&form _&env opts-or-binding & args]
+                                            (if (vector? opts-or-binding)
+                                              (let [[sym] opts-or-binding]
+                                                (list 'do (list 'spel/start!)
+                                                  (list* 'let [sym (list 'spel/page)] args)))
+                                              (let [[[sym] & body] args]
+                                                (list 'do (list 'spel/start!)
+                                                  (list* 'let [sym (list 'spel/page)] body)))))
+                                          {:sci/macro true})]])
 
         ;; =================================================================
         ;; page/ — Raw page operations (explicit Page argument)
@@ -1812,6 +1902,10 @@
                     'WebSocketFrame   WebSocketFrame
                     'WebSocketRoute   WebSocketRoute
                     'APIResponse      APIResponse
+                    'APIRequest        APIRequest
+                    'APIRequestContext  APIRequestContext
+                    'FormData           FormData
+                    'RequestOptions     RequestOptions
                     'LocatorAssertions    LocatorAssertions
                     'PageAssertions      PageAssertions
                     'APIResponseAssertions APIResponseAssertions

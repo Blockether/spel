@@ -251,10 +251,10 @@
                 (core/close-page! page))
               (try (.stop tracing (doto (Tracing$StopOptions.)
                                     (.setPath (.toPath trace-file))))
-                (catch Exception _))
+                   (catch Exception _))
               (let [t (doto (Thread. (fn []
                                        (try (core/close-context! ctx)
-                                         (catch Exception _))))
+                                            (catch Exception _))))
                         (.setDaemon true)
                         (.start))]
                 (.join t 5000))))))
@@ -342,7 +342,7 @@
          (finally
            (when (instance? com.microsoft.playwright.Page page)
              (core/close-page! page))
-            (try (core/close-context! ctx) (catch Exception _))))))})
+           (try (core/close-context! ctx) (catch Exception _))))))})
 
 (def with-video-page
   "Around hook: creates a page with video recording enabled (default opts)."
@@ -384,7 +384,7 @@
                   ;; Stop tracing → writes trace zip, decrements Connection.tracingCount
             (try (.stop tracing (doto (Tracing$StopOptions.)
                                   (.setPath (.toPath trace-file))))
-              (catch Exception _))
+                 (catch Exception _))
                   ;; Close context → writes HAR via harExport.
                   ;; BrowserContextImpl.close() calls harExport with NO_TIMEOUT,
                   ;; which can hang indefinitely when tracing was active on the
@@ -393,7 +393,7 @@
                   ;; JVM exit and browser.close() from with-browser cleans up.
             (let [t (doto (Thread. (fn []
                                      (try (core/close-context! ctx)
-                                       (catch Exception _))))
+                                          (catch Exception _))))
                       (.setDaemon true)
                       (.start))]
               (.join t 5000))))))))
@@ -492,9 +492,9 @@
      {:context [with-playwright with-test-server with-api-tracing]}
 
      (it \"calls API with tracing\"
-       (let [resp (api/api-get *browser-api*
+       (let [resp (core/api-get *browser-api*
                                (str *test-server-url* \"/health\"))]
-         (expect (= 200 (api/api-response-status resp)))))"
+         (expect (= 200 (core/api-response-status resp)))))"
   (around [f]
     (let [browser (launch-browser *pw*)]
       (try
@@ -522,10 +522,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                  (catch Exception _))
+                     (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (core/close-context! ctx)
-                                           (catch Exception _))))
+                                              (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000)))))

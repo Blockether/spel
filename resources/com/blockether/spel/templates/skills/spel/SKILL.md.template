@@ -894,79 +894,79 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
   (input/touchscreen-tap ts 100 200))
 ```
 
-### API Testing (api namespace)
+### API Testing (core namespace)
 
 ```clojure
-(require '[com.blockether.spel.api :as api])
+(require '[com.blockether.spel.core :as core])
 
 ;; Single API context
-(api/with-api-context [ctx (api/new-api-context (api/api-request pw)
+(core/with-api-context [ctx (core/new-api-context (core/api-request pw)
                              {:base-url "https://api.example.com"
                               :extra-http-headers {"Authorization" "Bearer token"}})]
-  (let [resp (api/api-get ctx "/users")]
-    (println (api/api-response-status resp))     ; 200
-    (println (api/api-response-text resp))))      ; JSON body
+  (let [resp (core/api-get ctx "/users")]
+    (println (core/api-response-status resp))     ; 200
+    (println (core/api-response-text resp))))      ; JSON body
 
 ;; Multiple API contexts
-(api/with-api-contexts
-  [users   (api/new-api-context (api/api-request pw) {:base-url "https://users.example.com"})
-   billing (api/new-api-context (api/api-request pw) {:base-url "https://billing.example.com"})]
-  (api/api-get users "/me")
-  (api/api-get billing "/invoices"))
+(core/with-api-contexts
+  [users   (core/new-api-context (core/api-request pw) {:base-url "https://users.example.com"})
+   billing (core/new-api-context (core/api-request pw) {:base-url "https://billing.example.com"})]
+  (core/api-get users "/me")
+  (core/api-get billing "/invoices"))
 
 ;; JSON encoding — MUST bind *json-encoder* before using :json option
 (require '[cheshire.core :as json])
-(binding [api/*json-encoder* json/generate-string]
-  (api/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
+(binding [core/*json-encoder* json/generate-string]
+  (core/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
 ;; Or set globally:
-(alter-var-root #'api/*json-encoder* (constantly json/generate-string))
+(alter-var-root #'core/*json-encoder* (constantly json/generate-string))
 ;; Using :json WITHOUT binding *json-encoder* will throw!
 
 ;; HTTP methods
-(api/api-get ctx "/users" {:params {:page 1}})
-(api/api-post ctx "/users" {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
-(api/api-put ctx "/users/1" {:data "{\"name\":\"Bob\"}"})
-(api/api-patch ctx "/users/1" {:data "{\"name\":\"Charlie\"}"})
-(api/api-delete ctx "/users/1")
-(api/api-head ctx "/health")
-(api/api-fetch ctx "/resource" {:method "OPTIONS"})
+(core/api-get ctx "/users" {:params {:page 1}})
+(core/api-post ctx "/users" {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
+(core/api-put ctx "/users/1" {:data "{\"name\":\"Bob\"}"})
+(core/api-patch ctx "/users/1" {:data "{\"name\":\"Charlie\"}"})
+(core/api-delete ctx "/users/1")
+(core/api-head ctx "/health")
+(core/api-fetch ctx "/resource" {:method "OPTIONS"})
 
 ;; Form data
-(let [fd (api/form-data)]
-  (api/fd-set fd "name" "Alice")
-  (api/fd-append fd "tag" "clojure")
-  (api/api-post ctx "/submit" {:form fd}))
+(let [fd (core/form-data)]
+  (core/fd-set fd "name" "Alice")
+  (core/fd-append fd "tag" "clojure")
+  (core/api-post ctx "/submit" {:form fd}))
 ;; Or from map:
-(api/api-post ctx "/submit" {:form (api/map->form-data {:name "Alice" :email "a@b.c"})})
+(core/api-post ctx "/submit" {:form (core/map->form-data {:name "Alice" :email "a@b.c"})})
 
 ;; Response inspection
-(let [resp (api/api-get ctx "/users")]
-  (api/api-response-status resp)         ; 200
-  (api/api-response-status-text resp)    ; "OK"
-  (api/api-response-url resp)
-  (api/api-response-ok? resp)            ; true
-  (api/api-response-headers resp)        ; {"content-type" "..."}
-  (api/api-response-text resp)           ; body string
-  (api/api-response-body resp)           ; byte[]
-  (api/api-response->map resp))          ; {:status 200 :ok? true :headers {...} :body "..."}
+(let [resp (core/api-get ctx "/users")]
+  (core/api-response-status resp)         ; 200
+  (core/api-response-status-text resp)    ; "OK"
+  (core/api-response-url resp)
+  (core/api-response-ok? resp)            ; true
+  (core/api-response-headers resp)        ; {"content-type" "..."}
+  (core/api-response-text resp)           ; body string
+  (core/api-response-body resp)           ; byte[]
+  (core/api-response->map resp))          ; {:status 200 :ok? true :headers {...} :body "..."}
 
 ;; Hooks (request/response interceptors)
-(api/with-hooks
+(core/with-hooks
   {:on-request  (fn [method url opts] (println "→" method url) opts)
-   :on-response (fn [method url resp] (println "←" method (api/api-response-status resp)) resp)}
-  (api/api-get ctx "/users"))
+   :on-response (fn [method url resp] (println "←" method (core/api-response-status resp)) resp)}
+  (core/api-get ctx "/users"))
 
 ;; Retry with backoff
-(api/retry #(api/api-get ctx "/flaky")
+(core/retry #(core/api-get ctx "/flaky")
   {:max-attempts 5 :delay-ms 1000 :backoff :linear
-   :retry-when (fn [r] (= 429 (:status (api/api-response->map r))))})
+   :retry-when (fn [r] (= 429 (:status (core/api-response->map r))))})
 ;; Or with macro:
-(api/with-retry {:max-attempts 3 :delay-ms 200}
-  (api/api-post ctx "/endpoint" {:json {:action "process"}}))
+(core/with-retry {:max-attempts 3 :delay-ms 200}
+  (core/api-post ctx "/endpoint" {:json {:action "process"}}))
 
 ;; Standalone request (no context setup needed)
-(api/request! pw :get "https://api.example.com/health")
-(api/request! pw :post "https://api.example.com/users"
+(core/request! pw :get "https://api.example.com/health")
+(core/request! pw :post "https://api.example.com/users"
   {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
 ```
 
@@ -1008,7 +1008,7 @@ In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 
 ;; API step (auto-attaches response details: status, headers, body)
 (allure/api-step "Create user"
-  (api/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
+  (core/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
 
 ;; Attachments
 (allure/attach "Request Body" "{\"key\":\"value\"}" "application/json")

@@ -142,7 +142,6 @@
    completes. When nil (default), no HAR is captured."
   nil)
 
-
 (def ^:dynamic *video-path*
   "Dynamic var holding the path to the video recording file.
    Bound by `with-video-page-opts` fixture, captured by the reporter.
@@ -788,7 +787,7 @@
    Usage:
 
      (allure/api-step \"Create user\"
-       (api/api-post ctx \"/users\"
+       (core/api-post ctx \"/users\"
          {:data \"{\\\"name\\\": \\\"Alice\\\"}\"
           :headers {\"Content-Type\" \"application/json\"}}))
 

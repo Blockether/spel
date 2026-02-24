@@ -14,7 +14,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.api :as api]
+   [com.blockether.spel.core :as api]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures

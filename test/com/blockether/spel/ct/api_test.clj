@@ -4,8 +4,7 @@
   (:require
    [clojure.test :refer [deftest testing is]]
    [com.blockether.spel.allure :as allure]
-   [com.blockether.spel.api :as api]
-   [com.blockether.spel.core :as core]
+   [com.blockether.spel.core :as api]
    [com.blockether.spel.test-server :as ts])
   (:import
    [com.microsoft.playwright APIRequestContext]))
@@ -16,14 +15,14 @@
   (allure/epic "API Testing (clojure.test)")
   (allure/feature "page-api")
   (testing "returns APIRequestContext"
-    (core/with-testing-page [pg]
+    (api/with-testing-page [pg]
       (is (instance? APIRequestContext (api/page-api pg))))))
 
 (deftest page-api-get-test
   (allure/epic "API Testing (clojure.test)")
   (allure/feature "page-api")
   (testing "makes GET requests"
-    (core/with-testing-page [pg]
+    (api/with-testing-page [pg]
       (let [api-ctx (api/page-api pg)
             resp (api/api-get api-ctx (str ts/*test-server-url* "/health"))]
         (is (= 200 (api/api-response-status resp)))))))
@@ -34,9 +33,9 @@
   (allure/epic "API Testing (clojure.test)")
   (allure/feature "context-api")
   (testing "returns APIRequestContext"
-    (core/with-playwright [pw]
-      (core/with-browser [browser (core/launch-chromium pw)]
-        (core/with-context [ctx (core/new-context browser)]
+    (api/with-playwright [pw]
+      (api/with-browser [browser (api/launch-chromium pw)]
+        (api/with-context [ctx (api/new-context browser)]
           (is (instance? APIRequestContext (api/context-api ctx))))))))
 
 ;; with-testing-api
@@ -63,7 +62,7 @@
   (allure/epic "API Testing (clojure.test)")
   (allure/feature "with-page-api")
   (testing "creates API context with custom base-url"
-    (core/with-testing-page [pg]
+    (api/with-testing-page [pg]
       (api/with-page-api pg {:base-url ts/*test-server-url*} [ctx]
         (let [resp (api/api-get ctx "/health")]
           (is (= 200 (api/api-response-status resp))))))))
@@ -85,7 +84,7 @@
   (allure/epic "API Testing (clojure.test)")
   (allure/feature "run-with-page-api")
   (testing "functional variant"
-    (core/with-testing-page [pg]
+    (api/with-testing-page [pg]
       (let [result (api/run-with-page-api pg {:base-url ts/*test-server-url*}
                      (fn [ctx]
                        (api/api-response-status (api/api-get ctx "/health"))))]
