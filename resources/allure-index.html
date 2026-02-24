@@ -575,6 +575,7 @@
         { label: 'All Time', start: 0 }
       ];
       var html = '<div class="stats-grid">';
+      var cancelledAll = builds.filter(function(b) { return b.status === 'cancelled'; }).length;
       periods.forEach(function(p) {
         var inPeriod = completed.filter(function(b) { return (b.timestamp || 0) >= p.start; });
         var passed = inPeriod.filter(function(b) { return b.passed !== false; });
@@ -583,10 +584,11 @@
         var pct = total > 0 ? Math.round(passCount / total * 100) : 0;
         var pctClass = pct >= 90 ? 'stat-pct good' : pct >= 70 ? 'stat-pct mid' : 'stat-pct low';
         var pctStr = total > 0 ? ' <span class="' + pctClass + '">(' + pct + '%)</span>' : '';
+        var cancelledStr = (p.start === 0 && cancelledAll > 0) ? ' \u00b7 ' + cancelledAll + ' cancelled' : '';
         html += '<div class="stat-block">'
           + '<div class="stat-label">' + p.label + '</div>'
           + '<div class="stat-value">' + total + ' build' + (total !== 1 ? 's' : '') + '</div>'
-          + '<div class="stat-detail">' + passCount + ' passed' + pctStr + '</div>'
+          + '<div class="stat-detail">' + passCount + ' passed' + pctStr + cancelledStr + '</div>'
           + '</div>';
       });
       html += '</div>';
@@ -630,12 +632,14 @@
     function renderPRStats(builds) {
       var open = builds.filter(function(b) { return !b.merged && b.status !== 'in_progress' && b.status !== 'cancelled'; });
       var inProg = builds.filter(function(b) { return b.status === 'in_progress'; });
+      var cancelled = builds.filter(function(b) { return b.status === 'cancelled'; });
       var merged = builds.filter(function(b) { return b.merged; });
       var passed = builds.filter(function(b) { return b.status !== 'in_progress' && b.status !== 'cancelled' && b.passed !== false && !b.merged; });
-      var html = '<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">';
+      var html = '<div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">';
       html += '<div class="stat-block"><div class="stat-label">Open</div><div class="stat-value">' + open.length + '</div></div>';
       html += '<div class="stat-block"><div class="stat-label">Building</div><div class="stat-value" style="color:var(--yellow)">' + inProg.length + '</div></div>';
       html += '<div class="stat-block"><div class="stat-label">Passing</div><div class="stat-value" style="color:var(--green)">' + passed.length + '</div></div>';
+      html += '<div class="stat-block"><div class="stat-label">Cancelled</div><div class="stat-value" style="color:var(--text-muted)">' + cancelled.length + '</div></div>';
       html += '<div class="stat-block"><div class="stat-label">Merged</div><div class="stat-value">' + merged.length + '</div></div>';
       html += '</div>';
       return html;
@@ -697,10 +701,7 @@
 
       emptyEl.classList.remove('show');
 
-      if (searchQuery || activeFilter !== 'all') {
-        statsEl.innerHTML = '';
-        statsEl.classList.remove('show');
-      } else if (currentTab === 'builds') {
+      if (currentTab === 'builds') {
         statsEl.innerHTML = renderBuildStats(mainBuilds);
         statsEl.classList.add('show');
       } else {
