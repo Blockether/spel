@@ -38,6 +38,7 @@
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
+   [com.blockether.spel.network-capture :as net-capture]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as roles]
    [com.blockether.spel.snapshot :as snapshot]
@@ -1346,6 +1347,14 @@
                    ['wsr-on-close           net/wsr-on-close]])
 
         ;; =================================================================
+        ;; net-capture/ — Network call HTML capture for Allure
+        ;; =================================================================
+        net-capture-ns 'net-capture
+        net-capture-map (make-ns-map net-capture-ns
+                          [['capture-network!    net-capture/capture-network!]
+                           ['render-network-html net-capture/render-network-html]])
+
+        ;; =================================================================
         ;; loc/ — Raw locator operations (explicit Locator argument)
         ;; =================================================================
         loc-map (make-ns-map loc-ns
@@ -1763,6 +1772,7 @@
                     'input    input-map
                     'frame    frame-map
                     'net      net-map
+                    'net-capture net-capture-map
                     'loc      loc-map
                     'assert   assert-ns-map
                     'core     core-map
