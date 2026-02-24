@@ -309,7 +309,7 @@
 
    Options:
      :site-dir      - path to site directory (default: gh-pages-site)
-     :pr-number     - GitHub PR number (required)
+     :pr-number     - PR number (required)
      :pr-title      - PR title
      :branch        - PR head branch
      :sha           - head commit SHA
@@ -322,10 +322,11 @@
      :status        - build status (default: in_progress)
      :tests-passed  - whether tests passed (boolean, nil for unknown)
      :test-counts   - map with :passed :failed :broken :skipped :total
-     :max-pr-builds - maximum PR entries to keep (default: 50)"
+     :max-pr-builds - maximum PR entries to keep (default: 50)
+     :pr-url        - direct URL to the PR (e.g. GitHub/GitLab/Bitbucket)"
   [{:keys [site-dir pr-number pr-title branch sha author
            run-number run-url repo-url version version-badge
-           status tests-passed test-counts max-pr-builds]}]
+           status tests-passed test-counts max-pr-builds pr-url]}]
   (let [site     (io/file (or site-dir "gh-pages-site"))
         pr-file  (io/file site "pr-builds.json")
         existing (if (.isFile pr-file)
@@ -359,7 +360,8 @@
                                   "total"   (get test-counts :total 0)}
                                  {"passed" 0 "failed" 0 "broken" 0 "skipped" 0 "total" 0})
                   "run_url"    (or run-url "")
-                  "repo_url"   (or repo-url "")}
+                  "repo_url"   (or repo-url "")
+                  "pr_url"     (or pr-url "")}
         filtered (filterv #(not= (get % "pr_number") pr-num) existing)
         updated  (into [entry] (take (dec max-n) filtered))]
     (.mkdirs site)

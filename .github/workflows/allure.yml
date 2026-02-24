@@ -199,6 +199,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           VERSION_BADGE: ${{ steps.version.outputs.badge }}
           MAX_PR_REPORTS: ${{ env.MAX_PR_REPORTS }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           mkdir -p /tmp/pr-deploy/pr/${PR_NUM}
           cp -r allure-report/* /tmp/pr-deploy/pr/${PR_NUM}/
@@ -226,7 +227,8 @@ jobs:
                                 :broken  (parse-long (or (System/getenv \"TESTS_BROKEN\") \"0\"))
                                 :skipped (parse-long (or (System/getenv \"TESTS_SKIPPED\") \"0\"))
                                 :total   (parse-long (or (System/getenv \"TESTS_TOTAL\") \"0\"))}
-               :max-pr-builds  (parse-long (or (System/getenv \"MAX_PR_REPORTS\") \"50\"))})"
+               :max-pr-builds  (parse-long (or (System/getenv "MAX_PR_REPORTS") "50"))
+               :pr-url         (System/getenv "PR_URL")})"
 
 
       - name: Deploy PR report to GitHub Pages

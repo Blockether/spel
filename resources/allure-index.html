@@ -459,7 +459,8 @@
         }
       }
 
-      var prBadge = isPR ? '<a href="' + (b.repo_url || '') + '/pull/' + b.pr_number + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : '';
+      var prUrl = isPR ? (b.pr_url || ((b.repo_url || '') + '/pull/' + b.pr_number)) : '';
+      var prBadge = isPR && prUrl ? '<a href="' + prUrl + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : (isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '');
       var mergedBadge = isMerged ? '<span class="pill pill-muted">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
       var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
