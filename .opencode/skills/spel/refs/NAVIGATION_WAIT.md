@@ -246,7 +246,7 @@ Library equivalents:
 (let [popup (page/wait-for-popup pg #(locator/click (page/locator pg "a[target=_blank]")))]
   (page/title popup))
 (let [dl (page/wait-for-download pg #(locator/click (page/locator pg "a.download-link")))]
-  (util/download-save-as! dl "/tmp/downloaded.pdf"))
+  (page/download-save-as! dl "/tmp/downloaded.pdf"))
 ```
 
 ## Library Quick Reference

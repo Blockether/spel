@@ -165,7 +165,7 @@ Fires once, then auto-removes.
 ```clojure
 (let [dl (page/wait-for-download pg
            #(locator/click (page/locator pg "a.download"))]
-  (util/download-save-as! dl "/tmp/file.txt"))
+  (page/download-save-as! dl "/tmp/file.txt"))
 ```
 
 #### Wait For File Chooser
@@ -173,7 +173,7 @@ Fires once, then auto-removes.
 ```clojure
 (let [fc (page/wait-for-file-chooser pg
            #(locator/click (page/locator pg "input[type=file]"))]
-  (util/file-chooser-set-files! fc "/path/to/file.txt"))
+  (page/file-chooser-set-files! fc "/path/to/file.txt"))
 ```
 
 ## File Input

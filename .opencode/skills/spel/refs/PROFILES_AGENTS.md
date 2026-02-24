@@ -145,7 +145,7 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 ### Browser-Specific Notes
 
 - **PDF generation** only works in Chromium headless. Firefox and WebKit don't support `page/pdf`.
-- **CDP (Chrome DevTools Protocol)** is Chromium-only. `util/cdp-send` won't work with Firefox or WebKit.
+- **CDP (Chrome DevTools Protocol)** is Chromium-only. `core/cdp-send` won't work with Firefox or WebKit.
 - **WebKit** matches Safari's rendering engine. Good for cross-browser testing, but no CDP and limited video support.
 
 ---

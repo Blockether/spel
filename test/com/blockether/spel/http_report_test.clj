@@ -534,17 +534,10 @@
                   :content-type "text/html"})]
       ;; Request body should be escaped as plain text (not HTML content-type)
       (expect (str/includes? html "username=alice"))
-      ;; Response body is HTML — should render in sandboxed iframe preview
-      (expect (str/includes? html "html-preview-container"))
-      (expect (str/includes? html "srcdoc="))
-      (expect (str/includes? html "html-preview-frame"))
-      ;; Should also have source view toggle
-      (expect (str/includes? html "html-toggle-btn"))
-      (expect (str/includes? html "Preview"))
-      (expect (str/includes? html "Source"))
-      ;; Source view should contain escaped HTML
-      (expect (str/includes? html "html-source-pre"))
-      (expect (str/includes? html "&lt;html&gt;"))))
+      ;; Response body is HTML — should render inline (not escaped)
+      (expect (str/includes? html "html-inline"))
+      (expect (str/includes? html "<html><body>OK</body></html>"))
+      (expect (not (str/includes? html "srcdoc=")))))
 
   (it "render-http-html renders plain text bodies as pre"
     (let [html (allure/render-http-html

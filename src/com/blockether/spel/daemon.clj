@@ -233,11 +233,11 @@
                         (get flags "channel")          (assoc :channel (get flags "channel")))
           ;; When using a real browser profile, remove ONLY the args that prevent
           ;; Chrome from decrypting its Keychain-stored cookies (macOS).
-          ;; These two args tell Chrome to use mock/empty storage instead of real Keychain.
+          ;; These args tell Chrome to use mock/empty storage instead of real Keychain.
           launch-opts (if profile-dir
                         (update launch-opts :ignore-default-args
                           (fnil into [])
-                          ["--use-mock-keychain" "--password-store=basic"])
+                          ["--use-mock-keychain" "--password-store=basic" "--no-sandbox"])
                         launch-opts)
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
