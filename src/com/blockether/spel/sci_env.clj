@@ -28,6 +28,7 @@
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [clojure.pprint :as pprint]
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
@@ -42,6 +43,7 @@
    [com.blockether.spel.roles :as roles]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.stitch :as stitch]
+   [charred.api :as charred-json]
    [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright
@@ -1746,6 +1748,48 @@
                   ['make-parents  io/make-parents]
                   ['delete-file   io/delete-file]])
 
+;; =================================================================
+        ;; clojure.string — registered as 'str short alias
+        ;; (clojure.string itself is SCI built-in, 'str alias is not)
+        ;; =================================================================
+        str-ns  (sci/create-ns 'str nil)
+        str-map (make-ns-map str-ns
+                  [['join          clojure.string/join]
+                   ['split         clojure.string/split]
+                   ['replace       clojure.string/replace]
+                   ['trim          clojure.string/trim]
+                   ['triml         clojure.string/triml]
+                   ['trimr         clojure.string/trimr]
+                   ['upper-case    clojure.string/upper-case]
+                   ['lower-case    clojure.string/lower-case]
+                   ['capitalize    clojure.string/capitalize]
+                   ['blank?        clojure.string/blank?]
+                   ['includes?     clojure.string/includes?]
+                   ['starts-with?  clojure.string/starts-with?]
+                   ['ends-with?    clojure.string/ends-with?]
+                   ['reverse       clojure.string/reverse]
+                   ['escape        clojure.string/escape]
+                   ['re-quote-replacement clojure.string/re-quote-replacement]
+                   ['split-lines   clojure.string/split-lines]
+                   ['index-of      clojure.string/index-of]
+                   ['last-index-of clojure.string/last-index-of]])
+
+        ;; =================================================================
+        ;; clojure.pprint — Pretty-printing
+        ;; =================================================================
+        pprint-ns  (sci/create-ns 'pprint nil)
+        pprint-map (make-ns-map pprint-ns
+                     [['pprint       pprint/pprint]
+                      ['print-table  pprint/print-table]
+                      ['cl-format    pprint/cl-format]])
+
+        ;; =================================================================
+        ;; json/ — JSON parsing/generation via charred
+        ;; =================================================================
+        json-ns  (sci/create-ns 'json nil)
+        json-map (make-ns-map json-ns
+                   [['read-json     charred-json/read-json]
+                    ['write-json-str charred-json/write-json-str]])
         ;; =================================================================
         ;; stitch — Vertical image stitching
         ;; =================================================================
@@ -1784,7 +1828,14 @@
                     'io                                  io-map
                      ;; Image stitching
                     'stitch                              stitch-map
-                    'com.blockether.spel.stitch          stitch-map}
+                    'com.blockether.spel.stitch          stitch-map
+                     ;; String alias
+                    'str                                 str-map
+                     ;; Pretty-printing
+                    'pprint                              pprint-map
+                    'clojure.pprint                      pprint-map
+                     ;; JSON (charred)
+                    'json                                json-map}
        :bindings   {'slurp slurp
                     'spit  spit}
        :classes    {'Page              Page

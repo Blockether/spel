@@ -18,28 +18,28 @@
   ^long [^String path]
   (let [^bytes buf (Files/readAllBytes (Path/of path (into-array String [])))]
     (bit-or (bit-shift-left (long (bit-and (long (aget buf 16)) 0xFF)) 24)
-            (bit-shift-left (long (bit-and (long (aget buf 17)) 0xFF)) 16)
-            (bit-shift-left (long (bit-and (long (aget buf 18)) 0xFF)) 8)
-            (long (bit-and (long (aget buf 19)) 0xFF)))))
+      (bit-shift-left (long (bit-and (long (aget buf 17)) 0xFF)) 16)
+      (bit-shift-left (long (bit-and (long (aget buf 18)) 0xFF)) 8)
+      (long (bit-and (long (aget buf 19)) 0xFF)))))
 
 (defn- build-html [base64-images {:keys [overlap-px] :or {overlap-px 0}}]
   (let [overlap (long overlap-px)]
     (str "<!DOCTYPE html><html><head><style>"
-         "* { margin: 0; padding: 0; } "
-         "body { width: fit-content; } "
-         "img { display: block; } "
-         (when (> overlap 0)
-           (str ".trimmed { margin-top: -" overlap "px; }"))
-         "</style></head><body>"
-         (apply str
-                (map-indexed
-                 (fn [i b64]
-                   (str "<img src=\"data:image/png;base64," b64 "\""
-                        (when (and (> overlap 0) (> (long i) 0))
-                          " class=\"trimmed\"")
-                        "/>"))
-                 base64-images))
-         "</body></html>")))
+      "* { margin: 0; padding: 0; } "
+      "body { width: fit-content; } "
+      "img { display: block; } "
+      (when (> overlap 0)
+        (str ".trimmed { margin-top: -" overlap "px; }"))
+      "</style></head><body>"
+      (apply str
+        (map-indexed
+          (fn [i b64]
+            (str "<img src=\"data:image/png;base64," b64 "\""
+              (when (and (> overlap 0) (> (long i) 0))
+                " class=\"trimmed\"")
+              "/>"))
+          base64-images))
+      "</body></html>")))
 
 (defn- ensure-playwright!
   "Guards against anomaly maps from core/create. Throws if Playwright
@@ -47,7 +47,7 @@
   [pw]
   (when (core/anomaly? pw)
     (throw (ex-info (str "Failed to create Playwright: " (:anomaly/message pw))
-                    (select-keys pw [:anomaly/category :anomaly/message])))))
+             (select-keys pw [:anomaly/category :anomaly/message])))))
 
 (defn stitch-vertical
   "Stitch multiple images vertically into one PNG using Playwright.

@@ -974,6 +974,50 @@ OUT=$("$SPEL" stitch --help 2>&1)
 assert_contains "stitch --help mentions vertical" "$OUT" "vertically"
 
 # =============================================================================
+# SCI EVAL NAMESPACES (12)
+# =============================================================================
+section "SCI Eval Namespaces (12)"
+
+# str/ alias for clojure.string
+OUT=$("$SPEL" --eval '(str/upper-case "hello")' 2>&1)
+assert_contains "str/upper-case" "$OUT" "HELLO"
+
+OUT=$("$SPEL" --eval '(str/join ", " ["a" "b" "c"])' 2>&1)
+assert_contains "str/join" "$OUT" "a, b, c"
+
+OUT=$("$SPEL" --eval '(str/includes? "hello world" "world")' 2>&1)
+assert_contains "str/includes?" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(str/blank? "  ")' 2>&1)
+assert_contains "str/blank?" "$OUT" "true"
+
+# clojure.string full name also works
+OUT=$("$SPEL" --eval '(clojure.string/lower-case "ABC")' 2>&1)
+assert_contains "clojure.string/lower-case" "$OUT" "abc"
+
+# pprint/ namespace
+OUT=$("$SPEL" --eval '(with-out-str (pprint/pprint {:a 1}))' 2>&1)
+assert_contains "pprint/pprint" "$OUT" ":a"
+
+OUT=$("$SPEL" --eval '(with-out-str (clojure.pprint/pprint [1 2 3]))' 2>&1)
+assert_contains "clojure.pprint/pprint" "$OUT" "1 2 3"
+
+# json/ namespace (charred)
+OUT=$("$SPEL" --eval '(json/write-json-str {:name "alice"})' 2>&1)
+assert_contains "json/write-json-str" "$OUT" "alice"
+
+OUT=$("$SPEL" --eval '(json/read-json "{\"x\":42}")' 2>&1)
+assert_contains "json/read-json" "$OUT" "42"
+
+# json round-trip
+OUT=$("$SPEL" --eval '(-> {:k "v"} json/write-json-str json/read-json (get "k"))' 2>&1)
+assert_contains "json round-trip" "$OUT" "v"
+
+# assert macro (clojure.core)
+OUT=$("$SPEL" --eval '(assert (= 1 1)) :passed' 2>&1)
+assert_contains "assert passes" "$OUT" ":passed"
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

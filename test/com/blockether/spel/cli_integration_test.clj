@@ -1836,6 +1836,73 @@
             r (cmd "sci_eval" {"code" (str "(java.nio.file.Files/exists (java.nio.file.Paths/get \"" escaped-tmpdir "\" (into-array String [])) (into-array java.nio.file.LinkOption []))")})]
         (expect (= "true" (:result r)))))
 
+;; --- clojure.string / str alias ---
+
+    (it "clojure.string/upper-case works"
+      (let [r (cmd "sci_eval" {"code" "(clojure.string/upper-case \"hello\")"})]
+        (expect (= "\"HELLO\"" (:result r)))))
+
+    (it "str/upper-case alias works"
+      (let [r (cmd "sci_eval" {"code" "(str/upper-case \"hello\")"})]
+        (expect (= "\"HELLO\"" (:result r)))))
+
+    (it "str/join works"
+      (let [r (cmd "sci_eval" {"code" "(str/join \", \" [\"a\" \"b\" \"c\"])"})]
+        (expect (= "\"a, b, c\"" (:result r)))))
+
+    (it "str/split works"
+      (let [r (cmd "sci_eval" {"code" "(str/split \"a,b,c\" #\",\")"})]
+        (expect (= "[\"a\" \"b\" \"c\"]" (:result r)))))
+
+    (it "str/includes? works"
+      (let [r (cmd "sci_eval" {"code" "(str/includes? \"hello world\" \"world\")"})]
+        (expect (= "true" (:result r)))))
+
+    (it "str/blank? works"
+      (let [r (cmd "sci_eval" {"code" "(str/blank? \"  \")"})]
+        (expect (= "true" (:result r)))))
+
+    ;; --- clojure.pprint / pprint alias ---
+
+    (it "pprint/pprint writes to stdout"
+      (let [r (cmd "sci_eval" {"code" "(pprint/pprint {:a 1 :b 2}) :done"})]
+        (expect (= ":done" (:result r)))
+        (expect (clojure.string/includes? (str (:stdout r)) ":a"))))
+
+    (it "clojure.pprint/pprint works via full name"
+      (let [r (cmd "sci_eval" {"code" "(clojure.pprint/pprint [1 2 3]) :ok"})]
+        (expect (= ":ok" (:result r)))
+        (expect (clojure.string/includes? (str (:stdout r)) "1"))))
+
+    (it "pprint/print-table works"
+      (let [r (cmd "sci_eval" {"code" "(pprint/print-table [:a :b] [{:a 1 :b 2}]) :ok"})]
+        (expect (= ":ok" (:result r)))
+        (expect (clojure.string/includes? (str (:stdout r)) ":a"))))
+
+    ;; --- json/ (charred) ---
+
+    (it "json/write-json-str serializes to JSON"
+      (let [r (cmd "sci_eval" {"code" "(json/write-json-str {:name \"alice\" :age 30})"})]
+        (expect (clojure.string/includes? (:result r) "alice"))))
+
+    (it "json/read-json parses JSON"
+      (let [r (cmd "sci_eval" {"code" "(json/read-json \"{\\\"name\\\":\\\"bob\\\"}\")"})]
+        (expect (clojure.string/includes? (:result r) "bob"))))
+
+    (it "json round-trip works"
+      (let [r (cmd "sci_eval" {"code" "(-> {:x 1} json/write-json-str json/read-json (get \"x\"))"})]
+        (expect (= "1" (:result r)))))
+
+    ;; --- assert macro ---
+
+    (it "assert passes for truthy value"
+      (let [r (cmd "sci_eval" {"code" "(assert true) :passed"})]
+        (expect (= ":passed" (:result r)))))
+
+    (it "assert throws for falsy value"
+      (let [msg (try (cmd "sci_eval" {"code" "(assert false \"expected failure\")"}) nil
+                     (catch Exception e (.getMessage e)))]
+        (expect (clojure.string/includes? (str msg) "Assert"))))
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
     (it "stop! does not kill daemon browser"

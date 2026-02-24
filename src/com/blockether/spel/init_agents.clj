@@ -80,11 +80,41 @@
         generator-template (if ct?
                              "agents/spel-test-generator-ct.md"
                              "agents/spel-test-generator.md")
-        skill-file [["skills/spel/SKILL.md"
-                     (str skill-dir "/SKILL.md")
-                     "API reference skill"
-                     "+"
-                     nil]]
+        skill-files [["skills/spel/SKILL.md"
+                      (str skill-dir "/SKILL.md")
+                      "API reference skill"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/EVAL_GUIDE.md"
+                      (str skill-dir "/refs/EVAL_GUIDE.md")
+                      "eval mode guide"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/NAVIGATION_WAIT.md"
+                      (str skill-dir "/refs/NAVIGATION_WAIT.md")
+                      "navigation patterns"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/SELECTORS_SNAPSHOTS.md"
+                      (str skill-dir "/refs/SELECTORS_SNAPSHOTS.md")
+                      "selectors and snapshots"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/PDF_STITCH_VIDEO.md"
+                      (str skill-dir "/refs/PDF_STITCH_VIDEO.md")
+                      "PDF, stitch, video"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/PROFILES_AGENTS.md"
+                      (str skill-dir "/refs/PROFILES_AGENTS.md")
+                      "profiles and agents"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/COMMON_PROBLEMS.md"
+                      (str skill-dir "/refs/COMMON_PROBLEMS.md")
+                      "troubleshooting"
+                      "+"
+                      nil]]
         test-files [["agents/spel-test-planner.md"
                      (str agent-dir "/spel-test-planner" agent-ext)
                      "test planner agent"
@@ -106,8 +136,8 @@
                      "+"
                      nil]]]
     (if no-tests
-      skill-file
-      (into test-files skill-file))))
+      skill-files
+      (into test-files skill-files))))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.

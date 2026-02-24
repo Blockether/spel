@@ -505,36 +505,27 @@
             "\n"))))))
 
 ;; =============================================================================
-;; SKILL.md Generation
+;; Skill Template Generation
 ;; =============================================================================
 
 (def ^:private template-input-path
-  "SKILL.md.template contains {{placeholders}} — never overwritten."
+  "SKILL.md.template contains {{placeholders}} that pass through to init-agents.
+   gen-docs copies it to SKILL.md (no substitutions needed since API tables
+   were moved to spel/help runtime discovery)."
   "resources/com/blockether/spel/templates/skills/spel/SKILL.md.template")
 
 (def ^:private template-output-path
-  "SKILL.md is the generated output — always regenerated from .template."
+  "SKILL.md is the generated output \u2014 always regenerated from .template."
   "resources/com/blockether/spel/templates/skills/spel/SKILL.md")
-
 (defn generate-skill-md
-  "Reads the SKILL.md.template, replaces {{library-api}}, {{sci-api}},
-   and {{cli-commands}} placeholders with generated content, writes to SKILL.md.
-   The {{testing-conventions}} and {{ns}} placeholders pass through unchanged —
-   they are replaced later by init-agents at scaffolding time."
+  "Copies SKILL.md.template to SKILL.md. The template no longer contains
+   {{library-api}}/{{sci-api}}/{{cli-commands}} placeholders \u2014 agents use
+   spel/help for runtime API discovery instead. The {{ns}} and
+   {{testing-conventions}} placeholders pass through unchanged for init-agents."
   []
-  (let [template (slurp (io/file template-input-path))
-        library-api (generate-library-api)
-        sci-api (generate-sci-api)
-        cli-commands (generate-cli-commands)
-        result (-> template
-                 (str/replace "{{library-api}}" library-api)
-                 (str/replace "{{sci-api}}" sci-api)
-                 (str/replace "{{cli-commands}}" cli-commands))]
-    (spit (io/file template-output-path) result)
-    (println "Generated SKILL.md with:")
-    (println "  - Library API:" (count (re-seq #"\| `" library-api)) "functions")
-    (println "  - SCI eval API:" (count (re-seq #"\| `" sci-api)) "functions")
-    (println "  - CLI commands:" (count (re-seq #"\| `" cli-commands)) "commands")
+  (let [template (slurp (io/file template-input-path))]
+    (spit (io/file template-output-path) template)
+    (println "Generated SKILL.md from template")
     (println "  Written to:" template-output-path)))
 
 ;; =============================================================================

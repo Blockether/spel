@@ -142,7 +142,6 @@
    completes. When nil (default), no HAR is captured."
   nil)
 
-
 (def ^:dynamic *video-path*
   "Dynamic var holding the path to the video recording file.
    Bound by `with-video-page-opts` fixture, captured by the reporter.
