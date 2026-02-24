@@ -14,16 +14,13 @@
     <a href="https://github.com/Blockether/spel/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License - Apache 2.0">
     </a>
-    <a href="https://blockether.github.io/spel/">
-      <img src="https://blockether.github.io/spel/badge.svg" alt="Allure Report">
-    </a>
   </h2>
 </div>
 
 <div align="center">
 <h3>
 
-[Rationale](#rationale) • [Quick Start](#quick-start) • [Native CLI](#native-cli) • [Allure Test Reporting](#allure-test-reporting) • [Agent Scaffolding](#agent-scaffolding)
+[Rationale](#rationale) • [Quick Start](#quick-start) • [Native CLI](#native-cli) • [Agent Scaffolding](#agent-scaffolding)
 
 </h3>
 </div>
@@ -47,7 +44,7 @@
 
 Playwright's Java API is imperative and verbose — option builders, checked exceptions, manual resource cleanup. Clojure deserves better.
 
-spel wraps the official Playwright Java 1.58.0 library with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation from the terminal.
+spel wraps Playwright Java 1.58.0 with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation from the terminal.
 
 - **Data-driven**: Maps for options, anomaly maps for errors — no option builders, no checked exceptions
 - **Composable**: `with-*` macros for lifecycle management — resources always cleaned up
@@ -87,7 +84,7 @@ Pass an opts map for device emulation:
   (page/navigate pg "https://example.com"))
 ```
 
-Need explicit control over lifecycle? `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. The [full API reference](.opencode/skills/spel/SKILL.md) covers all options.
+For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](.opencode/skills/spel/SKILL.md).
 
 ### API Testing
 
@@ -145,9 +142,11 @@ Playwright-backed HTTP testing with automatic tracing.
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 ```
 
-[Full API reference covers fixtures, steps, attachments, and more](.opencode/skills/spel/SKILL.md).
+See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
 ## Native CLI
+
+spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `--eval` mode for inline Clojure scripting via [SCI](https://github.com/babashka/sci). Run `spel --help` for the full command list.
 
 ### Releases
 
@@ -175,46 +174,24 @@ Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 > ```bash
 > export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc or ~/.zshrc
 > ```
-> You can also install system-wide with `sudo mv spel-* /usr/local/bin/spel` instead.
+> You can also install system-wide with `sudo mv spel-* /usr/local/bin/spel`.
 
-### MacOS Gatekeeper
+### macOS Gatekeeper
 
-The binaries are not signed with an Apple Developer certificate. macOS will block the first run with *"spel can't be opened because Apple cannot check it for malicious software"*. To allow it:
+The binaries are not Apple-signed. macOS will block the first run. To allow it:
 
 ```bash
-# Remove the quarantine attribute (recommended)
 xattr -d com.apple.quarantine ~/.local/bin/spel
 ```
 
-Or: **System Settings → Privacy & Security → scroll down → click "Allow Anyway"** after the first blocked attempt.
+Or: **System Settings → Privacy & Security → Allow Anyway** after the first blocked attempt.
 
 ### Post-install
 
-Install browsers and verify:
-
 ```bash
-spel install
-spel version
+spel install   # install browsers
+spel version   # verify installation
 ```
-
-## Allure Test Reporting
-
-Integrates with [Lazytest](https://github.com/noahtheduke/lazytest) for test reports using [Allure](https://allurereport.org/). Generates the HTML report automatically with embedded Playwright traces and trace viewer.
-
-> **[View live test report](https://blockether.github.io/spel/)** — with embedded traces.
-
-<table>
-<tr>
-<td width="50%" align="center"><b>Allure&nbsp;Report</b></td>
-<td width="50%" align="center"><b>Embedded&nbsp;Playwright&nbsp;Traces</b></td>
-</tr>
-<tr>
-<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-report.png" alt="Allure Report"/></a></td>
-<td><a href="https://blockether.github.io/spel/"><img src="docs/screenshots/allure-trace-viewer.png" alt="Playwright Trace Viewer embedded in Allure"/></a></td>
-</tr>
-</table>
-
-Automatic tracing, trace viewer, and history included. See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
 ## Video Recording
 
@@ -224,18 +201,18 @@ Record browser sessions as WebM files for debugging and CI artifacts.
 (def ctx (core/new-context browser {:record-video-dir "videos"}))
 ```
 
-[Recording options and test fixtures are documented here](.opencode/skills/spel/SKILL.md).
+See [recording options and test fixtures](.opencode/skills/spel/SKILL.md).
 
 ## Test Generation (Codegen)
 
-Record browser sessions and transform to idiomatic Clojure code.
+Record browser sessions and transform them to idiomatic Clojure code.
 
 ```bash
 spel codegen record -o recording.jsonl https://example.com
 spel codegen recording.jsonl > my_test.clj
 ```
 
-[Full actions and output formats in the SKILL reference](.opencode/skills/spel/SKILL.md).
+See [full actions and output formats](.opencode/skills/spel/SKILL.md).
 
 ## Agent Scaffolding
 
