@@ -6,6 +6,8 @@
   (:require
    [charred.api :as json]
    [clojure.string :as str]
+   [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as sut]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
@@ -265,3 +267,141 @@
         ;; Should not throw — file doesn't exist so it just returns
         (#'sut/auto-load-session-state!)
         (expect true)))))
+
+;; =============================================================================
+;; Unit Tests — check-anomaly! (private)
+;; =============================================================================
+
+(defdescribe check-anomaly-test
+  "Unit tests for check-anomaly! — surfaces meaningful errors from anomaly maps"
+
+  (describe "passes through non-anomaly values"
+    (it "returns a string unchanged"
+      (expect (= "hello" (#'sut/check-anomaly! "hello" "context"))))
+
+    (it "returns a number unchanged"
+      (expect (= 42 (#'sut/check-anomaly! 42 "context"))))
+
+    (it "returns nil unchanged"
+      (expect (nil? (#'sut/check-anomaly! nil "context"))))
+
+    (it "returns a regular map unchanged"
+      (let [m {:foo "bar"}]
+        (expect (= m (#'sut/check-anomaly! m "context"))))))
+
+  (describe "throws ex-info for anomaly maps"
+    (it "throws with context message and anomaly message"
+      (let [anomaly-map (anomaly/anomaly ::anomaly/fault "Browser executable not found"
+                          {:playwright/error-type :playwright.error/exception})]
+        (try
+          (#'sut/check-anomaly! anomaly-map "Failed to launch browser")
+          (expect false "Should have thrown")
+          (catch clojure.lang.ExceptionInfo e
+            (expect (str/includes? (.getMessage e) "Failed to launch browser"))
+            (expect (str/includes? (.getMessage e) "Browser executable not found"))))))
+
+    (it "includes anomaly data in ex-data"
+      (let [anomaly-map (anomaly/anomaly ::anomaly/fault "Some error"
+                          {:playwright/error-type :playwright.error/exception})]
+        (try
+          (#'sut/check-anomaly! anomaly-map "Launch failed")
+          (expect false "Should have thrown")
+          (catch clojure.lang.ExceptionInfo e
+            (let [data (ex-data e)]
+              (expect (= ::anomaly/fault (::anomaly/category data))))
+            (expect (nil? (:playwright/exception (ex-data e))))))))
+
+    (it "preserves original exception as cause"
+      (let [original-ex (Exception. "underlying cause")
+            anomaly-map (assoc (anomaly/anomaly ::anomaly/fault "Wrapper message"
+                                 {:playwright/error-type :playwright.error/exception})
+                          :playwright/exception original-ex)]
+        (try
+          (#'sut/check-anomaly! anomaly-map "Context msg")
+          (expect false "Should have thrown")
+          (catch clojure.lang.ExceptionInfo e
+            (expect (= original-ex (.getCause e)))
+            (expect (str/includes? (.getMessage e) "Context msg"))
+            (expect (str/includes? (.getMessage e) "Wrapper message"))))))))
+
+;; =============================================================================
+;; Unit Tests — ensure-browser! anomaly handling
+;; =============================================================================
+
+(defdescribe ensure-browser-anomaly-test
+  "Tests that ensure-browser! surfaces meaningful errors when core/* calls fail.
+   Mocks core functions to return anomaly maps and verifies the error message
+   is descriptive instead of a raw ClassCastException."
+
+  (describe "normal path — launch-chromium returns anomaly"
+    (it "throws with 'Failed to launch browser' and the underlying error message"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true :session "test"
+                            :launch-flags {}})
+        (with-redefs [core/create (fn [] (Object.))
+                      core/launch-chromium (fn [_ _]
+                                             (core/wrap-error
+                                               (Exception. "Chromium not found at /bad/path")))]
+          (try
+            (#'sut/ensure-browser!)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "Failed to launch browser"))
+              (expect (str/includes? (.getMessage e) "Chromium not found at /bad/path"))))))))
+
+  (describe "normal path — new-context returns anomaly"
+    (it "throws with 'Failed to create browser context' and the underlying message"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true :session "test"
+                            :launch-flags {}})
+        (with-redefs [core/create (fn [] (Object.))
+                      core/launch-chromium (fn [_ _] (Object.))
+                      core/new-context (fn [_ & _]
+                                         (core/wrap-error
+                                           (Exception. "Context creation failed")))]
+          (try
+            (#'sut/ensure-browser!)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "Failed to create browser context"))
+              (expect (str/includes? (.getMessage e) "Context creation failed"))))))))
+
+  (describe "normal path — new-page-from-context returns anomaly"
+    (it "throws with 'Failed to create page' and the underlying message"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true :session "test"
+                            :launch-flags {}})
+        (with-redefs [core/create (fn [] (Object.))
+                      core/launch-chromium (fn [_ _] (Object.))
+                      core/new-context (fn [_ & _] (Object.))
+                      core/new-page-from-context (fn [_]
+                                                   (core/wrap-error
+                                                     (Exception. "Page allocation failed")))]
+          (try
+            (#'sut/ensure-browser!)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "Failed to create page"))
+              (expect (str/includes? (.getMessage e) "Page allocation failed"))))))))
+
+  (describe "persistent path — launch-persistent-context returns anomaly"
+    (it "throws with 'Failed to launch persistent browser context' and the underlying message"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true :session "test"
+                            :launch-flags {"profile" "/tmp/test-profile"}})
+        (with-redefs [core/create (fn [] (reify com.microsoft.playwright.Playwright
+                                           (chromium [_] (reify com.microsoft.playwright.BrowserType
+                                                           (name [_] "chromium")))))
+                      core/launch-persistent-context (fn [_ _ _]
+                                                       (core/wrap-error
+                                                         (Exception. "Profile dir locked")))]
+          (try
+            (#'sut/ensure-browser!)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "Failed to launch persistent browser context"))
+              (expect (str/includes? (.getMessage e) "Profile dir locked")))))))))

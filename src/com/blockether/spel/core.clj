@@ -22,13 +22,13 @@
   (:import
    [java.io File]
    [java.nio.file Path]
-   [java.util UUID
-    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
-     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
-     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]]
-   [com.microsoft.playwright.impl TargetClosedError
-    [com.microsoft.playwright.options FormData RequestOptions]
-    [com.google.gson JsonObject]]))
+   [java.util UUID]
+   [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
+    Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
+    PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
+   [com.microsoft.playwright.impl TargetClosedError]
+   [com.microsoft.playwright.options FormData RequestOptions]
+   [com.google.gson JsonObject]))
 
 ;; =============================================================================
 ;; Error Handling
@@ -828,12 +828,12 @@
           (when (instance? Page pg) (close-page! pg))
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))
-            (catch Exception _))
+               (catch Exception _))
           ;; Close context (writes HAR file) before attaching, so both
           ;; trace and HAR are fully written when we copy them.
           (let [t (doto (Thread. (fn []
                                    (try (close-context! ctx)
-                                     (catch Exception _))))
+                                        (catch Exception _))))
                     (.setDaemon true)
                     (.start))]
             (.join t 5000))
@@ -859,7 +859,7 @@
    Returns [active?-fn vars-map]."
   []
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                  (catch Exception _ (constantly false)))]
+                     (catch Exception _ (constantly false)))]
     [active?
      {:page        (resolve 'com.blockether.spel.allure/*page*)
       :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
@@ -1708,9 +1708,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -1924,10 +1924,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                  (catch Exception _))
+                     (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (close-context! ctx)
-                                           (catch Exception _))))
+                                              (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000))
@@ -2035,7 +2035,7 @@
           (f ctx)))
       (finally
         (try (close! pw)
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 (defmacro with-page-api
   "Create an APIRequestContext from a Page with custom options.

@@ -208,6 +208,8 @@
       (.setArgs o ^java.util.List v))
     (when-let [v (:ignore-default-args opts)]
       (.setIgnoreDefaultArgs o ^java.util.List v))
+    (when (true? (:ignore-all-default-args opts))
+      (.setIgnoreAllDefaultArgs o true))
     (when (contains? opts :chromium-sandbox)
       (.setChromiumSandbox o (boolean (:chromium-sandbox opts))))
     (when-let [v (:downloads-path opts)]

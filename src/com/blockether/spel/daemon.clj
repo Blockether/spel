@@ -205,6 +205,17 @@
           ;; Best-effort — don't fail close on state save error
           nil)))))
 
+(defn- check-anomaly!
+  "Checks if result is an anomaly map. If so, throws ex-info with the
+   original Playwright error message and cause. Otherwise returns result.
+   Used in ensure-browser! to surface meaningful errors instead of ClassCastException."
+  [result context-msg]
+  (if (anomaly/anomaly? result)
+    (throw (ex-info (str context-msg ": " (::anomaly/message result))
+             (dissoc result :playwright/exception)
+             (:playwright/exception result)))
+    result))
+
 (defn- ensure-browser!
   "Lazily starts Chromium on first command. Uses launch-flags from !state if present.
    If --profile is set, uses launchPersistentContext (real Chrome profile).
@@ -220,19 +231,17 @@
                                                                      :bypass (get flags "proxy-bypass" "")})
                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
                         (get flags "channel")          (assoc :channel (get flags "channel")))
-          ;; When using a real browser profile, remove Playwright's mock keychain
+          ;; When using a real browser profile, remove ALL Playwright default
           ;; args so Chrome can decrypt its own Keychain-stored cookies (macOS).
           launch-opts (if profile-dir
-                        (update launch-opts :ignore-default-args
-                          (fnil into [])
-                          ["--use-mock-keychain" "--password-store=basic"])
+                        (assoc launch-opts :ignore-all-default-args true)
                         launch-opts)
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                              (catch Exception _ {})))
+                                                                 (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (if profile-dir
@@ -240,24 +249,34 @@
         ;; launchPersistentContext returns BrowserContext directly, not Browser.
         ;; Closing the context auto-closes the browser.
         (let [persistent-opts (merge launch-opts ctx-opts)
-              context         (core/launch-persistent-context
-                                (.chromium ^com.microsoft.playwright.Playwright pw)
-                                profile-dir
-                                persistent-opts)
+              context         (check-anomaly!
+                                (core/launch-persistent-context
+                                  (.chromium ^com.microsoft.playwright.Playwright pw)
+                                  profile-dir
+                                  persistent-opts)
+                                "Failed to launch persistent browser context")
               browser         (.browser ^com.microsoft.playwright.BrowserContext context)
               pg-inst         (if (seq (.pages ^com.microsoft.playwright.BrowserContext context))
                                 (first (.pages ^com.microsoft.playwright.BrowserContext context))
-                                (core/new-page-from-context context))]
+                                (check-anomaly!
+                                  (core/new-page-from-context context)
+                                  "Failed to create page in persistent context"))]
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
             :persistent-profile true))
         ;; Normal path: launch browser + create context separately.
         (let [browser (if (get flags "cdp")
                         (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
-                        (core/launch-chromium pw launch-opts))
-              context (if (seq ctx-opts)
-                        (core/new-context browser ctx-opts)
-                        (core/new-context browser))
-              pg-inst (core/new-page-from-context context)]
+                        (check-anomaly!
+                          (core/launch-chromium pw launch-opts)
+                          "Failed to launch browser"))
+              context (check-anomaly!
+                        (if (seq ctx-opts)
+                          (core/new-context browser ctx-opts)
+                          (core/new-context browser))
+                        "Failed to create browser context")
+              pg-inst (check-anomaly!
+                        (core/new-page-from-context context)
+                        "Failed to create page")]
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))
       ;; Common setup for both paths
       (let [pg-inst (:page @!state)]
@@ -475,7 +494,7 @@
             (Path/of ^String path-str (into-array String []))
             ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-        {:path path-str :size (alength ss-bytes)})
+          {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
@@ -560,27 +579,27 @@
   (cond
     (get params "text")
     (do (page/wait-for-selector (pg) (str "text=" (get params "text")))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (page/wait-for-url (pg) (get params "url"))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (page/wait-for-function (pg) (get params "function"))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (do (page/wait-for-selector (pg) (get params "selector"))
-      {:found (get params "selector")})
+        {:found (get params "selector")})
 
     (get params "state")
     (do (page/wait-for-load-state (pg) (keyword (get params "state")))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (page/wait-for-timeout (pg) (double (get params "timeout")))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -734,13 +753,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "click" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "fill" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -883,7 +902,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -932,12 +951,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -1059,7 +1078,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page

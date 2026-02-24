@@ -571,7 +571,7 @@
    Example:
    (let [fc (page/wait-for-file-chooser pg
               #(locator/click (page/locator pg \"input[type=file]\")))]
-      (page/file-chooser-set-files! fc "/path/to/file.txt"))"
+      (page/file-chooser-set-files! fc \"/path/to/file.txt\"))"
   ([^Page page action]
    (safe (.waitForFileChooser page (reify Runnable (run [_] (action))))))
   ([^Page page action opts]

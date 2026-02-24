@@ -35,6 +35,9 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `browser-contexts` | [browser] | Returns all browser contexts. |
 | `browser-type-name` | [bt] | Returns the name of the browser type. |
 | `browser-version` | [browser] | Returns the browser version string. |
+| `cdp-detach!` | [session] | Detaches the CDP session. |
+| `cdp-on` | [session event handler] | Registers a handler for CDP events. |
+| `cdp-send` | [session method] \| [session method params] | Sends a Chrome DevTools Protocol command. |
 | `chromium` | [pw] | Returns the Chromium BrowserType. |
 | `close!` | [pw] | Closes a Playwright instance and releases all resources. |
 | `close-browser!` | [browser] | Closes a browser and all its pages. |
@@ -55,6 +58,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
 | `context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
 | `context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
+| `context-tracing` | [context] | Returns the Tracing for a context. |
 | `create` | [] | Creates a new Playwright instance. |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
@@ -78,7 +82,14 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
 | `run-with-testing-page` | [opts f] | Functional core of `with-testing-page`. Sets up a complete Playwright stack |
 | _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
+| `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
+| `selectors-register!` | [sels name script] | Registers a custom selector engine. |
+| `tracing-start!` | [tracing] \| [tracing trace-opts] | Starts tracing. |
+| `tracing-stop!` | [tracing] \| [tracing stop-opts] | Stops tracing and saves the trace file. |
 | `video-delete!` | [page] | Deletes the video file for a page. |
+| `video-obj-delete!` | [video] | Deletes the video file from a Video instance. |
+| `video-obj-path` | [video] | Returns the path to the video file from a Video instance. |
+| `video-obj-save-as!` | [video path] | Saves the video to the given path from a Video instance. |
 | `video-path` | [page] | Returns the video file path for a page, or nil if not recording. |
 | `video-save-as!` | [page path] | Saves the video to the specified path. Context must be closed first. |
 | `webkit` | [pw] | Returns the WebKit BrowserType. |
@@ -102,12 +113,39 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `add-script-tag` | [page opts] | Adds a script tag to the page. |
 | `add-style-tag` | [page opts] | Adds a style tag to the page. |
 | `bring-to-front` | [page] | Brings page to front (activates tab). |
+| `clock-fast-forward!` | [clock ticks] | Fast-forwards the clock by the given time. |
+| `clock-install!` | [clock] | Installs fake timers on the clock. |
+| `clock-pause-at!` | [clock time] | Pauses the clock at the given time. |
+| `clock-resume!` | [clock] | Resumes the clock. |
+| `clock-set-fixed-time!` | [clock time] | Sets the clock to a fixed time. |
+| `clock-set-system-time!` | [clock time] | Sets the system time. |
+| `console-args` | [msg] | Returns the console message arguments as JSHandles. |
+| `console-location` | [msg] | Returns the source location of the console message. |
+| `console-page` | [msg] | Returns the page the console message belongs to. |
+| `console-text` | [msg] | Returns the console message text. |
+| `console-type` | [msg] | Returns the console message type (log, debug, info, error, warning, etc). |
 | `content` | [page] | Returns the full HTML content of the page. |
+| `dialog-accept!` | [dialog] \| [dialog prompt-text] | Accepts the dialog. |
+| `dialog-default-value` | [dialog] | Returns the default value for prompt dialogs. |
+| `dialog-dismiss!` | [dialog] | Dismisses the dialog. |
+| `dialog-message` | [dialog] | Returns the dialog message. |
+| `dialog-type` | [dialog] | Returns the dialog type (alert, confirm, prompt, beforeunload). |
+| `download-cancel!` | [download] | Cancels the download. |
+| `download-failure` | [download] | Returns the download failure reason, or nil. |
+| `download-page` | [download] | Returns the page the download belongs to. |
+| `download-path` | [download] | Returns the local path to the downloaded file. |
+| `download-save-as!` | [download path] | Saves the download to the given path. |
+| `download-suggested-filename` | [download] | Returns the suggested filename. |
+| `download-url` | [download] | Returns the download URL. |
 | `emulate-media!` | [page media-opts] | Emulates media type and features. |
 | `evaluate` | [page expression] \| [page expression arg] | Evaluates JavaScript expression in the page context. |
 | `evaluate-handle` | [page expression] \| [page expression arg] | Like evaluate, but returns a JSHandle. |
 | `expose-binding!` | [page name f] | Exposes a Clojure function as a binding. |
 | `expose-function!` | [page name f] | Exposes a Clojure function to JavaScript. |
+| `file-chooser-element` | [fc] | Returns the element handle for the file input. |
+| `file-chooser-is-multiple?` | [fc] | Returns whether the file chooser accepts multiple files. |
+| `file-chooser-page` | [fc] | Returns the page the file chooser belongs to. |
+| `file-chooser-set-files!` | [fc files] | Sets the files for the file chooser. |
 | `frame-by-name` | [page name] | Returns a frame by its name attribute. |
 | `frame-by-url` | [page pattern] | Returns a frame by matching URL pattern. |
 | `frames` | [page] | Returns all frames in the page. |
@@ -134,6 +172,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `on-response` | [page handler] | Registers a handler for responses. |
 | `once-dialog` | [page handler] | Registers a one-time handler for the next dialog. |
 | `opener` | [page] | Returns the opener page, if any. |
+| `page-clock` | [page] | Returns the Clock for a page. |
 | `page-context` | [page] | Returns the BrowserContext that the page belongs to. |
 | `page-keyboard` | [page] | Returns the Keyboard for this page. |
 | `page-mouse` | [page] | Returns the Mouse for this page. |
@@ -163,6 +202,10 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `wait-for-selector` | [page selector] \| [page selector wait-opts] | Waits for a selector to satisfy a condition. |
 | `wait-for-timeout` | [page timeout] | Waits for the specified time in milliseconds. |
 | `wait-for-url` | [page url] | Waits for the page to navigate to a URL. |
+| `web-error-error` | [we] | Returns the underlying error for this web error. |
+| `web-error-page` | [we] | Returns the page that generated this web error, if any. |
+| `worker-evaluate` | [worker expression] \| [worker expression arg] | Evaluates JavaScript in the worker context. |
+| `worker-url` | [worker] | Returns the worker URL. |
 | `workers` | [page] | Returns all workers in the page. |
 
 ### `locator` — Element interactions
@@ -419,54 +462,6 @@ _Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:
 | `-main` | [& args] | CLI entry point. Transforms JSONL recording to Clojure code. |
 | `jsonl->clojure` | [path] \| [path opts] | Reads a JSONL file and returns Clojure test code as a string. |
 | `jsonl-str->clojure` | [jsonl-str] \| [jsonl-str opts] | Transforms a JSONL string into Clojure source code. |
-
-### `util` — Dialog, download, console, CDP, clock, tracing, video, workers
-
-| Function | Args | Description |
-|----------|------|-------------|
-| `cdp-detach!` | [session] | Detaches the CDP session. |
-| `cdp-on` | [session event handler] | Registers a handler for CDP events. |
-| `cdp-send` | [session method] \| [session method params] | Sends a Chrome DevTools Protocol command. |
-| `clock-fast-forward!` | [clock ticks] | Fast-forwards the clock by the given time. |
-| `clock-install!` | [clock] | Installs fake timers on the clock. |
-| `clock-pause-at!` | [clock time] | Pauses the clock at the given time. |
-| `clock-resume!` | [clock] | Resumes the clock. |
-| `clock-set-fixed-time!` | [clock time] | Sets the clock to a fixed time. |
-| `clock-set-system-time!` | [clock time] | Sets the system time. |
-| `console-args` | [msg] | Returns the console message arguments as JSHandles. |
-| `console-location` | [msg] | Returns the source location of the console message. |
-| `console-page` | [msg] | Returns the page the console message belongs to. |
-| `console-text` | [msg] | Returns the console message text. |
-| `console-type` | [msg] | Returns the console message type (log, debug, info, error, warning, etc). |
-| `context-tracing` | [context] | Returns the Tracing for a context. |
-| `dialog-accept!` | [dialog] \| [dialog prompt-text] | Accepts the dialog. |
-| `dialog-default-value` | [dialog] | Returns the default value for prompt dialogs. |
-| `dialog-dismiss!` | [dialog] | Dismisses the dialog. |
-| `dialog-message` | [dialog] | Returns the dialog message. |
-| `dialog-type` | [dialog] | Returns the dialog type (alert, confirm, prompt, beforeunload). |
-| `download-cancel!` | [download] | Cancels the download. |
-| `download-failure` | [download] | Returns the download failure reason, or nil. |
-| `download-page` | [download] | Returns the page the download belongs to. |
-| `download-path` | [download] | Returns the local path to the downloaded file. |
-| `download-save-as!` | [download path] | Saves the download to the given path. |
-| `download-suggested-filename` | [download] | Returns the suggested filename. |
-| `download-url` | [download] | Returns the download URL. |
-| `file-chooser-element` | [fc] | Returns the element handle for the file input. |
-| `file-chooser-is-multiple?` | [fc] | Returns whether the file chooser accepts multiple files. |
-| `file-chooser-page` | [fc] | Returns the page the file chooser belongs to. |
-| `file-chooser-set-files!` | [fc files] | Sets the files for the file chooser. |
-| `page-clock` | [page] | Returns the Clock for a page. |
-| `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
-| `selectors-register!` | [sels name script] | Registers a custom selector engine. |
-| `tracing-start!` | [tracing] \| [tracing trace-opts] | Starts tracing. |
-| `tracing-stop!` | [tracing] \| [tracing stop-opts] | Stops tracing and saves the trace file. |
-| `video-delete!` | [video] | Deletes the video file. |
-| `video-path` | [video] | Returns the path to the video file. |
-| `video-save-as!` | [video path] | Saves the video to the given path. |
-| `web-error-error` | [we] | Returns the underlying error for this web error. |
-| `web-error-page` | [we] | Returns the page that generated this web error, if any. |
-| `worker-evaluate` | [worker expression] \| [worker expression arg] | Evaluates JavaScript in the worker context. |
-| `worker-url` | [worker] | Returns the worker URL. |
 
 ### `options` — Java option builders (80+)
 
