@@ -30,7 +30,7 @@
       --purple-bg: rgba(124,58,237,0.08); --purple-border: rgba(124,58,237,0.25); --purple-text: #a78bfa;
       --shadow: 0 1px 2px rgba(0,0,0,0.2); --shadow-h: 0 4px 12px rgba(0,0,0,0.3);
     }
-    body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; overflow-y: scroll; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
     /* --- Header --- */
@@ -459,7 +459,7 @@
         }
       }
 
-      var prBadge = isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '';
+      var prBadge = isPR ? '<a href="' + (b.repo_url || '') + '/pull/' + b.pr_number + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : '';
       var mergedBadge = isMerged ? '<span class="pill pill-muted">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
       var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
