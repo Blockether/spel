@@ -69,6 +69,20 @@
   "Supported test framework flavours."
   #{"lazytest" "clojure-test"})
 
+(def ^:private ref-files
+  "Reference documentation files included with the skill.
+   Each entry is a filename under skills/spel/refs/ in the template resources."
+  ["COMMON_PROBLEMS.md"
+   "CONSTANTS.md"
+   "EVAL_GUIDE.md"
+   "FULL_API.md"
+   "NAVIGATION_WAIT.md"
+   "PAGE_LOCATORS.md"
+   "PDF_STITCH_VIDEO.md"
+   "PROFILES_AGENTS.md"
+   "SELECTORS_SNAPSHOTS.md"
+   "SNAPSHOT_TESTING.md"])
+
 (defn- files-to-create
   "Returns file specs based on loop target, flavour, and whether tests are included.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
@@ -80,11 +94,18 @@
         generator-template (if ct?
                              "agents/spel-test-generator-ct.md"
                              "agents/spel-test-generator.md")
-        skill-file [["skills/spel/SKILL.md"
-                     (str skill-dir "/SKILL.md")
-                     "API reference skill"
-                     "+"
-                     nil]]
+        skill-files (into [["skills/spel/SKILL.md"
+                            (str skill-dir "/SKILL.md")
+                            "API reference skill"
+                            "+"
+                            nil]]
+                      (mapv (fn [filename]
+                              [(str "skills/spel/refs/" filename)
+                               (str skill-dir "/refs/" filename)
+                               (str "ref: " (str/replace filename ".md" ""))
+                               "+"
+                               nil])
+                        ref-files))
         test-files [["agents/spel-test-planner.md"
                      (str agent-dir "/spel-test-planner" agent-ext)
                      "test planner agent"
@@ -106,8 +127,8 @@
                      "+"
                      nil]]]
     (if no-tests
-      skill-file
-      (into test-files skill-file))))
+      skill-files
+      (into test-files skill-files))))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.
