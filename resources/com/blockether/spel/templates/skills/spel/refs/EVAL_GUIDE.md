@@ -196,7 +196,7 @@ These Clojure namespaces are available without any `require`:
 | `clojure.edn` | `read-string` for safe EDN parsing |
 | `clojure.repl` | `doc`, `source`, `dir` |
 | `clojure.template` | `do-template`, `apply-template` |
-| `clojure.pprint` | `pprint`, `print-table`, `cl-format`. **Also available as `pprint/`** — e.g. `(pprint/pprint data)` |
+| `pprint/` | Pretty-printing via [fipp](https://github.com/brandonbloom/fipp) (GraalVM-safe). `pprint`, `print-table`. **Also available as `clojure.pprint/`** — e.g. `(pprint/pprint data)` |
 | `json/` | JSON via [charred](https://github.com/cnuernber/charred): `json/read-json`, `json/write-json-str`. E.g. `(json/write-json-str {:a 1})` → `"{\"a\":1}"` |
 | `*json-encoder*` | Dynamic var bound to `json/write-json-str`. Used internally for JSON encoding; rebind to customize serialization. |
 

@@ -338,7 +338,7 @@
             _       (write-sw-bundle! report content)]
         (try
           (#'reporter/patch-sw-safari-transform-stream! report)
-          (let [first-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
+          (let [_first-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
             (#'reporter/patch-sw-safari-transform-stream! report)
             (let [second-pass (slurp (io/file report "trace-viewer" "sw.bundle.js"))]
               ;; Second application should prepend again (shim != original content)

@@ -5,7 +5,8 @@
   com.blockether/anomaly              {:mvn/version "1.0.1"}
   org.babashka/sci                    {:mvn/version "0.8.43"}
   com.cnuernber/charred                {:mvn/version "1.038"}
-  io.github.noahtheduke/lazytest      {:mvn/version "1.9.1"}}
+  io.github.noahtheduke/lazytest      {:mvn/version "1.9.1"}
+  fipp/fipp                            {:mvn/version "0.6.29"}}
 
  :aliases
  {:dev    {:extra-paths ["test"]
@@ -21,7 +22,8 @@
                         com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
                         com.blockether/anomaly              {:mvn/version "1.0.1"}
                         org.babashka/sci                    {:mvn/version "0.8.43"}
-                        com.cnuernber/charred                {:mvn/version "1.038"}}
+                        com.cnuernber/charred                {:mvn/version "1.038"}
+                        fipp/fipp                            {:mvn/version "0.6.29"}}
            :ns-default build}
 
   :e2e    {:extra-paths ["test-e2e"]

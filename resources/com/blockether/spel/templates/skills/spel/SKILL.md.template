@@ -224,7 +224,7 @@ spel --eval '
 
 ;; Page-level
 (spel/assert-title "Example Domain")
-(spel/assert-url "https://example.com/")      ;; exact match only
+(spel/assert-url "https://example.com/")      ;; exact string or regex Pattern
 
 ;; Element-level
 (spel/assert-visible "h1")
@@ -240,7 +240,7 @@ spel --eval '
 '
 ```
 
-**Important**: `assert-url` does exact string match only. No regex/substring.
+**Important**: `assert-url` accepts exact strings or `java.util.regex.Pattern` (via `re-pattern`). Example: `(spel/assert-url (re-pattern "example\\.com"))`.
 
 ### 7. PDF Generation
 
@@ -337,6 +337,11 @@ spel stitch IMG1 IMG2 -o OUT            # stitch images vertically
 | `locator/` | Raw locator (alias of loc/) | `(locator/fill loc val)` |
 | `role/` | AriaRole constants | `role/button`, `role/link` |
 | `markdown/` | Markdown table parsing | `(markdown/from-markdown-table s)` |
+| `json/` | JSON read/write | `(json/write-json-str data)`, `(json/read-json s)` |
+| `str/` | clojure.string alias | `(str/trim s)`, `(str/split s #",")` |
+| `pprint/` | Pretty-printing (fipp) | `(pprint/pprint data)` |
+| `device/` | Device emulation presets (18) | `device/iphone-14`, `device/pixel-7` |
+| `constants/` | Playwright enum constants (25) | `constants/load-state-load` |
 
 Also available: `clojure.core`, `clojure.string`, `clojure.set`, `clojure.edn`, `clojure.java.io` (as `io`), `slurp`, `spit`, Java interop on Playwright classes. See @refs/EVAL_GUIDE.md for full details.
 

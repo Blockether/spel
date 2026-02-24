@@ -1,17 +1,17 @@
-{:linters
+{:hooks
+ {:analyze-call
+  {com.blockether.spel.core/with-testing-page hooks.com.blockether.spel/with-testing-page
+   com.blockether.spel.api/with-page-api     hooks.com.blockether.spel/with-page-api}}
+
+ :linters
  {:clojure-lsp/unused-public-var
   {:level :info
    :exclude-when-defined-by
    #{clojure.test/deftest
      lazytest.core/defdescribe
      com.blockether.spel.allure/defdescribe}}
-  
-  ;; Reduce unused-binding to info - false positives with test fixtures/macros
-  ;; The bindings ARE used, but linter doesn't understand context patterns
   :unused-binding {:level :info}
-  ;; SCI env imports classes for user scripts at runtime - they appear unused
-  ;; in static analysis but are exposed to the SCI interpreter
   :unused-import {:level :off}}
- 
+
  :config-in-comment
  {:linters {:unresolved-symbol {:level :off}}}}

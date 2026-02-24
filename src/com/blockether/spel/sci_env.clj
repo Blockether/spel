@@ -28,7 +28,7 @@
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [clojure.pprint :as pprint]
+   [fipp.edn :as fipp]
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
@@ -981,6 +981,38 @@
              [sym (sci/new-var sym f var-meta)])))
     pairs))
 
+(defn- simple-print-table
+  "GraalVM-safe print-table replacement. No clojure.pprint dependency."
+  ([rows] (simple-print-table (keys (first rows)) rows))
+  ([ks rows]
+   (when (seq rows)
+     (let [widths (reduce (fn [ws row]
+                            (reduce (fn [m k]
+                                      (let [cur (long (or (get m k) 0))
+                                            kl  (long (count (str k)))
+                                            vl  (long (count (str (get row k))))]
+                                        (assoc m k (max cur kl vl))))
+                              ws ks))
+                    {} rows)
+           fmt-row (fn [row]
+                     (str "| "
+                       (clojure.string/join " | "
+                         (map (fn [k]
+                                (let [w (get widths k 0)
+                                      s (str (get row k))
+                                      pad (apply str (repeat (max 0 (- (long w) (long (count s)))) \space))]
+                                  (str s pad)))
+                           ks))
+                       " |"))
+           sep (str "|-"
+                 (clojure.string/join "-+-"
+                   (map (fn [k] (apply str (repeat (get widths k 0) \-))) ks))
+                 "-|")]
+       (println (fmt-row (zipmap ks (map str ks))))
+       (println sep)
+       (doseq [row rows]
+         (println (fmt-row row)))))))
+
 (defn create-sci-ctx
   "Creates a SCI context with all spel functions registered.
 
@@ -1776,13 +1808,12 @@
                    ['last-index-of clojure.string/last-index-of]])
 
         ;; =================================================================
-        ;; clojure.pprint — Pretty-printing
+        ;; fipp — Pretty-printing (GraalVM-safe)
         ;; =================================================================
         pprint-ns  (sci/create-ns 'pprint nil)
         pprint-map (make-ns-map pprint-ns
-                     [['pprint       pprint/pprint]
-                      ['print-table  pprint/print-table]
-                      ['cl-format    pprint/cl-format]])
+                     [['pprint       fipp/pprint]
+                      ['print-table  simple-print-table]])
 
         ;; =================================================================
         ;; json/ — JSON parsing/generation via charred
@@ -1880,7 +1911,7 @@
                     'com.blockether.spel.stitch          stitch-map
                      ;; String alias
                     'str                                 str-map
-                     ;; Pretty-printing
+                     ;; Pretty-printing (fipp)
                     'pprint                              pprint-map
                     'clojure.pprint                      pprint-map
                      ;; JSON (charred)

@@ -62,8 +62,7 @@
   com.blockether.spel.api/with-api-context   clojure.core/with-open
   com.blockether.spel.api/with-api-contexts clojure.core/with-open
   com.blockether.spel.api/with-retry       clojure.core/when
-  com.blockether.spel.api/with-testing-api clojure.core/with-open
-  com.blockether.spel.api/with-page-api    clojure.core/with-open}
+  com.blockether.spel.api/with-testing-api clojure.core/with-open}
 
  :linters
  {:clojure-lsp/unused-public-var

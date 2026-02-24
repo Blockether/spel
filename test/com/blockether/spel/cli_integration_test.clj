@@ -1857,7 +1857,7 @@
       (let [r (cmd "sci_eval" {"code" "(str/blank? \"  \")"})]
         (expect (= "true" (:result r)))))
 
-    ;; --- clojure.pprint / pprint alias ---
+    ;; --- pprint (fipp) / pprint alias ---
 
     (it "pprint/pprint writes to stdout"
       (let [r (cmd "sci_eval" {"code" "(pprint/pprint {:a 1 :b 2}) :done"})]
