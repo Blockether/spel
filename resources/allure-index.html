@@ -83,6 +83,8 @@
     html.dark .card.in-progress { background: var(--yellow-bg); }
     .card.merged { opacity: 0.65; }
     .card.merged:hover { opacity: 1; }
+    .card.cancelled { border-left-color: var(--text-muted); background: var(--code-bg); opacity: 0.7; }
+    .card.cancelled:hover { border-color: var(--border-hover); border-left-color: var(--text-muted); opacity: 1; }
 
     /* --- Run area (inline: number + status) --- */
     .run { flex-shrink: 0; display: flex; align-items: center; gap: 0.2rem; padding-left: 0.75rem; min-width: 3.5rem; }
@@ -95,6 +97,7 @@
     .status-pass { color: var(--green); }
     .status-fail { color: var(--red); }
     .status-in-progress { color: var(--yellow); }
+    .status-cancelled { color: var(--text-muted); }
     .divider { display: none; }
 
     /* --- Info --- */
@@ -128,6 +131,8 @@
     html.dark .pill-muted { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
     .pill-in-progress { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); animation: pulse 2s infinite; }
     html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
+    .pill-cancelled { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
+    html.dark .pill-cancelled { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
     /* --- Empty state --- */
@@ -289,6 +294,7 @@
     .filter-pill[data-filter="failed"].active { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
     .filter-pill[data-filter="in_progress"].active { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); }
     html.dark .filter-pill[data-filter="in_progress"].active { color: #ffd54f; }
+    .filter-pill[data-filter="cancelled"].active { background: var(--code-bg); color: var(--text-sec); border-color: var(--border-hover); }
     .filter-pill[data-filter="merged"].active { background: var(--code-bg); color: var(--text-sec); border-color: var(--border-hover); }
     .no-results { display: none; text-align: center; color: var(--text-muted); padding: 2.5rem 1rem; max-width: 64rem; margin: 0 auto; }
     .no-results.show { display: block; }
@@ -472,10 +478,11 @@
       var rel = b.timestamp ? relativeTime(b.timestamp) : '';
       var delay = Math.min(i, 9) * 0.04;
       var inProgress = b.status === 'in_progress';
-      var failed = !inProgress && b.passed === false;
+      var isCancelled = b.status === 'cancelled';
+      var failed = !inProgress && !isCancelled && b.passed === false;
       var isPR = b.type === 'pr';
       var isMerged = isPR && b.merged === true;
-      var cardClass = 'card' + (isPR ? ' pr' : '') + (isMerged ? ' merged' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
+      var cardClass = 'card' + (isPR ? ' pr' : '') + (isMerged ? ' merged' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '') + (isCancelled ? ' cancelled' : '');
 
       var shaHtml = '';
       if (sha) {
@@ -487,7 +494,9 @@
       }
 
       var statusDot = '';
-      if (inProgress) {
+      if (isCancelled) {
+        statusDot = '<span class="status-dot status-cancelled" title="Cancelled">\u2298</span>';
+      } else if (inProgress) {
         statusDot = '<span class="status-dot status-in-progress" title="In Progress">\u23f3</span>';
       } else if (failed) {
         statusDot = '<span class="status-dot status-fail" title="Failed">\u2717</span>';
@@ -502,7 +511,9 @@
       }
 
       var testBadge = '';
-      if (inProgress) {
+      if (isCancelled) {
+        testBadge = '<span class="pill pill-cancelled">Cancelled</span>';
+      } else if (inProgress) {
         testBadge = '<span class="pill pill-in-progress">In Progress</span>';
       } else if (b.tests) {
         var tp = b.tests.passed || 0;
@@ -520,7 +531,7 @@
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
       var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
 
-      var clickHandler = inProgress ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
+      var clickHandler = (inProgress || isCancelled) ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
         + '<div class="run">'
         + (runUrl
@@ -550,7 +561,7 @@
       var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       var weekStart = todayStart - 6 * 86400000;
       var monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      var completed = builds.filter(function(b) { return b.status !== 'in_progress'; });
+      var completed = builds.filter(function(b) { return b.status !== 'in_progress' && b.status !== 'cancelled'; });
       var periods = [
         { label: 'Today', start: todayStart },
         { label: 'This Week', start: weekStart },
@@ -611,10 +622,10 @@
     }
 
     function renderPRStats(builds) {
-      var open = builds.filter(function(b) { return !b.merged && b.status !== 'in_progress'; });
+      var open = builds.filter(function(b) { return !b.merged && b.status !== 'in_progress' && b.status !== 'cancelled'; });
       var inProg = builds.filter(function(b) { return b.status === 'in_progress'; });
       var merged = builds.filter(function(b) { return b.merged; });
-      var passed = builds.filter(function(b) { return b.status !== 'in_progress' && b.passed !== false && !b.merged; });
+      var passed = builds.filter(function(b) { return b.status !== 'in_progress' && b.status !== 'cancelled' && b.passed !== false && !b.merged; });
       var html = '<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">';
       html += '<div class="stat-block"><div class="stat-label">Open</div><div class="stat-value">' + open.length + '</div></div>';
       html += '<div class="stat-block"><div class="stat-label">Building</div><div class="stat-value" style="color:var(--yellow)">' + inProg.length + '</div></div>';
@@ -708,9 +719,10 @@
       if (activeFilter !== 'all') {
         result = result.filter(function(b) {
           switch (activeFilter) {
-            case 'passed': return b.status !== 'in_progress' && b.passed !== false;
-            case 'failed': return b.status !== 'in_progress' && b.passed === false;
+            case 'passed': return b.status !== 'in_progress' && b.status !== 'cancelled' && b.passed !== false;
+            case 'failed': return b.status !== 'in_progress' && b.status !== 'cancelled' && b.passed === false;
             case 'in_progress': return b.status === 'in_progress';
+            case 'cancelled': return b.status === 'cancelled';
             case 'merged': return b.merged === true;
             default: return true;
           }
@@ -773,12 +785,14 @@
           + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
           + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
           + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>'
-          + '<button class="filter-pill" data-filter="merged" onclick="setFilter(\'merged\')">Merged</button>';
+          + '<button class="filter-pill" data-filter="merged" onclick="setFilter(\'merged\')">Merged</button>'
+          + '<button class="filter-pill" data-filter="cancelled" onclick="setFilter(\'cancelled\')">Cancelled</button>';
       } else {
         c.innerHTML = '<button class="filter-pill active" data-filter="all" onclick="setFilter(\'all\')">All</button>'
           + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
           + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
-          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>';
+          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>'
+          + '<button class="filter-pill" data-filter="cancelled" onclick="setFilter(\'cancelled\')">Cancelled</button>';
       }
     }
 

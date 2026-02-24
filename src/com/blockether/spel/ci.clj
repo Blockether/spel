@@ -267,7 +267,7 @@
     run-number))
 
 (defn finalize-build!
-  "Update a build from in-progress to completed/failed.
+  "Update a build from in-progress to completed/failed/cancelled.
    Removes the 'in_progress' status from builds-meta.json.
    Should be called before generate-builds-metadata! which will
    regenerate builds.json with full test results.
@@ -275,21 +275,23 @@
    Options:
      :site-dir    - path to gh-pages-site directory
      :run-number  - CI run number (string)
-     :passed      - whether tests passed (boolean)"
-  [{:keys [site-dir run-number passed]}]
+     :passed      - whether tests passed (boolean)
+     :status      - override status (e.g. 'cancelled', default: 'completed')"
+  [{:keys [site-dir run-number passed status]}]
   (let [site (io/file (or site-dir "gh-pages-site"))
         meta-file (io/file site "builds-meta.json")
         meta (if (.isFile meta-file)
                (json/read-json (slurp meta-file))
                {})
         entry (get meta run-number)
+        final-status (or status "completed")
         updated (when entry
                   (-> entry
-                    (assoc "status" "completed")
-                    (assoc "passed" (boolean passed))))]
+                    (assoc "status" final-status)
+                    (assoc "passed" (if (= final-status "cancelled") false (boolean passed)))))]
     (when updated
       (spit meta-file (json/write-json-str (assoc meta run-number updated)))
-      (println (str "Finalized build #" run-number " as " (if passed "passed" "failed"))))))
+      (println (str "Finalized build #" run-number " as " final-status)))))
 
 ;; =============================================================================
 ;; PR Build Management
@@ -368,23 +370,26 @@
     (println (str "Registered PR #" pr-num " (" (or status "in_progress") ")"))))
 
 (defn finalize-pr-build!
-  "Update a PR build from in-progress to completed with test results.
+  "Update a PR build from in-progress to completed/cancelled with test results.
 
    Options:
      :site-dir    - path to site directory
      :pr-number   - GitHub PR number
      :passed      - whether tests passed (boolean)
+     :status      - override status (e.g. 'cancelled', default: 'completed')
      :test-counts - map with :passed :failed :broken :skipped :total"
-  [{:keys [site-dir pr-number passed test-counts]}]
+  [{:keys [site-dir pr-number passed status test-counts]}]
   (let [site    (io/file (or site-dir "gh-pages-site"))
         pr-file (io/file site "pr-builds.json")
-        pr-num  (parse-num pr-number)]
+        pr-num  (parse-num pr-number)
+        final-status (or status "completed")]
     (when (.isFile pr-file)
       (let [builds  (vec (json/read-json (slurp pr-file)))
             updated (mapv
                       (fn [b]
                         (if (= (get b "pr_number") pr-num)
-                          (cond-> (assoc b "status" "completed" "passed" (boolean passed))
+                          (cond-> (assoc b "status" final-status
+                                    "passed" (if (= final-status "cancelled") false (boolean passed)))
                             test-counts
                             (assoc "tests" {"passed"  (get test-counts :passed 0)
                                             "failed"  (get test-counts :failed 0)
@@ -394,7 +399,7 @@
                           b))
                       builds)]
         (spit pr-file (json/write-json-str updated))
-        (println (str "Finalized PR #" pr-num " as " (if passed "passed" "failed")))))))
+        (println (str "Finalized PR #" pr-num " as " final-status))))))
 
 (defn mark-prs-merged!
   "Mark specified PRs as merged in pr-builds.json.
