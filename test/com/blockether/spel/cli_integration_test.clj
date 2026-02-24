@@ -1903,6 +1903,97 @@
       (let [msg (try (cmd "sci_eval" {"code" "(assert false \"expected failure\")"}) nil
                      (catch Exception e (.getMessage e)))]
         (expect (clojure.string/includes? (str msg) "Assert"))))
+
+    ;; --- constants/ namespace ---
+
+    (it "constants/load-state-load returns LoadState enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/load-state-load))"})]
+        (expect (str/includes? (:result r) "LoadState"))))
+
+    (it "constants/load-state-domcontentloaded returns LoadState enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/load-state-domcontentloaded)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/load-state-networkidle returns LoadState enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/load-state-networkidle)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/wait-until-load returns WaitUntilState enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/wait-until-load))"})]
+        (expect (str/includes? (:result r) "WaitUntilState"))))
+
+    (it "constants/wait-until-commit returns WaitUntilState enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/wait-until-commit)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/color-scheme-dark returns ColorScheme enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/color-scheme-dark))"})]
+        (expect (str/includes? (:result r) "ColorScheme"))))
+
+    (it "constants/color-scheme-light returns ColorScheme enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/color-scheme-light)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/mouse-button-left returns MouseButton enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/mouse-button-left))"})]
+        (expect (str/includes? (:result r) "MouseButton"))))
+
+    (it "constants/screenshot-type-png returns ScreenshotType enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/screenshot-type-png))"})]
+        (expect (str/includes? (:result r) "ScreenshotType"))))
+
+    (it "constants/forced-colors-active returns ForcedColors enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/forced-colors-active)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/reduced-motion-reduce returns ReducedMotion enum"
+      (let [r (cmd "sci_eval" {"code" "(some? constants/reduced-motion-reduce)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "constants/media-screen returns Media enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/media-screen))"})]
+        (expect (str/includes? (:result r) "Media"))))
+
+    (it "constants/selector-state-visible returns WaitForSelectorState enum"
+      (let [r (cmd "sci_eval" {"code" "(str (type constants/selector-state-visible))"})]
+        (expect (str/includes? (:result r) "WaitForSelectorState"))))
+
+    ;; --- device/ namespace ---
+
+    (it "device/iphone-14 returns a map with :viewport"
+      (let [r (cmd "sci_eval" {"code" "(contains? device/iphone-14 :viewport)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "device/pixel-7 returns a map with :viewport"
+      (let [r (cmd "sci_eval" {"code" "(contains? device/pixel-7 :viewport)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "device/ipad returns a map with :is-mobile true"
+      (let [r (cmd "sci_eval" {"code" "(:is-mobile device/ipad)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "device/desktop-chrome returns a map with :is-mobile false"
+      (let [r (cmd "sci_eval" {"code" "(:is-mobile device/desktop-chrome)"})]
+        (expect (= "false" (:result r)))))
+
+    (it "device/iphone-14 has correct viewport width"
+      (let [r (cmd "sci_eval" {"code" "(get-in device/iphone-14 [:viewport :width])"})]
+        (expect (= "390" (:result r)))))
+
+    ;; --- *json-encoder* binding ---
+
+    (it "*json-encoder* is bound to a function"
+      (let [r (cmd "sci_eval" {"code" "(fn? *json-encoder*)"})]
+        (expect (= "true" (:result r)))))
+
+    (it "*json-encoder* encodes a map to JSON"
+      (let [r (cmd "sci_eval" {"code" "(*json-encoder* {:a 1})"})]
+        (expect (str/includes? (:result r) "a"))))
+
+    (it "json/write-json-str is accessible as binding"
+      (let [r (cmd "sci_eval" {"code" "(json/write-json-str {:x 42})"})]
+        (expect (str/includes? (:result r) "42"))))
+
     ;; --- Destructive tests last (stop! nils daemon page state) ---
 
     (it "stop! does not kill daemon browser"

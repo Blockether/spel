@@ -74,6 +74,10 @@ For detailed documentation beyond this guide:
 - **@refs/PDF_STITCH_VIDEO.md** -- PDF generation, image stitching, video recording
 - **@refs/PROFILES_AGENTS.md** -- Browser profiles, device emulation, agent initialization
 - **@refs/COMMON_PROBLEMS.md** -- Troubleshooting, gotchas, error handling
+- **@refs/PAGE_LOCATORS.md** -- Page object pattern, locator chaining, composable modules, assertions
+- **@refs/CONSTANTS.md** -- Playwright enums, device presets, `constants/` and `device/` namespaces
+- **@refs/SNAPSHOT_TESTING.md** -- ARIA snapshot assertions, ref traversal, visual testing, PDF reports
+- **@refs/FULL_API.md** -- Complete API reference grouped by domain (auto-generated)
 
 ## SCI Eval vs Library -- Key Naming Differences
 

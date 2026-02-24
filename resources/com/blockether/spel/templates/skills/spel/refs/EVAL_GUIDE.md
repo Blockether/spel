@@ -150,6 +150,8 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
 | `role/` | 72 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
 | `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
+| `constants/` | 25 | Playwright enum constants with flat naming: `constants/load-state-networkidle`, `constants/wait-until-commit`, `constants/color-scheme-dark`, `constants/mouse-button-left`, etc. See [CONSTANTS.md](CONSTANTS.md). |
+| `device/` | ~20 presets | Device emulation presets: `device/iphone-14`, `device/pixel-7`, `device/ipad`, `device/desktop-chrome`, etc. Each returns a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. |
 
 ### When to Use Which Namespace
 
@@ -160,6 +162,28 @@ Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
 - Low-level mouse/keyboard sequences
 - Network interception and response mocking
 - Multi-frame navigation
+
+### Constants & Device Presets
+
+The `constants/` namespace provides Playwright Java enums as Clojure-friendly values. The `device/` namespace provides device emulation presets. Both are available without any import.
+
+```clojure
+;; Wait for network idle using named constant
+(spel/wait-for-load-state constants/load-state-networkidle)
+
+;; Use device presets for viewport sizing
+(let [{:keys [viewport]} device/iphone-14]
+  (spel/set-viewport-size! (:width viewport) (:height viewport)))
+
+;; Constants work with all APIs that accept enum values
+(page/wait-for-load-state (spel/page) constants/load-state-domcontentloaded)
+(page/emulate-media! (spel/page) {:color-scheme constants/color-scheme-dark})
+
+;; Dynamic JSON encoder (pre-bound to json/write-json-str)
+(*json-encoder* {:a 1 :b [2 3]})  ;; => "{\"a\":1,\"b\":[2,3]}"
+```
+
+See [CONSTANTS.md](CONSTANTS.md) for the complete list.
 
 ## Clojure Standard Library
 These Clojure namespaces are available without any `require`:
@@ -174,6 +198,7 @@ These Clojure namespaces are available without any `require`:
 | `clojure.template` | `do-template`, `apply-template` |
 | `clojure.pprint` | `pprint`, `print-table`, `cl-format`. **Also available as `pprint/`** — e.g. `(pprint/pprint data)` |
 | `json/` | JSON via [charred](https://github.com/cnuernber/charred): `json/read-json`, `json/write-json-str`. E.g. `(json/write-json-str {:a 1})` → `"{\"a\":1}"` |
+| `*json-encoder*` | Dynamic var bound to `json/write-json-str`. Used internally for JSON encoding; rebind to customize serialization. |
 
 ## File I/O
 

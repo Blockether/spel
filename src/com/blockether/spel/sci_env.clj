@@ -44,6 +44,7 @@
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.stitch :as stitch]
    [charred.api :as charred-json]
+   [com.blockether.spel.devices :as devices]
    [com.blockether.spel.util :as util])
   (:import
    [com.microsoft.playwright
@@ -1797,7 +1798,55 @@
         stitch-map (make-ns-map stitch-ns
                      [['stitch-vertical         stitch/stitch-vertical]
                       ['stitch-vertical-overlap  stitch/stitch-vertical-overlap]
-                      ['read-image              stitch/read-image]])]
+                      ['read-image              stitch/read-image]])
+
+        ;; =================================================================
+        ;; constants/ — Playwright enum constants with flat naming
+        ;; =================================================================
+        constants-ns  (sci/create-ns 'constants nil)
+        constants-map (make-ns-map constants-ns
+                        [;; LoadState
+                         ['load-state-load              LoadState/LOAD]
+                         ['load-state-domcontentloaded  LoadState/DOMCONTENTLOADED]
+                         ['load-state-networkidle       LoadState/NETWORKIDLE]
+                         ;; WaitUntilState
+                         ['wait-until-load              WaitUntilState/LOAD]
+                         ['wait-until-domcontentloaded  WaitUntilState/DOMCONTENTLOADED]
+                         ['wait-until-networkidle       WaitUntilState/NETWORKIDLE]
+                         ['wait-until-commit            WaitUntilState/COMMIT]
+                         ;; ColorScheme
+                         ['color-scheme-dark            ColorScheme/DARK]
+                         ['color-scheme-light           ColorScheme/LIGHT]
+                         ['color-scheme-no-preference   ColorScheme/NO_PREFERENCE]
+                         ;; MouseButton
+                         ['mouse-button-left            MouseButton/LEFT]
+                         ['mouse-button-right           MouseButton/RIGHT]
+                         ['mouse-button-middle          MouseButton/MIDDLE]
+                         ;; ScreenshotType
+                         ['screenshot-type-png          ScreenshotType/PNG]
+                         ['screenshot-type-jpeg         ScreenshotType/JPEG]
+                         ;; ForcedColors
+                         ['forced-colors-active         ForcedColors/ACTIVE]
+                         ['forced-colors-none           ForcedColors/NONE]
+                         ;; ReducedMotion
+                         ['reduced-motion-reduce        ReducedMotion/REDUCE]
+                         ['reduced-motion-no-preference ReducedMotion/NO_PREFERENCE]
+                         ;; Media
+                         ['media-screen                 Media/SCREEN]
+                         ['media-print                  Media/PRINT]
+                         ;; WaitForSelectorState
+                         ['selector-state-attached      WaitForSelectorState/ATTACHED]
+                         ['selector-state-detached      WaitForSelectorState/DETACHED]
+                         ['selector-state-visible       WaitForSelectorState/VISIBLE]
+                         ['selector-state-hidden        WaitForSelectorState/HIDDEN]])
+
+        ;; =================================================================
+        ;; device/ — Device presets from com.blockether.spel.devices
+        ;; =================================================================
+        device-ns  (sci/create-ns 'device nil)
+        device-map (make-ns-map device-ns
+                     (mapv (fn [[k v]] [(symbol (name k)) v])
+                       devices/device-presets))]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1835,9 +1884,15 @@
                     'pprint                              pprint-map
                     'clojure.pprint                      pprint-map
                      ;; JSON (charred)
-                    'json                                json-map}
+                    'json                                json-map
+                     ;; Enum constants namespace
+                    'constants                           constants-map
+                     ;; Device presets namespace
+                    'device                              device-map}
        :bindings   {'slurp slurp
-                    'spit  spit}
+                    'spit  spit
+                    '*json-encoder* charred-json/write-json-str
+                    'json/write-json-str charred-json/write-json-str}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

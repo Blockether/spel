@@ -114,6 +114,26 @@
                       (str skill-dir "/refs/COMMON_PROBLEMS.md")
                       "troubleshooting"
                       "+"
+                      nil]
+                     ["skills/spel/refs/CONSTANTS.md"
+                      (str skill-dir "/refs/CONSTANTS.md")
+                      "constants and enums"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/PAGE_LOCATORS.md"
+                      (str skill-dir "/refs/PAGE_LOCATORS.md")
+                      "page locator patterns"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/SNAPSHOT_TESTING.md"
+                      (str skill-dir "/refs/SNAPSHOT_TESTING.md")
+                      "snapshot testing"
+                      "+"
+                      nil]
+                     ["skills/spel/refs/FULL_API.md"
+                      (str skill-dir "/refs/FULL_API.md")
+                      "full API reference"
+                      "+"
                       nil]]
         test-files [["agents/spel-test-planner.md"
                      (str agent-dir "/spel-test-planner" agent-ext)

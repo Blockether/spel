@@ -974,7 +974,7 @@ OUT=$("$SPEL" stitch --help 2>&1)
 assert_contains "stitch --help mentions vertical" "$OUT" "vertically"
 
 # =============================================================================
-# SCI EVAL NAMESPACES (12)
+# SCI EVAL NAMESPACES (12) + CONSTANTS, DEVICE, JSON-ENCODER
 # =============================================================================
 section "SCI Eval Namespaces (12)"
 
@@ -1017,6 +1017,53 @@ assert_contains "json round-trip" "$OUT" "v"
 OUT=$("$SPEL" --eval '(assert (= 1 1)) :passed' 2>&1)
 assert_contains "assert passes" "$OUT" ":passed"
 
+# constants/ namespace — enum constants
+OUT=$("$SPEL" --eval '(str (type constants/load-state-load))' 2>&1)
+assert_contains "constants/load-state-load type" "$OUT" "LoadState"
+
+OUT=$("$SPEL" --eval '(some? constants/load-state-networkidle)' 2>&1)
+assert_contains "constants/load-state-networkidle exists" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(str (type constants/wait-until-commit))' 2>&1)
+assert_contains "constants/wait-until-commit type" "$OUT" "WaitUntilState"
+
+OUT=$("$SPEL" --eval '(str (type constants/color-scheme-dark))' 2>&1)
+assert_contains "constants/color-scheme-dark type" "$OUT" "ColorScheme"
+
+OUT=$("$SPEL" --eval '(some? constants/mouse-button-left)' 2>&1)
+assert_contains "constants/mouse-button-left exists" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(str (type constants/screenshot-type-png))' 2>&1)
+assert_contains "constants/screenshot-type-png type" "$OUT" "ScreenshotType"
+
+OUT=$("$SPEL" --eval '(some? constants/forced-colors-active)' 2>&1)
+assert_contains "constants/forced-colors-active exists" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(str (type constants/media-screen))' 2>&1)
+assert_contains "constants/media-screen type" "$OUT" "Media"
+
+OUT=$("$SPEL" --eval '(str (type constants/selector-state-visible))' 2>&1)
+assert_contains "constants/selector-state-visible type" "$OUT" "WaitForSelectorState"
+
+# device/ namespace — device presets
+OUT=$("$SPEL" --eval '(contains? device/iphone-14 :viewport)' 2>&1)
+assert_contains "device/iphone-14 has :viewport" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(get-in device/pixel-7 [:viewport :width])' 2>&1)
+assert_contains "device/pixel-7 viewport width" "$OUT" "412"
+
+OUT=$("$SPEL" --eval '(:is-mobile device/ipad)' 2>&1)
+assert_contains "device/ipad is-mobile" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(:is-mobile device/desktop-chrome)' 2>&1)
+assert_contains "device/desktop-chrome not mobile" "$OUT" "false"
+
+# *json-encoder* binding
+OUT=$("$SPEL" --eval '(fn? *json-encoder*)' 2>&1)
+assert_contains "*json-encoder* is fn" "$OUT" "true"
+
+OUT=$("$SPEL" --eval '(*json-encoder* {:a 1})' 2>&1)
+assert_contains "*json-encoder* encodes map" "$OUT" "a"
 # =============================================================================
 # SUMMARY
 # =============================================================================
