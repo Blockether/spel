@@ -219,7 +219,8 @@
                         (get flags "args")            (assoc :args (clojure.string/split (get flags "args") #","))
                         (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
                                                                      :bypass (get flags "proxy-bypass" "")})
-                        (get flags "cdp")             (assoc :cdp (get flags "cdp")))
+                        (get flags "cdp")             (assoc :cdp (get flags "cdp"))
+                        (get flags "channel")          (assoc :channel (get flags "channel")))
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)

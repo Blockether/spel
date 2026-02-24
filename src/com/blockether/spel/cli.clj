@@ -1073,6 +1073,7 @@
      "  --ignore-https-errors   Ignore HTTPS certificate errors"
      "  --storage-state PATH    Load browser storage state (cookies/localStorage JSON)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
+     "  --channel NAME         Browser channel (e.g. \"chrome\", \"msedge\")"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
@@ -1081,6 +1082,7 @@
      "  SPEL_JSON               Set to \"true\" for JSON output"
      "  SPEL_STORAGE_STATE      Default storage state file path"
      "  SPEL_PROFILE            Chrome user data directory path"
+     "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\")"
      "  SPEL_HEADERS            Default HTTP headers (JSON)"
      "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
 
@@ -1163,7 +1165,6 @@
 
                 (str/starts-with? arg "--profile=")
                 (recur (rest args) (assoc flags :profile (subs arg 10)) remaining)
-
 
                 (= "--channel" arg)
                 (recur (drop 2 args) (assoc flags :channel (second args)) remaining)

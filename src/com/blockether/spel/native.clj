@@ -195,6 +195,7 @@
   (println "  --json                    JSON output (for agents)")
   (println "  --storage-state <path>    Load storage state (cookies/localStorage JSON)")
   (println "  --profile <path>          Chrome user data directory (persistent profile)")
+  (println "  --channel <name>          Browser channel (e.g. \"chrome\", \"msedge\")")
   (println "  --executable-path <path>  Custom browser executable")
   (println "  --user-agent <ua>         Custom user agent string")
   (println "  --proxy <url>             Proxy server URL")

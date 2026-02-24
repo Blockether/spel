@@ -1,11 +1,9 @@
 name: Allure Report
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 permissions:
   contents: write
@@ -24,10 +22,14 @@ env:
 jobs:
   report:
     runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion != 'cancelled'
+      && github.event.workflow_run.head_repository.full_name == github.repository
 
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -45,26 +47,61 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
             ~/.clojure/.cpcache
-          key: allure-${{ hashFiles('deps.edn') }}
-          restore-keys: allure-
+          key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          restore-keys: |
+            deps-${{ runner.os }}-
 
-      - name: Install Playwright browsers
-        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
+      - name: Download Allure results from CI
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect context
+        id: ctx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CI_EVENT="${{ github.event.workflow_run.event }}"
+          echo "ci_event=$CI_EVENT" >> $GITHUB_OUTPUT
+          echo "is_pr=$( [ "$CI_EVENT" = "pull_request" ] && echo true || echo false )" >> $GITHUB_OUTPUT
+          echo "is_main=$( [ "$CI_EVENT" = "push" ] && echo true || echo false )" >> $GITHUB_OUTPUT
+          echo "ci_run_number=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
+          echo "ci_run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+          echo "head_sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          echo "ci_passed=${{ github.event.workflow_run.conclusion == 'success' }}" >> $GITHUB_OUTPUT
+
+          if [ "$CI_EVENT" = "pull_request" ]; then
+            PR_JSON='${{ toJSON(github.event.workflow_run.pull_requests) }}'
+            PR_NUM=$(echo "$PR_JSON" | jq '.[0].number')
+            if [ "$PR_NUM" != "null" ] && [ -n "$PR_NUM" ]; then
+              PR_DATA=$(gh pr view "$PR_NUM" --json number,title,author,headRefName,headRefOid,url 2>/dev/null || echo '{}')
+              echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+              echo "pr_title=$(echo "$PR_DATA" | jq -r '.title // ""')" >> $GITHUB_OUTPUT
+              echo "pr_author=$(echo "$PR_DATA" | jq -r '.author.login // ""')" >> $GITHUB_OUTPUT
+              echo "pr_branch=$(echo "$PR_DATA" | jq -r '.headRefName // ""')" >> $GITHUB_OUTPUT
+              echo "pr_sha=$(echo "$PR_DATA" | jq -r '.headRefOid // ""')" >> $GITHUB_OUTPUT
+              echo "pr_url=$(echo "$PR_DATA" | jq -r '.url // ""')" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Detect commit info
+        id: commit
+        run: |
+          SHA="${{ steps.ctx.outputs.head_sha }}"
+          echo "message=$(git log -1 --format='%s' "$SHA" 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "author=$(git log -1 --format='%an' "$SHA" 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "timestamp=$(git log -1 --format='%aI' "$SHA" 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
 
       - name: Restore Allure history
+        if: steps.ctx.outputs.is_main == 'true'
         uses: actions/cache/restore@v4
         with:
           path: .allure-history.jsonl
-          key: allure-history-jsonl-${{ github.run_number }}
+          key: allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}
           restore-keys: allure-history-jsonl-
-
-      - name: Restore previous reports
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/restore@v4
-        with:
-          path: gh-pages-site
-          key: allure-site-${{ github.run_number }}
-          restore-keys: allure-site-
 
       - name: Detect version
         id: version
@@ -79,36 +116,11 @@ jobs:
             echo "badge=candidate" >> $GITHUB_OUTPUT
           fi
 
-      - name: Clean Allure results before test run
-        run: rm -rf allure-results allure-report
-
-      - name: Run lazytest suite with Allure reporter
-        id: tests-lazytest
-        env:
-          LAZYTEST_ALLURE_GENERATE_REPORT: "false"
-          FULL_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
-          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${{ github.event.head_commit.author.name }} · ${FIRST_LINE}"
-          clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-        continue-on-error: true
-
-      - name: Run clojure.test suite with Allure reporter
-        id: tests-ct
-        env:
-          ALLURE_CLOJURE_TEST_ENABLED: "true"
-          ALLURE_CLOJURE_TEST_CLEAN: "false"
-          ALLURE_CLOJURE_TEST_REPORT: "false"
-        run: clojure -M:test-ct
-        continue-on-error: true
-
       - name: Generate combined Allure report
         env:
           LAZYTEST_ALLURE_LOGO: logo.svg
-          FULL_MSG: ${{ github.event.head_commit.message }}
+          LAZYTEST_ALLURE_REPORT_NAME: "#${{ steps.ctx.outputs.ci_run_number }} · ${{ steps.ctx.outputs.head_sha }} · ${{ steps.commit.outputs.author }} · ${{ steps.commit.outputs.message }}"
         run: |
-          FIRST_LINE=$(echo "$FULL_MSG" | head -n1 | cut -c1-100)
-          export LAZYTEST_ALLURE_REPORT_NAME="#${{ github.run_number }} · $(echo '${{ github.sha }}' | cut -c1-8) · ${{ github.event.head_commit.author.name }} · ${FIRST_LINE}"
           clojure -M -e "
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
@@ -133,26 +145,26 @@ jobs:
       # =========================================================================
 
       - name: Comment PR with live report link
-        if: github.event_name == 'pull_request'
+        if: steps.ctx.outputs.is_pr == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const prNum = context.issue.number;
+            const prNum = ${{ steps.ctx.outputs.pr_number }};
             const reportUrl = `https://blockether.github.io/spel/pr/${prNum}/`;
             const ciUrl = `${{ github.server_url }}/${{ github.repository }}/actions/workflows/ci.yml`;
+            const ciConclusion = '${{ github.event.workflow_run.conclusion }}';
             const body = [
               `## 📊 Allure Report`,
               ``,
               `🔗 **[View Report](${reportUrl})**`,
               ``,
-              `| Suite | Status |`,
+              `| Check | Status |`,
               `|-------|--------|`,
-              `| Lazytest | ${{ steps.tests-lazytest.outcome }} |`,
-              `| clojure-test | ${{ steps.tests-ct.outcome }} |`,
+              `| CI | ${ciConclusion} |`,
+              `| Tests | ${${{ steps.test-counts.outputs.failed }} + ${{ steps.test-counts.outputs.broken }} === 0 ? '✅ all passed' : '❌ failures detected'} |`,
               ``,
               `> CLI bash regression tests (~179 assertions) run separately in the [CI workflow](${ciUrl}).`,
             ].join('\n');
-            // Update existing comment or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -178,30 +190,29 @@ jobs:
             }
 
       - name: Build PR deploy with metadata
-        if: github.event_name == 'pull_request'
+        if: steps.ctx.outputs.is_pr == 'true'
         env:
-          PR_NUM: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          TEST_PASSED: ${{ steps.tests-lazytest.outcome == 'success' && steps.tests-ct.outcome == 'success' }}
+          PR_NUM: ${{ steps.ctx.outputs.pr_number }}
+          PR_TITLE: ${{ steps.ctx.outputs.pr_title }}
+          PR_BRANCH: ${{ steps.ctx.outputs.pr_branch }}
+          PR_SHA: ${{ steps.ctx.outputs.pr_sha }}
+          PR_AUTHOR: ${{ steps.ctx.outputs.pr_author }}
+          TEST_PASSED: ${{ steps.ctx.outputs.ci_passed }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ steps.ctx.outputs.ci_run_id }}
           TESTS_PASSED: ${{ steps.test-counts.outputs.passed }}
           TESTS_FAILED: ${{ steps.test-counts.outputs.failed }}
           TESTS_BROKEN: ${{ steps.test-counts.outputs.broken }}
           TESTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
           TESTS_TOTAL: ${{ steps.test-counts.outputs.total }}
-          RUN_NUMBER: ${{ github.run_number }}
+          RUN_NUMBER: ${{ steps.ctx.outputs.ci_run_number }}
           VERSION: ${{ steps.version.outputs.version }}
           VERSION_BADGE: ${{ steps.version.outputs.badge }}
           MAX_PR_REPORTS: ${{ env.MAX_PR_REPORTS }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_URL: ${{ steps.ctx.outputs.pr_url }}
         run: |
           mkdir -p /tmp/pr-deploy/pr/${PR_NUM}
           cp -r allure-report/* /tmp/pr-deploy/pr/${PR_NUM}/
-          # Fetch current pr-builds.json from live site
           curl -sSf "${PAGES_BASE_URL}/pr-builds.json" -o /tmp/pr-deploy/pr-builds.json 2>/dev/null || echo '[]' > /tmp/pr-deploy/pr-builds.json
 
           clojure -M -e "
@@ -228,9 +239,8 @@ jobs:
                :max-pr-builds  (parse-long (or (System/getenv \"MAX_PR_REPORTS\") \"50\"))
                :pr-url         (System/getenv \"PR_URL\")})"
 
-
       - name: Deploy PR report to GitHub Pages
-        if: github.event_name == 'pull_request'
+        if: steps.ctx.outputs.is_pr == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -242,13 +252,12 @@ jobs:
       # =========================================================================
 
       - name: Inject report URL and commit info into history
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         env:
-          REPORT_URL: ${{ env.PAGES_BASE_URL }}/${{ github.run_number }}
-          COMMIT_SHA: ${{ github.sha }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-          COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
-          RUN_NUMBER: ${{ github.run_number }}
+          REPORT_URL: ${{ env.PAGES_BASE_URL }}/${{ steps.ctx.outputs.ci_run_number }}
+          COMMIT_SHA: ${{ steps.ctx.outputs.head_sha }}
+          COMMIT_MSG: ${{ steps.commit.outputs.message }}
+          RUN_NUMBER: ${{ steps.ctx.outputs.ci_run_number }}
         run: |
           if [ -f .allure-history.jsonl ]; then
             clojure -M -e "
@@ -261,33 +270,39 @@ jobs:
                  :run-number   (System/getenv \"RUN_NUMBER\")})"
           fi
 
-      - name: Preserve PR reports from gh-pages
-        if: github.ref == 'refs/heads/main'
+      - name: Fetch existing site from gh-pages
+        if: steps.ctx.outputs.is_main == 'true'
         run: |
           git fetch origin gh-pages --depth=1 || true
           mkdir -p gh-pages-site
-          if git ls-tree --name-only origin/gh-pages pr/ 2>/dev/null | grep -q .; then
-            git checkout origin/gh-pages -- pr/
-            cp -r pr gh-pages-site/pr/
-            rm -rf pr
-            echo "Preserved $(ls -1d gh-pages-site/pr/*/ 2>/dev/null | wc -l) PR report(s)"
-          fi
-          if git show origin/gh-pages:pr-builds.json >/dev/null 2>&1; then
-            git show origin/gh-pages:pr-builds.json > gh-pages-site/pr-builds.json
-            echo "Preserved pr-builds.json"
+          if git show origin/gh-pages:.nojekyll >/dev/null 2>&1; then
+            git worktree add /tmp/gh-pages-checkout origin/gh-pages 2>/dev/null || true
+            if [ -d /tmp/gh-pages-checkout ]; then
+              for item in /tmp/gh-pages-checkout/*/; do
+                dirname=$(basename "$item")
+                if [[ "$dirname" =~ ^[0-9]+$ ]] || [ "$dirname" = "pr" ] || [ "$dirname" = "latest" ]; then
+                  cp -r "$item" "gh-pages-site/$dirname"
+                fi
+              done
+              for f in builds-meta.json builds-meta.jsonl builds.json pr-builds.json badge.svg .nojekyll; do
+                [ -f "/tmp/gh-pages-checkout/$f" ] && cp "/tmp/gh-pages-checkout/$f" "gh-pages-site/$f"
+              done
+              git worktree remove /tmp/gh-pages-checkout --force 2>/dev/null || true
+              echo "Restored $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) existing report(s)"
+            fi
           fi
 
       - name: Assemble site with per-build reports
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         env:
-          RUN_NUMBER: ${{ github.run_number }}
-          COMMIT_SHA: ${{ github.sha }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-          COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
-          COMMIT_TS: ${{ github.event.head_commit.timestamp }}
-          TEST_PASSED: ${{ steps.tests-lazytest.outcome == 'success' && steps.tests-ct.outcome == 'success' }}
+          RUN_NUMBER: ${{ steps.ctx.outputs.ci_run_number }}
+          COMMIT_SHA: ${{ steps.ctx.outputs.head_sha }}
+          COMMIT_MSG: ${{ steps.commit.outputs.message }}
+          COMMIT_AUTHOR: ${{ steps.commit.outputs.author }}
+          COMMIT_TS: ${{ steps.commit.outputs.timestamp }}
+          TEST_PASSED: ${{ steps.ctx.outputs.ci_passed }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ steps.ctx.outputs.ci_run_id }}
           VERSION: ${{ steps.version.outputs.version }}
           VERSION_BADGE: ${{ steps.version.outputs.badge }}
           TEST_COUNTS_PASSED: ${{ steps.test-counts.outputs.passed }}
@@ -296,16 +311,15 @@ jobs:
           TEST_COUNTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
           TEST_COUNTS_TOTAL: ${{ steps.test-counts.outputs.total }}
         run: |
-          RUN="${{ github.run_number }}"
+          RUN="${RUN_NUMBER}"
           mkdir -p gh-pages-site
           cp -r allure-report "gh-pages-site/${RUN}"
           echo "Added report #${RUN}"
 
           cd gh-pages-site
 
-          # Prune oldest reports beyond MAX_REPORTS
           DIRS=$(ls -1d [0-9]* 2>/dev/null | sort -n)
-          COUNT=$(echo "$DIRS" | grep -c .)
+          COUNT=$(echo "$DIRS" | grep -c . || true)
           if [ "$COUNT" -gt "$MAX_REPORTS" ]; then
             REMOVE=$((COUNT - MAX_REPORTS))
             echo "$DIRS" | head -n "$REMOVE" | while read -r dir; do
@@ -314,18 +328,9 @@ jobs:
             done
           fi
 
-          # Generate builds metadata + patch index.html (Clojure replaces Python)
           [ -f "builds-meta.json" ] || echo '{}' > "builds-meta.json"
           cp ../resources/allure-index.html index.html
           cd ..
-
-          # Finalize in-progress build before regenerating metadata
-          clojure -M -e "
-            (require '[com.blockether.spel.ci :as ci])
-            (ci/finalize-build!
-              {:site-dir    \"gh-pages-site\"
-               :run-number  (System/getenv \"RUN_NUMBER\")
-               :passed      (= \"true\" (System/getenv \"TEST_PASSED\"))})"
 
           clojure -M -e "
             (require '[com.blockether.spel.ci :as ci])
@@ -358,7 +363,6 @@ jobs:
           <!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../${RUN}/"></head><body></body></html>
           EOF
 
-          # Copy badge.svg from latest report to root for README consumption
           if [ -f "${RUN}/badge.svg" ]; then
             cp "${RUN}/badge.svg" badge.svg
             echo "Copied badge.svg to site root"
@@ -367,9 +371,8 @@ jobs:
           cd ..
           echo "Site ready with $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) reports"
 
-
       - name: Mark merged PRs
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -385,7 +388,7 @@ jobs:
           fi
 
       - name: Update PR check statuses
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -402,21 +405,14 @@ jobs:
           fi
 
       - name: Cache Allure history
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         uses: actions/cache/save@v4
         with:
           path: .allure-history.jsonl
-          key: allure-history-jsonl-${{ github.run_number }}
-
-      - name: Cache site archive
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: gh-pages-site
-          key: allure-site-${{ github.run_number }}
+          key: allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
+        if: steps.ctx.outputs.is_main == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
