@@ -2,7 +2,7 @@
 spel's `--eval` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Just pass code directly:
 
 ```bash
-spel --eval '(spel/goto "https://example.com") (println (spel/title))'
+spel --eval '(spel/navigate "https://example.com") (println (spel/title))'
 ```
 
 Or run a file:
@@ -14,7 +14,7 @@ spel --eval script.clj
 Or pipe from stdin:
 
 ```bash
-echo '(spel/goto "https://example.com") (println (spel/title))' | spel --eval --stdin
+echo '(spel/navigate "https://example.com") (println (spel/title))' | spel --eval --stdin
 ```
 
 > **Daemon mode is default.** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
@@ -33,7 +33,7 @@ echo '(spel/goto "https://example.com") (println (spel/title))' | spel --eval --
 
 ;; List every function in a namespace
 (spel/help "spel")
-;; => spel/goto       [url] [url opts]   Navigates the page to a URL.
+;; => spel/navigate   [url] [url opts]   Navigates the page to a URL.
 ;;    spel/click      [sel] [sel opts]   Clicks an element.
 ;;    spel/fill       [sel value] ...    Fills an input element with text.
 ;;    ...
@@ -65,8 +65,8 @@ When `spel/help` shows you a function exists but you need to understand what it 
 
 ```clojure
 ;; Show the SCI wrapper source and which library function it delegates to
-(spel/source "spel/goto")
-;; => (defn goto [url] (page/navigate (require-page!) url))
+(spel/source "spel/navigate")
+;; => (defn navigate [url] (page/navigate (require-page!) url))
 ;;    Delegates to: com.blockether.spel.page/navigate
 
 ;; Search by bare name (shows candidates if ambiguous)
@@ -138,7 +138,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 |-----------|-----------|---------|
 | `spel/` | ~143 | Simplified API with implicit page. Covers navigation, clicks, fills, screenshots, assertions, snapshots, annotations, and more. This is the primary namespace for `--eval` scripts. |
 | `snapshot/` | 5 | Accessibility snapshot capture and ref resolution. `capture`, `capture-full`, `clear-refs!`, `ref-bounding-box`, `resolve-ref`. |
-| `annotate/` | 8 | Visual overlays on page elements. `annotated-screenshot`, `audit-screenshot`, `mark!`, `unmark!`, `save!`, `save-audit!`. |
+| `annotate/` | 8 | Screenshot annotations and reports. `annotated-screenshot`, `save!`, `mark!`, `unmark!`, `audit-screenshot`, `save-audit!`, `report->html`, `report->pdf`. |
 | `stitch/` | 3 | Vertical image stitching. `stitch-vertical`, `stitch-vertical-overlap`, `read-image`. |
 | `input/` | 12 | Low-level keyboard, mouse, and touchscreen control. Takes explicit device args (e.g. `(input/key-press (spel/keyboard) "Enter")`). |
 | `frame/` | 22+ | Frame and iframe operations. Navigate frames, create FrameLocators, evaluate JS in frames. Takes explicit Frame args. |
@@ -148,7 +148,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `core/` | 29 fn + 4 macros | Browser lifecycle. `with-playwright`, `with-browser`, `with-context`, `with-page`, `with-testing-page`. |
 | `page/` | 42 | Raw Page operations with explicit page arg. Same functions as the library's `com.blockether.spel.page` namespace. |
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
-| `role/` | 72 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
+| `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
 | `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
 | `constants/` | 25 | Playwright enum constants with flat naming: `constants/load-state-networkidle`, `constants/wait-until-commit`, `constants/color-scheme-dark`, `constants/mouse-button-left`, etc. See [CONSTANTS.md](CONSTANTS.md). |
 | `device/` | ~20 presets | Device emulation presets: `device/iphone-14`, `device/pixel-7`, `device/ipad`, `device/desktop-chrome`, etc. Each returns a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. |
@@ -307,6 +307,7 @@ The SCI sandbox has boundaries. These will fail:
 - **Arbitrary Java class construction**: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered.
 - **Macro definitions**: `defmacro` is not available. Use functions instead.
 - **Loading external libraries**: No Clojure deps, no Maven artifacts. Everything you need is already in the sandbox.
+- **STM and concurrency**: `ref`/`dosync`/`future`/`agent` are not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
 
 If you need something that isn't available, write a `.clj` library file and use the library API (JVM mode) instead of `--eval`.
 
@@ -325,7 +326,7 @@ This script demonstrates a realistic workflow: start a session, explore a page, 
 (println (spel/help "snapshot"))
 
 ;; 3. Navigate and wait for the page to settle
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 
 ;; 4. Grab basic page info
@@ -388,6 +389,6 @@ spel --eval explore.clj
 
 **Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e1"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 
-**Use `spel/wait-for-load "networkidle"` for SPAs.** Single Page Applications render client-side after the initial `load` event. Waiting for `networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
+**Use `spel/wait-for-load :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
 
 **Never use `spel/sleep` for synchronization.** It's a flaky anti-pattern. Use `spel/wait-for`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load` instead. The only acceptable use of sleep is waiting for a CSS animation with no observable state change.

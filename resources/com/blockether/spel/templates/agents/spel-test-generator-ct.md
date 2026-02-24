@@ -39,7 +39,7 @@ com.blockether.spel and `clojure.test` (`deftest`, `testing`, `is`).
       ```bash
       spel --timeout 5000 --eval '
         (do
-          (spel/goto "<url>")
+          (spel/navigate "<url>")
           (println "Button text:" (spel/text "button.submit"))
           (println "Heading:" (spel/text "h1"))
           (println "Input value:" (spel/value "#email")))'

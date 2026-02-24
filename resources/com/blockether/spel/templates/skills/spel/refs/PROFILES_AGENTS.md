@@ -6,28 +6,30 @@ Persistent profiles keep login sessions, cookies, and localStorage across runs. 
 
 The profile path points to a directory. Chromium creates it automatically if it doesn't exist. Everything the browser stores (cookies, localStorage, IndexedDB, service workers) lives there.
 
-### `--eval` Mode
+### `--eval` / CLI Daemon Mode
 
-```clojure
-;; First run: log in manually or via script
-(spel/start! {:profile "/tmp/my-chrome-profile" :headless false})
-(spel/goto "https://myapp.com/login")
+Use the CLI `--profile` flag to launch with a persistent profile:
+
+```bash
+# First run: log in via script (--interactive opens visible browser)
+spel --profile /tmp/my-chrome-profile --interactive --eval '
+(spel/navigate "https://myapp.com/login")
 (spel/fill "#email" "me@example.com")
 (spel/fill "#password" "secret123")
 (spel/click "button[type=submit]")
 (spel/wait-for-url "**/dashboard")
-(println "Logged in! Session saved to profile.")
-(spel/stop!)
+(println "Logged in! Session saved to profile.")'
 ```
 
-```clojure
-;; Second run: session is already there
-(spel/start! {:profile "/tmp/my-chrome-profile"})
-(spel/goto "https://myapp.com/dashboard")
+```bash
+# Second run: session is already there
+spel --profile /tmp/my-chrome-profile --eval '
+(spel/navigate "https://myapp.com/dashboard")
 (spel/wait-for-load)
-(println "Title:" (spel/title))  ;; no login needed
-(spel/stop!)
+(println "Title:" (spel/title))'
 ```
+
+> **Note:** `:profile` is NOT a valid option for `spel/start!`. Use the CLI `--profile` flag (shown above) or `core/launch-persistent-context` in library mode.
 
 ### Library Mode
 
@@ -61,7 +63,7 @@ Three approaches, each with different fidelity.
 ```clojure
 (spel/start!)
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/mobile-view.png"})
 (spel/stop!)
 ```
@@ -79,7 +81,7 @@ Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch,
 ```clojure
 ;; --eval
 (spel/start! {:device :iphone-14})
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 (spel/stop!)
 
@@ -157,7 +159,7 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 ```clojure
 ;; Save after logging in
 (spel/start!)
-(spel/goto "https://myapp.com/login")
+(spel/navigate "https://myapp.com/login")
 (spel/fill "#email" "me@example.com")
 (spel/fill "#password" "secret")
 (spel/click "button[type=submit]")
@@ -167,7 +169,7 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 
 ;; Load in a later session
 (spel/start! {:storage-state "/tmp/auth-state.json"})
-(spel/goto "https://myapp.com/dashboard")
+(spel/navigate "https://myapp.com/dashboard")
 ;; already authenticated
 (spel/stop!)
 ```

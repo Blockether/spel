@@ -4,35 +4,35 @@ How to navigate pages and wait for things to happen. Covers both `--eval` mode (
 
 ## Navigation
 
-### `spel/goto` (eval) / `page/navigate` (library)
+### `spel/navigate` (eval) / `page/navigate` (library)
 
 Navigate to a URL and optionally control when the navigation is considered "done."
 
 ```clojure
 ;; Basic navigation (waits for "load" event by default)
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 
 ;; Wait until no network requests for 500ms
-(spel/goto "https://example.com" {:wait-until "networkidle"})
+(spel/navigate "https://example.com" {:wait-until :networkidle})
 
 ;; Custom timeout (ms)
-(spel/goto "https://example.com" {:wait-until "networkidle" :timeout 30000})
+(spel/navigate "https://example.com" {:wait-until :networkidle :timeout 30000})
 ```
 
 The `:wait-until` option controls what "loaded" means:
 
 | Value | Fires when | Best for |
 |-------|-----------|----------|
-| `"commit"` | Response headers received | Fastest, just need the HTML |
-| `"domcontentloaded"` | HTML parsed, deferred scripts done | Server-rendered pages |
-| `"load"` (default) | All resources loaded (images, stylesheets) | Traditional multi-page sites |
-| `"networkidle"` | No network requests for 500ms | SPAs, JS-heavy pages |
+| `:commit` | Response headers received | Fastest — **navigation only** (`{:wait-until :commit}`), not valid for `wait-for-load` |
+| `:domcontentloaded` | HTML parsed, deferred scripts done | Server-rendered pages |
+| `:load` (default) | All resources loaded (images, stylesheets) | Traditional multi-page sites |
+| `:networkidle` | No network requests for 500ms | SPAs, JS-heavy pages |
 
 Library equivalent:
 
 ```clojure
 (page/navigate pg "https://example.com")
-(page/navigate pg "https://example.com" {:wait-until "networkidle" :timeout 30000})
+(page/navigate pg "https://example.com" {:wait-until :networkidle :timeout 30000})
 ```
 
 ### History Navigation
@@ -60,22 +60,19 @@ Use the most specific wait available. Work down this list only when the previous
 
 ### 1. `spel/wait-for-load`
 
-Waits for the page to reach a load state. Call this after `spel/goto` when you need a stricter readiness check than the default.
+Waits for the page to reach a load state. Call this after `spel/navigate` when you need a stricter readiness check than the default.
 
 ```clojure
-;; Default: waits for "load" event
+;; Default: waits for :load event
 (spel/wait-for-load)
 
-;; Wait for DOM parsed (faster than "load")
-(spel/wait-for-load "domcontentloaded")
+;; Wait for DOM parsed (faster than :load)
+(spel/wait-for-load :domcontentloaded)
 
 ;; Wait for network to settle (best for SPAs)
-(spel/wait-for-load "networkidle")
-
-;; Wait for first response bytes
-(spel/wait-for-load "commit")
+(spel/wait-for-load :networkidle)
 ```
-States explained: `"load"` fires after images, stylesheets, and iframes finish. `"domcontentloaded"` fires once HTML is parsed and deferred scripts run, but images may still load. `"networkidle"` waits until no requests for 500ms, the go-to for SPAs. `"commit"` fires as soon as response headers arrive, the fastest option.
+States explained: `:load` fires after images, stylesheets, and iframes finish. `:domcontentloaded` fires once HTML is parsed and deferred scripts run, but images may still load. `:networkidle` waits until no requests for 500ms, the go-to for SPAs. (`:commit` is only available as a navigation option via `{:wait-until :commit}`, not for `wait-for-load`.)
 
 Library equivalent:
 
@@ -179,8 +176,8 @@ Library: `(page/wait-for-timeout pg 1000)` ... same caveat.
 Single-page apps don't trigger full page loads. After clicking a navigation link, wait for the URL to change and the new content to appear.
 
 ```clojure
-(spel/goto "https://myapp.com")
-(spel/wait-for-load "networkidle")
+(spel/navigate "https://myapp.com")
+(spel/wait-for-load :networkidle)
 (spel/click "a[href='/dashboard']")
 (spel/wait-for-url "**/dashboard")
 (spel/wait-for ".dashboard-content" {:state "visible"})
@@ -194,7 +191,7 @@ The pattern: **interact → wait for URL → wait for element → proceed.**
 Pages that load data asynchronously after the initial render.
 
 ```clojure
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 (spel/wait-for ".titleline" {:state "visible"})
 (let [title (spel/text (spel/first ".titleline"))]
@@ -206,8 +203,8 @@ Pages that load data asynchronously after the initial render.
 For apps that fetch data from APIs after mounting:
 
 ```clojure
-(spel/goto "https://myapp.com/users")
-(spel/wait-for-load "networkidle")
+(spel/navigate "https://myapp.com/users")
+(spel/wait-for-load :networkidle)
 (spel/wait-for-function "() => document.querySelectorAll('tr.user-row').length > 0")
 (println "Users:" (spel/all-text-contents "tr.user-row td.name"))
 ```
@@ -256,8 +253,8 @@ Library equivalents:
 
 | Eval (`spel/`) | Library (`page/`) | Purpose |
 |---|---|---|
-| `(spel/goto url)` | `(page/navigate pg url)` | Navigate to URL |
-| `(spel/goto url opts)` | `(page/navigate pg url opts)` | Navigate with options |
+| `(spel/navigate url)` | `(page/navigate pg url)` | Navigate to URL |
+| `(spel/navigate url opts)` | `(page/navigate pg url opts)` | Navigate with options |
 | `(spel/wait-for-load)` | `(page/wait-for-load-state pg)` | Wait for load state |
 | `(spel/wait-for-load state)` | `(page/wait-for-load-state pg state)` | Wait for specific state |
 | `(spel/wait-for sel)` | `(page/wait-for-selector pg sel)` | Wait for element |

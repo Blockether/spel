@@ -49,9 +49,15 @@
   "Unit tests for registered SCI namespaces"
 
   (describe "spel namespace"
-    (it "has goto function"
+    (it "has navigate function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? spel/goto)")))))
+        (expect (true? (sut/eval-string ctx "(fn? spel/navigate)")))))
+
+    (it "does NOT have goto function (removed)"
+      (let [ctx (sut/create-sci-ctx)
+            threw? (try (sut/eval-string ctx "(fn? spel/goto)") false
+                        (catch Exception _ true))]
+        (expect threw?)))
 
     (it "has click function"
       (let [ctx (sut/create-sci-ctx)]
@@ -523,7 +529,7 @@
       (let [ctx (sut/create-sci-ctx)
             output (with-out-str (sut/eval-string ctx "(spel/help \"spel\")"))]
         (expect (.contains ^String output "spel/click"))
-        (expect (.contains ^String output "spel/goto"))
+        (expect (.contains ^String output "spel/navigate"))
         (expect (.contains ^String output "Arglists"))))
 
     (it "help with search term finds matches"
@@ -534,8 +540,8 @@
 
     (it "help with ns/fn shows specific function"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
-        (expect (.contains ^String output "spel/goto"))
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/navigate\")"))]
+        (expect (.contains ^String output "spel/navigate"))
         (expect (.contains ^String output "Arglists:"))))
 
     (it "help returns nil"
@@ -557,14 +563,14 @@
 
     (it "help for specific function shows Source field"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/navigate\")"))]
         (expect (.contains ^String output "Source:")))))
 
   (describe "spel/source output"
     (it "source for ns/fn shows wrapper source code"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/goto\")"))]
-        (expect (.contains ^String output ";; spel/goto"))
+            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/navigate\")"))]
+        (expect (.contains ^String output ";; spel/navigate"))
         (expect (.contains ^String output "Delegates to:"))
         (expect (.contains ^String output "defn"))))
 
@@ -611,7 +617,7 @@
           (expect (= :started (sut/eval-string ctx "(spel/start!)")))
 
           ;; Navigate
-          (sut/eval-string ctx "(spel/goto \"https://example.com\")")
+          (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
 
           ;; Query page info
           (let [title (sut/eval-string ctx "(spel/title)")

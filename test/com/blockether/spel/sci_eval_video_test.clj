@@ -25,7 +25,7 @@
             (expect (= "test-videos-sci" (:video-dir result))))
 
           ;; Navigate to generate some video content
-          (sut/eval-string ctx "(spel/goto \"https://example.com\")")
+          (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
           (sut/eval-string ctx "(spel/sleep 500)")
 
           ;; Check video path is available

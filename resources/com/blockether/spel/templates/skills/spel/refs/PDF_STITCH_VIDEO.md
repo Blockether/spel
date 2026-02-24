@@ -10,7 +10,7 @@ PDF output works **only in Chromium headless mode**. Firefox and WebKit don't su
 
 ```clojure
 ;; --eval (daemon running): save current page as PDF
-(spel/goto "https://en.wikipedia.org/wiki/Clojure")
+(spel/navigate "https://en.wikipedia.org/wiki/Clojure")
 (spel/wait-for-load)
 (spel/pdf {:path "/tmp/doc.pdf"})
 ```
@@ -112,10 +112,10 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 ```clojure
 ;; --eval: capture pages and build a PDF report
 ;; Daemon mode: omit start!/stop! — daemon owns the browser
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 (let [shot1 (spel/screenshot)  ;; returns byte[] when no :path given
-      _     (spel/goto "https://example.com/about")
+      _     (spel/navigate "https://example.com/about")
       _     (spel/wait-for-load)
       shot2 (spel/screenshot)]
   (spel/report->pdf
@@ -128,6 +128,45 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
      {:type :issue :text "Missing meta description" :items ["SEO impact: moderate"]}]
     {:path "/tmp/site-audit.pdf" :title "Site Audit Report"}))
 ```
+
+---
+
+## Slide-Deck Presentations (HTML → PDF)
+
+Generate presentation-quality PDFs from HTML slides using CSS `@page` and `page-break-after`.
+This is the same pattern used by Slidev, Marp, and reveal.js.
+
+### CSS Template
+
+```css
+@page { size: 1920px 1080px; margin: 0; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.slide {
+  width: 1920px; height: 1080px;
+  padding: 80px 100px; overflow: hidden; position: relative;
+  page-break-after: always; break-after: page;
+  display: flex; flex-direction: column;
+}
+.slide:last-child { page-break-after: avoid; break-after: avoid; }
+```
+
+### Generating from --eval
+
+```clojure
+(spel/set-content! (str "<style>" css "</style>" slides-html))
+(spel/wait-for-load :load)
+(spel/emulate-media! {:media :screen})  ;; CRITICAL: screen media for visual fidelity
+(spel/pdf {:path "presentation.pdf"
+           :print-background true
+           :prefer-css-page-size true})
+```
+
+### Key Points
+
+- **Always** use `(spel/emulate-media! {:media :screen})` before PDF — ensures gradients, colors render
+- CSS animations DO NOT survive PDF — use `* { animation: none !important; }`
+- GIFs show first frame only in PDF
+- Use `{:print-background true :prefer-css-page-size true}` for exact slide dimensions
 
 ---
 
@@ -175,7 +214,7 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
 ```clojure
 ;; --eval: scroll-capture a tall page
 (spel/start!)
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 
 (let [viewport-h (-> (spel/eval-js "window.innerHeight") long)
@@ -209,7 +248,7 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 ```clojure
 (spel/start!)
 (spel/start-video-recording)
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 ;; ... actions ...
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
@@ -266,7 +305,7 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 (spel/start!)
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
-(spel/goto "https://example.com/login")
+(spel/navigate "https://example.com/login")
 (spel/wait-for-load)
 (spel/fill "#email" "user@example.com")
 (spel/fill "#password" "secret")
@@ -295,7 +334,7 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 ```clojure
 (spel/start!)
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 (spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.get-started")
@@ -327,7 +366,7 @@ For higher quality, use API-based TTS (Google Cloud TTS, Amazon Polly, ElevenLab
 spel --eval '
 (spel/start!)
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 (spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.learn-more")

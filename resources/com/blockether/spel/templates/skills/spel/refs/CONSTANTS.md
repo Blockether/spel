@@ -4,9 +4,9 @@ Quick reference for all typed constants in spel's `--eval` sandbox and library c
 
 | Namespace | What it holds | Count |
 |-----------|---------------|-------|
-| `constants/` | Playwright enum values as flat Clojure vars | ~30 |
-| `role/` | AriaRole constants for role-based selectors | 72 |
-| `device/` | Device preset maps (viewport, UA, scale, touch) | 21 |
+| `constants/` | Playwright enum values as flat Clojure vars | 25 |
+| `role/` | AriaRole constants for role-based selectors | 82 |
+| `device/` | Device preset maps (viewport, UA, scale, touch) | 18 |
 
 ## `constants/` Namespace
 
@@ -21,7 +21,7 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/load-state-networkidle` | `LoadState/NETWORKIDLE` | No network requests for 500ms |
 
 ```clojure
-(spel/wait-for-load "networkidle")                                ;; --eval
+(spel/wait-for-load :networkidle)                                ;; --eval
 (page/wait-for-load-state pg constants/load-state-networkidle)    ;; library
 ```
 
@@ -35,7 +35,7 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/wait-until-commit` | `WaitUntilState/COMMIT` | Response headers received |
 
 ```clojure
-(spel/goto "https://example.com" {:wait-until "networkidle"})    ;; --eval
+(spel/navigate "https://example.com" {:wait-until :networkidle})    ;; --eval
 (page/navigate pg "https://example.com" {:wait-until :commit})    ;; library
 ```
 
@@ -110,7 +110,7 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/selector-state-hidden` | `WaitForSelectorState/HIDDEN` | Missing or not visible |
 
 ```clojure
-(spel/wait-for ".spinner" {:state "hidden"})                      ;; --eval
+(spel/wait-for ".spinner" {:state :hidden})                        ;; --eval
 (page/wait-for-selector pg ".spinner" {:state :hidden})           ;; library
 ```
 
@@ -140,7 +140,7 @@ AriaRole constants for `page/get-by-role` and `spel/$role`.
 (page/get-by-role pg role/heading {:level 1})                     ;; with options
 ```
 
-### Complete Role List (72 constants)
+### Complete Role List (82 constants)
 
 | | | | |
 |---|---|---|---|

@@ -30,38 +30,38 @@ Then `(spel/start!)` again.
 
 **Cause:** Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
 
-**Fix:** Use headed mode, a persistent profile, or a real user-agent:
+**Fix:** Use headed mode or a real user-agent:
 
 ```clojure
 ;; Option A: headed mode (browser window visible)
 (spel/start! {:headless false})
 
-;; Option B: persistent profile (keeps cookies/login between runs)
-(spel/start! {:profile "/tmp/my-chrome-profile"})
+;; Option B: headed + slow-mo for debugging
+(spel/start! {:headless false :slow-mo 100})
 
 ;; Option C: real user-agent
 (spel/start! {:user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
 ```
 
-Combining all three gives the best results for stubborn sites.
+Combining these gives the best results for stubborn sites.
 
 ## 3. `assert-url` Fails with Partial URLs
 
 **Problem:** `(spel/assert-url "example.com/page")` fails even though the URL contains that string.
 
-**Cause:** `spel/assert-url` does exact string matching only. No regex, no substring, no glob.
+**Cause:** `spel/assert-url` wraps Playwright's `has-url` which does exact string matching by default, but also accepts `java.util.regex.Pattern` for flexible matching.
 
 **Fix:**
 
 ```clojure
-;; Exact match works
-(spel/assert-url "https://example.com/page")
+;; Exact match
+(spel/assert-url (spel/assert-that (spel/page)) "https://example.com/page")
 
-;; For partial/substring matching, check manually
-(assert (clojure.string/includes? (spel/url) "example.com"))
+;; Regex pattern — substring, wildcard, etc.
+(spel/assert-url (spel/assert-that (spel/page)) #".*example\.com.*")
 
-;; For regex matching
-(assert (re-find #"example\.com/page" (spel/url)))
+;; Regex for path prefix
+(spel/assert-url (spel/assert-that (spel/page)) #".*/page.*")
 ```
 
 ## 4. Snapshot Ref Not Found / Stale Refs
@@ -87,7 +87,7 @@ Combining all three gives the best results for stubborn sites.
 
 ## 5. TimeoutError on Navigation
 
-**Problem:** `(spel/goto "https://slow-site.com")` throws `TimeoutError` after 30 seconds.
+**Problem:** `(spel/navigate "https://slow-site.com")` throws `TimeoutError` after 30 seconds.
 
 **Cause:** Default timeout is 30s. Heavy pages with lots of resources or slow APIs can exceed this.
 
@@ -95,16 +95,16 @@ Combining all three gives the best results for stubborn sites.
 
 ```clojure
 ;; Increase the navigation timeout
-(spel/goto "https://slow-site.com" {:timeout 60000})
+(spel/navigate "https://slow-site.com" {:timeout 60000})
 
 ;; Or use a less strict wait condition
-(spel/goto "https://slow-site.com" {:wait-until "domcontentloaded"})
+(spel/navigate "https://slow-site.com" {:wait-until :domcontentloaded})
 
 ;; For all subsequent navigations
 (spel/set-default-navigation-timeout! 60000)
 ```
 
-Wait states from least to most strict: `"commit"` < `"domcontentloaded"` < `"load"` (default) < `"networkidle"`.
+Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load` (default) < `:networkidle`.
 
 ## 6. PDF Generation Fails or Produces Empty File
 
@@ -117,7 +117,7 @@ Wait states from least to most strict: `"commit"` < `"domcontentloaded"` < `"loa
 ```clojure
 ;; Ensure headless Chromium (the default)
 (spel/start! {:browser :chromium :headless true})
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/pdf {:path "/tmp/output.pdf"})
 ```
 
@@ -195,7 +195,7 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 **Fix:** Dismiss the consent dialog before doing anything else:
 
 ```clojure
-(spel/goto "https://some-eu-site.com")
+(spel/navigate "https://some-eu-site.com")
 
 ;; Try common consent button patterns
 (spel/click "button:has-text('Accept')")
@@ -206,7 +206,7 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 (spel/click "@e4")  ;; whatever ref the consent button has
 ```
 
-For repeat visits, use a persistent profile so consent is remembered: `(spel/start! {:profile "/tmp/eu-browsing"})`.
+For repeat visits, use a persistent browser session so consent is remembered.
 
 ## 11. Stale Browser / "Target closed"
 
@@ -257,8 +257,8 @@ Shows the accessibility tree with numbered refs. You'll see what elements exist,
 ### Step 3: Verify function signatures
 
 ```clojure
-(spel/help "goto")       ;; check args and description
-(spel/source "goto")     ;; see the actual implementation
+(spel/help "navigate")     ;; check args and description
+(spel/source "navigate")   ;; see the actual implementation
 (spel/help "snapshot")   ;; find all snapshot-related functions
 ```
 

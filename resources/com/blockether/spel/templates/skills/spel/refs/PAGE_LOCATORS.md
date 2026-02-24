@@ -258,7 +258,7 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 
 ```clojure
 ;; SCI/eval mode
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 
 ;; 1. Take snapshot, see the tree
@@ -400,7 +400,7 @@ Build rich HTML or PDF reports from test results using typed entry maps.
 
 ```clojure
 ;; Generate PDF presentation from current page
-(spel/goto "https://app.example.com/dashboard")
+(spel/navigate "https://app.example.com/dashboard")
 (spel/wait-for-load)
 (spel/report->pdf
   [{:type :section :text "Dashboard Audit" :level 1}

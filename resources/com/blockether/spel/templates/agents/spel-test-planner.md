@@ -65,7 +65,7 @@ Use `spel --eval` (preferred) for multi-step exploration. This is more powerful 
 ```bash
 spel --timeout 5000 --eval '
   (do
-    (spel/goto "<url>")
+    (spel/navigate "<url>")
 
     ;; Snapshot the page
     (let [snap (spel/snapshot)]

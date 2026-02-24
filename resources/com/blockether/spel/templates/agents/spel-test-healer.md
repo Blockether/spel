@@ -46,7 +46,7 @@ E2E tests using spel (`defdescribe`, `it`, `expect` from `spel.allure`).
     ```bash
     spel --timeout 5000 --eval '
       (do
-        (spel/goto "<url>")
+        (spel/navigate "<url>")
         (spel/click (spel/$text "Login"))
         (println "Title:" (spel/title))
         (println "URL:" (spel/url))

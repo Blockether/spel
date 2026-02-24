@@ -228,7 +228,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 ;; --eval
-(spel/goto "https://example.com/checkout")
+(spel/navigate "https://example.com/checkout")
 (spel/wait-for-load)
 
 (def snap1 (spel/snapshot))

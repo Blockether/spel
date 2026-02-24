@@ -38,7 +38,7 @@ spel pdf /tmp/page.pdf
 
 # Use --eval for multi-step Clojure scripting (page already available):
 spel --eval '
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 (println "Title:" (spel/title))
 (println "Links:" (count (spel/$$ "a")))
@@ -83,20 +83,52 @@ For detailed documentation beyond this guide:
 
 In `--eval` / daemon mode, functions live in `spel/` with **different names** than the library:
 
-| You want to... | Library (Clojure) | `--eval` / daemon |
+| You want to... | Library (Clojure) | SCI (`--eval` / daemon) |
 |---|---|---|
-| Navigate | `(page/navigate pg url)` | `(spel/goto url)` |
-| Title | `(page/title pg)` | `(spel/title)` |
-| URL | `(page/url pg)` | `(spel/url)` |
-| HTML content | `(page/content pg)` | `(spel/html)` |
-| JS eval | `(page/evaluate pg expr)` | `(spel/eval-js expr)` |
-| Text content | `(locator/text-content loc)` | `(spel/text sel)` |
-| Screenshot | `(page/screenshot pg opts)` | `(spel/screenshot opts)` |
-| PDF | `(page/pdf pg opts)` | `(spel/pdf opts)` |
+| Navigate to URL | `(page/navigate pg url)` | `(spel/navigate url)` |
+| Go back | `(page/go-back pg)` | `(spel/back)` |
+| Go forward | `(page/go-forward pg)` | `(spel/forward)` |
+| Reload | `(page/reload pg)` | `(spel/reload!)` |
+| Get page title | `(page/title pg)` | `(spel/title)` |
+| Get page URL | `(page/url pg)` | `(spel/url)` |
+| Get page HTML | `(page/content pg)` | `(spel/html)` |
+| Evaluate JS | `(page/evaluate pg expr)` | `(spel/eval-js expr)` |
+| Wait for load | `(page/wait-for-load-state pg :state)` | `(spel/wait-for-load :state)` |
+| Wait for selector | `(page/wait-for-selector pg sel)` | `(spel/wait-for sel)` |
+| Wait for URL | `(page/wait-for-url pg url)` | `(spel/wait-for-url url)` |
+| Sleep | `(page/wait-for-timeout pg ms)` | `(spel/sleep ms)` |
 | CSS selector | `(page/locator pg sel)` | `(spel/$ sel)` |
+| Multiple matches | — | `(spel/$$ sel)` |
 | By text | `(page/get-by-text pg text)` | `(spel/$text text)` |
 | By role | `(page/get-by-role pg role)` | `(spel/$role role)` |
-| Snapshot | `(snapshot/capture-snapshot pg)` | `(spel/snapshot)` |
+| By label | `(page/get-by-label pg text)` | `(spel/$label text)` |
+| By placeholder | `(page/get-by-placeholder pg text)` | `(spel/$placeholder text)` |
+| By test ID | `(page/get-by-test-id pg id)` | `(spel/$test-id id)` |
+| By alt text | `(page/get-by-alt-text pg text)` | `(spel/$alt-text text)` |
+| By title attr | `(page/get-by-title pg text)` | `(spel/$title-attr text)` |
+| Get text content | `(locator/text-content loc)` | `(spel/text loc)` |
+| Get inner text | `(locator/inner-text loc)` | `(spel/inner-text loc)` |
+| Get inner HTML | `(locator/inner-html loc)` | `(spel/inner-html loc)` |
+| Get attribute | `(locator/get-attribute loc name)` | `(spel/attr loc name)` |
+| Get input value | `(locator/input-value loc)` | `(spel/value loc)` |
+| Count elements | `(locator/count-elements loc)` | `(spel/count-of loc)` |
+| Bounding box | `(locator/bounding-box loc)` | `(spel/bbox loc)` |
+| Is visible? | `(locator/is-visible? loc)` | `(spel/visible? loc)` |
+| Is hidden? | `(locator/is-hidden? loc)` | `(spel/hidden? loc)` |
+| Is enabled? | `(locator/is-enabled? loc)` | `(spel/enabled? loc)` |
+| Is disabled? | `(locator/is-disabled? loc)` | `(spel/disabled? loc)` |
+| Is editable? | `(locator/is-editable? loc)` | `(spel/editable? loc)` |
+| Is checked? | `(locator/is-checked? loc)` | `(spel/checked? loc)` |
+| Click | `(locator/click loc)` | `(spel/click loc)` |
+| Fill | `(locator/fill loc text)` | `(spel/fill loc text)` |
+| Select option | `(locator/select-option loc val)` | `(spel/select loc val)` |
+| First element | `(locator/first-element loc)` | `(spel/first loc)` |
+| Last element | `(locator/last-element loc)` | `(spel/last loc)` |
+| Nth element | `(locator/nth-element loc n)` | `(spel/nth loc n)` |
+| Take screenshot | `(page/screenshot pg opts)` | `(spel/screenshot opts)` |
+| Generate PDF | `(page/pdf pg opts)` | `(spel/pdf opts)` |
+| Set viewport | `(page/set-viewport-size pg w h)` | `(spel/set-viewport-size! w h)` |
+| Emulate media | `(page/emulate-media! pg opts)` | `(spel/emulate-media! opts)` |
 
 **Key difference**: Library takes explicit `page`/`locator`. Eval uses the implicit daemon page.
 
@@ -110,7 +142,7 @@ spel open https://example.com --screenshot /tmp/shot.png
 
 # --eval: full page screenshot
 spel --eval '
-(spel/goto "https://en.wikipedia.org")
+(spel/navigate "https://en.wikipedia.org")
 (spel/wait-for-load)
 (spel/screenshot {:path "/tmp/full.png" :full-page true})
 '
@@ -127,20 +159,20 @@ Library:
 
 ```bash
 spel --eval '
-(spel/goto "https://example.com")
-(spel/wait-for-load)                     ;; default: "load" state
-(spel/wait-for-load "networkidle")        ;; wait for no network activity
+(spel/navigate "https://example.com")
+(spel/wait-for-load)                     ;; default: :load state
+(spel/wait-for-load :networkidle)        ;; wait for no network activity
 (println (spel/title))
 '
 ```
 
-**Wait states**: `"load"` (default), `"domcontentloaded"`, `"networkidle"`, `"commit"`.
+**Wait states**: `:load` (default), `:domcontentloaded`, `:networkidle`. (`:commit` is navigation-only via `{:wait-until :commit}`, not valid for `wait-for-load`.)
 
 ### 3. Click, Fill, and Interact
 
 ```bash
 spel --eval '
-(spel/goto "https://example.com/login")
+(spel/navigate "https://example.com/login")
 (spel/wait-for-load)
 (spel/fill "#username" "john@example.com")
 (spel/fill "#password" "secret123")
@@ -156,7 +188,7 @@ Selectors accept CSS, snapshot refs (`"e1"` or `"@e1"`), or Locator objects.
 
 ```bash
 spel --eval '
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 (let [snap (spel/snapshot)]
   ;; snap = {:tree "..." :refs [...] :counter N}
@@ -173,7 +205,7 @@ Or via CLI: `spel snapshot` (text), `spel snapshot --json` (machine-readable).
 
 ```bash
 spel --eval '
-(spel/goto "https://onet.pl")
+(spel/navigate "https://onet.pl")
 (spel/wait-for-load)
 (let [snap (spel/snapshot)
       refs (:refs snap)]
@@ -187,7 +219,7 @@ Or via CLI: `spel annotate /tmp/annotated.png`
 
 ```bash
 spel --eval '
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/wait-for-load)
 
 ;; Page-level
@@ -218,7 +250,7 @@ spel pdf /tmp/page.pdf
 
 # --eval (Chromium headless only)
 spel --eval '
-(spel/goto "https://en.wikipedia.org/wiki/Clojure")
+(spel/navigate "https://en.wikipedia.org/wiki/Clojure")
 (spel/wait-for-load)
 (spel/pdf {:path "/tmp/article.pdf" :format "A4"})
 '
@@ -234,7 +266,7 @@ spel stitch /tmp/top.png /tmp/bottom.png -o /tmp/stitched.png
 
 # --eval: scroll-and-stitch workflow
 spel --eval '
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 (spel/screenshot {:path "/tmp/top.png"})
 (spel/eval-js "window.scrollTo(0, 500)")
@@ -291,7 +323,7 @@ spel stitch IMG1 IMG2 -o OUT            # stitch images vertically
 
 | Namespace | Purpose | Example |
 |---|---|---|
-| `spel/` | Simplified API (implicit page) | `(spel/goto url)` |
+| `spel/` | Simplified API (implicit page) | `(spel/navigate url)` |
 | `snapshot/` | Accessibility snapshots | `(snapshot/capture)` |
 | `annotate/` | Screenshot annotations | `(annotate/save! refs path)` |
 | `stitch/` | Image stitching | `(stitch/stitch-vertical imgs path)` |

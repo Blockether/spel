@@ -21,7 +21,7 @@
    Usage:
      (def ctx (create-sci-ctx))
       (eval-string ctx \"(spel/start!)\")
-      (eval-string ctx \"(spel/goto \\\"https://example.com\\\")\")
+      (eval-string ctx \"(spel/navigate \\\"https://example.com\\\")\")
       (eval-string ctx \"(spel/snapshot)\")
       (eval-string ctx \"(spel/stop!)\")"
   (:require
@@ -242,7 +242,7 @@
 ;; Navigation
 ;; =============================================================================
 
-(defn sci-goto
+(defn sci-navigate
   ([url] (throw-if-anomaly (page/navigate (require-page!) url)))
   ([url opts] (throw-if-anomaly (page/navigate (require-page!) url opts))))
 (defn sci-back      [] (throw-if-anomaly (page/go-back (require-page!))))
@@ -403,7 +403,8 @@
   ([sel opts] (throw-if-anomaly (page/wait-for-selector (require-page!) sel opts))))
 (defn sci-wait-for-load
   ([]      (throw-if-anomaly (page/wait-for-load-state (require-page!))))
-  ([state] (throw-if-anomaly (page/wait-for-load-state (require-page!) state))))
+  ([state] (throw-if-anomaly (page/wait-for-load-state (require-page!)
+                               (if (string? state) (keyword state) state)))))
 (defn sci-sleep [ms] (page/wait-for-timeout (require-page!) ms))
 (defn sci-wait-for-url [url] (throw-if-anomaly (page/wait-for-url (require-page!) url)))
 (defn sci-wait-for-function [expr] (throw-if-anomaly (page/wait-for-function (require-page!) expr)))
@@ -1021,8 +1022,7 @@
                   ['switch-tab!   sci-switch-tab!]
                   ['tabs          sci-tabs]
                   ;; Navigation
-                  ['goto          sci-goto]
-                  ['navigate      sci-goto]
+                  ['navigate      sci-navigate]
                   ['back          sci-back]
                   ['forward       sci-forward]
                   ['reload!       sci-reload!]

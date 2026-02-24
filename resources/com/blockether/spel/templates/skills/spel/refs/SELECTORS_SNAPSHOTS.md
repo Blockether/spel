@@ -292,7 +292,7 @@ Library equivalent:
 Navigate, understand the page, annotate, interact, verify:
 
 ```clojure
-(spel/goto "https://news.ycombinator.com")
+(spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 ;; 1. Capture the page structure
 (def snap (spel/snapshot))
@@ -321,9 +321,9 @@ Navigate, understand the page, annotate, interact, verify:
 | By placeholder | `(spel/$placeholder "t")` | `(page/get-by-placeholder pg "t")` |
 | By test ID | `(spel/$test-id "id")` | `(page/get-by-test-id pg "id")` |
 | By alt text | `(spel/$alt-text "t")` | `(page/get-by-alt-text pg "t")` |
-| Snapshot | `(spel/snapshot)` | `(snapshot/capture-snapshot pg)` |
-| Full snapshot | `(spel/full-snapshot)` | `(snapshot/capture-full-snapshot pg)` |
-| Resolve ref | `(spel/resolve-ref "e1")` | `(snapshot/resolve-ref pg "e1")` |
+| Snapshot | `(spel/snapshot)` | `(snapshot/capture pg)` |
+| Full snapshot | `(spel/full-snapshot)` | `(snapshot/capture-full pg)` |
+| Resolve ref | `(spel/resolve-ref "e1")` | `(snapshot/resolve-ref "e1")` |
 | Annotated shot | `(spel/save-annotated-screenshot! refs path)` | `(annotate/save-annotated-screenshot! pg refs path)` |
 | Audit shot | `(spel/save-audit-screenshot! caption path)` | `(annotate/save-audit-screenshot! pg caption path)` |
 | Mark refs | `(spel/mark "e1" "e5")` | `(annotate/inject-action-markers! pg ["e1" "e5"])` |
