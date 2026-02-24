@@ -1,0 +1,25 @@
+← 400 Bad Request
+  http://localhost:38377/status/400
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":400}
+← 401 Unauthorized
+  http://localhost:38377/status/401
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":401}
+← 403 Forbidden
+  http://localhost:38377/status/403
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":403}
+← 404 Not Found
+  http://localhost:38377/status/404
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":404}
+← 429 
+  http://localhost:38377/status/429
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":429}
