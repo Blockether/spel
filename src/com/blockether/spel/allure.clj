@@ -855,6 +855,15 @@
   .content-type { font-family: 'SF Mono', Menlo, Consolas, monospace;
                   font-size: 11px; color: #666; background: #f0f2f5;
                   padding: 2px 8px; border-radius: 3px; }
+  .html-preview-container { position: relative; }
+  .html-preview-frame { width: 100%; min-height: 200px; border: 1px solid #e0e0e0;
+                        border-radius: 6px; background: #fff; }
+  .html-toggle-bar { display: flex; gap: 4px; margin-bottom: 8px; }
+  .html-toggle-btn { padding: 4px 12px; border: 1px solid #d0d0d0; border-radius: 4px;
+                     background: #f5f5f5; color: #555; font-size: 11px; font-weight: 600;
+                     cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  .html-toggle-btn.active { background: #2196F3; color: #fff; border-color: #2196F3; }
+  .html-source-pre { display: none; }
   </style>")
 
 (defn render-http-html
@@ -886,10 +895,15 @@
         hl-resp    (when pj-resp (syntax-highlight-json pj-resp))
         hl-req     (when pj-req (syntax-highlight-json pj-req))
         json-resp? (and content-type (re-find #"json" content-type))
+        html-resp? (and content-type (re-find #"html" content-type))
         json-req?  (and request-body
                      (let [trimmed (str/trim request-body)]
                        (or (str/starts-with? trimmed "{")
                          (str/starts-with? trimmed "["))))
+        html-req?  (and request-headers
+                    (let [rct (get request-headers "content-type"
+                               (get request-headers "Content-Type"))]
+                      (and rct (re-find #"html" rct))))
         curl-cmd   (build-curl-command {:method method :url url
                                         :request-headers request-headers
                                         :request-body request-body})]
@@ -925,9 +939,25 @@
           "<details>"
           "<summary>▶ Request Body (" (count request-body) " bytes)</summary>"
           "<div class=\"section-body\">"
-          "<pre class=\"body\">"
-          (if json-req? (or hl-req (html-escape pj-req)) (html-escape request-body))
-          "</pre>"
+          (cond
+            json-req?
+            (str "<pre class=\"body\">"
+              (or hl-req (html-escape pj-req))
+              "</pre>")
+
+            html-req?
+            (str
+              "<div class=\"html-preview-container\">"
+              "<div class=\"html-toggle-bar\">"
+              "<button class=\"html-toggle-btn active\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='block';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')\">Preview</button>"
+              "<button class=\"html-toggle-btn\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='none';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='block';this.classList.add('active');this.previousElementSibling.classList.remove('active')\">Source</button>"
+              "</div>"
+              "<iframe class=\"html-preview-frame\" sandbox=\"allow-same-origin\" srcdoc=\"" (html-escape request-body) "\"></iframe>"
+              "<pre class=\"body html-source-pre\">" (html-escape request-body) "</pre>"
+              "</div>")
+
+            :else
+            (str "<pre class=\"body\">" (html-escape request-body) "</pre>"))
           "</div></details>"))
 
       ;; ── Response Headers ──

@@ -72,11 +72,19 @@
 (def ^:private ref-files
   "Reference documentation files included with the skill.
    Each entry is a filename under skills/spel/refs/ in the template resources."
-  ["COMMON_PROBLEMS.md"
+  ["ALLURE_REPORTING.md"
+   "API_TESTING.md"
+   "ASSERTIONS_EVENTS.md"
+   "BROWSER_OPTIONS.md"
+   "CI_WORKFLOWS.md"
+   "CODEGEN_CLI.md"
+   "COMMON_PROBLEMS.md"
    "CONSTANTS.md"
    "EVAL_GUIDE.md"
+   "FRAMES_INPUT.md"
    "FULL_API.md"
    "NAVIGATION_WAIT.md"
+   "NETWORK_ROUTING.md"
    "PAGE_LOCATORS.md"
    "PDF_STITCH_VIDEO.md"
    "PROFILES_AGENTS.md"
@@ -94,9 +102,15 @@
         generator-template (if ct?
                              "agents/spel-test-generator-ct.md"
                              "agents/spel-test-generator.md")
+        testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
                             "API reference skill"
+                            "+"
+                            nil]
+                           [testing-conventions-resource
+                            (str skill-dir "/refs/TESTING_CONVENTIONS.md")
+                            "ref: TESTING_CONVENTIONS"
                             "+"
                             nil]]
                       (mapv (fn [filename]

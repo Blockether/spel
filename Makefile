@@ -68,7 +68,7 @@ install-local: spel ## Build + install spel binary to ~/.local/bin
 	rm -f $(HOME)/.local/bin/spel
 	cp target/spel $(HOME)/.local/bin/spel
 
-gen-docs: ## Regenerate SKILL.md from template (run BEFORE install-local)
+gen-docs: ## Regenerate refs/FULL_API.md from source introspection (run BEFORE install-local)
 	clojure -T:build gen-docs
 
 init-agents: ## Scaffold OpenCode E2E testing agents (via spel)

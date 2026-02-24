@@ -60,7 +60,7 @@ make test-cli-clj            # CLI Clojure integration tests only
 make format                  # auto-format all source files
 make lint                    # clojure-lsp diagnostics --raw
 make validate-safe-graal     # check for reflection/boxed-math warnings
-make gen-docs                # regenerate SKILL.md from template (run BEFORE install-local)
+make gen-docs                # regenerate refs/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
 make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding
 ```
@@ -77,7 +77,7 @@ Run these in order. On ANY failure -> fix -> restart from step 1.
 1. `make format` — auto-format source (must run BEFORE tests — format changes must be tested)
 2. `make lint` — clojure-lsp diagnostics clean
 3. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)
-4. `make gen-docs` — regenerate SKILL.md
+4. `make gen-docs` — regenerate refs/FULL_API.md
 5. `make install-local` — builds `./target/spel` -> `~/.local/bin/spel`: exit 0
 6. `spel version && spel --help` — responds correctly
 7. `make test` — full suite: 0 failures. This runs TWO things:
@@ -114,7 +114,8 @@ ANY of these changed → MUST run steps 4-8:
 | Resource | Location |
 |---|---|
 | API reference (agents) | `.opencode/skills/spel/SKILL.md` |
-| SKILL template (edit this) | `resources/.../templates/skills/spel/SKILL.md.template` |
+| SKILL source (hand-edited) | `resources/.../templates/skills/spel/SKILL.md` |
+| Full API ref (auto-generated) | `resources/.../templates/skills/spel/refs/FULL_API.md` |
 | Project docs | `README.md` |
 | nREPL eval | `clj-nrepl-eval` (eval Clojure against running nREPL) |
 | Paren repair | `clj-paren-repair <file>` |
