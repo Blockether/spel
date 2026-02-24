@@ -18,7 +18,8 @@ concurrency:
 
 env:
   PAGES_BASE_URL: https://blockether.github.io/spel
-  MAX_REPORTS: 50
+  MAX_REPORTS: 100
+  MAX_PR_REPORTS: 50
 
 jobs:
   report:
@@ -195,50 +196,38 @@ jobs:
           TESTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
           TESTS_TOTAL: ${{ steps.test-counts.outputs.total }}
           RUN_NUMBER: ${{ github.run_number }}
+          VERSION: ${{ steps.version.outputs.version }}
+          VERSION_BADGE: ${{ steps.version.outputs.badge }}
+          MAX_PR_REPORTS: ${{ env.MAX_PR_REPORTS }}
         run: |
           mkdir -p /tmp/pr-deploy/pr/${PR_NUM}
           cp -r allure-report/* /tmp/pr-deploy/pr/${PR_NUM}/
+          # Fetch current pr-builds.json from live site
+          curl -sSf "${PAGES_BASE_URL}/pr-builds.json" -o /tmp/pr-deploy/pr-builds.json 2>/dev/null || echo '[]' > /tmp/pr-deploy/pr-builds.json
 
-          # Fetch current pr-builds.json from live site (fallback to empty array)
-          curl -sSf "${PAGES_BASE_URL}/pr-builds.json" -o /tmp/pr-builds-current.json 2>/dev/null || echo '[]' > /tmp/pr-builds-current.json
+          clojure -M -e "
+            (require '[com.blockether.spel.ci :as ci])
+            (ci/register-pr-build!
+              {:site-dir       \"/tmp/pr-deploy\"
+               :pr-number      (System/getenv \"PR_NUM\")
+               :pr-title       (System/getenv \"PR_TITLE\")
+               :branch         (System/getenv \"PR_BRANCH\")
+               :sha            (System/getenv \"PR_SHA\")
+               :author         (System/getenv \"PR_AUTHOR\")
+               :run-number     (System/getenv \"RUN_NUMBER\")
+               :run-url        (System/getenv \"RUN_URL\")
+               :repo-url       (System/getenv \"REPO_URL\")
+               :version        (System/getenv \"VERSION\")
+               :version-badge  (System/getenv \"VERSION_BADGE\")
+               :status         \"completed\"
+               :tests-passed   (= \"true\" (System/getenv \"TEST_PASSED\"))
+               :test-counts    {:passed  (parse-long (or (System/getenv \"TESTS_PASSED\") \"0\"))
+                                :failed  (parse-long (or (System/getenv \"TESTS_FAILED\") \"0\"))
+                                :broken  (parse-long (or (System/getenv \"TESTS_BROKEN\") \"0\"))
+                                :skipped (parse-long (or (System/getenv \"TESTS_SKIPPED\") \"0\"))
+                                :total   (parse-long (or (System/getenv \"TESTS_TOTAL\") \"0\"))}
+               :max-pr-builds  (parse-long (or (System/getenv \"MAX_PR_REPORTS\") \"50\"))})"
 
-          # Build new entry with jq (handles JSON escaping properly)
-          TIMESTAMP=$(date +%s)000
-          PASSED_BOOL=$([ "${TEST_PASSED}" = "true" ] && echo "true" || echo "false")
-
-          jq -n \
-            --arg run "pr/${PR_NUM}" \
-            --argjson pr_number "${PR_NUM}" \
-            --arg pr_title "${PR_TITLE}" \
-            --arg branch "${PR_BRANCH}" \
-            --arg sha "${PR_SHA}" \
-            --arg author "${PR_AUTHOR}" \
-            --argjson timestamp "${TIMESTAMP}" \
-            --argjson passed "${PASSED_BOOL}" \
-            --argjson tp "${TESTS_PASSED:-0}" \
-            --argjson tf "${TESTS_FAILED:-0}" \
-            --argjson tb "${TESTS_BROKEN:-0}" \
-            --argjson ts "${TESTS_SKIPPED:-0}" \
-            --argjson tt "${TESTS_TOTAL:-0}" \
-            --arg run_url "${RUN_URL}" \
-            --arg repo_url "${REPO_URL}" \
-            --argjson run_number "${RUN_NUMBER}" \
-            '{
-              run: $run, pr_number: $pr_number, run_number: $run_number, pr_title: $pr_title,
-              branch: $branch, type: "pr", sha: $sha, message: $pr_title,
-              author: $author, timestamp: $timestamp, passed: $passed,
-              status: "completed",
-              tests: { passed: $tp, failed: $tf, broken: $tb, skipped: $ts, total: $tt },
-              run_url: $run_url, repo_url: $repo_url
-            }' > /tmp/pr-entry.json
-
-          # Remove old entry for same PR, prepend new, keep max 20
-          jq --slurpfile entry /tmp/pr-entry.json \
-             --argjson pr_num "${PR_NUM}" \
-             '[ $entry[0] ] + [ .[] | select(.pr_number != $pr_num) ] | .[0:20]' \
-             /tmp/pr-builds-current.json > /tmp/pr-deploy/pr-builds.json
-
-          echo "PR #${PR_NUM} deploy ready with $(jq length /tmp/pr-deploy/pr-builds.json) entries in pr-builds.json"
 
       - name: Deploy PR report to GitHub Pages
         if: github.event_name == 'pull_request'
@@ -377,6 +366,23 @@ jobs:
 
           cd ..
           echo "Site ready with $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) reports"
+
+
+      - name: Mark merged PRs
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f gh-pages-site/pr-builds.json ]; then
+            MERGED=$(gh pr list --state merged --limit 50 --json number --jq '.[].number' | paste -sd, - 2>/dev/null || true)
+            if [ -n "$MERGED" ]; then
+              clojure -M -e "
+                (require '[com.blockether.spel.ci :as ci])
+                (ci/mark-prs-merged!
+                  {:site-dir \"gh-pages-site\"
+                   :merged-prs [${MERGED}]})"
+            fi
+          fi
 
       - name: Cache Allure history
         if: github.ref == 'refs/heads/main'

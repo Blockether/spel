@@ -43,6 +43,15 @@
     /* --- Main container --- */
     .main { max-width: 95rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
 
+    /* --- Tabs --- */
+    .tabs { max-width: 56rem; margin: 0 auto 0.6rem; display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+    .tab { background: none; border: none; padding: 0.45rem 0.85rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+    .tab:hover { color: var(--text-sec); }
+    .tab.active { color: var(--text); border-bottom-color: var(--green); }
+    .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; font-size: 0.55rem; font-weight: 700; background: var(--purple-bg); color: var(--purple-text); border: 1px solid var(--purple-border); margin-left: 4px; vertical-align: middle; }
+    .tab-badge:empty { display: none; }
+    html.dark .tab-badge { background: rgba(124,58,237,0.15); color: #c4b5fd; border-color: rgba(124,58,237,0.3); }
+
     /* --- Builds list (default = list view) --- */
     .builds { display: flex; flex-direction: column; gap: 0.3rem; max-width: 56rem; margin: 0 auto; }
 
@@ -72,6 +81,8 @@
     .card.in-progress { border-left-color: var(--yellow); background: var(--yellow-bg); }
     .card.in-progress:hover { border-color: var(--yellow-border); border-left-color: var(--yellow); }
     html.dark .card.in-progress { background: var(--yellow-bg); }
+    .card.merged { opacity: 0.65; }
+    .card.merged:hover { opacity: 1; }
 
     /* --- Run area (inline: number + status) --- */
     .run { flex-shrink: 0; display: flex; align-items: center; gap: 0.2rem; padding-left: 0.75rem; min-width: 3.5rem; }
@@ -110,9 +121,11 @@
     .pill-blue { background: rgba(0,126,198,0.08); color: #006bb3; border-color: rgba(0,126,198,0.3); }
     .pill-red { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
     .pill-purple { background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple-border); }
+    .pill-muted { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
     html.dark .pill-yellow { background: rgba(255,193,7,0.12); color: #ffd54f; border-color: rgba(255,193,7,0.35); }
     html.dark .pill-blue { background: rgba(0,126,198,0.12); color: #64b5f6; border-color: rgba(0,126,198,0.35); }
     html.dark .pill-purple { background: rgba(124,58,237,0.12); color: #c4b5fd; border-color: rgba(124,58,237,0.35); }
+    html.dark .pill-muted { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
     .pill-in-progress { background: rgba(255,193,7,0.12); color: #8a6d00; border-color: rgba(255,193,7,0.4); animation: pulse 2s infinite; }
     html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -187,7 +200,7 @@
     }
 
     /* ================================================================
-       Grid view — square cards in wider multi-column layout
+       Grid view - square cards in wider multi-column layout
        ================================================================ */
     .builds.grid {
       max-width: none;
@@ -277,6 +290,10 @@
   </header>
 
   <main class="main">
+    <div class="tabs">
+      <button class="tab active" id="tabBuilds" onclick="switchTab('builds')">Builds</button>
+      <button class="tab" id="tabPRs" onclick="switchTab('prs')">Pull Requests <span id="prBadge" class="tab-badge"></span></button>
+    </div>
     <div id="stats" class="stats-bar"></div>
     <div id="builds" class="builds"></div>
     <p id="empty" class="empty">No reports yet. Push to main to generate one.</p>
@@ -302,8 +319,6 @@
       var THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
       var prefix = location.pathname.replace(/\/[^/]*$/, '/') + ':';
       var cleanKey = prefix + '__lastCleaned';
-
-      // Auto-cleanup: clear scoped keys older than 30 days
       try {
         var lastCleaned = parseInt(localStorage.getItem(cleanKey), 10);
         if (!lastCleaned || (Date.now() - lastCleaned) > THIRTY_DAYS) {
@@ -314,18 +329,14 @@
           localStorage.setItem(cleanKey, String(Date.now()));
         }
       } catch(e) {}
-
-      // Scoped wrappers
       var _getItem = localStorage.getItem.bind(localStorage);
       var _setItem = localStorage.setItem.bind(localStorage);
       var _removeItem = localStorage.removeItem.bind(localStorage);
-
       window.__spelGetItem = function(key) { return _getItem(prefix + key); };
       window.__spelSetItem = function(key, val) { _setItem(prefix + key, val); };
       window.__spelRemoveItem = function(key) { _removeItem(prefix + key); };
     })();
     (function() {
-      // Theme is stored globally (shared across all builds)
       var saved = localStorage.getItem('spel-theme');
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches))
         document.documentElement.classList.add('dark');
@@ -335,8 +346,7 @@
       localStorage.setItem('spel-theme', d ? 'dark' : 'light');
     }
 
-    // View mode toggle (persisted in localStorage)
-    // Migrate old mode names: columns→list, compact→grid
+    // View mode toggle
     function setView(mode) {
       if (mode === 'columns') mode = 'list';
       if (mode === 'compact') mode = 'grid';
@@ -345,32 +355,24 @@
       document.getElementById('viewGrid').classList.toggle('active', mode === 'grid');
       document.getElementById('builds').classList.toggle('grid', mode === 'grid');
     }
-    (function() {
-      var view = localStorage.getItem('spel-view') || 'list';
-      setView(view);
-    })();
+    (function() { setView(localStorage.getItem('spel-view') || 'list'); })();
 
-    // Video modal functions
+    // Video modal
     function openVideoModal(src, title) {
       var modal = document.getElementById('videoModal');
       var player = document.getElementById('videoPlayer');
       var titleEl = document.getElementById('videoModalTitle');
-      player.src = src;
-      titleEl.textContent = title || 'Video Recording';
-      modal.classList.add('show');
-      player.play();
+      player.src = src; titleEl.textContent = title || 'Video Recording';
+      modal.classList.add('show'); player.play();
     }
     function closeVideoModal() {
       var modal = document.getElementById('videoModal');
       var player = document.getElementById('videoPlayer');
-      player.pause();
-      player.src = '';
-      modal.classList.remove('show');
+      player.pause(); player.src = ''; modal.classList.remove('show');
     }
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeVideoModal();
-    });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeVideoModal(); });
 
+    // --- Helpers ---
     function relativeTime(ts) {
       var diff = Date.now() - ts, m = Math.floor(diff / 60000);
       if (m < 1) return 'just now';
@@ -391,7 +393,19 @@
       var f = s.split('\n')[0];
       return f.length > n ? f.slice(0, n) + '\u2026' : f;
     }
+    function dateLabel(ts) {
+      var d = new Date(ts);
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      var target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      var diff = (today - target) / 86400000;
+      var fmtDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      if (diff < 1 && diff >= 0) return 'Today \u00b7 ' + fmtDate;
+      if (diff >= 1 && diff < 2) return 'Yesterday \u00b7 ' + fmtDate;
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
 
+    // --- Card renderer ---
     function renderBuild(b, i) {
       var sha = (b.sha || '').slice(0, 8);
       var fullSha = b.sha || '';
@@ -405,7 +419,8 @@
       var inProgress = b.status === 'in_progress';
       var failed = !inProgress && b.passed === false;
       var isPR = b.type === 'pr';
-      var cardClass = 'card' + (isPR ? ' pr' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
+      var isMerged = isPR && b.merged === true;
+      var cardClass = 'card' + (isPR ? ' pr' : '') + (isMerged ? ' merged' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '');
 
       var shaHtml = '';
       if (sha) {
@@ -418,11 +433,11 @@
 
       var statusDot = '';
       if (inProgress) {
-        statusDot = '<span class="status-dot status-in-progress" title="In Progress">⏳</span>';
+        statusDot = '<span class="status-dot status-in-progress" title="In Progress">\u23f3</span>';
       } else if (failed) {
-        statusDot = '<span class="status-dot status-fail" title="Failed">✗</span>';
+        statusDot = '<span class="status-dot status-fail" title="Failed">\u2717</span>';
       } else {
-        statusDot = '<span class="status-dot status-pass" title="Passed">✓</span>';
+        statusDot = '<span class="status-dot status-pass" title="Passed">\u2713</span>';
       }
 
       var versionBadge = '';
@@ -445,6 +460,7 @@
       }
 
       var prBadge = isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '';
+      var mergedBadge = isMerged ? '<span class="pill pill-muted">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
       var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
 
@@ -458,6 +474,7 @@
         + '</div>'
         + '<div class="info"><div class="info-top">'
         + prBadge
+        + mergedBadge
         + shaHtml
         + testBadge
         + versionBadge
@@ -471,25 +488,12 @@
         + '</div>';
     }
 
-    function dateLabel(ts) {
-      var d = new Date(ts);
-      var now = new Date();
-      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      var target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      var diff = (today - target) / 86400000;
-      var fmtDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      if (diff < 1 && diff >= 0) return 'Today \u00b7 ' + fmtDate;
-      if (diff >= 1 && diff < 2) return 'Yesterday \u00b7 ' + fmtDate;
-      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-
-    function renderStats(builds) {
+    // --- Stats renderers ---
+    function renderBuildStats(builds) {
       var now = new Date();
       var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       var weekStart = todayStart - 6 * 86400000;
       var monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
       var completed = builds.filter(function(b) { return b.status !== 'in_progress'; });
       var periods = [
         { label: 'Today', start: todayStart },
@@ -497,8 +501,7 @@
         { label: 'This Month', start: monthStart },
         { label: 'All Time', start: 0 }
       ];
-
-      var statsHtml = '<div class="stats-grid">';
+      var html = '<div class="stats-grid">';
       periods.forEach(function(p) {
         var inPeriod = completed.filter(function(b) { return (b.timestamp || 0) >= p.start; });
         var passed = inPeriod.filter(function(b) { return b.passed !== false; });
@@ -507,15 +510,13 @@
         var pct = total > 0 ? Math.round(passCount / total * 100) : 0;
         var pctClass = pct >= 90 ? 'stat-pct good' : pct >= 70 ? 'stat-pct mid' : 'stat-pct low';
         var pctStr = total > 0 ? ' <span class="' + pctClass + '">(' + pct + '%)</span>' : '';
-
-        statsHtml += '<div class="stat-block">'
+        html += '<div class="stat-block">'
           + '<div class="stat-label">' + p.label + '</div>'
           + '<div class="stat-value">' + total + ' build' + (total !== 1 ? 's' : '') + '</div>'
           + '<div class="stat-detail">' + passCount + ' passed' + pctStr + '</div>'
           + '</div>';
       });
-      statsHtml += '</div>';
-
+      html += '</div>';
       // Contributors
       var authorMap = {};
       completed.forEach(function(b) {
@@ -529,10 +530,9 @@
         }
         authorMap[b.author].builds.push(b);
       });
-
       var authors = Object.keys(authorMap);
       if (authors.length > 0) {
-        statsHtml += '<div class="contributors"><div class="contrib-title">Contributors</div>';
+        html += '<div class="contributors"><div class="contrib-title">Contributors</div>';
         authors.sort(function(a, b) { return authorMap[b].total - authorMap[a].total; });
         authors.forEach(function(name) {
           var a = authorMap[name];
@@ -542,33 +542,50 @@
             if (sorted[i].passed === false) break;
             streak++;
           }
-          statsHtml += '<div class="contrib-row">'
+          html += '<div class="contrib-row">'
             + '<span class="contrib-name">' + name + '</span>'
             + '<span class="contrib-sep">\u00b7</span>'
             + '<span class="contrib-detail">' + a.monthly + ' builds this month \u00b7 ' + a.monthlyPassed + ' passed</span>'
             + (streak >= 2 ? '<span class="contrib-sep">\u00b7</span><span class="contrib-streak">\ud83d\udd25 ' + streak + ' streak</span>' : '')
             + '</div>';
         });
-        statsHtml += '</div>';
+        html += '</div>';
       }
-
-      var el = document.getElementById('stats');
-      el.innerHTML = statsHtml;
-      el.classList.add('show');
+      return html;
     }
 
-    Promise.all([
-      fetch('builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; }),
-      fetch('pr-builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
-    ]).then(function(results) {
-      var builds = results[0].concat(results[1]).sort(function(a, b) {
-        return (b.timestamp || 0) - (a.timestamp || 0);
-      });
+    function renderPRStats(builds) {
+      var open = builds.filter(function(b) { return !b.merged && b.status !== 'in_progress'; });
+      var inProg = builds.filter(function(b) { return b.status === 'in_progress'; });
+      var merged = builds.filter(function(b) { return b.merged; });
+      var passed = builds.filter(function(b) { return b.status !== 'in_progress' && b.passed !== false && !b.merged; });
+      var html = '<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">';
+      html += '<div class="stat-block"><div class="stat-label">Open</div><div class="stat-value">' + open.length + '</div></div>';
+      html += '<div class="stat-block"><div class="stat-label">Building</div><div class="stat-value" style="color:var(--yellow)">' + inProg.length + '</div></div>';
+      html += '<div class="stat-block"><div class="stat-label">Passing</div><div class="stat-value" style="color:var(--green)">' + passed.length + '</div></div>';
+      html += '<div class="stat-block"><div class="stat-label">Merged</div><div class="stat-value">' + merged.length + '</div></div>';
+      html += '</div>';
+      return html;
+    }
+
+    // --- Tab management ---
+    var mainBuilds = [];
+    var prBuilds = [];
+    var currentTab = 'builds';
+
+    function switchTab(tab) {
+      currentTab = tab;
+      localStorage.setItem('spel-tab', tab);
+      document.getElementById('tabBuilds').classList.toggle('active', tab === 'builds');
+      document.getElementById('tabPRs').classList.toggle('active', tab === 'prs');
+      renderCurrentTab();
+    }
+
+    function renderList(data) {
       var el = document.getElementById('builds');
-      if (!builds.length) { document.getElementById('empty').classList.add('show'); return; }
       var html = '';
       var lastGroup = '';
-      builds.forEach(function(b, i) {
+      data.forEach(function(b, i) {
         if (b.timestamp) {
           var group = dateLabel(b.timestamp);
           if (group !== lastGroup) {
@@ -579,7 +596,56 @@
         html += renderBuild(b, i);
       });
       el.innerHTML = html;
-      renderStats(builds);
+    }
+
+    function renderCurrentTab() {
+      var data = currentTab === 'builds' ? mainBuilds : prBuilds;
+      var statsEl = document.getElementById('stats');
+      var emptyEl = document.getElementById('empty');
+
+      if (!data.length) {
+        document.getElementById('builds').innerHTML = '';
+        statsEl.innerHTML = '';
+        statsEl.classList.remove('show');
+        emptyEl.textContent = currentTab === 'builds'
+          ? 'No reports yet. Push to main to generate one.'
+          : 'No pull request builds yet.';
+        emptyEl.classList.add('show');
+        return;
+      }
+
+      emptyEl.classList.remove('show');
+
+      if (currentTab === 'builds') {
+        statsEl.innerHTML = renderBuildStats(mainBuilds);
+      } else {
+        statsEl.innerHTML = renderPRStats(prBuilds);
+      }
+      statsEl.classList.add('show');
+
+      renderList(data);
+    }
+
+    // --- Data loading ---
+    Promise.all([
+      fetch('builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; }),
+      fetch('pr-builds.json').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
+    ]).then(function(results) {
+      mainBuilds = results[0].sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+      prBuilds = results[1].sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+
+      // PR badge: count of non-merged PRs
+      var openCount = prBuilds.filter(function(b) { return !b.merged; }).length;
+      var badge = document.getElementById('prBadge');
+      if (openCount > 0) badge.textContent = openCount;
+
+      // Restore last tab
+      var savedTab = localStorage.getItem('spel-tab') || 'builds';
+      if (savedTab === 'prs' && prBuilds.length > 0) {
+        switchTab('prs');
+      } else {
+        switchTab('builds');
+      }
     }).catch(function() { document.getElementById('empty').classList.add('show'); });
   </script>
 </body>

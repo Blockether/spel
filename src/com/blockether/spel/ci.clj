@@ -291,6 +291,131 @@
       (spit meta-file (json/write-json-str (assoc meta run-number updated)))
       (println (str "Finalized build #" run-number " as " (if passed "passed" "failed"))))))
 
+
+;; =============================================================================
+;; PR Build Management
+;; =============================================================================
+
+(def ^:private default-max-pr-builds 50)
+
+(defn- parse-num [x]
+  (cond
+    (number? x) (long x)
+    (string? x) (parse-long x)
+    :else nil))
+
+(defn register-pr-build!
+  "Register or update a PR build entry in pr-builds.json.
+
+   Options:
+     :site-dir      - path to site directory (default: gh-pages-site)
+     :pr-number     - GitHub PR number (required)
+     :pr-title      - PR title
+     :branch        - PR head branch
+     :sha           - head commit SHA
+     :author        - PR author
+     :run-number    - workflow run number
+     :run-url       - CI run URL
+     :repo-url      - repository URL
+     :version       - project version
+     :version-badge - version badge type
+     :status        - build status (default: in_progress)
+     :tests-passed  - whether tests passed (boolean, nil for unknown)
+     :test-counts   - map with :passed :failed :broken :skipped :total
+     :max-pr-builds - maximum PR entries to keep (default: 50)"
+  [{:keys [site-dir pr-number pr-title branch sha author
+           run-number run-url repo-url version version-badge
+           status tests-passed test-counts max-pr-builds]}]
+  (let [site     (io/file (or site-dir "gh-pages-site"))
+        pr-file  (io/file site "pr-builds.json")
+        existing (if (.isFile pr-file)
+                   (vec (json/read-json (slurp pr-file)))
+                   [])
+        pr-num   (parse-num pr-number)
+        run-num  (parse-num run-number)
+        max-n    (or (parse-num max-pr-builds) default-max-pr-builds)
+        ts       (.toEpochMilli (Instant/now))
+        msg-first (when pr-title (first (str/split-lines pr-title)))
+        entry    {"run"        (str "pr/" pr-num)
+                  "pr_number"  pr-num
+                  "run_number" run-num
+                  "pr_title"   (or pr-title "")
+                  "branch"     (or branch "")
+                  "type"       "pr"
+                  "sha"        (or sha "")
+                  "message"    (or msg-first "")
+                  "author"     (or author "")
+                  "timestamp"  ts
+                  "passed"     (when (some? tests-passed) (boolean tests-passed))
+                  "status"     (or status "in_progress")
+                  "merged"     false
+                  "version"    (or version "")
+                  "badge"      (or version-badge "")
+                  "tests"      (if test-counts
+                                 {"passed"  (get test-counts :passed 0)
+                                  "failed"  (get test-counts :failed 0)
+                                  "broken"  (get test-counts :broken 0)
+                                  "skipped" (get test-counts :skipped 0)
+                                  "total"   (get test-counts :total 0)}
+                                 {"passed" 0 "failed" 0 "broken" 0 "skipped" 0 "total" 0})
+                  "run_url"    (or run-url "")
+                  "repo_url"   (or repo-url "")}
+        filtered (filterv #(not= (get % "pr_number") pr-num) existing)
+        updated  (into [entry] (take (dec max-n) filtered))]
+    (.mkdirs site)
+    (spit pr-file (json/write-json-str updated))
+    (println (str "Registered PR #" pr-num " (" (or status "in_progress") ")"))))
+
+(defn finalize-pr-build!
+  "Update a PR build from in-progress to completed with test results.
+
+   Options:
+     :site-dir    - path to site directory
+     :pr-number   - GitHub PR number
+     :passed      - whether tests passed (boolean)
+     :test-counts - map with :passed :failed :broken :skipped :total"
+  [{:keys [site-dir pr-number passed test-counts]}]
+  (let [site    (io/file (or site-dir "gh-pages-site"))
+        pr-file (io/file site "pr-builds.json")
+        pr-num  (parse-num pr-number)]
+    (when (.isFile pr-file)
+      (let [builds  (vec (json/read-json (slurp pr-file)))
+            updated (mapv
+                      (fn [b]
+                        (if (= (get b "pr_number") pr-num)
+                          (cond-> (assoc b "status" "completed" "passed" (boolean passed))
+                            test-counts
+                            (assoc "tests" {"passed"  (get test-counts :passed 0)
+                                            "failed"  (get test-counts :failed 0)
+                                            "broken"  (get test-counts :broken 0)
+                                            "skipped" (get test-counts :skipped 0)
+                                            "total"   (get test-counts :total 0)}))
+                          b))
+                      builds)]
+        (spit pr-file (json/write-json-str updated))
+        (println (str "Finalized PR #" pr-num " as " (if passed "passed" "failed")))))))
+
+(defn mark-prs-merged!
+  "Mark specified PRs as merged in pr-builds.json.
+
+   Options:
+     :site-dir   - path to site directory
+     :merged-prs - sequence of PR numbers to mark as merged"
+  [{:keys [site-dir merged-prs]}]
+  (let [site       (io/file (or site-dir "gh-pages-site"))
+        pr-file    (io/file site "pr-builds.json")
+        merged-set (set (keep parse-num merged-prs))]
+    (when (and (.isFile pr-file) (seq merged-set))
+      (let [builds  (vec (json/read-json (slurp pr-file)))
+            updated (mapv
+                      (fn [b]
+                        (if (contains? merged-set (get b "pr_number"))
+                          (assoc b "merged" true)
+                          b))
+                      builds)]
+        (spit pr-file (json/write-json-str updated))
+        (println (str "Marked " (count merged-set) " PR(s) as merged"))))))
+
 ;; =============================================================================
 ;; Index HTML Patching
 ;; =============================================================================
