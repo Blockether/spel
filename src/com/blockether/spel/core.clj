@@ -14,6 +14,7 @@
     All operations return anomaly maps on failure instead of throwing exceptions."
   (:require
    [clojure.java.io :as io]
+   [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.data]
    [com.blockether.spel.devices :as devices]
@@ -1036,6 +1037,22 @@
   nil)
 
 ;; =============================================================================
+;; Request Capture — for Allure HTTP exchange reporting
+;; =============================================================================
+
+(def ^:dynamic *request-capture*
+  "When bound to an atom, `execute-request` stores request metadata here.
+   Used by `allure/api-step` to capture request details (method, URL, headers,
+   body) alongside the response for rich HTTP exchange reporting.
+
+   The atom is reset to a map with keys:
+     :method          - String. HTTP method (\"GET\", \"POST\", etc.).
+     :url             - String. Request URL.
+     :request-headers - Map or nil. Request headers from opts.
+     :request-body    - String or nil. Request body (from :data or encoded :json)."
+  nil)
+
+;; =============================================================================
 ;; Hooks
 ;; =============================================================================
 
@@ -1373,9 +1390,22 @@
 
 (defn- execute-request
   "Central request executor. All HTTP methods route through here.
-   Handles hook lifecycle: on-request → Playwright call → on-response/on-error."
+   Handles hook lifecycle: on-request → Playwright call → on-response/on-error.
+   When `*request-capture*` is bound to an atom, stores request metadata
+   (method, url, headers, body) for Allure HTTP exchange reporting."
   [^APIRequestContext ctx method ^String url opts]
   (let [opts   (when opts (fire-hook :on-request opts method url opts))
+        ;; Capture request metadata for Allure reporting when active
+        _      (when-let [cap *request-capture*]
+                 (reset! cap {:method          (str/upper-case (name method))
+                              :url             url
+                              :request-headers (when (map? opts) (:headers opts))
+                              :request-body    (when (map? opts)
+                                                 (or (:data opts)
+                                                   (when-let [j (:json opts)]
+                                                     (if *json-encoder*
+                                                       (*json-encoder* j)
+                                                       (pr-str j)))))}))
         ro     (when opts (->request-options opts))
         result (safe
                  (case method
