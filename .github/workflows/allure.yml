@@ -194,6 +194,7 @@ jobs:
           TESTS_BROKEN: ${{ steps.test-counts.outputs.broken }}
           TESTS_SKIPPED: ${{ steps.test-counts.outputs.skipped }}
           TESTS_TOTAL: ${{ steps.test-counts.outputs.total }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           mkdir -p /tmp/pr-deploy/pr/${PR_NUM}
           cp -r allure-report/* /tmp/pr-deploy/pr/${PR_NUM}/
@@ -221,8 +222,9 @@ jobs:
             --argjson tt "${TESTS_TOTAL:-0}" \
             --arg run_url "${RUN_URL}" \
             --arg repo_url "${REPO_URL}" \
+            --argjson run_number "${RUN_NUMBER}" \
             '{
-              run: $run, pr_number: $pr_number, pr_title: $pr_title,
+              run: $run, pr_number: $pr_number, run_number: $run_number, pr_title: $pr_title,
               branch: $branch, type: "pr", sha: $sha, message: $pr_title,
               author: $author, timestamp: $timestamp, passed: $passed,
               status: "completed",
