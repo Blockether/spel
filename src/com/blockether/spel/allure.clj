@@ -855,15 +855,8 @@
   .content-type { font-family: 'SF Mono', Menlo, Consolas, monospace;
                   font-size: 11px; color: #666; background: #f0f2f5;
                   padding: 2px 8px; border-radius: 3px; }
-  .html-preview-container { position: relative; }
-  .html-preview-frame { width: 100%; min-height: 200px; border: 1px solid #e0e0e0;
-                        border-radius: 6px; background: #fff; }
-  .html-toggle-bar { display: flex; gap: 4px; margin-bottom: 8px; }
-  .html-toggle-btn { padding: 4px 12px; border: 1px solid #d0d0d0; border-radius: 4px;
-                     background: #f5f5f5; color: #555; font-size: 11px; font-weight: 600;
-                     cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-  .html-toggle-btn.active { background: #2196F3; color: #fff; border-color: #2196F3; }
-  .html-source-pre { display: none; }
+  .html-inline { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px;
+                    background: #fff; max-height: 500px; overflow: auto; }
   </style>")
 
 (defn render-http-html
@@ -946,15 +939,7 @@
               "</pre>")
 
             html-req?
-            (str
-              "<div class=\"html-preview-container\">"
-              "<div class=\"html-toggle-bar\">"
-              "<button class=\"html-toggle-btn active\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='block';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')\">Preview</button>"
-              "<button class=\"html-toggle-btn\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='none';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='block';this.classList.add('active');this.previousElementSibling.classList.remove('active')\">Source</button>"
-              "</div>"
-              "<iframe class=\"html-preview-frame\" sandbox=\"allow-same-origin\" srcdoc=\"" (html-escape request-body) "\"></iframe>"
-              "<pre class=\"body html-source-pre\">" (html-escape request-body) "</pre>"
-              "</div>")
+            (str "<div class=\"html-inline\">" request-body "</div>")
 
             :else
             (str "<pre class=\"body\">" (html-escape request-body) "</pre>"))
@@ -982,15 +967,7 @@
               "</pre>")
 
             html-resp?
-            (str
-              "<div class=\"html-preview-container\">"
-              "<div class=\"html-toggle-bar\">"
-              "<button class=\"html-toggle-btn active\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='block';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')\">Preview</button>"
-              "<button class=\"html-toggle-btn\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='none';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='block';this.classList.add('active');this.previousElementSibling.classList.remove('active')\">Source</button>"
-              "</div>"
-              "<iframe class=\"html-preview-frame\" sandbox=\"allow-same-origin\" srcdoc=\"" (html-escape response-body) "\"></iframe>"
-              "<pre class=\"body html-source-pre\">" (html-escape response-body) "</pre>"
-              "</div>")
+            (str "<div class=\"html-inline\">" response-body "</div>")
 
             :else
             (str "<pre class=\"body\">" (html-escape response-body) "</pre>"))

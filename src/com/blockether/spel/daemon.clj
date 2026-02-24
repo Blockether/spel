@@ -231,10 +231,13 @@
                                                                      :bypass (get flags "proxy-bypass" "")})
                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
                         (get flags "channel")          (assoc :channel (get flags "channel")))
-          ;; When using a real browser profile, remove ALL Playwright default
-          ;; args so Chrome can decrypt its own Keychain-stored cookies (macOS).
+          ;; When using a real browser profile, remove ONLY the args that prevent
+          ;; Chrome from decrypting its Keychain-stored cookies (macOS).
+          ;; These two args tell Chrome to use mock/empty storage instead of real Keychain.
           launch-opts (if profile-dir
-                        (assoc launch-opts :ignore-all-default-args true)
+                        (update launch-opts :ignore-default-args
+                          (fnil into [])
+                          ["--use-mock-keychain" "--password-store=basic"])
                         launch-opts)
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
