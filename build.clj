@@ -70,9 +70,11 @@
   (clean nil)
   (b/copy-dir {:src-dirs ["src" "resources"]
                :target-dir class-dir})
-  (b/compile-clj {:basis     @native-basis
-                  :src-dirs  ["src"]
-                  :class-dir class-dir
+  (b/compile-clj {:basis      @native-basis
+                  :src-dirs   ["src"]
+                  :class-dir  class-dir
+                  :jvm-opts   ["-Dborkdude.dynaload.aot=true"
+                               "-Dclojure.compiler.elide-meta=[:doc :file :line :column]"]
                   :ns-compile ['com.blockether.spel.native]})
   (b/uber {:class-dir class-dir
            :uber-file uber-file
@@ -107,6 +109,9 @@
                      "native-image.cmd"
                      "native-image")
         cmd        (cond-> [ni-cmd
+                            ;; Pass dynaload AOT flag to the JVM running native-image
+                            ;; so it can see the pre-compiled dynaload initializers.
+                            "-J-Dborkdude.dynaload.aot=true"
                             "-jar" uber-file
                             "-o" native-binary]
                      (seq extra-args)
