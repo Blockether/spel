@@ -24,6 +24,12 @@ Versioning:
 API Policy:
 - Pre-1.0: break old callers freely, no shims, no deprecation periods
 
+
+Screenshots:
+- ALWAYS show screenshots to the user when making visual/UI changes
+- After any change to HTML, CSS, or templates: take a screenshot with spel and display it
+- Never declare a visual change done without showing proof
+
 ## Testing
 
 Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`.

@@ -126,6 +126,33 @@
     .footer a { color: var(--text-sec); text-decoration: none; transition: color 0.15s; }
     .footer a:hover { color: var(--green); }
 
+
+    /* --- Stats bar --- */
+    .stats-bar { max-width: 56rem; margin: 0 auto 0.75rem; display: none; }
+    .stats-bar.show { display: block; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem; }
+    .stat-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.55rem 0.7rem; box-shadow: var(--shadow); }
+    .stat-label { font-size: 0.5rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.15rem; }
+    .stat-value { font-size: 1rem; font-weight: 700; color: var(--text); line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .stat-detail { font-size: 0.6rem; color: var(--text-sec); margin-top: 0.1rem; font-variant-numeric: tabular-nums; }
+    .stat-pct { font-weight: 600; }
+    .stat-pct.good { color: var(--green-text); }
+    .stat-pct.mid { color: var(--yellow); }
+    .stat-pct.low { color: var(--red-text); }
+    .contributors { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.55rem 0.7rem; box-shadow: var(--shadow); }
+    .contrib-title { font-size: 0.5rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
+    .contrib-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-variant-numeric: tabular-nums; }
+    .contrib-row + .contrib-row { border-top: 1px solid var(--border); }
+    .contrib-name { font-size: 0.75rem; font-weight: 600; color: var(--text); }
+    .contrib-sep { color: var(--text-muted); font-size: 0.55rem; }
+    .contrib-detail { font-size: 0.65rem; color: var(--text-sec); }
+    .contrib-streak { font-size: 0.65rem; font-weight: 600; color: var(--green-text); }
+    @media (max-width: 640px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .stats-bar { margin-bottom: 0.5rem; }
+      .contrib-row { flex-wrap: wrap; gap: 0.25rem; }
+    }
+
     /* --- Theme toggle --- */
     .theme-toggle { position: fixed; top: 1rem; right: 1rem; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-sec); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; z-index: 50; box-shadow: var(--shadow); }
     .theme-toggle:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
@@ -250,6 +277,7 @@
   </header>
 
   <main class="main">
+    <div id="stats" class="stats-bar"></div>
     <div id="builds" class="builds"></div>
     <p id="empty" class="empty">No reports yet. Push to main to generate one.</p>
   </main>
@@ -449,9 +477,84 @@
       var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       var target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       var diff = (today - target) / 86400000;
-      if (diff < 1 && diff >= 0) return 'Today';
-      if (diff >= 1 && diff < 2) return 'Yesterday';
+      var fmtDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      if (diff < 1 && diff >= 0) return 'Today \u00b7 ' + fmtDate;
+      if (diff >= 1 && diff < 2) return 'Yesterday \u00b7 ' + fmtDate;
       return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+
+    function renderStats(builds) {
+      var now = new Date();
+      var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      var weekStart = todayStart - 6 * 86400000;
+      var monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+      var completed = builds.filter(function(b) { return b.status !== 'in_progress'; });
+      var periods = [
+        { label: 'Today', start: todayStart },
+        { label: 'This Week', start: weekStart },
+        { label: 'This Month', start: monthStart },
+        { label: 'All Time', start: 0 }
+      ];
+
+      var statsHtml = '<div class="stats-grid">';
+      periods.forEach(function(p) {
+        var inPeriod = completed.filter(function(b) { return (b.timestamp || 0) >= p.start; });
+        var passed = inPeriod.filter(function(b) { return b.passed !== false; });
+        var total = inPeriod.length;
+        var passCount = passed.length;
+        var pct = total > 0 ? Math.round(passCount / total * 100) : 0;
+        var pctClass = pct >= 90 ? 'stat-pct good' : pct >= 70 ? 'stat-pct mid' : 'stat-pct low';
+        var pctStr = total > 0 ? ' <span class="' + pctClass + '">(' + pct + '%)</span>' : '';
+
+        statsHtml += '<div class="stat-block">'
+          + '<div class="stat-label">' + p.label + '</div>'
+          + '<div class="stat-value">' + total + ' build' + (total !== 1 ? 's' : '') + '</div>'
+          + '<div class="stat-detail">' + passCount + ' passed' + pctStr + '</div>'
+          + '</div>';
+      });
+      statsHtml += '</div>';
+
+      // Contributors
+      var authorMap = {};
+      completed.forEach(function(b) {
+        if (!b.author) return;
+        if (!authorMap[b.author]) authorMap[b.author] = { total: 0, passed: 0, monthly: 0, monthlyPassed: 0, builds: [] };
+        authorMap[b.author].total++;
+        if (b.passed !== false) authorMap[b.author].passed++;
+        if ((b.timestamp || 0) >= monthStart) {
+          authorMap[b.author].monthly++;
+          if (b.passed !== false) authorMap[b.author].monthlyPassed++;
+        }
+        authorMap[b.author].builds.push(b);
+      });
+
+      var authors = Object.keys(authorMap);
+      if (authors.length > 0) {
+        statsHtml += '<div class="contributors"><div class="contrib-title">Contributors</div>';
+        authors.sort(function(a, b) { return authorMap[b].total - authorMap[a].total; });
+        authors.forEach(function(name) {
+          var a = authorMap[name];
+          var sorted = a.builds.slice().sort(function(x, y) { return (y.timestamp || 0) - (x.timestamp || 0); });
+          var streak = 0;
+          for (var i = 0; i < sorted.length; i++) {
+            if (sorted[i].passed === false) break;
+            streak++;
+          }
+          statsHtml += '<div class="contrib-row">'
+            + '<span class="contrib-name">' + name + '</span>'
+            + '<span class="contrib-sep">\u00b7</span>'
+            + '<span class="contrib-detail">' + a.monthly + ' builds this month \u00b7 ' + a.monthlyPassed + ' passed</span>'
+            + (streak >= 2 ? '<span class="contrib-sep">\u00b7</span><span class="contrib-streak">\ud83d\udd25 ' + streak + ' streak</span>' : '')
+            + '</div>';
+        });
+        statsHtml += '</div>';
+      }
+
+      var el = document.getElementById('stats');
+      el.innerHTML = statsHtml;
+      el.classList.add('show');
     }
 
     Promise.all([
