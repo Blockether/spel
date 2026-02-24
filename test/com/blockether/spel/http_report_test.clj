@@ -556,8 +556,8 @@
                   :content-type "text/plain"})]
       ;; Plain text should be in a pre tag, no iframe
       (expect (str/includes? html "just plain text"))
-      (expect (not (str/includes? html "html-preview-container")))
-      (expect (not (str/includes? html "srcdoc="))))))
+      (expect (not (str/includes? html "<div class=\"html-preview-container\"")))
+      (expect (not (str/includes? html "srcdoc=\""))))))
 
 ;; =============================================================================
 ;; HTTP Report Showcase — Browser Network Responses

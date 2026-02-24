@@ -109,8 +109,9 @@
       :chromium-sandbox - Boolean. Enable Chromium sandbox.
       :downloads-path - String. Path to download files.
      :executable-path - String. Path to browser executable.
-     :proxy       - Map with :server, :bypass, :username, :password.
+      :proxy       - Map with :server, :bypass, :username, :password.
    
+      :ignore-default-args - Vector of strings. Playwright default args to skip.
    Returns:
    BrowserType$LaunchOptions instance."
   ^BrowserType$LaunchOptions [opts]
@@ -125,6 +126,8 @@
       (.setChannel lo ^String v))
     (when-let [v (:args opts)]
       (.setArgs lo ^java.util.List v))
+    (when-let [v (:ignore-default-args opts)]
+      (.setIgnoreDefaultArgs lo ^java.util.List v))
     (when (contains? opts :chromium-sandbox)
       (.setChromiumSandbox lo (boolean (:chromium-sandbox opts))))
     (when-let [v (:downloads-path opts)]
@@ -203,6 +206,8 @@
       (.setChannel o ^String v))
     (when-let [v (:args opts)]
       (.setArgs o ^java.util.List v))
+    (when-let [v (:ignore-default-args opts)]
+      (.setIgnoreDefaultArgs o ^java.util.List v))
     (when (contains? opts :chromium-sandbox)
       (.setChromiumSandbox o (boolean (:chromium-sandbox opts))))
     (when-let [v (:downloads-path opts)]
