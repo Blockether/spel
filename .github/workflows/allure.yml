@@ -275,7 +275,7 @@ jobs:
         run: |
           git fetch origin gh-pages --depth=1 || true
           mkdir -p gh-pages-site
-          if git ls-tree --name-only origin/gh-pages pr/ >/dev/null 2>&1; then
+          if git ls-tree --name-only origin/gh-pages pr/ 2>/dev/null | grep -q .; then
             git checkout origin/gh-pages -- pr/
             cp -r pr gh-pages-site/pr/
             rm -rf pr
