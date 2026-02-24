@@ -1,0 +1,42 @@
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": {
+    "order": {
+      "id": "ORD-2024-001",
+      "created": "2024-06-15T10:30:00Z",
+      "customer": {
+        "name": "Alice Johnson",
+        "email": "alice@example.com",
+        "tier": "premium",
+        "verified": true
+      },
+      "items": [
+        {
+          "sku": "WIDGET-001",
+          "name": "Super Widget",
+          "quantity": 3,
+          "price": 29.99
+        },
+        {
+          "sku": "GADGET-002",
+          "name": "Mega Gadget",
+          "quantity": 1,
+          "price": 149.5
+        }
+      ],
+      "shipping": {
+        "method": "express",
+        "address": {
+          "street": "123 Main St",
+          "city": "San Francisco",
+          "state": "CA",
+          "zip": "94102",
+          "country": "US"
+        }
+      },
+      "total": 239.47,
+      "paid": true
+    }
+  }
+}

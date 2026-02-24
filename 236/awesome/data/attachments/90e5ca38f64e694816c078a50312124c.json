@@ -1,0 +1,5 @@
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": username=alice&password=secret&remember=true
+}

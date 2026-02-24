@@ -1,0 +1,7 @@
+{
+  "method": "PUT",
+  "path": "/echo",
+  "body": {
+    "name": "Eve Updated"
+  }
+}
