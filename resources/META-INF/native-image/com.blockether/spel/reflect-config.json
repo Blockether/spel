@@ -2084,5 +2084,10 @@
     "allPublicMethods": true,
     "allPublicFields": true,
     "allPublicConstructors": true
+  },
+  {
+    "name": "java.io.StringWriter",
+    "allPublicConstructors": true,
+    "allPublicMethods": true
   }
 ]
