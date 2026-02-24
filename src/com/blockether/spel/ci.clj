@@ -334,7 +334,7 @@
                    [])
         pr-num   (parse-num pr-number)
         run-num  (parse-num run-number)
-        max-n    (or (parse-num max-pr-builds) default-max-pr-builds)
+        max-n    (long (or (parse-num max-pr-builds) default-max-pr-builds))
         ts       (.toEpochMilli (Instant/now))
         msg-first (when pr-title (first (str/split-lines pr-title)))
         entry    {"run"        (str "pr/" pr-num)
