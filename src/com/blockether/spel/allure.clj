@@ -981,6 +981,16 @@
       "</div></details>"
 
       "</div>"  ;; close .exchange
+      ;; postMessage for auto-resize in Allure rich-html plugin
+      "<script>"
+      "(function(){"
+      "function sendHeight(){parent.postMessage({spelHtmlHeight:document.body.scrollHeight+16},'*')}"
+      "sendHeight();"
+      "var t=null;"
+      "window.addEventListener('resize',function(){clearTimeout(t);t=setTimeout(sendHeight,50)});"
+      "document.querySelectorAll('details').forEach(function(d){d.addEventListener('toggle',sendHeight)});"
+      "})();"
+      "</script>"
       "</body></html>")))
 
 (defn attach-api-response!

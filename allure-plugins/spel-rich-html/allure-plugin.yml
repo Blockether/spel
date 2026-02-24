@@ -1,0 +1,7 @@
+id: spel-rich-html
+name: Spel Rich HTML
+description: Full-height HTML attachment viewer for spel HTTP exchanges and custom panels
+jsFiles:
+  - index.js
+cssFiles:
+  - styles.css
