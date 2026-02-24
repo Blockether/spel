@@ -1121,6 +1121,8 @@
                        (assoc :debug true)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
+                       (System/getenv "SPEL_CHANNEL")
+                       (assoc :channel (System/getenv "SPEL_CHANNEL"))
                        (System/getenv "SPEL_ARGS")
                        (assoc :args (System/getenv "SPEL_ARGS"))
                        (System/getenv "SPEL_TIMEOUT")
@@ -1162,6 +1164,12 @@
                 (str/starts-with? arg "--profile=")
                 (recur (rest args) (assoc flags :profile (subs arg 10)) remaining)
 
+
+                (= "--channel" arg)
+                (recur (drop 2 args) (assoc flags :channel (second args)) remaining)
+
+                (str/starts-with? arg "--channel=")
+                (recur (rest args) (assoc flags :channel (subs arg 10)) remaining)
                 (= "--headers" arg)
                 (recur (drop 2 args) (assoc flags :headers (second args)) remaining)
 

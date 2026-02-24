@@ -48,6 +48,7 @@ jobs:
           cli: latest
 
       - uses: clojure-lsp/setup-clojure-lsp@v1
+        if: runner.os == 'Linux'
         with:
           clojure-lsp-version: 2025.11.28-12.47.43
 
@@ -58,21 +59,25 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
             ~/.clojure/.cpcache
-          key: ${{ runner.os }}-ci-${{ hashFiles('deps.edn') }}
+          key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
           restore-keys: |
-            ${{ runner.os }}-ci-
+            deps-${{ runner.os }}-
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-v2-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          key: playwright-${{ runner.os }}-1.58.0
           restore-keys: |
-            playwright-v2-${{ runner.os }}-
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers (Linux — with system deps)
+        if: runner.os == 'Linux'
+        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
 
       - name: Install Playwright browsers
-        # Use Java driver CLI so browser versions match the library exactly
-        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
+        if: runner.os != 'Linux'
+        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\"]))"
 
       - name: Check Clojure syntax
         run: clojure -M -e "(println \"Syntax check passed\")"
@@ -85,8 +90,54 @@ jobs:
         if: runner.os == 'Linux'
         run: make validate-safe-graal
 
+      # =========================================================================
+      # Tests — Linux runs with Allure reporter and uploads results as artifact.
+      # macOS/Windows run plain tests (fail-fast, no Allure overhead).
+      # =========================================================================
+
+      - name: Clean Allure results
+        if: runner.os == 'Linux'
+        run: rm -rf allure-results allure-report
+
+      - name: Run tests with Allure reporter (lazytest)
+        id: tests-lazytest
+        if: runner.os == 'Linux'
+        env:
+          LAZYTEST_ALLURE_GENERATE_REPORT: "false"
+        run: clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+        continue-on-error: true
+
+      - name: Run clojure.test suite with Allure reporter
+        id: tests-ct
+        if: runner.os == 'Linux'
+        env:
+          ALLURE_CLOJURE_TEST_ENABLED: "true"
+          ALLURE_CLOJURE_TEST_CLEAN: "false"
+          ALLURE_CLOJURE_TEST_REPORT: "false"
+        run: clojure -M:test-ct
+        continue-on-error: true
+
+      - name: Upload Allure results
+        if: runner.os == 'Linux' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+          retention-days: 7
+
+      - name: Fail if Linux tests failed
+        if: runner.os == 'Linux' && (steps.tests-lazytest.outcome == 'failure' || steps.tests-ct.outcome == 'failure')
+        run: |
+          echo "::error::Tests failed (lazytest=${{ steps.tests-lazytest.outcome }}, clojure.test=${{ steps.tests-ct.outcome }})"
+          exit 1
+
       - name: Run tests
+        if: runner.os != 'Linux'
         run: clojure -M:test
+
+      # =========================================================================
+      # Build & smoke-test native image
+      # =========================================================================
 
       - name: Build jar
         run: clojure -T:build jar
