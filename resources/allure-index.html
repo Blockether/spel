@@ -44,7 +44,7 @@
     .main { max-width: 95rem; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; }
 
     /* --- Tabs --- */
-    .tabs { max-width: 56rem; margin: 0 auto 0.6rem; display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+    .tabs { max-width: 64rem; margin: 0 auto 0.6rem; display: flex; gap: 0; border-bottom: 1px solid var(--border); }
     .tab { background: none; border: none; padding: 0.45rem 0.85rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
     .tab:hover { color: var(--text-sec); }
     .tab.active { color: var(--text); border-bottom-color: var(--green); }
@@ -53,7 +53,7 @@
     html.dark .tab-badge { background: rgba(124,58,237,0.15); color: #c4b5fd; border-color: rgba(124,58,237,0.3); }
 
     /* --- Builds list (default = list view) --- */
-    .builds { display: flex; flex-direction: column; gap: 0.3rem; max-width: 56rem; margin: 0 auto; }
+    .builds { display: flex; flex-direction: column; gap: 0.3rem; max-width: 64rem; margin: 0 auto; }
 
     /* --- Date groups --- */
     .date-group { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.6rem 0.25rem 0.3rem; border-bottom: 1px solid var(--border); margin-top: 0.4rem; }
@@ -141,7 +141,7 @@
 
 
     /* --- Stats bar --- */
-    .stats-bar { max-width: 56rem; margin: 0 auto 0.75rem; display: none; }
+    .stats-bar { max-width: 64rem; margin: 0 auto 0.75rem; display: none; }
     .stats-bar.show { display: block; }
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem; }
     .stat-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.55rem 0.7rem; box-shadow: var(--shadow); }
@@ -203,7 +203,7 @@
        Grid view - square cards in wider multi-column layout
        ================================================================ */
     .builds.grid {
-      max-width: none;
+      max-width: 64rem;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
       gap: 0.75rem;
