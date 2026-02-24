@@ -1,0 +1,5 @@
+← 200 OK
+  http://localhost:39175/health
+  Content-Type: application/json
+  Content-Length: 15 bytes
+  Body: {"status":"ok"}

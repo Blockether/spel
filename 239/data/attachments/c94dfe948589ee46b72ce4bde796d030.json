@@ -1,0 +1,12 @@
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": {
+    "action": "create",
+    "name": "Test Resource",
+    "tags": [
+      "important",
+      "v2"
+    ]
+  }
+}
