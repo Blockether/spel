@@ -265,88 +265,83 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 (page/bring-to-front pg)
 ```
 
-## Utility Functions (util namespace)
+## Page Utilities (page namespace)
 
+Functions from the `page` namespace for handling dialogs, downloads, console messages, clock manipulation, workers, file choosers, and web errors.
 ```clojure
-(require '[com.blockether.spel.util :as util])
-
+(require '[com.blockether.spel.page :as page]
+         '[com.blockether.spel.core :as core])
 ;; Dialog handling
 (page/on-dialog pg (fn [dialog]
-  (println "Type:" (util/dialog-type dialog))       ; "alert", "confirm", "prompt", "beforeunload"
-  (println "Message:" (util/dialog-message dialog))
-  (println "Default:" (util/dialog-default-value dialog))
-  (util/dialog-accept! dialog)                       ; or (util/dialog-accept! dialog "input text")
-  ;; (util/dialog-dismiss! dialog)
+  (println "Type:" (page/dialog-type dialog))       ; "alert", "confirm", "prompt", "beforeunload"
+  (println "Message:" (page/dialog-message dialog))
+  (println "Default:" (page/dialog-default-value dialog))
+  (page/dialog-accept! dialog)                       ; or (page/dialog-accept! dialog "input text")
+  ;; (page/dialog-dismiss! dialog)
   ))
-
 ;; Download handling
 (page/on-download pg (fn [dl]
-  (println "URL:" (util/download-url dl))
-  (println "File:" (util/download-suggested-filename dl))
-  (println "Failure:" (util/download-failure dl))
-  (util/download-save-as! dl "/tmp/downloaded.pdf")
-  ;; (util/download-cancel! dl)
-  ;; (util/download-path dl)
-  ;; (util/download-page dl)
+  (println "URL:" (page/download-url dl))
+  (println "File:" (page/download-suggested-filename dl))
+  (println "Failure:" (page/download-failure dl))
+  (page/download-save-as! dl "/tmp/downloaded.pdf")
+  ;; (page/download-cancel! dl)
+  ;; (page/download-path dl)
+  ;; (page/download-page dl)
   ))
-
 ;; Console messages
 (page/on-console pg (fn [msg]
-  (println (util/console-type msg) ":"       ; "log", "error", "warning", etc.
-           (util/console-text msg))
-  ;; (util/console-args msg)                 ; vector of JSHandle
-  ;; (util/console-location msg)             ; {:url ... :line-number ... :column-number ...}
-  ;; (util/console-page msg)
+  (println (page/console-type msg) ":"       ; "log", "error", "warning", etc.
+           (page/console-text msg))
+  ;; (page/console-args msg)                 ; vector of JSHandle
+  ;; (page/console-location msg)             ; {:url ... :line-number ... :column-number ...}
+  ;; (page/console-page msg)
   ))
 
-;; Tracing
-(let [tracing (util/context-tracing ctx)]
-  (util/tracing-start! tracing {:screenshots true :snapshots true :sources true})
+;; Tracing (core namespace)
+(let [tracing (core/context-tracing ctx)]
+  (core/tracing-start! tracing {:screenshots true :snapshots true :sources true})
   ;; ... test actions ...
-  (util/tracing-stop! tracing {:path "trace.zip"}))
-
+  (core/tracing-stop! tracing {:path "trace.zip"}))
 ;; Clock manipulation (for time-dependent tests)
-(util/clock-install! (util/page-clock pg))
-(util/clock-set-fixed-time! (util/page-clock pg) "2024-01-01T00:00:00Z")
-(util/clock-set-system-time! (util/page-clock pg) "2024-06-15T12:00:00Z")
-(util/clock-fast-forward! (util/page-clock pg) 60000)   ; ms
-(util/clock-pause-at! (util/page-clock pg) "2024-01-01")
-(util/clock-resume! (util/page-clock pg))
+(page/clock-install! (page/page-clock pg))
+(page/clock-set-fixed-time! (page/page-clock pg) "2024-01-01T00:00:00Z")
+(page/clock-set-system-time! (page/page-clock pg) "2024-06-15T12:00:00Z")
+(page/clock-fast-forward! (page/page-clock pg) 60000)   ; ms
+(page/clock-pause-at! (page/page-clock pg) "2024-01-01")
+(page/clock-resume! (page/page-clock pg))
 
-;; CDP (Chrome DevTools Protocol)
+;; CDP (Chrome DevTools Protocol) — core namespace
 ;; Requires Chromium browser
-(let [session (util/cdp-send pg "Runtime.evaluate" {:expression "1+1"})]
-  ;; (util/cdp-on session "Network.requestWillBeSent" handler-fn)
-  ;; (util/cdp-detach! session)
+(let [session (core/cdp-send pg "Runtime.evaluate" {:expression "1+1"})]
+  ;; (core/cdp-on session "Network.requestWillBeSent" handler-fn)
+  ;; (core/cdp-detach! session)
   )
 
-;; Video recording
+;; Video recording (core namespace — video-obj-* for Video object)
 (let [video (page/video pg)]
-  (util/video-path video)
-  (util/video-save-as! video "/tmp/recording.webm")
-  (util/video-delete! video))
-
+  (core/video-obj-path video)
+  (core/video-obj-save-as! video "/tmp/recording.webm")
+  (core/video-obj-delete! video))
 ;; Workers (Web Workers / Service Workers)
 (doseq [w (page/workers pg)]
-  (println "Worker URL:" (util/worker-url w))
-  (println "Eval:" (util/worker-evaluate w "self.name")))
-
+  (println "Worker URL:" (page/worker-url w))
+  (println "Eval:" (page/worker-evaluate w "self.name")))
 ;; File chooser
 (let [fc (page/wait-for-file-chooser pg
            #(locator/click (page/locator pg "input[type=file]")))]
-  (util/file-chooser-set-files! fc "/path/to/file.txt")
-  ;; (util/file-chooser-page fc)
-  ;; (util/file-chooser-element fc)
-  ;; (util/file-chooser-is-multiple? fc)
+  (page/file-chooser-set-files! fc "/path/to/file.txt")
+  ;; (page/file-chooser-page fc)
+  ;; (page/file-chooser-element fc)
+  ;; (page/file-chooser-is-multiple? fc)
   )
 
-;; Selectors engine
-(util/selectors-register! (util/selectors pg) "my-engine" {:script "..."})
-
+;; Selectors engine (core namespace)
+(core/selectors-register! (core/selectors pg) "my-engine" {:script "..."})
 ;; Web errors
 (page/on-page-error pg (fn [err]
-  ;; (util/web-error-page err)
-  ;; (util/web-error-error err)
+  ;; (page/web-error-page err)
+  ;; (page/web-error-error err)
   ))
 ```
 
