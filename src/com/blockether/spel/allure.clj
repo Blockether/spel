@@ -901,9 +901,9 @@
                        (or (str/starts-with? trimmed "{")
                          (str/starts-with? trimmed "["))))
         html-req?  (and request-headers
-                    (let [rct (get request-headers "content-type"
-                               (get request-headers "Content-Type"))]
-                      (and rct (re-find #"html" rct))))
+                     (let [rct (get request-headers "content-type"
+                                 (get request-headers "Content-Type"))]
+                       (and rct (re-find #"html" rct))))
         curl-cmd   (build-curl-command {:method method :url url
                                         :request-headers request-headers
                                         :request-body request-body})]
@@ -975,9 +975,25 @@
           "<details open>"
           "<summary>▶ Response Body (" (count response-body) " bytes)</summary>"
           "<div class=\"section-body\">"
-          "<pre class=\"body\">"
-          (if json-resp? (or hl-resp (html-escape pj-resp)) (html-escape response-body))
-          "</pre>"
+          (cond
+            json-resp?
+            (str "<pre class=\"body\">"
+              (or hl-resp (html-escape pj-resp))
+              "</pre>")
+
+            html-resp?
+            (str
+              "<div class=\"html-preview-container\">"
+              "<div class=\"html-toggle-bar\">"
+              "<button class=\"html-toggle-btn active\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='block';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')\">Preview</button>"
+              "<button class=\"html-toggle-btn\" onclick=\"this.parentElement.parentElement.querySelector('iframe').style.display='none';this.parentElement.parentElement.querySelector('.html-source-pre').style.display='block';this.classList.add('active');this.previousElementSibling.classList.remove('active')\">Source</button>"
+              "</div>"
+              "<iframe class=\"html-preview-frame\" sandbox=\"allow-same-origin\" srcdoc=\"" (html-escape response-body) "\"></iframe>"
+              "<pre class=\"body html-source-pre\">" (html-escape response-body) "</pre>"
+              "</div>")
+
+            :else
+            (str "<pre class=\"body\">" (html-escape response-body) "</pre>"))
           "</div></details>"))
 
       ;; ── Curl Command ──

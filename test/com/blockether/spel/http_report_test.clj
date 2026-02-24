@@ -532,9 +532,32 @@
                   :request-body "username=alice&password=secret"
                   :response-body "<html><body>OK</body></html>"
                   :content-type "text/html"})]
-      ;; Should render the raw body without JSON highlighting
+      ;; Request body should be escaped as plain text (not HTML content-type)
       (expect (str/includes? html "username=alice"))
-      (expect (str/includes? html "&lt;html&gt;")))))
+      ;; Response body is HTML — should render in sandboxed iframe preview
+      (expect (str/includes? html "html-preview-container"))
+      (expect (str/includes? html "srcdoc="))
+      (expect (str/includes? html "html-preview-frame"))
+      ;; Should also have source view toggle
+      (expect (str/includes? html "html-toggle-btn"))
+      (expect (str/includes? html "Preview"))
+      (expect (str/includes? html "Source"))
+      ;; Source view should contain escaped HTML
+      (expect (str/includes? html "html-source-pre"))
+      (expect (str/includes? html "&lt;html&gt;"))))
+
+  (it "render-http-html renders plain text bodies as pre"
+    (let [html (allure/render-http-html
+                 {:method       "GET"
+                  :url          "https://api.example.com/plain"
+                  :status       200
+                  :status-text  "OK"
+                  :response-body "just plain text"
+                  :content-type "text/plain"})]
+      ;; Plain text should be in a pre tag, no iframe
+      (expect (str/includes? html "just plain text"))
+      (expect (not (str/includes? html "html-preview-container")))
+      (expect (not (str/includes? html "srcdoc="))))))
 
 ;; =============================================================================
 ;; HTTP Report Showcase — Browser Network Responses
