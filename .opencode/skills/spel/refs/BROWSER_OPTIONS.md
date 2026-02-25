@@ -394,7 +394,7 @@ There are multiple approaches to device emulation depending on what you need:
 ### Approach 1: Viewport Only (`spel/set-viewport-size!`)
 Sets width and height but NOT device pixel ratio, user agent, or touch support.
 ```clojure
-(spel/start!)
+;; Daemon mode: just set viewport and go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
 (spel/goto "https://example.com")
 (spel/screenshot {:path "/tmp/iphone14.png"})

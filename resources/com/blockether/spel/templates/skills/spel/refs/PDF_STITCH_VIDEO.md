@@ -212,8 +212,7 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
 ### Complete Scrolling-Stitch Workflow
 
 ```clojure
-;; --eval: scroll-capture a tall page
-(spel/start!)
+;; --eval: scroll-capture a tall page (daemon manages the browser)
 (spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load)
 
@@ -231,8 +230,6 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
                         path)))]
   (stitch/stitch-vertical-overlap paths "/tmp/full-page.png" {:overlap-px overlap})
   (println "Stitched" (count paths) "screenshots"))
-
-(spel/stop!)
 ```
 
 Captures the page in viewport-sized chunks, scrolling by `viewport-height - overlap` each time, then stitches with overlap trimming to remove duplicate content at boundaries.
@@ -246,13 +243,12 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 ### SCI Eval Mode
 
 ```clojure
-(spel/start!)
+;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording)
 (spel/navigate "https://example.com")
 (spel/wait-for-load)
 ;; ... actions ...
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
-(spel/stop!)
 ```
 
 `start-video-recording` closes the current context and creates a new one with video enabled. Page state (cookies, localStorage) resets.
@@ -301,8 +297,7 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 ### Complete Recording Workflow
 
 ```clojure
-;; --eval: record a login flow
-(spel/start!)
+;; --eval: record a login flow (daemon manages the browser)
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com/login")
@@ -314,7 +309,6 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 
 (let [result (spel/finish-video-recording {:save-as "/tmp/login-flow.webm"})]
   (println "Video saved:" (:video-path result)))
-(spel/stop!)
 ```
 
 ---
@@ -332,7 +326,7 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 ### Recording with Pauses
 
 ```clojure
-(spel/start!)
+;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com")
 (spel/wait-for-load)
@@ -341,7 +335,6 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 (spel/wait-for-load)
 (spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
 (spel/finish-video-recording {:save-as "/tmp/demo.webm"})
-(spel/stop!)
 ```
 
 ### Generating Audio and Merging
@@ -364,7 +357,6 @@ For higher quality, use API-based TTS (Google Cloud TTS, Amazon Polly, ElevenLab
 ```bash
 #!/bin/bash
 spel --eval '
-(spel/start!)
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com")
 (spel/wait-for-load)
@@ -373,7 +365,6 @@ spel --eval '
 (spel/wait-for-load)
 (spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
-(spel/stop!)
 '
 
 say -o /tmp/narration.aiff \

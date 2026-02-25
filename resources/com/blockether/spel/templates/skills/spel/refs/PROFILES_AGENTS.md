@@ -61,11 +61,10 @@ Three approaches, each with different fidelity.
 `spel/set-viewport-size!` changes width and height. No device pixel ratio, no mobile user agent, no touch support. Good enough for responsive CSS breakpoints.
 
 ```clojure
-(spel/start!)
+;; Daemon mode: just set viewport and go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
 (spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/mobile-view.png"})
-(spel/stop!)
 ```
 ### Approach 2: Full Device Preset (CLI Daemon)
 The daemon's `set device` command configures viewport, DPR, user agent, and touch all at once.
@@ -79,7 +78,13 @@ spel screenshot /tmp/iphone14.png
 Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch, and mobile flag.
 
 ```clojure
-;; --eval
+;; Daemon: use CLI to set device on existing session
+;; $ spel set device "iPhone 14"
+;; Then --eval just navigates:
+(spel/goto "https://example.com")
+(spel/screenshot {:path "/tmp/iphone14.png"})
+
+;; Standalone --eval (no daemon): start! with device option
 (spel/start! {:device :iphone-14})
 (spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/iphone14.png"})
@@ -111,7 +116,10 @@ Desktop: `:desktop-chrome` (1280x720), `:desktop-firefox` (1280x720), `:desktop-
 Use `:viewport` instead of `:device` when you just want dimensions without mobile emulation:
 
 ```clojure
+;; Standalone --eval (no daemon)
 (spel/start! {:viewport :desktop-hd})
+
+;; Library
 (core/with-testing-page {:viewport :tablet} [pg] ...)
 (core/with-testing-page {:viewport {:width 1920 :height 1080}} [pg] ...)
 ```
@@ -123,7 +131,10 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 ## Browser Selection
 
 ```clojure
-;; --eval
+;; Daemon: start with a specific browser via CLI
+;; $ spel start --browser firefox
+
+;; Standalone --eval (no daemon): start! configures the browser
 (spel/start! {:browser :chromium})   ;; default
 (spel/start! {:browser :firefox})
 (spel/start! {:browser :webkit})
@@ -133,6 +144,8 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
   (page/navigate pg "https://example.com"))
 
 ;; Headed mode (visible browser window)
+;; Daemon: spel open URL (already headed)
+;; Standalone --eval:
 (spel/start! {:headless false})
 (spel/start! {:headless false :slow-mo 500})  ;; slow down for debugging
 ;; CLI equivalent: spel --eval --interactive '...'
@@ -157,17 +170,17 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 ### Save and Load
 
 ```clojure
-;; Save after logging in
-(spel/start!)
+;; Save after logging in (daemon mode)
 (spel/navigate "https://myapp.com/login")
 (spel/fill "#email" "me@example.com")
 (spel/fill "#password" "secret")
 (spel/click "button[type=submit]")
 (spel/wait-for-url "**/dashboard")
 (spel/context-save-storage-state! "/tmp/auth-state.json")
-(spel/stop!)
 
 ;; Load in a later session
+;; Daemon: spel start --load-state /tmp/auth-state.json
+;; Standalone --eval:
 (spel/start! {:storage-state "/tmp/auth-state.json"})
 (spel/navigate "https://myapp.com/dashboard")
 ;; already authenticated

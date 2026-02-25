@@ -75,9 +75,15 @@ When `spel/help` shows you a function exists but you need to understand what it 
 
 ## Session Lifecycle
 
-### Starting a Session
+> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser. Just call `spel/goto`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `--eval` calls, so you don't need to re-navigate to the same URL.
+>
+> `spel/start!` and `spel/stop!` are only needed for **standalone scripts** that run without a daemon.
 
-`spel/start!` creates the full Playwright stack: Playwright instance, browser, context, and page.
+In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts written for standalone `--eval` work unchanged — but calling it is unnecessary and wasteful.
+
+### Standalone Scripts (no daemon)
+
+`spel/start!` creates the full Playwright stack: Playwright instance, browser, context, and page. Only use this when running `spel --eval` without a daemon.
 
 ```clojure
 ;; Defaults: headless Chromium, standard viewport
@@ -115,8 +121,6 @@ When `spel/help` shows you a function exists but you need to understand what it 
 (spel/restart!)  ;; equivalent to stop! then start! with fresh defaults
 (spel/restart! {:browser :firefox :headless false})  ;; restart with new options
 ```
-
-In daemon mode (`spel start` / `spel open`), the daemon owns the browser. Calling `spel/start!` is a no-op if a page already exists, so scripts written for standalone `--eval` work unchanged in daemon mode.
 
 ### Tab Management
 
@@ -385,7 +389,7 @@ spel --eval explore.clj
 
 **Console output is captured automatically.** Browser `console.log`, `console.warn`, and `console.error` messages print to stderr after your eval result. Check stderr if something fails silently in the browser.
 
-**Daemon mode is transparent.** If a daemon is already running (`spel open URL` was called earlier), `spel/start!` becomes a no-op and your script reuses the existing browser. This means scripts work identically whether the daemon is running or not.
+**Daemon mode is the default.** When a daemon is running, `--eval` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `--eval` calls, so avoid redundant navigations to the same URL.
 
 **Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e1"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 

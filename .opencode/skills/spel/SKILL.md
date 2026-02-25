@@ -41,7 +41,7 @@ In `--eval` mode, functions live in the `spel/` namespace with **different names
 | By text | `(page/get-by-text pg text)` | `(spel/$text text)` |
 | By role | `(page/get-by-role pg role)` | `(spel/$role role)` |
 
-**Key difference**: Library functions take an explicit `page`/`locator` argument. SCI functions use the implicit page from `spel/start!`.
+**Key difference**: Library functions take an explicit `page`/`locator` argument. SCI functions use the implicit page managed by the daemon (or `spel/start!` in standalone scripts). When a daemon is running, `--eval` reuses its browser — no `spel/start!` or `spel/stop!` needed.
 
 ## SCI Sandbox Capabilities
 

@@ -239,14 +239,17 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 ### Using Devices
 
 ```clojure
-;; --eval
+;; Daemon: use CLI to set device
+;; $ spel set device "iPhone 14"
+
+;; Standalone --eval (no daemon)
 (spel/start! {:device :iphone-14})
 
 ;; Library
 (core/with-testing-page {:device :iphone-14} [pg]
   (page/navigate pg "https://example.com"))
 
-;; Extract viewport from a preset
+;; Extract viewport from a preset (daemon mode)
 (let [{:keys [viewport]} device/iphone-14]
   (spel/set-viewport-size! (:width viewport) (:height viewport)))
 ```
