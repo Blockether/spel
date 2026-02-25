@@ -1,0 +1,5 @@
+{
+  "method": "GET",
+  "path": "/echo",
+  "query": "id=1&fields=name,email"
+}

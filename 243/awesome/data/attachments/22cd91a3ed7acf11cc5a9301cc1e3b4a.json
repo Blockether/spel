@@ -1,0 +1,7 @@
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": {
+    "action": "create"
+  }
+}

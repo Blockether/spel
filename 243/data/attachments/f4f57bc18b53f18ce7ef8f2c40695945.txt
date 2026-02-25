@@ -1,0 +1,5 @@
+← 200 OK
+  http://localhost:44795/echo
+  Content-Type: application/json
+  Content-Length: 95 bytes
+  Body: {"method":"POST","path":"/echo","body":{"name":"Bob","email":"bob@example.com","role":"admin"}}

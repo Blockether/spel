@@ -1,0 +1,5 @@
+← 200 OK
+  http://localhost:46379/echo
+  Content-Type: application/json
+  Content-Length: 78 bytes
+  Body: {"method":"PATCH","path":"/echo","body":{"email":"alice.updated@example.com"}}
