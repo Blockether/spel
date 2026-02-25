@@ -117,11 +117,7 @@ Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path
 | `SPEL_TRUSTSTORE_PASSWORD` | String | — | Default: empty |
 
 ```bash
-# Simplest — PEM file with corporate CA
 export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
-spel install --with-deps
-
-# Or reuse Node.js var — covers both driver + browser downloads
 export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
 spel install --with-deps
 ```
