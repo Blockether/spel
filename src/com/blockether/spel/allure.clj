@@ -446,8 +446,9 @@
    - (step* name f loc-map)    — lambda step with source location override for
                                   Playwright Trace Viewer (loc-map = {:file ... :line ...})
 
-   Does NOT take screenshots. Use `ui-step` for steps that need
-   before/after screenshots, or call `screenshot` explicitly."
+   Does NOT take screenshots. Use `(step name {:screenshots? true} body)`
+   or `ui-step` for steps that need before/after screenshots,
+   or call `screenshot` explicitly."
   ([step-name]
    ;; Marker step — no body, instant duration
    (with-context
@@ -559,94 +560,7 @@
              (try (.groupEnd tracing) (catch Exception _)))
            (swap! ctx update :step-stack pop)))))))
 
-(defmacro step
-  "Add a step to the test report.
-
-   Two arities:
-   - (step name)              — marker step (checkpoint, no body)
-   - (step name & body)       — lambda step (executes body, timed, nestable)
-
-   Steps can nest arbitrarily:
-
-     (allure/step \"Login\"
-       (allure/step \"Enter username\"
-         (locator/fill username-input \"admin\"))
-       (allure/step \"Enter password\"
-         (locator/fill password-input \"secret\"))
-       (allure/step \"Click submit\"
-         (locator/click submit-btn)))
-
-   All step calls are no-ops when not running under the Allure reporter.
-
-   When Playwright tracing is active, the step's source location is
-   captured at macro expansion time (via `*file*` and `&form` metadata)
-   and passed to `Tracing.group(name, GroupOptions)` so the Trace Viewer
-   links to the test source file instead of allure.clj internals."
-  ([step-name]
-   `(step* ~step-name))
-  ([step-name & body]
-   (let [loc-line (-> &form meta :line)]
-     `(step* ~step-name (fn [] ~@body)
-        {:file ~*file* :line ~loc-line}))))
-
-;; =============================================================================
-;; UI Step — before/after screenshots as child steps
-;; =============================================================================
-
-(defmacro ui-step
-  "Execute a UI step with automatic before/after screenshots.
-
-   Creates a parent step with two nested child steps:
-   - \"Before: <name>\" — screenshot captured before the action
-   - \"After: <name>\"  — screenshot captured after the action
-
-   Requires `*page*` to be bound (typically done by the reporter's
-   `with-traced-page` or test fixtures).
-
-   When Playwright tracing is active (`*trace-path*` is bound), the
-   explicit screenshots are skipped — the trace already captures visual
-   state on every action, so the screenshots would only add noise to
-   the trace timeline without providing additional value.
-
-   The step hierarchy in the Allure report (without tracing):
-
-     ✓ Login to application
-       ├── Before: Login to application (screenshot)
-       ├── ... (your actions)
-       └── After: Login to application  (screenshot)
-
-   Usage:
-
-     (allure/ui-step \"Fill login form\"
-       (locator/fill username-input \"admin\")
-       (locator/fill password-input \"secret\")
-       (locator/click submit-btn))
-
-   Falls back to a regular step when `*page*` is not bound.
-   No-op when not running under the Allure reporter."
-  [step-name & body]
-  (let [loc-line (-> &form meta :line)]
-    `(step* ~step-name
-       (fn []
-         (when (and *page* (not *trace-path*))
-           (step* (str "Before: " ~step-name)
-             (fn [] (screenshot *page* (str "Before: " ~step-name)))))
-         (try
-           (let [result# (do ~@body)]
-             (when (and *page* (not *trace-path*))
-               (step* (str "After: " ~step-name)
-                 (fn [] (screenshot *page* (str "After: " ~step-name)))))
-             result#)
-           (catch Throwable t#
-             (when (and *page* (not *trace-path*))
-               (try
-                 (step* (str "Error: " ~step-name)
-                   (fn [] (screenshot *page* (str "Error: " ~step-name))))
-                 (catch Throwable ~'_)))
-             (throw t#))))
-       {:file ~*file* :line ~loc-line})))
-
-(declare attach-network-markdown!)
+(declare attach-network-markdown! step**)
 
 ;; =============================================================================
 ;; Auto Network Capture — passive browser network logging
@@ -932,8 +846,196 @@
           "text/markdown")))
     (catch Throwable _ nil)))
 
+;; =============================================================================
+;; Unified Step — composable step with optional screenshot + HTTP behaviors
+;; =============================================================================
+
+(defn step**
+  "Unified step runner. Wraps `step*` with optional screenshot and HTTP
+   attachment behaviors based on an opts map. Public because the `step`
+   macro expands in calling namespaces and references this directly.
+
+   Supported opts:
+     :screenshots?  — take before/after screenshots (requires *page*,
+                       skipped when *trace-path* is bound)
+     :http?         — attach HTTP markdown when result is an APIResponse
+                       or browser Response
+
+   Ordering when both are enabled:
+     pre-screenshot → body (with request-capture binding) → attach-http → post-screenshot
+   On error:
+     error-screenshot (swallowed) → rethrow"
+  [step-name f loc-map opts]
+  (let [screenshots? (:screenshots? opts)
+        http?        (:http? opts)]
+    (step* step-name
+      (fn []
+        ;; Pre-screenshot
+        (when (and screenshots? *page* (not *trace-path*))
+          (try
+            (step* (str "Before: " step-name)
+              (fn [] (screenshot *page* (str "Before: " step-name))))
+            (catch Throwable _)))
+        (try
+          ;; Execute body — optionally bind request-capture for HTTP attachment
+          (let [capture (when http? (atom nil))
+                result  (if http?
+                          (binding [core/*request-capture* capture]
+                            (f))
+                          (f))]
+            ;; Attach HTTP markdown
+            (when http?
+              (cond
+                (instance? com.microsoft.playwright.APIResponse result)
+                (attach-http-markdown! result @capture)
+                (instance? com.microsoft.playwright.Response result)
+                (attach-network-markdown! result)))
+            ;; Post-screenshot on success
+            (when (and screenshots? *page* (not *trace-path*))
+              (try
+                (step* (str "After: " step-name)
+                  (fn [] (screenshot *page* (str "After: " step-name))))
+                (catch Throwable _)))
+            result)
+          (catch Throwable t
+            ;; Error screenshot (swallowed)
+            (when (and screenshots? *page* (not *trace-path*))
+              (try
+                (step* (str "Error: " step-name)
+                  (fn [] (screenshot *page* (str "Error: " step-name))))
+                (catch Throwable _)))
+            (throw t))))
+      loc-map)))
+
+(def ^:private step-opt-keys
+  "Reserved keys that identify a step options map."
+  #{:screenshots? :http?})
+
+(defn- step-opts?
+  "Returns true if `form` is a map literal containing at least one
+   reserved step option key. Used at macro-expansion time."
+  [form]
+  (and (map? form)
+    (some step-opt-keys (keys form))))
+
+(defmacro step
+  "Add a step to the test report.
+
+   Four forms:
+   - (step name)                          — marker step (checkpoint, no body)
+   - (step name body...)                  — lambda step (executes body, timed)
+   - (step name {:screenshots? true} body...) — with options map (compile-time literal)
+   - (step name :opts opts-expr body...)  — with runtime options expression
+
+   Supported options:
+     :screenshots?  — take before/after screenshots (requires *page*)
+     :http?         — attach HTTP exchange markdown for APIResponse / browser Response
+
+   Steps can nest arbitrarily:
+
+     (allure/step \"Login\"
+       (allure/step \"Enter username\"
+         (locator/fill username-input \"admin\"))
+       (allure/step \"Enter password\"
+         (locator/fill password-input \"secret\"))
+       (allure/step \"Click submit\"
+         (locator/click submit-btn)))
+
+   Composable capabilities:
+
+     ;; UI step with screenshots
+     (allure/step \"Fill login form\" {:screenshots? true}
+       (locator/fill username-input \"admin\"))
+
+     ;; API step with HTTP attachment
+     (allure/step \"Create user\" {:http? true}
+       (core/api-post ctx \"/users\" {:data body}))
+
+     ;; Both screenshots and HTTP attachment
+     (allure/step \"Submit and verify API\" {:screenshots? true :http? true}
+       (page/wait-for-response pg \"**/api/submit\"
+         #(locator/click submit-btn)))
+
+   All step calls are no-ops when not running under the Allure reporter.
+
+   When Playwright tracing is active, the step's source location is
+   captured at macro expansion time (via `*file*` and `&form` metadata)
+   and passed to `Tracing.group(name, GroupOptions)` so the Trace Viewer
+   links to the test source file instead of allure.clj internals."
+  ([step-name]
+   `(step* ~step-name))
+  ([step-name & args]
+   (let [loc-line (-> &form meta :line)
+         fst      (first args)]
+     (cond
+       ;; (step "name" {:screenshots? true} body...)
+       (step-opts? fst)
+       (let [opts (first args)
+             body (rest args)]
+         `(let [name# ~step-name]
+            (step** name# (fn [] ~@body)
+              {:file ~*file* :line ~loc-line} ~opts)))
+
+       ;; (step "name" :opts opts-expr body...)
+       (= :opts fst)
+       (let [opts-expr (second args)
+             body      (drop 2 args)]
+         `(let [name# ~step-name]
+            (step** name# (fn [] ~@body)
+              {:file ~*file* :line ~loc-line} ~opts-expr)))
+
+       ;; (step "name" body...) — plain lambda step, no opts
+       :else
+       `(step* ~step-name (fn [] ~@(seq args))
+          {:file ~*file* :line ~loc-line})))))
+
+;; =============================================================================
+;; UI Step — convenience wrapper for step with screenshots
+;; =============================================================================
+
+(defmacro ui-step
+  "Execute a UI step with automatic before/after screenshots.
+   Equivalent to `(step name {:screenshots? true} body...)`.
+
+   Creates a parent step with two nested child steps:
+   - \"Before: <name>\" — screenshot captured before the action
+   - \"After: <name>\"  — screenshot captured after the action
+
+   Requires `*page*` to be bound (typically done by the reporter's
+   `with-traced-page` or test fixtures).
+
+   When Playwright tracing is active (`*trace-path*` is bound), the
+   explicit screenshots are skipped — the trace already captures visual
+   state on every action, so the screenshots would only add noise to
+   the trace timeline without providing additional value.
+
+   The step hierarchy in the Allure report (without tracing):
+
+     ✓ Login to application
+       ├── Before: Login to application (screenshot)
+       ├── ... (your actions)
+       └── After: Login to application  (screenshot)
+
+   Usage:
+
+     (allure/ui-step \"Fill login form\"
+       (locator/fill username-input \"admin\")
+       (locator/fill password-input \"secret\")
+       (locator/click submit-btn))
+
+   Falls back to a regular step when `*page*` is not bound.
+   No-op when not running under the Allure reporter."
+  [step-name & body]
+  `(step ~step-name {:screenshots? true} ~@body))
+
+;; =============================================================================
+;; API Step — convenience wrapper for step with HTTP attachment
+;; =============================================================================
+
 (defmacro api-step
   "Execute an API step with automatic request/response logging.
+   Equivalent to `(step name {:http? true} body...)`.
+
    APIResponse or browser Response, automatically captures request details
    (method, URL, headers, body) and attaches a Markdown document showing the
    full HTTP exchange with request/response headers, bodies, and a cURL command.
@@ -963,19 +1065,7 @@
    is an APIResponse or browser Response instance. No-op when not running
    under the Allure reporter."
   [step-name & body]
-  (let [loc-line (-> &form meta :line)]
-    `(step* ~step-name
-       (fn []
-         (let [capture# (atom nil)
-               result#  (binding [core/*request-capture* capture#]
-                          (do ~@body))]
-           (cond
-             (instance? com.microsoft.playwright.APIResponse result#)
-             (attach-http-markdown! result# @capture#)
-             (instance? com.microsoft.playwright.Response result#)
-             (attach-network-markdown! result#))
-           result#))
-       {:file ~*file* :line ~loc-line})))
+  `(step ~step-name {:http? true} ~@body))
 
 ;; =============================================================================
 ;; Lazytest Re-exports — single-require with auto Allure steps

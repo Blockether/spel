@@ -216,3 +216,87 @@
           (let [resp (allure/api-step "Health check"
                        (api/api-get ctx "/health"))]
             (expect (= 200 (api/api-response-status resp)))))))))
+
+;; =============================================================================
+;; Unified step with opts — composable behaviors
+;; =============================================================================
+
+(defdescribe unified-step-opts-test
+  "Tests for unified step macro with opts map"
+
+  (describe "step with empty/no opts behaves like plain step"
+    (it "step with no opts executes body"
+      (let [result (allure/step "Plain step"
+                     (+ 10 20))]
+        (expect (= 30 result))))
+
+    (it "marker step still works"
+      (allure/step "Just a marker")
+      (expect true)))
+
+  (describe "step with {:screenshots? true} (ui-step equivalent)"
+    (it "works without *page* bound"
+      (let [result (allure/step "Screenshot step no page" {:screenshots? true}
+                     (+ 1 2 3))]
+        (expect (= 6 result))))
+
+    (it "works with *page* bound"
+      {:context [with-playwright with-browser with-page]}
+      (page/set-content! *page* "<h1>Opts Screenshot</h1>")
+      (let [result (allure/step "Screenshot step with page" {:screenshots? true}
+                     (locator/text-content (page/locator *page* "h1")))]
+        (expect (= "Opts Screenshot" result)))))
+
+  (describe "step with {:http? true} (api-step equivalent)"
+    (it "works with non-response result"
+      (let [result (allure/step "HTTP step no response" {:http? true}
+                     {:some "data"})]
+        (expect (= {:some "data"} result))))
+
+    (it "works with API response"
+      {:context [with-playwright with-test-server]}
+      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
+                                   {:base-url *test-server-url*})]
+        (let [resp (allure/step "GET via step opts" {:http? true}
+                     (api/api-get ctx "/health"))]
+          (expect (instance? com.microsoft.playwright.APIResponse resp))
+          (expect (= 200 (api/api-response-status resp)))))))
+
+  (describe "step with {:screenshots? true :http? true} (both)"
+    (it "works without browser"
+      (let [result (allure/step "Combined no browser" {:screenshots? true :http? true}
+                     42)]
+        (expect (= 42 result))))
+
+    (it "works with browser and API"
+      {:context [with-playwright with-browser with-page with-test-server]}
+      (page/set-content! *page* "<h1>Combined</h1>")
+      (let [resp (allure/step "Combined step" {:screenshots? true :http? true}
+                   (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
+                                                {:base-url *test-server-url*})]
+                     (api/api-get ctx "/health")))]
+        (expect (instance? com.microsoft.playwright.APIResponse resp))
+        (expect (= 200 (api/api-response-status resp))))))
+
+  (describe "step with :opts keyword (runtime opts)"
+    (it "supports runtime opts expression"
+      (let [my-opts {:http? true}
+            result  (allure/step "Runtime opts step" :opts my-opts
+                      (* 7 8))]
+        (expect (= 56 result))))
+
+    (it "supports nil runtime opts (plain step)"
+      (let [result (allure/step "Nil opts" :opts nil
+                     :ok)]
+        (expect (= :ok result)))))
+
+  (describe "ui-step and api-step still work as wrappers"
+    (it "ui-step delegates to step with {:screenshots? true}"
+      (let [result (allure/ui-step "Wrapper ui-step"
+                     (* 3 4))]
+        (expect (= 12 result))))
+
+    (it "api-step delegates to step with {:http? true}"
+      (let [result (allure/api-step "Wrapper api-step"
+                     (str "hello" " " "world"))]
+        (expect (= "hello world" result))))))

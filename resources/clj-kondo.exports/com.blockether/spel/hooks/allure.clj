@@ -20,15 +20,35 @@
 
 (defn step
   "Hook for allure/step macro. Transforms:
-     (step \"name\")             → (do \"name\")
-     (step \"name\" body...)     → (do body...)
-   The step-name is a label — only lint the body in multi-arg form."
+     (step \"name\")                          → (do \"name\")
+     (step \"name\" body...)                  → (do body...)
+     (step \"name\" {:screenshots? true} body...) → (do body...)
+     (step \"name\" :opts opts-expr body...)  → (do opts-expr body...)
+   The step-name and optional opts are labels — only lint the body."
   [{:keys [node]}]
   (let [children (rest (:children node))
-        new-node (if (= 1 (count children))
-                   ;; Marker step — keep name as expression
+        n        (count children)
+        new-node (cond
+                   ;; Marker step — 1 arg
+                   (= 1 n)
                    (api/list-node (list* (api/token-node 'do) children))
-                   ;; Lambda step — drop name, lint body only
+
+                   ;; Opts map form: (step name {..} body...)
+                   (and (>= n 2)
+                     (api/map-node? (second children)))
+                   (let [[_step-name _opts & body] children]
+                     (api/list-node (list* (api/token-node 'do) body)))
+
+                   ;; :opts keyword form: (step name :opts expr body...)
+                   (and (>= n 3)
+                     (api/keyword-node? (second children))
+                     (= :opts (api/sexpr (second children))))
+                   (let [[_step-name _kw opts-expr & body] children]
+                     (api/list-node
+                       (list* (api/token-node 'do) opts-expr body)))
+
+                   ;; Plain body form
+                   :else
                    (let [[_step-name & body] children]
                      (api/list-node (list* (api/token-node 'do) body))))]
     {:node new-node}))
