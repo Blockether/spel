@@ -583,18 +583,38 @@
 
    The fix: prepend a shim that detects the bug at runtime and replaces
    TransformStream with a wrapper that creates a native instance, then
-   re-prototypes it to the subclass via Object.setPrototypeOf + new.target."
+   re-prototypes it to the subclass via Object.setPrototypeOf + new.target.
+
+   The detection test exercises three patterns that zip.js actually uses:
+     1. Expando property write (`this.__probe = 1`) — tests extensibility
+     2. `super.readable` access — tests prototype getter delegation
+     3. `Object.defineProperty(this, 'readable', ...)` — tests shadowing
+        the prototype getter with an own accessor (used by zip.js `ls()`)
+   Older Safari may pass a trivial `new (class extends TransformStream {})`
+   but fail on these real-world patterns, so the probe must be rigorous."
   [^File report]
   (let [sw (io/file report "trace-viewer" "sw.bundle.js")]
     (when (.isFile sw)
       (let [content (slurp sw)
             shim    (str
                       ;; Self-invoking function to avoid polluting global scope.
-                      ;; Tests TransformStream subclassing; patches only when broken.
+                      ;; Tests TransformStream subclassing with the three patterns
+                      ;; that zip.js uses; patches only when any of them fail.
                       "(function(){"
                       "if(typeof TransformStream==='undefined')return;"
                       "try{"
-                      "var T=class extends TransformStream{constructor(){super({})}};"
+                      "var T=class extends TransformStream{"
+                      "constructor(){"
+                      "super({transform:function(){}});"
+                      ;; 1) expando write — zip.js does this.outputSize=0
+                      "this.__probe=1;"
+                      "if(this.__probe!==1)throw 1;"
+                      ;; 2) super.readable — zip.js reads the prototype getter
+                      "var r=super.readable;"
+                      "if(!r||typeof r.getReader!=='function')throw 1;"
+                      ;; 3) Object.defineProperty — zip.js ls() shadows readable
+                      "Object.defineProperty(this,'readable',"
+                      "{configurable:true,get:function(){return r}})}};"
                       "new T()"
                       "}catch(e){"
                       "var _TS=TransformStream;"

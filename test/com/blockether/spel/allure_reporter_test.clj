@@ -327,7 +327,13 @@
             ;; Key shim components present
             (expect (str/includes? patched "TransformStream"))
             (expect (str/includes? patched "Object.setPrototypeOf"))
-            (expect (str/includes? patched "new.target")))
+            (expect (str/includes? patched "new.target"))
+            ;; Rigorous probe: expando write
+            (expect (str/includes? patched "this.__probe=1"))
+            ;; Rigorous probe: super.readable access
+            (expect (str/includes? patched "super.readable"))
+            ;; Rigorous probe: Object.defineProperty to shadow readable
+            (expect (str/includes? patched "Object.defineProperty(this,'readable'")))
           (finally
             (clean-dir! base)))))
 
