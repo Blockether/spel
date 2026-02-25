@@ -1,0 +1,25 @@
+## GET /status/403 → 403 Forbidden
+
+### Request Headers
+```
+GET /status/403
+```
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Wed, 25 Feb 2026 14:18:32 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 403
+}
+```
+
+### cURL
+```bash
+curl '/status/403'
+```

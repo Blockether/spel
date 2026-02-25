@@ -53,7 +53,7 @@
     html.dark .tab-badge { background: rgba(124,58,237,0.15); color: #c4b5fd; border-color: rgba(124,58,237,0.3); }
 
     /* --- Builds list (default = list view) --- */
-    .builds { display: flex; flex-direction: column; gap: 0.3rem; max-width: 64rem; margin: 0 auto; }
+    .builds { display: flex; flex-direction: column; gap: 0.5rem; max-width: 64rem; margin: 0 auto; }
 
     /* --- Date groups --- */
     .date-group { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 0.6rem 0.25rem 0.3rem; border-bottom: 1px solid var(--border); margin-top: 0.4rem; }
@@ -62,7 +62,7 @@
     /* --- Card (list view) --- */
     .card {
       display: flex; align-items: center; gap: 0.65rem;
-      padding: 0.5rem 0.9rem 0.5rem 0;
+      padding: 0.55rem 0.85rem 0.55rem 0;
       border-radius: 0.5rem;
       border: 1px solid var(--border);
       border-left: 3px solid var(--green);
@@ -102,7 +102,7 @@
 
     /* --- Info --- */
     .info { flex: 1; min-width: 0; }
-    .info-top { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.1rem; flex-wrap: wrap; }
+    .info-top { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem; flex-wrap: wrap; }
     .sha { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 0.2rem; font-size: 0.65rem; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; background: var(--code-bg); color: var(--code-text); line-height: 1.3; }
     .sha-link { text-decoration: none; transition: background 0.15s, color 0.15s; }
     .sha-link:hover { background: var(--border-hover); color: var(--text); }
@@ -216,11 +216,11 @@
     }
     .builds.grid .date-group {
       grid-column: 1 / -1;
-      padding: 0.5rem 0.15rem 0.25rem; margin-top: 0.25rem;
+      padding: 0.6rem 0.25rem 0.3rem; margin-top: 0.3rem;
     }
     .builds.grid .card {
       flex-direction: column; align-items: stretch;
-      padding: 0.75rem 0.85rem 0.75rem 0.65rem;
+      padding: 0.75rem 0.85rem 0.75rem 0.75rem;
       border-left-width: 3px;
       position: relative;
       aspect-ratio: 1 / 1;
@@ -228,7 +228,7 @@
     }
     .builds.grid .run {
       width: 100%; justify-content: flex-start;
-      padding-left: 0.6rem; margin-bottom: 0.2rem;
+      padding-left: 0; margin-bottom: 0.2rem;
     }
     .builds.grid .run-num { font-size: 0.95rem; }
     .builds.grid .status-dot { font-size: 0.65rem; }
@@ -269,8 +269,8 @@
       .builds.grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
       .builds.grid .meta-date { font-size: 0.5rem; }
       .builds.grid .meta-rel { display: none; }
-      .builds.grid .card { padding: 0.6rem 0.7rem 0.6rem 0.55rem; aspect-ratio: auto; }
-      .builds.grid .run { padding-left: 0.45rem; }
+      .builds.grid .card { padding: 0.6rem 0.7rem 0.6rem 0.5rem; aspect-ratio: auto; }
+      .builds.grid .run { padding-left: 0; }
       .builds.grid .msg { -webkit-line-clamp: 2; }
     }
 
