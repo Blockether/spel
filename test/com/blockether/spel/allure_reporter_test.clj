@@ -333,7 +333,13 @@
             ;; Rigorous probe: super.readable access
             (expect (str/includes? patched "super.readable"))
             ;; Rigorous probe: Object.defineProperty to shadow readable
-            (expect (str/includes? patched "Object.defineProperty(this,'readable'")))
+            (expect (str/includes? patched "Object.defineProperty(this,'readable'"))
+            ;; Wrapper approach: WeakMap for native instance storage
+            (expect (str/includes? patched "new WeakMap()"))
+            ;; Wrapper approach: plain object via Object.create (not native instance)
+            (expect (str/includes? patched "Object.create(new.target"))
+            ;; Wrapper approach: WeakMap delegation on custom prototype
+            (expect (str/includes? patched "_m.get(this)")))
           (finally
             (clean-dir! base)))))
 

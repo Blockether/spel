@@ -582,8 +582,10 @@
    and Safari fails to shadow them with own data properties on the instance.
 
    The fix: prepend a shim that detects the bug at runtime and replaces
-   TransformStream with a wrapper that creates a native instance, then
-   re-prototypes it to the subclass via Object.setPrototypeOf + new.target.
+   TransformStream with a wrapper constructor that returns a plain JS
+   object (via Object.create) delegating readable/writable to a native
+   instance stored in a WeakMap. The plain object is extensible, so
+   expando writes, super.readable, and Object.defineProperty all work.
 
    The detection test exercises three patterns that zip.js actually uses:
      1. Expando property write (`this.__probe = 1`) — tests extensibility
@@ -618,12 +620,26 @@
                       "new T()"
                       "}catch(e){"
                       "var _TS=TransformStream;"
+                      "var _m=new WeakMap();"
+                      "var _p=Object.create(_TS.prototype);"
+                      "Object.defineProperty(_p,'readable',"
+                      "{configurable:true,enumerable:true,"
+                      "get:function(){return _m.get(this).readable}});"
+                      "Object.defineProperty(_p,'writable',"
+                      "{configurable:true,enumerable:true,"
+                      "get:function(){return _m.get(this).writable}});"
                       "self.TransformStream=function TransformStream(t,w,r){"
                       "var s=new _TS(t,w,r);"
-                      "if(new.target&&new.target!==_TS)"
-                      "Object.setPrototypeOf(s,new.target.prototype);"
-                      "return s};"
-                      "self.TransformStream.prototype=_TS.prototype;"
+                      "var o=Object.create(new.target?new.target.prototype:_p);"
+                      "_m.set(o,s);"
+                      "Object.defineProperty(o,'readable',"
+                      "{configurable:true,enumerable:true,"
+                      "get:function(){return s.readable}});"
+                      "Object.defineProperty(o,'writable',"
+                      "{configurable:true,enumerable:true,"
+                      "get:function(){return s.writable}});"
+                      "return o};"
+                      "self.TransformStream.prototype=_p;"
                       "Object.setPrototypeOf(self.TransformStream,_TS)"
                       "}"
                       "}());\n")
