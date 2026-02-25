@@ -523,12 +523,12 @@
         ;; Print browser console messages and page errors to stderr
         (when (seq console-msgs)
           (binding [*out* *err*]
-            (doseq [{:strs [type text]} console-msgs]
+            (doseq [{:keys [type text]} console-msgs]
               (println (str "[console." type "] " text)))
             (flush)))
         (when (seq page-errors)
           (binding [*out* *err*]
-            (doseq [{:strs [message]} page-errors]
+            (doseq [{:keys [message]} page-errors]
               (println (str "[page-error] " message)))
             (flush)))
         (if (and response (:success response))

@@ -734,6 +734,10 @@ assert_jq "errors start → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json errors --clear 2>&1)
 assert_jq "errors --clear → success" "$OUT" 'has("error") | not'
 
+# Verify --eval prints console messages with actual text (not empty [console.] )
+OUT=$("$SPEL" --eval '(spel/eval-js "console.log(\"spel-console-test-42\")") nil' 2>&1)
+assert_contains "eval console → message text" "$OUT" "[console.log] spel-console-test-42"
+
 # =============================================================================
 # STATE MANAGEMENT (9)
 # =============================================================================
