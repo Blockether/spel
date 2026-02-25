@@ -152,9 +152,9 @@ Creates a full Playwright stack for API-only testing.
   (core/api-get ctx "/users"))
 ```
 
-### API from Page
+### API from Page (shared trace)
 
-Share browser cookies and session with API requests from a page.
+Share browser cookies and session with API requests from a page. Uses `page-api` to extract the `APIRequestContext` from the page's `BrowserContext` — all API calls appear in the same Playwright trace as the page navigation.
 
 ```clojure
 (core/with-testing-page [pg]
@@ -163,9 +163,9 @@ Share browser cookies and session with API requests from a page.
     (core/api-response-status resp)))
 ```
 
-### Page-Bound API with Custom Base-URL
+### Page-Bound API with Custom Base-URL (shared trace)
 
-Combine UI navigation with API calls to a different domain, sharing cookies.
+Combine UI navigation with API calls to a different domain, sharing cookies. `with-page-api` creates an `APIRequestContext` bound to the page's context with a custom `:base-url` — same trace, different domain.
 
 ```clojure
 (core/with-testing-page [pg]
@@ -174,6 +174,40 @@ Combine UI navigation with API calls to a different domain, sharing cookies.
   (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
     (core/api-get ctx "/me")))
 ```
+
+## Tracing: Shared vs Separate Playwright Stacks
+
+> **IMPORTANT:** `with-testing-page` and `with-testing-api` each create their own complete
+> Playwright stack (Playwright → Browser → Context). Nesting one inside the other does NOT
+> share a trace — you get two independent Playwright instances, two browsers, two traces.
+
+```clojure
+;; BAD: Two separate Playwright instances, two separate traces
+(core/with-testing-page [pg]                        ;; Playwright #1 → Browser #1 → Context #1
+  (page/navigate pg "https://example.com/login")
+  (core/with-testing-api {:base-url "https://api.example.com"} [ctx]  ;; Playwright #2 → Browser #2 → Context #2
+    (core/api-get ctx "/users")))
+
+;; GOOD: One Playwright, one trace — use page-api or with-page-api
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  (core/api-get (core/page-api pg) "/api/me"))       ;; Same context, same trace
+
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]  ;; Same context, different base-url
+    (core/api-get ctx "/me")))
+```
+
+**When to use which:**
+
+| Pattern | Playwright instances | Traces | Use case |
+|---------|---------------------|--------|----------|
+| `with-testing-page` alone | 1 | 1 | Browser-only testing |
+| `with-testing-api` alone | 1 | 1 | API-only testing (no browser) |
+| `with-testing-page` + `page-api` | 1 | 1 | Combined UI + API, same domain |
+| `with-testing-page` + `with-page-api` | 1 | 1 | Combined UI + API, different base-url |
+| `with-testing-page` nesting `with-testing-api` | **2** | **2** | **Don't do this** — use `page-api`/`with-page-api` instead |
 
 ## API Test Fixtures
 

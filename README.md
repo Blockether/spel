@@ -20,7 +20,7 @@
 <div align="center">
 <h3>
 
-[Rationale](#rationale) • [Quick Start](#quick-start) • [Native CLI](#native-cli) • [Agent Scaffolding](#agent-scaffolding)
+[Rationale](#rationale) • [Quick Start](#quick-start) • [Agent Scaffolding](#agent-scaffolding)
 
 </h3>
 </div>
@@ -55,101 +55,16 @@ spel wraps Playwright Java 1.58.0 with idiomatic Clojure: maps for options, anom
 
 ## Quick Start
 
+### Install
+
+**Clojure library:**
+
 ```clojure
 ;; deps.edn
 {:deps {com.blockether/spel {:mvn/version "0.3.1"}}}
 ```
 
-```bash
-spel install  # requires spel CLI — see "Native CLI" below
-```
-
-### Browser Automation
-
-```clojure
-(require '[com.blockether.spel.core :as core]
-         '[com.blockether.spel.page :as page])
-
-(core/with-testing-page [pg]
-  (page/navigate pg "https://example.com")
-  (page/title pg))
-;; => "Example Domain"
-```
-
-Pass an opts map for device emulation:
-
-```clojure
-(core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [pg]
-  (page/navigate pg "https://example.com"))
-```
-
-For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](.opencode/skills/spel/SKILL.md).
-
-### API Testing
-
-Playwright-backed HTTP testing with automatic tracing.
-
-| Function | Description | Auto-Traces? |
-|----------|-------------|--------------|
-| `with-testing-api [ctx] body` | Standalone API testing with full Playwright stack | ✅ Yes (when Allure active) |
-| `page-api pg` | Extract APIRequestContext from a Page | ✅ Yes |
-| `context-api ctx` | Extract APIRequestContext from a BrowserContext | ✅ Yes |
-| `with-page-api pg opts [ctx] body` | Page-bound API with custom base-url + cookie sharing | ❌ No |
-
-**Standalone API testing** — creates full Playwright stack:
-```clojure
-(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
-  (core/api-get ctx "/users"))
-```
-
-**API from Page** — share browser cookies/session:
-```clojure
-(core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  (let [resp (core/api-get (core/page-api pg) "/api/me")]
-    (core/api-response-status resp)))
-```
-
-**Page-bound API with custom base-url** — cookies + different domain:
-```clojure
-(core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  ;; ... login via UI ...
-  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
-    (core/api-get ctx "/me")))
-```
-
-### Writing Tests
-
-```clojure
-(ns my-app.test
-  (:require
-   [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
-
-(defdescribe my-test
-  (describe "example.com"
-    {:context [with-playwright with-browser with-page]}
-    (it "navigates and asserts"
-      (page/navigate *page* "https://example.com")
-      (expect (= "Example Domain" (page/title *page*))))))
-```
-
-```bash
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-```
-
-See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
-
-## Native CLI
-
-spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `--eval` mode for inline Clojure scripting via [SCI](https://github.com/babashka/sci). Run `spel --help` for the full command list.
-
-### Releases
-
-Download from [GitHub releases](https://github.com/Blockether/spel/releases):
+**Native CLI (download from GitHub releases):**
 
 ```bash
 # macOS (Apple Silicon)
@@ -169,31 +84,27 @@ Invoke-WebRequest -Uri https://github.com/Blockether/spel/releases/latest/downlo
 Move-Item spel.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\spel.exe"
 ```
 
-> **Tip:** The examples install to `~/.local/bin/` (no sudo needed). Make sure it's on your `PATH`:
-> ```bash
-> export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc or ~/.zshrc
-> ```
-> You can also install system-wide with `sudo mv spel-* /usr/local/bin/spel`.
+Add `~/.local/bin` to your PATH:
 
-### macOS Gatekeeper
+```bash
+export PATH="$HOME/.local/bin:$PATH"  # add to ~/.bashrc or ~/.zshrc
+```
 
-The binaries are not Apple-signed. macOS will block the first run. To allow it:
+**macOS Gatekeeper** (binaries are not Apple-signed):
 
 ```bash
 xattr -d com.apple.quarantine ~/.local/bin/spel
 ```
 
-Or: **System Settings → Privacy & Security → Allow Anyway** after the first blocked attempt.
-
-### Post-install
+**Post-install:**
 
 ```bash
 spel install   # install browsers
 spel version   # verify installation
 ```
 
-
-### Corporate Proxy / Custom CA Certificates
+<details>
+<summary><strong>Corporate Proxy / Custom CA Certificates</strong></summary>
 
 Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
 
@@ -217,6 +128,113 @@ spel install --with-deps
 
 All options merge with built-in defaults — public CDN certs continue to work.
 
+</details>
+
+### Browser Automation
+
+```clojure
+(require '[com.blockether.spel.core :as core]
+         '[com.blockether.spel.page :as page])
+
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com")
+  (page/title pg))
+;; => "Example Domain"
+```
+
+Pass an opts map for device emulation:
+
+```clojure
+(core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [pg]
+  (page/navigate pg "https://example.com"))
+```
+
+For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](.opencode/skills/spel/SKILL.md).
+
+### API Testing & Writing Tests
+
+**Browser testing:**
+
+```clojure
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com")
+  (page/title pg))
+```
+
+**API testing:**
+
+```clojure
+(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (core/api-get ctx "/users"))
+```
+
+**Combined UI + API** — use `page-api` or `with-page-api` to share a single Playwright trace:
+
+```clojure
+;; page-api: same context, same trace
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  (core/api-get (core/page-api pg) "/api/me"))
+
+;; with-page-api: same context, different base-url
+(core/with-testing-page [pg]
+  (page/navigate pg "https://example.com/login")
+  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+    (core/api-get ctx "/me")))
+```
+
+> **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
+
+**Test example** using `spel.allure` (`defdescribe`, `describe`, `it`, `expect`):
+
+```clojure
+(ns my-app.test
+  (:require
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+
+(defdescribe my-test
+  (describe "example.com"
+    {:context [with-playwright with-browser with-page]}
+    (it "navigates and asserts"
+      (page/navigate *page* "https://example.com")
+      (expect (= "Example Domain" (page/title *page*))))))
+```
+
+```bash
+clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+```
+
+See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
+
+### Native CLI
+
+spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `--eval` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
+
+## Agent Scaffolding
+
+Point your AI agent at spel and let it write your E2E tests.
+
+```bash
+spel init-agents                              # OpenCode (default)
+spel init-agents --loop=claude                # Claude Code
+spel init-agents --loop=vscode                # VS Code / Copilot
+spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
+spel init-agents --no-tests                   # SKILL only (interactive dev)
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
+| `--ns NS` | dir name | Base namespace for generated tests |
+| `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
+| `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
+| `--dry-run` | — | Preview files without writing |
+| `--force` | — | Overwrite existing files |
+| `--test-dir DIR` | `test-e2e` | E2E test output directory |
+| `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
+
 ## Video Recording
 
 Record browser sessions as WebM files for debugging and CI artifacts.
@@ -237,37 +255,6 @@ spel codegen recording.jsonl > my_test.clj
 ```
 
 See [full actions and output formats](.opencode/skills/spel/SKILL.md).
-
-## Agent Scaffolding
-
-Point your AI agent at spel and let it write your E2E tests.
-
-```bash
-spel init-agents                              # OpenCode (default)
-spel init-agents --loop=claude                # Claude Code
-spel init-agents --loop=vscode                # VS Code / Copilot
-spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
-spel init-agents --no-tests                   # SKILL only (interactive dev)
-```
-
-| File | Purpose |
-|------|---------|
-| `agents/spel-test-planner` | Explores app, writes structured test plans |
-| `agents/spel-test-generator` | Reads test plans, generates Clojure test code |
-| `agents/spel-test-healer` | Runs failing tests, diagnoses issues, applies fixes |
-| `prompts/spel-test-workflow` | Orchestrator: plan → generate → heal cycle |
-| `skills/spel/SKILL.md` | API reference for agents |
-
-| Flag | Default | Purpose |
-|------|---------|---------|
-| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
-| `--ns NS` | dir name | Base namespace for generated tests |
-| `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
-| `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
-| `--dry-run` | — | Preview files without writing |
-| `--force` | — | Overwrite existing files |
-| `--test-dir DIR` | `test-e2e` | E2E test output directory |
-| `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
 
 ## Building from Source
 
