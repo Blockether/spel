@@ -5,7 +5,7 @@
 <div align="center">
 <i>spel</i> - The Swiss Army Knife browser tool for AI agents and Clojure developers.
 <br/>
-<sub>Browser automation · API testing · Allure reporting · Accessibility snapshots · Inline Clojure execution · Record & generate — one native binary, all three engines.</sub>
+<sub>Browser automation · E2E and API testing · Allure reporting · Accessibility snapshots · Inline Clojure scripting · Record and Generate - one native binary, three browser engines.</sub>
 </div>
 
 <div align="center">
