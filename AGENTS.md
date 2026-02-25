@@ -74,6 +74,18 @@ clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ## Verification Checklist
 Run these in order. On ANY failure -> fix -> restart from step 1.
 
+### Shortcut: Allure report-only changes
+When changes ONLY affect Allure report rendering (e.g. `inject-markdown-renderer!`, `inject-video-modal!`,
+CSS/JS injection in `allure_reporter.clj`) and do NOT touch library API, CLI, or SCI env:
+
+1. `make format` — auto-format
+2. `make lint` — diagnostics clean
+3. `make test-allure` — runs tests + generates report in one step. Confirms tests pass AND report generates.
+
+Skip `validate-safe-graal`, `install-local`, `gen-docs`, `test-cli` — those are irrelevant for report-only changes.
+
+### Full checklist (API, CLI, or SCI changes)
+
 1. `make format` — auto-format source (must run BEFORE tests — format changes must be tested)
 2. `make lint` — clojure-lsp diagnostics clean
 3. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)

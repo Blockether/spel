@@ -94,21 +94,23 @@
 
   (describe "nil and empty data handling"
 
-    (it "handles nil request headers gracefully"
+    (it "handles nil request headers gracefully — still shows method line"
       (let [md (allure/render-http-markdown
                  {:method           "GET"
                   :url              "https://example.com"
                   :status           200
                   :request-headers  nil})]
-        (expect (not (str/includes? md "### Request Headers")))))
+        (expect (str/includes? md "### Request Headers"))
+        (expect (str/includes? md "GET https://example.com"))))
 
-    (it "handles empty request headers gracefully"
+    (it "handles empty request headers gracefully — still shows method line"
       (let [md (allure/render-http-markdown
                  {:method           "GET"
                   :url              "https://example.com"
                   :status           200
                   :request-headers  {}})]
-        (expect (not (str/includes? md "### Request Headers")))))
+        (expect (str/includes? md "### Request Headers"))
+        (expect (str/includes? md "GET https://example.com"))))
 
     (it "handles nil request body gracefully"
       (let [md (allure/render-http-markdown

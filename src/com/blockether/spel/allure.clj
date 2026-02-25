@@ -688,11 +688,13 @@
               (do (.append sb c) (recur (inc i) depth false false)))))))))
 
 (defn- build-curl-command
-  "Generate a curl command string from request details."
+  "Generate a curl command string from request details.
+   URL comes first, then options (method, headers, body)."
   ^String [{:keys [method url request-headers request-body]}]
   (let [sb (StringBuilder. "curl")]
+    (.append sb (str " '" url "'"))
     (when (and method (not= (str/upper-case method) "GET"))
-      (.append sb (str " -X " (str/upper-case method))))
+      (.append sb (str " \\\n  -X " (str/upper-case method))))
     (doseq [[k v] (sort (or request-headers {}))]
       (.append sb (str " \\\n  -H '" k ": " v "'")))
     (when (and request-body (pos? (count request-body)))
@@ -700,7 +702,6 @@
                            (str (subs request-body 0 500) "...")
                            request-body)]
         (.append sb (str " \\\n  -d '" (str/replace body-preview "'" "'\\''") "'"))))
-    (.append sb (str " \\\n  '" url "'"))
     (str sb)))
 
 ;; ---------------------------------------------------------------------------
@@ -731,12 +732,13 @@
     ;; Title
     (.append sb (str "## " method " " (or url "") " \u2192 " status " " status-text "\n\n"))
 
-    ;; Request Headers
-    (when (and request-headers (seq request-headers))
-      (.append sb "### Request Headers\n```\n")
+    ;; Request Headers — always emit so the Request card always appears
+    (.append sb "### Request Headers\n```\n")
+    (if (and request-headers (seq request-headers))
       (doseq [[k v] (sort request-headers)]
         (.append sb (str k ": " v "\n")))
-      (.append sb "```\n\n"))
+      (.append sb (str method " " (or url "") "\n")))
+    (.append sb "```\n\n")
 
     ;; Request Body
     (when (and request-body (pos? (count request-body)))
