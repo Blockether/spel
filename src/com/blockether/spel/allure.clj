@@ -177,6 +177,14 @@
    Same as *test-out* but for *err*."
   nil)
 
+(def ^:dynamic *network-log*
+  "Dynamic var holding an atom that buffers network responses for
+   automatic capture. When non-nil, `install-network-capture!` registers
+   a page on-response listener that collects response metadata here.
+   Flushed to allure steps by `flush-network-steps!` after the test body.
+   Bound by test fixtures when the Allure reporter is active."
+  nil)
+
 ;; =============================================================================
 ;; Internal Helpers
 ;; =============================================================================
@@ -636,6 +644,64 @@
                  (catch Throwable ~'_)))
              (throw t#))))
        {:file ~*file* :line ~loc-line})))
+
+(declare attach-network-response!)
+
+;; =============================================================================
+;; Auto Network Capture — passive browser network logging
+;; =============================================================================
+
+(def ^:private skip-resource-types
+  "Resource types excluded from automatic network capture.
+   Only API/document traffic is interesting; static assets are noise."
+  #{"stylesheet" "image" "font" "media" "manifest" "other"
+    "texttrack" "eventsource" "signedexchange" "ping"
+    "cspviolationreport" "preflight" "prefetch" "script"})
+
+(defn install-network-capture!
+  "Register a page on-response listener that buffers responses for later
+   attachment to the Allure report. Filters out static assets (images,
+   stylesheets, fonts, scripts) — only captures API calls, documents,
+   and fetch/XHR requests.
+
+   Must be called while `*network-log*` is bound to an atom.
+   Use `flush-network-steps!` after the test body to create the allure steps."
+  [pg]
+  (when-let [log *network-log*]
+    (page/on-response pg
+      (fn [^Response resp]
+        (try
+          (let [^Request req (.request resp)
+                rtype        (.resourceType req)]
+            (when-not (contains? skip-resource-types rtype)
+              (swap! log conj {:response    resp
+                               :method      (.method req)
+                               :url         (.url resp)
+                               :status      (long (.status resp))
+                               :status-text (.statusText resp)
+                               :resource-type rtype
+                               :timestamp   (epoch-ms)})))
+          (catch Throwable _ nil))))))
+
+(defn flush-network-steps!
+  "Create allure steps from buffered network responses. Call after the
+   test body completes, while `*context*` and `*output-dir*` are still
+   bound. Creates a single 'Network Activity' parent step containing
+   one child step per captured request, each with the full rich HTML
+   exchange panel.
+
+   No-op when `*network-log*` is nil, empty, or `*context*` is nil."
+  []
+  (when-let [log *network-log*]
+    (let [entries @log]
+      (when (and (seq entries) *context*)
+        (step* "Network Activity"
+          (fn []
+            (doseq [{:keys [response method url status]} entries]
+              (let [step-name (str status " " method " " url)]
+                (step* step-name
+                  (fn []
+                    (attach-network-response! response)))))))))))
 
 ;; =============================================================================
 ;; API Step — auto-attach HTTP request/response details
@@ -1116,7 +1182,7 @@
         ;; ── Rich HTML Exchange Panel ──
         (attach "HTTP Exchange"
           (render-http-html {:method           req-method
-                             :url              url
+                             :url              req-url
                              :status           status
                              :status-text      status-text
                              :request-headers  req-headers
@@ -1196,7 +1262,7 @@
         ;; ── Rich HTML Exchange Panel ──
         (attach "HTTP Exchange"
           (render-http-html {:method           req-method
-                             :url              url
+                             :url              req-url
                              :status           status
                              :status-text      status-text
                              :request-headers  req-headers

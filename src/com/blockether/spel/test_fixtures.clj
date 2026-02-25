@@ -244,8 +244,13 @@
                       allure/*page*       page
                       allure/*tracing*    tracing
                       allure/*trace-path* trace-file
-                      allure/*har-path*   har-file]
-              (f))
+                      allure/*har-path*   har-file
+                      allure/*network-log* (atom [])]
+              (allure/install-network-capture! page)
+              (try
+                (f)
+                (finally
+                  (allure/flush-network-steps!))))
             (finally
               (when (instance? com.microsoft.playwright.Page page)
                 (core/close-page! page))
@@ -375,8 +380,13 @@
                     allure/*page*       page
                     allure/*tracing*    tracing
                     allure/*trace-path* trace-file
-                    allure/*har-path*   har-file]
-            (f))
+                    allure/*har-path*   har-file
+                    allure/*network-log* (atom [])]
+            (allure/install-network-capture! page)
+            (try
+              (f)
+              (finally
+                (allure/flush-network-steps!))))
           (finally
             ;; Close page first (matches Playwright's own test patterns)
             (when (instance? com.microsoft.playwright.Page page)
