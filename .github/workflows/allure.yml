@@ -66,7 +66,8 @@ jobs:
         run: |
           CI_EVENT="${{ github.event.workflow_run.event }}"
           echo "ci_event=$CI_EVENT" >> $GITHUB_OUTPUT
-          echo "is_pr=$( [ "$CI_EVENT" = "pull_request" ] && echo true || echo false )" >> $GITHUB_OUTPUT
+          # Default: not a PR, treat as main build
+          echo "is_pr=false" >> $GITHUB_OUTPUT
           echo "is_main=$( [ "$CI_EVENT" = "push" ] && echo true || echo false )" >> $GITHUB_OUTPUT
           echo "ci_run_number=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
           echo "ci_run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
@@ -78,12 +79,16 @@ jobs:
             PR_NUM=$(echo "$PR_JSON" | jq '.[0].number')
             if [ "$PR_NUM" != "null" ] && [ -n "$PR_NUM" ]; then
               PR_DATA=$(gh pr view "$PR_NUM" --json number,title,author,headRefName,headRefOid,url 2>/dev/null || echo '{}')
-              echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
-              echo "pr_title=$(echo "$PR_DATA" | jq -r '.title // ""')" >> $GITHUB_OUTPUT
-              echo "pr_author=$(echo "$PR_DATA" | jq -r '.author.login // ""')" >> $GITHUB_OUTPUT
-              echo "pr_branch=$(echo "$PR_DATA" | jq -r '.headRefName // ""')" >> $GITHUB_OUTPUT
-              echo "pr_sha=$(echo "$PR_DATA" | jq -r '.headRefOid // ""')" >> $GITHUB_OUTPUT
-              echo "pr_url=$(echo "$PR_DATA" | jq -r '.url // ""')" >> $GITHUB_OUTPUT
+              if [ -n "$(echo "$PR_DATA" | jq -r '.number // empty')" ]; then
+                # Only set is_pr=true if we have a valid PR
+                echo "is_pr=true" >> $GITHUB_OUTPUT
+                echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+                echo "pr_title=$(echo "$PR_DATA" | jq -r '.title // ""')" >> $GITHUB_OUTPUT
+                echo "pr_author=$(echo "$PR_DATA" | jq -r '.author.login // ""')" >> $GITHUB_OUTPUT
+                echo "pr_branch=$(echo "$PR_DATA" | jq -r '.headRefName // ""')" >> $GITHUB_OUTPUT
+                echo "pr_sha=$(echo "$PR_DATA" | jq -r '.headRefOid // ""')" >> $GITHUB_OUTPUT
+                echo "pr_url=$(echo "$PR_DATA" | jq -r '.url // ""')" >> $GITHUB_OUTPUT
+              fi
             fi
           fi
 
