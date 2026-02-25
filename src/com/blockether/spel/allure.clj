@@ -327,6 +327,7 @@
                     "text/plain"       "txt"
                     "application/json" "json"
                     "text/html"        "html"
+                    "text/markdown"    "md"
                     "text/csv"         "csv"
                     "text/xml"         "xml"
                     "txt")
@@ -645,7 +646,7 @@
              (throw t#))))
        {:file ~*file* :line ~loc-line})))
 
-(declare attach-network-response!)
+(declare attach-network-markdown!)
 
 ;; =============================================================================
 ;; Auto Network Capture — passive browser network logging
@@ -687,9 +688,7 @@
   "Create allure steps from buffered network responses. Call after the
    test body completes, while `*context*` and `*output-dir*` are still
    bound. Creates a single 'Network Activity' parent step containing
-   one child step per captured request, each with the full rich HTML
-   exchange panel.
-
+   one child step per captured request, each with a Markdown attachment.
    No-op when `*network-log*` is nil, empty, or `*context*` is nil."
   []
   (when-let [log *network-log*]
@@ -701,7 +700,7 @@
               (let [step-name (str status " " method " " url)]
                 (step* step-name
                   (fn []
-                    (attach-network-response! response)))))))))))
+                    (attach-network-markdown! response)))))))))))
 
 ;; =============================================================================
 ;; API Step — auto-attach HTTP request/response details
@@ -774,72 +773,6 @@
               :else
               (do (.append sb c) (recur (inc i) depth false false)))))))))
 
-(defn- format-response-headers
-  "Format a response headers map as an HTTP-style header block."
-  [status status-text headers]
-  (let [hdr-lines (mapv (fn [[k v]] (str k ": " v)) (sort headers))]
-    (str/join "\n" (into [(str "HTTP " status " " status-text)] hdr-lines))))
-
-;; ---------------------------------------------------------------------------
-;; HTML rendering for rich HTTP exchange reports
-;; ---------------------------------------------------------------------------
-
-(defn- html-escape
-  "Escape HTML special characters."
-  ^String [^String s]
-  (when s
-    (-> s
-      (str/replace "&" "&amp;")
-      (str/replace "<" "&lt;")
-      (str/replace ">" "&gt;")
-      (str/replace "\"" "&quot;"))))
-
-(defn- syntax-highlight-json
-  "Apply HTML syntax highlighting to pretty-printed JSON.
-   Keys = blue, strings = green, numbers = orange,
-   booleans/null = purple, braces/brackets = gray."
-  ^String [^String json]
-  (when json
-    (-> json
-      html-escape
-      ;; Keys: "key" followed by :
-      (str/replace #"(&quot;[^&]*?&quot;)\s*:"
-        "<span class=\"json-key\">$1</span>:")
-      ;; String values (not already wrapped as key)
-      (str/replace #":\s*(&quot;[^&]*?&quot;)"
-        ": <span class=\"json-str\">$1</span>")
-      ;; Standalone string values in arrays
-      (str/replace #"(?<=\[|,\n\s*)(&quot;[^&]*?&quot;)(?=[,\]\n])"
-        "<span class=\"json-str\">$1</span>")
-      ;; Numbers
-      (str/replace #"(?<=:\s|\[|,\s)(-?\d+\.?\d*(?:[eE][+-]?\d+)?)"
-        "<span class=\"json-num\">$1</span>")
-      ;; Booleans and null
-      (str/replace #"(?<=:\s)(true|false|null)"
-        "<span class=\"json-bool\">$1</span>"))))
-
-(defn- method-color
-  "CSS color for an HTTP method badge."
-  ^String [^String method]
-  (case (str/upper-case (or method "GET"))
-    "GET"    "#2196F3"
-    "POST"   "#4CAF50"
-    "PUT"    "#FF9800"
-    "PATCH"  "#9C27B0"
-    "DELETE" "#f44336"
-    "HEAD"   "#607D8B"
-    "#757575"))
-
-(defn- status-color
-  "CSS color for an HTTP status code."
-  ^String [^long status]
-  (cond
-    (< status 200) "#607D8B"
-    (< status 300) "#4CAF50"
-    (< status 400) "#2196F3"
-    (< status 500) "#FF9800"
-    :else          "#f44336"))
-
 (defn- build-curl-command
   "Generate a curl command string from request details."
   ^String [{:keys [method url request-headers request-body]}]
@@ -856,78 +789,12 @@
     (.append sb (str " \\\n  '" url "'"))
     (str sb)))
 
-(defn- render-headers-table
-  "Render an HTML headers table from a map."
-  ^String [headers]
-  (if (or (nil? headers) (empty? headers))
-    "<p class=\"empty\">No headers</p>"
-    (let [sb (StringBuilder.)]
-      (.append sb "<table class=\"headers-table\">")
-      (.append sb "<tr><th>Header</th><th>Value</th></tr>")
-      (doseq [[k v] (sort headers)]
-        (.append sb (str "<tr><td class=\"hdr-name\">" (html-escape (str k))
-                      "</td><td class=\"hdr-val\">" (html-escape (str v))
-                      "</td></tr>")))
-      (.append sb "</table>")
-      (str sb))))
+;; ---------------------------------------------------------------------------
+;; Markdown rendering for HTTP exchange reports
+;; ---------------------------------------------------------------------------
 
-(def ^:private http-exchange-css
-  "Inline CSS for the HTTP exchange HTML attachment."
-  "<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-         font-size: 13px; line-height: 1.5; color: #1a1a2e; background: #f8f9fa; padding: 16px; }
-  .exchange { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;
-              box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-  .summary { padding: 14px 18px; display: flex; align-items: center; gap: 10px;
-             flex-wrap: wrap; border-bottom: 1px solid #e8e8e8; background: #fafbfc; }
-  .method-badge { display: inline-block; padding: 3px 10px; border-radius: 4px;
-                  color: #fff; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;
-                  text-transform: uppercase; flex-shrink: 0; }
-  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 4px;
-                  color: #fff; font-weight: 700; font-size: 12px; flex-shrink: 0; }
-  .url { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 12px;
-         color: #333; word-break: break-all; flex: 1; }
-  .timing { color: #888; font-size: 11px; flex-shrink: 0; }
-  details { border-top: 1px solid #eee; }
-  details:first-of-type { border-top: none; }
-  summary { padding: 10px 18px; cursor: pointer; font-weight: 600; font-size: 12px;
-            color: #555; user-select: none; background: #fdfdfe; }
-  summary:hover { background: #f5f6f8; }
-  summary::marker { color: #aaa; }
-  .section-body { padding: 12px 18px; background: #fff; }
-  .headers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .headers-table th { text-align: left; padding: 6px 10px; background: #f0f2f5;
-                      border-bottom: 1px solid #ddd; color: #555; font-weight: 600; }
-  .headers-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0;
-                      vertical-align: top; word-break: break-all; }
-  .hdr-name { font-family: 'SF Mono', Menlo, Consolas, monospace; font-weight: 600;
-              color: #2d3748; white-space: nowrap; width: 220px; }
-  .hdr-val { font-family: 'SF Mono', Menlo, Consolas, monospace; color: #4a5568; }
-  pre.body { background: #1e1e2e; color: #cdd6f4; padding: 14px; border-radius: 6px;
-             overflow-x: auto; font-family: 'SF Mono', Menlo, Consolas, monospace;
-             font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;
-             max-height: 600px; }
-  pre.curl { background: #2d2d3f; color: #a6e3a1; padding: 14px; border-radius: 6px;
-             overflow-x: auto; font-family: 'SF Mono', Menlo, Consolas, monospace;
-             font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
-  .json-key { color: #89b4fa; }
-  .json-str { color: #a6e3a1; }
-  .json-num { color: #fab387; }
-  .json-bool { color: #cba6f7; }
-  .empty { color: #999; font-style: italic; padding: 8px 0; }
-  .badge-row { display: flex; gap: 6px; align-items: center; }
-  .info-label { font-size: 11px; color: #888; }
-  .content-type { font-family: 'SF Mono', Menlo, Consolas, monospace;
-                  font-size: 11px; color: #666; background: #f0f2f5;
-                  padding: 2px 8px; border-radius: 3px; }
-  .html-inline { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px;
-                    background: #fff; max-height: 500px; overflow: auto; }
-  </style>")
-
-(defn render-http-html
-  "Render a self-contained HTML document showing a full HTTP exchange.
-
+(defn render-http-markdown
+  "Render an HTTP request/response exchange as a Markdown document.
    Takes a map with keys:
      :method          - String. HTTP method.
      :url             - String. Request/response URL.
@@ -938,210 +805,72 @@
      :response-headers - Map or nil. Response headers.
      :response-body   - String or nil. Response body.
      :content-type    - String or nil. Response content type.
-
-   Returns a self-contained HTML string with inline CSS."
+   Returns a Markdown string."
   ^String [{:keys [method url status status-text
                    request-headers request-body
                    response-headers response-body
                    content-type]}]
-  (let [method     (or method "GET")
-        status     (or status 0)
+  (let [method      (or method "GET")
+        status      (or status 0)
         status-text (or status-text "")
-        m-color    (method-color method)
-        s-color    (status-color status)
-        pj-resp    (when response-body (pretty-json response-body))
-        pj-req     (when request-body (pretty-json request-body))
-        hl-resp    (when pj-resp (syntax-highlight-json pj-resp))
-        hl-req     (when pj-req (syntax-highlight-json pj-req))
-        json-resp? (and content-type (re-find #"json" content-type))
-        html-resp? (and content-type (re-find #"html" content-type))
-        json-req?  (and request-body
-                     (let [trimmed (str/trim request-body)]
-                       (or (str/starts-with? trimmed "{")
-                         (str/starts-with? trimmed "["))))
-        html-req?  (and request-headers
-                     (let [rct (get request-headers "content-type"
-                                 (get request-headers "Content-Type"))]
-                       (and rct (re-find #"html" rct))))
-        curl-cmd   (build-curl-command {:method method :url url
-                                        :request-headers request-headers
-                                        :request-body request-body})]
-    (str
-      "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-      http-exchange-css
-      "</head><body>"
-      "<div class=\"exchange\">"
+        sb          (StringBuilder.)]
+    ;; Title
+    (.append sb (str "## " method " " (or url "") " \u2192 " status " " status-text "\n\n"))
 
-      ;; ── Summary bar ──
-      "<div class=\"summary\">"
-      "<span class=\"method-badge\" style=\"background:" m-color "\">" (html-escape method) "</span>"
-      "<span class=\"url\">" (html-escape (or url "")) "</span>"
-      "<span class=\"status-badge\" style=\"background:" s-color "\">"
-      status " " (html-escape status-text)
-      "</span>"
-      (when content-type
-        (str "<span class=\"content-type\">" (html-escape content-type) "</span>"))
-      "</div>"
+    ;; Request Headers
+    (when (and request-headers (seq request-headers))
+      (.append sb "### Request Headers\n```\n")
+      (doseq [[k v] (sort request-headers)]
+        (.append sb (str k ": " v "\n")))
+      (.append sb "```\n\n"))
 
-      ;; ── Request Headers ──
-      "<details>"
-      "<summary>▶ Request Headers"
-      (when request-headers (str " (" (count request-headers) ")"))
-      "</summary>"
-      "<div class=\"section-body\">"
-      (render-headers-table request-headers)
-      "</div></details>"
+    ;; Request Body
+    (when (and request-body (pos? (count request-body)))
+      (let [json? (let [trimmed (str/trim request-body)]
+                    (or (str/starts-with? trimmed "{")
+                      (str/starts-with? trimmed "[")))]
+        (.append sb (str "### Request Body\n```" (if json? "json" "") "\n"))
+        (.append sb (str (if json? (pretty-json request-body) request-body) "\n"))
+        (.append sb "```\n\n")))
 
-      ;; ── Request Body ──
-      (when (and request-body (pos? (count request-body)))
-        (str
-          "<details>"
-          "<summary>▶ Request Body (" (count request-body) " bytes)</summary>"
-          "<div class=\"section-body\">"
-          (cond
-            json-req?
-            (str "<pre class=\"body\">"
-              (or hl-req (html-escape pj-req))
-              "</pre>")
+    ;; Response Headers
+    (when (and response-headers (seq response-headers))
+      (.append sb "### Response Headers\n```\n")
+      (doseq [[k v] (sort response-headers)]
+        (.append sb (str k ": " v "\n")))
+      (.append sb "```\n\n"))
 
-            html-req?
-            (str "<div class=\"html-inline\">" request-body "</div>")
+    ;; Response Body
+    (when (and response-body (pos? (count response-body)))
+      (let [json? (and content-type (re-find #"json" content-type))
+            lang  (cond
+                    json?                                    "json"
+                    (and content-type (re-find #"xml" content-type))  "xml"
+                    (and content-type (re-find #"html" content-type)) "html"
+                    :else                                    "")]
+        (.append sb (str "### Response Body\n```" lang "\n"))
+        (.append sb (str (if json? (pretty-json response-body) response-body) "\n"))
+        (.append sb "```\n\n")))
 
-            :else
-            (str "<pre class=\"body\">" (html-escape request-body) "</pre>"))
-          "</div></details>"))
+    ;; cURL
+    (let [curl (build-curl-command {:method          method
+                                    :url             url
+                                    :request-headers request-headers
+                                    :request-body    request-body})]
+      (.append sb "### cURL\n```bash\n")
+      (.append sb (str curl "\n"))
+      (.append sb "```\n"))
 
-      ;; ── Response Headers ──
-      "<details open>"
-      "<summary>▶ Response Headers"
-      (when response-headers (str " (" (count response-headers) ")"))
-      "</summary>"
-      "<div class=\"section-body\">"
-      (render-headers-table response-headers)
-      "</div></details>"
+    (str sb)))
 
-      ;; ── Response Body ──
-      (when (and response-body (pos? (count response-body)))
-        (str
-          "<details open>"
-          "<summary>▶ Response Body (" (count response-body) " bytes)</summary>"
-          "<div class=\"section-body\">"
-          (cond
-            json-resp?
-            (str "<pre class=\"body\">"
-              (or hl-resp (html-escape pj-resp))
-              "</pre>")
+(defn attach-http-markdown!
+  "Attach HTTP request/response details as a Markdown document.
 
-            html-resp?
-            (str "<div class=\"html-inline\">" response-body "</div>")
-
-            :else
-            (str "<pre class=\"body\">" (html-escape response-body) "</pre>"))
-          "</div></details>"))
-
-      ;; ── Curl Command ──
-      "<details>"
-      "<summary>▶ Curl Command</summary>"
-      "<div class=\"section-body\">"
-      "<pre class=\"curl\">" (html-escape curl-cmd) "</pre>"
-      "</div></details>"
-
-      "</div>"  ;; close .exchange
-      ;; postMessage for auto-resize in Allure rich-html plugin
-      "<script>"
-      "(function(){"
-      "function sendHeight(){parent.postMessage({spelHtmlHeight:document.body.scrollHeight+16},'*')}"
-      "sendHeight();"
-      "var t=null;"
-      "window.addEventListener('resize',function(){clearTimeout(t);t=setTimeout(sendHeight,50)});"
-      "document.querySelectorAll('details').forEach(function(d){d.addEventListener('toggle',sendHeight)});"
-      "})();"
-      "</script>"
-      "</body></html>")))
-
-(defn attach-api-response!
-  "Attach APIResponse metadata to the current allure step as parameters,
-   attachments, and console log output. Safe — swallows all errors.
-
-   Captures:
-     - Parameters:  status, status-text, url, ok?, content-type, content-length
-     - Attachments: \"Response Headers\" (full HTTP header block),
-                    \"Response Body\" (pretty-printed JSON, raw XML/HTML/text)
-     - Console log: status line, url, content-type, body preview
-                    (shows as ⏵ marker sub-steps in the Allure report)
+   For APIResponse from api-get, api-post, etc. Extracts request
+   metadata from the *request-capture* atom when available.
 
    This function is public because it is referenced by the `api-step` macro
    which expands in the calling namespace."
-  [resp]
-  (try
-    (when resp
-      (let [^com.microsoft.playwright.APIResponse r resp
-            status      (.status r)
-            status-text (.statusText r)
-            url         (.url r)
-            ok?         (.ok r)
-            headers     (into {} (.headers r))
-            body        (try (.text r) (catch Throwable _ nil))
-            ct          (get headers "content-type")
-            cl          (get headers "content-length")]
-
-        ;; ── Console log (captured by step* as ⏵ marker sub-steps) ──
-        (println (str "← " status " " status-text))
-        (println (str "  " url))
-        (when ct (println (str "  Content-Type: " ct)))
-        (when cl (println (str "  Content-Length: " cl " bytes")))
-        (when (and body (> (count body) 0))
-          (let [preview (if (> (count body) 120)
-                          (str (subs body 0 120) "…")
-                          body)]
-            (println (str "  Body: " preview))))
-
-        ;; ── Parameters ──
-        (parameter "status" status)
-        (parameter "status-text" status-text)
-        (parameter "url" url)
-        (parameter "ok?" ok?)
-        (when ct (parameter "content-type" ct))
-        (when cl (parameter "content-length" cl))
-
-        ;; ── Attachments ──
-        ;; Full response headers
-        (attach "Response Headers"
-          (format-response-headers status status-text headers)
-          "text/plain")
-
-        ;; Response body (pretty-printed if JSON)
-        (when (and body (pos? (count body)))
-          (let [mime (cond
-                       (and ct (re-find #"json" ct)) "application/json"
-                       (and ct (re-find #"xml" ct))  "text/xml"
-                       (and ct (re-find #"html" ct)) "text/html"
-                       :else                          "text/plain")
-                display-body (if (= mime "application/json")
-                               (pretty-json body)
-                               body)]
-            (attach "Response Body" display-body mime)))))
-    (catch Throwable _ nil)))
-
-(defn attach-http-exchange!
-  "Attach a rich HTML panel showing the full HTTP request/response exchange.
-
-   Generates a beautiful self-contained HTML attachment with:
-     - Colored method badge (GET=blue, POST=green, PUT=orange, DELETE=red)
-     - Colored status badge (2xx=green, 3xx=blue, 4xx=orange, 5xx=red)
-     - Collapsible Request Headers table
-     - Collapsible Request Body with JSON syntax highlighting
-     - Response Headers table (open by default)
-     - Response Body with JSON syntax highlighting (open by default)
-     - Collapsible Curl Command
-
-   Falls back to `attach-api-response!` when no Allure context is active.
-
-   Params:
-     `resp`         - APIResponse instance.
-     `request-meta` - Map with captured request details (from *request-capture*).
-                      Keys: :method, :url, :request-headers, :request-body.
-                      May be nil for backward compatibility."
   [resp request-meta]
   (try
     (when resp
@@ -1149,79 +878,33 @@
             status       (.status r)
             status-text  (.statusText r)
             url          (.url r)
-            ok?          (.ok r)
             resp-headers (into {} (.headers r))
             body         (try (.text r) (catch Throwable _ nil))
             ct           (get resp-headers "content-type")
-            cl           (get resp-headers "content-length")
             req-method   (or (:method request-meta) "GET")
             req-url      (or (:url request-meta) url)
             req-headers  (:request-headers request-meta)
             req-body     (:request-body request-meta)]
-
-        ;; ── Console log (captured by step* as ⏵ marker sub-steps) ──
-        (println (str "← " status " " status-text))
-        (println (str "  " url))
-        (when ct (println (str "  Content-Type: " ct)))
-        (when cl (println (str "  Content-Length: " cl " bytes")))
-        (when (and body (> (count body) 0))
-          (let [preview (if (> (count body) 120)
-                          (str (subs body 0 120) "…")
-                          body)]
-            (println (str "  Body: " preview))))
-
-        ;; ── Parameters ──
-        (parameter "method" req-method)
-        (parameter "status" status)
-        (parameter "status-text" status-text)
-        (parameter "url" url)
-        (parameter "ok?" ok?)
-        (when ct (parameter "content-type" ct))
-        (when cl (parameter "content-length" cl))
-
-        ;; ── Rich HTML Exchange Panel ──
-        (attach "HTTP Exchange"
-          (render-http-html {:method           req-method
-                             :url              req-url
-                             :status           status
-                             :status-text      status-text
-                             :request-headers  req-headers
-                             :request-body     req-body
-                             :response-headers resp-headers
-                             :response-body    body
-                             :content-type     ct})
-          "text/html")
-
-        ;; ── Also keep the plain-text attachments for raw access ──
-        (attach "Response Headers"
-          (format-response-headers status status-text resp-headers)
-          "text/plain")
-
-        (when (and body (pos? (count body)))
-          (let [mime (cond
-                       (and ct (re-find #"json" ct)) "application/json"
-                       (and ct (re-find #"xml" ct))  "text/xml"
-                       (and ct (re-find #"html" ct)) "text/html"
-                       :else                          "text/plain")
-                display-body (if (= mime "application/json")
-                               (pretty-json body)
-                               body)]
-            (attach "Response Body" display-body mime)))))
+        (attach "HTTP"
+          (render-http-markdown {:method           req-method
+                                 :url              req-url
+                                 :status           status
+                                 :status-text      status-text
+                                 :request-headers  req-headers
+                                 :request-body     req-body
+                                 :response-headers resp-headers
+                                 :response-body    body
+                                 :content-type     ct})
+          "text/markdown")))
     (catch Throwable _ nil)))
 
-(defn attach-network-response!
-  "Attach a rich HTML panel for a browser network Response.
-
+(defn attach-network-markdown!
+  "Attach HTTP request/response details as Markdown for a browser network Response.
    Extracts request/response details from a `com.microsoft.playwright.Response`
-   (the browser network variant, NOT APIResponse) and renders the same rich
-   HTML exchange panel used by `attach-http-exchange!`.
-
-   Browser network responses come from `page/wait-for-response`,
-   `page/on-response`, or navigation calls. The request metadata is extracted
-   from the Response's associated Request object (`.request`).
+   (the browser network variant, NOT APIResponse).
 
    This function is public because it is referenced by the `api-step` macro
-   which expands in the calling namespace."
+   and `flush-network-steps!`."
   [resp]
   (try
     (when resp
@@ -1229,74 +912,31 @@
             ^Request  req-obj  (.request r)
             status             (.status r)
             status-text        (.statusText r)
-            url                (.url r)
             resp-headers       (into {} (.headers r))
             body               (try (.text r) (catch Throwable _ nil))
             ct                 (get resp-headers "content-type")
-            cl                 (get resp-headers "content-length")
             req-method         (.method req-obj)
             req-url            (.url req-obj)
             req-headers        (into {} (.headers req-obj))
             req-body           (.postData req-obj)]
-
-        ;; ── Console log ──
-        (println (str "← " status " " status-text))
-        (println (str "  " url))
-        (when ct (println (str "  Content-Type: " ct)))
-        (when cl (println (str "  Content-Length: " cl " bytes")))
-        (when (and body (> (count body) 0))
-          (let [preview (if (> (count body) 120)
-                          (str (subs body 0 120) "…")
-                          body)]
-            (println (str "  Body: " preview))))
-
-        ;; ── Parameters ──
-        (parameter "method" req-method)
-        (parameter "status" status)
-        (parameter "status-text" status-text)
-        (parameter "url" url)
-        (parameter "ok?" (.ok r))
-        (when ct (parameter "content-type" ct))
-        (when cl (parameter "content-length" cl))
-
-        ;; ── Rich HTML Exchange Panel ──
-        (attach "HTTP Exchange"
-          (render-http-html {:method           req-method
-                             :url              req-url
-                             :status           status
-                             :status-text      status-text
-                             :request-headers  req-headers
-                             :request-body     req-body
-                             :response-headers resp-headers
-                             :response-body    body
-                             :content-type     ct})
-          "text/html")
-
-        ;; ── Plain-text attachments for raw access ──
-        (attach "Response Headers"
-          (format-response-headers status status-text resp-headers)
-          "text/plain")
-
-        (when (and body (pos? (count body)))
-          (let [mime (cond
-                       (and ct (re-find #"json" ct)) "application/json"
-                       (and ct (re-find #"xml" ct))  "text/xml"
-                       (and ct (re-find #"html" ct)) "text/html"
-                       :else                          "text/plain")
-                display-body (if (= mime "application/json")
-                               (pretty-json body)
-                               body)]
-            (attach "Response Body" display-body mime)))))
+        (attach "HTTP"
+          (render-http-markdown {:method           req-method
+                                 :url              req-url
+                                 :status           status
+                                 :status-text      status-text
+                                 :request-headers  req-headers
+                                 :request-body     req-body
+                                 :response-headers resp-headers
+                                 :response-body    body
+                                 :content-type     ct})
+          "text/markdown")))
     (catch Throwable _ nil)))
 
 (defmacro api-step
   "Execute an API step with automatic request/response logging.
-
-   Wraps the body in an allure step. If the body returns a Playwright
    APIResponse or browser Response, automatically captures request details
-   (method, URL, headers, body) and attaches a rich HTML panel showing the
-   full HTTP exchange with colored badges, syntax highlighting, collapsible
-   sections, and a curl command.
+   (method, URL, headers, body) and attaches a Markdown document showing the
+   full HTTP exchange with request/response headers, bodies, and a cURL command.
 
    Supports two types of responses:
      - `com.microsoft.playwright.APIResponse` — from API testing (api-get, api-post, etc.)
@@ -1331,12 +971,9 @@
                           (do ~@body))]
            (cond
              (instance? com.microsoft.playwright.APIResponse result#)
-             (if @capture#
-               (attach-http-exchange! result# @capture#)
-               (attach-api-response! result#))
-
+             (attach-http-markdown! result# @capture#)
              (instance? com.microsoft.playwright.Response result#)
-             (attach-network-response! result#))
+             (attach-network-markdown! result#))
            result#))
        {:file ~*file* :line ~loc-line})))
 
