@@ -47,9 +47,9 @@ echo '(spel/navigate "https://example.com") (println (spel/title))' | spel --eva
 
 ;; Search for snapshot-related functions
 (spel/help "snapshot")
-;; => spel/snapshot             [] [page-or-opts] ...
-;;    snapshot/capture          [] [page-or-opts] ...
-;;    snapshot/capture-full     [] [page]          ...
+;; => spel/capture-snapshot             [] [page-or-opts] ...
+;;    snapshot/capture-snapshot         [] [page-or-opts] ...
+;;    snapshot/capture-full-snapshot    [] [page]          ...
 ;;    ...
 
 ;; Get details for a specific function
@@ -75,7 +75,7 @@ When `spel/help` shows you a function exists but you need to understand what it 
 
 ## Session Lifecycle
 
-> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser. Just call `spel/goto`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `--eval` calls, so you don't need to re-navigate to the same URL.
+> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser. Just call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `--eval` calls, so you don't need to re-navigate to the same URL.
 >
 > `spel/start!` and `spel/stop!` are only needed for **standalone scripts** that run without a daemon.
 
@@ -256,7 +256,7 @@ All core Playwright Java classes are registered and support full method interop:
 (let [pg (spel/page)]
   (.title pg)           ;; same as (spel/title)
   (.url pg)             ;; same as (spel/url)
-  (.content pg))        ;; same as (spel/html)
+  (.content pg))        ;; same as (spel/content)
 ```
 
 ### Playwright Enums
@@ -331,14 +331,14 @@ This script demonstrates a realistic workflow: start a session, explore a page, 
 
 ;; 3. Navigate and wait for the page to settle
 (spel/navigate "https://news.ycombinator.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 
 ;; 4. Grab basic page info
 (println "Title:" (spel/title))
 (println "URL:" (spel/url))
 
 ;; 5. Take an accessibility snapshot
-(let [snap (spel/snapshot)
+(let [snap (spel/capture-snapshot)
       tree (:tree snap)
       refs (:refs snap)]
 
@@ -393,6 +393,6 @@ spel --eval explore.clj
 
 **Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e1"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 
-**Use `spel/wait-for-load :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
+**Use `spel/wait-for-load-state :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
 
-**Never use `spel/sleep` for synchronization.** It's a flaky anti-pattern. Use `spel/wait-for`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load` instead. The only acceptable use of sleep is waiting for a CSS animation with no observable state change.
+**Never use `spel/wait-for-timeout` for synchronization.** It's a flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. The only acceptable use of fixed delay is waiting for a CSS animation with no observable state change.

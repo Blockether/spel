@@ -7,72 +7,72 @@ How to find elements, read the page structure, and produce visual overlays. Cove
 Every `spel/` function that takes a `sel` argument is polymorphic. It accepts:
 
 1. **CSS selector string** like `"#id"`, `".class"`, `"button"`
-2. **Snapshot ref string** like `"e1"` or `"@e1"` (from `spel/snapshot`)
+2. **Snapshot ref string** like `"e1"` or `"@e1"` (from `spel/capture-snapshot`)
 3. **Locator object** (pass-through, no resolution needed)
 
-So `spel/click`, `spel/fill`, `spel/text`, `spel/visible?`, and every other `sel`-accepting function work the same way regardless of how you specify the target.
+So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every other `sel`-accepting function work the same way regardless of how you specify the target.
 
 ### CSS Selectors
 
 ```clojure
-(spel/$ "#login-form")          ;; by ID
-(spel/$ ".nav-item")            ;; by class
-(spel/$ "div > p")              ;; child combinator
-(spel/$ "input[type=email]")    ;; attribute selector
+(spel/locator "#login-form")          ;; by ID
+(spel/locator ".nav-item")            ;; by class
+(spel/locator "div > p")              ;; child combinator
+(spel/locator "input[type=email]")    ;; attribute selector
 
-;; Use directly in actions (no need to call spel/$ first)
+;; Use directly in actions (no need to call spel/locator first)
 (spel/click "#submit")
 (spel/fill "input[name=email]" "test@example.com")
-(spel/text "h1.title")
+(spel/text-content "h1.title")
 ```
 
-`spel/$` returns a Playwright Locator. You only need it when storing a locator for reuse.
+`spel/locator` returns a Playwright Locator. You only need it when storing a locator for reuse.
 
 ### Semantic Selectors
 
 ```clojure
 ;; By visible text content
-(spel/$text "Click me")
-(spel/click (spel/$text "Sign in"))
+(spel/get-by-text "Click me")
+(spel/click (spel/get-by-text "Sign in"))
 
 ;; By ARIA role (82 constants in the role/ namespace)
-(spel/$role role/button)
-(spel/$role role/button {:name "Submit"})
-(spel/$role role/heading {:name "Installation" :exact true})
-(spel/click (spel/$role role/link {:name "Home"}))
+(spel/get-by-role role/button)
+(spel/get-by-role role/button {:name "Submit"})
+(spel/get-by-role role/heading {:name "Installation" :exact true})
+(spel/click (spel/get-by-role role/link {:name "Home"}))
 
 ;; By label (<label> association)
-(spel/$label "Email")
-(spel/fill (spel/$label "Email") "user@example.com")
+(spel/get-by-label "Email")
+(spel/fill (spel/get-by-label "Email") "user@example.com")
 
 ;; By placeholder text
-(spel/$placeholder "Search...")
-(spel/fill (spel/$placeholder "Enter your name") "Alice")
+(spel/get-by-placeholder "Search...")
+(spel/fill (spel/get-by-placeholder "Enter your name") "Alice")
 
 ;; By test ID (data-testid attribute)
-(spel/$test-id "submit-btn")
-(spel/click (spel/$test-id "nav-menu"))
+(spel/get-by-test-id "submit-btn")
+(spel/click (spel/get-by-test-id "nav-menu"))
 
 ;; By alt text
-(spel/$alt-text "Logo")
+(spel/get-by-alt-text "Logo")
 
 ;; By title attribute
-(spel/$title-attr "Close dialog")
+(spel/get-by-title "Close dialog")
 ```
 
 Common roles: `role/button`, `role/link`, `role/heading`, `role/textbox`, `role/checkbox`, `role/radio`, `role/combobox`, `role/navigation`, `role/dialog`, `role/tab`, `role/tabpanel`, `role/list`, `role/listitem`, `role/img`, `role/table`, `role/row`, `role/cell`.
 
 ### Snapshot Ref Selectors
 
-After calling `(spel/snapshot)`, every interactive element gets a ref ID like `e1`, `e2`, etc. Use these directly:
+After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID like `e1`, `e2`, etc. Use these directly:
 
 ```clojure
-(def snap (spel/snapshot))
+(def snap (spel/capture-snapshot))
 ;; snap => {:tree "- heading \"Welcome\" [@e1]\n- link \"Login\" [@e2]" ...}
 
 (spel/click "e1")              ;; click by ref (no @ prefix)
 (spel/click "@e1")             ;; @ prefix also works
-(spel/text "e2")               ;; get text of ref e2
+(spel/text-content "e2")               ;; get text of ref e2
 (spel/fill "e5" "hello")       ;; fill input identified as e5
 ```
 
@@ -84,8 +84,8 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 
 ```clojure
 ;; Get all matches as a vector of Locators
-(spel/$$ "a")
-(spel/$$ ".card")
+(locator/all (spel/locator "a"))
+(locator/all (spel/locator ".card"))
 
 ;; Get all texts at once
 (spel/all-text-contents "a")   ;; => ["Home" "About" "Contact"]
@@ -109,7 +109,7 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 (spel/loc-get-by-label "form" "Email")              ;; filter by label
 (spel/loc-get-by-test-id ".sidebar" "menu-toggle")  ;; filter by test ID
 (spel/loc-filter ".card" {:has-text "Premium"})     ;; generic filter
-(spel/loc-filter ".card" {:has (spel/$text "Buy now")})
+(spel/loc-filter ".card" {:has (spel/get-by-text "Buy now")})
 ```
 
 **Rule of thumb**: if your selector might match multiple elements, make it more specific, use `spel/first`, or use a semantic locator (role + name).
@@ -121,7 +121,7 @@ Snapshots give you a structured view of the page, the way a screen reader sees i
 ### Capturing a Snapshot
 
 ```clojure
-(def snap (spel/snapshot))
+(def snap (spel/capture-snapshot))
 ```
 
 Returns a map with three keys:
@@ -173,11 +173,11 @@ The `:bbox` gives pixel coordinates relative to the page, useful for annotation 
 
 ```clojure
 ;; Scope to a subtree (CSS selector or ref)
-(spel/snapshot {:scope "#main"})
-(spel/snapshot {:scope "@e7"})
+(spel/capture-snapshot {:scope "#main"})
+(spel/capture-snapshot {:scope "@e7"})
 
 ;; Capture all iframes too (refs prefixed: f1_e1, f2_e3, etc.)
-(spel/full-snapshot)
+(spel/capture-full-snapshot)
 ```
 
 ### Resolving and Clearing Refs
@@ -198,7 +198,7 @@ Annotations inject visual overlays onto the page: bounding boxes, ref badges, an
 The most common workflow. Capture a snapshot, then screenshot with overlays:
 
 ```clojure
-(def snap (spel/snapshot))
+(def snap (spel/capture-snapshot))
 (spel/save-annotated-screenshot! (:refs snap) "/tmp/annotated.png")
 ```
 
@@ -220,9 +220,9 @@ Options:
 Keep overlays visible for headed mode debugging or multiple screenshots:
 
 ```clojure
-(spel/annotate (:refs snap))   ;; inject (returns count of annotated elements)
+(spel/inject-overlays! (:refs snap))   ;; inject (returns count of annotated elements)
 (spel/screenshot {:path "/tmp/with-overlays.png"})
-(spel/unannotate)              ;; remove when done
+(spel/remove-overlays!)              ;; remove when done
 ```
 
 ### Pre-Action Markers
@@ -230,10 +230,10 @@ Keep overlays visible for headed mode debugging or multiple screenshots:
 Highlight specific elements before interacting with them. Visually distinct from annotations: bright red/orange pulsing border with a `-> eN` label.
 
 ```clojure
-(spel/mark "e1" "e5")         ;; mark elements you're about to interact with
+(spel/inject-action-markers! "e1" "e5")         ;; mark elements you're about to interact with
 (spel/screenshot {:path "/tmp/before-click.png"})
 (spel/click "e5")
-(spel/unmark)                  ;; clean up
+(spel/remove-action-markers!)                  ;; clean up
 ```
 
 Markers use `data-spel-action-marker` and don't interfere with annotation overlays. You can have both active at once.
@@ -293,16 +293,16 @@ Navigate, understand the page, annotate, interact, verify:
 
 ```clojure
 (spel/navigate "https://news.ycombinator.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 ;; 1. Capture the page structure
-(def snap (spel/snapshot))
+(def snap (spel/capture-snapshot))
 (println (:tree snap))
 (spel/save-annotated-screenshot! (:refs snap) "/tmp/hn-annotated.png")
-(spel/mark "e2")
+(spel/inject-action-markers! "e2")
 (spel/screenshot {:path "/tmp/hn-before-click.png"})
-(spel/unmark)
+(spel/remove-action-markers!)
 (spel/click "e2")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 ;; 5. Verify we landed on the right page
 (spel/assert-visible "h1")
 (println "Now at:" (spel/url))
@@ -313,18 +313,18 @@ Navigate, understand the page, annotate, interact, verify:
 
 | Task | `--eval` | Library |
 |------|----------|---------|
-| CSS locator | `(spel/$ "sel")` | `(page/locator pg "sel")` |
-| All matches | `(spel/$$ "sel")` | `(locator/all (page/locator pg "sel"))` |
-| By text | `(spel/$text "t")` | `(page/get-by-text pg "t")` |
-| By role | `(spel/$role role/button)` | `(page/get-by-role pg role/button)` |
-| By label | `(spel/$label "t")` | `(page/get-by-label pg "t")` |
-| By placeholder | `(spel/$placeholder "t")` | `(page/get-by-placeholder pg "t")` |
-| By test ID | `(spel/$test-id "id")` | `(page/get-by-test-id pg "id")` |
-| By alt text | `(spel/$alt-text "t")` | `(page/get-by-alt-text pg "t")` |
-| Snapshot | `(spel/snapshot)` | `(snapshot/capture pg)` |
-| Full snapshot | `(spel/full-snapshot)` | `(snapshot/capture-full pg)` |
+| CSS locator | `(spel/locator "sel")` | `(page/locator pg "sel")` |
+| All matches | `(locator/all (spel/locator "sel"))` | `(locator/all (page/locator pg "sel"))` |
+| By text | `(spel/get-by-text "t")` | `(page/get-by-text pg "t")` |
+| By role | `(spel/get-by-role role/button)` | `(page/get-by-role pg role/button)` |
+| By label | `(spel/get-by-label "t")` | `(page/get-by-label pg "t")` |
+| By placeholder | `(spel/get-by-placeholder "t")` | `(page/get-by-placeholder pg "t")` |
+| By test ID | `(spel/get-by-test-id "id")` | `(page/get-by-test-id pg "id")` |
+| By alt text | `(spel/get-by-alt-text "t")` | `(page/get-by-alt-text pg "t")` |
+| Snapshot | `(spel/capture-snapshot)` | `(snapshot/capture-snapshot pg)` |
+| Full snapshot | `(spel/capture-full-snapshot)` | `(snapshot/capture-full-snapshot pg)` |
 | Resolve ref | `(spel/resolve-ref "e1")` | `(snapshot/resolve-ref "e1")` |
 | Annotated shot | `(spel/save-annotated-screenshot! refs path)` | `(annotate/save-annotated-screenshot! pg refs path)` |
 | Audit shot | `(spel/save-audit-screenshot! caption path)` | `(annotate/save-audit-screenshot! pg caption path)` |
-| Mark refs | `(spel/mark "e1" "e5")` | `(annotate/inject-action-markers! pg ["e1" "e5"])` |
+| Mark refs | `(spel/inject-action-markers! "e1" "e5")` | `(annotate/inject-action-markers! pg ["e1" "e5"])` |
 | Highlight | `(spel/highlight sel)` | `(locator/highlight loc)` |

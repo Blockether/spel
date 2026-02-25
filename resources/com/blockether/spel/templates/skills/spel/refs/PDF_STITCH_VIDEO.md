@@ -11,7 +11,7 @@ PDF output works **only in Chromium headless mode**. Firefox and WebKit don't su
 ```clojure
 ;; --eval (daemon running): save current page as PDF
 (spel/navigate "https://en.wikipedia.org/wiki/Clojure")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 (spel/pdf {:path "/tmp/doc.pdf"})
 ```
 
@@ -113,10 +113,10 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 ;; --eval: capture pages and build a PDF report
 ;; Daemon mode: omit start!/stop! — daemon owns the browser
 (spel/navigate "https://example.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 (let [shot1 (spel/screenshot)  ;; returns byte[] when no :path given
       _     (spel/navigate "https://example.com/about")
-      _     (spel/wait-for-load)
+      _     (spel/wait-for-load-state)
       shot2 (spel/screenshot)]
   (spel/report->pdf
     [{:type :meta :fields [["Date" "2026-02-24"] ["Auditor" "spel"]]}
@@ -154,7 +154,7 @@ This is the same pattern used by Slidev, Marp, and reveal.js.
 
 ```clojure
 (spel/set-content! (str "<style>" css "</style>" slides-html))
-(spel/wait-for-load :load)
+(spel/wait-for-load-state :load)
 (spel/emulate-media! {:media :screen})  ;; CRITICAL: screen media for visual fidelity
 (spel/pdf {:path "presentation.pdf"
            :print-background true
@@ -214,18 +214,18 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
 ```clojure
 ;; --eval: scroll-capture a tall page (daemon manages the browser)
 (spel/navigate "https://news.ycombinator.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 
-(let [viewport-h (-> (spel/eval-js "window.innerHeight") long)
-      scroll-h   (-> (spel/eval-js "document.body.scrollHeight") long)
+(let [viewport-h (-> (spel/evaluate "window.innerHeight") long)
+      scroll-h   (-> (spel/evaluate "document.body.scrollHeight") long)
       overlap     50
       step        (- viewport-h overlap)
       positions   (range 0 scroll-h step)
       paths       (vec
                     (for [[i pos] (map-indexed vector positions)]
                       (let [path (str "/tmp/scroll-" i ".png")]
-                        (spel/eval-js (str "window.scrollTo(0, " pos ")"))
-                        (spel/wait-for-load)
+                        (spel/evaluate (str "window.scrollTo(0, " pos ")"))
+                        (spel/wait-for-load-state)
                         (spel/screenshot {:path path})
                         path)))]
   (stitch/stitch-vertical-overlap paths "/tmp/full-page.png" {:overlap-px overlap})
@@ -246,7 +246,7 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 ;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording)
 (spel/navigate "https://example.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 ;; ... actions ...
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
 ```
@@ -301,11 +301,11 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com/login")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 (spel/fill "#email" "user@example.com")
 (spel/fill "#password" "secret")
 (spel/click "button[type=submit]")
-(spel/wait-for-load "networkidle")
+(spel/wait-for-load-state :networkidle)
 
 (let [result (spel/finish-video-recording {:save-as "/tmp/login-flow.webm"})]
   (println "Video saved:" (:video-path result)))
@@ -329,11 +329,11 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 ;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com")
-(spel/wait-for-load)
-(spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
+(spel/wait-for-load-state)
+(spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.get-started")
-(spel/wait-for-load)
-(spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
+(spel/wait-for-load-state)
+(spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/finish-video-recording {:save-as "/tmp/demo.webm"})
 ```
 
@@ -359,11 +359,11 @@ For higher quality, use API-based TTS (Google Cloud TTS, Amazon Polly, ElevenLab
 spel --eval '
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.com")
-(spel/wait-for-load)
-(spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
+(spel/wait-for-load-state)
+(spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.learn-more")
-(spel/wait-for-load)
-(spel/eval-js "await new Promise(r => setTimeout(r, 3000))")
+(spel/wait-for-load-state)
+(spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
 '
 

@@ -78,12 +78,12 @@ spel search "query" --no-stealth                      # disable stealth mode
 (search/search! "news" {:type :news})
 
 ;; Extract from current page (after search!)
-(search/results)          ;; web results
-(search/image-results)    ;; image results
-(search/news-results)     ;; news results
-(search/people-also-ask)  ;; PAA questions
-(search/related-searches) ;; related queries
-(search/stats)            ;; result stats
+(search/extract-web-results)          ;; web results
+(search/extract-image-results)        ;; image results
+(search/extract-news-results)         ;; news results
+(search/extract-people-also-ask)      ;; PAA questions
+(search/extract-related-searches)     ;; related queries
+(search/extract-result-stats)         ;; result stats
 
 ;; Pagination
 (search/has-next-page?)   ;; => true/false
@@ -91,13 +91,13 @@ spel search "query" --no-stealth                      # disable stealth mode
 (search/go-to-page! "query" 3) ;; jump to page 3
 
 ;; Lazy pagination with iteration
-(->> (search/pages "clojure")
+(->> (search/search-pages "clojure")
      (take 3)
      (mapcat :results)
      (map :title))
 
 ;; Build URL only
-(search/url "test" {:type :images :page 2})
+(search/search-url "test" {:type :images :page 2})
 ```
 
 ### Library API
@@ -124,31 +124,30 @@ spel search "query" --no-stealth                      # disable stealth mode
 (search/extract-related-searches page)
 (search/has-next-page? page)
 (search/next-page! page)
-(search/warmup! page)
 ```
 
-## ⚠️ SCI Eval vs Library — Key Naming Differences
+## ⚠️ SCI Eval vs Library — Key Differences
 
-In `--eval` mode, functions live in the `spel/` namespace with **different names** than the library:
+In `--eval` mode, function names **match the library**. The only difference is **implicit vs explicit arguments**:
 
-| You want to... | Library (Clojure) | SCI (`--eval` / daemon) |
-|---|---|---|
-| Navigate to URL | `(page/navigate pg url)` | `(spel/goto url)` or `(spel/navigate url)` |
-| Get page title | `(page/title pg)` | `(spel/title)` |
-| Get page URL | `(page/url pg)` | `(spel/url)` |
-| Get page HTML | `(page/content pg)` | `(spel/html)` |
-| Evaluate JS | `(page/evaluate pg expr)` | `(spel/eval-js expr)` |
-| Get text content | `(locator/text-content loc)` | `(spel/text loc)` |
-| Get inner text | `(locator/inner-text loc)` | `(spel/inner-text loc)` |
-| Take screenshot | `(page/screenshot pg opts)` | `(spel/screenshot opts)` |
-| Generate PDF | `(page/pdf pg opts)` | `(spel/pdf opts)` |
-| Set viewport | `(page/set-viewport-size pg w h)` | `(spel/set-viewport-size! w h)` |
-| CSS selector | `(page/locator pg sel)` | `(spel/$ sel)` |
-| Multiple matches | `(page/locator-all pg sel)` | `(spel/$$ sel)` |
-| By text | `(page/get-by-text pg text)` | `(spel/$text text)` |
-| By role | `(page/get-by-role pg role)` | `(spel/$role role)` |
+- **Library (JVM)**: functions take explicit `page`/`locator` arguments.
+- **SCI (`--eval`)**: same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
 
-**Key difference**: Library functions take an explicit `page`/`locator` argument. SCI functions use the implicit page managed by the daemon (or `spel/start!` in standalone scripts). When a daemon is running, `--eval` reuses its browser — no `spel/start!` or `spel/stop!` needed.
+Example:
+
+```clojure
+;; Library
+(page/navigate pg url)
+(page/locator pg "#login")
+(locator/click (page/locator pg "#login"))
+
+;; SCI --eval (implicit page)
+(spel/navigate url)
+(spel/locator "#login")
+(spel/click "#login")
+```
+
+When a daemon is running, `--eval` reuses its browser — no `spel/start!` or `spel/stop!` needed.
 
 ## SCI Sandbox Capabilities
 

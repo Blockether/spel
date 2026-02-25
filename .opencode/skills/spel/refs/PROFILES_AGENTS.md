@@ -25,7 +25,7 @@ spel --profile /tmp/my-chrome-profile --interactive --eval '
 # Second run: session is already there
 spel --profile /tmp/my-chrome-profile --eval '
 (spel/navigate "https://myapp.com/dashboard")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 (println "Title:" (spel/title))'
 ```
 
@@ -260,7 +260,7 @@ Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch,
 ;; Daemon: use CLI to set device on existing session
 ;; $ spel set device "iPhone 14"
 ;; Then --eval just navigates:
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 
 ;; Standalone --eval (no daemon): start! with device option

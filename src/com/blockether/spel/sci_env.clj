@@ -21,8 +21,8 @@
    Usage:
      (def ctx (create-sci-ctx))
       (eval-string ctx \"(spel/start!)\")
-      (eval-string ctx \"(spel/goto \\\"https://example.com\\\")\")
-      (eval-string ctx \"(spel/snapshot)\")
+      (eval-string ctx \"(spel/navigate \\\"https://example.com\\\")\")
+      (eval-string ctx \"(spel/capture-snapshot)\")
       (eval-string ctx \"(spel/stop!)\")"
   (:require
    [clojure.edn :as edn]
@@ -980,10 +980,6 @@
 (defn sci-extract-result-stats [] (search/extract-result-stats (require-page!)))
 (defn sci-extract-people-also-ask [] (search/extract-people-also-ask (require-page!)))
 (defn sci-extract-related-searches [] (search/extract-related-searches (require-page!)))
-(defn sci-search-warmup!
-  ([] (search/warmup! (require-page!)))
-  ([opts] (search/warmup! (require-page!) opts)))
-(defn sci-dismiss-consent! [] (search/dismiss-consent! (require-page!)))
 (defn sci-has-next-page? [] (search/has-next-page? (require-page!)))
 (defn sci-search-next-page! [] (search/next-page! (require-page!)))
 (defn sci-search-go-to-page!
@@ -1050,24 +1046,22 @@
                   ['switch-tab!   sci-switch-tab!]
                   ['tabs          sci-tabs]
                   ;; Navigation
-                  ['goto          sci-goto]
                   ['navigate      sci-goto]
-                  ['back          sci-back]
-                  ['forward       sci-forward]
-                  ['reload!       sci-reload!]
+                  ['go-back       sci-back]
+                  ['go-forward    sci-forward]
+                  ['reload        sci-reload!]
                   ['url           sci-url]
                   ['title         sci-title]
-                  ['html          sci-html]
+                  ['content       sci-html]
                   ;; Locators
-                  ['$             sci-$]
-                  ['$$            sci-$$]
-                  ['$text         sci-$text]
-                  ['$role         sci-$role]
-                  ['$label        sci-$label]
-                  ['$placeholder  sci-$placeholder]
-                  ['$test-id      sci-$test-id]
-                  ['$alt-text     sci-$alt-text]
-                  ['$title-attr   sci-$title-attr]
+                  ['locator       sci-$]
+                  ['get-by-text        sci-$text]
+                  ['get-by-role        sci-$role]
+                  ['get-by-label       sci-$label]
+                  ['get-by-placeholder sci-$placeholder]
+                  ['get-by-test-id     sci-$test-id]
+                  ['get-by-alt-text    sci-$alt-text]
+                  ['get-by-title       sci-$title-attr]
                   ;; Actions
                   ['click         sci-click]
                   ['dblclick      sci-dblclick]
@@ -1079,9 +1073,9 @@
                   ['uncheck       sci-uncheck]
                   ['hover         sci-hover]
                   ['focus         sci-focus]
-                  ['select        sci-select]
+                  ['select-option sci-select]
                   ['blur          sci-blur]
-                  ['tap           sci-tap]
+                  ['tap-element    sci-tap]
                   ['set-input-files! sci-set-input-files!]
                   ['scroll-into-view sci-scroll-into-view]
                   ['dispatch-event   sci-dispatch-event]
@@ -1089,26 +1083,26 @@
                   ['highlight        sci-highlight]
                   ['locator-screenshot sci-locator-screenshot]
                   ;; Content & State
-                  ['text          sci-text]
+                  ['text-content  sci-text]
                   ['inner-text    sci-inner-text]
                   ['inner-html    sci-inner-html]
-                  ['attr          sci-attr]
-                  ['value         sci-value]
-                  ['count-of      sci-count-of]
+                  ['get-attribute sci-attr]
+                  ['input-value   sci-value]
+                  ['count-elements sci-count-of]
                   ['visible?      sci-visible?]
                   ['hidden?       sci-hidden?]
                   ['enabled?      sci-enabled?]
                   ['disabled?     sci-disabled?]
                   ['editable?     sci-editable?]
                   ['checked?      sci-checked?]
-                  ['bbox          sci-bbox]
+                  ['bounding-box  sci-bbox]
                   ['all-text-contents sci-all-text-contents]
                   ['all-inner-texts   sci-all-inner-texts]
                   ;; Locator filtering
                   ['loc-filter       sci-loc-filter]
-                  ['first            sci-first]
-                  ['last             sci-last]
-                  ['nth              sci-nth]
+                  ['first-element     sci-first]
+                  ['last-element      sci-last]
+                  ['nth-element       sci-nth]
                   ['loc-locator      sci-loc-locator]
                   ['loc-get-by-text    sci-loc-get-by-text]
                   ['loc-get-by-role    sci-loc-get-by-role]
@@ -1117,17 +1111,17 @@
                   ;; Locator waiting & evaluation
                   ['loc-wait-for       sci-loc-wait-for]
                   ['evaluate-locator   sci-evaluate-locator]
-                  ['evaluate-all-locs  sci-evaluate-all-locs]
+                  ['evaluate-all       sci-evaluate-all-locs]
                   ;; JavaScript
-                  ['eval-js       sci-eval-js]
+                  ['evaluate      sci-eval-js]
                   ['evaluate-handle sci-evaluate-handle]
                   ;; Screenshots
                   ['screenshot    sci-screenshot]
                   ['pdf           sci-pdf]
                   ;; Waiting
-                  ['wait-for      sci-wait-for]
-                  ['wait-for-load sci-wait-for-load]
-                  ['sleep         sci-sleep]
+                  ['wait-for-selector   sci-wait-for]
+                  ['wait-for-load-state sci-wait-for-load]
+                  ['wait-for-timeout    sci-sleep]
                   ['wait-for-url      sci-wait-for-url]
                   ['wait-for-function sci-wait-for-function]
                   ['wait-for-popup    sci-wait-for-popup]
@@ -1235,47 +1229,49 @@
                   ['help           sci-help]
                   ['source         sci-source]
                   ;; Snapshot + Ref-based actions
-                  ['snapshot            sci-snapshot]
-                  ['full-snapshot       sci-full-snapshot]
-                  ['resolve-ref         sci-resolve-ref]
-                  ['clear-refs!         sci-clear-refs!]
+                  ['capture-snapshot         sci-snapshot]
+                  ['capture-full-snapshot    sci-full-snapshot]
+                  ['resolve-ref              sci-resolve-ref]
+                  ['clear-refs!              sci-clear-refs!]
 
-                  ['annotate                 sci-annotate]
-                  ['unannotate               sci-unannotate]
-                  ['annotated-screenshot     sci-annotated-screenshot]
+                  ['inject-overlays!          sci-annotate]
+                  ['remove-overlays!          sci-unannotate]
+                  ['annotated-screenshot      sci-annotated-screenshot]
                   ['save-annotated-screenshot! sci-save-annotated-screenshot!]
                   ;; Pre-action markers
-                  ['mark                     sci-mark]
-                  ['unmark                   sci-unmark]
+                  ['inject-action-markers!    sci-mark]
+                  ['remove-action-markers!    sci-unmark]
                   ;; Audit screenshots
-                  ['audit-screenshot         sci-audit-screenshot]
-                  ['save-audit-screenshot!   sci-save-audit-screenshot!]
+                  ['audit-screenshot          sci-audit-screenshot]
+                  ['save-audit-screenshot!    sci-save-audit-screenshot!]
                    ;; Report builder (polymorphic entries)
-                  ['report->html             sci-report->html]
-                  ['report->pdf              sci-report->pdf]])
+                  ['report->html              sci-report->html]
+                  ['report->pdf               sci-report->pdf]])
 
         ;; =================================================================
         ;; snapshot/ — Snapshot capture
         ;; =================================================================
         snap-map (make-ns-map snap-ns
-                   [['capture           sci-snapshot]
-                    ['capture-full      sci-full-snapshot]
-                    ['resolve-ref       sci-resolve-ref]
-                    ['clear-refs!       sci-clear-refs!]
-                    ['ref-bounding-box  snapshot/ref-bounding-box]])
+                   [['capture-snapshot      sci-snapshot]
+                    ['capture-full-snapshot sci-full-snapshot]
+                    ['resolve-ref           sci-resolve-ref]
+                    ['clear-refs!           sci-clear-refs!]
+                    ['ref-bounding-box      snapshot/ref-bounding-box]])
 
         ;; =================================================================
         ;; annotate/ — Screenshot annotation
         ;; =================================================================
         ann-map  (make-ns-map ann-ns
-                   [['annotated-screenshot sci-annotated-screenshot]
-                    ['save!                sci-save-annotated-screenshot!]
-                    ['mark!                sci-mark]
-                    ['unmark!              sci-unmark]
-                    ['audit-screenshot     sci-audit-screenshot]
-                    ['save-audit!          sci-save-audit-screenshot!]
-                    ['report->html         sci-report->html]
-                    ['report->pdf          sci-report->pdf]])
+                   [['annotated-screenshot      sci-annotated-screenshot]
+                    ['save-annotated-screenshot! sci-save-annotated-screenshot!]
+                    ['inject-overlays!          sci-annotate]
+                    ['remove-overlays!          sci-unannotate]
+                    ['inject-action-markers!    sci-mark]
+                    ['remove-action-markers!    sci-unmark]
+                    ['audit-screenshot          sci-audit-screenshot]
+                    ['save-audit-screenshot!    sci-save-audit-screenshot!]
+                    ['report->html              sci-report->html]
+                    ['report->pdf               sci-report->pdf]])
 
         ;; =================================================================
         ;; input/ — Keyboard, Mouse, Touchscreen (direct pass-throughs)
@@ -1882,21 +1878,19 @@
         ;; =================================================================
         search-sci-ns  (sci/create-ns 'search nil)
         search-map (make-ns-map search-sci-ns
-                     [['url                  sci-search-url]
-                      ['search!              sci-search!]
-                      ['collect!             sci-search-and-collect!]
-                      ['warmup!              sci-search-warmup!]
-                      ['results              sci-extract-web-results]
-                      ['image-results        sci-extract-image-results]
-                      ['news-results         sci-extract-news-results]
-                      ['stats                sci-extract-result-stats]
-                      ['people-also-ask      sci-extract-people-also-ask]
-                      ['related-searches     sci-extract-related-searches]
-                      ['dismiss-consent!     sci-dismiss-consent!]
-                      ['has-next-page?       sci-has-next-page?]
-                      ['next-page!           sci-search-next-page!]
-                      ['go-to-page!          sci-search-go-to-page!]
-                      ['pages                sci-search-pages]])]
+                     [['search-url               sci-search-url]
+                      ['search!                  sci-search!]
+                      ['search-and-collect!      sci-search-and-collect!]
+                      ['extract-web-results      sci-extract-web-results]
+                      ['extract-image-results    sci-extract-image-results]
+                      ['extract-news-results     sci-extract-news-results]
+                      ['extract-result-stats     sci-extract-result-stats]
+                      ['extract-people-also-ask  sci-extract-people-also-ask]
+                      ['extract-related-searches sci-extract-related-searches]
+                      ['has-next-page?           sci-has-next-page?]
+                      ['next-page!               sci-search-next-page!]
+                      ['go-to-page!              sci-search-go-to-page!]
+                      ['search-pages             sci-search-pages]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)

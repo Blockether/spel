@@ -21,7 +21,7 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/load-state-networkidle` | `LoadState/NETWORKIDLE` | No network requests for 500ms |
 
 ```clojure
-(spel/wait-for-load :networkidle)                                ;; --eval
+(spel/wait-for-load-state :networkidle)                          ;; --eval
 (page/wait-for-load-state pg constants/load-state-networkidle)    ;; library
 ```
 
@@ -110,7 +110,7 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/selector-state-hidden` | `WaitForSelectorState/HIDDEN` | Missing or not visible |
 
 ```clojure
-(spel/wait-for ".spinner" {:state :hidden})                        ;; --eval
+(spel/wait-for-selector ".spinner" {:state :hidden})               ;; --eval
 (page/wait-for-selector pg ".spinner" {:state :hidden})           ;; library
 ```
 
@@ -132,10 +132,10 @@ In `--eval` mode, string forms also work for load states and selector states (e.
 
 ## `role/` Namespace
 
-AriaRole constants for `page/get-by-role` and `spel/$role`.
+AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 
 ```clojure
-(spel/$role role/button {:name "Submit"})                         ;; --eval
+(spel/get-by-role role/button {:name "Submit"})                    ;; --eval
 (page/get-by-role pg role/button {:name "Submit"})                ;; library
 (page/get-by-role pg role/heading {:level 1})                     ;; with options
 ```
@@ -170,16 +170,16 @@ AriaRole constants for `page/get-by-role` and `spel/$role`.
 
 | Finding... | Role | Example |
 |------------|------|---------|
-| Buttons | `role/button` | `(spel/$role role/button {:name "Save"})` |
-| Links | `role/link` | `(spel/$role role/link {:name "Home"})` |
-| Headings | `role/heading` | `(spel/$role role/heading {:level 2})` |
-| Text inputs | `role/textbox` | `(spel/$role role/textbox {:name "Email"})` |
-| Checkboxes | `role/checkbox` | `(spel/$role role/checkbox {:name "Agree"})` |
-| Dropdowns | `role/combobox` | `(spel/$role role/combobox {:name "Country"})` |
-| Navigation | `role/navigation` | `(spel/$role role/navigation)` |
-| Dialogs | `role/dialog` | `(spel/$role role/dialog {:name "Confirm"})` |
-| Tables | `role/table` | `(spel/$role role/table)` |
-| Tabs | `role/tab` | `(spel/$role role/tab {:name "Settings"})` |
+| Buttons | `role/button` | `(spel/get-by-role role/button {:name "Save"})` |
+| Links | `role/link` | `(spel/get-by-role role/link {:name "Home"})` |
+| Headings | `role/heading` | `(spel/get-by-role role/heading {:level 2})` |
+| Text inputs | `role/textbox` | `(spel/get-by-role role/textbox {:name "Email"})` |
+| Checkboxes | `role/checkbox` | `(spel/get-by-role role/checkbox {:name "Agree"})` |
+| Dropdowns | `role/combobox` | `(spel/get-by-role role/combobox {:name "Country"})` |
+| Navigation | `role/navigation` | `(spel/get-by-role role/navigation)` |
+| Dialogs | `role/dialog` | `(spel/get-by-role role/dialog {:name "Confirm"})` |
+| Tables | `role/table` | `(spel/get-by-role role/table)` |
+| Tabs | `role/tab` | `(spel/get-by-role role/tab {:name "Settings"})` |
 
 ## `device/` Namespace
 

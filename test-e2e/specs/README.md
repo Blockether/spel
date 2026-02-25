@@ -41,10 +41,10 @@ Use `spel --eval` for multi-step exploration in a single command:
 ```bash
 spel --timeout 5000 --eval '
   (do
-    (spel/goto "<url>")
+    (spel/navigate "<url>")
 
     ;; Snapshot the page
-    (let [snap (spel/snapshot)]
+    (let [snap (spel/capture-snapshot)]
       (println (:tree snap)))
 
     ;; Discover interactive elements
@@ -53,12 +53,12 @@ spel --timeout 5000 --eval '
     (println "Inputs:" (spel/count-of "input"))
 
     ;; Navigate deeper
-    (spel/click (spel/$text "Login"))
+    (spel/click (spel/get-by-text "Login"))
     (println "After click — Title:" (spel/title))
     (println "After click — URL:" (spel/url))
 
     ;; Snapshot the new page
-    (let [snap2 (spel/snapshot)]
+    (let [snap2 (spel/capture-snapshot)]
       (println (:tree snap2))))'
 ```
 

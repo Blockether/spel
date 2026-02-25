@@ -590,8 +590,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 
 ```clojure
 ;; Enums are available directly — no import required
-(spel/$role AriaRole/BUTTON)
-(spel/$role AriaRole/HEADING {:name "Installation"})
+(spel/get-by-role AriaRole/BUTTON)
+(spel/get-by-role AriaRole/HEADING {:name "Installation"})
 
 ;; Use with library API (page/locator namespaces)
 (page/get-by-role (spel/page) AriaRole/NAVIGATION)
@@ -611,20 +611,10 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `spel/$` | [sel-or-loc] | Resolves a ref ID to a Playwright Locator. |
-| `spel/$$` | [sel] | Returns all elements matching the locator as individual locators. |
-| `spel/$alt-text` | [text] | Locates elements by alt text. |
-| `spel/$label` | [text] | Locates elements by their label text. |
-| `spel/$placeholder` | [text] | Locates elements by placeholder text. |
-| `spel/$role` | [role] \| [role opts] | Locates elements by their ARIA role. |
-| `spel/$test-id` | [id] | Locates elements by test ID attribute. |
-| `spel/$text` | [text] | Locates elements by their text content. |
-| `spel/$title-attr` | [text] | Locates elements by title attribute. |
 | `spel/add-script-tag` | [opts] | Adds a script tag to the page. |
 | `spel/add-style-tag` | [opts] | Adds a style tag to the page. |
 | `spel/all-inner-texts` | [sel] | Returns all inner texts for matching elements. |
 | `spel/all-text-contents` | [sel] | Returns all text contents for matching elements. |
-| `spel/annotate` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `spel/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
 | `spel/assert-accessible-description` | [sel desc] | Asserts the locator has the specified accessible description. |
 | `spel/assert-accessible-error-message` | [sel msg] | Asserts the locator has the specified accessible error message. |
@@ -657,20 +647,21 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/assert-value` | [sel value] \| [sel value opts] | Asserts the locator (input) has the specified value. |
 | `spel/assert-values` | [sel values] \| [sel values opts] | Asserts the locator (multi-select) has the specified values. |
 | `spel/assert-visible` | [sel] \| [sel opts] | Asserts the locator is visible. |
-| `spel/attr` | [sel name] | Returns the value of an attribute. |
 | `spel/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
-| `spel/back` | [] | Navigates back in history. |
-| `spel/bbox` | [sel] | Returns the bounding box of the element. |
 | `spel/blur` | [sel] | Blurs (removes focus from) the element. |
+| `spel/bounding-box` | [sel] | Returns the bounding box of the element. |
 | `spel/bring-to-front` | [] | Brings page to front (activates tab). |
 | `spel/browser` | [] | Returns the current Browser instance. |
 | `spel/browser-connected?` | [] | Returns true if the browser is connected. |
 | `spel/browser-version` | [] | Returns the browser version string. |
+| `spel/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
+| `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
 | `spel/clear` | [sel] | Clears input field content. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `spel/click` | [sel] \| [sel opts] | Clicks an element. |
+| `spel/content` | [] | Returns the full HTML content of the page. |
 | `spel/context` | [] | Returns the current BrowserContext instance. |
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
@@ -682,7 +673,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/context-set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests in the context. |
 | `spel/context-set-offline!` | [offline] | Sets the context to offline or online mode. |
 | `spel/context-storage-state` | [] | Returns the storage state (cookies, localStorage) as a JSON string. |
-| `spel/count-of` | [sel] | Returns the number of elements matching the locator. |
+| `spel/count-elements` | [sel] | Returns the number of elements matching the locator. |
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
 | `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
@@ -690,32 +681,41 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/editable?` | [sel] | Returns whether the element is editable. |
 | `spel/emulate-media!` | [opts] | Emulates media type and features. |
 | `spel/enabled?` | [sel] | Returns whether the element is enabled. |
-| `spel/eval-js` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
-| `spel/evaluate-all-locs` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
+| `spel/evaluate` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
+| `spel/evaluate-all` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
 | `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
 | `spel/evaluate-locator` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on the element found by this locator. |
 | `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
 | `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
 | `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
 | `spel/finish-video-recording` | [] \| [opts] | Stops video recording by closing the context to finalize the video. |
-| `spel/first` | [sel] | Returns the first element matching the locator. |
+| `spel/first-element` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
-| `spel/forward` | [] | Navigates forward in history. |
 | `spel/frame-by-name` | [name] | Returns a frame by its name attribute. |
 | `spel/frame-by-url` | [pattern] | Returns a frame by matching URL pattern. |
 | `spel/frames` | [] | Returns all frames in the page. |
-| `spel/full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
-| `spel/goto` | [url] \| [url opts] | Navigates the page to a URL. |
+| `spel/get-attribute` | [sel name] | Returns the value of an attribute. |
+| `spel/get-by-alt-text` | [text] | Locates elements by alt text. |
+| `spel/get-by-label` | [text] | Locates elements by their label text. |
+| `spel/get-by-placeholder` | [text] | Locates elements by placeholder text. |
+| `spel/get-by-role` | [role] \| [role opts] | Locates elements by their ARIA role. |
+| `spel/get-by-test-id` | [id] | Locates elements by test ID attribute. |
+| `spel/get-by-text` | [text] | Locates elements by their text content. |
+| `spel/get-by-title` | [text] | Locates elements by title attribute. |
+| `spel/go-back` | [] | Navigates back in history. |
+| `spel/go-forward` | [] | Navigates forward in history. |
 | `spel/help` | [] \| [query] | Lists all available SCI eval functions with arglists and descriptions. |
 | `spel/hidden?` | [sel] | Returns whether the element is hidden. |
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
-| `spel/html` | [] | Returns the full HTML content of the page. |
 | `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
+| `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `spel/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
+| `spel/input-value` | [sel] | Returns the input value of an input element. |
 | `spel/keyboard` | [] | Returns the Keyboard for this page. |
-| `spel/last` | [sel] | Returns the last element matching the locator. |
+| `spel/last-element` | [sel] | Returns the last element matching the locator. |
 | `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
 | `spel/loc-filter` | [sel opts] | Filters this locator to a narrower set. |
 | `spel/loc-get-by-label` | [sel text] | Locates elements by label within this locator. |
@@ -724,13 +724,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/loc-get-by-text` | [sel text] | Locates elements by text within this locator. |
 | `spel/loc-locator` | [sel sub-sel] | Creates a sub-locator within this locator. |
 | `spel/loc-wait-for` | [sel] \| [sel opts] | Waits for the locator to satisfy a condition. |
+| `spel/locator` | [sel-or-loc] | Resolves a ref ID to a Playwright Locator. |
 | `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
 | `spel/main-frame` | [] | Returns the main frame of the page. |
-| `spel/mark` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
 | `spel/mouse` | [] | Returns the Mouse for this page. |
 | `spel/navigate` | [url] \| [url opts] | Navigates the page to a URL. |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
-| `spel/nth` | [sel n] | Returns the nth element matching the locator. |
+| `spel/nth-element` | [sel n] | Returns the nth element matching the locator. |
 | `spel/on-close` | [handler] | Registers a handler for page close. |
 | `spel/on-console` | [handler] | Registers a handler for console messages. |
 | `spel/on-dialog` | [handler] | Registers a handler for dialogs. |
@@ -744,7 +744,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
 | `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
 | `spel/press` | [sel key] \| [sel key opts] | Presses a key or key combination. |
-| `spel/reload!` | [] | Reloads the page. |
+| `spel/reload` | [] | Reloads the page. |
+| `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
+| `spel/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
 | `spel/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
 | `spel/restart!` | [] \| [opts] | Stops the current session and starts a new one with the given options. |
 | `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
@@ -754,7 +756,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/save-audit-screenshot!` | [caption path] \| [caption path opts] | Takes an audit screenshot and saves it to a file. |
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
-| `spel/select` | [sel values] | Selects options in a select element. |
+| `spel/select-option` | [sel values] | Selects options in a select element. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
 | `spel/set-content!` | [html] \| [html opts] | Sets the HTML content of the page. |
 | `spel/set-default-navigation-timeout!` | [ms] | Sets the default navigation timeout. |
@@ -762,16 +764,14 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests on this page. |
 | `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
-| `spel/sleep` | [ms] | Waits for the specified time in milliseconds. |
-| `spel/snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
 | `spel/stop!` | [] | Stops the Playwright session, closing browser and cleaning up resources. |
 | `spel/switch-tab!` | [idx] | Switches to the tab at the given index. |
 | `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
-| `spel/tap` | [sel] | Taps an element (for touch devices). |
-| `spel/text` | [sel] | Returns the text content of the element. |
+| `spel/tap-element` | [sel] | Taps an element (for touch devices). |
+| `spel/text-content` | [sel] | Returns the text content of the element. |
 | `spel/title` | [] | Returns the page title. |
 | `spel/touchscreen` | [] | Returns the Touchscreen for this page. |
 | `spel/trace-group` | [name] | Opens a named group in the trace. Groups nest actions visually in Trace Viewer. |
@@ -779,28 +779,26 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/trace-start!` | [] \| [opts] | Starts Playwright tracing on the current context. |
 | `spel/trace-stop!` | [] \| [opts] | Stops Playwright tracing and saves to a file. |
 | `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
-| `spel/unannotate` | [] | Removes all annotation overlays from the current page. |
 | `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
-| `spel/unmark` | [] | Removes all pre-action markers from the current page. |
 | `spel/unroute!` | [pattern] | Removes a route handler. |
 | `spel/url` | [] | Returns the current page URL. |
-| `spel/value` | [sel] | Returns the input value of an input element. |
 | `spel/video-path` | [] | Returns the video file path for the current page, or nil if not recording. |
 | `spel/visible?` | [sel] | Returns whether the element is visible. |
-| `spel/wait-for` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
 | `spel/wait-for-download` | [action] \| [action opts] | Waits for a download to start while executing `action`. |
 | `spel/wait-for-file-chooser` | [action] \| [action opts] | Waits for a file chooser dialog while executing `action`. |
 | `spel/wait-for-function` | [expr] | Waits for a JavaScript function to return a truthy value. |
-| `spel/wait-for-load` | [] \| [state] | Waits for the page to reach a load state. |
+| `spel/wait-for-load-state` | [] \| [state] | Waits for the page to reach a load state. |
 | `spel/wait-for-popup` | [action] \| [action opts] | Waits for a popup page to open while executing `action`. |
+| `spel/wait-for-selector` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
+| `spel/wait-for-timeout` | [ms] | Waits for the specified time in milliseconds. |
 | `spel/wait-for-url` | [url] | Waits for the page to navigate to a URL. |
 
 ### `snapshot/` — Accessibility snapshot capture and ref resolution
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `snapshot/capture` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
-| `snapshot/capture-full` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
+| `snapshot/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
+| `snapshot/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `snapshot/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `snapshot/ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
 | `snapshot/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
@@ -811,10 +809,12 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 |----------|------|-------------|
 | `annotate/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
 | `annotate/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
-| `annotate/mark!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
-| `annotate/save!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
-| `annotate/save-audit!` | [caption path] \| [caption path opts] | Takes an audit screenshot and saves it to a file. |
-| `annotate/unmark!` | [] | Removes all pre-action markers from the current page. |
+| `annotate/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `annotate/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
+| `annotate/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
+| `annotate/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
+| `annotate/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
+| `annotate/save-audit-screenshot!` | [caption path] \| [caption path opts] | Takes an audit screenshot and saves it to a file. |
 
 ### `input/` — Keyboard, mouse, touchscreen (explicit device arg)
 

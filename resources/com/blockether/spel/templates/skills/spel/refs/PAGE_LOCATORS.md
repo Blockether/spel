@@ -48,31 +48,31 @@ Every locator strategy returns a Playwright `Locator` that auto-waits and auto-r
 
 ```clojure
 ;; CSS
-(spel/$ "#email")
-(spel/$$ ".nav-item")              ;; returns seq of Locators
+(spel/locator "#email")
+(locator/all (spel/locator ".nav-item"))              ;; returns seq of Locators
 
 ;; Role, text, label
-(spel/$role role/button)
-(spel/$role role/button {:name "Submit"})
-(spel/$text "Sign in")
-(spel/$label "Email address")
+(spel/get-by-role role/button)
+(spel/get-by-role role/button {:name "Submit"})
+(spel/get-by-text "Sign in")
+(spel/get-by-label "Email address")
 
 ;; Snapshot refs (see "Snapshot Ref Traversal" below)
-(spel/$ "@e3")
-(spel/$ "e3")                      ;; @ prefix is optional
+(spel/locator "@e3")
+(spel/locator "e3")                      ;; @ prefix is optional
 ```
 
 ### Library vs SCI Equivalents
 
 | Strategy | Library | SCI/Eval |
 |---|---|---|
-| CSS | `(page/locator pg sel)` | `(spel/$ sel)` |
-| CSS (all) | `(locator/all (page/locator pg sel))` | `(spel/$$ sel)` |
-| Role | `(page/get-by-role pg role opts)` | `(spel/$role role opts)` |
-| Text | `(page/get-by-text pg text)` | `(spel/$text text)` |
-| Label | `(page/get-by-label pg text)` | `(spel/$label text)` |
-| Test ID | `(page/get-by-test-id pg id)` | `(spel/$ "[data-testid='id']")` |
-| Snapshot ref | N/A | `(spel/$ "@e1")` |
+| CSS | `(page/locator pg sel)` | `(spel/locator sel)` |
+| CSS (all) | `(locator/all (page/locator pg sel))` | `(locator/all (spel/locator sel))` |
+| Role | `(page/get-by-role pg role opts)` | `(spel/get-by-role role opts)` |
+| Text | `(page/get-by-text pg text)` | `(spel/get-by-text text)` |
+| Label | `(page/get-by-label pg text)` | `(spel/get-by-label text)` |
+| Test ID | `(page/get-by-test-id pg id)` | `(spel/get-by-test-id id)` |
+| Snapshot ref | N/A | `(spel/locator "@e1")` |
 
 ## Locator Chaining
 
@@ -259,10 +259,10 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 ```clojure
 ;; SCI/eval mode
 (spel/navigate "https://example.com")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 
 ;; 1. Take snapshot, see the tree
-(let [snap (spel/snapshot)]
+(let [snap (spel/capture-snapshot)]
   (println (:tree snap)))
 ;; Output includes lines like:
 ;;   [e1] heading "Example Domain"
@@ -272,7 +272,7 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 (spel/click "@e2")
 
 ;; 3. Or resolve to Locator for more operations
-(let [loc (spel/$ "@e2")]
+(let [loc (spel/locator "@e2")]
   (println (locator/text-content loc))
   (locator/hover loc))
 ```
@@ -284,7 +284,7 @@ Snapshot refs are ephemeral. They're valid until the next navigation or DOM chan
 Combine snapshots with visual annotations for debugging:
 
 ```clojure
-(let [snap (spel/snapshot)
+(let [snap (spel/capture-snapshot)
       refs (:refs snap)]
   (spel/save-annotated-screenshot! refs "/tmp/annotated.png"))
 ```
@@ -401,7 +401,7 @@ Build rich HTML or PDF reports from test results using typed entry maps.
 ```clojure
 ;; Generate PDF presentation from current page
 (spel/navigate "https://app.example.com/dashboard")
-(spel/wait-for-load)
+(spel/wait-for-load-state)
 (spel/report->pdf
   [{:type :section :text "Dashboard Audit" :level 1}
    {:type :meta :fields [["Date" "2026-02-24"] ["Auditor" "CI"]]}

@@ -49,9 +49,9 @@
   "Unit tests for registered SCI namespaces"
 
   (describe "spel namespace"
-    (it "has goto function"
+    (it "has navigate function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? spel/goto)")))))
+        (expect (true? (sut/eval-string ctx "(fn? spel/navigate)")))))
 
     (it "has click function"
       (let [ctx (sut/create-sci-ctx)]
@@ -65,9 +65,9 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/stop!)")))))
 
-    (it "has snapshot function"
+    (it "has capture-snapshot function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? spel/snapshot)")))))
+        (expect (true? (sut/eval-string ctx "(fn? spel/capture-snapshot)")))))
 
     (it "has url function"
       (let [ctx (sut/create-sci-ctx)]
@@ -77,22 +77,22 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/title)")))))
 
-    (it "has annotate function"
+    (it "has inject-overlays! function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? spel/annotate)")))))
+        (expect (true? (sut/eval-string ctx "(fn? spel/inject-overlays!)")))))
 
-    (it "has unannotate function"
+    (it "has remove-overlays! function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? spel/unannotate)"))))))
+        (expect (true? (sut/eval-string ctx "(fn? spel/remove-overlays!)"))))))
 
   (describe "snapshot namespace"
-    (it "has capture function"
+    (it "has capture-snapshot function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? snapshot/capture)")))))
+        (expect (true? (sut/eval-string ctx "(fn? snapshot/capture-snapshot)")))))
 
-    (it "has capture-full function"
+    (it "has capture-full-snapshot function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? snapshot/capture-full)")))))
+        (expect (true? (sut/eval-string ctx "(fn? snapshot/capture-full-snapshot)")))))
 
     (it "has resolve-ref function"
       (let [ctx (sut/create-sci-ctx)]
@@ -107,9 +107,9 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? annotate/annotated-screenshot)")))))
 
-    (it "has save! function"
+    (it "has save-annotated-screenshot! function"
       (let [ctx (sut/create-sci-ctx)]
-        (expect (true? (sut/eval-string ctx "(fn? annotate/save!)"))))))
+        (expect (true? (sut/eval-string ctx "(fn? annotate/save-annotated-screenshot!)"))))))
 
   (describe "stitch namespace"
     (it "has stitch-vertical function"
@@ -523,7 +523,7 @@
       (let [ctx (sut/create-sci-ctx)
             output (with-out-str (sut/eval-string ctx "(spel/help \"spel\")"))]
         (expect (.contains ^String output "spel/click"))
-        (expect (.contains ^String output "spel/goto"))
+        (expect (.contains ^String output "spel/navigate"))
         (expect (.contains ^String output "Arglists"))))
 
     (it "help with search term finds matches"
@@ -534,8 +534,8 @@
 
     (it "help with ns/fn shows specific function"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
-        (expect (.contains ^String output "spel/goto"))
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/navigate\")"))]
+        (expect (.contains ^String output "spel/navigate"))
         (expect (.contains ^String output "Arglists:"))))
 
     (it "help returns nil"
@@ -557,21 +557,21 @@
 
     (it "help for specific function shows Source field"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/goto\")"))]
+            output (with-out-str (sut/eval-string ctx "(spel/help \"spel/navigate\")"))]
         (expect (.contains ^String output "Source:")))))
 
   (describe "spel/source output"
     (it "source for ns/fn shows wrapper source code"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/goto\")"))]
-        (expect (.contains ^String output ";; spel/goto"))
+            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/navigate\")"))]
+        (expect (.contains ^String output ";; spel/navigate"))
         (expect (.contains ^String output "Delegates to:"))
         (expect (.contains ^String output "defn"))))
 
     (it "source for bare name with unique match shows source"
       (let [ctx (sut/create-sci-ctx)
-            output (with-out-str (sut/eval-string ctx "(spel/source \"full-snapshot\")"))]
-        (expect (.contains ^String output ";; spel/full-snapshot"))
+            output (with-out-str (sut/eval-string ctx "(spel/source \"spel/capture-full-snapshot\")"))]
+        (expect (.contains ^String output ";; spel/capture-full-snapshot"))
         (expect (.contains ^String output "defn"))))
 
     (it "source for bare name with multiple matches lists candidates"
@@ -611,7 +611,7 @@
           (expect (= :started (sut/eval-string ctx "(spel/start!)")))
 
           ;; Navigate
-          (sut/eval-string ctx "(spel/goto \"https://example.com\")")
+          (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
 
           ;; Query page info
           (let [title (sut/eval-string ctx "(spel/title)")
@@ -620,7 +620,7 @@
             (expect (.contains ^String url "example.com")))
 
           ;; Get snapshot
-          (let [snap (sut/eval-string ctx "(spel/snapshot)")]
+          (let [snap (sut/eval-string ctx "(spel/capture-snapshot)")]
             (expect (map? snap))
             (expect (contains? snap :tree))
             (expect (contains? snap :refs))

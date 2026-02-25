@@ -39,10 +39,10 @@ com.blockether.spel and `clojure.test` (`deftest`, `testing`, `is`).
       ```bash
       spel --timeout 5000 --eval '
         (do
-          (spel/goto "<url>")
-          (println "Button text:" (spel/text "button.submit"))
-          (println "Heading:" (spel/text "h1"))
-          (println "Input value:" (spel/value "#email")))'
+          (spel/navigate "<url>")
+          (println "Button text:" (spel/text-content "button.submit"))
+          (println "Heading:" (spel/text-content "h1"))
+          (println "Input value:" (spel/input-value "#email")))'
       ```
       Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
     - Note exact selectors, text content, and expected values

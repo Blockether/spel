@@ -250,49 +250,41 @@
   "Unit tests for search/ SCI namespace availability"
 
   (describe "search/ namespace functions"
-    (it "has url function"
+    (it "has search-url function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/url)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/search-url)")))))
 
     (it "has search! function"
       (let [ctx (sci-env/create-sci-ctx)]
         (expect (true? (sci-env/eval-string ctx "(fn? search/search!)")))))
 
-    (it "has collect! function"
+    (it "has search-and-collect! function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/collect!)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/search-and-collect!)")))))
 
-    (it "has results function"
+    (it "has extract-web-results function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/results)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-web-results)")))))
 
-    (it "has image-results function"
+    (it "has extract-image-results function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/image-results)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-image-results)")))))
 
-    (it "has news-results function"
+    (it "has extract-news-results function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/news-results)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-news-results)")))))
 
-    (it "has stats function"
+    (it "has extract-result-stats function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/stats)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-result-stats)")))))
 
-    (it "has people-also-ask function"
+    (it "has extract-people-also-ask function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/people-also-ask)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-people-also-ask)")))))
 
-    (it "has related-searches function"
+    (it "has extract-related-searches function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/related-searches)")))))
-
-    (it "has warmup! function"
-      (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/warmup!)")))))
-
-    (it "has dismiss-consent! function"
-      (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/dismiss-consent!)")))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/extract-related-searches)")))))
 
     (it "has has-next-page? function"
       (let [ctx (sci-env/create-sci-ctx)]
@@ -307,20 +299,20 @@
         (expect (true? (sci-env/eval-string ctx "(fn? search/go-to-page!)"))))))
 
   (describe "search/ URL building via SCI"
-    (it "search/url builds correct URL"
+    (it "search/search-url builds correct URL"
       (let [ctx (sci-env/create-sci-ctx)
-            url (sci-env/eval-string ctx "(search/url \"test\")")]
+            url (sci-env/eval-string ctx "(search/search-url \"test\")")]
         (expect (= "https://www.google.com/search?q=test" url))))
 
-    (it "search/url with opts builds correct URL"
+    (it "search/search-url with opts builds correct URL"
       (let [ctx (sci-env/create-sci-ctx)
-            url (sci-env/eval-string ctx "(search/url \"test\" {:type :images})")]
+            url (sci-env/eval-string ctx "(search/search-url \"test\" {:type :images})")]
         (expect (.contains ^String url "tbm=isch")))))
 
-  (describe "search/pages lazy pagination"
-    (it "has pages function"
+  (describe "search/search-pages lazy pagination"
+    (it "has search-pages function"
       (let [ctx (sci-env/create-sci-ctx)]
-        (expect (true? (sci-env/eval-string ctx "(fn? search/pages)"))))))
+        (expect (true? (sci-env/eval-string ctx "(fn? search/search-pages)"))))))
 
   (describe "iteration binding"
     (it "iteration is available in SCI"
@@ -342,5 +334,5 @@
       (let [ctx (sci-env/create-sci-ctx)]
         (sci-env/eval-string ctx "(require '[com.blockether.spel.search :as s])")
         (expect (true? (sci-env/eval-string ctx "(fn? s/search!)")))
-        (expect (true? (sci-env/eval-string ctx "(fn? s/url)")))
-        (expect (true? (sci-env/eval-string ctx "(fn? s/pages)")))))))
+        (expect (true? (sci-env/eval-string ctx "(fn? s/search-url)")))
+        (expect (true? (sci-env/eval-string ctx "(fn? s/search-pages)")))))))

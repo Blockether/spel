@@ -87,20 +87,20 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 
 **Problem:** `(spel/click "@e3")` throws "element not found" or clicks the wrong thing.
 
-**Cause:** Refs from `(spel/snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
+**Cause:** Refs from `(spel/capture-snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
 
 **Fix:** Always re-snapshot after DOM changes:
 
 ```clojure
 ;; Wrong: refs from an old snapshot
-(spel/snapshot)
+(spel/capture-snapshot)
 (spel/click "@e2")       ;; navigates somewhere
 (spel/click "@e5")       ;; STALE! refs are from the old page
 
 ;; Right: re-snapshot after any DOM change
-(spel/snapshot)
+(spel/capture-snapshot)
 (spel/click "@e2")
-(spel/snapshot)           ;; fresh capture
+(spel/capture-snapshot)           ;; fresh capture
 (spel/click "@e5")        ;; works correctly
 ```
 
@@ -142,24 +142,20 @@ Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load`
 
 If you started with `{:headless false}`, restart with `(spel/stop!)` then `(spel/start! {:headless true})`.
 
-## 7. `snapshot/capture-snapshot` Not Found in Eval
+## 7. Snapshot Functions in Eval
 
-**Problem:** `(snapshot/capture-snapshot (spel/page))` throws "Unable to resolve symbol".
+**Problem:** Unsure which snapshot function to use in `--eval` mode.
 
-**Cause:** SCI eval uses different namespace mappings than the library. The function exists under a different name.
-
-**Fix:**
+**Fix:** Use the **same names as the library**, but with implicit page:
 
 ```clojure
-;; Wrong (library-style call)
+;; Eval-mode (implicit page)
+(spel/capture-snapshot)
+(spel/capture-full-snapshot)
+
+;; Library-style (explicit page)
 (snapshot/capture-snapshot (spel/page))
-
-;; Right (eval-mode call)
-(spel/snapshot)
-
-;; Other snapshot functions
-(snapshot/capture)       ;; snapshot/ namespace uses different names
-(spel/full-snapshot)     ;; includes iframes
+(snapshot/capture-full-snapshot (spel/page))
 ```
 
 When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
@@ -178,11 +174,11 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 (spel/click "button.submit")
 
 ;; Wait for visibility
-(spel/wait-for "button.submit" {:state "visible"})
+(spel/wait-for-selector "button.submit" {:state "visible"})
 (spel/click "button.submit")
 
 ;; Check what's blocking it
-(spel/snapshot)  ;; look for overlays, modals, banners in the tree
+(spel/capture-snapshot)  ;; look for overlays, modals, banners in the tree
 ```
 
 ## 9. File I/O in Eval Mode
@@ -221,7 +217,7 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 ;; or
 (spel/click "button:has-text('Accept all')")
 ;; or use snapshot to find the button
-(spel/snapshot)
+(spel/capture-snapshot)
 (spel/click "@e4")  ;; whatever ref the consent button has
 ```
 
@@ -268,7 +264,7 @@ If `:closed?` is `true`, the browser died. Run `(spel/stop!)` then `(spel/start!
 ### Step 2: Take a snapshot
 
 ```clojure
-(spel/snapshot)
+(spel/capture-snapshot)
 ```
 
 Shows the accessibility tree with numbered refs. You'll see what elements exist, their roles, and whether the page rendered at all.
@@ -284,7 +280,7 @@ Shows the accessibility tree with numbered refs. You'll see what elements exist,
 ### Step 4: Take an annotated screenshot
 
 ```clojure
-(let [snap (spel/snapshot)]
+(let [snap (spel/capture-snapshot)]
   (spel/save-annotated-screenshot! (:refs snap) "/tmp/debug.png"))
 ```
 

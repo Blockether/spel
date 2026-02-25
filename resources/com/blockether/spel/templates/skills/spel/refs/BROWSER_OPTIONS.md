@@ -420,7 +420,7 @@ Sets width and height but NOT device pixel ratio, user agent, or touch support.
 ```clojure
 ;; Daemon mode: just set viewport and go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
-(spel/goto "https://example.com")
+(spel/navigate "https://example.com")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 ```
 

@@ -46,11 +46,11 @@ E2E tests using spel (`defdescribe`, `it`, `expect` from `spel.allure`).
     ```bash
     spel --timeout 5000 --eval '
       (do
-        (spel/goto "<url>")
-        (spel/click (spel/$text "Login"))
+        (spel/navigate "<url>")
+        (spel/click (spel/get-by-text "Login"))
         (println "Title:" (spel/title))
         (println "URL:" (spel/url))
-        (let [snap (spel/snapshot)]
+        (let [snap (spel/capture-snapshot)]
           (println (:tree snap))))'
     ```
    Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.

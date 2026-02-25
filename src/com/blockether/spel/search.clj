@@ -93,7 +93,7 @@
 ;; Consent Handling
 ;; =============================================================================
 
-(defn dismiss-consent!
+(defn- dismiss-consent!
   "Dismisses Google's cookie consent dialog if present.
 
    Handles EU GDPR consent dialogs by clicking the accept/reject button.
@@ -138,7 +138,7 @@
 ;; Warmup
 ;; =============================================================================
 
-(defn warmup!
+(defn- warmup!
   "Visits Google homepage to establish cookies and bypass bot detection.
    Should be called before search! when using stealth mode.
 
