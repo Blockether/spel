@@ -1,0 +1,27 @@
+## GET /echo → 200 OK
+
+### Request Headers
+```
+GET /echo
+```
+
+### Response Headers
+```
+content-length: 64
+content-type: application/json
+date: Wed, 25 Feb 2026 23:04:38 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "GET",
+  "path": "/echo",
+  "query": "id=1&fields=name,email"
+}
+```
+
+### cURL
+```bash
+curl '/echo'
+```
