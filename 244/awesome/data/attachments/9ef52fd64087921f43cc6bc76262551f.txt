@@ -1,0 +1,13 @@
+← 200 OK
+  http://localhost:39499/status/200
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":200}
+← 201 Created
+  http://localhost:39499/status/201
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":201}
+← 204 No Content
+  http://localhost:39499/status/204
+  Content-Type: application/json
