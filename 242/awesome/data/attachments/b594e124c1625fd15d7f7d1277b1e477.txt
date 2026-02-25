@@ -1,0 +1,5 @@
+← 404 Not Found
+  http://localhost:33647/status/404
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":404}

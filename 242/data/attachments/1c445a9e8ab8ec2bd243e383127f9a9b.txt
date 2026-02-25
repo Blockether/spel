@@ -1,0 +1,25 @@
+← 200 OK
+  http://localhost:44679/echo
+  Content-Type: application/json
+  Content-Length: 84 bytes
+  Body: {"method":"POST","path":"/echo","body":{"name":"Alice","email":"alice@example.com"}}
+← 200 OK
+  http://localhost:44679/echo?id=1&fields=name%2Cemail
+  Content-Type: application/json
+  Content-Length: 64 bytes
+  Body: {"method":"GET","path":"/echo","query":"id=1&fields=name,email"}
+← 200 OK
+  http://localhost:44679/echo
+  Content-Type: application/json
+  Content-Length: 92 bytes
+  Body: {"method":"PUT","path":"/echo","body":{"name":"Alice Updated","email":"alice2@example.com"}}
+← 200 OK
+  http://localhost:44679/echo
+  Content-Type: application/json
+  Content-Length: 71 bytes
+  Body: {"method":"PATCH","path":"/echo","body":{"email":"alice3@example.com"}}
+← 200 OK
+  http://localhost:44679/echo
+  Content-Type: application/json
+  Content-Length: 34 bytes
+  Body: {"method":"DELETE","path":"/echo"}

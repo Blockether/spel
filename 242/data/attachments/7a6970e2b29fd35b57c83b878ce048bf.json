@@ -1,0 +1,19 @@
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": {
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "role": "admin",
+    "permissions": [
+      "read",
+      "write",
+      "delete"
+    ],
+    "metadata": {
+      "department": "Engineering",
+      "team": "Platform",
+      "start-date": "2024-01-15"
+    }
+  }
+}

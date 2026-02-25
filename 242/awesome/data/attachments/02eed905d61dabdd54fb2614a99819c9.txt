@@ -1,0 +1,5 @@
+← 200 OK
+  http://localhost:45077/echo
+  Content-Type: application/json
+  Content-Length: 34 bytes
+  Body: {"method":"DELETE","path":"/echo"}
