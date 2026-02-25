@@ -717,6 +717,243 @@
             (when (not= content patched)
               (spit idx patched))))))))
 
+(defn- inject-markdown-renderer!
+  "Inject inline Markdown rendering for text/markdown attachments.
+   Allure 3 renders markdown as raw <pre><code class=\"language-md\"> blocks.
+   This injects a MutationObserver that converts them to styled HTML inline,
+   with HTTP exchange-aware styling (request/response/cURL cards with copy).
+   Follows the same pattern as inject-video-modal!."
+  [^File report]
+  (let [idx (io/file report "index.html")]
+    (when (.isFile idx)
+      (let [content (slurp idx)]
+        (when-not (str/includes? content "id=\"spel-md-renderer\"")
+          (let [css
+                (str
+                  "\n<style id=\"spel-md-css\">\n"
+                  ;; Base container
+                  ".spel-md{font-family:var(--font-family,system-ui);line-height:1.6;padding:0;font-size:.9rem}\n"
+
+                  ;; HTTP title bar — method + url + status
+                  ".spel-md .http-title{display:flex;align-items:center;gap:8px;padding:10px 14px;margin:0;"
+                  "border-radius:8px 8px 0 0;background:var(--bg-control-secondary,#f0f0f0);"
+                  "border-bottom:2px solid var(--border-secondary,#ddd)}\n"
+                  ".spel-md .http-method{display:inline-block;padding:2px 8px;border-radius:4px;"
+                  "font-weight:700;font-size:.8em;font-family:var(--font-family-mono,monospace);"
+                  "color:#fff;text-transform:uppercase;flex-shrink:0}\n"
+                  ".spel-md .http-method.get{background:#61affe}"
+                  ".spel-md .http-method.post{background:#49cc90}"
+                  ".spel-md .http-method.put{background:#fca130}"
+                  ".spel-md .http-method.patch{background:#50e3c2}"
+                  ".spel-md .http-method.delete{background:#f93e3e}"
+                  ".spel-md .http-method.head{background:#9012fe}"
+                  ".spel-md .http-method.options{background:#0d5aa7}\n"
+                  ".spel-md .http-url{font-family:var(--font-family-mono,monospace);font-size:.85em;"
+                  "color:var(--text-primary,#333);word-break:break-all;min-width:0}\n"
+                  ".spel-md .http-status{margin-left:auto;white-space:nowrap;font-weight:600;"
+                  "font-size:.85em;padding:2px 10px;border-radius:4px;flex-shrink:0}\n"
+                  ".spel-md .http-status.s2xx{background:#e6f9ee;color:#1a7f37}"
+                  ".spel-md .http-status.s3xx{background:#fff3cd;color:#856404}"
+                  ".spel-md .http-status.s4xx{background:#fce4e4;color:#c0392b}"
+                  ".spel-md .http-status.s5xx{background:#fce4e4;color:#c0392b}\n"
+
+                  ;; Request / Response cards — distinct visual panels
+                  ".spel-md .http-card{margin:6px 0 0;border-radius:8px;border:1px solid var(--border-secondary,#e0e0e0);"
+                  "overflow:hidden}\n"
+                  ".spel-md .http-card:first-of-type{margin-top:0}\n"
+                  ".spel-md .http-card .card-hdr{display:flex;align-items:center;gap:6px;padding:6px 12px;"
+                  "font-size:.75em;font-weight:700;text-transform:uppercase;letter-spacing:.6px}\n"
+                  ".spel-md .http-card.req .card-hdr{background:rgba(73,204,144,.12);color:#1a7f37;"
+                  "border-bottom:1px solid rgba(73,204,144,.25)}\n"
+                  ".spel-md .http-card.res .card-hdr{background:rgba(97,175,254,.12);color:#1565c0;"
+                  "border-bottom:1px solid rgba(97,175,254,.25)}\n"
+                  ".spel-md .http-card.curl .card-hdr{background:rgba(252,161,48,.12);color:#a35d00;"
+                  "border-bottom:1px solid rgba(252,161,48,.25)}\n"
+                  ".spel-md .card-icon{font-size:1.1em}\n"
+                  ".spel-md .http-card .card-body{padding:0}\n"
+
+                  ;; Sections inside cards
+                  ".spel-md .http-section{padding:8px 12px;border-top:1px solid var(--border-secondary,#eee)}\n"
+                  ".spel-md .http-section:first-child{border-top:none}\n"
+                  ".spel-md .section-hdr{display:flex;align-items:center;gap:6px;margin:0 0 4px;"
+                  "font-size:.75em;font-weight:600;text-transform:uppercase;letter-spacing:.4px;"
+                  "color:var(--text-secondary,#888)}\n"
+
+                  ;; Code blocks with copy button
+                  ".spel-md .code-wrap{position:relative;margin:4px 0 0}\n"
+                  ".spel-md .code-wrap pre{margin:0;border-radius:6px;padding:10px 14px 10px 14px;"
+                  "background:var(--bg-control-secondary,#f5f5f5);overflow-x:auto}\n"
+                  ".spel-md .code-wrap pre code{background:none;padding:0;"
+                  "font-family:var(--font-family-mono,monospace);font-size:.85em;line-height:1.5}\n"
+                  ".spel-md .copy-btn{position:absolute;top:4px;right:4px;padding:3px 8px;"
+                  "border:1px solid var(--border-secondary,#ccc);border-radius:4px;"
+                  "background:var(--bg-control-secondary,#f5f5f5);color:var(--text-secondary,#666);"
+                  "font-size:.7em;cursor:pointer;"
+                  "font-family:var(--font-family,system-ui)}\n"
+                  ".spel-md .copy-btn:hover{background:var(--bg-control-primary,#e0e0e0)}\n"
+                  ".spel-md .copy-btn.copied{color:#1a7f37;border-color:#49cc90}\n"
+
+                  ;; Generic markdown fallbacks
+                  ".spel-md h2{font-size:1em;font-weight:600;margin:1em 0 .4em}\n"
+                  ".spel-md h3{font-size:.9em;font-weight:600;margin:.6em 0 .3em;color:var(--text-secondary,#666)}\n"
+                  ".spel-md code{background:var(--bg-control-secondary,#f5f5f5);padding:1px 5px;border-radius:3px;font-size:.9em}\n"
+                  ".spel-md p{margin:.3em 0}\n"
+                  ".spel-md hr{border:none;border-top:1px solid var(--border-secondary,#e0e0e0);margin:1em 0}\n"
+                  ".spel-md strong{font-weight:600}\n"
+                  "</style>\n")
+
+                js
+                (str
+                  "<script id=\"spel-md-renderer\">\n"
+                  "(function(){\n"
+
+                  ;; HTML-escape
+                  "function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}\n"
+
+                  ;; Parse HTTP title line: ## METHOD url → status statusText
+                  "function parseHttpTitle(line){\n"
+                  "  var m=line.match(/^##\\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\\s+(.+?)\\s*\\u2192\\s*(\\d+)\\s*(.*)$/);\n"
+                  "  if(!m)return null;\n"
+                  "  return{method:m[1],url:m[2],status:parseInt(m[3]),statusText:m[4].trim()}\n"
+                  "}\n"
+
+                  ;; Detect section type from ### heading
+                  "function sectionType(heading){\n"
+                  "  var h=heading.toLowerCase();\n"
+                  "  if(h==='curl')return{type:'curl',label:'cURL'};\n"
+                  "  if(/^request/.test(h))return{type:'req',label:heading};\n"
+                  "  if(/^response/.test(h))return{type:'res',label:heading};\n"
+                  "  return null;\n"
+                  "}\n"
+
+                  ;; Status class helper
+                  "function statusCls(code){\n"
+                  "  if(code>=200&&code<300)return 's2xx';\n"
+                  "  if(code>=300&&code<400)return 's3xx';\n"
+                  "  if(code>=400&&code<500)return 's4xx';\n"
+                  "  return 's5xx';\n"
+                  "}\n"
+
+                  ;; Card icons
+                  "var cardIcon={req:'\\u2191',res:'\\u2193',curl:'\\u2706'};\n"
+                  "var cardTitle={req:'Request',res:'Response',curl:'cURL'};\n"
+
+                  ;; Code block with copy button
+                  "function codeBlock(lang,code){\n"
+                  "  return '<div class=\"code-wrap\"><button class=\"copy-btn\" onclick=\"spelCopy(this)\">Copy</button>'"
+                  "+'<pre><code class=\"language-'+(lang||'text')+'\">'+esc(code)+'</code></pre></div>';\n"
+                  "}\n"
+
+                  ;; Main markdown → HTML renderer (HTTP-exchange aware)
+                  ;; Groups consecutive same-type sections into cards
+                  "function spelMd(s){\n"
+                  "  var lines=s.split('\\n'),tokens=[],inCode=false,codeLang='',codeLines=[];\n"
+
+                  ;; Pass 1: tokenize lines into structured tokens
+                  "  for(var i=0;i<lines.length;i++){\n"
+                  "    var L=lines[i];\n"
+                  "    if(!inCode&&/^```/.test(L)){inCode=true;codeLang=L.slice(3).trim();codeLines=[];continue}\n"
+                  "    if(inCode){if(/^```/.test(L)){inCode=false;"
+                  "tokens.push({t:'code',lang:codeLang,text:codeLines.join('\\n')});continue}"
+                  "codeLines.push(L);continue}\n"
+                  "    if(/^---+$/.test(L)){tokens.push({t:'hr'});continue}\n"
+                  "    var ht=(/^## /.test(L))?parseHttpTitle(L):null;\n"
+                  "    if(ht){tokens.push({t:'http-title',d:ht});continue}\n"
+                  "    if(/^## /.test(L)){tokens.push({t:'h2',text:L.slice(3)});continue}\n"
+                  "    var sec=(/^### /.test(L))?sectionType(L.slice(4).trim()):null;\n"
+                  "    if(sec){tokens.push({t:'section',sec:sec});continue}\n"
+                  "    if(/^### /.test(L)){tokens.push({t:'h3',text:L.slice(4).trim()});continue}\n"
+                  "    if(L.trim()==='')continue;\n"
+                  "    var t=esc(L).replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>');\n"
+                  "    tokens.push({t:'p',text:t});\n"
+                  "  }\n"
+                  "  if(inCode){tokens.push({t:'code',lang:codeLang,text:codeLines.join('\\n')})}\n"
+
+                  ;; Pass 2: group sections into cards, render HTML
+                  "  var out=[],j=0,curCard=null;\n"
+                  "  function openCard(type){\n"
+                  "    if(curCard)out.push('</div></div>');\n"
+                  "    curCard=type;\n"
+                  "    out.push('<div class=\"http-card '+type+'\">');\n"
+                  "    out.push('<div class=\"card-hdr\"><span class=\"card-icon\">'+(cardIcon[type]||'')+'</span>'+cardTitle[type]+'</div>');\n"
+                  "    out.push('<div class=\"card-body\">');\n"
+                  "  }\n"
+                  "  function closeCard(){if(curCard){out.push('</div></div>');curCard=null}}\n"
+
+                  "  while(j<tokens.length){\n"
+                  "    var tk=tokens[j];\n"
+                  "    if(tk.t==='http-title'){\n"
+                  "      closeCard();\n"
+                  "      out.push('<div class=\"http-title\">');\n"
+                  "      out.push('<span class=\"http-method '+tk.d.method.toLowerCase()+'\">'+tk.d.method+'</span>');\n"
+                  "      out.push('<span class=\"http-url\">'+esc(tk.d.url)+'</span>');\n"
+                  "      out.push('<span class=\"http-status '+statusCls(tk.d.status)+'\">'+tk.d.status+' '+esc(tk.d.statusText)+'</span>');\n"
+                  "      out.push('</div>');\n"
+                  "    }else if(tk.t==='section'){\n"
+                  "      var st=tk.sec.type;\n"
+                  "      if(curCard!==st){closeCard();openCard(st)}\n"
+                  "      out.push('<div class=\"http-section\">');\n"
+                  "      out.push('<div class=\"section-hdr\">'+esc(tk.sec.label)+'</div>');\n"
+                  ;; Collect content tokens until next section/title/hr/end
+                  "      j++;\n"
+                  "      while(j<tokens.length&&tokens[j].t!=='section'&&tokens[j].t!=='http-title'&&tokens[j].t!=='hr'){\n"
+                  "        var ct=tokens[j];\n"
+                  "        if(ct.t==='code')out.push(codeBlock(ct.lang,ct.text));\n"
+                  "        else if(ct.t==='p')out.push('<p>'+ct.text+'</p>');\n"
+                  "        else if(ct.t==='h3')out.push('<h3>'+esc(ct.text)+'</h3>');\n"
+                  "        j++;\n"
+                  "      }\n"
+                  "      out.push('</div>');\n"
+                  "      continue;\n"
+                  "    }else if(tk.t==='code'){closeCard();out.push(codeBlock(tk.lang,tk.text))}\n"
+                  "    else if(tk.t==='hr'){closeCard();out.push('<hr>')}\n"
+                  "    else if(tk.t==='h2'){closeCard();out.push('<h2>'+esc(tk.text)+'</h2>')}\n"
+                  "    else if(tk.t==='h3'){closeCard();out.push('<h3>'+esc(tk.text)+'</h3>')}\n"
+                  "    else if(tk.t==='p'){out.push('<p>'+tk.text+'</p>')}\n"
+                  "    j++;\n"
+                  "  }\n"
+                  "  closeCard();\n"
+                  "  return out.join('\\n');\n"
+                  "}\n"
+
+                  ;; Copy button handler (global)
+                  "window.spelCopy=function(btn){\n"
+                  "  var code=btn.parentElement.querySelector('code');\n"
+                  "  if(!code)return;\n"
+                  "  navigator.clipboard.writeText(code.textContent).then(function(){\n"
+                  "    btn.textContent='Copied!';\n"
+                  "    btn.classList.add('copied');\n"
+                  "    setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},1500);\n"
+                  "  });\n"
+                  "};\n"
+
+                  ;; MutationObserver target function
+                  "function renderMd(){\n"
+                  "  document.querySelectorAll('pre[data-testid=\"code-attachment-content\"].language-md').forEach(function(pre){\n"
+                  "    if(pre.dataset.spelRendered)return;\n"
+                  "    pre.dataset.spelRendered='1';\n"
+                  "    var code=pre.querySelector('code');\n"
+                  "    if(!code)return;\n"
+                  "    var div=document.createElement('div');\n"
+                  "    div.className='spel-md';\n"
+                  "    div.innerHTML=spelMd(code.textContent);\n"
+                  "    pre.replaceWith(div);\n"
+                  "  });\n"
+                  "}\n"
+
+                  ;; Set up observer + initial render
+                  "var obs=new MutationObserver(function(){renderMd()});\n"
+                  "obs.observe(document.body,{childList:true,subtree:true});\n"
+                  "setTimeout(renderMd,2000);\n"
+                  "}());\n"
+                  "</script>\n")
+
+                patched (-> content
+                          (str/replace "</head>" (str css "</head>"))
+                          (str/replace "</body>" (str js "</body>")))]
+            (when (not= content patched)
+              (spit idx patched))))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Allure CLI resolution
 ;; ---------------------------------------------------------------------------
@@ -939,6 +1176,8 @@
                 (patch-sw-safari-response-headers! report))
               ;; Inject video player modal
               (inject-video-modal! report)
+              ;; Inject inline markdown renderer for text/markdown attachments
+              (inject-markdown-renderer! report)
               (when-let [logo (report-logo)]
                 (let [src (io/file logo)
                       dst (io/file report (.getName src))]

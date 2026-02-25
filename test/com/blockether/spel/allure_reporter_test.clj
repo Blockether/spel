@@ -488,6 +488,65 @@
           (finally
             (clean-dir! base))))))
 
+  (describe "inject-markdown-renderer!"
+
+    (it "injects markdown renderer with all required components"
+      (let [base   (tmp-dir "inject-md-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (spit (io/file report "index.html") "<html><head></head><body></body></html>")
+          (#'reporter/inject-markdown-renderer! report)
+          (let [content (slurp (io/file report "index.html"))]
+            (expect (str/includes? content "id=\"spel-md-renderer\""))
+            (expect (str/includes? content "id=\"spel-md-css\""))
+            (expect (str/includes? content ".spel-md"))
+            (expect (str/includes? content "spelMd"))
+            (expect (str/includes? content "MutationObserver"))
+            (expect (str/includes? content "language-md"))
+            (expect (str/includes? content "code-attachment-content")))
+          (finally
+            (clean-dir! base)))))
+
+    (it "is idempotent — spel-md-renderer id appears exactly once after applying twice"
+      (let [base   (tmp-dir "inject-md-idem-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (spit (io/file report "index.html") "<html><head></head><body></body></html>")
+          (#'reporter/inject-markdown-renderer! report)
+          (#'reporter/inject-markdown-renderer! report)
+          (let [content (slurp (io/file report "index.html"))
+                matches (re-seq #"id=\"spel-md-renderer\"" content)]
+            (expect (= 1 (count matches))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "does nothing when index.html does not exist"
+      (let [base   (tmp-dir "inject-md-missing-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (#'reporter/inject-markdown-renderer! report)
+          (expect (not (.exists (io/file report "index.html"))))
+          (finally
+            (clean-dir! base)))))
+
+    (it "coexists with video modal injection"
+      (let [base   (tmp-dir "inject-md-coexist-test")
+            report (io/file base "report")]
+        (try
+          (.mkdirs report)
+          (spit (io/file report "index.html") "<html><head></head><body></body></html>")
+          (#'reporter/inject-video-modal! report)
+          (#'reporter/inject-markdown-renderer! report)
+          (let [content (slurp (io/file report "index.html"))]
+            (expect (str/includes? content "id=\"videoModal\""))
+            (expect (str/includes? content "id=\"spel-md-renderer\""))
+            (expect (str/includes? content "id=\"spel-md-css\"")))
+          (finally
+            (clean-dir! base))))))
+
   (it "matches .webm href links in Allure 3.x reports"
     (let [base   (tmp-dir "inject-modal-href-test")
           report (io/file base "report")]
