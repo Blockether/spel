@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><title>Test Page</title></head>
+<body>
+  <h1 id="heading">Test Heading</h1>
+  <p id="description">Test description paragraph.</p>
+  <div id="content">
+    <a id="link" href="/second-page">Go to Second Page</a>
+    <form id="test-form">
+      <label for="text-input">Name</label>
+      <input type="text" id="text-input" placeholder="Enter text" aria-label="Name" />
+      <input type="text" id="prefilled" value="initial value" />
+      <input type="password" id="password-input" placeholder="Password" />
+      <input type="checkbox" id="checkbox" />
+      <input type="checkbox" id="checked-box" checked />
+      <select id="dropdown">
+        <option value="a">Option A</option>
+        <option value="b">Option B</option>
+        <option value="c">Option C</option>
+      </select>
+      <textarea id="textarea"></textarea>
+      <input type="file" id="file-input" />
+      <button id="submit-btn" type="button" data-testid="submit">Submit</button>
+    </form>
+    <button id="hidden-btn" style="display:none">Hidden</button>
+    <button id="disabled-btn" disabled>Disabled</button>
+    <div id="hover-target" title="Hover tooltip">Hover Me</div>
+    <div id="scroll-anchor" style="margin-top:2000px">Scroll Target</div>
+    <img id="logo" alt="Test Logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+  </div>
+  <script>
+    window.testReady = true;
+    console.log('test-page-loaded');
+  </script>
+</body></html>

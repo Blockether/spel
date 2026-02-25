@@ -1,0 +1,15 @@
+← 200 OK
+  http://localhost:46011/health
+  Content-Type: application/json
+  Content-Length: 15 bytes
+  Body: {"status":"ok"}
+← 200 OK
+  http://localhost:46011/echo
+  Content-Type: application/json
+  Content-Length: 31 bytes
+  Body: {"method":"GET","path":"/echo"}
+← 200 OK
+  http://localhost:46011/status/200
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":200}

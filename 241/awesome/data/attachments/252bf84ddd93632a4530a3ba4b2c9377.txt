@@ -1,0 +1,5 @@
+← 200 OK
+  http://localhost:46011/echo?name=Alice&role=Engineer&team=Platform
+  Content-Type: application/json
+  Content-Length: 80 bytes
+  Body: {"method":"GET","path":"/echo","query":"name=Alice&role=Engineer&team=Platform"}

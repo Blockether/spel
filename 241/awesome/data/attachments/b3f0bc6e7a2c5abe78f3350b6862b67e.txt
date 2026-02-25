@@ -1,0 +1,58 @@
+← 200 OK
+  http://localhost:33423/status/200
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":200}
+← 201 Created
+  http://localhost:33423/status/201
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":201}
+← 204 No Content
+  http://localhost:33423/status/204
+  Content-Type: application/json
+← 301 Moved Permanently
+  http://localhost:33423/status/301
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":301}
+← 400 Bad Request
+  http://localhost:33423/status/400
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":400}
+← 401 Unauthorized
+  http://localhost:33423/status/401
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":401}
+← 403 Forbidden
+  http://localhost:33423/status/403
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":403}
+← 404 Not Found
+  http://localhost:33423/status/404
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":404}
+← 429 
+  http://localhost:33423/status/429
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":429}
+← 500 Internal Server Error
+  http://localhost:33423/status/500
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":500}
+← 502 Bad Gateway
+  http://localhost:33423/status/502
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":502}
+← 503 Service Unavailable
+  http://localhost:33423/status/503
+  Content-Type: application/json
+  Content-Length: 14 bytes
+  Body: {"status":503}

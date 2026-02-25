@@ -1,0 +1,15 @@
+← 200 OK
+  http://localhost:36003/health
+  Content-Type: application/json
+  Content-Length: 15 bytes
+  Body: {"status":"ok"}
+← 200 OK
+  http://localhost:36003/echo
+  Content-Type: application/json
+  Content-Length: 59 bytes
+  Body: {"method":"POST","path":"/echo","body":{"action":"create"}}
+← 200 OK
+  http://localhost:36003/echo?page=1&limit=10
+  Content-Type: application/json
+  Content-Length: 57 bytes
+  Body: {"method":"GET","path":"/echo","query":"page=1&limit=10"}
