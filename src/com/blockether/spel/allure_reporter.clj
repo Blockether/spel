@@ -732,7 +732,7 @@
                 (str
                   "\n<style id=\"spel-md-css\">\n"
                   ;; Base container
-                  ".spel-md{font-family:var(--font-family,system-ui);line-height:1.6;padding:0;font-size:.9rem}\n"
+                  ".spel-md{font-family:var(--font-family,system-ui);line-height:1.6;padding:0;font-size:.9rem;margin-top:12px}\n"
 
                   ;; HTTP title bar — method + url + status
                   ".spel-md .http-title{display:flex;align-items:center;gap:8px;padding:10px 14px;margin:0;"
@@ -800,6 +800,14 @@
                   ".spel-md p{margin:.3em 0}\n"
                   ".spel-md hr{border:none;border-top:1px solid var(--border-secondary,#e0e0e0);margin:1em 0}\n"
                   ".spel-md strong{font-weight:600}\n"
+
+                  ;; Step type badges — [API], [UI], [UI+API]
+                  ".spel-badge{display:inline-block;padding:1px 6px;border-radius:4px;"
+                  "font-size:.7em;font-weight:900;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;letter-spacing:.03em;margin-right:8px;"
+                  "vertical-align:middle;line-height:1.6}\n"
+                  ".spel-badge.api{background:#e8f4fd;color:#1976d2;border:1px solid #90caf9}\n"
+                  ".spel-badge.ui{background:#f3e8fd;color:#7b1fa2;border:1px solid #ce93d8}\n"
+                  ".spel-badge.ui-api{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}\n"
                   "</style>\n")
 
                 js
@@ -927,7 +935,44 @@
                   "  });\n"
                   "};\n"
 
-                  ;; MutationObserver target function
+                  ;; Step badge patterns: [API], [UI], [UI+API]
+                  "var badgeMap={"
+                  "'[UI+API] ':{cls:'ui-api',label:'UI+API'},"
+                  "'[API] ':{cls:'api',label:'API'},"
+                  "'[UI] ':{cls:'ui',label:'UI'}"
+                  "};\n"
+
+                  ;; Replace [TAG] prefix in step name text nodes with styled badge
+                  "function renderBadges(){\n"
+                  "  document.querySelectorAll('[data-testid=\"test-result-step-title\"]').forEach(function(el){\n"
+                  "    if(el.dataset.spelBadge)return;\n"
+                  "    var txt=el.textContent;\n"
+                  "    for(var prefix in badgeMap){\n"
+                  "      if(txt.indexOf(prefix)===0){\n"
+                  "        el.dataset.spelBadge='1';\n"
+                  "        var b=badgeMap[prefix];\n"
+                  "        var span=document.createElement('span');\n"
+                  "        span.className='spel-badge '+b.cls;\n"
+                  "        span.textContent=b.label;\n"
+                  ;; Walk text nodes to find and replace the prefix
+                  "        var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);\n"
+                  "        while(walker.nextNode()){\n"
+                  "          var n=walker.currentNode;\n"
+                  "          var idx=n.textContent.indexOf(prefix);\n"
+                  "          if(idx>=0){\n"
+                  "            var after=n.splitText(idx);\n"
+                  "            after.textContent=after.textContent.slice(prefix.length);\n"
+                  "            n.parentNode.insertBefore(span,after);\n"
+                  "            break;\n"
+                  "          }\n"
+                  "        }\n"
+                  "        break;\n"
+                  "      }\n"
+                  "    }\n"
+                  "  });\n"
+                  "}\n"
+
+                  ;; MutationObserver target function — markdown + badges
                   "function renderMd(){\n"
                   "  document.querySelectorAll('pre[data-testid=\"code-attachment-content\"].language-md').forEach(function(pre){\n"
                   "    if(pre.dataset.spelRendered)return;\n"
@@ -942,9 +987,9 @@
                   "}\n"
 
                   ;; Set up observer + initial render
-                  "var obs=new MutationObserver(function(){renderMd()});\n"
+                  "var obs=new MutationObserver(function(){renderMd();renderBadges()});\n"
                   "obs.observe(document.body,{childList:true,subtree:true});\n"
-                  "setTimeout(renderMd,2000);\n"
+                  "setTimeout(function(){renderMd();renderBadges()},2000);\n"
                   "}());\n"
                   "</script>\n")
 

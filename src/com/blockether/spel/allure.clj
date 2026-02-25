@@ -869,8 +869,13 @@
      error-screenshot (swallowed) → rethrow"
   [step-name f loc-map opts]
   (let [screenshots? (:screenshots? opts)
-        http?        (:http? opts)]
-    (step* step-name
+        http?        (:http? opts)
+        display-name (cond
+                       (and screenshots? http?) (str "[UI+API] " step-name)
+                       http?                    (str "[API] " step-name)
+                       screenshots?             (str "[UI] " step-name)
+                       :else                    step-name)]
+    (step* display-name
       (fn []
         ;; Pre-screenshot
         (when (and screenshots? *page* (not *trace-path*))
