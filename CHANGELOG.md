@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-02-25
+
+### Changed
+- release: bump version to 0.4.0
+- fix: rename spel/eval-js → spel/evaluate in test-cli.sh bash test
+- Rename SCI embedded API to mirror library function names exactly
+- Fix console/page-error output showing empty text in --eval mode
+- Fix Safari TransformStream shim to return wrapper objects, not native instances
+- Update README subtitle: highlight E2E testing, normalize punctuation
+- Add Google Search module with CLI, SCI eval, and lazy pagination
+- fix: only set is_pr=true when PR number is available
+- BLO-118: reposition README — Swiss Army Knife for agents
+- fix: standardize margins and positions between list and grid views in allure-index
+- fix: merge view toggle and theme toggle into single toolbar
+- fix: remove emoji icon from no-results empty state
+- fix: render stats above builds list on filtered views
+- Upgrade Safari TransformStream shim detection to test real zip.js patterns
+- Add stealth mode, state export (cookies + localStorage), and standardized CLI naming
+- Style theme toggle to match view-toggle pill container
+- Add step type badges ([API], [UI], [UI+API]) to Allure reports
+- Remove unnecessary start!/stop! from --eval examples across skill docs
+- Fix corporate proxy install example to set both env vars together
+- Consolidate README Quick Start and document shared-vs-separate Playwright traces
+- Improve HTTP exchange display and add Allure report-only verification shortcut
+- Inject MutationObserver-based markdown renderer into Allure reports
+- Unify step, ui-step, api-step macros with composable options
+- Add opencode.json
+- Replace rich HTML exchange panels with markdown attachments
+- Equalize margins above and below filter pills in dashboard
+- Replace Allure plugin with auto network capture in test fixtures
+- Fix date-group headline font-size mismatch between list and grid views
+- Add Allure plugin for full-height HTML attachments
+- Fixes
+- Fix Keychain args for macOS profile, improve HTML preview toggle
+- Fixes
+- Fixes
+- Fixes
+- fixes
+- Fixes
+- Fixes
+- Fixes
+- In progress
+- In progress
+- feat: add rich HTTP exchange reporting for both API and browser network responses
+- fix: pr-cleanup marks cancelled on close, improve merged styling, fix kondo hook
+- fix: keep stats visible on filter, add Cancelled to PR stats
+- fix: add Cancelled pill to static HTML, improve mobile search layout
+- feat: add cancelled build status support across backend and landing page
+- chore: add .claude/ to .gitignore
+- chore: remove .claude/ directory — not permitted in this repo
+- refactor: merge api namespace into core — eliminate com.blockether.spel.api
+- fix: escape quotes in Allure workflow Clojure code
+- fix: deduplicate PR comment link, add update-pr-statuses! for accurate CI status
+- fix: coerce max-n to long for GraalVM primitive math
+- feat: make PR badge URL configurable via pr_url field in pr-builds.json
+- fix: PR badge links to GitHub PR, force scrollbar to prevent tab layout shift
+- fix: unify list/grid max-width to 64rem (was 56rem list, none grid)
+- feat: add PR tabs, merge tracking, and Clojure-based PR management to landing page
+- fix: show workflow run_number for PR cards and enable stats dashboard on landing page
+- fix: guard pr/ checkout with grep to avoid false-positive ls-tree exit code
+- feat: add stats dashboard and date labels to test reports landing page
+- BLO-108: fix README - remove allure section, add features overview, fix broken refs
+- test: rewrite video recording test with meaningful browser activity
+- feat: add PR reports to builds list on landing page
+- fix: video attachments not appearing in Allure reports
+- fix: resolve session flag passing and macOS timeout in CLI tests
+- fix: resolve 6 pre-existing CLI test failures in test-cli.sh
+- fix: add driver/ensure-driver! before stitch in native CLI
+- feat: host PR Allure reports on GitHub Pages at /pr/<number>/
+- fix: resolve boxed math warning and viewport sizing in stitch
+- refactor: rewrite stitch to use Playwright instead of AWT/ImageIO
+- fix: resolve remaining test-cli.sh failures + add ImageIO to native-image config
+- fix: align test-cli.sh assertions with actual CLI --json output format
+- ci: bust stale Playwright browser cache (v2 key)
+- ci: fix PLAYWRIGHT_BROWSERS_PATH - use GITHUB_ENV instead of literal tilde
+- ci: remove continue-on-error from test-cli.sh step
+- ci: fix PLAYWRIGHT_BROWSERS_PATH tilde expansion + add daemon log debug output
+- ci: mark test-cli.sh as continue-on-error (requires network access)
+- BLO-20: fix Allure PR comment - rename CT to clojure-test, add CLI test reference
+- BLO-20: add missing CLI tests (stitch, annotate, tool --help) and AGENTS.md CLI test requirements
+- ci: add test-cli.sh bash regression to CI workflow (Linux + macOS)
+- AGENTS.md: add test count sanity check with bash regression details
+- BLO-99: fix Windows CI (tmpdir), add stitch docs to SKILL template, update verification checklist
+- BLO-99: add SCI env registration, Allure attachments, and CLI/SCI tests for stitch
+- BLO-99: add spel stitch command for vertical image stitching
+- BLO-97: add video+Allure integration tests and fix *video-path* binding
+- AGENTS.md: validate-safe-graal + install-local before CLI integration tests
+- fix: unmatched delimiter in cli_integration_test — missing quote after escaped-tmpdir
+- AGENTS.md: reorder verification checklist per Opus review (format first, no redundancy, better secret scan)
+- AGENTS.md: verification checklist — binary note, pre-push scan, CI green check
+- BLO-96: Fix Windows SCI tests — use java.io.tmpdir and escape backslashes
+- BLO-96: Suppress unused-import in clj-kondo config (fixes CI lint)
+- AGENTS.md: add make test full suite to verification checklist
+- AGENTS.md: expand verification checklist — explicit test-cli-clj and test-cli steps
+- BLO-96: Fix CI lint warnings and Windows path escaping in tests
+- Fix Safari trace viewer, trim AGENTS.md, restructure Makefile and README
+- Add left padding to grid cards
+- Drop square aspect-ratio on mobile grid cards
+- Fix list view width, mobile toggle overlap
+- Update SKILL docs and agent instructions for SCI file I/O
+- Add spel/navigate alias, file I/O, and Base64 to SCI sandbox
+- Fix Allure reporter test-count parity with Lazytest
+- Builds list grid: square cards, 6 per row, wider container
+- CT reporter parity, builds list redesign, lint cleanup
+- Bump opencode
+- release: update version files for v0.3.1, bump to next dev version
+
+
 ## [v0.3.1] - 2026-02-22
 
 ### Changed
@@ -208,10 +316,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.4.0...HEAD
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
 [v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
 [v0.3.0]: https://github.com/Blockether/spel/releases/tag/v0.3.0
 [v0.3.1]: https://github.com/Blockether/spel/releases/tag/v0.3.1
+[v0.4.0]: https://github.com/Blockether/spel/releases/tag/v0.4.0
