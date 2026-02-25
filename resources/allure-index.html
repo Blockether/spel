@@ -171,13 +171,14 @@
       .contrib-row { flex-wrap: wrap; gap: 0.25rem; }
     }
 
-    /* --- Theme toggle --- */
-    .theme-toggle { position: fixed; top: 1rem; right: 1rem; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-sec); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; z-index: 50; box-shadow: var(--shadow); }
-    .theme-toggle:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
-    .theme-toggle svg { width: 1rem; height: 1rem; }
-    .theme-toggle .icon-moon { display: none; }
-    html.dark .theme-toggle .icon-sun { display: none; }
-    html.dark .theme-toggle .icon-moon { display: block; }
+    /* --- Theme toggle (matches view-toggle container style) --- */
+    .theme-toggle-wrap { position: fixed; top: 1rem; right: 1rem; display: flex; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 2px; z-index: 50; box-shadow: var(--shadow); }
+    .theme-btn { width: 2rem; height: 2rem; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .theme-btn:hover { color: var(--text-sec); background: var(--bg-card-hover); }
+    .theme-btn svg { width: 1rem; height: 1rem; }
+    .theme-btn .icon-moon { display: none; }
+    html.dark .theme-btn .icon-sun { display: none; }
+    html.dark .theme-btn .icon-moon { display: block; }
 
     /* --- Video modal --- */
     .video-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
@@ -322,10 +323,12 @@
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     </button>
   </div>
-  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
-    <svg class="icon-sun" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-    <svg class="icon-moon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-  </button>
+  <div class="theme-toggle-wrap">
+    <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+      <svg class="icon-sun" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <svg class="icon-moon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+    </button>
+  </div>
 
   <header class="header">
     <div class="logo"><!--LOGO_PLACEHOLDER--></div>
