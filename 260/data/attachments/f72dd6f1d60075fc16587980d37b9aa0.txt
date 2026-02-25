@@ -1,0 +1,6 @@
+[navigate] Starting navigation to example.com
+[navigate] Navigation complete, response received
+[status] HTTP status: 200
+[url] Response URL: https://example.com/
+[headers] Content-Type: text/html
+[body] Body length: 528 chars
