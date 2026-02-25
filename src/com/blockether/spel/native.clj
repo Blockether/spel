@@ -30,6 +30,7 @@
    [com.blockether.spel.driver :as driver]
    [com.blockether.spel.init-agents :as init-agents]
    [com.blockether.spel.sci-env :as sci-env]
+   [com.blockether.spel.search :as search]
    [com.blockether.spel.stitch :as stitch])
   (:gen-class))
 
@@ -214,6 +215,7 @@
   (println "")
   (println "Tools:")
   (println "  state export [opts]       Export Chrome cookies + localStorage to Playwright state JSON (--help)")
+  (println "  search <query> [opts]     Google search from the CLI (--help for details)")
   (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
@@ -705,6 +707,14 @@
                   (flush)))))
           ;; Existing transform behavior
           (apply codegen/-main sub-args)))
+
+      ;; Search — Google search tool
+      (= "search" first-arg)
+      (let [sub-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} sub-args)
+          (println (get cli/command-help "search"))
+          (do (driver/ensure-driver!)
+              (apply search/-main sub-args))))
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)

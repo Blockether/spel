@@ -1281,6 +1281,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `state export [opts]` | Export Chrome cookies + localStorage to Playwright state JSON (--help) |
+| `search <query> [opts]` | Google search from the CLI (--help for details) |
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |

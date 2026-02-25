@@ -40,6 +40,7 @@
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as roles]
+   [com.blockether.spel.search :as search]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.stitch :as stitch])
   (:import
@@ -961,6 +962,38 @@
   ([entries opts] (throw-if-anomaly (annotate/report->pdf (require-page!) entries opts))))
 
 ;; =============================================================================
+;; Search
+;; =============================================================================
+
+(defn sci-search-url
+  ([query] (search/search-url query))
+  ([query opts] (search/search-url query opts)))
+(defn sci-search!
+  ([query] (throw-if-anomaly (search/search! (require-page!) query)))
+  ([query opts] (throw-if-anomaly (search/search! (require-page!) query opts))))
+(defn sci-search-and-collect!
+  ([query] (throw-if-anomaly (search/search-and-collect! (require-page!) query)))
+  ([query opts] (throw-if-anomaly (search/search-and-collect! (require-page!) query opts))))
+(defn sci-extract-web-results [] (search/extract-web-results (require-page!)))
+(defn sci-extract-image-results [] (search/extract-image-results (require-page!)))
+(defn sci-extract-news-results [] (search/extract-news-results (require-page!)))
+(defn sci-extract-result-stats [] (search/extract-result-stats (require-page!)))
+(defn sci-extract-people-also-ask [] (search/extract-people-also-ask (require-page!)))
+(defn sci-extract-related-searches [] (search/extract-related-searches (require-page!)))
+(defn sci-search-warmup!
+  ([] (search/warmup! (require-page!)))
+  ([opts] (search/warmup! (require-page!) opts)))
+(defn sci-dismiss-consent! [] (search/dismiss-consent! (require-page!)))
+(defn sci-has-next-page? [] (search/has-next-page? (require-page!)))
+(defn sci-search-next-page! [] (search/next-page! (require-page!)))
+(defn sci-search-go-to-page!
+  ([query page-num] (search/go-to-page! (require-page!) query page-num))
+  ([query page-num opts] (search/go-to-page! (require-page!) query page-num opts)))
+(defn sci-search-pages
+  ([query] (search/search-pages (require-page!) query))
+  ([query opts] (search/search-pages (require-page!) query opts)))
+
+;; =============================================================================
 ;; SCI Namespace Registration
 ;; =============================================================================
 
@@ -1842,7 +1875,28 @@
         stitch-map (make-ns-map stitch-ns
                      [['stitch-vertical         stitch/stitch-vertical]
                       ['stitch-vertical-overlap  stitch/stitch-vertical-overlap]
-                      ['read-image              stitch/read-image]])]
+                      ['read-image              stitch/read-image]])
+
+        ;; =================================================================
+        ;; search/ — Google Search automation
+        ;; =================================================================
+        search-sci-ns  (sci/create-ns 'search nil)
+        search-map (make-ns-map search-sci-ns
+                     [['url                  sci-search-url]
+                      ['search!              sci-search!]
+                      ['collect!             sci-search-and-collect!]
+                      ['warmup!              sci-search-warmup!]
+                      ['results              sci-extract-web-results]
+                      ['image-results        sci-extract-image-results]
+                      ['news-results         sci-extract-news-results]
+                      ['stats                sci-extract-result-stats]
+                      ['people-also-ask      sci-extract-people-also-ask]
+                      ['related-searches     sci-extract-related-searches]
+                      ['dismiss-consent!     sci-dismiss-consent!]
+                      ['has-next-page?       sci-has-next-page?]
+                      ['next-page!           sci-search-next-page!]
+                      ['go-to-page!          sci-search-go-to-page!]
+                      ['pages                sci-search-pages]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -1873,9 +1927,13 @@
                     'io                                  io-map
                      ;; Image stitching
                     'stitch                              stitch-map
-                    'com.blockether.spel.stitch          stitch-map}
-       :bindings   {'slurp slurp
-                    'spit  spit}
+                    'com.blockether.spel.stitch          stitch-map
+                     ;; Google Search
+                    'search                              search-map
+                    'com.blockether.spel.search          search-map}
+       :bindings   {'slurp     slurp
+                    'spit      spit
+                    'iteration iteration}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

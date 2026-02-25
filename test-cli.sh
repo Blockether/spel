@@ -951,9 +951,9 @@ assert_jq "unannotate (idempotent) → .removed" "$OUT" '.removed == true'
 "$SPEL" close >/dev/null 2>&1
 
 # =============================================================================
-# TOOL COMMANDS (6)
+# TOOL COMMANDS (8)
 # =============================================================================
-section "Tool Commands (6)"
+section "Tool Commands (8)"
 
 OUT=$("$SPEL" codegen --help 2>&1)
 assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
@@ -989,6 +989,14 @@ OUT=$("$SPEL" --help 2>&1)
 assert_contains "help mentions stealth" "$OUT" "stealth"
 assert_contains "help mentions load-state" "$OUT" "load-state"
 assert_contains "help mentions state export" "$OUT" "state export"
+
+OUT=$("$SPEL" search --help 2>&1)
+assert_contains "search --help mentions search" "$OUT" "search"
+assert_contains "search --help mentions limit" "$OUT" "limit"
+assert_contains "search --help mentions open" "$OUT" "open"
+assert_contains "search --help mentions images" "$OUT" "images"
+assert_contains "search --help mentions json" "$OUT" "json"
+assert_contains "search --help mentions stealth" "$OUT" "stealth"
 
 # =============================================================================
 # SUMMARY

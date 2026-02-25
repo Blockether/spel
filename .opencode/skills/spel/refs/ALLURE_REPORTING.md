@@ -54,9 +54,40 @@ Create step hierarchies for better test readability and failure debugging:
     (locator/click (page/locator pg "#submit"))))
 ```
 
+### Step Options
+
+`step` supports an optional opts map for composable behaviors:
+
+| Option | Description |
+|--------|-------------|
+| `:screenshots?` | Take before/after screenshots (requires `*page*`, skipped when tracing) |
+| `:http?` | Attach HTTP exchange markdown for APIResponse / browser Response |
+
+```clojure
+;; Step with screenshots (equivalent to ui-step)
+(allure/step "Fill login form" {:screenshots? true}
+  (locator/fill username-input "admin")
+  (locator/click submit-btn))
+
+;; Step with HTTP attachment (equivalent to api-step)
+(allure/step "Create user" {:http? true}
+  (core/api-post ctx "/users" {:data body}))
+
+;; Both screenshots and HTTP attachment
+(allure/step "Submit and verify API" {:screenshots? true :http? true}
+  (page/wait-for-response pg "**/api/submit"
+    #(locator/click submit-btn)))
+
+;; Runtime opts via :opts keyword
+(let [my-opts {:http? true}]
+  (allure/step "Dynamic step" :opts my-opts
+    (core/api-get ctx "/health")))
+```
+
 ## UI Steps
 
-UI steps automatically capture before/after screenshots. Requires `*page*` binding from test fixtures:
+UI steps automatically capture before/after screenshots. Equivalent to `(step name {:screenshots? true} body...)`.
+Requires `*page*` binding from test fixtures:
 
 ```clojure
 (allure/ui-step "Fill login form"
@@ -73,7 +104,7 @@ UI steps:
 
 ## API Steps
 
-API steps automatically attach response details (status, headers, body):
+API steps automatically attach response details (status, headers, body). Equivalent to `(step name {:http? true} body...)`:
 
 ```clojure
 (allure/api-step "Create user"
