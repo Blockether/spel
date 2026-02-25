@@ -1,0 +1,4 @@
+Heading ref: e1
+Resolved heading text: "Example Domain"
+Link ref: e3
+Resolved link href: https://iana.org/domains/example
