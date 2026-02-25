@@ -3,9 +3,9 @@
 </p>
 
 <div align="center">
-<i>spel</i> - Idiomatic Clojure wrapper for <a href="https://playwright.dev/">Microsoft Playwright</a>.
+<i>spel</i> - The Swiss Army Knife browser tool for AI agents and Clojure developers.
 <br/>
-<sub>Browser automation, API testing, test reporting, and native CLI — for Chromium, Firefox, and WebKit.</sub>
+<sub>Browser automation · API testing · Allure reporting · Accessibility snapshots · Inline Clojure execution · Record & generate — one native binary, all three engines.</sub>
 </div>
 
 <div align="center">
@@ -42,16 +42,18 @@
 
 ## Rationale
 
-Playwright's Java API is imperative and verbose — option builders, checked exceptions, manual resource cleanup. Clojure deserves better.
+Playwright's Java API is imperative and verbose — option builders, checked exceptions, manual resource cleanup. Clojure deserves better. And AI agents deserve more than a shell wrapper.
 
-spel wraps Playwright Java 1.58.0 with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation from the terminal.
+spel wraps Playwright Java with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation. It does everything a modern agentic workflow needs — in one tool.
 
-- **Data-driven**: Maps for options, anomaly maps for errors — no option builders, no checked exceptions
-- **Composable**: `with-*` macros for lifecycle management — resources always cleaned up
-- **Agent-friendly**: Accessibility snapshots with numbered refs, persistent browser daemon, and `--eval` scripting — built for AI agents to see, decide, and act
-- **Record & replay**: Record browser sessions to JSONL, transform to idiomatic Clojure tests or scripts
-- **Batteries included**: API testing, Allure reporting with embedded Playwright traces, agent scaffolding for Claude/VS Code/OpenCode
-- **Not a port**: Wraps the official Playwright Java library directly — full API coverage, same browser versions
+- **Swiss Army Knife for agents**: Browser automation, API testing, test reporting, agentic search and verification, accessibility snapshots, inline code execution, and test generation — all in a single native binary. No stitching tools together.
+- **Agentic by design**: Accessibility snapshots with numbered refs let AI agents see the page as a structured document, not raw HTML. Persistent daemon, `--eval` scripting, and zero brittle CSS selectors — agents reason and act in a loop without restarting.
+- **Inline Clojure execution**: Run arbitrary Clojure expressions in the browser context via `--eval` — mix business logic with automation, call any GraalVM-bound function, compose scripts on the fly. No other browser tool lets an agent write and execute real code mid-session.
+- **Record, then generate**: Capture any browser session to JSONL and auto-generate idiomatic Clojure tests or reusable scripts. Record once, replay forever.
+- **Allure reports with network inspection**: Full Allure reporting with embedded Playwright traces, network request/response visualization (method, status, headers, JSON body), and visual diffs. Debug failures from the report, not from logs.
+- **API testing built in**: Intercept, assert, and inspect HTTP traffic in the same tool as your browser tests — no separate client needed.
+- **Native CLI binary**: GraalVM native image, zero JVM startup, persistent daemon — fast enough for interactive agentic loops and CI alike.
+- **Not a port**: Wraps Playwright Java directly — full API coverage, all three engines (Chromium, Firefox, WebKit).
 
 ## Quick Start
 
