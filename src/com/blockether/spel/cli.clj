@@ -758,6 +758,7 @@
       "  spel state <subcommand> [args]"
       ""
       "Subcommands:"
+      "  export [opts]              Export Chrome cookies + localStorage (--help for details)"
       "  save [path]                Save current state"
       "  load [path]                Load saved state"
       "  list                       List saved state files"
@@ -775,7 +776,8 @@
       "  spel state rename old.json new.json"
       "  spel state clear auth.json"
       "  spel state clear --all"
-      "  spel state clean --older-than 30"])
+      "  spel state clean --older-than 30"
+      "  spel state export --profile ~/Library/Application\\ Support/Google/Chrome/Default -o auth.json"])
 
    "session"
    (str/join \newline
@@ -854,10 +856,10 @@
       "  spel codegen record -o recording.jsonl https://example.com"
       ""
       "  # 2. Record with pre-loaded auth state (cookies/localStorage)"
-      "  spel codegen record --load-storage auth-state.json -o recording.jsonl https://example.com"
+      "  spel codegen record --load-state auth-state.json -o recording.jsonl https://example.com"
       ""
       "  # 3. Record and save state on exit"
-      "  spel codegen record --save-storage auth-state.json -o recording.jsonl https://example.com"
+      "  spel codegen record --save-state auth-state.json -o recording.jsonl https://example.com"
       ""
       "  # 4. Transform to idiomatic Clojure"
       "  spel codegen recording.jsonl"
@@ -878,8 +880,8 @@
       "  --timezone <tz>               Timezone"
       "  --proxy-server <url>          Proxy server"
       "  --ignore-https-errors         Ignore HTTPS errors"
-      "  --load-storage <file>         Load saved storage state"
-      "  --save-storage <file>         Save storage state on exit"
+      "  --load-state <file>           Load saved state (alias: --load-storage)"
+      "  --save-state <file>           Save state on exit (alias: --save-storage)"
       "  --save-har <file>             Save HAR file on exit"])
 
    "inspector"
@@ -910,8 +912,8 @@
       "  --user-agent <ua>            Custom user agent"
       "  --proxy-server <url>         Proxy server"
       "  --ignore-https-errors        Ignore HTTPS errors"
-      "  --load-storage <file>        Load saved storage state"
-      "  --save-storage <file>        Save storage state on exit"
+      "  --load-state <file>          Load saved state (alias: --load-storage)"
+      "  --save-state <file>          Save state on exit (alias: --save-storage)"
       "  --save-har <file>            Save HAR file on exit"
       "  --timeout <ms>               Action timeout in ms"
       "  --user-data-dir <dir>        Custom browser user data directory"])
@@ -1071,18 +1073,20 @@
      "  --args \"ARG1,ARG2\"     Extra browser arguments"
      "  --cdp URL               Connect via Chrome DevTools Protocol"
      "  --ignore-https-errors   Ignore HTTPS certificate errors"
-     "  --storage-state PATH    Load browser storage state (cookies/localStorage JSON)"
+     "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
      "  --channel NAME         Browser channel (e.g. \"chrome\", \"msedge\")"
+     "  --stealth               Stealth mode: anti-detection patches (hides automation signals)"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
      "Environment Variables:"
      "  SPEL_SESSION            Default session name"
      "  SPEL_JSON               Set to \"true\" for JSON output"
-     "  SPEL_STORAGE_STATE      Default storage state file path"
+     "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
      "  SPEL_PROFILE            Chrome user data directory path"
      "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\")"
+     "  SPEL_STEALTH            Set to \"true\" for stealth mode"
      "  SPEL_HEADERS            Default HTTP headers (JSON)"
      "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
 
@@ -1103,8 +1107,8 @@
                        (assoc :session (System/getenv "SPEL_SESSION"))
                        (= "true" (System/getenv "SPEL_JSON"))
                        (assoc :json true)
-                       (System/getenv "SPEL_STORAGE_STATE")
-                       (assoc :storage-state (System/getenv "SPEL_STORAGE_STATE"))
+                       (or (System/getenv "SPEL_LOAD_STATE") (System/getenv "SPEL_STORAGE_STATE"))
+                       (assoc :storage-state (or (System/getenv "SPEL_LOAD_STATE") (System/getenv "SPEL_STORAGE_STATE")))
                        (System/getenv "SPEL_PROFILE")
                        (assoc :profile (System/getenv "SPEL_PROFILE"))
                        (System/getenv "SPEL_HEADERS")
@@ -1121,6 +1125,8 @@
                        (assoc :ignore-https-errors true)
                        (= "true" (System/getenv "SPEL_DEBUG"))
                        (assoc :debug true)
+                       (= "true" (System/getenv "SPEL_STEALTH"))
+                       (assoc :stealth true)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
                        (System/getenv "SPEL_CHANNEL")
@@ -1154,11 +1160,14 @@
                 (= "--json" arg)
                 (recur (rest args) (assoc flags :json true) remaining)
 
-                (= "--storage-state" arg)
+                (or (= "--storage-state" arg) (= "--load-state" arg))
                 (recur (drop 2 args) (assoc flags :storage-state (second args)) remaining)
 
                 (str/starts-with? arg "--storage-state=")
                 (recur (rest args) (assoc flags :storage-state (subs arg 16)) remaining)
+
+                (str/starts-with? arg "--load-state=")
+                (recur (rest args) (assoc flags :storage-state (subs arg 13)) remaining)
 
                 (= "--profile" arg)
                 (recur (drop 2 args) (assoc flags :profile (second args)) remaining)
@@ -1227,6 +1236,9 @@
 
                 (str/starts-with? arg "--timeout=")
                 (recur (rest args) (assoc flags :timeout (parse-long (subs arg 10))) remaining)
+
+                (= "--stealth" arg)
+                (recur (rest args) (assoc flags :stealth true) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))

@@ -30,20 +30,39 @@ Then `(spel/start!)` again.
 
 **Cause:** Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
 
-**Fix:** Use headed mode or a real user-agent:
+**Fix:** Use `--stealth` mode (recommended), headed mode, or combine both:
 
-```clojure
-;; Option A: headed mode (browser window visible)
-(spel/start! {:headless false})
+```bash
+# Option A: stealth mode (patches navigator.webdriver, plugins, WebGL, etc.)
+spel --stealth open https://protected-site.com
 
-;; Option B: headed + slow-mo for debugging
-(spel/start! {:headless false :slow-mo 100})
+# Option B: stealth + headed (best results for stubborn sites)
+spel --stealth --interactive open https://protected-site.com
 
-;; Option C: real user-agent
-(spel/start! {:user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+# Option C: stealth + real Chrome cookies (maximum authenticity)
+spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default -o auth.json
+spel --stealth --load-state auth.json open https://protected-site.com
+
+# Option D: environment variable (persistent across commands)
+export SPEL_STEALTH=true
+spel open https://protected-site.com
 ```
 
-Combining these gives the best results for stubborn sites.
+```clojure
+;; Library: stealth + headed
+(require '[com.blockether.spel.stealth :as stealth])
+(core/with-playwright [pw]
+  (core/with-browser [browser (core/launch-chromium pw
+                                {:headless false
+                                 :args (stealth/stealth-args)
+                                 :ignore-default-args (stealth/stealth-ignore-default-args)})]
+    (core/with-context [ctx (core/new-context browser)]
+      (.addInitScript ctx (stealth/stealth-init-script))
+      (core/with-page [pg (core/new-page-from-context ctx)]
+        (page/navigate pg "https://protected-site.com")))))
+```
+
+See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patches are applied.
 
 ## 3. `assert-url` Fails with Partial URLs
 

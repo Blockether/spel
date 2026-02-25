@@ -690,7 +690,39 @@
 
     (it "supports --headers=value syntax"
       (let [f (flags ["--headers={\"Auth\":\"Bearer\"}" "open" "http://x.com"])]
-        (expect (= "{\"Auth\":\"Bearer\"}" (:headers f)))))))
+        (expect (= "{\"Auth\":\"Bearer\"}" (:headers f))))))
+
+  (describe "--stealth flag"
+    (it "sets stealth to true"
+      (let [f (flags ["--stealth" "open" "http://x.com"])]
+        (expect (true? (:stealth f)))))
+
+    (it "defaults stealth to nil (absent)"
+      (let [f (flags ["open" "http://x.com"])]
+        (expect (nil? (:stealth f))))))
+
+  (describe "--load-state flag"
+    (it "sets storage-state via --load-state"
+      (let [f (flags ["--load-state" "/tmp/state.json" "open" "http://x.com"])]
+        (expect (= "/tmp/state.json" (:storage-state f)))))
+
+    (it "supports --load-state=value syntax"
+      (let [f (flags ["--load-state=/tmp/state.json" "open" "http://x.com"])]
+        (expect (= "/tmp/state.json" (:storage-state f)))))
+
+    (it "is equivalent to --storage-state"
+      (let [f1 (flags ["--load-state" "/tmp/s.json" "open" "http://x.com"])
+            f2 (flags ["--storage-state" "/tmp/s.json" "open" "http://x.com"])]
+        (expect (= (:storage-state f1) (:storage-state f2))))))
+
+  (describe "--channel flag"
+    (it "sets channel"
+      (let [f (flags ["--channel" "chrome" "open" "http://x.com"])]
+        (expect (= "chrome" (:channel f)))))
+
+    (it "supports --channel=value syntax"
+      (let [f (flags ["--channel=msedge" "open" "http://x.com"])]
+        (expect (= "msedge" (:channel f)))))))
 
 ;; =============================================================================
 ;; Network Route (Bug Fix)

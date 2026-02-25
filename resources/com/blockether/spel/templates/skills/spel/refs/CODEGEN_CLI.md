@@ -152,8 +152,8 @@ spel show-trace --port 8080 trace.zip  # Serve on specific port
 | `--user-agent <ua>` | Custom user agent |
 | `--proxy-server <url>` | Proxy server |
 | `--ignore-https-errors` | Ignore HTTPS certificate errors |
-| `--load-storage <file>` | Load saved storage state |
-| `--save-storage <file>` | Save storage state on exit |
+| `--load-state <file>` | Load saved state (alias: `--load-storage`) |
+| `--save-state <file>` | Save state on exit (alias: `--save-storage`) |
 | `--save-har <file>` | Save HAR file on exit |
 | `--timeout <ms>` | Action timeout in ms |
 
@@ -371,8 +371,7 @@ Global flags apply to all commands and modes:
 | `--debug` | off | Debug output |
 | `--autoclose` | off | Close daemon after `--eval` completes |
 | `--interactive` | off | Headed (visible) browser for `--eval` mode |
-| `--load-state <path>` | - | Load browser storage state (cookies/localStorage JSON) before evaluation |
-| `--storage-state <path>` | - | Load storage state for CLI commands |
+| `--load-state <path>` | - | Load browser state (cookies/localStorage JSON, alias: `--storage-state`) |
 | `--profile <path>` | - | Chrome user data directory (persistent profile) |
 | `--executable-path <path>` | - | Custom browser executable |
 | `--user-agent <ua>` | - | Custom user agent string |

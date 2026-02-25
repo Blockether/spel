@@ -18,6 +18,14 @@ Detailed reference for browser launch options, context options, device/viewport 
 ;; Custom browser args
 (core/launch-chromium pw {:args ["--disable-gpu" "--no-sandbox"]})
 
+;; Suppress default Chromium args
+(core/launch-chromium pw {:ignore-default-args ["--enable-automation"]})
+
+;; Stealth mode args (anti-detection)
+(require '[com.blockether.spel.stealth :as stealth])
+(core/launch-chromium pw {:args (stealth/stealth-args)
+                          :ignore-default-args (stealth/stealth-ignore-default-args)})
+
 ;; Proxy
 (core/launch-chromium pw {:proxy {:server "http://proxy:8080"
                                    :username "user"
@@ -30,6 +38,22 @@ Detailed reference for browser launch options, context options, device/viewport 
 (core/launch-firefox pw {:headless true})
 (core/launch-webkit pw {:headless true})
 ```
+
+### Launch Option Reference
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `:headless` | boolean | Run without visible window (default: `true`) |
+| `:channel` | string | Browser channel: `"chrome"`, `"msedge"`, `"chrome-beta"`, etc. |
+| `:args` | vector | Extra Chromium CLI args |
+| `:ignore-default-args` | vector | Chromium default args to suppress |
+| `:ignore-all-default-args` | boolean | Suppress ALL default Chromium args |
+| `:proxy` | map | `{:server "url" :username "u" :password "p" :bypass "domains"}` |
+| `:executable-path` | string | Path to browser binary |
+| `:downloads-path` | string | Directory for downloads |
+| `:slow-mo` | number | Milliseconds to slow down operations |
+| `:timeout` | number | Max ms to wait for browser launch |
+| `:chromium-sandbox` | boolean | Enable Chromium sandbox |
 
 ## Browser Context Options
 

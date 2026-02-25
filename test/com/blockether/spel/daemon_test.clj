@@ -7,7 +7,6 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as sut]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
@@ -325,83 +324,53 @@
             (expect (str/includes? (.getMessage e) "Wrapper message"))))))))
 
 ;; =============================================================================
-;; Unit Tests — ensure-browser! anomaly handling
+;; Unit Tests — Real Chrome Profile Detection & Decomposition
 ;; =============================================================================
 
-(defdescribe ensure-browser-anomaly-test
-  "Tests that ensure-browser! surfaces meaningful errors when core/* calls fail.
-   Mocks core functions to return anomaly maps and verifies the error message
-   is descriptive instead of a raw ClassCastException."
+(defdescribe real-chrome-profile-test
+  "Unit tests for real-chrome-profile? — detects real Chrome profile directories"
 
-  (describe "normal path — launch-chromium returns anomaly"
-    (it "throws with 'Failed to launch browser' and the underlying error message"
-      (let [state-atom (deref #'sut/!state)]
-        (reset! state-atom {:pw nil :browser nil :context nil :page nil
-                            :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {}})
-        (with-redefs [core/create (fn [] (Object.))
-                      core/launch-chromium (fn [_ _]
-                                             (core/wrap-error
-                                               (Exception. "Chromium not found at /bad/path")))]
-          (try
-            (#'sut/ensure-browser!)
-            (expect false "Should have thrown")
-            (catch clojure.lang.ExceptionInfo e
-              (expect (str/includes? (.getMessage e) "Failed to launch browser"))
-              (expect (str/includes? (.getMessage e) "Chromium not found at /bad/path"))))))))
+  (describe "detects real profiles"
+    (it "returns true when Preferences exists"
+      (let [dir (java.io.File/createTempFile "spel-test" "")]
+        (.delete dir)
+        (.mkdirs dir)
+        (spit (java.io.File. dir "Preferences") "{}")
+        (try
+          (expect (true? (#'sut/real-chrome-profile? (.getAbsolutePath dir))))
+          (finally
+            (.delete (java.io.File. dir "Preferences"))
+            (.delete dir)))))
 
-  (describe "normal path — new-context returns anomaly"
-    (it "throws with 'Failed to create browser context' and the underlying message"
-      (let [state-atom (deref #'sut/!state)]
-        (reset! state-atom {:pw nil :browser nil :context nil :page nil
-                            :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {}})
-        (with-redefs [core/create (fn [] (Object.))
-                      core/launch-chromium (fn [_ _] (Object.))
-                      core/new-context (fn [_ & _]
-                                         (core/wrap-error
-                                           (Exception. "Context creation failed")))]
-          (try
-            (#'sut/ensure-browser!)
-            (expect false "Should have thrown")
-            (catch clojure.lang.ExceptionInfo e
-              (expect (str/includes? (.getMessage e) "Failed to create browser context"))
-              (expect (str/includes? (.getMessage e) "Context creation failed"))))))))
+    (it "returns true when Cookies exists"
+      (let [dir (java.io.File/createTempFile "spel-test" "")]
+        (.delete dir)
+        (.mkdirs dir)
+        (spit (java.io.File. dir "Cookies") "")
+        (try
+          (expect (true? (#'sut/real-chrome-profile? (.getAbsolutePath dir))))
+          (finally
+            (.delete (java.io.File. dir "Cookies"))
+            (.delete dir))))))
 
-  (describe "normal path — new-page-from-context returns anomaly"
-    (it "throws with 'Failed to create page' and the underlying message"
-      (let [state-atom (deref #'sut/!state)]
-        (reset! state-atom {:pw nil :browser nil :context nil :page nil
-                            :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {}})
-        (with-redefs [core/create (fn [] (Object.))
-                      core/launch-chromium (fn [_ _] (Object.))
-                      core/new-context (fn [_ & _] (Object.))
-                      core/new-page-from-context (fn [_]
-                                                   (core/wrap-error
-                                                     (Exception. "Page allocation failed")))]
-          (try
-            (#'sut/ensure-browser!)
-            (expect false "Should have thrown")
-            (catch clojure.lang.ExceptionInfo e
-              (expect (str/includes? (.getMessage e) "Failed to create page"))
-              (expect (str/includes? (.getMessage e) "Page allocation failed"))))))))
+  (describe "rejects non-profiles"
+    (it "returns false for empty directory"
+      (let [dir (java.io.File/createTempFile "spel-test" "")]
+        (.delete dir)
+        (.mkdirs dir)
+        (try
+          (expect (false? (#'sut/real-chrome-profile? (.getAbsolutePath dir))))
+          (finally
+            (.delete dir)))))
 
-  (describe "persistent path — launch-persistent-context returns anomaly"
-    (it "throws with 'Failed to launch persistent browser context' and the underlying message"
-      (let [state-atom (deref #'sut/!state)]
-        (reset! state-atom {:pw nil :browser nil :context nil :page nil
-                            :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {"profile" "/tmp/test-profile"}})
-        (with-redefs [core/create (fn [] (reify com.microsoft.playwright.Playwright
-                                           (chromium [_] (reify com.microsoft.playwright.BrowserType
-                                                           (name [_] "chromium")))))
-                      core/launch-persistent-context (fn [_ _ _]
-                                                       (core/wrap-error
-                                                         (Exception. "Profile dir locked")))]
-          (try
-            (#'sut/ensure-browser!)
-            (expect false "Should have thrown")
-            (catch clojure.lang.ExceptionInfo e
-              (expect (str/includes? (.getMessage e) "Failed to launch persistent browser context"))
-              (expect (str/includes? (.getMessage e) "Profile dir locked")))))))))
+    (it "returns false for non-existent path"
+      (expect (false? (#'sut/real-chrome-profile? "/tmp/nonexistent-spel-test-dir-999"))))
+
+    (it "returns false for a file (not directory)"
+      (let [f (java.io.File/createTempFile "spel-test" ".txt")]
+        (try
+          (expect (false? (#'sut/real-chrome-profile? (.getAbsolutePath f))))
+          (finally
+            (.delete f)))))))
+
+

@@ -14,6 +14,7 @@
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
+   [com.blockether.spel.chrome-cookies :as chrome-cookies]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.input :as input]
@@ -22,7 +23,8 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.options :as options]
-   [com.blockether.spel.sci-env :as sci-env])
+   [com.blockether.spel.sci-env :as sci-env]
+   [com.blockether.spel.stealth :as stealth])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
@@ -216,9 +218,30 @@
              (:playwright/exception result)))
     result))
 
+;; =============================================================================
+;; Real Chrome Profile Detection
+;; =============================================================================
+
+(defn- real-chrome-profile?
+  "Returns true if `path` looks like a real Chrome profile directory
+   (contains Preferences or Cookies — files only Chrome creates).
+   This distinguishes real profiles from fresh temp dirs used by Playwright."
+  [^String path]
+  (let [dir (java.io.File. path)]
+    (and (.isDirectory dir)
+      (or (.exists (java.io.File. dir "Preferences"))
+        (.exists (java.io.File. dir "Cookies"))))))
+
 (defn- ensure-browser!
-  "Lazily starts Chromium on first command. Uses launch-flags from !state if present.
-   If --profile is set, uses launchPersistentContext (real Chrome profile).
+  "Lazily starts browser on first command. Uses launch-flags from !state.
+
+   Three modes:
+   1. Real Chrome profile detected → decrypt cookies from Chrome's SQLite DB
+      using macOS Keychain, launch Playwright browser, inject cookies via
+      .addCookies (Chrome 136+ broke all other approaches)
+   2. --profile with non-Chrome dir → Playwright launchPersistentContext
+   3. Normal → Playwright launch (or --cdp connect)
+
    If --session-name is set and a saved state file exists, auto-loads it."
   []
   (when-not (:browser @!state)
@@ -230,15 +253,9 @@
                         (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
                                                                      :bypass (get flags "proxy-bypass" "")})
                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
-                        (get flags "channel")          (assoc :channel (get flags "channel")))
-          ;; When using a real browser profile, remove ONLY the args that prevent
-          ;; Chrome from decrypting its Keychain-stored cookies (macOS).
-          ;; These args tell Chrome to use mock/empty storage instead of real Keychain.
-          launch-opts (if profile-dir
-                        (update launch-opts :ignore-default-args
-                          (fnil into [])
-                          ["--use-mock-keychain" "--password-store=basic" "--no-sandbox"])
-                        launch-opts)
+                        (get flags "channel")          (assoc :channel (get flags "channel"))
+                        (get flags "stealth")         (update :args (fnil into []) (stealth/stealth-args))
+                        (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args)))
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
@@ -247,26 +264,58 @@
                                                                  (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
-      (if profile-dir
-        ;; Persistent context: real Chrome profile directory.
-        ;; launchPersistentContext returns BrowserContext directly, not Browser.
-        ;; Closing the context auto-closes the browser.
-        (let [persistent-opts (merge launch-opts ctx-opts)
+      (cond
+        ;; ── Mode 1: Real Chrome profile → decrypt cookies & inject ─────
+        ;; Chrome 136+ blocks all subprocess-based cookie access (CDP, persistent
+        ;; context, Keychain). The proven solution: decrypt cookies ourselves from
+        ;; Chrome's SQLite DB using the macOS Keychain password, then inject them
+        ;; into a fresh Playwright context via .addCookies.
+        (and profile-dir (real-chrome-profile? profile-dir))
+        (let [browser (check-anomaly!
+                        (core/launch-chromium pw launch-opts)
+                        "Failed to launch browser")
+              context (check-anomaly!
+                        (if (seq ctx-opts)
+                          (core/new-context browser ctx-opts)
+                          (core/new-context browser))
+                        "Failed to create browser context")
+              _       (when (get flags "stealth")
+                        (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+              n       (chrome-cookies/inject-cookies! context profile-dir)
+              _       (binding [*out* *err*]
+                        (println (str "spel: injected " n " cookies from Chrome profile")))
+              pg-inst (check-anomaly!
+                        (core/new-page-from-context context)
+                        "Failed to create page")]
+          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst))
+
+        ;; ── Mode 2: --profile with non-Chrome dir → Playwright persistent ─
+        ;; For fresh/temp profile directories (no Preferences file), use
+        ;; Playwright's launchPersistentContext which creates its own profile.
+        profile-dir
+        (let [launch-opts (update launch-opts :ignore-default-args
+                            (fnil into [])
+                            ["--use-mock-keychain" "--password-store=basic"])
+              persistent-opts (merge launch-opts ctx-opts)
               context         (check-anomaly!
                                 (core/launch-persistent-context
                                   (.chromium ^com.microsoft.playwright.Playwright pw)
                                   profile-dir
                                   persistent-opts)
                                 "Failed to launch persistent browser context")
-              browser         (.browser ^com.microsoft.playwright.BrowserContext context)
-              pg-inst         (if (seq (.pages ^com.microsoft.playwright.BrowserContext context))
-                                (first (.pages ^com.microsoft.playwright.BrowserContext context))
+              _               (when (get flags "stealth")
+                                (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+              browser         (.browser ^BrowserContext context)
+              pg-inst         (if (seq (.pages ^BrowserContext context))
+                                (first (.pages ^BrowserContext context))
                                 (check-anomaly!
                                   (core/new-page-from-context context)
                                   "Failed to create page in persistent context"))]
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
             :persistent-profile true))
-        ;; Normal path: launch browser + create context separately.
+
+        ;; ── Mode 3: Normal → launch or explicit --cdp ───────────────────
+        :else
         (let [browser (if (get flags "cdp")
                         (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
                         (check-anomaly!
@@ -277,11 +326,13 @@
                           (core/new-context browser ctx-opts)
                           (core/new-context browser))
                         "Failed to create browser context")
+              _       (when (get flags "stealth")
+                        (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
               pg-inst (check-anomaly!
                         (core/new-page-from-context context)
                         "Failed to create page")]
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))
-      ;; Common setup for both paths
+      ;; Common setup for all paths
       (let [pg-inst (:page @!state)]
         (reset! !console-messages [])
         (page/on-console pg-inst (fn [msg]
@@ -294,7 +345,7 @@
                                         {:message (str error)})))
         (reset! !tracked-requests [])
         (page/on-response pg-inst track-response!)
-        ;; Auto-load session state if --session-name is set (not for persistent profiles)
+        ;; Auto-load session state if --session-name is set (not for persistent/CDP profiles)
         (when-not profile-dir
           (auto-load-session-state!))))))
 

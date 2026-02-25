@@ -973,6 +973,23 @@ assert_contains "show-trace --help mentions trace" "$OUT" "trace"
 OUT=$("$SPEL" stitch --help 2>&1)
 assert_contains "stitch --help mentions vertical" "$OUT" "vertically"
 
+OUT=$("$SPEL" state export --help 2>&1)
+assert_contains "state export --help mentions export" "$OUT" "Export"
+assert_contains "state export --help mentions profile" "$OUT" "--profile"
+assert_contains "state export --help mentions load-state" "$OUT" "load-state"
+assert_contains "state export --help mentions localStorage" "$OUT" "localStorage"
+assert_contains "state export --help mentions no-local-storage" "$OUT" "--no-local-storage"
+
+# Backward compat: cookies-export alias still works
+OUT=$("$SPEL" cookies-export --help 2>&1)
+assert_contains "cookies-export alias works" "$OUT" "Export"
+
+# --stealth flag in main help
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help mentions stealth" "$OUT" "stealth"
+assert_contains "help mentions load-state" "$OUT" "load-state"
+assert_contains "help mentions state export" "$OUT" "state export"
+
 # =============================================================================
 # SUMMARY
 # =============================================================================

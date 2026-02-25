@@ -14,6 +14,9 @@ compatibility: opencode
 | Command | Purpose |
 |---------|---------|
 | `spel --help` | CLI help |
+| `spel --stealth open <url>` | Open URL with anti-detection stealth mode |
+| `spel state export --help` | State export help (cookies + localStorage) |
+| `spel state export --profile <path> -o auth.json` | Export Chrome cookies + localStorage to Playwright JSON |
 | `spel codegen --help` | Codegen CLI help |
 | `spel init-agents --help` | Agent scaffolding help |
 | `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
@@ -115,7 +118,7 @@ Detailed documentation is split into topic-specific reference files:
 |-----|-------|
 | `refs/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
 | `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `refs/PROFILES_AGENTS.md` | Browser profiles, agent scaffolding |
+| `refs/PROFILES_AGENTS.md` | Browser profiles, **stealth mode**, **cookie export**, storage state, agent scaffolding |
 
 ### Troubleshooting
 | Ref | Topic |

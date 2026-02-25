@@ -1259,7 +1259,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `--session <name>` | Named session (default: \"default\") |
 | `--json` | JSON output (for agents) |
-| `--storage-state <path>` | Load storage state (cookies/localStorage JSON) |
+| `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
 | `--channel <name>` | Browser channel (e.g. \"chrome\", \"msedge\") |
 | `--executable-path <path>` | Custom browser executable |
@@ -1271,6 +1271,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--cdp <url>` | Connect via CDP endpoint |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
+| `--stealth` | Stealth mode: anti-detection patches |
 | `--timeout <ms>` | Playwright action timeout in ms (default: 30000) |
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |
@@ -1279,6 +1280,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
+| `state export [opts]` | Export Chrome cookies + localStorage to Playwright state JSON (--help) |
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
@@ -1299,4 +1301,4 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--eval '<code>'` | Evaluate Clojure expression |
 | `--eval <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
 | `--eval --interactive` | Evaluate with visible browser (headed mode) |
-| `--eval --load-state FILE` | Load auth/storage state before evaluation |
+| `--eval --load-state F` | Load auth/state before evaluation (alias: --storage-state) |

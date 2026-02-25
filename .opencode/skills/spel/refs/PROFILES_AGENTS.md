@@ -52,6 +52,185 @@ For lower-level control, use `core/launch-persistent-context` on the browser typ
 
 ---
 
+## Stealth Mode
+
+`--stealth` applies anti-detection patches that hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth).
+
+### CLI
+
+```bash
+# Stealth with any command
+spel --stealth open https://example.com
+spel --stealth --eval 'script.clj'
+spel --stealth --profile /path/to/profile open https://protected-site.com
+
+# Combine with other flags
+spel --stealth --channel chrome --profile ~/.config/google-chrome/Profile\ 1 open https://x.com
+
+# Environment variable (persists across commands)
+export SPEL_STEALTH=true
+spel open https://example.com
+```
+
+### What Stealth Does
+
+**Chrome launch args:**
+- `--disable-blink-features=AutomationControlled` — prevents `navigator.webdriver=true`
+- Suppresses `--enable-automation` — removes "Chrome is being controlled" infobar
+
+**JavaScript evasion patches** (injected via `addInitScript` before any page loads):
+
+| Patch | What it hides |
+|-------|---------------|
+| `navigator.webdriver` | Returns `undefined` instead of `true` |
+| `navigator.plugins` | Emulates Chrome PDF plugins (empty in headless) |
+| `navigator.languages` | Returns `['en-US', 'en']` |
+| `chrome.runtime` | Mocks `connect()` and `sendMessage()` |
+| `permissions.query` | Fixes `Notification.permission` response |
+| `WebGL renderer` | Returns realistic GPU vendor/renderer strings |
+| `outerWidth/Height` | Matches inner dimensions (headless mismatch) |
+| `iframe contentWindow` | Prevents iframe-based fingerprinting |
+
+### Stealth + Cookies Export Workflow
+
+For maximum authenticity — combine stealth with real Chrome cookies:
+
+```bash
+# 1. Export cookies from your real Chrome profile
+spel state export --profile ~/.config/google-chrome/Default -o auth.json
+
+# 2. Use stealth + exported state
+spel --stealth --load-state auth.json open https://protected-site.com
+```
+
+### Library API
+
+```clojure
+(require '[com.blockether.spel.stealth :as stealth])
+
+;; Get Chrome args for anti-detection
+(stealth/stealth-args)
+;; => ["--disable-blink-features=AutomationControlled"]
+
+;; Get default args to suppress
+(stealth/stealth-ignore-default-args)
+;; => ["--enable-automation"]
+
+;; Get the full JS evasion script (for addInitScript)
+(stealth/stealth-init-script)
+;; => "(function() { ... })();"
+
+;; Manual integration with Playwright
+(core/with-playwright [pw]
+  (core/with-browser [browser (core/launch-chromium pw
+                                {:args (stealth/stealth-args)
+                                 :ignore-default-args (stealth/stealth-ignore-default-args)})]
+    (core/with-context [ctx (core/new-context browser)]
+      (.addInitScript ctx (stealth/stealth-init-script))
+      (core/with-page [pg (core/new-page-from-context ctx)]
+        (page/navigate pg "https://example.com")))))
+```
+
+### Limitations
+
+- Stealth patches help with common detection but are **not foolproof** against sophisticated fingerprinting (e.g., TLS fingerprint, HTTP/2 settings, canvas noise)
+- Some sites (banks, Google login) may still detect automation regardless
+- **Headed mode** (`--interactive`) combined with stealth gives the best results
+- Works with all three daemon modes: normal launch, persistent profile, and Chrome cookie injection
+
+---
+
+## State Export (`state export`)
+
+Export cookies and localStorage from a real Chrome profile to a portable Playwright state JSON file. Works cross-platform (macOS, Linux, Windows).
+
+(Alias: `spel cookies-export`)
+
+### CLI
+
+```bash
+# Export from default Chrome profile
+spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default
+
+# Export to a specific file
+spel state export --profile ~/.config/google-chrome/Profile\ 1 -o auth.json
+
+# Export cookies only (skip localStorage)
+spel state export --profile /path/to/profile --no-local-storage
+
+# Pipe to stdout (default when no -o)
+spel state export --profile /path/to/profile > cookies.json
+```
+
+### Output Format
+
+Standard Playwright storage-state JSON:
+
+```json
+{
+  "cookies": [
+    {"name": "session_id", "value": "abc123", "domain": ".example.com", "path": "/", ...}
+  ],
+  "origins": [
+    {
+      "origin": "https://example.com",
+      "localStorage": [
+        {"name": "theme", "value": "dark"},
+        {"name": "user_prefs", "value": "{...}"}
+      ]
+    }
+  ]
+}
+```
+
+### How It Works
+
+1. Copies Chrome's `Cookies` SQLite database to a temp file (avoids locking)
+2. Decrypts cookie values using the OS keychain:
+   - **macOS**: Reads encryption key from Keychain via `security` CLI
+   - **Linux**: Reads from GNOME Keyring (`secret-tool`) or falls back to `"peanuts"`
+   - **Windows**: Reads DPAPI-encrypted key from `Local State` JSON
+3. Reads localStorage from Chrome's LevelDB files (Snappy-compressed SSTables)
+4. Outputs standard Playwright storage-state JSON
+
+### Cross-Platform Transfer
+
+Export on macOS, use on Linux CI:
+
+```bash
+# On macOS (your dev machine)
+spel state export --profile ~/Library/Application\ Support/Google/Chrome/Profile\ 1 -o auth.json
+
+# Copy to Linux CI server
+scp auth.json ci-server:/tmp/
+
+# On Linux CI
+spel --load-state /tmp/auth.json --eval 'script.clj'
+```
+
+### Common Profile Paths
+
+| OS | Default Profile |
+|----|----------------|
+| macOS | `~/Library/Application Support/Google/Chrome/Default` |
+| Linux | `~/.config/google-chrome/Default` |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` |
+
+Chrome profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome://version` in your browser to find the exact path.
+
+### CLI Aliases
+
+`--load-state` is the primary flag. `--storage-state` is kept as an alias for Playwright familiarity:
+
+```bash
+spel --load-state auth.json open https://example.com
+spel --storage-state auth.json open https://example.com   # alias, same thing
+spel --eval --load-state auth.json 'script.clj'
+spel --eval --storage-state auth.json 'script.clj'        # alias, same thing
+```
+
+---
+
 ## Device Emulation
 
 Three approaches, each with different fidelity.
