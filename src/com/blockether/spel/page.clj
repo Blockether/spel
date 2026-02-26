@@ -499,11 +499,16 @@
    Params:
    `page`       - Page instance.
    `expression` - String. JavaScript expression.
+   `opts`       - Map, optional. Options:
+                  :timeout  - Double. Timeout in ms (default 30000).
+                  :polling  - Double. Polling interval in ms.
    
    Returns:
    JSHandle or anomaly map on timeout."
-  [^Page page ^String expression]
-  (safe (.waitForFunction page expression)))
+  ([^Page page ^String expression]
+   (safe (.waitForFunction page expression)))
+  ([^Page page ^String expression opts]
+   (safe (.waitForFunction page expression (opts/->page-wait-for-function-options opts)))))
 
 (defn wait-for-response
   "Waits for a response matching the URL or predicate.

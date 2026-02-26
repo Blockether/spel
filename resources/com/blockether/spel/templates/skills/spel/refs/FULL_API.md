@@ -195,7 +195,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `viewport-size` | [page] | Returns the viewport size of the page. |
 | `wait-for-download` | [page action] \| [page action opts] | Waits for a download to start while executing `action`. |
 | `wait-for-file-chooser` | [page action] \| [page action opts] | Waits for a file chooser dialog while executing `action`. |
-| `wait-for-function` | [page expression] | Waits for a JavaScript function to return a truthy value. |
+| `wait-for-function` | [page expression] \| [page expression opts] | Waits for a JavaScript function to return a truthy value. |
 | `wait-for-load-state` | [page] \| [page state] | Waits for the page to reach a load state. |
 | `wait-for-popup` | [page action] \| [page action opts] | Waits for a popup page to open while executing `action`. |
 | `wait-for-response` | [page url-or-fn callback] | Waits for a response matching the URL or predicate. |
