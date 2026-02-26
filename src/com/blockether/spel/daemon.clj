@@ -32,7 +32,8 @@
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
-   [java.util Base64]))
+   [java.util Base64]
+   [java.util.concurrent ExecutorService Executors]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -88,6 +89,13 @@
          :tracing? false}))
 
 (defonce ^:private !server (atom nil))
+(defonce ^:private ^ExecutorService !vthread-executor
+  (Executors/newVirtualThreadPerTaskExecutor))
+
+(defn- submit-virtual
+  "Submits a task to the virtual thread executor."
+  [^Runnable f]
+  (.submit !vthread-executor f))
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
@@ -1452,7 +1460,7 @@
                               (let [parsed (try (json/read-json response) (catch Exception _ nil))]
                                 (and parsed (get-in parsed ["data" "shutdown"])))))]
             (if shutdown?
-              (future (stop-daemon!))
+              (submit-virtual stop-daemon!)
               (recur)))))
       (catch Exception e (warn "handle-connection" e))
       (finally
@@ -1573,7 +1581,7 @@
       (try
         (loop []
           (let [client (.accept server)]
-            (future (handle-connection client)))
+            (submit-virtual #(handle-connection client)))
           (recur))
         (catch Exception _
           ;; Server closed
