@@ -2014,7 +2014,9 @@
               (when (:url data)
                 (println (str "\n  URL: " (:url data))))
               (when (:title data)
-                (println (str "  Title: " (:title data)))))
+                (println (str "  Title: " (:title data))))
+              (when (:description data)
+                (println (str "  Description: " (:description data)))))
 
           ;; Screenshot
           (:base64 data)

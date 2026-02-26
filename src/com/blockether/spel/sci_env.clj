@@ -933,13 +933,27 @@
 ;; Snapshot + Annotate
 ;; =============================================================================
 
+(defn- enrich-snapshot
+  "Adds :url, :title, :description to a snapshot map."
+  [snap ^com.microsoft.playwright.Page pg]
+  (let [desc (try
+               (let [d (page/evaluate pg
+                      "document.querySelector('meta[name=description]')?.content || ''")]
+                 (when-not (str/blank? d) d))
+               (catch Exception _ nil))]
+    (cond-> (assoc snap :url (page/url pg) :title (page/title pg))
+      desc (assoc :description desc))))
 (defn sci-snapshot
-  ([] (throw-if-anomaly (snapshot/capture-snapshot (require-page!))))
+  ([]
+   (let [pg (require-page!)]
+     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg)) pg)))
   ([page-or-opts]
    (if (map? page-or-opts)
-     (throw-if-anomaly (snapshot/capture-snapshot (require-page!) page-or-opts))
-     (throw-if-anomaly (snapshot/capture-snapshot page-or-opts))))
-  ([page opts] (throw-if-anomaly (snapshot/capture-snapshot page opts))))
+     (let [pg (require-page!)]
+       (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg page-or-opts)) pg))
+     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page-or-opts)) page-or-opts)))
+  ([page opts]
+   (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page opts)) page)))
 (defn sci-full-snapshot
   ([] (throw-if-anomaly (snapshot/capture-full-snapshot (require-page!))))
   ([page] (throw-if-anomaly (snapshot/capture-full-snapshot page))))

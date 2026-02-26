@@ -534,10 +534,22 @@
             (flush)))
         (if (and response (:success response))
           ;; Success — print the result
-          (let [result-str (get-in response [:data :result])]
+          (let [data       (get response :data)
+                snap-tree  (get data :snapshot)
+                result-str (get data :result)]
             (if (:json? global)
               (println result-str)
-              (println result-str)))
+              (if snap-tree
+                ;; Snapshot result — format like 'spel snapshot' output
+                (do (when-not (str/blank? (str snap-tree))
+                      (println (str/trim (str snap-tree))))
+                    (when-let [url (get data :url)]
+                      (println (str "\n  URL: " url)))
+                    (when-let [title (get data :title)]
+                      (println (str "  Title: " title)))
+                    (when-let [desc (get data :description)]
+                      (println (str "  Description: " desc))))
+                (println result-str))))
           ;; Error from daemon
           (do (vreset! exit-code 1)
               (binding [*out* *err*]

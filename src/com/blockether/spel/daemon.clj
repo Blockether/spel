@@ -420,6 +420,15 @@
     (when (or (nil? url) (#{"about:blank" ""} url))
       (throw (ex-info "No page loaded. Navigate first: spel open <url>" {})))))
 
+(defn- page-description
+  "Extracts the meta description from the current page, or nil."
+  []
+  (try
+    (let [desc (page/evaluate (pg)
+               "document.querySelector('meta[name=description]')?.content || ''")]
+      (when-not (str/blank? desc) desc))
+    (catch Exception _ nil)))
+
 (defn- snapshot-after-action!
   "Captures a snapshot, stores refs in state, returns the tree string.
 
@@ -460,7 +469,8 @@
         ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)})
     (let [tree (snapshot-after-action!)]
-      {:snapshot tree :url (page/url (pg)) :title (page/title (pg))})))
+      (cond-> {:snapshot tree :url (page/url (pg)) :title (page/title (pg))}
+        (page-description) (assoc :description (page-description))))))
 
 (defmethod handle-cmd "snapshot" [_ params]
   (ensure-browser!)
@@ -473,7 +483,8 @@
                                                       sel (assoc :scope sel))))
         _         (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
         tree      (filter-snapshot-tree (:tree snap) params)]
-    {:snapshot tree :refs_count (:counter snap)}))
+    (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))}
+      (page-description) (assoc :description (page-description)))))
 
 (defmethod handle-cmd "click" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1317,11 +1328,19 @@
               (seq captured-stderr) (assoc :stderr captured-stderr)
               (seq new-console)     (assoc :console new-console)
               (seq new-errors)      (assoc :page-errors new-errors))
-            (cond-> {:result (pr-str result)}
-              (seq captured-stdout) (assoc :stdout captured-stdout)
-              (seq captured-stderr) (assoc :stderr captured-stderr)
-              (seq new-console)     (assoc :console new-console)
-              (seq new-errors)      (assoc :page-errors new-errors))))
+            (let [base (cond-> {:result (pr-str result)}
+                          (seq captured-stdout) (assoc :stdout captured-stdout)
+                          (seq captured-stderr) (assoc :stderr captured-stderr)
+                          (seq new-console)     (assoc :console new-console)
+                          (seq new-errors)      (assoc :page-errors new-errors))]
+              ;; If result looks like a snapshot map, include formatted data
+              ;; so the CLI can display tree + metadata instead of raw EDN.
+              (if (and (map? result) (:tree result))
+                (cond-> (assoc base :snapshot (:tree result)
+                                    :url (:url result)
+                                    :title (:title result))
+                  (:description result) (assoc :description (:description result)))
+                base))))
         (catch Exception e
           (sync-sci-to-state!)
           (let [captured-stdout (str stdout-writer)
