@@ -152,7 +152,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `get-by-alt-text` | [page text] | Locates elements by alt text. |
 | `get-by-label` | [page text] | Locates elements by their label text. |
 | `get-by-placeholder` | [page text] | Locates elements by placeholder text. |
-| `get-by-ref` | [page ref-id] | Locates an element by its snapshot ref ID (e.g. "e2yrjz", "e9mter"). |
+| `get-by-ref` | [page ref-id] | Locates an element by its snapshot ref ID (e.g. "@e2yrjz", "@e9mter"). |
 | `get-by-role` | [page role] \| [page role opts] | Locates elements by their ARIA role. |
 | `get-by-test-id` | [page test-id] | Locates elements by test ID attribute. |
 | `get-by-text` | [page text] | Locates elements by their text content. |
@@ -699,7 +699,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/get-by-alt-text` | [text] | Locates elements by alt text. |
 | `spel/get-by-label` | [text] | Locates elements by their label text. |
 | `spel/get-by-placeholder` | [text] | Locates elements by placeholder text. |
-| `spel/get-by-ref` | [ref-id] | Locates an element by its snapshot ref ID (e.g. "e2yrjz", "@e9mter"). |
+| `spel/get-by-ref` | [ref-id] | Locates an element by its snapshot ref ID (e.g. "@e2yrjz", "@e9mter"). |
 | `spel/get-by-role` | [role] \| [role opts] | Locates elements by their ARIA role. |
 | `spel/get-by-test-id` | [id] | Locates elements by test ID attribute. |
 | `spel/get-by-text` | [text] | Locates elements by their text content. |

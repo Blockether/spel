@@ -398,14 +398,14 @@
     (str/replace "'" "\\'")))
 
 (defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref like @e04a3f or e04a3f."
+  "Returns true if the scope string is a snapshot ref (must start with @, e.g. @e04a3f)."
   [^String s]
-  (boolean (re-matches #"@?e[a-z0-9]+" s)))
+  (boolean (re-matches #"@e[a-z0-9]+" s)))
 
 (defn- resolve-scope
   "Resolves a scope value to a CSS selector.
 
-   If the scope is a ref (@e2yrjz, e2yrjz), converts to [data-pw-ref='e2yrjz'].
+   If the scope is a ref (@e2yrjz), converts to [data-pw-ref='e2yrjz'].
    Otherwise, passes through as a CSS selector."
   [^String s]
   (if (ref-scope? s)
@@ -415,7 +415,7 @@
 (defn- scope-ref-ids
   "Returns a set of ref IDs whose elements are descendants of the scope selector.
 
-   Scope can be a CSS selector or a snapshot ref (@e2yrjz, e2yrjz).
+   Scope can be a CSS selector or a snapshot ref (@e2yrjz).
    Queries the DOM for all `data-pw-ref` elements inside the scoped element.
    Requires that `capture-snapshot` has already been called (elements tagged)."
   [^Page page ^String scope-selector]
@@ -623,8 +623,8 @@
 
    Params:
    `page`    - Playwright Page instance.
-   `ref-ids` - Collection of ref ID strings (e.g. ['e2yrjz' 'e9mter']).
-               Accepts both 'e2yrjz' and '@e2yrjz' formats (@ is stripped).
+   `ref-ids` - Collection of ref ID strings (e.g. ['@e2yrjz' '@e9mter']).
+               The @ prefix is stripped for DOM lookup.
 
    Returns:
    Count of successfully created markers (long)."

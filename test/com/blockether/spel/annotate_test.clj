@@ -364,11 +364,11 @@
     (it "recognizes @e1 as a ref scope"
       (expect (true? (#'sut/ref-scope? "@e1"))))
 
-    (it "recognizes e1 as a ref scope"
-      (expect (true? (#'sut/ref-scope? "e1"))))
+    (it "rejects bare ref without @ prefix"
+      (expect (false? (#'sut/ref-scope? "e1"))))
 
-    (it "recognizes e123 as a ref scope"
-      (expect (true? (#'sut/ref-scope? "e123"))))
+    (it "rejects e123 without @ prefix"
+      (expect (false? (#'sut/ref-scope? "e123"))))
 
     (it "rejects CSS selectors"
       (expect (false? (#'sut/ref-scope? "#main")))
@@ -379,8 +379,8 @@
     (it "converts @e1 to data-pw-ref selector"
       (expect (= "[data-pw-ref=\"e1\"]" (#'sut/resolve-scope "@e1"))))
 
-    (it "converts e1 to data-pw-ref selector"
-      (expect (= "[data-pw-ref=\"e1\"]" (#'sut/resolve-scope "e1"))))
+    (it "passes bare e1 through as CSS (no @ prefix)"
+      (expect (= "e1" (#'sut/resolve-scope "e1"))))
 
     (it "passes CSS selectors through unchanged"
       (expect (= "#main" (#'sut/resolve-scope "#main")))

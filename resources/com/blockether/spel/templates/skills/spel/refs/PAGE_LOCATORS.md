@@ -58,8 +58,8 @@ Every locator strategy returns a Playwright `Locator` that auto-waits and auto-r
 (spel/get-by-label "Email address")
 
 ;; Snapshot refs (see "Snapshot Ref Traversal" below)
-(spel/locator "@e6t2x4")
-(spel/locator "e6t2x4")                      ;; @ prefix is optional
+(spel/locator "@e6t2x4")                      ;
+snapshot ref (@ prefix required)
 ```
 
 ### Library vs SCI Equivalents

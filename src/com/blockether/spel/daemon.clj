@@ -354,11 +354,10 @@
 ;; =============================================================================
 
 (defn- ref? [^String s]
-  (or (re-matches #"@?e[a-z0-9]+" s)
-    (str/starts-with? s "@e")))
+  (boolean (re-matches #"@e[a-z0-9]+" s)))
 
 (defn- resolve-selector
-  "Resolves a selector — if it's a ref (@e2yrjz, e2yrjz) resolve via snapshot,
+  "Resolves a selector — if it's a ref (@e2yrjz) resolve via snapshot,
    otherwise return a regular CSS locator.
    Throws immediately if the ref was never captured in a snapshot."
   [^String selector]

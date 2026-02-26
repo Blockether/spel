@@ -358,14 +358,14 @@
     (str/replace "'" "\\'")))
 
 (defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref like @e04a3f or e04a3f."
+  "Returns true if the scope string is a snapshot ref (must start with @, e.g. @e04a3f)."
   [^String s]
-  (boolean (re-matches #"@?e[a-z0-9]+" s)))
+  (boolean (re-matches #"@e[a-z0-9]+" s)))
 
 (defn- resolve-scope
   "Resolves a scope value to a CSS selector.
 
-   If the scope is a ref (@e2yrjz, e2yrjz), converts to [data-pw-ref='e2yrjz'].
+   If the scope is a ref (@e2yrjz), converts to [data-pw-ref='e2yrjz'].
    Otherwise, passes through as a CSS selector."
   [^String s]
   (if (ref-scope? s)
@@ -379,7 +379,7 @@
    that CSS selector instead of document.body. If the selector matches nothing,
    the JS returns an empty result.
 
-   Scope can be a CSS selector or a snapshot ref (@e2yrjz, e2yrjz)."
+   Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
   [scope-selector]
   (if scope-selector
     (let [css-sel (resolve-scope scope-selector)]
@@ -532,7 +532,7 @@
 
    Params:
    `page`   - Playwright Page instance.
-   `ref-id` - String. Ref like \"e2yrjz\", \"@e9mter\", etc.
+   `ref-id` - String. Bare ref ID without @ prefix (e.g. e2yrjz).
 
    Returns:
    Locator instance for the element."

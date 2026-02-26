@@ -249,12 +249,12 @@
     (.getByTestId page ^String (str test-id))))
 
 (defn get-by-ref
-  "Locates an element by its snapshot ref ID (e.g. \"e2yrjz\", \"e9mter\").
+  "Locates an element by its snapshot ref ID (e.g. \"@e2yrjz\", \"@e9mter\").
    The element must have been tagged with data-pw-ref during capture-snapshot.
 
    Params:
    `page`   - Page instance.
-   `ref-id` - String. Ref like \"e2yrjz\", \"@e9mter\", etc.
+   `ref-id` - String. Ref with @ prefix, e.g. \"@e2yrjz\", \"@e9mter\".
 
    Returns:
    Locator instance."

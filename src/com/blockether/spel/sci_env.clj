@@ -123,9 +123,9 @@
 ;; =============================================================================
 
 (defn- ref?
-  "Returns true if the string looks like a snapshot ref (@e04a3f, e04a3f, etc.)."
+  "Returns true if the string is a snapshot ref (must start with @, e.g. @e04a3f)."
   [^String s]
-  (boolean (re-matches #"@?e[a-z0-9]+" s)))
+  (boolean (re-matches #"@e[a-z0-9]+" s)))
 
 (defn- ->locator-assertions
   "Coerces input to LocatorAssertions. Accepts:
@@ -271,7 +271,7 @@
 (defn sci-$alt-text    [text] (page/get-by-alt-text (require-page!) text))
 (defn sci-$title-attr  [text] (page/get-by-title (require-page!) text))
 (defn sci-$ref
-  "Locates an element by its snapshot ref ID (e.g. \"e2yrjz\", \"@e9mter\")."
+  "Locates an element by its snapshot ref ID (e.g. \"@e2yrjz\", \"@e9mter\")."
   [ref-id] (page/get-by-ref (require-page!) ref-id))
 
 ;; =============================================================================
@@ -943,8 +943,10 @@
 (defn sci-full-snapshot
   ([] (throw-if-anomaly (snapshot/capture-full-snapshot (require-page!))))
   ([page] (throw-if-anomaly (snapshot/capture-full-snapshot page))))
-(defn sci-resolve-ref [ref-id]
-  (snapshot/resolve-ref (require-page!) ref-id))
+(defn sci-resolve-ref
+  "Resolves a snapshot ref (e.g. \"@e2yrjz\") to a Playwright Locator."
+  [ref-id]
+  (snapshot/resolve-ref (require-page!) (str/replace (str ref-id) #"^@" "")))
 (defn sci-clear-refs! []
   (snapshot/clear-refs! (require-page!)))
 
@@ -965,8 +967,7 @@
 
 ;; Pre-action markers
 (defn sci-mark
-  "Highlights specific snapshot refs with prominent pre-action markers.
-   Accepts ref strings with or without @ prefix."
+  "Highlights specific snapshot refs with prominent pre-action markers (e.g. \"@e2yrjz\")."
   [& refs]
   (annotate/inject-action-markers! (require-page!) refs))
 (defn sci-unmark
