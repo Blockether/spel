@@ -209,7 +209,7 @@
   (println "  --cdp <url>               Connect via CDP endpoint")
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
-  (println "  --stealth                 Stealth mode: anti-detection patches")
+  (println "  --no-stealth              Disable stealth mode (stealth is ON by default)")
   (println "  --timeout <ms>            Playwright action timeout in ms (default: 30000)")
   (println "  --debug                   Debug output")
   (println "  --help, -h                Show this help")

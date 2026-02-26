@@ -1126,7 +1126,7 @@
      "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
      "  --channel NAME         Browser channel (e.g. \"chrome\", \"msedge\")"
-     "  --stealth               Stealth mode: anti-detection patches (hides automation signals)"
+     "  --no-stealth            Disable stealth mode (stealth is ON by default)"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
@@ -1136,7 +1136,7 @@
      "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
      "  SPEL_PROFILE            Chrome user data directory path"
      "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\")"
-     "  SPEL_STEALTH            Set to \"true\" for stealth mode"
+     "  SPEL_STEALTH            Set to \"false\" to disable stealth mode (ON by default)"
      "  SPEL_HEADERS            Default HTTP headers (JSON)"
      "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
 
@@ -1152,7 +1152,7 @@
    :flags contains global options like :session, :json."
   [args]
   (let [;; Read environment variable defaults
-        env-defaults (cond-> {:session "default" :headless true :json false}
+        env-defaults (cond-> {:session "default" :headless true :json false :stealth true}
                        (System/getenv "SPEL_SESSION")
                        (assoc :session (System/getenv "SPEL_SESSION"))
                        (= "true" (System/getenv "SPEL_JSON"))
@@ -1175,8 +1175,8 @@
                        (assoc :ignore-https-errors true)
                        (= "true" (System/getenv "SPEL_DEBUG"))
                        (assoc :debug true)
-                       (= "true" (System/getenv "SPEL_STEALTH"))
-                       (assoc :stealth true)
+                       (= "false" (System/getenv "SPEL_STEALTH"))
+                       (assoc :stealth false)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
                        (System/getenv "SPEL_CHANNEL")
@@ -1286,6 +1286,9 @@
 
                 (= "--stealth" arg)
                 (recur (rest args) (assoc flags :stealth true) remaining)
+
+                (= "--no-stealth" arg)
+                (recur (rest args) (assoc flags :stealth false) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))

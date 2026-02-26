@@ -372,16 +372,16 @@
           refs   (:refs @!state)]
       (when-not (get refs ref-id)
         (let [hint (if (seq refs)
-                    (let [rows (for [[k v] (sort-by key refs)]
-                                 (str "  @" k "  " (:role v)
-                                   (when-let [n (:name v)]
-                                     (when-not (str/blank? n)
-                                       (str " \"" (if (> (count n) 40)
-                                                       (str (subs n 0 37) "...")
-                                                       n) "\"")))))]
-                      (str "Available refs:\n" (str/join "\n" rows)
-                        "\nRun 'snapshot' to refresh."))
-                    "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
+                     (let [rows (for [[k v] (sort-by key refs)]
+                                  (str "  @" k "  " (:role v)
+                                    (when-let [n (:name v)]
+                                      (when-not (str/blank? n)
+                                        (str " \"" (if (> (count n) 40)
+                                                     (str (subs n 0 37) "...")
+                                                     n) "\"")))))]
+                       (str "Available refs:\n" (str/join "\n" rows)
+                         "\nRun 'snapshot' to refresh."))
+                     "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
           (throw (ex-info (str "Ref " ref-id " not found.\n" hint) {}))))
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
@@ -425,7 +425,7 @@
   []
   (try
     (let [desc (page/evaluate (pg)
-               "document.querySelector('meta[name=description]')?.content || ''")]
+                 "document.querySelector('meta[name=description]')?.content || ''")]
       (when-not (str/blank? desc) desc))
     (catch Exception _ nil)))
 
@@ -1329,16 +1329,16 @@
               (seq new-console)     (assoc :console new-console)
               (seq new-errors)      (assoc :page-errors new-errors))
             (let [base (cond-> {:result (pr-str result)}
-                          (seq captured-stdout) (assoc :stdout captured-stdout)
-                          (seq captured-stderr) (assoc :stderr captured-stderr)
-                          (seq new-console)     (assoc :console new-console)
-                          (seq new-errors)      (assoc :page-errors new-errors))]
+                         (seq captured-stdout) (assoc :stdout captured-stdout)
+                         (seq captured-stderr) (assoc :stderr captured-stderr)
+                         (seq new-console)     (assoc :console new-console)
+                         (seq new-errors)      (assoc :page-errors new-errors))]
               ;; If result looks like a snapshot map, include formatted data
               ;; so the CLI can display tree + metadata instead of raw EDN.
               (if (and (map? result) (:tree result))
                 (cond-> (assoc base :snapshot (:tree result)
-                                    :url (:url result)
-                                    :title (:title result))
+                          :url (:url result)
+                          :title (:title result))
                   (:description result) (assoc :description (:description result)))
                 base))))
         (catch Exception e

@@ -54,21 +54,24 @@ For lower-level control, use `core/launch-persistent-context` on the browser typ
 
 ## Stealth Mode
 
-`--stealth` applies anti-detection patches that hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth).
+Stealth mode is **ON by default** for all CLI and `--eval` commands. Anti-detection patches hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). Use `--no-stealth` to disable.
 
 ### CLI
 
 ```bash
-# Stealth with any command
-spel --stealth open https://example.com
-spel --stealth --eval 'script.clj'
-spel --stealth --profile /path/to/profile open https://protected-site.com
+# Stealth is automatic — no flag needed
+spel open https://example.com
+spel --eval 'script.clj'
+spel --profile /path/to/profile open https://protected-site.com
 
 # Combine with other flags
-spel --stealth --channel chrome --profile ~/.config/google-chrome/Profile\ 1 open https://x.com
+spel --channel chrome --profile ~/.config/google-chrome/Profile\ 1 open https://x.com
 
-# Environment variable (persists across commands)
-export SPEL_STEALTH=true
+# Disable stealth if needed
+spel --no-stealth open https://example.com
+
+# Environment variable to disable stealth
+export SPEL_STEALTH=false
 spel open https://example.com
 ```
 
@@ -99,8 +102,8 @@ For maximum authenticity — combine stealth with real Chrome cookies:
 # 1. Export cookies from your real Chrome profile
 spel state export --profile ~/.config/google-chrome/Default -o auth.json
 
-# 2. Use stealth + exported state
-spel --stealth --load-state auth.json open https://protected-site.com
+# 2. Use exported state (stealth is already on by default)
+spel --load-state auth.json open https://protected-site.com
 ```
 
 ### Library API
@@ -135,7 +138,7 @@ spel --stealth --load-state auth.json open https://protected-site.com
 
 - Stealth patches help with common detection but are **not foolproof** against sophisticated fingerprinting (e.g., TLS fingerprint, HTTP/2 settings, canvas noise)
 - Some sites (banks, Google login) may still detect automation regardless
-- **Headed mode** (`--interactive`) combined with stealth gives the best results
+- **Headed mode** (`--interactive`) combined with stealth (which is on by default) gives the best results
 - Works with all three daemon modes: normal launch, persistent profile, and Chrome cookie injection
 
 ---

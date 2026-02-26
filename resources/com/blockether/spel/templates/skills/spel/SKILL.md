@@ -14,7 +14,7 @@ compatibility: opencode
 | Command | Purpose |
 |---------|---------|
 | `spel --help` | CLI help |
-| `spel --stealth open <url>` | Open URL with anti-detection stealth mode |
+| `spel open <url>` | Open URL (stealth mode is ON by default) |
 | `spel state export --help` | State export help (cookies + localStorage) |
 | `spel state export --profile <path> -o auth.json` | Export Chrome cookies + localStorage to Playwright JSON |
 | `spel codegen --help` | Codegen CLI help |

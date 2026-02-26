@@ -938,7 +938,7 @@
   [snap ^com.microsoft.playwright.Page pg]
   (let [desc (try
                (let [d (page/evaluate pg
-                      "document.querySelector('meta[name=description]')?.content || ''")]
+                         "document.querySelector('meta[name=description]')?.content || ''")]
                  (when-not (str/blank? d) d))
                (catch Exception _ nil))]
     (cond-> (assoc snap :url (page/url pg) :title (page/title pg))
