@@ -10,8 +10,8 @@
    Usage:
      spel open https://example.com   # Navigate (auto-starts browser)
      spel snapshot                    # ARIA snapshot with refs
-     spel click @e1                   # Click by ref
-     spel fill @e2 \"search text\"      # Fill input by ref
+     spel click @e2yrjz              # Click by ref
+     spel fill @e9mter \"search text\" # Fill input by ref
      spel screenshot shot.png         # Take screenshot
      spel close                       # Close browser
      spel --eval '(+ 1 2)'            # Evaluate and exit
@@ -56,10 +56,10 @@
   (println "Core Commands:")
   (println "  open <url>                Navigate (aliases: goto, navigate)")
   (println "  open <url> --interactive  Navigate with visible browser")
-  (println "  click @e1                 Click element by ref or selector")
+  (println "  click @e2yrjz            Click element by ref or selector")
   (println "  dblclick <sel>            Double-click element")
-  (println "  fill @e2 \"text\"           Clear and fill input")
-  (println "  type @e2 \"text\"           Type without clearing")
+  (println "  fill @e9mter \"text\"      Clear and fill input")
+  (println "  type @e9mter \"text\"      Type without clearing")
   (println "  press <key>               Press key (Enter, Tab, Control+a) (alias: key)")
   (println "  keydown <key>             Hold key down")
   (println "  keyup <key>               Release key")
@@ -91,10 +91,10 @@
   (println "  pdf <path>                Save as PDF")
   (println "")
   (println "Get Info:")
-  (println "  get text @e1              Get text content")
-  (println "  get html @e1              Get innerHTML")
-  (println "  get value @e1             Get input value")
-  (println "  get attr @e1 <name>       Get attribute value")
+  (println "  get text @e2yrjz         Get text content")
+  (println "  get html @e2yrjz         Get innerHTML")
+  (println "  get value @e2yrjz        Get input value")
+  (println "  get attr @e2yrjz <name>  Get attribute value")
   (println "  get url / get title       Get page URL or title")
   (println "  get count <sel>           Count matching elements")
   (println "  get box <sel>             Get bounding box")
@@ -235,7 +235,7 @@
   (println "Examples:")
   (println "  spel open example.com")
   (println "  spel snapshot -i --json")
-  (println "  spel click @e2")
+  (println "  spel click @e9mter")
   (println "  spel find role button click --name Submit")
   (println "  spel wait --text \"Welcome\"")
   (println "  spel set viewport 1280 720")

@@ -123,9 +123,9 @@
 ;; =============================================================================
 
 (defn- ref?
-  "Returns true if the string looks like a snapshot ref (@e1, e1, @e42, e42)."
+  "Returns true if the string looks like a snapshot ref (@e04a3f, e04a3f, etc.)."
   [^String s]
-  (boolean (re-matches #"@?e\d+" s)))
+  (boolean (re-matches #"@?e[a-z0-9]+" s)))
 
 (defn- ->locator-assertions
   "Coerces input to LocatorAssertions. Accepts:
@@ -270,6 +270,9 @@
 (defn sci-$test-id     [id]   (page/get-by-test-id (require-page!) id))
 (defn sci-$alt-text    [text] (page/get-by-alt-text (require-page!) text))
 (defn sci-$title-attr  [text] (page/get-by-title (require-page!) text))
+(defn sci-$ref
+  "Locates an element by its snapshot ref ID (e.g. \"e2yrjz\", \"@e9mter\")."
+  [ref-id] (page/get-by-ref (require-page!) ref-id))
 
 ;; =============================================================================
 ;; Locator Actions
@@ -1091,6 +1094,7 @@
                   ['get-by-test-id     sci-$test-id]
                   ['get-by-alt-text    sci-$alt-text]
                   ['get-by-title       sci-$title-attr]
+                  ['get-by-ref         sci-$ref]
                   ;; Actions
                   ['click         sci-click]
                   ['dblclick      sci-dblclick]
@@ -1676,6 +1680,7 @@
                         ['get-by-alt-text         page/get-by-alt-text]
                         ['get-by-title            page/get-by-title]
                         ['get-by-test-id          page/get-by-test-id]
+                        ['get-by-ref              page/get-by-ref]
                         ['evaluate                page/evaluate]
                         ['evaluate-handle         page/evaluate-handle]
                         ['screenshot              page/screenshot]

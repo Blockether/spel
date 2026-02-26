@@ -58,8 +58,8 @@ Every locator strategy returns a Playwright `Locator` that auto-waits and auto-r
 (spel/get-by-label "Email address")
 
 ;; Snapshot refs (see "Snapshot Ref Traversal" below)
-(spel/locator "@e3")
-(spel/locator "e3")                      ;; @ prefix is optional
+(spel/locator "@e6t2x4")
+(spel/locator "e6t2x4")                      ;; @ prefix is optional
 ```
 
 ### Library vs SCI Equivalents
@@ -72,7 +72,7 @@ Every locator strategy returns a Playwright `Locator` that auto-waits and auto-r
 | Text | `(page/get-by-text pg text)` | `(spel/get-by-text text)` |
 | Label | `(page/get-by-label pg text)` | `(spel/get-by-label text)` |
 | Test ID | `(page/get-by-test-id pg id)` | `(spel/get-by-test-id id)` |
-| Snapshot ref | N/A | `(spel/locator "@e1")` |
+| Snapshot ref | N/A | `(spel/locator "@e2yrjz")` |
 
 ## Locator Chaining
 
@@ -269,10 +269,10 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 ;;   [e2] link "More information..."
 
 ;; 2. Click by ref
-(spel/click "@e2")
+(spel/click "@e9mter")
 
 ;; 3. Or resolve to Locator for more operations
-(let [loc (spel/locator "@e2")]
+(let [loc (spel/locator "@e9mter")]
   (println (locator/text-content loc))
   (locator/hover loc))
 ```
@@ -456,4 +456,4 @@ Build rich HTML or PDF reports from test results using typed entry maps.
   (println (locator/text-content item)))
 ```
 
-**Snapshot refs for exploration, selectors for tests.** Snapshot refs (`@e1`) are great for interactive exploration in `--eval` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.
+**Snapshot refs for exploration, selectors for tests.** Snapshot refs (`@e2yrjz`) are great for interactive exploration in `--eval` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.

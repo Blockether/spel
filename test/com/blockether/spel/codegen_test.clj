@@ -131,21 +131,17 @@
                   "  (:require\n"
                   "   [com.blockether.spel.assertions :as assert]\n"
                   "   [com.blockether.spel.core :as core]\n"
-                  "   [com.blockether.spel.locator :as locator]\n"
                   "   [com.blockether.spel.page :as page]\n"
                   "   [com.blockether.spel.roles :as role]\n"
                   "   [com.blockether.spel.allure :refer [defdescribe it expect]]))\n"
                   "\n"
                   "(defdescribe generated-test\n"
                   "  (it \"recorded test\"\n"
-                  "    (core/with-playwright [pw]\n"
-                  "      (core/with-browser [browser (core/launch-chromium pw {:headless false})]\n"
-                  "        (core/with-context [ctx (core/new-context browser)]\n"
-                  "          (core/with-page [pg (core/new-page-from-context ctx)]\n"
-                  "          ;; New page: pg\n"
-                  "          (page/navigate pg \"https://example.com/\")\n"
-                  "          (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
-                  "          (core/close-page! pg))))))\n"))))))
+                  "    (core/with-testing-page {:headless false} [pg]\n"
+                  "      ;; New page: pg\n"
+                  "      (page/navigate pg \"https://example.com/\")\n"
+                  "      (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
+                  "      (core/close-page! pg))))\n"))))))
 
 ;; =============================================================================
 ;; Full Recording — :script format (exact output)
@@ -162,18 +158,14 @@
                   "\n"
                   "(require '[com.blockether.spel.assertions :as assert])\n"
                   "(require '[com.blockether.spel.core :as core])\n"
-                  "(require '[com.blockether.spel.locator :as locator])\n"
                   "(require '[com.blockether.spel.page :as page])\n"
                   "(require '[com.blockether.spel.roles :as role])\n"
                   "\n"
-                  "(core/with-playwright [pw]\n"
-                  "  (core/with-browser [browser (core/launch-chromium pw {:headless false})]\n"
-                  "    (core/with-context [ctx (core/new-context browser)]\n"
-                  "      (core/with-page [pg (core/new-page-from-context ctx)]\n"
-                  "      ;; New page: pg\n"
-                  "      (page/navigate pg \"https://example.com/\")\n"
-                  "      (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
-                  "      (core/close-page! pg)))))\n"))))))
+                  "(core/with-testing-page {:headless false} [pg]\n"
+                  "  ;; New page: pg\n"
+                  "  (page/navigate pg \"https://example.com/\")\n"
+                  "  (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
+                  "  (core/close-page! pg))\n"))))))
 
 ;; =============================================================================
 ;; Signal Handling (exact output)
@@ -342,22 +334,23 @@
 (defdescribe header-options-test
   "Tests for header options affecting output"
 
-  (it "firefox browser uses core/launch-firefox in :test format"
+  (it "firefox browser uses :browser-type :firefox in :test format"
     (let [jsonl "{\"browserName\":\"firefox\"}\n{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl :test)]
-      (expect (str/includes? result "core/launch-firefox"))
-      (expect (not (str/includes? result "core/launch-chromium")))))
+      (expect (str/includes? result "{:browser-type :firefox}"))
+      (expect (not (str/includes? result "core/launch-firefox")))))
 
-  (it "webkit browser uses core/launch-webkit in :script format"
+  (it "webkit browser uses :browser-type :webkit in :script format"
     (let [jsonl "{\"browserName\":\"webkit\"}\n{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl :script)]
-      (expect (str/includes? result "core/launch-webkit"))
-      (expect (not (str/includes? result "core/launch-chromium")))))
+      (expect (str/includes? result "{:browser-type :webkit}"))
+      (expect (not (str/includes? result "core/launch-webkit")))))
 
-  (it "headless:true produces {:headless true}"
+  (it "headless:true is the default — no opts map in with-testing-page"
     (let [jsonl "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true}}\n{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl :test)]
-      (expect (str/includes? result "{:headless true}"))))
+      (expect (str/includes? result "(core/with-testing-page [pg]"))
+      (expect (not (str/includes? result "{:headless true}")))))
 
   (it "headless:false produces {:headless false}"
     (let [jsonl "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":false}}\n{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
@@ -390,3 +383,49 @@
     (let [ex (codegen-throws "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"button\",\"signals\":[{\"name\":\"teleport\"}],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}")]
       (expect (some? ex))
       (expect (str/includes? (ex-message ex) "teleport")))))
+
+;; =============================================================================
+;; Conditional Requires
+;; =============================================================================
+
+(defdescribe conditional-requires-test
+  "Tests that codegen only emits requires for namespaces actually used in the body"
+
+  (it "navigate-only recording omits assert, locator, role requires"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.com/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl :test)]
+      (expect (str/includes? result "[com.blockether.spel.core :as core]"))
+      (expect (str/includes? result "[com.blockether.spel.page :as page]"))
+      (expect (not (str/includes? result "assertions")))
+      (expect (not (str/includes? result "locator :as locator]")))
+      (expect (not (str/includes? result "roles :as role]")))))
+
+  (it "click recording includes locator and page, omits assert and role"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"button\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl :test)]
+      (expect (str/includes? result "locator :as locator]"))
+      (expect (str/includes? result "page :as page]"))
+      (expect (not (str/includes? result "assertions")))
+      (expect (not (str/includes? result "roles :as role]")))))
+
+  (it "assertText with role includes assert, page, role but not locator"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"internal:role=heading\",\"signals\":[],\"text\":\"Hi\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"heading\",\"options\":{\"attrs\":[]}}}"
+          result (codegen jsonl :test)]
+      (expect (str/includes? result "assertions :as assert]"))
+      (expect (str/includes? result "page :as page]"))
+      (expect (str/includes? result "roles :as role]"))
+      (expect (not (str/includes? result "locator :as locator]")))))
+
+  (it "core is always included even for body-only actions"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"closePage\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl :test)]
+      (expect (str/includes? result "[com.blockether.spel.core :as core]"))))
+
+  (it "script format also applies conditional requires"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.com/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+          result (codegen jsonl :script)]
+      (expect (str/includes? result "(require '[com.blockether.spel.core :as core])"))
+      (expect (str/includes? result "(require '[com.blockether.spel.page :as page])"))
+      (expect (not (str/includes? result "assertions")))
+      (expect (not (str/includes? result "locator")))
+      (expect (not (str/includes? result "roles"))))))

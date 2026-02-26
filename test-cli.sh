@@ -247,28 +247,39 @@ assert_jq_contains "snapshot -i -C → has refs" "$OUT" '.snapshot' '[@e'
 OUT=$("$SPEL" --json snapshot -s "body" 2>&1)
 assert_jq_contains "snapshot -s body → has refs" "$OUT" '.snapshot' '[@e'
 
+# Discover dynamic refs for hash-based ref system
+# Snapshot on example.com — extract actual ref keys from tree text
+SNAP_JSON=$( "$SPEL" --json snapshot 2>&1 )
+SNAP_TEXT=$( echo "$SNAP_JSON" | jq -r '.snapshot' )
+# Extract first and second refs from the tree
+REF1=$( echo "$SNAP_TEXT" | grep -oE '\[@e[a-z0-9]+\]' | head -1 | sed 's/\[@//;s/\]//' )
+REF2=$( echo "$SNAP_TEXT" | grep -oE '\[@e[a-z0-9]+\]' | head -2 | tail -1 | sed 's/\[@//;s/\]//' )
+# Find specific refs by role
+HEADING_REF=$( echo "$SNAP_TEXT" | grep 'heading' | grep -oE '\[@e[a-z0-9]+\]' | head -1 | sed 's/\[@//;s/\]//' )
+LINK_REF=$( echo "$SNAP_TEXT" | grep 'link' | grep -oE '\[@e[a-z0-9]+\]' | head -1 | sed 's/\[@//;s/\]//' )
+
 # =============================================================================
 # ELEMENT INTERACTIONS (19)
 # =============================================================================
 section "Element Interactions (19)"
 
-OUT=$("$SPEL" --json click @e1 2>&1)
-assert_jq "click @e1 → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json click "@$REF1" 2>&1)
+assert_jq "click @ref → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json dblclick @e1 2>&1)
-assert_jq "dblclick @e1 → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json dblclick "@$REF1" 2>&1)
+assert_jq "dblclick @ref → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json hover @e1 2>&1)
-assert_jq_eq "hover @e1 → .hovered" "$OUT" '.hovered' '@e1'
+OUT=$("$SPEL" --json hover "@$REF1" 2>&1)
+assert_jq_eq "hover @ref → .hovered" "$OUT" '.hovered' "@$REF1"
 
-OUT=$("$SPEL" --json focus @e1 2>&1)
-assert_jq_eq "focus @e1 → .focused" "$OUT" '.focused' '@e1'
+OUT=$("$SPEL" --json focus "@$REF1" 2>&1)
+assert_jq_eq "focus @ref → .focused" "$OUT" '.focused' "@$REF1"
 
 OUT=$("$SPEL" --json press Enter 2>&1)
 assert_jq_eq "press Enter → .pressed" "$OUT" '.pressed' 'Enter'
 
-OUT=$("$SPEL" --json press @e1 Tab 2>&1)
-assert_jq_eq "press @e1 Tab → .pressed" "$OUT" '.pressed' 'Tab'
+OUT=$("$SPEL" --json press "@$REF1" Tab 2>&1)
+assert_jq_eq "press @ref Tab → .pressed" "$OUT" '.pressed' 'Tab'
 
 OUT=$("$SPEL" --json keydown Shift 2>&1)
 assert_jq_eq "keydown Shift → .keydown" "$OUT" '.keydown' 'Shift'
@@ -279,14 +290,14 @@ assert_jq_eq "keyup Shift → .keyup" "$OUT" '.keyup' 'Shift'
 OUT=$("$SPEL" --json scroll down 500 2>&1)
 assert_jq "scroll down 500 → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json scrollintoview @e2 2>&1)
-assert_jq "scrollintoview @e2 → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json scrollintoview "@$REF2" 2>&1)
+assert_jq "scrollintoview @ref2 → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json drag @e1 @e2 2>&1)
-assert_jq "drag @e1 @e2 → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json drag "@$REF1" "@$REF2" 2>&1)
+assert_jq "drag @ref1 @ref2 → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json highlight @e1 2>&1)
-assert_jq_eq "highlight @e1 → .highlighted" "$OUT" '.highlighted' '@e1'
+OUT=$("$SPEL" --json highlight "@$REF1" 2>&1)
+assert_jq_eq "highlight @ref → .highlighted" "$OUT" '.highlighted' "@$REF1"
 
 # Navigate to /login for fill, type, clear
 nav "https://the-internet.herokuapp.com/login"
@@ -363,8 +374,8 @@ assert_jq_eq "eval -b → .result (base64)" "$OUT" '.result' 'RXhhbXBsZSBEb21haW
 # =============================================================================
 section "Wait (6)"
 
-OUT=$("$SPEL" --json wait @e1 2>&1)
-assert_jq_eq "wait @e1 → .found" "$OUT" '.found' '@e1'
+OUT=$("$SPEL" --json wait "@$REF1" 2>&1)
+assert_jq_eq "wait @ref → .found" "$OUT" '.found' "@$REF1"
 
 OUT=$("$SPEL" --json wait 500 2>&1)
 assert_jq "wait 500 → .waited == 500" "$OUT" '.waited == 500'
@@ -386,18 +397,18 @@ assert_jq "wait --fn → .function_completed" "$OUT" '.function_completed == tru
 # =============================================================================
 section "Get Info (8)"
 
-OUT=$("$SPEL" --json get text @e1 2>&1)
-assert_jq_eq "get text @e1 → .text" "$OUT" '.text' 'Example Domain'
+OUT=$("$SPEL" --json get text "@$HEADING_REF" 2>&1)
+assert_jq_eq "get text @ref → .text" "$OUT" '.text' 'Example Domain'
 
-OUT=$("$SPEL" --json get html @e1 2>&1)
-assert_jq_eq "get html @e1 → .html" "$OUT" '.html' 'Example Domain'
+OUT=$("$SPEL" --json get html "@$HEADING_REF" 2>&1)
+assert_jq_eq "get html @ref → .html" "$OUT" '.html' 'Example Domain'
 
 # get value on h1 should fail (not an input)
-OUT=$("$SPEL" --json get value @e1 2>&1)
-assert_jq "get value @e1 → expected failure" "$OUT" 'has("error")'
+OUT=$("$SPEL" --json get value "@$HEADING_REF" 2>&1)
+assert_jq "get value @ref → expected failure" "$OUT" 'has("error")'
 
-OUT=$("$SPEL" --json get attr @e3 href 2>&1)
-assert_jq_contains "get attr @e3 href → .value has iana" "$OUT" '.value' 'iana.org'
+OUT=$("$SPEL" --json get attr "@$LINK_REF" href 2>&1)
+assert_jq_contains "get attr @link href → .value has iana" "$OUT" '.value' 'iana.org'
 
 OUT=$("$SPEL" --json get url 2>&1)
 assert_jq_eq "get url → .url" "$OUT" '.url' 'https://example.com/'
@@ -408,23 +419,23 @@ assert_jq_eq "get title → .title" "$OUT" '.title' 'Example Domain'
 OUT=$("$SPEL" --json get count div 2>&1)
 assert_jq_gt "get count div → .count > 0" "$OUT" '.count' 0
 
-OUT=$("$SPEL" --json get box @e1 2>&1)
-assert_jq_gt "get box @e1 → .box.width > 0" "$OUT" '.box.width' 0
+OUT=$("$SPEL" --json get box "@$HEADING_REF" 2>&1)
+assert_jq_gt "get box @ref → .box.width > 0" "$OUT" '.box.width' 0
 
 # =============================================================================
 # CHECK STATE (3)
 # =============================================================================
 section "Check State (3)"
 
-OUT=$("$SPEL" --json is visible @e1 2>&1)
-assert_jq "is visible @e1 → .visible" "$OUT" '.visible == true'
+OUT=$("$SPEL" --json is visible "@$REF1" 2>&1)
+assert_jq "is visible @ref → .visible" "$OUT" '.visible == true'
 
-OUT=$("$SPEL" --json is enabled @e1 2>&1)
-assert_jq "is enabled @e1 → .enabled" "$OUT" '.enabled == true'
+OUT=$("$SPEL" --json is enabled "@$REF1" 2>&1)
+assert_jq "is enabled @ref → .enabled" "$OUT" '.enabled == true'
 
 # is checked on h1 should fail (not a checkbox)
-OUT=$("$SPEL" --json is checked @e1 2>&1)
-assert_jq "is checked @e1 → expected failure" "$OUT" 'has("error")'
+OUT=$("$SPEL" --json is checked "@$HEADING_REF" 2>&1)
+assert_jq "is checked @ref → expected failure" "$OUT" 'has("error")'
 
 # =============================================================================
 # FIND (11)
@@ -1025,10 +1036,7 @@ JSONL
 # --- Test codegen --format=script ---
 OUT=$("$SPEL" codegen --format=script "$CODEGEN_JSONL" 2>&1)
 assert_contains "codegen script → has require" "$OUT" "(require"
-assert_contains "codegen script → has core/with-playwright" "$OUT" "core/with-playwright"
-assert_contains "codegen script → has core/with-browser" "$OUT" "core/with-browser"
-assert_contains "codegen script → has core/with-context" "$OUT" "core/with-context"
-assert_contains "codegen script → has core/with-page" "$OUT" "core/with-page"
+assert_contains "codegen script → has core/with-testing-page" "$OUT" "core/with-testing-page"
 assert_contains "codegen script → has page/navigate" "$OUT" "page/navigate"
 assert_contains "codegen script → has role/heading" "$OUT" "role/heading"
 assert_contains "codegen script → has assert/contains-text" "$OUT" "assert/contains-text"
@@ -1049,8 +1057,8 @@ assert_contains "codegen body → has assert/contains-text" "$OUT" "assert/conta
 assert_contains "codegen body → has role/heading" "$OUT" "role/heading"
 
 # --- Test codegen from project recording.jsonl ---
-OUT=$("$SPEL" codegen --format=script recording.jsonl 2>&1)
-assert_contains "codegen recording.jsonl → has core/with-playwright" "$OUT" "core/with-playwright"
+OUT=$("$SPEL" codegen --format=script test/com/blockether/spel/recording.jsonl 2>&1)
+assert_contains "codegen recording.jsonl → has core/with-testing-page" "$OUT" "core/with-testing-page"
 assert_contains "codegen recording.jsonl → has role/link" "$OUT" "role/link"
 
 # --- Write script to file and verify ---

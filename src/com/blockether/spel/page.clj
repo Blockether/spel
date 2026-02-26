@@ -248,6 +248,22 @@
     (.getByTestId page ^java.util.regex.Pattern test-id)
     (.getByTestId page ^String (str test-id))))
 
+(defn get-by-ref
+  "Locates an element by its snapshot ref ID (e.g. \"e2yrjz\", \"e9mter\").
+   The element must have been tagged with data-pw-ref during capture-snapshot.
+
+   Params:
+   `page`   - Page instance.
+   `ref-id` - String. Ref like \"e2yrjz\", \"@e9mter\", etc.
+
+   Returns:
+   Locator instance."
+  ^Locator [^Page page ^String ref-id]
+  (let [clean-ref (if (and (pos? (count ref-id)) (= \@ (first ref-id)))
+                    (subs ref-id 1)
+                    ref-id)]
+    (.locator page (str "[data-pw-ref=\"" clean-ref "\"]") nil)))
+
 ;; =============================================================================
 ;; Evaluation
 ;; =============================================================================

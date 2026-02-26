@@ -133,7 +133,21 @@
     (it "compact filter returns snapshot"
       (nav! "/test-page")
       (let [r (cmd "snapshot" {"compact" "true"})]
-        (expect (string? (:snapshot r)))))))
+        (expect (string? (:snapshot r)))))
+
+    (it "snapshot --all returns tree and refs"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {"all" true})]
+        (expect (string? (:snapshot r)))
+        (expect (not (str/blank? (:snapshot r))))
+        (expect (pos? (:refs_count r)))))
+
+    (it "snapshot --all on iframe page includes iframe content"
+      (nav! "/iframe-page")
+      (Thread/sleep 500) ;; wait for iframe to load
+      (let [r (cmd "snapshot" {"all" true})]
+        (expect (string? (:snapshot r)))
+        (expect (pos? (:refs_count r)))))))
 
 ;; =============================================================================
 ;; 3. Click & Double-click
@@ -1191,22 +1205,27 @@
 
     (it "mark returns count of marked elements"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      (let [r (cmd "sci_eval" {"code" "(spel/inject-action-markers! \"@e1\")"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(spel/inject-action-markers! \"@" ref "\")")})]
         (expect (= "1" (:result r)))))
 
     (it "mark handles multiple refs"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      (let [r (cmd "sci_eval" {"code" "(spel/inject-action-markers! \"@e1\" \"e2\")"})]
+      (let [refs-r (cmd "sci_eval" {"code" "(pr-str (vec (take 2 (keys (:refs (spel/capture-snapshot))))))"})
+            refs   (read-string (read-string (:result refs-r)))
+            ref1   (first refs)
+            ref2   (second refs)
+            r      (cmd "sci_eval" {"code" (str "(spel/inject-action-markers! \"@" ref1 "\" \"" ref2 "\")")})]
         (expect (pos? (parse-long (:result r))))))
 
     (it "unmark removes all markers"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      (cmd "sci_eval" {"code" "(spel/inject-action-markers! \"@e1\")"})
-      (let [r (cmd "sci_eval" {"code" "(spel/remove-action-markers!)"})]
-        (expect (= "nil" (:result r)))))
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))]
+        (cmd "sci_eval" {"code" (str "(spel/inject-action-markers! \"@" ref "\")")})
+        (let [r (cmd "sci_eval" {"code" "(spel/remove-action-markers!)"})]
+          (expect (= "nil" (:result r))))))
 
     (it "mark returns 0 for non-existent refs"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -1215,9 +1234,10 @@
 
     (it "markers coexist with annotation overlays"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (let [_snap (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
             _      (cmd "sci_eval" {"code" "(spel/inject-overlays! (:refs (read-string (str (spel/capture-snapshot)))))"})
-            _mark  (cmd "sci_eval" {"code" "(spel/inject-action-markers! \"@e1\")"})
+            _mark  (cmd "sci_eval" {"code" (str "(spel/inject-action-markers! \"@" ref "\")")})
             ;; Verify markers are present (data-spel-action-marker)
             marker-check (cmd "sci_eval" {"code" "(spel/evaluate \"document.querySelectorAll('[data-spel-action-marker]').length\")"})
             ;; Verify annotations are also present (data-spel-annotate)
@@ -1601,42 +1621,44 @@
 
     (it "spel/click with @eN ref resolves via snapshot"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      ;; @e1 should resolve to a real element and click without CSS parse error
-      (let [r (cmd "sci_eval" {"code" "(do (spel/click \"@e1\") :clicked)"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(do (spel/click \"@" ref "\") :clicked)")})]
         (expect (= ":clicked" (:result r)))))
 
     (it "spel/locator auto-resolves @eN to a Locator"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      ;; @e1 should resolve to [data-pw-ref="e1"] locator, not throw CSS parse error
-      (let [r (cmd "sci_eval" {"code" "(str (type (spel/locator \"@e1\")))"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(str (type (spel/locator \"@" ref "\")))")})]
         (expect (str/includes? (:result r) "Locator"))))
 
     (it "spel/locator auto-resolves eN (without @) to a Locator"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      (let [r (cmd "sci_eval" {"code" "(str (type (spel/locator \"e1\")))"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(str (type (spel/locator \"" ref "\")))")})]
         (expect (str/includes? (:result r) "Locator"))))
 
     (it "spel/text-content reads text content via @eN ref"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      ;; e1 is typically the heading or first meaningful element — just verify no error
-      (let [r (cmd "sci_eval" {"code" "(string? (spel/text-content \"@e1\"))"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(string? (spel/text-content \"@" ref "\"))")})]
         (expect (= "true" (:result r)))))
 
     (it "spel/visible? works with @eN ref"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      (let [r (cmd "sci_eval" {"code" "(boolean? (spel/visible? \"@e1\"))"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(boolean? (spel/visible? \"@" ref "\"))")})]
         (expect (= "true" (:result r)))))
 
     (it "spel/highlight works with @eN ref"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      ;; highlight returns nil but should not throw
-      (let [r (cmd "sci_eval" {"code" "(do (spel/highlight \"@e1\") :highlighted)"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(do (spel/highlight \"@" ref "\") :highlighted)")})]
         (expect (= ":highlighted" (:result r)))))
 
     (it "spel/locator still works with regular CSS selectors"
@@ -1646,10 +1668,31 @@
 
     (it "spel/assert-visible works with @eN ref"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (cmd "sci_eval" {"code" "(spel/capture-snapshot)"})
-      ;; assert-visible should not throw for a visible element
-      (let [r (cmd "sci_eval" {"code" "(do (spel/assert-visible \"@e1\") :passed)"})]
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(do (spel/assert-visible \"@" ref "\") :passed)")})]
         (expect (= ":passed" (:result r)))))
+
+    (it "spel/get-by-ref returns Locator for valid ref"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(str (type (spel/get-by-ref \"" ref "\")))")})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "spel/get-by-ref strips @ prefix"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(str (type (spel/get-by-ref \"@" ref "\")))")})]
+        (expect (str/includes? (:result r) "Locator"))))
+
+    (it "page/get-by-ref works via SCI qualified require"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [snap (cmd "sci_eval" {"code" "(first (keys (:refs (spel/capture-snapshot))))"})
+            ref  (read-string (:result snap))
+            r    (cmd "sci_eval" {"code" (str "(str (type (page/get-by-ref (spel/page) \"" ref "\")))")})]
+        (expect (str/includes? (:result r) "Locator"))))
 
     ;; --- stdout/stderr capture ---
 
@@ -1880,9 +1923,8 @@
             test-code (binding [codegen/*exit-on-error* false]
                         (codegen/jsonl-str->clojure jsonl {:format :test}))]
         (expect (str/includes? test-code "defdescribe"))
-        (expect (str/includes? test-code "core/with-playwright"))
-        (expect (str/includes? test-code "core/with-browser"))
-        (expect (str/includes? test-code "core/with-page"))
+        (expect (str/includes? test-code "core/with-testing-page"))
+        (expect (not (str/includes? test-code "core/with-playwright")))
         (expect (str/includes? test-code "page/navigate"))
         (expect (str/includes? test-code "assert/contains-text"))))
 
@@ -1893,10 +1935,8 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))]
         (expect (str/includes? script "(require"))
-        (expect (str/includes? script "core/with-playwright"))
-        (expect (str/includes? script "core/with-browser"))
-        (expect (str/includes? script "core/with-context"))
-        (expect (str/includes? script "core/with-page"))
+        (expect (str/includes? script "core/with-testing-page"))
+        (expect (not (str/includes? script "core/with-playwright")))
         (expect (str/includes? script "page/navigate"))
         (expect (str/includes? script "assert/contains-text")))))
 
@@ -1996,10 +2036,10 @@
 
     (it "project recording.jsonl generates valid script"
       ;; Verify the actual project recording.jsonl can be codegen'd
-      (let [jsonl (slurp "recording.jsonl")
+      (let [jsonl (slurp "test/com/blockether/spel/recording.jsonl")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))]
-        (expect (str/includes? script "core/with-playwright"))
+        (expect (str/includes? script "core/with-testing-page"))
         (expect (str/includes? script "page/navigate"))
         (expect (str/includes? script "role/link"))
         (expect (str/includes? script "assert/contains-text"))))

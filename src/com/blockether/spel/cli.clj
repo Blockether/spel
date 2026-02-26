@@ -9,8 +9,8 @@
    Usage:
      spel open https://example.com
      spel snapshot
-     spel click @e1
-     spel fill @e2 \"search text\"
+     spel click @e2yrjz
+     spel fill @e9mter \"search text\"
      spel screenshot shot.png
      spel close"
   (:require
@@ -96,6 +96,7 @@
       "  spel snapshot -i -c"
       "  spel snapshot -i -c -d 3"
       "  spel snapshot -s \"#main\""
+      "  spel snapshot -a"
       "  spel snapshot -i -C"
       ""
       "Flags:"
@@ -103,7 +104,8 @@
       "  -c, --compact        Compact output format"
       "  -C, --cursor         Include cursor/pointer elements"
       "  -d, --depth N        Limit tree depth to N levels"
-      "  -s, --selector SEL   Scope snapshot to CSS selector"])
+      "  -s, --selector SEL   Scope snapshot to CSS selector"
+      "  -a, --all            Include all iframes in snapshot"])
 
    "click"
    (str/join \newline
@@ -113,7 +115,7 @@
       "  spel click <selector>"
       ""
       "Examples:"
-      "  spel click @e1"
+      "  spel click @e2yrjz"
       "  spel click \"#submit-btn\""
       "  spel click \"text=Login\""])
 
@@ -125,7 +127,7 @@
       "  spel dblclick <selector>"
       ""
       "Examples:"
-      "  spel dblclick @e1"
+      "  spel dblclick @e2yrjz"
       "  spel dblclick \".editable-cell\""])
 
    "fill"
@@ -136,7 +138,7 @@
       "  spel fill <selector> <text>"
       ""
       "Examples:"
-      "  spel fill @e2 \"user@example.com\""
+      "  spel fill @e9mter \"user@example.com\""
       "  spel fill \"#search\" \"search query\""])
 
    "type"
@@ -147,7 +149,7 @@
       "  spel type <selector> <text>"
       ""
       "Examples:"
-      "  spel type @e2 \"additional text\""
+      "  spel type @e9mter \"additional text\""
       "  spel type \"#editor\" \"appended content\""])
 
    "clear"
@@ -158,7 +160,7 @@
       "  spel clear <selector>"
       ""
       "Examples:"
-      "  spel clear @e2"
+      "  spel clear @e9mter"
       "  spel clear \"#search\""])
 
    "press"
@@ -175,7 +177,7 @@
       "  spel press Enter"
       "  spel press Tab"
       "  spel press Control+a"
-      "  spel press @e1 Enter"
+      "  spel press @e2yrjz Enter"
       "  spel key Escape"])
 
    "keydown"
@@ -208,7 +210,7 @@
       "  spel hover <selector>"
       ""
       "Examples:"
-      "  spel hover @e1"
+      "  spel hover @e2yrjz"
       "  spel hover \".dropdown-trigger\""])
 
    "mouse"
@@ -239,7 +241,7 @@
       "  spel check <selector>"
       ""
       "Examples:"
-      "  spel check @e3"
+      "  spel check @e6t2x4"
       "  spel check \"#agree-terms\""])
 
    "uncheck"
@@ -250,7 +252,7 @@
       "  spel uncheck <selector>"
       ""
       "Examples:"
-      "  spel uncheck @e3"
+      "  spel uncheck @e6t2x4"
       "  spel uncheck \"#newsletter\""])
 
    "select"
@@ -261,9 +263,9 @@
       "  spel select <selector> <value> [value...]"
       ""
       "Examples:"
-      "  spel select @e4 \"option1\""
+      "  spel select @e0k8qp \"option1\""
       "  spel select \"#country\" \"US\""
-      "  spel select @e4 \"opt1\" \"opt2\""])
+      "  spel select @e0k8qp \"opt1\" \"opt2\""])
 
    "focus"
    (str/join \newline
@@ -273,7 +275,7 @@
       "  spel focus <selector>"
       ""
       "Examples:"
-      "  spel focus @e1"
+      "  spel focus @e2yrjz"
       "  spel focus \"#email-input\""])
 
    "scroll"
@@ -303,7 +305,7 @@
       "  spel scrollintoview <selector>"
       ""
       "Examples:"
-      "  spel scrollintoview @e5"
+      "  spel scrollintoview @ea3kf5"
       "  spel scrollinto \"#footer\""])
 
    "drag"
@@ -314,7 +316,7 @@
       "  spel drag <source> <target>"
       ""
       "Examples:"
-      "  spel drag @e1 @e2"
+      "  spel drag @e2yrjz @e9mter"
       "  spel drag \"#item\" \"#dropzone\""])
 
    "upload"
@@ -325,7 +327,7 @@
       "  spel upload <selector> <file> [file...]"
       ""
       "Examples:"
-      "  spel upload @e1 photo.jpg"
+      "  spel upload @e2yrjz photo.jpg"
       "  spel upload \"input[type=file]\" doc.pdf image.png"])
 
    "screenshot"
@@ -415,7 +417,7 @@
       "  spel wait --load <state>"
       ""
       "Examples:"
-      "  spel wait @e1"
+      "  spel wait @e2yrjz"
       "  spel wait 2000"
       "  spel wait --text \"Welcome\""
       "  spel wait --url \"**/dashboard\""
@@ -468,14 +470,14 @@
       "  box <sel>             Get bounding box {x, y, width, height}"
       ""
       "Examples:"
-      "  spel get text @e1"
+      "  spel get text @e2yrjz"
       "  spel get url"
       "  spel get title"
-      "  spel get html @e1"
-      "  spel get value @e2"
-      "  spel get attr @e1 href"
+      "  spel get html @e2yrjz"
+      "  spel get value @e9mter"
+      "  spel get attr @e2yrjz href"
       "  spel get count \".items\""
-      "  spel get box @e1"])
+      "  spel get box @e2yrjz"])
 
    "is"
    (str/join \newline
@@ -490,9 +492,9 @@
       "  checked <sel>    Check if element is checked"
       ""
       "Examples:"
-      "  spel is visible @e1"
-      "  spel is enabled @e2"
-      "  spel is checked @e3"])
+      "  spel is visible @e2yrjz"
+      "  spel is enabled @e9mter"
+      "  spel is checked @e6t2x4"])
 
    "count"
    (str/join \newline
@@ -513,7 +515,7 @@
       "  spel bbox <selector>"
       ""
       "Examples:"
-      "  spel bbox @e1"
+      "  spel bbox @e2yrjz"
       "  spel bbox \"#header\""])
 
    "highlight"
@@ -524,7 +526,7 @@
       "  spel highlight <selector>"
       ""
       "Examples:"
-      "  spel highlight @e1"
+      "  spel highlight @e2yrjz"
       "  spel highlight \".target\""])
 
    "find"
@@ -1356,7 +1358,9 @@
                                                                    (>= idx2 0) idx2
                                                                    :else -1))]
                                               (when (>= idx 0)
-                                                (nth cmd-args (inc idx) nil))))))
+                                                (nth cmd-args (inc idx) nil))))
+                           (or (snap-flags "-a") (snap-flags "--all"))
+                           (assoc :all true)))
 
           ;; Click
             "click"    {:action "click" :selector (first cmd-args)}

@@ -299,7 +299,7 @@
 
    Creates absolutely-positioned elements for each ref:
    - Bounding box (colored border + semi-transparent fill)
-   - Compact label inside the box: \"e1 heading 768x45\"
+   - Compact label inside the box: e2yrjz heading 768×45
 
    Labels are placed inside the top-left of the bounding box to avoid
    inter-element collisions. For very small elements (height < 16px)
@@ -398,14 +398,14 @@
     (str/replace "'" "\\'")))
 
 (defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref like @e1 or e1."
+  "Returns true if the scope string is a snapshot ref like @e04a3f or e04a3f."
   [^String s]
-  (boolean (re-matches #"@?e\d+" s)))
+  (boolean (re-matches #"@?e[a-z0-9]+" s)))
 
 (defn- resolve-scope
   "Resolves a scope value to a CSS selector.
 
-   If the scope is a ref (@e1, e1), converts to [data-pw-ref=\"e1\"].
+   If the scope is a ref (@e2yrjz, e2yrjz), converts to [data-pw-ref='e2yrjz'].
    Otherwise, passes through as a CSS selector."
   [^String s]
   (if (ref-scope? s)
@@ -415,7 +415,7 @@
 (defn- scope-ref-ids
   "Returns a set of ref IDs whose elements are descendants of the scope selector.
 
-   Scope can be a CSS selector or a snapshot ref (@e1, e1).
+   Scope can be a CSS selector or a snapshot ref (@e2yrjz, e2yrjz).
    Queries the DOM for all `data-pw-ref` elements inside the scoped element.
    Requires that `capture-snapshot` has already been called (elements tagged)."
   [^Page page ^String scope-selector]
@@ -461,9 +461,9 @@
 
    Params:
    `page` - Playwright Page instance.
-   `refs` - Map from capture-snapshot. {\"e1\" {:role :name :bbox {:x :y :width :height}} ...}
+   `refs` - Map from capture-snapshot. {'e2yrjz' {:role :name :bbox {:x :y :width :height}} ...}
     `opts` - Map, optional.
-      :scope           - String. CSS selector or snapshot ref (@e1, e1) to restrict
+      :scope           - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to restrict
                          annotations to a subtree. Only elements that are descendants
                          of the matched element will be annotated. Requires prior
                          snapshot (elements tagged with data-pw-ref).
@@ -510,7 +510,7 @@
    `page` - Playwright Page instance.
    `refs` - Map from capture-snapshot.
     `opts` - Map, optional.
-      :scope           - String. CSS selector or snapshot ref (@e1, e1) to restrict
+      :scope           - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to restrict
                          annotations to a subtree.
       :show-dimensions - Boolean (default true). Show width x height in labels.
       :show-badges     - Boolean (default true). Show compact labels.
@@ -623,8 +623,8 @@
 
    Params:
    `page`    - Playwright Page instance.
-   `ref-ids` - Collection of ref ID strings (e.g. [\"e5\" \"e12\"]).
-               Accepts both \"e5\" and \"@e5\" formats (@ is stripped).
+   `ref-ids` - Collection of ref ID strings (e.g. ['e2yrjz' 'e9mter']).
+               Accepts both 'e2yrjz' and '@e2yrjz' formats (@ is stripped).
 
    Returns:
    Count of successfully created markers (long)."
@@ -679,7 +679,7 @@
    `caption` - String. Caption text to display at the bottom of the screenshot.
    `opts`    - Map, optional.
      :refs      - Snapshot refs map. When provided, annotation overlays are included.
-     :markers   - Collection of ref IDs to mark (e.g. [\"e5\"]). Action markers are included.
+     :markers   - Collection of ref IDs to mark (e.g. ['ea3kf5']). Action markers are included.
      :full-page - Boolean (default false). Capture full scrollable page.
 
    Returns:

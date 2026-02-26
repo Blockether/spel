@@ -81,7 +81,7 @@ In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 
 Wraps Playwright CLI commands via the `spel` native binary.
 
-> **Prefer `--eval` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e1`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel --eval '<clojure-code>'` or `spel --eval script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel --eval --stdin`.
+> **Prefer `--eval` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel --eval '<clojure-code>'` or `spel --eval script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel --eval --stdin`.
 
 > **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
 
@@ -191,9 +191,9 @@ spel snapshot -s "#main"               # Scoped to CSS selector
 
 **Output format:**
 ```
-- heading "Example Domain" [@e1] [level=1]
-- link "More information..." [@e2]
-- button "Submit" [@e3]
+- heading "Example Domain" [@e2yrjz] [level=1]
+- link "More information..." [@e9mter]
+- button "Submit" [@e6t2x4]
 ```
 
 ### Get Page Information
@@ -201,20 +201,20 @@ spel snapshot -s "#main"               # Scoped to CSS selector
 ```bash
 spel get url                           # Current URL
 spel get title                         # Page title
-spel get text @e1                      # Text content of ref e1
-spel get html @e1                      # Inner HTML
-spel get value @e2                     # Input value
-spel get attr @e1 href                 # Attribute value
+spel get text @e2yrjz                      # Text content of ref e2yrjz
+spel get html @e2yrjz                      # Inner HTML
+spel get value @e9mter                     # Input value
+spel get attr @e2yrjz href                 # Attribute value
 spel get count ".items"               # Count matching elements
-spel get box @e1                       # Bounding box {x, y, width, height}
+spel get box @e2yrjz                       # Bounding box {x, y, width, height}
 ```
 
 ### Check Element State
 
 ```bash
-spel is visible @e1                    # Check visibility
-spel is enabled @e1                    # Check if enabled
-spel is checked @e3                    # Check checkbox state
+spel is visible @e2yrjz                    # Check visibility
+spel is enabled @e2yrjz                    # Check if enabled
+spel is checked @e6t2x4                    # Check checkbox state
 ```
 
 ### Find Elements (Semantic Locators)
@@ -245,7 +245,7 @@ spel screenshot                        # Screenshot to stdout (base64)
 spel screenshot shot.png              # Save to file
 spel screenshot -f full.png           # Full page screenshot
 spel pdf page.pdf                     # Save as PDF (Chromium only)
-spel highlight @e1                    # Highlight element visually
+spel highlight @e2yrjz                    # Highlight element visually
 ```
 
 ### Image Stitching
@@ -328,11 +328,11 @@ spel get title
 spel get url
 
 # Check specific element
-spel get text @e2
-spel is visible @e3
+spel get text @e9mter
+spel is visible @e6t2x4
 
 # Interact and re-snapshot
-spel click @e2
+spel click @e9mter
 spel snapshot -i
 
 # View network activity

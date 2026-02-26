@@ -398,7 +398,7 @@ spel --eval explore.clj
 
 **Daemon mode is the default.** When a daemon is running, `--eval` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `--eval` calls, so avoid redundant navigations to the same URL.
 
-**Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e1"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
+**Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 
 **Use `spel/wait-for-load-state :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
 

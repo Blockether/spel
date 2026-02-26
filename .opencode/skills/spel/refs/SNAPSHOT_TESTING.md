@@ -4,13 +4,13 @@ Structural testing with accessibility snapshots, ARIA assertions, ref-based inte
 
 ## Accessibility Snapshots
 
-A snapshot captures the page as a screen reader sees it: roles, names, attributes. Every interactive element gets a numbered ref (`e1`, `e2`, ...) usable as a selector.
+A snapshot captures the page as a screen reader sees it: roles, names, attributes. Every interactive element gets a numbered ref (`e2yrjz`, `e9mter`, ...) usable as a selector.
 
 ```clojure
 ;; --eval
 (def snap (spel/capture-snapshot))
-;; => {:tree "- heading \"Welcome\" [@e1]\n- link \"Login\" [@e2]"
-;;     :refs {"e1" {:role "heading" :name "Welcome" :tag "h1"
+;; => {:tree "- heading \"Welcome\" [@e2yrjz]\n- link \"Login\" [@e9mter]"
+;;     :refs {"e2yrjz" {:role "heading" :name "Welcome" :tag "h1"
 ;;                  :bbox {:x 20 :y 10 :width 200 :height 40}} ...}
 ;;     :counter 12}
 
@@ -24,7 +24,7 @@ Scoped and full snapshots:
 
 ```clojure
 (spel/capture-snapshot {:scope "#main"})        ;; subtree only
-(spel/capture-snapshot {:scope "@e7"})          ;; scope to a ref
+(spel/capture-snapshot {:scope "@e3pq7r"})          ;; scope to a ref
 (spel/capture-full-snapshot)                    ;; includes iframes (refs: f1_e1, f2_e3)
 
 ;; Library equivalents
@@ -38,17 +38,17 @@ After a snapshot, resolve refs to Locators for interaction:
 
 ```clojure
 ;; --eval — bare ref, @ prefix, or explicit locator all work
-(spel/click "e3")
-(spel/click "@e3")
-(spel/text-content "e5")
-(spel/fill "e8" "hello@example.com")
+(spel/click "e6t2x4")
+(spel/click "@e6t2x4")
+(spel/text-content "ea3kf5")
+(spel/fill "e5dw2c" "hello@example.com")
 
 ;; Library
-(let [loc (snapshot/resolve-ref pg "e3")]
+(let [loc (snapshot/resolve-ref pg "e6t2x4")]
   (locator/click loc))
 
 ;; Bounding box from snapshot data (no page roundtrip)
-(snapshot/ref-bounding-box (:refs snap) "e1")
+(snapshot/ref-bounding-box (:refs snap) "e2yrjz")
 ;; => {:x 20 :y 10 :width 200 :height 40}
 
 ;; Clear stale refs after navigation
@@ -113,7 +113,7 @@ spel has no built-in pixel-diff. Visual testing uses annotated screenshots and a
 ;; Audit screenshot — adds caption bar at bottom
 (spel/save-audit-screenshot! "Login page loaded" "/tmp/step1.png")
 (spel/save-audit-screenshot! "About to submit" "/tmp/step2.png"
-  {:refs (:refs snap) :markers ["e6"]})
+  {:refs (:refs snap) :markers ["e1x9hz"]})
 
 ;; Library equivalents
 (annotate/save-annotated-screenshot! pg refs "/tmp/annotated.png")
@@ -234,14 +234,14 @@ Use snapshots during development to discover structure, then write ARIA assertio
 (def snap1 (spel/capture-snapshot))
 (spel/save-audit-screenshot! "Step 1: Checkout loaded" "/tmp/s1.png" {:refs (:refs snap1)})
 
-(spel/fill "e3" "123 Main St")
-(spel/fill "e4" "Springfield")
+(spel/fill "e6t2x4" "123 Main St")
+(spel/fill "e0k8qp" "Springfield")
 (spel/save-audit-screenshot! "Step 2: Shipping filled" "/tmp/s2.png")
 
-(spel/inject-action-markers! "e8")
+(spel/inject-action-markers! "e5dw2c")
 (spel/save-audit-screenshot! "Step 3: About to continue" "/tmp/s3.png")
 (spel/remove-action-markers!)
-(spel/click "e8")
+(spel/click "e5dw2c")
 (spel/wait-for-load-state)
 
 (spel/assert-matches-aria-snapshot "#payment"
@@ -257,13 +257,13 @@ Use snapshots during development to discover structure, then write ARIA assertio
 | Snapshot | `(spel/capture-snapshot)` | `(snapshot/capture-snapshot pg)` |
 | Scoped | `(spel/capture-snapshot {:scope "sel"})` | `(snapshot/capture-snapshot pg {:scope "sel"})` |
 | Full + iframes | `(spel/capture-full-snapshot)` | `(snapshot/capture-full-snapshot pg)` |
-| Resolve ref | `(spel/resolve-ref "e1")` | `(snapshot/resolve-ref pg "e1")` |
-| Ref bbox | `(snapshot/ref-bounding-box refs "e1")` | same |
+|| Resolve ref | `(spel/resolve-ref "e2yrjz")` | `(snapshot/resolve-ref pg "e2yrjz")` |
+|| Ref bbox | `(snapshot/ref-bounding-box refs "e2yrjz")` | same |
 | Clear refs | `(spel/clear-refs!)` | `(snapshot/clear-refs! pg)` |
 | ARIA assert | `(spel/assert-matches-aria-snapshot sel str)` | `(assert/matches-aria-snapshot la str)` |
 | Annotated shot | `(spel/save-annotated-screenshot! refs path)` | `(annotate/save-annotated-screenshot! pg refs path)` |
 | Audit shot | `(spel/save-audit-screenshot! caption path)` | `(annotate/save-audit-screenshot! pg caption path)` |
-| Mark refs | `(spel/inject-action-markers! "e1" "e5")` | `(annotate/inject-action-markers! pg ["e1" "e5"])` |
+|| Mark refs | `(spel/inject-action-markers! "e2yrjz" "ea3kf5")` | `(annotate/inject-action-markers! pg ["e2yrjz" "ea3kf5"])` |
 | Unmark | `(spel/remove-action-markers!)` | `(annotate/remove-action-markers! pg)` |
 | Report PDF | `(spel/report->pdf entries opts)` | `(annotate/report->pdf pg entries opts)` |
 | Report HTML | `(spel/report->html entries opts)` | `(annotate/report->html entries opts)` |

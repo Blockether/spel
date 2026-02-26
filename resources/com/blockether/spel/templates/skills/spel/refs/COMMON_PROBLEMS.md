@@ -85,7 +85,7 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 
 ## 4. Snapshot Ref Not Found / Stale Refs
 
-**Problem:** `(spel/click "@e3")` throws "element not found" or clicks the wrong thing.
+**Problem:** `(spel/click "@e6t2x4")` throws "element not found" or clicks the wrong thing.
 
 **Cause:** Refs from `(spel/capture-snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
 
@@ -94,14 +94,14 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 ```clojure
 ;; Wrong: refs from an old snapshot
 (spel/capture-snapshot)
-(spel/click "@e2")       ;; navigates somewhere
-(spel/click "@e5")       ;; STALE! refs are from the old page
+(spel/click "@e9mter")       ;; navigates somewhere
+(spel/click "@ea3kf5")       ;; STALE! refs are from the old page
 
 ;; Right: re-snapshot after any DOM change
 (spel/capture-snapshot)
-(spel/click "@e2")
+(spel/click "@e9mter")
 (spel/capture-snapshot)           ;; fresh capture
-(spel/click "@e5")        ;; works correctly
+(spel/click "@ea3kf5")        ;; works correctly
 ```
 
 ## 5. TimeoutError on Navigation
@@ -218,7 +218,7 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 (spel/click "button:has-text('Accept all')")
 ;; or use snapshot to find the button
 (spel/capture-snapshot)
-(spel/click "@e4")  ;; whatever ref the consent button has
+(spel/click "@e0k8qp")  ;; whatever ref the consent button has
 ```
 
 For repeat visits, use a persistent browser session so consent is remembered.

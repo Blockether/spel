@@ -116,11 +116,11 @@
         (expect (number? (:width bbox)))
         (expect (number? (:height bbox)))))
 
-    (it "ref keys follow eN pattern"
+    (it "ref keys follow content-hash pattern"
       (page/navigate *page* "https://example.com")
       (let [snap (sut/capture-snapshot *page*)]
         (doseq [ref-id (keys (:refs snap))]
-          (expect (re-matches #"e\d+" ref-id)))))))
+          (expect (re-matches #"e[a-z0-9]+" ref-id)))))))
 
 ;; =============================================================================
 ;; Integration Tests — resolve-ref
@@ -197,3 +197,80 @@
         (expect (contains? snap :counter))
         (expect (string? (:tree snap)))
         (expect (pos? (count (:refs snap))))))))
+
+;; =============================================================================
+;; Integration Tests — deterministic refs (content-hash stability)
+;; =============================================================================
+
+(defdescribe deterministic-refs-test
+  "Tests that snapshot refs are deterministic and stable across page states.
+
+   Content-hash refs use FNV-1a(role|name|tag) so the same element always
+   gets the same ref regardless of what other elements exist on the page."
+
+  (describe "same page produces identical refs"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "two consecutive snapshots produce identical ref keys"
+      (page/navigate *page* "https://example.com")
+      (let [snap1 (sut/capture-snapshot *page*)
+            snap2 (sut/capture-snapshot *page*)]
+        (expect (= (set (keys (:refs snap1)))
+                  (set (keys (:refs snap2)))))
+        ;; Same ref maps to same role+name
+        (doseq [[ref-id info] (:refs snap1)]
+          (expect (= (:role info) (:role (get (:refs snap2) ref-id))))
+          (expect (= (:name info) (:name (get (:refs snap2) ref-id)))))))
+
+    (it "refs are stable after page reload"
+      (page/navigate *page* "https://example.com")
+      (let [snap1 (sut/capture-snapshot *page*)]
+        (page/navigate *page* "https://example.com")
+        (let [snap2 (sut/capture-snapshot *page*)]
+          (expect (= (set (keys (:refs snap1)))
+                    (set (keys (:refs snap2)))))))))
+
+  (describe "refs survive DOM mutations"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "adding a new element does not change existing refs"
+      (page/navigate *page* "https://example.com")
+      (let [snap-before (sut/capture-snapshot *page*)
+            before-refs (:refs snap-before)]
+        ;; Inject a new button into the page
+        (page/evaluate *page*
+          "(() => { const btn = document.createElement('button'); btn.textContent = 'Injected'; document.body.prepend(btn); })()")
+        (let [snap-after (sut/capture-snapshot *page*)
+              after-refs (:refs snap-after)]
+          ;; All old refs should still exist with same role+name
+          (doseq [[ref-id info] before-refs]
+            (let [after-info (get after-refs ref-id)]
+              (expect (some? after-info))
+              (expect (= (:role info) (:role after-info)))
+              (expect (= (:name info) (:name after-info)))))
+          ;; There should be one MORE ref (the injected button)
+          (expect (> (count after-refs) (count before-refs))))))
+
+    (it "removing an element does not change remaining refs"
+      (page/navigate *page* "https://example.com")
+      (let [snap-before (sut/capture-snapshot *page*)
+            before-refs (:refs snap-before)
+            ;; Find the link ref to remove
+            link-ref (some (fn [[ref-id info]]
+                             (when (= "link" (:role info))
+                               ref-id))
+                       before-refs)
+            non-link-refs (dissoc before-refs link-ref)]
+        ;; Remove the link from the DOM
+        (page/evaluate *page*
+          "(() => { const a = document.querySelector('a'); if(a) a.remove(); })()")
+        (let [snap-after (sut/capture-snapshot *page*)
+              after-refs (:refs snap-after)]
+          ;; All non-link refs should still exist with same role+name
+          (doseq [[ref-id info] non-link-refs]
+            (let [after-info (get after-refs ref-id)]
+              (expect (some? after-info))
+              (expect (= (:role info) (:role after-info)))
+              (expect (= (:name info) (:name after-info)))))
+          ;; The link ref should be gone
+          (expect (nil? (get after-refs link-ref))))))))

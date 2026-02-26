@@ -1,15 +1,15 @@
 (ns com.blockether.spel.snapshot
-  "Accessibility snapshot with numbered element refs.
+  "Accessibility snapshot with content-hash stable refs.
 
    Walks the DOM tree via JavaScript injection and builds a YAML-like
-   accessibility tree with stable refs (e1, e2, f1_e1 for iframes).
+   accessibility tree with content-hash refs (deterministic across page states).
    Elements are tagged with `data-pw-ref` attributes for later interaction.
 
    Usage:
      (def snap (capture-snapshot page))
-     (:tree snap)      ;; YAML-like string with [@eN] annotations
-     (:refs snap)      ;; {\"e1\" {:role \"button\" :name \"Submit\" :bbox {...}} ...}
-     (resolve-ref page \"e3\") ;; returns Locator for the element"
+     (:tree snap)      ;; YAML-like string with [@eXXXXX] annotations
+     (:refs snap)      ;; {ref-id {:role :name :tag :bbox} ...}
+     (resolve-ref page ref-id) ;; returns Locator for the element"
   (:require
    [clojure.string :as str]
    [com.blockether.spel.page :as page])
@@ -33,6 +33,33 @@
 
   let counter = 0;
   const refs = {};
+
+  const identityCounts = {};
+
+  function fnv1a(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h;
+  }
+
+  function stableRef(el, role, name) {
+    const tag = el.tagName.toLowerCase();
+    const id = el.id;
+    const base = id ? ('id:' + id.trim()) : (role + '|' + (name || '').trim() + '|' + tag);
+    if (!identityCounts[base]) identityCounts[base] = 0;
+    identityCounts[base]++;
+    const key = identityCounts[base] > 1 ? base + '|' + identityCounts[base] : base;
+    let ref = 'e' + (fnv1a(key) >>> 8).toString(36).padStart(5, '0');
+    let probe = 0;
+    while (refs[ref] && probe < 100) {
+      probe++;
+      ref = 'e' + (fnv1a(key + '#' + probe) >>> 8).toString(36).padStart(5, '0');
+    }
+    return ref;
+  }
 
   const SKIP_ROLES = new Set([
     'generic', 'presentation', 'none', ''
@@ -285,10 +312,11 @@
     // text-bearing leaves, mixed content elements, and CSS-rendered images
     let ref = null;
     if (isInteractive || (hasMeaningfulRole && hasContent) || isTextLeaf || isMixedContent || hasCSSImage) {
-      ref = 'e' + (++counter);
+      const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
+      ref = stableRef(el, effectiveRole, name);
+      counter++;
       el.setAttribute('data-pw-ref', ref);
       const rect = el.getBoundingClientRect();
-      const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
       refs[ref] = {
         role: effectiveRole,
         name: name,
@@ -330,14 +358,14 @@
     (str/replace "'" "\\'")))
 
 (defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref like @e1 or e1."
+  "Returns true if the scope string is a snapshot ref like @e04a3f or e04a3f."
   [^String s]
-  (boolean (re-matches #"@?e\d+" s)))
+  (boolean (re-matches #"@?e[a-z0-9]+" s)))
 
 (defn- resolve-scope
   "Resolves a scope value to a CSS selector.
 
-   If the scope is a ref (@e1, e1), converts to [data-pw-ref=\"e1\"].
+   If the scope is a ref (@e2yrjz, e2yrjz), converts to [data-pw-ref='e2yrjz'].
    Otherwise, passes through as a CSS selector."
   [^String s]
   (if (ref-scope? s)
@@ -351,7 +379,7 @@
    that CSS selector instead of document.body. If the selector matches nothing,
    the JS returns an empty result.
 
-   Scope can be a CSS selector or a snapshot ref (@e1, e1)."
+   Scope can be a CSS selector or a snapshot ref (@e2yrjz, e2yrjz)."
   [scope-selector]
   (if scope-selector
     (let [css-sel (resolve-scope scope-selector)]
@@ -406,15 +434,15 @@
    Params:
    `page` - Playwright Page instance.
    `opts` - Map, optional.
-     :scope - String. CSS selector or snapshot ref (@e1, e1) to scope the
+     :scope - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to scope the
               snapshot to a subtree. When provided, only elements within the
               matched element are included in the tree and refs.
               If the selector matches nothing, returns an empty snapshot.
 
    Returns:
    Map with:
-     :tree    - String. YAML-like accessibility tree with [@eN] annotations.
-     :refs    - Map. {\"e1\" {:role \"button\" :name \"Submit\" :bbox {:x :y :width :height}} ...}
+     :tree    - String. YAML-like accessibility tree with [@eXXXXX] annotations.
+     :refs    - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
      :counter - Long. Total number of refs assigned."
   ([^Page page]
    (capture-snapshot page {}))
@@ -504,7 +532,7 @@
 
    Params:
    `page`   - Playwright Page instance.
-   `ref-id` - String. Ref like \"e1\", \"e2\", etc.
+   `ref-id` - String. Ref like \"e2yrjz\", \"@e9mter\", etc.
 
    Returns:
    Locator instance for the element."
@@ -525,7 +553,7 @@
 
    Params:
    `refs`   - Map of refs from capture-snapshot.
-   `ref-id` - String. Ref like \"e1\".
+   `ref-id` - String. Content-hash ref like \"e2yrjz\".
 
    Returns:
    Map {:x :y :width :height} or nil."

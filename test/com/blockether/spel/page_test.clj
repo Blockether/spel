@@ -3,6 +3,7 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as sut]
    [com.blockether.spel.locator :as locator]
+   [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
   (:import
@@ -219,3 +220,38 @@
       (let [loc (sut/get-by-role *page* AriaRole/CHECKBOX {:checked true})]
         (expect (= 1 (locator/count-elements loc)))
         (expect (true? (locator/is-checked? loc)))))))
+
+;; =============================================================================
+;; get-by-ref
+;; =============================================================================
+
+(defdescribe get-by-ref-test
+  "Tests for get-by-ref locator"
+
+  (describe "get-by-ref with snapshot refs"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "locates element by ref ID after snapshot"
+      (sut/set-content! *page* "<h1>Hello</h1><button>Click me</button>")
+      ;; Take snapshot to tag elements with data-pw-ref
+      (let [snap (snapshot/capture-snapshot *page*)
+            refs (:refs snap)
+            ref-id (first (keys refs))
+            loc (sut/get-by-ref *page* ref-id)]
+        (expect (instance? Locator loc))
+        (expect (locator/is-visible? loc))))
+
+    (it "locates element by @ref ID (strips @ prefix)"
+      (sut/set-content! *page* "<p>Some text</p>")
+      (let [snap (snapshot/capture-snapshot *page*)
+            refs (:refs snap)
+            ref-id (first (keys refs))
+            loc (sut/get-by-ref *page* (str "@" ref-id))]
+        (expect (instance? Locator loc))
+        (expect (locator/is-visible? loc))))
+
+    (it "returns empty locator for non-existent ref"
+      (sut/set-content! *page* "<div>Test</div>")
+      (let [loc (sut/get-by-ref *page* "e9999")]
+        (expect (instance? Locator loc))
+        (expect (= 0 (locator/count-elements loc)))))))

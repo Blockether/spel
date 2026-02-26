@@ -354,11 +354,11 @@
 ;; =============================================================================
 
 (defn- ref? [^String s]
-  (or (re-matches #"@?e\d+" s)
+  (or (re-matches #"@?e[a-z0-9]+" s)
     (str/starts-with? s "@e")))
 
 (defn- resolve-selector
-  "Resolves a selector — if it's a ref (@e1, e1) resolve via snapshot,
+  "Resolves a selector — if it's a ref (@e2yrjz, e2yrjz) resolve via snapshot,
    otherwise return a regular CSS locator.
    Throws immediately if the ref was never captured in a snapshot."
   [^String selector]
@@ -366,10 +366,10 @@
     (let [ref-id (str/replace selector #"^@" "")
           refs   (:refs @!state)]
       (when-not (get refs ref-id)
-        (let [known (sort-by (fn [k] (parse-long (subs k 1))) (keys refs))
+        (let [known (sort (keys refs))
               hint  (if (seq known)
                       (str "Available: @" (first known) "–@" (last known) ". Run 'snapshot' to refresh.")
-                      "No refs available. Run 'snapshot' first to assign refs (@e1, @e2, …).")]
+                      "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, …).")]
           (throw (ex-info (str "Ref " ref-id " not found. " hint) {}))))
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
@@ -453,11 +453,15 @@
 (defmethod handle-cmd "snapshot" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  (let [sel  (get params "selector")
-        tree (snapshot-after-action! (cond-> {}
-                                       sel (assoc :scope sel)))
-        tree (filter-snapshot-tree tree params)]
-    {:snapshot tree :refs_count (:counter @!state)}))
+  (let [sel       (get params "selector")
+        all?      (get params "all")
+        snap      (if all?
+                    (snapshot/capture-full-snapshot (pg))
+                    (snapshot/capture-snapshot (pg) (cond-> {}
+                                                      sel (assoc :scope sel))))
+        _         (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+        tree      (filter-snapshot-tree (:tree snap) params)]
+    {:snapshot tree :refs_count (:counter snap)}))
 
 (defmethod handle-cmd "click" [_ {:strs [selector]}]
   (ensure-page-loaded!)

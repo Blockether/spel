@@ -7,7 +7,7 @@ How to find elements, read the page structure, and produce visual overlays. Cove
 Every `spel/` function that takes a `sel` argument is polymorphic. It accepts:
 
 1. **CSS selector string** like `"#id"`, `".class"`, `"button"`
-2. **Snapshot ref string** like `"e1"` or `"@e1"` (from `spel/capture-snapshot`)
+2. **Snapshot ref string** like `"e2yrjz"` or `"@e2yrjz"` (from `spel/capture-snapshot`)
 3. **Locator object** (pass-through, no resolution needed)
 
 So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every other `sel`-accepting function work the same way regardless of how you specify the target.
@@ -64,16 +64,16 @@ Common roles: `role/button`, `role/link`, `role/heading`, `role/textbox`, `role/
 
 ### Snapshot Ref Selectors
 
-After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID like `e1`, `e2`, etc. Use these directly:
+After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID like `e2yrjz`, `e9mter`, etc. Use these directly:
 
 ```clojure
 (def snap (spel/capture-snapshot))
-;; snap => {:tree "- heading \"Welcome\" [@e1]\n- link \"Login\" [@e2]" ...}
+;; snap => {:tree "- heading \"Welcome\" [@e2yrjz]\n- link \"Login\" [@e9mter]" ...}
 
-(spel/click "e1")              ;; click by ref (no @ prefix)
-(spel/click "@e1")             ;; @ prefix also works
-(spel/text-content "e2")               ;; get text of ref e2
-(spel/fill "e5" "hello")       ;; fill input identified as e5
+(spel/click "e2yrjz")              ;; click by ref (no @ prefix)
+(spel/click "@e2yrjz")             ;; @ prefix also works
+(spel/text-content "e9mter")               ;; get text of ref e9mter
+(spel/fill "ea3kf5" "hello")       ;; fill input identified as ea3kf5
 ```
 
 Refs are resolved via the `data-pw-ref` attribute injected during snapshot capture.
@@ -129,7 +129,7 @@ Returns a map with three keys:
 | Key | Type | Description |
 |-----|------|-------------|
 | `:tree` | String | Human-readable accessibility tree with `[@eN]` annotations |
-| `:refs` | Map | `{"e1" {:role "heading" :name "Welcome" :tag "h1" :bbox {...}} ...}` |
+| `:refs` | Map | `{"e2yrjz" {:role "heading" :name "Welcome" :tag "h1" :bbox {...}} ...}` |
 | `:counter` | Long | Total number of refs assigned |
 
 ### Tree Output
@@ -138,22 +138,22 @@ The `:tree` string is a YAML-like indented tree. Real example from a news site:
 
 ```
 - banner:
-  - heading "Onet" [@e1] [level=1]
+  - heading "Onet" [@e2yrjz] [level=1]
   - navigation "Main":
-    - link "News" [@e2]
-    - link "Sport" [@e3]
-    - link "Business" [@e4]
+    - link "News" [@e9mter]
+    - link "Sport" [@e6t2x4]
+    - link "Business" [@e0k8qp]
   - search:
-    - searchbox "Search Onet" [@e5]
-    - button "Search" [@e6]
+    - searchbox "Search Onet" [@ea3kf5]
+    - button "Search" [@e1x9hz]
 - main:
-  - heading "Top Stories" [@e7] [level=2]
+  - heading "Top Stories" [@e3pq7r] [level=2]
   - article:
-    - link "Breaking: Major Event" [@e8]
+    - link "Breaking: Major Event" [@e5dw2c]
     - paragraph "Details about the event..."
 - contentinfo:
-  - link "Privacy Policy" [@e10]
-  - link "Terms of Service" [@e11]
+  - link "Privacy Policy" [@e7vnw3]
+  - link "Terms of Service" [@e8jy4n]
 ```
 
 Each `[@eN]` tag marks an interactive or meaningful element. Structural roles (banner, main, navigation) appear without refs. Attributes like `[level=1]` show ARIA properties.
@@ -163,7 +163,7 @@ Each `[@eN]` tag marks an interactive or meaningful element. Structural roles (b
 Each ref in `:refs` contains:
 
 ```clojure
-{"e1" {:role "heading" :name "Onet" :tag "h1"
+{"e2yrjz" {:role "heading" :name "Onet" :tag "h1"
        :bbox {:x 20 :y 10 :width 200 :height 40}}}
 ```
 
@@ -174,7 +174,7 @@ The `:bbox` gives pixel coordinates relative to the page, useful for annotation 
 ```clojure
 ;; Scope to a subtree (CSS selector or ref)
 (spel/capture-snapshot {:scope "#main"})
-(spel/capture-snapshot {:scope "@e7"})
+(spel/capture-snapshot {:scope "@e3pq7r"})
 
 ;; Capture all iframes too (refs prefixed: f1_e1, f2_e3, etc.)
 (spel/capture-full-snapshot)
@@ -183,7 +183,7 @@ The `:bbox` gives pixel coordinates relative to the page, useful for annotation 
 ### Resolving and Clearing Refs
 
 ```clojure
-(spel/resolve-ref "e1")       ;; => Playwright Locator
+(spel/resolve-ref "e2yrjz")       ;; => Playwright Locator
 (spel/clear-refs!)             ;; remove data-pw-ref attributes from DOM
 ```
 
@@ -230,9 +230,9 @@ Keep overlays visible for headed mode debugging or multiple screenshots:
 Highlight specific elements before interacting with them. Visually distinct from annotations: bright red/orange pulsing border with a `-> eN` label.
 
 ```clojure
-(spel/inject-action-markers! "e1" "e5")         ;; mark elements you're about to interact with
+(spel/inject-action-markers! "e2yrjz" "ea3kf5")         ;; mark elements you're about to interact with
 (spel/screenshot {:path "/tmp/before-click.png"})
-(spel/click "e5")
+(spel/click "ea3kf5")
 (spel/remove-action-markers!)                  ;; clean up
 ```
 
@@ -241,7 +241,7 @@ Markers use `data-spel-action-marker` and don't interfere with annotation overla
 ### Playwright's Built-in Highlight
 
 ```clojure
-(spel/highlight "e3")          ;; Playwright's native highlight (brief flash)
+(spel/highlight "e6t2x4")          ;; Playwright's native highlight (brief flash)
 (spel/highlight "#submit")     ;; works with CSS selectors too
 ```
 
@@ -261,7 +261,7 @@ Screenshots with a caption bar at the bottom. Useful for documenting workflow st
 
 ;; Caption + action markers on specific refs
 (spel/save-audit-screenshot! "Step 3: About to click Submit" "/tmp/step3.png"
-  {:refs (:refs snap) :markers ["e6"]})
+  {:refs (:refs snap) :markers ["e1x9hz"]})
 ```
 
 For bytes: `(spel/audit-screenshot "Caption text")`
@@ -298,10 +298,10 @@ Navigate, understand the page, annotate, interact, verify:
 (def snap (spel/capture-snapshot))
 (println (:tree snap))
 (spel/save-annotated-screenshot! (:refs snap) "/tmp/hn-annotated.png")
-(spel/inject-action-markers! "e2")
+(spel/inject-action-markers! "e9mter")
 (spel/screenshot {:path "/tmp/hn-before-click.png"})
 (spel/remove-action-markers!)
-(spel/click "e2")
+(spel/click "e9mter")
 (spel/wait-for-load-state)
 ;; 5. Verify we landed on the right page
 (spel/assert-visible "h1")
@@ -323,8 +323,8 @@ Navigate, understand the page, annotate, interact, verify:
 | By alt text | `(spel/get-by-alt-text "t")` | `(page/get-by-alt-text pg "t")` |
 | Snapshot | `(spel/capture-snapshot)` | `(snapshot/capture-snapshot pg)` |
 | Full snapshot | `(spel/capture-full-snapshot)` | `(snapshot/capture-full-snapshot pg)` |
-| Resolve ref | `(spel/resolve-ref "e1")` | `(snapshot/resolve-ref "e1")` |
+| Resolve ref | `(spel/resolve-ref "e2yrjz")` | `(snapshot/resolve-ref "e2yrjz")` |
 | Annotated shot | `(spel/save-annotated-screenshot! refs path)` | `(annotate/save-annotated-screenshot! pg refs path)` |
 | Audit shot | `(spel/save-audit-screenshot! caption path)` | `(annotate/save-audit-screenshot! pg caption path)` |
-| Mark refs | `(spel/inject-action-markers! "e1" "e5")` | `(annotate/inject-action-markers! pg ["e1" "e5"])` |
+| Mark refs | `(spel/inject-action-markers! "e2yrjz" "ea3kf5")` | `(annotate/inject-action-markers! pg ["e2yrjz" "ea3kf5"])` |
 | Highlight | `(spel/highlight sel)` | `(locator/highlight loc)` |
