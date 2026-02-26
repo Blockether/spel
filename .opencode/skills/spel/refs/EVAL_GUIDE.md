@@ -301,6 +301,13 @@ Other enum classes (Java interop only): `ColorScheme`, `ForcedColors`, `HarConte
 ;; java.nio.file.Paths / Files
 (let [path (java.nio.file.Paths/get "/tmp" (into-array String ["test.txt"]))]
   (java.nio.file.Files/exists path (into-array java.nio.file.LinkOption [])))
+
+;; java.lang.Thread (for non-browser delays ONLY — see warning below)
+(Thread/sleep (long 500))  ;; blocks for 500ms, no browser page needed
+
+;; java.lang.System
+(System/getenv "HOME")      ;; => "/Users/you"
+(System/currentTimeMillis)  ;; => 1740000000000
 ```
 
 ## What's NOT Available
@@ -308,7 +315,7 @@ Other enum classes (Java interop only): `ColorScheme`, `ForcedColors`, `HarConte
 The SCI sandbox has boundaries. These will fail:
 
 - **`require`, `use`, `import`**: All namespaces are pre-registered. You can't load new ones.
-- **Arbitrary Java class construction**: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered.
+- **Arbitrary Java class construction**: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered. Registered JDK classes: `File`, `Base64`, `Files`, `Paths`, `Path`, `LinkOption`, `FileAttribute`, `Thread`, `System`.
 - **Macro definitions**: `defmacro` is not available. Use functions instead.
 - **Loading external libraries**: No Clojure deps, no Maven artifacts. Everything you need is already in the sandbox.
 - **STM and concurrency**: `ref`/`dosync`/`future`/`agent` are not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
@@ -395,4 +402,17 @@ spel --eval explore.clj
 
 **Use `spel/wait-for-load-state :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
 
-**Never use `spel/wait-for-timeout` for synchronization.** It's a flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. The only acceptable use of fixed delay is waiting for a CSS animation with no observable state change.
+**Never use `spel/wait-for-timeout` or `sleep` for synchronization.** Fixed-time delays are a flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. The only acceptable use of a fixed delay is waiting for a CSS animation with no observable state change.
+
+**`sleep` vs `spel/wait-for-timeout` vs page waits:**
+
+| Function | Needs browser? | What it does | When to use |
+|---|---|---|---|
+| `spel/wait-for-selector` | Yes | Waits until element appears/disappears | **PREFERRED** — event-driven, not flaky |
+| `spel/wait-for-url` | Yes | Waits until URL matches | **PREFERRED** — for navigation |
+| `spel/wait-for-load-state` | Yes | Waits for load/networkidle | **PREFERRED** — for page loads |
+| `spel/wait-for-function` | Yes | Waits until JS expression is truthy | **PREFERRED** — for dynamic content |
+| `spel/wait-for-timeout` | Yes | Playwright-managed fixed delay | Last resort for browser timing |
+| `sleep` / `(Thread/sleep (long ms))` | **No** | Plain JVM thread sleep | **Only** for non-browser delays (file I/O timing, external process waits) |
+
+**Rule of thumb:** If you're interacting with a browser, use a page wait. Always. `sleep` exists for the rare case where you need a delay outside the browser context (e.g., waiting for an external file to appear, polling a non-browser resource).

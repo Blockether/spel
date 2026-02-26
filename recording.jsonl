@@ -1,0 +1,5 @@
+{"browserName":"chromium","launchOptions":{"headless":false},"contextOptions":{},"generateAutoExpect":true}
+{"name":"openPage","url":"about:blank","signals":[],"pageGuid":"page@55be0c51be3d641f619b5a288185e9b2","pageAlias":"page","framePath":[]}
+{"name":"navigate","url":"https://example.com/","signals":[],"pageGuid":"page@55be0c51be3d641f619b5a288185e9b2","pageAlias":"page","framePath":[]}
+{"name":"assertText","selector":"internal:role=link","signals":[],"text":"Learn more","substring":true,"pageGuid":"page@55be0c51be3d641f619b5a288185e9b2","pageAlias":"page","framePath":[],"locator":{"kind":"role","body":"link","options":{"attrs":[]}}}
+{"name":"closePage","signals":[],"pageGuid":"page@55be0c51be3d641f619b5a288185e9b2","pageAlias":"page","framePath":[]}

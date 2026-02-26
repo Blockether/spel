@@ -169,6 +169,22 @@ The only acceptable use: waiting for a CSS animation or transition that has no o
 
 Library: `(page/wait-for-timeout pg 1000)` ... same caveat.
 
+### 6. `sleep` / `Thread/sleep` (Non-Browser Only)
+
+Plain JVM thread sleep. **Does NOT interact with the browser event loop.** Available as a global binding `(sleep ms)`, as `(spel/sleep ms)`, or as raw `(Thread/sleep (long ms))`.
+
+```clojure
+;; WRONG — never use sleep for browser synchronization:
+(sleep 2000) ;; page might not be ready, flaky!
+(spel/click ".button")
+
+;; RIGHT — use page waits:
+(spel/wait-for-selector ".button" {:state "visible"})
+(spel/click ".button")
+```
+
+The **only** valid use of `sleep` is for non-browser delays: waiting for an external file to appear on disk, throttling requests to a non-browser API, polling a process. If you're touching a browser page, use a page wait — always.
+
 ## Common Patterns
 
 ### SPA Navigation (Click → Wait → Verify)
@@ -268,3 +284,4 @@ Library equivalents:
 | `(spel/wait-for-popup f)` | `(page/wait-for-popup pg f)` | Capture popup page |
 | `(spel/wait-for-download f)` | `(page/wait-for-download pg f)` | Capture download |
 | `(spel/wait-for-file-chooser f)` | `(page/wait-for-file-chooser pg f)` | Capture file chooser |
+| `(sleep ms)` / `(spel/sleep ms)` | `(Thread/sleep (long ms))` | Non-browser delay (**never** for page sync) |

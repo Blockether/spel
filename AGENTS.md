@@ -6,6 +6,12 @@ Browser Automation:
 - ALWAYS use `load_skills=["spel"]` for browser tasks. Load skill first: `skill(name="spel")`
 - NEVER use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` — disabled in this project
 
+SCI Bindings:
+- NEVER use inline `(fn ...)` lambdas for SCI-exposed functions — ALWAYS use `defn` with a docstring
+- Every SCI user-facing function MUST be a named `defn` (e.g. `sci-thread-sleep`, `sci-viewport-size`)
+- Lambdas break `gen-docs` introspection, hide functions from FULL_API.md, and make debugging impossible
+- This applies to: `:bindings` map values, `make-ns-map` entries, `core/` namespace stubs
+
 Paren Repair:
 - NEVER fix unbalanced parens/brackets by hand — always: `clj-paren-repair path/to/file.clj`
 

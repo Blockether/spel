@@ -764,6 +764,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests on this page. |
 | `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
+| `spel/sleep` | [ms] | Plain JVM thread sleep (ms). Does NOT interact with browser event loop. |
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
@@ -783,6 +784,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/unroute!` | [pattern] | Removes a route handler. |
 | `spel/url` | [] | Returns the current page URL. |
 | `spel/video-path` | [] | Returns the video file path for the current page, or nil if not recording. |
+| `spel/viewport-size` | [] | Returns the current viewport size of the active page as {:width N :height N}. |
 | `spel/visible?` | [sel] | Returns whether the element is visible. |
 | `spel/wait-for-download` | [action] \| [action opts] | Waits for a download to start while executing `action`. |
 | `spel/wait-for-file-chooser` | [action] \| [action opts] | Waits for a file chooser dialog while executing `action`. |
@@ -1055,11 +1057,18 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `core/context-set-extra-http-headers!` | [context headers] | Sets extra HTTP headers for all requests in the context. |
 | `core/context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
 | `core/context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
+| `core/create` | [] | No-op in daemon mode — Playwright instance is managed by the daemon. |
 | `core/default-retry-opts` |  | Default retry configuration. |
 | `core/fd-append` | [fd name value] | Appends a field to FormData. |
 | `core/fd-set` | [fd name value] | Sets a field in FormData. |
 | `core/form-data` | [] | Creates a new FormData instance. |
+| `core/launch-chromium` | [_pw & _opts] | In daemon mode, returns the daemon's existing browser instance. |
+| `core/launch-firefox` | [_pw & _opts] | In daemon mode, returns the daemon's existing browser instance. |
+| `core/launch-webkit` | [_pw & _opts] | In daemon mode, returns the daemon's existing browser instance. |
 | `core/new-api-context` | [api-req] \| [api-req opts] | Creates a new APIRequestContext. |
+| `core/new-context` | [_browser & _opts] | In daemon mode, returns the daemon's existing browser context. |
+| `core/new-page` | [_browser] | In daemon mode, returns the daemon's existing page. |
+| `core/new-page-from-context` | [_ctx] | In daemon mode, returns the daemon's existing page. |
 | `core/page-api` | [pg] | Returns the APIRequestContext for a Page. |
 | `core/request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `core/request-options` | [opts] | Creates RequestOptions from a map. |

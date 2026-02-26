@@ -413,6 +413,35 @@
 (defn sci-wait-for-file-chooser
   ([action]      (page/wait-for-file-chooser (require-page!) action))
   ([action opts] (page/wait-for-file-chooser (require-page!) action opts)))
+(defn sci-thread-sleep
+  "Plain JVM thread sleep (ms). Does NOT interact with browser event loop.
+   Prefer page waits (wait-for-selector, wait-for-url, etc.) for browser sync.
+   Use only for non-browser delays (file I/O timing, external process waits)."
+  [ms] (Thread/sleep (long ms)))
+(defn sci-viewport-size
+  "Returns the current viewport size of the active page as {:width N :height N}."
+  [] (page/viewport-size (require-page!)))
+(defn sci-pw-create
+  "No-op in daemon mode — Playwright instance is managed by the daemon."
+  [] nil)
+(defn sci-launch-chromium
+  "In daemon mode, returns the daemon's existing browser instance."
+  [_pw & _opts] (require-browser!))
+(defn sci-launch-firefox
+  "In daemon mode, returns the daemon's existing browser instance."
+  [_pw & _opts] (require-browser!))
+(defn sci-launch-webkit
+  "In daemon mode, returns the daemon's existing browser instance."
+  [_pw & _opts] (require-browser!))
+(defn sci-new-context
+  "In daemon mode, returns the daemon's existing browser context."
+  [_browser & _opts] (require-context!))
+(defn sci-new-page
+  "In daemon mode, returns the daemon's existing page."
+  [_browser] (require-page!))
+(defn sci-new-page-from-context
+  "In daemon mode, returns the daemon's existing page."
+  [_ctx] (require-page!))
 
 ;; =============================================================================
 ;; Assertions (FIXED: all use assert/assert-that for proper type coercion)
@@ -1122,6 +1151,7 @@
                   ['wait-for-selector   sci-wait-for]
                   ['wait-for-load-state sci-wait-for-load]
                   ['wait-for-timeout    sci-sleep]
+                  ['sleep             sci-thread-sleep]
                   ['wait-for-url      sci-wait-for-url]
                   ['wait-for-function sci-wait-for-function]
                   ['wait-for-popup    sci-wait-for-popup]
@@ -1163,7 +1193,7 @@
                   ;; Page functions
                   ['set-content!     sci-set-content!]
                   ['set-viewport-size! sci-set-viewport-size!]
-                  ['viewport-size  (fn [] (page/viewport-size (require-page!)))]
+                  ['viewport-size  sci-viewport-size]
                   ['set-default-timeout! sci-set-page-default-timeout!]
                   ['set-default-navigation-timeout! sci-set-default-navigation-timeout!]
                   ['emulate-media!   sci-emulate-media!]
@@ -1501,13 +1531,13 @@
                                             (list* 'let [sym (list 'spel/page)] body)))
                                         {:sci/macro true})]
                     ;; Launch/create functions — return daemon's existing instances
-                    ['create          (fn [] nil)]
-                    ['launch-chromium (fn [_pw & _opts] (require-browser!))]
-                    ['launch-firefox  (fn [_pw & _opts] (require-browser!))]
-                    ['launch-webkit   (fn [_pw & _opts] (require-browser!))]
-                    ['new-context        (fn [_browser & _opts] (require-context!))]
-                    ['new-page           (fn [_browser] (require-page!))]
-                    ['new-page-from-context (fn [_ctx] (require-page!))]
+                    ['create          sci-pw-create]
+                    ['launch-chromium sci-launch-chromium]
+                    ['launch-firefox  sci-launch-firefox]
+                    ['launch-webkit   sci-launch-webkit]
+                    ['new-context        sci-new-context]
+                    ['new-page           sci-new-page]
+                    ['new-page-from-context sci-new-page-from-context]
                     ;; Close & utility pass-throughs
                     ['close!          core/close!]
                     ['close-browser!  core/close-browser!]
@@ -1927,7 +1957,8 @@
                     'com.blockether.spel.search          search-map}
        :bindings   {'slurp     slurp
                     'spit      spit
-                    'iteration iteration}
+                    'iteration iteration
+                    'sleep     sci-thread-sleep}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext
@@ -1993,6 +2024,11 @@
                     'java.nio.file.LinkOption java.nio.file.LinkOption
                     'FileAttribute       java.nio.file.attribute.FileAttribute
                     'java.nio.file.attribute.FileAttribute java.nio.file.attribute.FileAttribute
+                    ;; JDK utility classes
+                    'Thread              java.lang.Thread
+                    'java.lang.Thread    java.lang.Thread
+                    'System              java.lang.System
+                    'java.lang.System    java.lang.System
                     :allow             :all}})))
 
 ;; =============================================================================

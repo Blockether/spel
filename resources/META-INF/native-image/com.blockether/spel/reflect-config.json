@@ -2084,5 +2084,34 @@
     "allPublicMethods": true,
     "allPublicFields": true,
     "allPublicConstructors": true
+  },
+  {
+    "name": "java.lang.Thread",
+    "allPublicMethods": true,
+    "allPublicFields": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "java.lang.System",
+    "allPublicMethods": true,
+    "allPublicFields": true
+  },
+  {
+    "name": "java.io.File",
+    "allPublicMethods": true,
+    "allPublicFields": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "java.util.Base64",
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.nio.file.Files",
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.nio.file.Paths",
+    "allPublicMethods": true
   }
 ]

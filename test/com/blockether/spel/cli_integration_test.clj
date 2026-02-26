@@ -10,6 +10,7 @@
   (:require
    [clojure.string :as str]
    [clojure.java.io :as io]
+   [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.page :as page]
@@ -1848,3 +1849,210 @@
       (let [threw? (try (cmd "sci_eval" {}) false
                         (catch Exception _ true))]
         (expect threw?)))))
+
+;; =============================================================================
+;; 43. Codegen → SCI Eval Round-Trip (Clojure ↔ SCI compatibility)
+;; =============================================================================
+
+(defdescribe codegen-sci-eval-round-trip-test
+  "Ultimate compatibility test: codegen generates Clojure, SCI evaluates it.
+   Verifies that ALL codegen output formats produce valid code and that
+   the :script format runs correctly in SCI --eval mode."
+
+  (describe "codegen format generation"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "generates valid :body format from JSONL"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            body (binding [codegen/*exit-on-error* false]
+                   (codegen/jsonl-str->clojure jsonl {:format :body}))]
+        (expect (str/includes? body "page/navigate"))
+        (expect (str/includes? body "assert/contains-text"))
+        (expect (str/includes? body *test-server-url*))))
+
+    (it "generates valid :test format from JSONL"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            test-code (binding [codegen/*exit-on-error* false]
+                        (codegen/jsonl-str->clojure jsonl {:format :test}))]
+        (expect (str/includes? test-code "defdescribe"))
+        (expect (str/includes? test-code "core/with-playwright"))
+        (expect (str/includes? test-code "core/with-browser"))
+        (expect (str/includes? test-code "core/with-page"))
+        (expect (str/includes? test-code "page/navigate"))
+        (expect (str/includes? test-code "assert/contains-text"))))
+
+    (it "generates valid :script format from JSONL"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))]
+        (expect (str/includes? script "(require"))
+        (expect (str/includes? script "core/with-playwright"))
+        (expect (str/includes? script "core/with-browser"))
+        (expect (str/includes? script "core/with-context"))
+        (expect (str/includes? script "core/with-page"))
+        (expect (str/includes? script "page/navigate"))
+        (expect (str/includes? script "assert/contains-text")))))
+
+  (describe "codegen :script format evaluates in SCI"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "navigate + assertText script runs end-to-end in SCI eval"
+      ;; Build JSONL recording: navigate to test page, assert heading text
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            ;; Generate script format (what `spel codegen --format=script` produces)
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            ;; Evaluate in SCI — this is the ultimate Clojure↔SCI compatibility test
+            r (cmd "sci_eval" {"code" script})]
+        ;; assert/contains-text returns nil on success (throws on failure)
+        (expect (= "nil" (:result r)))))
+
+    (it "navigate + click + fill script runs in SCI eval"
+      ;; More complex recording: navigate, fill a form field, click button
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"fill\",\"selector\":\"input[id=text-input]\",\"text\":\"codegen-test\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"click\",\"selector\":\"#submit-btn\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            r (cmd "sci_eval" {"code" script})]
+        ;; click returns nil on success
+        (expect (= "nil" (:result r)))))
+
+    (it "script with get-by-role locator runs in SCI eval"
+      ;; Recording using structured locator map (Playwright 1.58+ format)
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"internal:role=heading\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"heading\",\"options\":{\"attrs\":[]}}}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            ;; Verify the generated code uses role/heading
+            _ (expect (str/includes? script "role/heading"))
+            r (cmd "sci_eval" {"code" script})]
+        (expect (= "nil" (:result r)))))
+
+    (it "script with get-by-label locator runs in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"fill\",\"text\":\"label-test\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"label\",\"body\":\"Name\",\"options\":{}}}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (expect (str/includes? script "page/get-by-label"))
+            r (cmd "sci_eval" {"code" script})]
+        ;; fill returns nil on success
+        (expect (= "nil" (:result r)))))
+
+    (it "script with assertVisible runs in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertVisible\",\"selector\":\"h1\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (expect (str/includes? script "assert/is-visible"))
+            r (cmd "sci_eval" {"code" script})]
+        (expect (= "nil" (:result r)))))
+
+    (it "script with assertChecked runs in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertChecked\",\"selector\":\"#checked-box\",\"checked\":true,\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (expect (str/includes? script "assert/is-checked"))
+            r (cmd "sci_eval" {"code" script})]
+        (expect (= "nil" (:result r)))))
+
+    (it "script with assertValue runs in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertValue\",\"selector\":\"#prefilled\",\"value\":\"initial value\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (expect (str/includes? script "assert/has-value"))
+            r (cmd "sci_eval" {"code" script})]
+        (expect (= "nil" (:result r)))))
+
+    (it "script with multiple actions and assertions runs in SCI eval"
+      ;; Full scenario: navigate → fill → assertValue → click → assertVisible
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"fill\",\"text\":\"round-trip-test\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"label\",\"body\":\"Name\",\"options\":{}}}\n"
+                    "{\"name\":\"assertValue\",\"selector\":\"#text-input\",\"value\":\"round-trip-test\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"click\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"button\",\"options\":{\"attrs\":[{\"name\":\"name\",\"value\":\"Submit\"}]}}}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            r (cmd "sci_eval" {"code" script})]
+        (expect (= "nil" (:result r)))))
+
+    (it "project recording.jsonl generates valid script"
+      ;; Verify the actual project recording.jsonl can be codegen'd
+      (let [jsonl (slurp "recording.jsonl")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))]
+        (expect (str/includes? script "core/with-playwright"))
+        (expect (str/includes? script "page/navigate"))
+        (expect (str/includes? script "role/link"))
+        (expect (str/includes? script "assert/contains-text"))))
+
+    ;; --- Negative tests: prove failures are actually detected, not swallowed ---
+
+    (it "NEGATIVE: wrong assertText throws in SCI eval (not silently swallowed)"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"WRONG TEXT THAT DOES NOT EXIST ON PAGE\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            threw? (try (cmd "sci_eval" {"code" script}) false
+                        (catch Exception _ true))]
+        (expect threw?)))
+
+    (it "NEGATIVE: assertChecked on unchecked box throws in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertChecked\",\"selector\":\"#checkbox\",\"checked\":true,\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            threw? (try (cmd "sci_eval" {"code" script}) false
+                        (catch Exception _ true))]
+        (expect threw?)))
+
+    (it "NEGATIVE: assertValue with wrong value throws in SCI eval"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"assertValue\",\"selector\":\"#prefilled\",\"value\":\"COMPLETELY WRONG VALUE\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            threw? (try (cmd "sci_eval" {"code" script}) false
+                        (catch Exception _ true))]
+        (expect threw?)))
+
+    ;; --- Side-effect verification: prove the script actually mutated the browser ---
+
+    (it "fill script actually changes input value (verified after eval)"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
+                    "{\"name\":\"fill\",\"selector\":\"input[id=text-input]\",\"text\":\"proof-it-ran\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (cmd "sci_eval" {"code" script})
+            r (cmd "sci_eval" {"code" "(locator/input-value (page/locator (spel/page) \"#text-input\"))"})]
+        (expect (= "\"proof-it-ran\"" (:result r)))))
+
+    (it "navigate script actually changes page URL (verified after eval)"
+      (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
+                    "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/second-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
+            script (binding [codegen/*exit-on-error* false]
+                     (codegen/jsonl-str->clojure jsonl {:format :script}))
+            _ (cmd "sci_eval" {"code" script})
+            r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
+        (expect (str/includes? (:result r) "/second-page"))))))

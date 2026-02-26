@@ -1003,6 +1003,132 @@ assert_contains "search --help mentions json" "$OUT" "json"
 assert_contains "search --help mentions stealth" "$OUT" "stealth"
 
 # =============================================================================
+# CODEGEN + EVAL COMPATIBILITY (31)
+# Ultimate Clojure↔SCI compatibility test:
+#   recording.jsonl → codegen → script/test/body → --eval
+# =============================================================================
+section "Codegen + Eval Compatibility (31)"
+
+# Create a test JSONL (navigate + assert heading, no closePage — safe for daemon)
+CODEGEN_JSONL="/tmp/test-codegen-compat.jsonl"
+CODEGEN_SCRIPT="/tmp/test-codegen-compat.clj"
+TEMP_FILES+=("$CODEGEN_JSONL" "$CODEGEN_SCRIPT")
+
+cat > "$CODEGEN_JSONL" <<'JSONL'
+{"browserName":"chromium","launchOptions":{"headless":true},"contextOptions":{}}
+{"name":"openPage","url":"about:blank","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+{"name":"navigate","url":"https://example.com/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+{"name":"assertText","selector":"internal:role=heading","signals":[],"text":"Example Domain","substring":true,"pageGuid":"page@test","pageAlias":"page","framePath":[],"locator":{"kind":"role","body":"heading","options":{"attrs":[]}}}
+JSONL
+
+# --- Test codegen --format=script ---
+OUT=$("$SPEL" codegen --format=script "$CODEGEN_JSONL" 2>&1)
+assert_contains "codegen script → has require" "$OUT" "(require"
+assert_contains "codegen script → has core/with-playwright" "$OUT" "core/with-playwright"
+assert_contains "codegen script → has core/with-browser" "$OUT" "core/with-browser"
+assert_contains "codegen script → has core/with-context" "$OUT" "core/with-context"
+assert_contains "codegen script → has core/with-page" "$OUT" "core/with-page"
+assert_contains "codegen script → has page/navigate" "$OUT" "page/navigate"
+assert_contains "codegen script → has role/heading" "$OUT" "role/heading"
+assert_contains "codegen script → has assert/contains-text" "$OUT" "assert/contains-text"
+assert_contains "codegen script → has assert/assert-that" "$OUT" "assert/assert-that"
+assert_contains "codegen script → has page/get-by-role" "$OUT" "page/get-by-role"
+
+# --- Test codegen --format=test ---
+OUT=$("$SPEL" codegen --format=test "$CODEGEN_JSONL" 2>&1)
+assert_contains "codegen test → has ns declaration" "$OUT" "(ns my-app.generated-test"
+assert_contains "codegen test → has defdescribe" "$OUT" "defdescribe"
+assert_contains "codegen test → has page/navigate" "$OUT" "page/navigate"
+assert_contains "codegen test → has assert/contains-text" "$OUT" "assert/contains-text"
+
+# --- Test codegen --format=body ---
+OUT=$("$SPEL" codegen --format=body "$CODEGEN_JSONL" 2>&1)
+assert_contains "codegen body → has page/navigate" "$OUT" "page/navigate"
+assert_contains "codegen body → has assert/contains-text" "$OUT" "assert/contains-text"
+assert_contains "codegen body → has role/heading" "$OUT" "role/heading"
+
+# --- Test codegen from project recording.jsonl ---
+OUT=$("$SPEL" codegen --format=script recording.jsonl 2>&1)
+assert_contains "codegen recording.jsonl → has core/with-playwright" "$OUT" "core/with-playwright"
+assert_contains "codegen recording.jsonl → has role/link" "$OUT" "role/link"
+
+# --- Write script to file and verify ---
+"$SPEL" codegen --format=script -o "$CODEGEN_SCRIPT" "$CODEGEN_JSONL" 2>&1
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ -f "$CODEGEN_SCRIPT" ]]; then
+  pass "codegen -o → file created"
+else
+  fail "codegen -o → file created" "File $CODEGEN_SCRIPT not found"
+fi
+
+# --- Run generated script via --eval (the ultimate compatibility test) ---
+# This proves: JSONL recording → codegen → Clojure script → SCI eval → real browser
+# Run WITHOUT --autoclose so browser stays alive for subsequent verification queries
+OUT=$("$SPEL" --eval "$CODEGEN_SCRIPT" 2>&1)
+EVAL_EXIT=$?
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ $EVAL_EXIT -eq 0 ]]; then
+  pass "eval codegen script → exit 0 (Clojure↔SCI compat)"
+else
+  fail "eval codegen script → exit 0 (Clojure↔SCI compat)" "Exit code: $EVAL_EXIT, Output: $(echo "$OUT" | head -c 500)"
+fi
+
+# Verify the eval output doesn't contain error
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"Error:"* ]]; then
+  pass "eval codegen script → no errors in output"
+else
+  fail "eval codegen script → no errors in output" "Output: $(echo "$OUT" | head -c 500)"
+fi
+
+# Verify eval result is "nil" (the actual return value of the last assertion)
+assert_contains "eval codegen script → result is nil" "$OUT" "nil"
+
+# --- MEANINGFUL VERIFICATION: query the browser state left by the codegen script ---
+# Prove the script actually navigated to the page and the browser is on example.com
+
+# Verify page title is "Example Domain" (the script navigated to example.com)
+TITLE_OUT=$("$SPEL" --eval '(page/title (spel/page))' 2>&1)
+assert_contains "eval → page title is Example Domain" "$TITLE_OUT" "Example Domain"
+
+# Verify page URL contains example.com
+URL_OUT=$("$SPEL" --eval '(page/url (spel/page))' 2>&1)
+assert_contains "eval → page URL contains example.com" "$URL_OUT" "example.com"
+
+# Clean up: close the daemon session
+"$SPEL" --eval '(do nil)' --autoclose >/dev/null 2>&1 || true
+
+# --- NEGATIVE: prove wrong assertions FAIL (not silently swallowed) ---
+CODEGEN_BAD_JSONL="/tmp/test-codegen-bad.jsonl"
+CODEGEN_BAD_SCRIPT="/tmp/test-codegen-bad.clj"
+TEMP_FILES+=("$CODEGEN_BAD_JSONL" "$CODEGEN_BAD_SCRIPT")
+
+cat > "$CODEGEN_BAD_JSONL" <<'JSONL'
+{"browserName":"chromium","launchOptions":{"headless":true},"contextOptions":{}}
+{"name":"navigate","url":"https://example.com/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+{"name":"assertText","selector":"h1","signals":[],"text":"THIS TEXT DOES NOT EXIST ANYWHERE","substring":true,"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+JSONL
+
+"$SPEL" codegen --format=script -o "$CODEGEN_BAD_SCRIPT" "$CODEGEN_BAD_JSONL" 2>&1
+OUT=$( "$SPEL" --eval "$CODEGEN_BAD_SCRIPT" --autoclose 2>&1 )
+BAD_EXIT=$?
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ $BAD_EXIT -ne 0 ]]; then
+  pass "NEGATIVE: eval wrong assertion → exit non-zero"
+else
+  fail "NEGATIVE: eval wrong assertion → exit non-zero" "Expected failure but got exit 0. Output: $(echo "$OUT" | head -c 300)"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" == *"Error:"* ]]; then
+  pass "NEGATIVE: eval wrong assertion → Error in output"
+else
+  fail "NEGATIVE: eval wrong assertion → Error in output" "Expected 'Error:' but got: $(echo "$OUT" | head -c 300)"
+fi
+
+# Verify the error mentions the expected text or assertion failure details
+assert_contains "NEGATIVE: eval wrong assertion → error mentions assertion context" "$OUT" "THIS TEXT DOES NOT EXIST ANYWHERE"
+# =============================================================================
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
