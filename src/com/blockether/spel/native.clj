@@ -195,6 +195,7 @@
   (println "")
   (println "Options:")
   (println "  --session <name>          Named session (default: \"default\")")
+  (println "  --no-persist              Disable auto-persist of cookies/storage")
   (println "  --json                    JSON output (for agents)")
   (println "  --load-state <path>       Load state (cookies/localStorage JSON, alias: --storage-state)")
   (println "  --profile <path>          Chrome user data directory (persistent profile)")

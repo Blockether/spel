@@ -237,22 +237,22 @@
 (defdescribe auto-session-state-test
   "Unit tests for auto session state save/load behavior"
 
-  (describe "auto-save skips when no session-name"
-    (it "does nothing when no session-name flag"
+  (describe "auto-save skips when --no-persist"
+    (it "does nothing when no-persist flag is set"
       (let [state-atom (deref #'sut/!state)]
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
                             :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {}})
+                            :launch-flags {"no-persist" true}})
         ;; Should not throw
         (#'sut/auto-save-session-state!)
         (expect true))))
 
-  (describe "auto-load skips when no session-name"
-    (it "does nothing when no session-name flag"
+  (describe "auto-load skips when --no-persist"
+    (it "does nothing when no-persist flag is set"
       (let [state-atom (deref #'sut/!state)]
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
                             :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {}})
+                            :launch-flags {"no-persist" true}})
         ;; Should not throw
         (#'sut/auto-load-session-state!)
         (expect true))))
@@ -261,8 +261,8 @@
     (it "does nothing when state file missing"
       (let [state-atom (deref #'sut/!state)]
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
-                            :refs {} :counter 0 :headless true :session "test"
-                            :launch-flags {"session-name" "nonexistent-session-xyz"}})
+                            :refs {} :counter 0 :headless true :session "nonexistent-session-xyz"
+                            :launch-flags {}})
         ;; Should not throw — file doesn't exist so it just returns
         (#'sut/auto-load-session-state!)
         (expect true)))))

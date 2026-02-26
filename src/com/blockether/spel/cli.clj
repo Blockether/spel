@@ -1106,6 +1106,7 @@
      ""
      "Global Flags:"
      "  --session NAME          Named browser session (default: \"default\")"
+     "  --no-persist             Disable auto-persist of cookies/storage"
      "  --json                  JSON output mode"
      "  --interactive           Show browser window (headed mode)"
      "  --proxy URL             HTTP proxy"
@@ -1261,11 +1262,8 @@
                 (= "--allow-file-access" arg)
                 (recur (rest args) (assoc flags :allow-file-access true) remaining)
 
-                (= "--session-name" arg)
-                (recur (drop 2 args) (assoc flags :session (second args)) remaining)
-
-                (str/starts-with? arg "--session-name=")
-                (recur (rest args) (assoc flags :session (subs arg 15)) remaining)
+                (= "--no-persist" arg)
+                (recur (rest args) (assoc flags :no-persist true) remaining)
 
                 (= "--cdp" arg)
                 (recur (drop 2 args) (assoc flags :cdp (second args)) remaining)
