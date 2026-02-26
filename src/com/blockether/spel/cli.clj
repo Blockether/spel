@@ -814,10 +814,17 @@
       "Aliases: close, quit, exit"
       ""
       "Usage:"
-      "  spel close"
+      "  spel close                    Close current session (default)"
+      "  spel close --all-sessions     Close all active sessions"
+      "  spel --session NAME close     Close a specific named session"
+      ""
+      "Flags:"
+      "  --all-sessions    Close every active daemon session"
       ""
       "Examples:"
       "  spel close"
+      "  spel close --all-sessions"
+      "  spel --session work close"
       "  spel quit"
       "  spel exit"])
 
@@ -1733,7 +1740,9 @@
 
           ;; Close (+ aliases)
             ("close" "quit" "exit")
-            {:action "close"}
+            (cond-> {:action "close"}
+              (some #{"--all-sessions"} cmd-args)
+              (assoc :all-sessions true))
 
           ;; Install
             "install"  {:action "install"
@@ -1824,6 +1833,38 @@
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
            (catch Exception _ nil)))))
+
+(defn- discover-sessions
+  "Finds all active spel sessions by looking for .sock files in tmpdir.
+   Returns a seq of session name strings."
+  []
+  (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))
+        socks   (.listFiles tmp-dir)]
+    (when socks
+      (->> socks
+        (filter (fn [^java.io.File f]
+                  (and (.exists f)
+                    (str/starts-with? (.getName f) "spel-")
+                    (str/ends-with? (.getName f) ".sock"))))
+        (mapv (fn [^java.io.File f]
+                (-> (.getName f)
+                  (str/replace "spel-" "")
+                  (str/replace ".sock" ""))))))))
+
+(defn- close-session!
+  "Gracefully closes a single daemon session. Sends close command,
+   waits for the process to exit, then cleans up files."
+  [^String session]
+  (let [old-pid (read-pid session)]
+    (try
+      (send-command! session {:action "close"} 5000)
+      (catch Exception _ nil))
+    (when old-pid
+      (loop [tries 0]
+        (when (and (< tries 100) (process-alive? old-pid))
+          (Thread/sleep 100)
+          (recur (inc tries)))))
+    (cleanup-session-files! session)))
 
 (defn- socket-connectable?
   "Tries to connect to the daemon's Unix socket. Returns true if connectable."
@@ -2206,6 +2247,17 @@
       (com.microsoft.playwright.CLI/main
         (into-array String (into ["show-trace"] (:cli-args command))))
       (System/exit 0))
+
+    ;; Close --all-sessions — close every active daemon (bypasses ensure-daemon!)
+    (when (and (= "close" (:action command)) (:all-sessions command))
+      (let [sessions (discover-sessions)]
+        (if (seq sessions)
+          (do (doseq [s sessions]
+                (close-session! s)
+                (println (str "Closed session: " s)))
+              (System/exit 0))
+          (do (println "No active sessions.")
+              (System/exit 0)))))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)

@@ -371,11 +371,18 @@
     (let [ref-id (str/replace selector #"^@" "")
           refs   (:refs @!state)]
       (when-not (get refs ref-id)
-        (let [known (sort (keys refs))
-              hint  (if (seq known)
-                      (str "Available: @" (first known) "–@" (last known) ". Run 'snapshot' to refresh.")
-                      "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, …).")]
-          (throw (ex-info (str "Ref " ref-id " not found. " hint) {}))))
+        (let [hint (if (seq refs)
+                    (let [rows (for [[k v] (sort-by key refs)]
+                                 (str "  @" k "  " (:role v)
+                                   (when-let [n (:name v)]
+                                     (when-not (str/blank? n)
+                                       (str " \"" (if (> (count n) 40)
+                                                       (str (subs n 0 37) "...")
+                                                       n) "\"")))))]
+                      (str "Available refs:\n" (str/join "\n" rows)
+                        "\nRun 'snapshot' to refresh."))
+                    "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
+          (throw (ex-info (str "Ref " ref-id " not found.\n" hint) {}))))
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
 
