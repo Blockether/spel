@@ -184,6 +184,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `route-from-har!` | [page har] \| [page har route-opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
 | `route-web-socket!` | [page pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
 | `screenshot` | [page] \| [page ss-opts] | Takes a screenshot of the page. |
+| `scroll` | [page] \| [page direction] \| [page direction opts] | Scrolls the page by the given amount in the given direction. |
 | `set-content!` | [page html] \| [page html set-opts] | Sets the HTML content of the page. |
 | `set-default-navigation-timeout!` | [page timeout] | Sets the default navigation timeout. |
 | `set-default-timeout!` | [page timeout] | Sets the default timeout for page operations. |
@@ -273,6 +274,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `locator-screenshot` | [loc] \| [loc ss-opts] | Takes a screenshot of the element. |
 | `nth-element` | [loc index] | Returns the nth element matching the locator. |
 | `press` | [loc key] \| [loc key press-opts] | Presses a key or key combination. |
+| `scroll` | [loc] \| [loc direction] \| [loc direction opts] | Scrolls within an element by the given amount and direction. |
 | `scroll-into-view` | [loc] | Scrolls element into view. |
 | `select-option` | [loc values] | Selects options in a select element. |
 | `set-input-files!` | [loc files] | Sets the value of a file input element. |
@@ -711,7 +713,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
 | `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
-| `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers (e.g. "@e2yrjz"). |
 | `spel/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
@@ -749,7 +751,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/reload` | [] | Reloads the page. |
 | `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `spel/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
-| `spel/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `spel/resolve-ref` | [ref-id] | Resolves a snapshot ref (e.g. "@e2yrjz") to a Playwright Locator. |
 | `spel/restart!` | [] \| [opts] | Stops the current session and starts a new one with the given options. |
 | `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
 | `spel/route-from-har!` | [har] \| [har opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
@@ -757,6 +759,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
 | `spel/save-audit-screenshot!` | [caption path] \| [caption path opts] | Takes an audit screenshot and saves it to a file. |
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
+| `spel/scroll` | [] \| [direction] \| [direction opts] | Scrolls the page or a specific element. |
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
 | `spel/select-option` | [sel values] | Selects options in a select element. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
@@ -805,7 +808,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `snapshot/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `snapshot/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `snapshot/ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
-| `snapshot/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `snapshot/resolve-ref` | [ref-id] | Resolves a snapshot ref (e.g. "@e2yrjz") to a Playwright Locator. |
 
 ### `annotate/` — Page annotation overlays
 
@@ -813,7 +816,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 |----------|------|-------------|
 | `annotate/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
 | `annotate/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
-| `annotate/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `annotate/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers (e.g. "@e2yrjz"). |
 | `annotate/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `annotate/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `annotate/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
@@ -966,6 +969,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `loc/nth-element` | [loc index] | Returns the nth element matching the locator. |
 | `loc/press` | [loc key] \| [loc key press-opts] | Presses a key or key combination. |
 | `loc/screenshot` | [loc] \| [loc ss-opts] | Takes a screenshot of the element. |
+| `loc/scroll` | [loc] \| [loc direction] \| [loc direction opts] | Scrolls within an element by the given amount and direction. |
 | `loc/scroll-into-view` | [loc] | Scrolls element into view. |
 | `loc/select-option` | [loc values] | Selects options in a select element. |
 | `loc/set-input-files!` | [loc files] | Sets the value of a file input element. |
@@ -1102,7 +1106,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `check / uncheck <sel>` | Toggle checkbox |
 | `focus <sel>` | Focus element |
 | `clear <sel>` | Clear input |
-| `scroll <dir> [px]` | Scroll (up/down/left/right) |
+| `scroll <dir> [px] [sel]` | Scroll page or element (-S for smooth) |
 | `scrollintoview <sel>` | Scroll element into view |
 | `drag <src> <tgt>` | Drag and drop |
 | `upload <sel> <files...>` | Upload files |
@@ -1283,7 +1287,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--cdp <url>` | Connect via CDP endpoint |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
-| `--stealth` | Stealth mode: anti-detection patches |
+| `--no-stealth` | Disable stealth mode (stealth is ON by default) |
 | `--timeout <ms>` | Playwright action timeout in ms (default: 30000) |
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |

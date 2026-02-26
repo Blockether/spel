@@ -688,14 +688,18 @@
       (let [f (flags ["--headers={\"Auth\":\"Bearer\"}" "open" "http://x.com"])]
         (expect (= "{\"Auth\":\"Bearer\"}" (:headers f))))))
 
-  (describe "--stealth flag"
-    (it "sets stealth to true"
+  (describe "--stealth / --no-stealth flags"
+    (it "defaults stealth to true"
+      (let [f (flags ["open" "http://x.com"])]
+        (expect (true? (:stealth f)))))
+
+    (it "--stealth explicitly sets stealth to true"
       (let [f (flags ["--stealth" "open" "http://x.com"])]
         (expect (true? (:stealth f)))))
 
-    (it "defaults stealth to nil (absent)"
-      (let [f (flags ["open" "http://x.com"])]
-        (expect (nil? (:stealth f))))))
+    (it "--no-stealth disables stealth"
+      (let [f (flags ["--no-stealth" "open" "http://x.com"])]
+        (expect (false? (:stealth f))))))
 
   (describe "--load-state flag"
     (it "sets storage-state via --load-state"

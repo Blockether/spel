@@ -32,7 +32,8 @@
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
-   [java.util Base64]))
+   [java.util Base64]
+   [java.util.concurrent ExecutorService Executors]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -88,6 +89,13 @@
          :tracing? false}))
 
 (defonce ^:private !server (atom nil))
+(defonce ^:private ^ExecutorService !vthread-executor
+  (Executors/newVirtualThreadPerTaskExecutor))
+
+(defn- submit-virtual
+  "Submits a task to the virtual thread executor."
+  [^Runnable f]
+  (.submit !vthread-executor f))
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
@@ -372,16 +380,16 @@
           refs   (:refs @!state)]
       (when-not (get refs ref-id)
         (let [hint (if (seq refs)
-                    (let [rows (for [[k v] (sort-by key refs)]
-                                 (str "  @" k "  " (:role v)
-                                   (when-let [n (:name v)]
-                                     (when-not (str/blank? n)
-                                       (str " \"" (if (> (count n) 40)
-                                                       (str (subs n 0 37) "...")
-                                                       n) "\"")))))]
-                      (str "Available refs:\n" (str/join "\n" rows)
-                        "\nRun 'snapshot' to refresh."))
-                    "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
+                     (let [rows (for [[k v] (sort-by key refs)]
+                                  (str "  @" k "  " (:role v)
+                                    (when-let [n (:name v)]
+                                      (when-not (str/blank? n)
+                                        (str " \"" (if (> (count n) 40)
+                                                     (str (subs n 0 37) "...")
+                                                     n) "\"")))))]
+                       (str "Available refs:\n" (str/join "\n" rows)
+                         "\nRun 'snapshot' to refresh."))
+                     "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
           (throw (ex-info (str "Ref " ref-id " not found.\n" hint) {}))))
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
@@ -425,7 +433,7 @@
   []
   (try
     (let [desc (page/evaluate (pg)
-               "document.querySelector('meta[name=description]')?.content || ''")]
+                 "document.querySelector('meta[name=description]')?.content || ''")]
       (when-not (str/blank? desc) desc))
     (catch Exception _ nil)))
 
@@ -624,19 +632,13 @@
   (let [direction (get params "direction" "down")
         amount    (long (get params "amount" 500))
         sel       (get params "selector")
-        [dx dy]   (case direction
-                    "up"    [0 (- amount)]
-                    "down"  [0 amount]
-                    "left"  [(- amount) 0]
-                    "right" [amount 0]
-                    [0 amount])]
-    (if sel
-      (page/evaluate (pg)
-        (str "document.querySelector('" sel "').scrollBy(" dx ", " dy ")"))
-      (page/evaluate (pg)
-        (str "window.scrollBy(" dx ", " dy ")")))
-    (let [tree (snapshot-after-action!)]
-      {:scrolled direction :amount amount :snapshot tree})))
+        smooth?   (get params "smooth" false)
+        opts      {:amount amount :smooth? smooth?}
+        result    (if sel
+                    (locator/scroll (resolve-selector sel) direction opts)
+                    (page/scroll (pg) direction opts))
+        tree      (snapshot-after-action!)]
+    (assoc result :snapshot tree)))
 
 (defmethod handle-cmd "back" [_ _]
   (ensure-page-loaded!)
@@ -1329,16 +1331,16 @@
               (seq new-console)     (assoc :console new-console)
               (seq new-errors)      (assoc :page-errors new-errors))
             (let [base (cond-> {:result (pr-str result)}
-                          (seq captured-stdout) (assoc :stdout captured-stdout)
-                          (seq captured-stderr) (assoc :stderr captured-stderr)
-                          (seq new-console)     (assoc :console new-console)
-                          (seq new-errors)      (assoc :page-errors new-errors))]
+                         (seq captured-stdout) (assoc :stdout captured-stdout)
+                         (seq captured-stderr) (assoc :stderr captured-stderr)
+                         (seq new-console)     (assoc :console new-console)
+                         (seq new-errors)      (assoc :page-errors new-errors))]
               ;; If result looks like a snapshot map, include formatted data
               ;; so the CLI can display tree + metadata instead of raw EDN.
               (if (and (map? result) (:tree result))
                 (cond-> (assoc base :snapshot (:tree result)
-                                    :url (:url result)
-                                    :title (:title result))
+                          :url (:url result)
+                          :title (:title result))
                   (:description result) (assoc :description (:description result)))
                 base))))
         (catch Exception e
@@ -1452,7 +1454,7 @@
                               (let [parsed (try (json/read-json response) (catch Exception _ nil))]
                                 (and parsed (get-in parsed ["data" "shutdown"])))))]
             (if shutdown?
-              (future (stop-daemon!))
+              (submit-virtual stop-daemon!)
               (recur)))))
       (catch Exception e (warn "handle-connection" e))
       (finally
@@ -1573,7 +1575,7 @@
       (try
         (loop []
           (let [client (.accept server)]
-            (future (handle-connection client)))
+            (submit-virtual #(handle-connection client)))
           (recur))
         (catch Exception _
           ;; Server closed

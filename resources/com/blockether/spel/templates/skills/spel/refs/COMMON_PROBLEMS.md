@@ -30,22 +30,21 @@ Then `(spel/start!)` again.
 
 **Cause:** Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
 
-**Fix:** Use `--stealth` mode (recommended), headed mode, or combine both:
+**Fix:** Stealth mode is ON by default in the CLI, so this should work out of the box. For stubborn sites, try headed mode or combine with real Chrome cookies:
 
 ```bash
-# Option A: stealth mode (patches navigator.webdriver, plugins, WebGL, etc.)
-spel --stealth open https://protected-site.com
-
-# Option B: stealth + headed (best results for stubborn sites)
-spel --stealth --interactive open https://protected-site.com
-
-# Option C: stealth + real Chrome cookies (maximum authenticity)
-spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default -o auth.json
-spel --stealth --load-state auth.json open https://protected-site.com
-
-# Option D: environment variable (persistent across commands)
-export SPEL_STEALTH=true
+# Default: stealth is already on
 spel open https://protected-site.com
+
+# Option A: stealth + headed (best results for stubborn sites)
+spel --interactive open https://protected-site.com
+
+# Option B: stealth + real Chrome cookies (maximum authenticity)
+spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default -o auth.json
+spel --load-state auth.json open https://protected-site.com
+
+# Option C: disable stealth if it causes issues
+spel --no-stealth open https://protected-site.com
 ```
 
 ```clojure

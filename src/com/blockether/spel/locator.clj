@@ -225,6 +225,39 @@
   [^Locator loc]
   (safe (.scrollIntoViewIfNeeded loc)))
 
+(defn scroll
+  "Scrolls within an element by the given amount and direction.
+
+   Params:
+   `loc`       - Locator instance for the scrollable element.
+   `direction` - Keyword or string: :up :down :left :right (default :down).
+   `opts`      - Optional map:
+     :amount   - Pixels to scroll (default 500).
+     :smooth?  - When true, uses smooth animated scrolling (default false).
+
+   Returns:
+   Map with :scrolled, :amount, :smooth keys, or anomaly map."
+  ([^Locator loc]
+   (scroll loc :down {}))
+  ([^Locator loc direction]
+   (scroll loc direction {}))
+  ([^Locator loc direction opts]
+   (let [dir      (name (or direction :down))
+         amount   (long (get opts :amount 500))
+         smooth?  (boolean (get opts :smooth? false))
+         [dx dy]  (case dir
+                    "up"    [0 (- amount)]
+                    "down"  [0 amount]
+                    "left"  [(- amount) 0]
+                    "right" [amount 0]
+                    [0 amount])
+         behavior (if smooth? "'smooth'" "'instant'")
+         js-opts  (str "{left: " dx ", top: " dy ", behavior: " behavior "}")]
+     (safe (.evaluate loc (str "(el) => el.scrollBy(" js-opts ")")))
+     (when smooth?
+       (Thread/sleep (min (long (* amount 0.8)) 800)))
+     {:scrolled dir :amount amount :smooth smooth?})))
+
 (defn dispatch-event
   "Dispatches a DOM event on the element.
    

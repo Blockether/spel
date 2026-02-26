@@ -280,20 +280,28 @@
 
    "scroll"
    (str/join \newline
-     ["scroll - Scroll the page"
+     ["scroll - Scroll the page or an element"
       ""
       "Usage:"
-      "  spel scroll [direction] [amount]"
+      "  spel scroll [direction] [amount] [selector]"
+      "  spel scroll [direction] [amount] --in <selector>"
       ""
       "Arguments:"
       "  direction    up, down, left, or right (default: down)"
       "  amount       Pixels to scroll (default: 500)"
+      "  selector     Element ref (@eXXXXX) or CSS selector to scroll within"
+      ""
+      "Flags:"
+      "  -S, --smooth    Smooth animated scroll (default: instant jump)"
+      "  --in <sel>      Element to scroll within (alternative to positional selector)"
       ""
       "Examples:"
-      "  spel scroll"
-      "  spel scroll down 1000"
-      "  spel scroll up 500"
-      "  spel scroll left 200"])
+      "  spel scroll                          Scroll page down 500px (instant)"
+      "  spel scroll down 1000               Scroll page down 1000px"
+      "  spel scroll up 500 --smooth          Smooth scroll page up 500px"
+      "  spel scroll down 300 @e2yrjz         Scroll within element by ref"
+      "  spel scroll down 500 --in #sidebar   Scroll within #sidebar element"
+      "  spel scroll -S down 800              Smooth scroll shorthand"])
 
    "scrollintoview"
    (str/join \newline
@@ -1126,7 +1134,7 @@
      "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
      "  --channel NAME         Browser channel (e.g. \"chrome\", \"msedge\")"
-     "  --stealth               Stealth mode: anti-detection patches (hides automation signals)"
+     "  --no-stealth            Disable stealth mode (stealth is ON by default)"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
@@ -1136,7 +1144,7 @@
      "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
      "  SPEL_PROFILE            Chrome user data directory path"
      "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\")"
-     "  SPEL_STEALTH            Set to \"true\" for stealth mode"
+     "  SPEL_STEALTH            Set to \"false\" to disable stealth mode (ON by default)"
      "  SPEL_HEADERS            Default HTTP headers (JSON)"
      "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
 
@@ -1152,7 +1160,7 @@
    :flags contains global options like :session, :json."
   [args]
   (let [;; Read environment variable defaults
-        env-defaults (cond-> {:session "default" :headless true :json false}
+        env-defaults (cond-> {:session "default" :headless true :json false :stealth true}
                        (System/getenv "SPEL_SESSION")
                        (assoc :session (System/getenv "SPEL_SESSION"))
                        (= "true" (System/getenv "SPEL_JSON"))
@@ -1175,8 +1183,8 @@
                        (assoc :ignore-https-errors true)
                        (= "true" (System/getenv "SPEL_DEBUG"))
                        (assoc :debug true)
-                       (= "true" (System/getenv "SPEL_STEALTH"))
-                       (assoc :stealth true)
+                       (= "false" (System/getenv "SPEL_STEALTH"))
+                       (assoc :stealth false)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
                        (System/getenv "SPEL_CHANNEL")
@@ -1286,6 +1294,9 @@
 
                 (= "--stealth" arg)
                 (recur (rest args) (assoc flags :stealth true) remaining)
+
+                (= "--no-stealth" arg)
+                (recur (rest args) (assoc flags :stealth false) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
@@ -1421,10 +1432,42 @@
             "focus"    {:action "focus" :selector (first cmd-args)}
 
           ;; Scroll (+ aliases)
-            "scroll"   (let [direction (or (first cmd-args) "down")
-                             amount (try (Integer/parseInt (or (second cmd-args) "500"))
-                                         (catch Exception _ 500))]
-                         {:action "scroll" :direction direction :amount amount})
+            "scroll"   (let [scroll-flags (set cmd-args)
+                             smooth?   (or (scroll-flags "--smooth") (scroll-flags "-S"))
+                             ;; Parse --in <selector> for element scrolling
+                             in-idx    (let [v    (vec cmd-args)
+                                             idx1 (long (.indexOf ^java.util.List v "--in"))]
+                                         (when (>= idx1 0)
+                                           (nth cmd-args (inc (long idx1)) nil)))
+                             ;; Positional args: direction [amount] [@selector]
+                             pos-args  (remove #(or (str/starts-with? % "-")
+                                                  (= % (str in-idx))) cmd-args)
+                             direction (or (first pos-args) "down")
+                             rest-pos  (rest pos-args)
+                             ;; Check if second positional is a number or selector
+                             second-arg (first rest-pos)
+                             amount    (if second-arg
+                                         (try (Integer/parseInt second-arg)
+                                              (catch Exception _ 500))
+                                         500)
+                             ;; Third positional as selector, or second if it's not a number
+                             sel       (or in-idx
+                                         (let [third (second rest-pos)]
+                                           (when (and third (or (str/starts-with? third "@")
+                                                              (str/starts-with? third "#")
+                                                              (str/starts-with? third ".")))
+                                             third))
+                                           ;; If second-arg wasn't a number, it's a selector
+                                         (when (and second-arg
+                                                 (not (try (Integer/parseInt second-arg) true
+                                                           (catch Exception _ false)))
+                                                 (or (str/starts-with? second-arg "@")
+                                                   (str/starts-with? second-arg "#")
+                                                   (str/starts-with? second-arg ".")))
+                                           second-arg))]
+                         (cond-> {:action "scroll" :direction direction :amount amount}
+                           smooth? (assoc :smooth true)
+                           sel     (assoc :selector sel)))
 
             ("scrollintoview" "scrollinto")
             {:action "scrollintoview" :selector (first cmd-args)}
