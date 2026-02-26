@@ -711,7 +711,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
 | `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
-| `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers (e.g. "@e2yrjz"). |
 | `spel/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
@@ -749,7 +749,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/reload` | [] | Reloads the page. |
 | `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `spel/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
-| `spel/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `spel/resolve-ref` | [ref-id] | Resolves a snapshot ref (e.g. "@e2yrjz") to a Playwright Locator. |
 | `spel/restart!` | [] \| [opts] | Stops the current session and starts a new one with the given options. |
 | `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
 | `spel/route-from-har!` | [har] \| [har opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
@@ -805,7 +805,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `snapshot/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `snapshot/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `snapshot/ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
-| `snapshot/resolve-ref` | [ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `snapshot/resolve-ref` | [ref-id] | Resolves a snapshot ref (e.g. "@e2yrjz") to a Playwright Locator. |
 
 ### `annotate/` — Page annotation overlays
 
@@ -813,7 +813,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 |----------|------|-------------|
 | `annotate/annotated-screenshot` | [refs] \| [refs opts] | Takes a screenshot with annotation overlays (convenience function). |
 | `annotate/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
-| `annotate/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers. |
+| `annotate/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers (e.g. "@e2yrjz"). |
 | `annotate/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
 | `annotate/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `annotate/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
@@ -1283,7 +1283,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--cdp <url>` | Connect via CDP endpoint |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
-| `--stealth` | Stealth mode: anti-detection patches |
+| `--no-stealth` | Disable stealth mode (stealth is ON by default) |
 | `--timeout <ms>` | Playwright action timeout in ms (default: 30000) |
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |
