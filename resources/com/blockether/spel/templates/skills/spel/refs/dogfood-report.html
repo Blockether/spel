@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dogfood Report: {APP_NAME}</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-raised: #1c2129;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --critical: #f85149;
+    --high: #db6d28;
+    --medium: #d29922;
+    --low: #3fb950;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+  .meta-table {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+  .meta-table dt { font-weight: 600; color: var(--text); }
+  .meta-table dd { color: var(--text-muted); }
+
+  /* Summary */
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-item {
+    text-align: center;
+    min-width: 80px;
+  }
+  .summary-item .count {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+  }
+  .summary-item .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+  .count--critical { color: var(--critical); }
+  .count--high { color: var(--high); }
+  .count--medium { color: var(--medium); }
+  .count--low { color: var(--low); }
+  .count--total { color: var(--accent); }
+
+  /* Findings */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  .finding-header {
+    background: var(--surface-raised);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .finding-id {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .severity {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    color: var(--bg);
+  }
+  .severity--critical { background: var(--critical); }
+  .severity--high { background: var(--high); }
+  .severity--medium { background: var(--medium); }
+  .severity--low { background: var(--low); }
+  .category {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+  .finding-body { padding: 1.25rem; }
+  .finding-body h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .finding-url {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-bottom: 1rem;
+  }
+
+  /* Interleaved explanation + screenshot blocks */
+  .explanation {
+    background: var(--surface-raised);
+    border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    border-radius: 0 4px 4px 0;
+  }
+  .explanation::before {
+    content: "Agent";
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+  figure {
+    margin: 0.75rem 0;
+  }
+  figure img {
+    width: 100%;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  figcaption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    font-style: italic;
+  }
+  .console-output {
+    margin-top: 0.75rem;
+  }
+  .console-output pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--critical);
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: 2rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dogfood Report: {APP_NAME}</h1>
+  <dl class="meta-table">
+    <dt>Date</dt>        <dd>{DATE}</dd>
+    <dt>URL</dt>         <dd>{URL}</dd>
+    <dt>Session</dt>     <dd>{SESSION_NAME}</dd>
+    <dt>Scope</dt>       <dd>{SCOPE}</dd>
+    <dt>Tool</dt>        <dd>spel (Blockether Playwright wrapper)</dd>
+  </dl>
+</header>
+
+<div class="summary">
+  <div class="summary-item"><span class="count count--critical">{CRITICAL_COUNT}</span><span class="label">Critical</span></div>
+  <div class="summary-item"><span class="count count--high">{HIGH_COUNT}</span><span class="label">High</span></div>
+  <div class="summary-item"><span class="count count--medium">{MEDIUM_COUNT}</span><span class="label">Medium</span></div>
+  <div class="summary-item"><span class="count count--low">{LOW_COUNT}</span><span class="label">Low</span></div>
+  <div class="summary-item"><span class="count count--total">{TOTAL_COUNT}</span><span class="label">Total</span></div>
+</div>
+
+<!-- FINDINGS START — Append new findings above the FINDINGS END marker -->
+
+<!--
+FINDING TEMPLATE — Copy this block for each issue. The key pattern is interleaving
+screenshots with agent explanations so the report reads as a visual walkthrough.
+
+<section class="finding">
+  <div class="finding-header">
+    <span class="finding-id">ISSUE-001</span>
+    <span class="severity severity--medium">MEDIUM</span>
+    <span class="category">functional</span>
+  </div>
+  <div class="finding-body">
+    <h3>{Short title describing the issue}</h3>
+    <p class="finding-url">{page URL}</p>
+
+    <div class="explanation">
+      I navigated to the settings page to test form interactions.
+      The page loaded normally with all fields visible.
+    </div>
+
+    <figure>
+      <img src="screenshots/issue-001-step-1.png" alt="Settings page loaded">
+      <figcaption>Settings page in its initial state</figcaption>
+    </figure>
+
+    <div class="explanation">
+      I entered a valid email address and clicked Save. The button showed
+      a loading state briefly, then the page refreshed — but the old email
+      was still displayed. The change was not persisted.
+    </div>
+
+    <figure>
+      <img src="screenshots/issue-001-result.png" alt="Email not saved">
+      <figcaption>After save: the original email is still shown</figcaption>
+    </figure>
+
+    <div class="console-output">
+      <pre>PUT /api/settings 422 — {"error": "email_already_taken"}</pre>
+    </div>
+  </div>
+</section>
+-->
+
+<!-- FINDINGS END -->
+
+<footer>
+  Generated by spel dogfood workflow
+</footer>
+
+</body>
+</html>

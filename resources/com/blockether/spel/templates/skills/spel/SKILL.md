@@ -225,6 +225,12 @@ Detailed documentation is split into topic-specific reference files:
 | `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
 | `refs/PROFILES_AGENTS.md` | Browser profiles, **stealth mode**, **cookie export**, storage state, agent scaffolding |
 
+### QA / Exploratory Testing
+| Ref | Topic |
+|-----|-------|
+| `refs/DOGFOOD.md` | Dogfood workflow -- systematic exploratory testing, HTML report with screenshots + agent explanations |
+| `refs/dogfood-report.html` | HTML report template for dogfood sessions |
+
 ### Troubleshooting
 | Ref | Topic |
 |-----|-------|
