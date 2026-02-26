@@ -82,7 +82,7 @@ error() {
 }
 
 # assert_jq: evaluate a jq boolean expression against output
-# Usage: assert_jq "test name" "$output" '.url == "https://example.com/"'
+# Usage: assert_jq "test name" "$output" '.url == "https://example.org/"'
 assert_jq() {
   local name="$1"
   local output="$2"
@@ -203,15 +203,15 @@ TEMP_FILES+=(/tmp/test-upload.txt)
 
 "$SPEL" close 2>/dev/null || true
 pkill -f "[s]pel daemon" 2>/dev/null || true
-"$SPEL" open https://example.com >/dev/null 2>&1
+"$SPEL" open https://example.org >/dev/null 2>&1
 
 # =============================================================================
 # NAVIGATION (4)
 # =============================================================================
 section "Navigation (4)"
 
-OUT=$("$SPEL" --json open https://example.com 2>&1)
-assert_jq_eq "open → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$("$SPEL" --json open https://example.org 2>&1)
+assert_jq_eq "open → .url" "$OUT" '.url' 'https://example.org/'
 assert_jq_eq "open → .title" "$OUT" '.title' 'Example Domain'
 assert_jq_contains "open → .snapshot has refs" "$OUT" '.snapshot' '[@e'
 # Navigate to a second URL so back/forward have history
@@ -222,7 +222,7 @@ assert_jq "back → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json forward 2>&1)
 assert_jq "forward → success" "$OUT" 'has("error") | not'
 # Restore page after back/forward
-nav "https://example.com"
+nav "https://example.org"
 
 OUT=$("$SPEL" --json reload 2>&1)
 assert_jq_contains "reload → snapshot has refs" "$OUT" '.snapshot' '[@e'
@@ -333,7 +333,7 @@ OUT=$("$SPEL" --json upload "input#file-upload" /tmp/test-upload.txt 2>&1)
 assert_jq "upload file → success" "$OUT" 'has("error") | not'
 
 # Return to example.com
-nav "https://example.com"
+nav "https://example.org"
 
 # =============================================================================
 # SCREENSHOTS & PDF (4)
@@ -411,7 +411,7 @@ OUT=$("$SPEL" --json get attr "@$LINK_REF" href 2>&1)
 assert_jq_contains "get attr @link href → .value has iana" "$OUT" '.value' 'iana.org'
 
 OUT=$("$SPEL" --json get url 2>&1)
-assert_jq_eq "get url → .url" "$OUT" '.url' 'https://example.com/'
+assert_jq_eq "get url → .url" "$OUT" '.url' 'https://example.org/'
 
 OUT=$("$SPEL" --json get title 2>&1)
 assert_jq_eq "get title → .title" "$OUT" '.title' 'Example Domain'
@@ -459,7 +459,7 @@ OUT=$("$SPEL" --json find role button click --name Login 2>&1)
 assert_jq_eq "find role button --name → .found" "$OUT" '.found' 'role'
 
 # Position-based find
-nav "https://example.com"
+nav "https://example.org"
 
 OUT=$("$SPEL" --json find first p click 2>&1)
 assert_jq_eq "find first p click → .found" "$OUT" '.found' 'first'
@@ -486,7 +486,7 @@ OUT=$("$SPEL" --json find testid "submit-btn" click 2>&1)
 assert_jq_eq "find testid → .found" "$OUT" '.found' 'testid'
 
 # Restore example.com
-nav "https://example.com"
+nav "https://example.org"
 
 # =============================================================================
 # MOUSE CONTROL (4)
@@ -544,7 +544,7 @@ assert_jq_eq "set media dark → .media.colorScheme" "$OUT" '.media.colorScheme'
 # =============================================================================
 section "Cookies & Storage (11)"
 
-nav "https://example.com"
+nav "https://example.org"
 
 OUT=$("$SPEL" --json cookies 2>&1)
 assert_jq "cookies list → success" "$OUT" 'has("error") | not'
@@ -625,7 +625,7 @@ assert_jq "network clear → success" "$OUT" 'has("error") | not'
 # =============================================================================
 section "Tabs & Windows (13)"
 
-nav "https://example.com"
+nav "https://example.org"
 
 OUT=$("$SPEL" --json tab 2>&1)
 assert_jq "tab list → success" "$OUT" 'has("error") | not'
@@ -649,7 +649,7 @@ assert_jq "tab close (2nd tab) → .closed" "$OUT" '.closed == true'
 
 # Verify we're back to 1 tab on example.com
 OUT=$("$SPEL" --json get url 2>&1)
-assert_jq_eq "after closing 2nd tab → back on example.com" "$OUT" '.url' 'https://example.com/'
+assert_jq_eq "after closing 2nd tab → back on example.com" "$OUT" '.url' 'https://example.org/'
 
 # Open tab with URL, switch between them
 OUT=$("$SPEL" --json tab new https://the-internet.herokuapp.com/login 2>&1)
@@ -660,7 +660,7 @@ OUT=$("$SPEL" --json tab 0 2>&1)
 assert_jq "tab 0 (switch to original) → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json get url 2>&1)
-assert_jq_eq "tab 0 → url is example.com" "$OUT" '.url' 'https://example.com/'
+assert_jq_eq "tab 0 → url is example.com" "$OUT" '.url' 'https://example.org/'
 
 # Switch back to tab 1 (the-internet)
 OUT=$("$SPEL" --json tab 1 2>&1)
@@ -674,7 +674,7 @@ OUT=$("$SPEL" --json tab close 2>&1)
 assert_jq "tab close (from 2nd tab) → .closed" "$OUT" '.closed == true'
 
 OUT=$("$SPEL" --json get url 2>&1)
-assert_jq_eq "after close → landed on tab 0" "$OUT" '.url' 'https://example.com/'
+assert_jq_eq "after close → landed on tab 0" "$OUT" '.url' 'https://example.org/'
 
 
 # =============================================================================
@@ -712,7 +712,7 @@ OUT=$("$SPEL" --json dialog accept "my prompt text" 2>&1)
 assert_jq_eq "dialog accept text → .text" "$OUT" '.text' 'my prompt text'
 "$SPEL" click "button[onclick='jsPrompt()']" >/dev/null 2>&1
 
-nav "https://example.com"
+nav "https://example.org"
 
 # =============================================================================
 # DEBUG (7)
@@ -720,7 +720,7 @@ nav "https://example.com"
 section "Debug (7)"
 
 # Ensure page is loaded for console/errors handlers
-nav "https://example.com"
+nav "https://example.org"
 
 OUT=$("$SPEL" --json trace start 2>&1)
 assert_jq_eq "trace start → .trace" "$OUT" '.trace' 'started'
@@ -775,7 +775,7 @@ assert_jq "state clear → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json state load "$STATE_PATH" 2>&1)
 assert_jq "state load → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json get url 2>&1)
-assert_jq_eq "get url after state load → .url" "$OUT" '.url' 'https://example.com/'
+assert_jq_eq "get url after state load → .url" "$OUT" '.url' 'https://example.org/'
 
 # state rename
 "$SPEL" state save >/dev/null 2>&1
@@ -808,8 +808,8 @@ assert_jq_eq "session → .session" "$OUT" '.session' 'default'
 OUT=$("$SPEL" --json session list 2>&1)
 assert_jq "session list → success" "$OUT" 'has("error") | not'
 
-OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>/dev/null) || true
-assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.org 2>/dev/null) || true
+assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.org/'
 timeout 10 "$SPEL" --session testsession close >/dev/null 2>&1 || true
 
 # =============================================================================
@@ -842,11 +842,11 @@ assert_jq "close → success" "$OUT" 'has("error") | not'
 # =============================================================================
 section "Global Flags (2)"
 
-OUT=$("$SPEL" --json open https://example.com 2>&1)
-assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$("$SPEL" --json open https://example.org 2>&1)
+assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.org/'
 
-OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>/dev/null) || true
-assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.org 2>/dev/null) || true
+assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.org/'
 timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
 
 # Final close
@@ -865,14 +865,14 @@ if [[ "$(uname)" != "Darwin" ]] && [[ -z "${DISPLAY:-}" ]] && command -v xvfb-ru
   HEADED_CMD=(xvfb-run "$SPEL")
 fi
 
-OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.com --interactive 2>/dev/null) || true
-assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.org --interactive 2>/dev/null) || true
+assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.org/'
 assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
 
 OUT=$(timeout 15 "$SPEL" --json close 2>&1) || true
 assert_jq "interactive close → success" "$OUT" 'has("error") | not'
-OUT=$(timeout 30 "$SPEL" --json open https://example.com 2>&1) || true
-assert_jq_eq "headless reopen after interactive → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "$SPEL" --json open https://example.org 2>&1) || true
+assert_jq_eq "headless reopen after interactive → .url" "$OUT" '.url' 'https://example.org/'
 assert_jq_contains "headless reopen → snapshot" "$OUT" '.snapshot' '[@e'
 
 "$SPEL" close 2>/dev/null || true
@@ -883,7 +883,7 @@ assert_jq_contains "headless reopen → snapshot" "$OUT" '.snapshot' '[@e'
 section "Stitch (5)"
 
 # Create two small test PNGs using the spel binary itself
-"$SPEL" open https://example.com >/dev/null 2>&1
+"$SPEL" open https://example.org >/dev/null 2>&1
 "$SPEL" set viewport 320 240 >/dev/null 2>&1
 STITCH_A="/tmp/test-stitch-a.png"
 STITCH_B="/tmp/test-stitch-b.png"
@@ -941,7 +941,7 @@ assert_contains "stitch --help mentions stitch" "$OUT" "stitch"
 # =============================================================================
 section "Annotate & Unannotate (4)"
 
-"$SPEL" open https://example.com >/dev/null 2>&1
+"$SPEL" open https://example.org >/dev/null 2>&1
 
 OUT=$("$SPEL" --json annotate 2>&1)
 assert_jq_gt "annotate → .annotated > 0" "$OUT" '.annotated' 0
@@ -1029,7 +1029,7 @@ TEMP_FILES+=("$CODEGEN_JSONL" "$CODEGEN_SCRIPT")
 cat > "$CODEGEN_JSONL" <<'JSONL'
 {"browserName":"chromium","launchOptions":{"headless":true},"contextOptions":{}}
 {"name":"openPage","url":"about:blank","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
-{"name":"navigate","url":"https://example.com/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+{"name":"navigate","url":"https://example.org/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
 {"name":"assertText","selector":"internal:role=heading","signals":[],"text":"Example Domain","substring":true,"pageGuid":"page@test","pageAlias":"page","framePath":[],"locator":{"kind":"role","body":"heading","options":{"attrs":[]}}}
 JSONL
 
@@ -1102,7 +1102,7 @@ assert_contains "eval → page title is Example Domain" "$TITLE_OUT" "Example Do
 
 # Verify page URL contains example.com
 URL_OUT=$("$SPEL" --eval '(page/url (spel/page))' 2>&1)
-assert_contains "eval → page URL contains example.com" "$URL_OUT" "example.com"
+assert_contains "eval → page URL contains example.org" "$URL_OUT" "example.org"
 
 # Clean up: close the daemon session
 "$SPEL" --eval '(do nil)' --autoclose >/dev/null 2>&1 || true
@@ -1114,7 +1114,7 @@ TEMP_FILES+=("$CODEGEN_BAD_JSONL" "$CODEGEN_BAD_SCRIPT")
 
 cat > "$CODEGEN_BAD_JSONL" <<'JSONL'
 {"browserName":"chromium","launchOptions":{"headless":true},"contextOptions":{}}
-{"name":"navigate","url":"https://example.com/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
+{"name":"navigate","url":"https://example.org/","signals":[],"pageGuid":"page@test","pageAlias":"page","framePath":[]}
 {"name":"assertText","selector":"h1","signals":[],"text":"THIS TEXT DOES NOT EXIST ANYWHERE","substring":true,"pageGuid":"page@test","pageAlias":"page","framePath":[]}
 JSONL
 
