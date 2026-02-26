@@ -1,0 +1,25 @@
+## GET /status/500 → 500 Internal Server Error
+
+### Request Headers
+```
+GET /status/500
+```
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Thu, 26 Feb 2026 16:59:00 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 500
+}
+```
+
+### cURL
+```bash
+curl '/status/500'
+```
