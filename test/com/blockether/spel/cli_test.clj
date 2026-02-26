@@ -646,14 +646,10 @@
       (let [f (flags ["--allow-file-access" "open" "http://x.com"])]
         (expect (true? (:allow-file-access f))))))
 
-  (describe "--session-name flag"
-    (it "sets session via --session-name"
-      (let [f (flags ["--session-name" "agent1" "open" "http://x.com"])]
-        (expect (= "agent1" (:session f)))))
-
-    (it "supports --session-name=value syntax"
-      (let [f (flags ["--session-name=agent1" "open" "http://x.com"])]
-        (expect (= "agent1" (:session f))))))
+  (describe "--no-persist flag"
+    (it "sets no-persist"
+      (let [f (flags ["--no-persist" "open" "http://x.com"])]
+        (expect (true? (:no-persist f))))))
 
   (describe "--ignore-https-errors flag"
     (it "sets ignore-https-errors"

@@ -1269,6 +1269,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `--session <name>` | Named session (default: \"default\") |
+| `--no-persist` | Disable auto-persist of cookies/storage |
 | `--json` | JSON output (for agents) |
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |

@@ -163,49 +163,55 @@
     File/separator
     "spel-session-" session-name ".json"))
 
-(defn- auto-load-session-state!
-  "If --session-name flag is set and a saved state file exists, loads it into the context.
-   Called after browser/context creation to restore cookies/storage from a previous session."
+(defn- persist-enabled?
+  "Returns true if session state persistence is enabled.
+   Persistence is ON by default for all sessions. Disabled by --no-persist flag."
   []
-  (let [flags (get @!state :launch-flags {})
-        sn    (get flags "session-name")]
-    (when sn
-      (let [state-path (session-state-path sn)]
-        (when (Files/exists (Path/of state-path (into-array String []))
-                (into-array java.nio.file.LinkOption []))
-          ;; Save in-flight trace before destroying context
-          (save-inflight-trace!)
-           ;; Close current page and context, re-create with saved state
-          (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-          (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-          (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})
-                new-pg  (core/new-page-from-context new-ctx)]
-            (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-            ;; Re-register console, error, and request listeners on new page
-            (page/on-console new-pg (fn [msg]
-                                      (swap! !console-messages conj
-                                        {:type (.type ^ConsoleMessage msg)
-                                         :text (.text ^ConsoleMessage msg)})))
-            (page/on-page-error new-pg (fn [error]
-                                         (swap! !page-errors conj
-                                           {:message (str error)})))
-            (page/on-response new-pg track-response!)))))))
+  (let [flags (get @!state :launch-flags {})]
+    (not (get flags "no-persist"))))
+
+(defn- auto-load-session-state!
+  "If persistence is enabled, loads saved cookies/storage from a previous session.
+   Uses the session name from !state as the persistence key.
+   Called after browser/context creation to restore state across daemon restarts."
+  []
+  (when (persist-enabled?)
+    (let [sn         (:session @!state)
+          state-path (session-state-path sn)]
+      (when (Files/exists (Path/of state-path (into-array String []))
+              (into-array java.nio.file.LinkOption []))
+        ;; Save in-flight trace before destroying context
+        (save-inflight-trace!)
+        ;; Close current page and context, re-create with saved state
+        (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
+        (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
+        (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})
+              new-pg  (core/new-page-from-context new-ctx)]
+          (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
+          ;; Re-register console, error, and request listeners on new page
+          (page/on-console new-pg (fn [msg]
+                                    (swap! !console-messages conj
+                                      {:type (.type ^ConsoleMessage msg)
+                                       :text (.text ^ConsoleMessage msg)})))
+          (page/on-page-error new-pg (fn [error]
+                                       (swap! !page-errors conj
+                                         {:message (str error)})))
+          (page/on-response new-pg track-response!))))))
 
 (defn- auto-save-session-state!
-  "If --session-name flag is set, saves the current browser context state (cookies/storage)
-   to a file before closing. Called on close to persist session state."
+  "Saves the current browser context state (cookies/storage) to a file.
+   Uses the session name as the persistence key. Called on close.
+   Disabled when --no-persist flag is set."
   []
-  (let [flags (get @!state :launch-flags {})
-        sn    (get flags "session-name")]
-    (when (and sn (:context @!state))
-      (try
-        (let [state-path (session-state-path sn)]
-          (.storageState ^BrowserContext (ctx)
-            (doto (com.microsoft.playwright.BrowserContext$StorageStateOptions.)
-              (.setPath (Path/of state-path (into-array String []))))))
-        (catch Exception _
-          ;; Best-effort — don't fail close on state save error
-          nil)))))
+  (when (and (persist-enabled?) (:context @!state))
+    (try
+      (let [state-path (session-state-path (:session @!state))]
+        (.storageState ^BrowserContext (ctx)
+          (doto (com.microsoft.playwright.BrowserContext$StorageStateOptions.)
+            (.setPath (Path/of state-path (into-array String []))))))
+      (catch Exception _
+        ;; Best-effort — don't fail close on state save error
+        nil))))
 
 (defn- check-anomaly!
   "Checks if result is an anomaly map. If so, throws ex-info with the
@@ -242,7 +248,7 @@
    2. --profile with non-Chrome dir → Playwright launchPersistentContext
    3. Normal → Playwright launch (or --cdp connect)
 
-   If --session-name is set and a saved state file exists, auto-loads it."
+   Auto-loads persisted session state unless --no-persist is set."
   []
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
@@ -345,7 +351,7 @@
                                         {:message (str error)})))
         (reset! !tracked-requests [])
         (page/on-response pg-inst track-response!)
-        ;; Auto-load session state if --session-name is set (not for persistent/CDP profiles)
+        ;; Auto-load persisted session state (not for persistent/CDP profiles)
         (when-not profile-dir
           (auto-load-session-state!))))))
 
@@ -1203,7 +1209,7 @@
   (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))
         socks   (->> (.listFiles tmp-dir)
                   (filter (fn [^File f]
-                            (and (.isFile f)
+                            (and (.exists f)
                               (str/starts-with? (.getName f) "spel-")
                               (str/ends-with? (.getName f) ".sock")))))]
     {:sessions (mapv (fn [^File f]
@@ -1217,6 +1223,7 @@
 (defmethod handle-cmd "session_info" [_ _]
   {:session    (:session @!state)
    :headless   (:headless @!state)
+   :persist    (persist-enabled?)
    :tracing    (:tracing? @!state)
    :url        (try (page/url (pg)) (catch Exception _ nil))
    :title      (try (page/title (pg)) (catch Exception _ nil))
@@ -1326,7 +1333,7 @@
 ;; --- Close & Default ---
 
 (defmethod handle-cmd "close" [_ _]
-  ;; Auto-save session state if --session-name is set
+  ;; Auto-save session state (unless --no-persist)
   (auto-save-session-state!)
   ;; Note: in-flight trace is saved by stop-daemon! (called after this returns)
   (cond-> {:closed true :shutdown true}
