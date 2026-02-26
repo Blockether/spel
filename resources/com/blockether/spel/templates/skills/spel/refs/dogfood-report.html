@@ -82,6 +82,110 @@
   .count--low { color: var(--low); }
   .count--total { color: var(--accent); }
 
+  /* Section titles */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Video player */
+  .video-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+  .video-section video {
+    width: 100%;
+    display: block;
+    background: #000;
+  }
+  .video-caption {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* Transcript / timeline */
+  .transcript {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 2rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .transcript-entry {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 0.75rem;
+    padding: 0.6rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    transition: background 0.15s;
+  }
+  .transcript-entry:last-child { border-bottom: none; }
+  .transcript-entry:hover { background: var(--surface-raised); }
+  .transcript-entry.is-issue { background: rgba(248, 81, 73, 0.06); }
+  .transcript-entry.is-issue:hover { background: rgba(248, 81, 73, 0.12); }
+  .transcript-time {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    padding-top: 0.1rem;
+  }
+  .transcript-text { color: var(--text); }
+  .transcript-text .issue-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--critical);
+    background: rgba(248, 81, 73, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-right: 0.25rem;
+  }
+
+  /* URL map */
+  .url-map {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 2rem;
+    padding: 1.25rem;
+  }
+  .url-depth {
+    margin-bottom: 1rem;
+  }
+  .url-depth:last-child { margin-bottom: 0; }
+  .url-depth-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 0.35rem;
+  }
+  .url-depth ul {
+    list-style: none;
+    padding: 0;
+  }
+  .url-depth li {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.15rem 0;
+  }
+  .url-depth li::before {
+    content: "→ ";
+    color: var(--border);
+  }
+
   /* Findings */
   .finding {
     background: var(--surface);
@@ -203,6 +307,7 @@
   <dl class="meta-table">
     <dt>Date</dt>        <dd>{DATE}</dd>
     <dt>URL</dt>         <dd>{URL}</dd>
+    <dt>Crawl depth</dt> <dd>{CRAWL_DEPTH}</dd>
     <dt>Session</dt>     <dd>{SESSION_NAME}</dd>
     <dt>Scope</dt>       <dd>{SCOPE}</dd>
     <dt>Tool</dt>        <dd>spel (Blockether Playwright wrapper)</dd>
@@ -216,6 +321,62 @@
   <div class="summary-item"><span class="count count--low">{LOW_COUNT}</span><span class="label">Low</span></div>
   <div class="summary-item"><span class="count count--total">{TOTAL_COUNT}</span><span class="label">Total</span></div>
 </div>
+
+<!-- VIDEO SECTION — Embed the session recording -->
+
+<!--
+<h2 class="section-title">Session Recording</h2>
+<div class="video-section">
+  <video controls preload="metadata">
+    <source src="videos/session.mp4" type="video/mp4">
+    <source src="videos/session.webm" type="video/webm">
+    <track kind="subtitles" src="transcript.vtt" srclang="en" label="Agent transcript" default>
+    Your browser does not support the video tag.
+  </video>
+  <div class="video-caption">Full session recording with agent transcript as subtitles.</div>
+</div>
+-->
+
+<!-- URL MAP — Discovered URLs organized by crawl depth -->
+
+<!--
+<h2 class="section-title">Discovered URLs</h2>
+<div class="url-map">
+  <div class="url-depth">
+    <div class="url-depth-label">Depth 0 (entry point)</div>
+    <ul>
+      <li>https://github.com/</li>
+    </ul>
+  </div>
+  <div class="url-depth">
+    <div class="url-depth-label">Depth 1 (12 URLs)</div>
+    <ul>
+      <li>https://github.com/explore</li>
+      <li>https://github.com/trending</li>
+    </ul>
+  </div>
+</div>
+-->
+
+<!-- TRANSCRIPT — Agent activity timeline -->
+
+<!--
+<h2 class="section-title">Activity Transcript</h2>
+<div class="transcript">
+  <div class="transcript-entry">
+    <div class="transcript-time">00:00:00</div>
+    <div class="transcript-text">Opening github.com in stealth mode</div>
+  </div>
+  <div class="transcript-entry">
+    <div class="transcript-time">00:00:05</div>
+    <div class="transcript-text">Homepage loaded. Taking initial screenshot.</div>
+  </div>
+  <div class="transcript-entry is-issue">
+    <div class="transcript-time">00:01:22</div>
+    <div class="transcript-text"><span class="issue-tag">ISSUE-001</span>Search input has no visible focus indicator</div>
+  </div>
+</div>
+-->
 
 <!-- FINDINGS START — Append new findings above the FINDINGS END marker -->
 
