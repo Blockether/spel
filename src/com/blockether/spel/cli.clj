@@ -1918,13 +1918,19 @@
    Starts one if needed. Handles:
    - No daemon running → start fresh
    - Daemon running headless but --interactive requested → restart headed
+   - Daemon already headed and --interactive requested → no-op (skip restart)
    - Stale daemon (process alive but socket broken) → kill and restart
    - Dead daemon (PID file exists but process gone) → clean up and restart"
   [session opts]
-  ;; If interactive mode requested but daemon is running, restart in headed mode
+  ;; If interactive mode requested and daemon is running, only restart if
+  ;; the daemon is currently headless. Skip restart if already headed.
   (when (and (not (:headless opts true))
-          (daemon/daemon-running? session))
-    (restart-daemon! session))
+          (daemon/daemon-running? session)
+          (socket-connectable? session))
+    (let [resp (try (send-command! session {:action "session_info"} 5000)
+                    (catch Exception _ nil))]
+      (when (get-in resp [:data :headless])
+        (restart-daemon! session))))
 
   ;; If daemon claims to be running, verify it's actually connectable
   (when (daemon/daemon-running? session)
