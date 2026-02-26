@@ -121,9 +121,50 @@
 ;; Wait Helpers
 ;; =============================================================================
 
+(def ^:private detect-block-js
+  "JavaScript that detects Google CAPTCHA/block pages.
+   Returns a string describing the block type, or empty string if no block."
+  (str "() => {"
+    "  if (window.location.pathname.startsWith('/sorry')) return 'sorry';"
+    "  if (document.querySelector('#captcha, #recaptcha, .g-recaptcha')) return 'captcha';"
+    "  if (document.querySelector('form[action*=\"/sorry/\"]')) return 'sorry-form';"
+    "  var title = document.title.toLowerCase();"
+    "  if (title.includes('unusual traffic') || title.includes('not a robot')) return 'unusual-traffic';"
+    "  return '';"
+    "}"))
+
+(defn- detect-block!
+  "Detects if Google has blocked the request (CAPTCHA, sorry page, etc.).
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   Keyword (:sorry, :captcha, :sorry-form, :unusual-traffic) or nil if not blocked."
+  [^Page page]
+  (try
+    (let [result (page/evaluate page detect-block-js)]
+      (when (and (string? result) (not (str/blank? result)))
+        (keyword result)))
+    (catch Exception _ nil)))
+
+(defn- print-diagnostics!
+  "Prints diagnostic information to stderr when search fails.
+
+   Params:
+   `page`       - Page instance.
+   `block-type` - Keyword or nil. The detected block type."
+  [^Page page block-type]
+  (binding [*out* *err*]
+    (println "Diagnostics:")
+    (println (str "  URL:   " (page/url page)))
+    (println (str "  Title: " (page/title page)))
+    (when block-type
+      (println (str "  Block: " (name block-type))))))
+
 (defn- wait-for-results!
   "Waits for search results to render using Playwright's wait-for-function.
-   Uses a short timeout so callers can fall back gracefully."
+   Uses a 10-second timeout so callers can fall back gracefully."
   [^Page page search-type]
   (try
     (let [js (case search-type
@@ -131,7 +172,7 @@
                :news   "() => document.querySelectorAll('div.SoaBEf, #rso h3').length > 0"
                ;; :web default
                "() => document.querySelectorAll('#rso h3').length > 0")]
-      (page/wait-for-function page js))
+      (page/wait-for-function page js {:timeout 10000}))
     (catch Exception _)))
 
 ;; =============================================================================
@@ -153,7 +194,7 @@
    (let [lang (or (:lang opts) "en")
          url  (str "https://www.google.com/?hl=" lang)]
      (page/navigate page url)
-     (page/wait-for-load-state page :networkidle)
+     (page/wait-for-load-state page :domcontentloaded)
      (dismiss-consent! page)
      nil)))
 
@@ -443,7 +484,7 @@
    (let [url         (search-url query (assoc opts :page page-num))
          search-type (:type opts :web)]
      (page/navigate page url)
-     (page/wait-for-load-state page :networkidle)
+     (page/wait-for-load-state page :domcontentloaded)
      (wait-for-results! page search-type)
      (dismiss-consent! page)
      (case search-type
@@ -460,7 +501,7 @@
 
    Automatically warms up by visiting google.com first if the page is
    not already on a Google domain (required for stealth/bot bypass).
-   Uses networkidle + wait-for-function for reliable result rendering.
+   Uses domcontentloaded + wait-for-function for reliable result rendering.
 
    Params:
    `page`  - Page instance.
@@ -486,7 +527,7 @@
      (when-not (str/starts-with? (or (page/url page) "") "https://www.google.com")
        (warmup! page opts))
      (page/navigate page url)
-     (page/wait-for-load-state page :networkidle)
+     (page/wait-for-load-state page :domcontentloaded)
      (wait-for-results! page search-type)
      (dismiss-consent! page)
      (let [results (case search-type
@@ -591,56 +632,111 @@
      :somef some?)))
 
 ;; =============================================================================
-;; Table Rendering
+;; ANSI Terminal Rendering
 ;; =============================================================================
 
-(defn- truncate
-  ^String [^String s ^long max-len]
-  (if (or (nil? s) (<= (.length s) max-len))
-    (or s "")
-    (str (subs s 0 (- max-len 3)) "...")))
+(def ^:dynamic *color-enabled*
+  "Controls ANSI color output. nil = auto-detect, true/false = force."
+  nil)
 
-(defn- pad-right
-  ^String [^String s ^long width]
-  (let [s (or s "")]
-    (if (>= (.length s) width)
-      s
-      (str s (apply str (repeat (- width (.length s)) \space))))))
+(defn- color-enabled?
+  "Returns true when ANSI color output should be used.
+   Respects NO_COLOR env var (https://no-color.org/) and TTY detection."
+  []
+  (if (some? *color-enabled*)
+    *color-enabled*
+    (and (nil? (System/getenv "NO_COLOR"))
+      (some? (System/console)))))
 
-(defn- print-table-row [widths cells]
-  (println
-    (str " "
-      (str/join " | "
-        (map (fn [w cell]
-               (pad-right (truncate (str cell) w) w))
-          widths cells)))))
+(defn- ansi
+  "Wraps text with ANSI escape codes when color is enabled.
+   codes is a string of ANSI parameter codes (e.g. \"1;33\" for bold yellow)."
+  ^String [^String codes ^String text]
+  (if (color-enabled?)
+    (str "\033[" codes "m" text "\033[0m")
+    text))
 
-(defn- print-table-sep [widths]
-  (println
-    (str "-"
-      (str/join "-+-"
-        (map (fn [w] (apply str (repeat (inc (long w)) \-))) widths)))))
+(defn- bold         ^String [^String s] (ansi "1" s))
+(defn- dim          ^String [^String s] (ansi "2" s))
+(defn- green        ^String [^String s] (ansi "32" s))
+(defn- cyan         ^String [^String s] (ansi "36" s))
+(defn- magenta      ^String [^String s] (ansi "35" s))
+(defn- bold-yellow  ^String [^String s] (ansi "1;33" s))
+(defn- bold-cyan    ^String [^String s] (ansi "1;36" s))
+(defn- dim-yellow   ^String [^String s] (ansi "2;33" s))
 
-(defn- print-web-table [results]
-  (let [widths [3 38 40 38]]
-    (print-table-row widths ["#" "Title" "URL" "Snippet"])
-    (print-table-sep widths)
-    (doseq [{:keys [title url snippet position]} results]
-      (print-table-row widths [position title url snippet]))))
+;; ---------------------------------------------------------------------------
+;; Card-style renderers (googler/ddgr-inspired)
+;; ---------------------------------------------------------------------------
 
-(defn- print-image-table [results]
-  (let [widths [3 38 60]]
-    (print-table-row widths ["#" "Title" "Thumbnail URL"])
-    (print-table-sep widths)
-    (doseq [{:keys [title thumbnail-url position]} results]
-      (print-table-row widths [position (if (str/blank? title) "(no title)" title) thumbnail-url]))))
+(defn- format-position
+  "Formats a result position number, right-aligned to 2 chars."
+  ^String [^long pos]
+  (let [s (str pos)]
+    (if (< pos 10) (str " " s) s)))
 
-(defn- print-news-table [results]
-  (let [widths [3 36 16 10 40]]
-    (print-table-row widths ["#" "Title" "Source" "Time" "URL"])
-    (print-table-sep widths)
-    (doseq [{:keys [title url source time position]} results]
-      (print-table-row widths [position title source time url]))))
+(defn- print-web-cards
+  "Prints web results as cards: position + title, URL, snippet."
+  [results]
+  (doseq [{:keys [title url snippet position]} results]
+    (println (str " " (bold-yellow (format-position (long position))) "  " (bold title)))
+    (when url
+      (println (str "    " (green url))))
+    (when (and snippet (not (str/blank? snippet)))
+      (println (str "    " (dim snippet))))
+    (println)))
+
+(defn- print-image-cards
+  "Prints image results as cards: position + title, thumbnail, source."
+  [results]
+  (doseq [{:keys [title thumbnail-url source-url position]} results]
+    (let [display-title (if (str/blank? title) "(no title)" title)]
+      (println (str " " (bold-yellow (format-position (long position))) "  " (bold display-title)))
+      (when thumbnail-url
+        (println (str "    " (dim "thumb") "  " (green thumbnail-url))))
+      (when source-url
+        (println (str "    " (dim "source") " " (green source-url))))
+      (println))))
+
+(defn- print-news-cards
+  "Prints news results as cards: position + title, source/time, URL, snippet."
+  [results]
+  (doseq [{:keys [title url source time snippet position]} results]
+    (println (str " " (bold-yellow (format-position (long position))) "  " (bold title)))
+    (when (or source time)
+      (println (str "    "
+                 (when source (magenta source))
+                 (when (and source time) (dim " \u00b7 "))
+                 (when time (dim-yellow time)))))
+    (when url
+      (println (str "    " (green url))))
+    (when (and snippet (not (str/blank? snippet)))
+      (println (str "    " (dim snippet))))
+    (println)))
+
+(defn- print-header
+  "Prints the search header: query in bold, stats in dim."
+  [^String query stats]
+  (println (str " " (bold query)
+             (when stats (str "  " (dim stats)))))
+  (println))
+
+(defn- print-people-also-ask
+  "Prints 'People also ask' section with styled markers."
+  [questions]
+  (when (seq questions)
+    (println (bold-cyan "People also ask"))
+    (doseq [q questions]
+      (println (str "  " (cyan (str "\u25b8 " q)))))
+    (println)))
+
+(defn- print-related-searches
+  "Prints related searches inline with dot separators."
+  [searches]
+  (when (seq searches)
+    (println (bold-cyan "Related searches"))
+    (println (str "  " (str/join (dim " \u00b7 ") searches)))
+    (println)))
 
 ;; =============================================================================
 ;; CLI Entry Point
@@ -666,6 +762,7 @@
   (println "  --json                Output as JSON")
   (println "  --screenshot PATH     Save screenshot of results page")
   (println "  --no-stealth          Disable stealth mode (stealth is ON by default)")
+  (println "  --debug               Show diagnostics and save screenshot on failure")
   (println "  --help, -h            Show this help")
   (println "")
   (println "Examples:")
@@ -690,70 +787,74 @@
          limit     nil
          open      nil
          stealth?  true
-         help?     false]
+         help?     false
+         debug?    false]
     (if (empty? remaining)
       {:query query :opts (assoc opts :max-pages max-pages) :json? json?
-       :screenshot screenshot :limit limit :open open :stealth? stealth? :help? help?}
+       :screenshot screenshot :limit limit :open open :stealth? stealth? :help? help? :debug? debug?}
       (let [arg (first remaining)]
         (cond
           (or (= "--help" arg) (= "-h" arg))
-          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? true)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? true debug?)
 
           (= "--images" arg)
-          (recur (rest remaining) (assoc opts :type :images) query json? screenshot max-pages limit open stealth? help?)
+          (recur (rest remaining) (assoc opts :type :images) query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--news" arg)
-          (recur (rest remaining) (assoc opts :type :news) query json? screenshot max-pages limit open stealth? help?)
+          (recur (rest remaining) (assoc opts :type :news) query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--json" arg)
-          (recur (rest remaining) opts query true screenshot max-pages limit open stealth? help?)
+          (recur (rest remaining) opts query true screenshot max-pages limit open stealth? help? debug?)
 
           (= "--page" arg)
           (recur (drop 2 remaining) (assoc opts :page (parse-long (second remaining)))
-            query json? screenshot max-pages limit open stealth? help?)
+            query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--num" arg)
           (recur (drop 2 remaining) (assoc opts :num (parse-long (second remaining)))
-            query json? screenshot max-pages limit open stealth? help?)
+            query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--max-pages" arg)
           (recur (drop 2 remaining) opts query json? screenshot
-            (parse-long (second remaining)) limit open stealth? help?)
+            (parse-long (second remaining)) limit open stealth? help? debug?)
 
           (= "--limit" arg)
           (recur (drop 2 remaining) opts query json? screenshot max-pages
-            (parse-long (second remaining)) open stealth? help?)
+            (parse-long (second remaining)) open stealth? help? debug?)
 
           (= "--open" arg)
           (recur (drop 2 remaining) opts query json? screenshot max-pages
-            limit (parse-long (second remaining)) stealth? help?)
+            limit (parse-long (second remaining)) stealth? help? debug?)
 
           (= "--lang" arg)
           (recur (drop 2 remaining) (assoc opts :lang (second remaining))
-            query json? screenshot max-pages limit open stealth? help?)
+            query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--safe" arg)
           (recur (drop 2 remaining) (assoc opts :safe (keyword (second remaining)))
-            query json? screenshot max-pages limit open stealth? help?)
+            query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--time-range" arg)
           (recur (drop 2 remaining) (assoc opts :time-range (keyword (second remaining)))
-            query json? screenshot max-pages limit open stealth? help?)
+            query json? screenshot max-pages limit open stealth? help? debug?)
 
           (= "--screenshot" arg)
-          (recur (drop 2 remaining) opts query json? (second remaining) max-pages limit open stealth? help?)
+          (recur (drop 2 remaining) opts query json? (second remaining) max-pages limit open stealth? help? debug?)
 
           (= "--stealth" arg)
-          (recur (rest remaining) opts query json? screenshot max-pages limit open true help?)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open true help? debug?)
 
           (= "--no-stealth" arg)
-          (recur (rest remaining) opts query json? screenshot max-pages limit open false help?)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open false help? debug?)
+
+          (= "--debug" arg)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? true)
 
           (nil? query)
-          (recur (rest remaining) opts arg json? screenshot max-pages limit open stealth? help?)
+          (recur (rest remaining) opts arg json? screenshot max-pages limit open stealth? help? debug?)
 
           :else
-          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help?))))))
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? debug?))))))
 
 (defn -main
   "CLI entry point for the search tool command.
@@ -763,7 +864,7 @@
 
    See --help for all options."
   [& args]
-  (let [{:keys [query opts json? screenshot limit open stealth? help?]} (parse-search-args args)]
+  (let [{:keys [query opts json? screenshot limit open stealth? help? debug?]} (parse-search-args args)]
     (cond
       help?
       (print-search-help)
@@ -801,10 +902,20 @@
                                 (search! pg query (dissoc opts :max-pages)))
                     n-results (long (if (> max-pages 1)
                                       (:total-results result 0)
-                                      (count (:results result))))]
+                                      (count (:results result))))
+                    blocked?  (when (zero? n-results) (detect-block! pg))]
                 (when (zero? n-results)
                   (binding [*out* *err*]
-                    (println "Warning: 0 results returned. Google may have blocked the request (bot detection).")))
+                    (if blocked?
+                      (println (str "Warning: Google blocked the request (" (name blocked?) ")."))
+                      (println "Warning: 0 results returned. Google may have blocked the request (bot detection).")))
+                  (print-diagnostics! pg blocked?)
+                  (when debug?
+                    (let [debug-path (str (System/getProperty "java.io.tmpdir")
+                                       "/spel-search-debug-" (System/currentTimeMillis) ".png")]
+                      (page/screenshot pg {:path debug-path :full-page true})
+                      (binding [*out* *err*]
+                        (println (str "  Debug screenshot: " debug-path))))))
                 (when screenshot
                   (page/screenshot pg {:path screenshot :full-page true})
                   (when-not json?
@@ -819,7 +930,7 @@
                     (if target
                       (do
                         (page/navigate pg (:url target))
-                        (page/wait-for-load-state pg :networkidle)
+                        (page/wait-for-load-state pg :domcontentloaded)
                         (let [title (page/title pg)
                               url   (page/url pg)]
                           (println (str "Opened result #" open ":"))
@@ -835,40 +946,28 @@
                     (if (> max-pages 1)
                       ;; Multi-page output
                       (do
-                        (when-let [stats (:stats (first (:pages result)))]
-                          (println stats)
-                          (println))
+                        (print-header query (:stats (first (:pages result))))
                         (doseq [pg-data (:pages result)]
                           (let [rs (cond->> (:results pg-data)
                                      limit (take limit))]
-                            (println (str "--- Page " (:page pg-data 1) " ---"))
+                            (println (bold-cyan (str "--- Page " (:page pg-data 1) " ---")))
+                            (println)
                             (case (:type result)
-                              :images (print-image-table rs)
-                              :news   (print-news-table rs)
-                              (print-web-table rs))))
-                        (println (str "Total: " (:total-results result) " results")))
+                              :images (print-image-cards rs)
+                              :news   (print-news-cards rs)
+                              (print-web-cards rs))))
+                        (println (dim (str "Total: " (:total-results result) " results"))))
                       ;; Single page output
                       (let [rs (cond->> (:results result)
                                  limit (take limit))]
-                        (when (:stats result)
-                          (println (:stats result))
-                          (println))
+                        (print-header query (:stats result))
                         (case (:type result)
-                          :images (print-image-table rs)
-                          :news   (print-news-table rs)
-                          (print-web-table rs))
-                        (when (and (= :web (:type result))
-                                (seq (:people-also-ask result)))
-                          (println)
-                          (println "People also ask:")
-                          (doseq [q (:people-also-ask result)]
-                            (println (str "  • " q))))
-                        (when (and (= :web (:type result))
-                                (seq (:related-searches result)))
-                          (println)
-                          (println "Related searches:")
-                          (doseq [s (:related-searches result)]
-                            (println (str "  • " s)))))))))
+                          :images (print-image-cards rs)
+                          :news   (print-news-cards rs)
+                          (print-web-cards rs))
+                        (when (= :web (:type result))
+                          (print-people-also-ask (:people-also-ask result))
+                          (print-related-searches (:related-searches result))))))))
               (finally
                 (try (core/close-browser! browser) (catch Exception _))
                 (try (core/close! pw) (catch Exception _)))))

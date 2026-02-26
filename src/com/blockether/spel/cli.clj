@@ -958,6 +958,7 @@
       "  --json                Output as JSON"
       "  --screenshot PATH     Save screenshot of results page"
       "  --no-stealth          Disable stealth mode (stealth is ON by default)"
+      "  --debug               Show diagnostics and save screenshot on failure"
       ""
       "Examples:"
       "  spel search \"clojure programming\""

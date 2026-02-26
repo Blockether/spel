@@ -1001,6 +1001,7 @@ assert_contains "search --help mentions open" "$OUT" "open"
 assert_contains "search --help mentions images" "$OUT" "images"
 assert_contains "search --help mentions json" "$OUT" "json"
 assert_contains "search --help mentions stealth" "$OUT" "stealth"
+assert_contains "search --help mentions debug" "$OUT" "debug"
 
 # =============================================================================
 # CODEGEN + EVAL COMPATIBILITY (31)

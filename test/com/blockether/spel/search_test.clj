@@ -5,6 +5,8 @@
    availability — no browser needed. Integration tests use a real
    Playwright browser session."
   (:require
+   [clojure.string :as str]
+   [com.blockether.spel.page :as page]
    [com.blockether.spel.search :as sut]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
@@ -336,3 +338,260 @@
         (expect (true? (sci-env/eval-string ctx "(fn? s/search!)")))
         (expect (true? (sci-env/eval-string ctx "(fn? s/search-url)")))
         (expect (true? (sci-env/eval-string ctx "(fn? s/search-pages)")))))))
+
+;; =============================================================================
+;; ANSI Terminal Rendering
+;; =============================================================================
+
+(defdescribe color-enabled-test
+  "Unit tests for color-enabled? with dynamic binding"
+
+  (describe "*color-enabled* binding"
+    (it "returns false when *color-enabled* is false"
+      (binding [sut/*color-enabled* false]
+        (expect (false? (#'sut/color-enabled?)))))
+
+    (it "returns true when *color-enabled* is true"
+      (binding [sut/*color-enabled* true]
+        (expect (true? (#'sut/color-enabled?)))))))
+
+(defdescribe format-position-test
+  "Unit tests for format-position"
+
+  (describe "alignment"
+    (it "pads single digits with space"
+      (expect (= " 1" (#'sut/format-position 1)))
+      (expect (= " 9" (#'sut/format-position 9))))
+
+    (it "leaves double digits as-is"
+      (expect (= "10" (#'sut/format-position 10)))
+      (expect (= "99" (#'sut/format-position 99))))))
+
+(defdescribe ansi-rendering-test
+  "Unit tests for ANSI rendering helpers"
+
+  (describe "ansi function"
+    (it "returns plain text when color disabled"
+      (binding [sut/*color-enabled* false]
+        (expect (= "hello" (#'sut/ansi "1" "hello")))))
+
+    (it "wraps text with escape codes when color enabled"
+      (binding [sut/*color-enabled* true]
+        (let [result (#'sut/ansi "1;33" "hello")]
+          (expect (.contains ^String result "\033["))
+          (expect (.contains ^String result "hello"))
+          (expect (.startsWith ^String result "\033[1;33m"))
+          (expect (.endsWith ^String result "\033[0m")))))))
+
+;; =============================================================================
+;; Card Renderers
+;; =============================================================================
+
+(defdescribe print-web-cards-test
+  "Unit tests for print-web-cards"
+
+  (describe "web result cards"
+    (it "prints title, URL, and snippet for each result"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "Example" :url "https://example.com" :snippet "A snippet" :position 1}]
+              output (with-out-str (#'sut/print-web-cards results))]
+          (expect (.contains ^String output "1"))
+          (expect (.contains ^String output "Example"))
+          (expect (.contains ^String output "https://example.com"))
+          (expect (.contains ^String output "A snippet")))))
+
+    (it "omits snippet line when snippet is nil"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "No Snippet" :url "https://example.com" :snippet nil :position 1}]
+              output (with-out-str (#'sut/print-web-cards results))]
+          (expect (.contains ^String output "No Snippet"))
+          (expect (.contains ^String output "https://example.com"))
+          ;; Should have title line + url line = 2 non-blank lines
+          (expect (= 2 (count (remove str/blank? (str/split output #"\n"))))))))
+
+    (it "prints multiple results separated by blank lines"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "First" :url "https://first.com" :snippet "s1" :position 1}
+                       {:title "Second" :url "https://second.com" :snippet "s2" :position 2}]
+              output (with-out-str (#'sut/print-web-cards results))]
+          (expect (.contains ^String output "First"))
+          (expect (.contains ^String output "Second"))
+          (expect (.contains ^String output "https://first.com"))
+          (expect (.contains ^String output "https://second.com")))))))
+
+(defdescribe print-image-cards-test
+  "Unit tests for print-image-cards"
+
+  (describe "image result cards"
+    (it "prints title, thumb, and source labels"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "Cat" :thumbnail-url "https://img.com/cat.jpg"
+                        :source-url "https://cats.com" :position 1}]
+              output (with-out-str (#'sut/print-image-cards results))]
+          (expect (.contains ^String output "Cat"))
+          (expect (.contains ^String output "thumb"))
+          (expect (.contains ^String output "https://img.com/cat.jpg"))
+          (expect (.contains ^String output "source"))
+          (expect (.contains ^String output "https://cats.com")))))
+
+    (it "shows (no title) for blank title"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "" :thumbnail-url "https://img.com/a.jpg" :source-url nil :position 1}]
+              output (with-out-str (#'sut/print-image-cards results))]
+          (expect (.contains ^String output "(no title)")))))))
+
+(defdescribe print-news-cards-test
+  "Unit tests for print-news-cards"
+
+  (describe "news result cards"
+    (it "prints title, source, time, URL, and snippet"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "Breaking News" :url "https://news.com/article"
+                        :source "BBC" :time "2h ago" :snippet "Details here" :position 1}]
+              output (with-out-str (#'sut/print-news-cards results))]
+          (expect (.contains ^String output "Breaking News"))
+          (expect (.contains ^String output "BBC"))
+          (expect (.contains ^String output "2h ago"))
+          (expect (.contains ^String output "https://news.com/article"))
+          (expect (.contains ^String output "Details here")))))
+
+    (it "handles missing source and time gracefully"
+      (binding [sut/*color-enabled* false]
+        (let [results [{:title "Headline" :url "https://n.com" :source nil :time nil :snippet nil :position 1}]
+              output (with-out-str (#'sut/print-news-cards results))]
+          (expect (.contains ^String output "Headline"))
+          (expect (.contains ^String output "https://n.com")))))))
+
+(defdescribe print-header-test
+  "Unit tests for print-header"
+
+  (describe "header formatting"
+    (it "prints query and stats"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-header "test query" "About 100 results"))]
+          (expect (.contains ^String output "test query"))
+          (expect (.contains ^String output "About 100 results")))))
+
+    (it "prints query without stats when nil"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-header "test query" nil))]
+          (expect (.contains ^String output "test query")))))))
+
+(defdescribe print-people-also-ask-test
+  "Unit tests for print-people-also-ask"
+
+  (describe "people also ask section"
+    (it "prints section header and questions"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-people-also-ask ["Question 1?" "Question 2?"]))]
+          (expect (.contains ^String output "People also ask"))
+          (expect (.contains ^String output "Question 1?"))
+          (expect (.contains ^String output "Question 2?")))))
+
+    (it "prints nothing for empty list"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-people-also-ask []))]
+          (expect (str/blank? output)))))
+
+    (it "prints nothing for nil"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-people-also-ask nil))]
+          (expect (str/blank? output)))))))
+
+(defdescribe print-related-searches-test
+  "Unit tests for print-related-searches"
+
+  (describe "related searches section"
+    (it "prints section header and searches joined by dots"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-related-searches ["foo" "bar" "baz"]))]
+          (expect (.contains ^String output "Related searches"))
+          (expect (.contains ^String output "foo"))
+          (expect (.contains ^String output "bar"))
+          (expect (.contains ^String output "baz"))
+          ;; Middle dot separator
+          (expect (.contains ^String output "\u00b7")))))
+
+    (it "prints nothing for empty list"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-related-searches []))]
+          (expect (str/blank? output)))))
+
+    (it "prints nothing for nil"
+      (binding [sut/*color-enabled* false]
+        (let [output (with-out-str (#'sut/print-related-searches nil))]
+          (expect (str/blank? output)))))))
+
+;; =============================================================================
+;; Block Detection & Diagnostics
+;; =============================================================================
+
+(defdescribe detect-block-js-test
+  "Unit tests for detect-block-js constant"
+
+  (describe "JS constant"
+    (it "is a non-blank string"
+      (expect (string? @#'sut/detect-block-js))
+      (expect (not (str/blank? @#'sut/detect-block-js))))
+
+    (it "contains sorry page check"
+      (expect (.contains ^String @#'sut/detect-block-js "/sorry")))
+
+    (it "contains captcha check"
+      (expect (.contains ^String @#'sut/detect-block-js "#captcha")))
+
+    (it "contains recaptcha check"
+      (expect (.contains ^String @#'sut/detect-block-js ".g-recaptcha")))
+
+    (it "contains unusual traffic check"
+      (expect (.contains ^String @#'sut/detect-block-js "unusual traffic")))
+
+    (it "returns empty string by default"
+      (expect (.contains ^String @#'sut/detect-block-js "return ''")))))
+
+(defdescribe print-diagnostics-test
+  "Unit tests for print-diagnostics!"
+
+  (describe "diagnostics output"
+    (it "prints URL and Title header to stderr"
+      (let [output (with-out-str
+                     (binding [*err* *out*]
+                       (with-redefs [page/url   (constantly "https://www.google.com/sorry")
+                                     page/title (constantly "Sorry...")]
+                         (#'sut/print-diagnostics! nil :sorry))))]
+        (expect (.contains ^String output "Diagnostics:"))
+        (expect (.contains ^String output "URL:   https://www.google.com/sorry"))
+        (expect (.contains ^String output "Title: Sorry..."))
+        (expect (.contains ^String output "Block: sorry"))))
+
+    (it "omits block line when block-type is nil"
+      (let [output (with-out-str
+                     (binding [*err* *out*]
+                       (with-redefs [page/url   (constantly "https://www.google.com/search?q=test")
+                                     page/title (constantly "test - Google Search")]
+                         (#'sut/print-diagnostics! nil nil))))]
+        (expect (.contains ^String output "Diagnostics:"))
+        (expect (.contains ^String output "URL:"))
+        (expect (not (.contains ^String output "Block:")))))))
+
+;; =============================================================================
+;; --debug flag parsing
+;; =============================================================================
+
+(defdescribe parse-debug-flag-test
+  "Unit tests for --debug flag in parse-search-args"
+
+  (describe "debug flag"
+    (it "defaults to false"
+      (let [result (#'sut/parse-search-args ["test"])]
+        (expect (false? (:debug? result)))))
+
+    (it "parses --debug"
+      (let [result (#'sut/parse-search-args ["test" "--debug"])]
+        (expect (true? (:debug? result)))))
+
+    (it "works with other flags"
+      (let [result (#'sut/parse-search-args ["test" "--debug" "--json" "--images"])]
+        (expect (true? (:debug? result)))
+        (expect (true? (:json? result)))
+        (expect (= :images (get-in result [:opts :type])))))))
