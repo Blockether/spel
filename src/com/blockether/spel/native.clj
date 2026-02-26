@@ -68,7 +68,7 @@
   (println "  check / uncheck <sel>     Toggle checkbox")
   (println "  focus <sel>               Focus element")
   (println "  clear <sel>               Clear input")
-  (println "  scroll <dir> [px]         Scroll (up/down/left/right)")
+  (println "  scroll <dir> [px] [sel]   Scroll page or element (-S for smooth)")
   (println "  scrollintoview <sel>      Scroll element into view")
   (println "  drag <src> <tgt>          Drag and drop")
   (println "  upload <sel> <files...>   Upload files")

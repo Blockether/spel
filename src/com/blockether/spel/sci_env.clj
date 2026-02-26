@@ -309,6 +309,22 @@
 (defn sci-tap       [sel] (throw-if-anomaly (locator/tap-element (sci-$ sel))))
 (defn sci-set-input-files! [sel files] (throw-if-anomaly (locator/set-input-files! (sci-$ sel) files)))
 (defn sci-scroll-into-view [sel] (throw-if-anomaly (locator/scroll-into-view (sci-$ sel))))
+(defn sci-scroll
+  "Scrolls the page or a specific element.
+   direction - :up :down :left :right (default :down)
+   opts map keys:
+     :amount   - pixels to scroll (default 500)
+     :smooth?  - true for smooth animated scroll (default false)
+     :selector - element ref or CSS selector to scroll within"
+  ([]
+   (sci-scroll :down {}))
+  ([direction]
+   (sci-scroll direction {}))
+  ([direction opts]
+   (let [sel (get opts :selector)]
+     (if sel
+       (locator/scroll (sci-$ sel) direction opts)
+       (page/scroll (require-page!) direction opts)))))
 (defn sci-dispatch-event   [sel type] (throw-if-anomaly (locator/dispatch-event (sci-$ sel) type)))
 (defn sci-drag-to          [sel target-sel] (throw-if-anomaly (locator/drag-to (sci-$ sel) (sci-$ target-sel))))
 (defn sci-highlight        [sel] (locator/highlight (sci-$ sel)))
@@ -1126,6 +1142,7 @@
                   ['tap-element    sci-tap]
                   ['set-input-files! sci-set-input-files!]
                   ['scroll-into-view sci-scroll-into-view]
+                  ['scroll           sci-scroll]
                   ['dispatch-event   sci-dispatch-event]
                   ['drag-to          sci-drag-to]
                   ['highlight        sci-highlight]
@@ -1441,6 +1458,7 @@
                    ['select-option  locator/select-option]
                    ['set-input-files! locator/set-input-files!]
                    ['scroll-into-view locator/scroll-into-view]
+                   ['scroll          locator/scroll]
                    ['dispatch-event locator/dispatch-event]
                    ['drag-to        locator/drag-to]
                    ['text-content   locator/text-content]
@@ -1698,6 +1716,7 @@
                         ['get-by-ref              page/get-by-ref]
                         ['evaluate                page/evaluate]
                         ['evaluate-handle         page/evaluate-handle]
+                        ['scroll                  page/scroll]
                         ['screenshot              page/screenshot]
                         ['pdf                     page/pdf]
                         ['is-closed?              page/is-closed?]
@@ -1765,6 +1784,7 @@
                            ['select-option  locator/select-option]
                            ['set-input-files! locator/set-input-files!]
                            ['scroll-into-view locator/scroll-into-view]
+                           ['scroll          locator/scroll]
                            ['dispatch-event locator/dispatch-event]
                            ['drag-to        locator/drag-to]
                            ['text-content   locator/text-content]

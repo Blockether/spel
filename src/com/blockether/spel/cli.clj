@@ -280,20 +280,28 @@
 
    "scroll"
    (str/join \newline
-     ["scroll - Scroll the page"
+     ["scroll - Scroll the page or an element"
       ""
       "Usage:"
-      "  spel scroll [direction] [amount]"
+      "  spel scroll [direction] [amount] [selector]"
+      "  spel scroll [direction] [amount] --in <selector>"
       ""
       "Arguments:"
       "  direction    up, down, left, or right (default: down)"
       "  amount       Pixels to scroll (default: 500)"
+      "  selector     Element ref (@eXXXXX) or CSS selector to scroll within"
+      ""
+      "Flags:"
+      "  -S, --smooth    Smooth animated scroll (default: instant jump)"
+      "  --in <sel>      Element to scroll within (alternative to positional selector)"
       ""
       "Examples:"
-      "  spel scroll"
-      "  spel scroll down 1000"
-      "  spel scroll up 500"
-      "  spel scroll left 200"])
+      "  spel scroll                          Scroll page down 500px (instant)"
+      "  spel scroll down 1000               Scroll page down 1000px"
+      "  spel scroll up 500 --smooth          Smooth scroll page up 500px"
+      "  spel scroll down 300 @e2yrjz         Scroll within element by ref"
+      "  spel scroll down 500 --in #sidebar   Scroll within #sidebar element"
+      "  spel scroll -S down 800              Smooth scroll shorthand"])
 
    "scrollintoview"
    (str/join \newline
@@ -1424,10 +1432,42 @@
             "focus"    {:action "focus" :selector (first cmd-args)}
 
           ;; Scroll (+ aliases)
-            "scroll"   (let [direction (or (first cmd-args) "down")
-                             amount (try (Integer/parseInt (or (second cmd-args) "500"))
-                                         (catch Exception _ 500))]
-                         {:action "scroll" :direction direction :amount amount})
+            "scroll"   (let [scroll-flags (set cmd-args)
+                             smooth?   (or (scroll-flags "--smooth") (scroll-flags "-S"))
+                             ;; Parse --in <selector> for element scrolling
+                             in-idx    (let [v    (vec cmd-args)
+                                             idx1 (long (.indexOf ^java.util.List v "--in"))]
+                                         (when (>= idx1 0)
+                                           (nth cmd-args (inc (long idx1)) nil)))
+                             ;; Positional args: direction [amount] [@selector]
+                             pos-args  (remove #(or (str/starts-with? % "-")
+                                                  (= % (str in-idx))) cmd-args)
+                             direction (or (first pos-args) "down")
+                             rest-pos  (rest pos-args)
+                             ;; Check if second positional is a number or selector
+                             second-arg (first rest-pos)
+                             amount    (if second-arg
+                                         (try (Integer/parseInt second-arg)
+                                              (catch Exception _ 500))
+                                         500)
+                             ;; Third positional as selector, or second if it's not a number
+                             sel       (or in-idx
+                                         (let [third (second rest-pos)]
+                                           (when (and third (or (str/starts-with? third "@")
+                                                              (str/starts-with? third "#")
+                                                              (str/starts-with? third ".")))
+                                             third))
+                                           ;; If second-arg wasn't a number, it's a selector
+                                         (when (and second-arg
+                                                 (not (try (Integer/parseInt second-arg) true
+                                                           (catch Exception _ false)))
+                                                 (or (str/starts-with? second-arg "@")
+                                                   (str/starts-with? second-arg "#")
+                                                   (str/starts-with? second-arg ".")))
+                                           second-arg))]
+                         (cond-> {:action "scroll" :direction direction :amount amount}
+                           smooth? (assoc :smooth true)
+                           sel     (assoc :selector sel)))
 
             ("scrollintoview" "scrollinto")
             {:action "scrollintoview" :selector (first cmd-args)}

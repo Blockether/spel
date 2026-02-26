@@ -632,19 +632,13 @@
   (let [direction (get params "direction" "down")
         amount    (long (get params "amount" 500))
         sel       (get params "selector")
-        [dx dy]   (case direction
-                    "up"    [0 (- amount)]
-                    "down"  [0 amount]
-                    "left"  [(- amount) 0]
-                    "right" [amount 0]
-                    [0 amount])]
-    (if sel
-      (page/evaluate (pg)
-        (str "document.querySelector('" sel "').scrollBy(" dx ", " dy ")"))
-      (page/evaluate (pg)
-        (str "window.scrollBy(" dx ", " dy ")")))
-    (let [tree (snapshot-after-action!)]
-      {:scrolled direction :amount amount :snapshot tree})))
+        smooth?   (get params "smooth" false)
+        opts      {:amount amount :smooth? smooth?}
+        result    (if sel
+                    (locator/scroll (resolve-selector sel) direction opts)
+                    (page/scroll (pg) direction opts))
+        tree      (snapshot-after-action!)]
+    (assoc result :snapshot tree)))
 
 (defmethod handle-cmd "back" [_ _]
   (ensure-page-loaded!)
