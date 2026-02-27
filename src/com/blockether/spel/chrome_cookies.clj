@@ -650,6 +650,7 @@
                  (let [^java.util.Collection coll [c]
                        ^java.util.List single (java.util.ArrayList. coll)]
                    (.addCookies context single))
+                 (swap! injected inc)
                  (catch Exception e
                    (swap! skipped inc)
                    (binding [*out* *err*]
