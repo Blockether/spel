@@ -1,5 +1,0 @@
-- div
-  - heading "Example Domain" [@e2yrjz] [level=1]
-  - paragraph "This domain is for use in documentation examples without needing permission. Avoid use in operations." [@e9mter]
-  - paragraph [@e2m4ty]
-    - link "Learn more" [@e6t2x4]
