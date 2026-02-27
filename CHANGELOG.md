@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.1] - 2026-02-27
+
+### Added
+- feat: validate URLs on `spel open` — reject invalid domains with clear error message (closes #36)
+- feat: smooth scroll + element scroll across library, SCI, CLI, and daemon
+- test: add 18 snapshot ref stability tests covering determinism, structural independence, and disambiguation
+
+### Changed
+- Switch spel daemon to virtual threads (BLO-132)
+- Make stealth mode automatic for all CLI and eval commands
+- Show page URL, title, and description in snapshot and eval output
+- Close `--all-sessions`, show ref table on not-found error
+- Enforce `@` prefix for snapshot refs — bare refs no longer auto-detected
+- Auto-persist sessions by default, fix session list socket detection
+- Deterministic content-hash snapshot refs, `get-by-ref`, `snapshot --all`, codegen improvements
+
+### Fixed
+- fix: replace hardcoded snapshot refs with generic `<sel>` and `@ref` in CLI help text
+- fix: skip daemon restart when already running in headed mode
+- fix: search reliability — block detection, faster timeouts, diagnostics, `--debug` flag
+
 ## [v0.4.0] - 2026-02-25
 
 ### Changed
