@@ -149,7 +149,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `net/` | 46 | Network request/response inspection and route handling. Inspect headers, status, body. Mock or abort requests. |
 | `loc/` | 39 | Raw Locator operations with explicit Locator arg. Click, fill, hover, check, get attributes, evaluate JS on elements. |
 | `assert/` | 31 | Playwright assertion functions. `assert-that`, `has-text`, `is-visible`, `has-url`, `loc-not`, `page-not`. Takes assertion objects. |
-| `core/` | 29 fn + 4 macros | Browser lifecycle. `with-playwright`, `with-browser`, `with-context`, `with-page`, `with-testing-page`. |
+| `core/` | 29 fn + 4 macros | Browser lifecycle. `with-testing-page` (recommended), `with-testing-api`, plus low-level `with-playwright`, `with-browser`, `with-context`, `with-page`. |
 | `page/` | 42 | Raw Page operations with explicit page arg. Same functions as the library's `com.blockether.spel.page` namespace. |
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
 | `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |

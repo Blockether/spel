@@ -60,7 +60,7 @@ Create step hierarchies for better test readability and failure debugging:
 
 | Option | Description |
 |--------|-------------|
-| `:screenshots?` | Take before/after screenshots (requires `*page*`, skipped when tracing) |
+| `:screenshots?` | Take before/after screenshots (requires page binding, skipped when tracing) |
 | `:http?` | Attach HTTP exchange markdown for APIResponse / browser Response |
 
 ```clojure
@@ -87,7 +87,7 @@ Create step hierarchies for better test readability and failure debugging:
 ## UI Steps
 
 UI steps automatically capture before/after screenshots. Equivalent to `(step name {:screenshots? true} body...)`.
-Requires `*page*` binding from test fixtures:
+Works with `core/with-testing-page` or test fixtures:
 
 ```clojure
 (allure/ui-step "Fill login form"
@@ -188,7 +188,7 @@ npx http-server allure-report -o -p 9999
 
 ## Trace Viewer Integration
 
-When using test fixtures (`with-page` / `with-traced-page`) or `with-testing-page` with Allure reporter active, Playwright tracing is automatically enabled.
+When using `with-testing-page` (recommended) or low-level fixtures (`with-page` / `with-traced-page`) with Allure reporter active, Playwright tracing is automatically enabled.
 
 ### What's Captured
 

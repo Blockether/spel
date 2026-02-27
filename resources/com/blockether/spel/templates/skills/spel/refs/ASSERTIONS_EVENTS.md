@@ -85,8 +85,8 @@ Use `assert/assert-that` with a Locator to get LocatorAssertions.
 In test `it` blocks, ALWAYS wrap with `expect`:
 
 ```clojure
-(expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome")))
-(expect (nil? (assert/has-title (assert/assert-that *page*) "My Page")))
+(expect (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Welcome")))
+(expect (nil? (assert/has-title (assert/assert-that page) "My Page")))
 ```
 
 ### Timeout Override

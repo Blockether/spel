@@ -182,22 +182,22 @@ Use it in tests:
    [my-app.pages.login :as login]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.assertions :as assert]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe login-test
   (describe "login flow"
-    {:context [with-playwright with-browser with-traced-page]}
+    
 
     (it "logs in with valid credentials"
-      (page/navigate *page* "https://app.example.com/login")
-      (login/login! *page* "alice" "secret123")
-      (expect (nil? (assert/has-url (assert/assert-that *page*) #".*dashboard.*"))))
+      (page/navigate page "https://app.example.com/login")
+      (login/login! page "alice" "secret123")
+      (expect (nil? (assert/has-url (assert/assert-that page) #".*dashboard.*"))))
 
     (it "shows error for bad password"
-      (page/navigate *page* "https://app.example.com/login")
-      (login/login! *page* "alice" "wrong")
-      (expect (nil? (assert/is-visible (assert/assert-that (login/error-msg *page*))))))))
+      (page/navigate page "https://app.example.com/login")
+      (login/login! page "alice" "wrong")
+      (expect (nil? (assert/is-visible (assert/assert-that (login/error-msg page))))))))
 ```
 
 ## Composable Modules
@@ -336,8 +336,8 @@ All assertion functions return `nil` on success or an anomaly map on failure. Wr
 
 ```clojure
 (it "shows welcome heading"
-  (page/navigate *page* "https://app.example.com")
-  (let [h1 (page/get-by-role *page* role/heading {:level 1})]
+  (page/navigate page "https://app.example.com")
+  (let [h1 (page/get-by-role page role/heading {:level 1})]
     (expect (nil? (assert/has-text (assert/assert-that h1) "Welcome")))
     (expect (nil? (assert/is-visible (assert/assert-that h1))))))
 ```
