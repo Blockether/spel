@@ -101,12 +101,12 @@ xattr -d com.apple.quarantine ~/.local/bin/spel
 **Post-install:**
 
 ```bash
-spel install   # install browsers
-spel version   # verify installation
+spel install          # install default browsers (Chromium, Firefox, WebKit)
+spel install msedge   # install Microsoft Edge (optional)
+spel version          # verify installation
 ```
 
-<details>
-<summary><strong>Corporate Proxy / Custom CA Certificates</strong></summary>
+### Corporate Proxy / Custom CA Certificates
 
 Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
 
@@ -126,7 +126,36 @@ spel install --with-deps
 
 All options merge with built-in defaults — public CDN certs continue to work.
 
-</details>
+### One-Shot Installation (for LLM agents)
+
+> **This section is designed for LLM consumption.** Copy-paste the entire block into your agent prompt or tool call. It provides a single, linear flow to install spel correctly in any environment, including corporate networks with SSL-inspecting proxies.
+
+```bash
+# 1. Download spel binary (pick your platform)
+# macOS Apple Silicon:
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-macos-arm64 && chmod +x spel-macos-arm64 && mv spel-macos-arm64 ~/.local/bin/spel
+# Linux amd64:
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-amd64 && chmod +x spel-linux-amd64 && mv spel-linux-amd64 ~/.local/bin/spel
+# Linux arm64:
+curl -LO https://github.com/Blockether/spel/releases/latest/download/spel-linux-arm64 && chmod +x spel-linux-arm64 && mv spel-linux-arm64 ~/.local/bin/spel
+
+# 2. Ensure ~/.local/bin is on PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# 3. macOS only — remove Gatekeeper quarantine
+xattr -d com.apple.quarantine ~/.local/bin/spel 2>/dev/null || true
+
+# 4. Corporate proxy? Set CA certs BEFORE install
+# export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
+# export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+
+# 5. Install browsers
+spel install --with-deps
+spel install msedge  # optional: Microsoft Edge
+
+# 6. Verify
+spel version
+```
 
 ### Browser Automation
 
