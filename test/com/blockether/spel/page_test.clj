@@ -1,5 +1,6 @@
 (ns com.blockether.spel.page-test
   (:require
+   [clojure.string :as str]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as sut]
    [com.blockether.spel.locator :as locator]
@@ -255,3 +256,44 @@
       (let [loc (sut/get-by-ref *page* "e9999")]
         (expect (instance? Locator loc))
         (expect (= 0 (locator/count-elements loc)))))))
+
+(defdescribe validate-url-test
+  "Tests for URL validation logic"
+
+  (describe "validate-url"
+    (it "returns valid URLs as-is"
+      (expect (= "https://example.com" (sut/validate-url "https://example.com")))
+      (expect (= "http://example.com" (sut/validate-url "http://example.com")))
+      (expect (= "https://sub.example.com" (sut/validate-url "https://sub.example.com")))
+      (expect (= "https://example.com/path" (sut/validate-url "https://example.com/path")))
+      (expect (= "https://example.com?q=1" (sut/validate-url "https://example.com?q=1")))
+      (expect (= "https://example.com#frag" (sut/validate-url "https://example.com#frag")))
+      (expect (= "http://localhost" (sut/validate-url "http://localhost")))
+      (expect (= "http://localhost:3000" (sut/validate-url "http://localhost:3000")))
+      (expect (= "https://192.168.1.1" (sut/validate-url "https://192.168.1.1")))
+      (expect (= "https://192.168.1.1:8080" (sut/validate-url "https://192.168.1.1:8080")))
+      (expect (= "file:///tmp/test.html" (sut/validate-url "file:///tmp/test.html")))
+      (expect (= "about:blank" (sut/validate-url "about:blank")))
+      (expect (= "data:text/html,<h1>hi</h1>" (sut/validate-url "data:text/html,<h1>hi</h1>")))
+      (expect (= "chrome://settings" (sut/validate-url "chrome://settings")))
+      (expect (= "javascript:void(0)" (sut/validate-url "javascript:void(0)")))
+      (expect (= "blob:http://example.com/abc" (sut/validate-url "blob:http://example.com/abc")))
+      (expect (= "https://example.co.uk" (sut/validate-url "https://example.co.uk"))))
+
+    (it "throws for invalid single-word domain"
+      (let [err (try (sut/validate-url "https://not-a-url") nil
+                     (catch clojure.lang.ExceptionInfo e e))]
+        (expect (some? err))
+        (expect (str/includes? (.getMessage err) "Invalid URL"))))
+
+    (it "throws for invalid single word"
+      (let [err (try (sut/validate-url "https://invalid") nil
+                     (catch clojure.lang.ExceptionInfo e e))]
+        (expect (some? err))
+        (expect (str/includes? (.getMessage err) "Invalid URL"))))
+
+    (it "error message includes raw input"
+      (let [err (try (sut/validate-url "https://notaurl" "notaurl") nil
+                     (catch clojure.lang.ExceptionInfo e e))]
+        (expect (some? err))
+        (expect (str/includes? (.getMessage err) "notaurl"))))))

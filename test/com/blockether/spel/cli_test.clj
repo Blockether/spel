@@ -54,6 +54,30 @@
       (let [c (cmd ["open" "data:text/html,<h1>hi</h1>"])]
         (expect (= "navigate" (:action c)))
         (expect (= "data:text/html,<h1>hi</h1>" (:url c)))))
+    (it "preserves about:blank"
+      (let [c (cmd ["open" "about:blank"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "about:blank" (:url c)))))
+
+    (it "preserves chrome:// protocol"
+      (let [c (cmd ["open" "chrome://settings"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "chrome://settings" (:url c)))))
+
+    (it "preserves javascript: protocol"
+      (let [c (cmd ["open" "javascript:void(0)"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "javascript:void(0)" (:url c)))))
+
+    (it "preserves blob: protocol"
+      (let [c (cmd ["open" "blob:http://example.com/abc"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "blob:http://example.com/abc" (:url c)))))
+
+    (it "includes raw-input in command map"
+      (let [c (cmd ["open" "example.com"])]
+        (expect (= "example.com" (:raw-input c)))
+        (expect (= "https://example.com" (:url c)))))
 
     (it "parses open with no URL"
       (let [c (cmd ["open"])]

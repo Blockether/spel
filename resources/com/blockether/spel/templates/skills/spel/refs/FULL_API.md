@@ -193,6 +193,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `title` | [page] | Returns the page title. |
 | `unroute!` | [page pattern] | Removes a route handler. |
 | `url` | [page] | Returns the current page URL. |
+| `validate-url` | [url] \| [url raw-input] | Validates a URL string for navigation. |
 | `video` | [page] | Returns the Video for this page, if recording. |
 | `viewport-size` | [page] | Returns the viewport size of the page. |
 | `wait-for-download` | [page action] \| [page action opts] | Waits for a download to start while executing `action`. |
@@ -732,7 +733,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
 | `spel/main-frame` | [] | Returns the main frame of the page. |
 | `spel/mouse` | [] | Returns the Mouse for this page. |
-| `spel/navigate` | [url] \| [url opts] | Navigates the page to a URL. |
+| `spel/navigate` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
 | `spel/nth-element` | [sel n] | Returns the nth element matching the locator. |
 | `spel/on-close` | [handler] | Registers a handler for page close. |

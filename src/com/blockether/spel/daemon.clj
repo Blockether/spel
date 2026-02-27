@@ -455,8 +455,9 @@
 
 (defmulti ^:private handle-cmd (fn [action _params] action))
 
-(defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path]}]
+(defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path raw-input]}]
   (ensure-browser!)
+  (page/validate-url url (or raw-input url))
   (page/navigate (pg) url)
   (page/wait-for-load-state (pg))
   (if screenshot

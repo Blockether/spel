@@ -1138,6 +1138,25 @@ fi
 # Verify the error mentions the expected text or assertion failure details
 assert_contains "NEGATIVE: eval wrong assertion → error mentions assertion context" "$OUT" "THIS TEXT DOES NOT EXIST ANYWHERE"
 # =============================================================================
+# =============================================================================
+# URL VALIDATION (32)
+# =============================================================================
+section "URL Validation (32)"
+
+# Invalid URL should fail
+OUT=$("$SPEL" --json open not-a-url 2>&1) || true
+assert_jq "open not-a-url → error" "$OUT" 'has("error")'
+assert_jq_contains "open not-a-url → error message" "$OUT" '.error' 'Invalid URL'
+
+# Valid URL should work (example.com with auto-prepend)
+OUT=$("$SPEL" --json open example.com 2>&1)
+assert_jq_eq "open example.com → .url" "$OUT" '.url' 'https://example.com/'
+
+# Valid URL with scheme should work
+OUT=$("$SPEL" --json open https://example.com 2>&1)
+assert_jq_eq "open https://example.com → .url" "$OUT" '.url' 'https://example.com/'
+
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

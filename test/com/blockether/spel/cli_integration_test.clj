@@ -106,7 +106,15 @@
     (it "reload keeps the same page"
       (nav! "/test-page")
       (let [r (cmd "reload" {})]
-        (expect (str/includes? (:url r) "/test-page"))))))
+        (expect (str/includes? (:url r) "/test-page"))))
+
+    (it "rejects invalid single-word domain"
+      (let [err (try
+                  (cmd "navigate" {"url" "https://not-a-url" "raw-input" "not-a-url"})
+                  nil
+                  (catch Exception e (.getMessage e)))]
+        (expect (some? err))
+        (expect (str/includes? err "Invalid URL"))))))
 
 ;; =============================================================================
 ;; 2. Snapshot

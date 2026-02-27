@@ -240,8 +240,10 @@
 ;; =============================================================================
 
 (defn sci-goto
-  ([url] (throw-if-anomaly (page/navigate (require-page!) url)))
-  ([url opts] (throw-if-anomaly (page/navigate (require-page!) url opts))))
+  "Navigates the current page to a URL.
+   Validates the URL before navigation — throws on invalid URLs."
+  ([url] (page/validate-url url) (throw-if-anomaly (page/navigate (require-page!) url)))
+  ([url opts] (page/validate-url url) (throw-if-anomaly (page/navigate (require-page!) url opts))))
 (defn sci-back      [] (throw-if-anomaly (page/go-back (require-page!))))
 (defn sci-forward   [] (throw-if-anomaly (page/go-forward (require-page!))))
 (defn sci-reload!   [] (throw-if-anomaly (page/reload (require-page!))))

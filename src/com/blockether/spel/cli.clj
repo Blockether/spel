@@ -1337,10 +1337,14 @@
                                   (if (or (str/starts-with? raw-url "http://")
                                         (str/starts-with? raw-url "https://")
                                         (str/starts-with? raw-url "file://")
-                                        (str/starts-with? raw-url "data:"))
+                                        (str/starts-with? raw-url "data:")
+                                        (str/starts-with? raw-url "about:")
+                                        (str/starts-with? raw-url "chrome:")
+                                        (str/starts-with? raw-url "javascript:")
+                                        (str/starts-with? raw-url "blob:"))
                                     raw-url
                                     (str "https://" raw-url)))]
-              (cond-> {:action "navigate" :url url}
+              (cond-> {:action "navigate" :url url :raw-input raw-url}
                 interactive? (assoc :interactive true)
                 screenshot?  (assoc :screenshot true)
                 ss-path      (assoc :screenshot-path ss-path)))

@@ -5,6 +5,7 @@
    The Page class is the central API surface of Playwright. Wraps all
    Page methods with idiomatic Clojure functions."
   (:require
+   [clojure.string :as str]
    [com.blockether.spel.core :refer [safe]]
    [com.blockether.spel.options :as opts])
   (:import
@@ -32,6 +33,42 @@
    (safe (.navigate page url)))
   ([^Page page ^String url nav-opts]
    (safe (.navigate page url (opts/->navigate-options nav-opts)))))
+(defn validate-url
+  "Validates a URL string for navigation.
+
+   Params:
+   `url`       - String. The URL to validate.
+   `raw-input` - String. The original input string (for error messages).
+
+   Returns:
+   `url` if valid, or throws ex-info."
+  ([url]
+   (validate-url url url))
+  ([url raw-input]
+   (let [lower-url (str/lower-case (or url ""))]
+     (if (or (str/starts-with? lower-url "http://")
+           (str/starts-with? lower-url "https://")
+           (str/starts-with? lower-url "file://")
+           (str/starts-with? lower-url "data:")
+           (str/starts-with? lower-url "about:")
+           (str/starts-with? lower-url "chrome:")
+           (str/starts-with? lower-url "javascript:")
+           (str/starts-with? lower-url "blob:"))
+       ;; Check http(s) URLs for valid domain/IP
+       (if (or (str/starts-with? lower-url "http://")
+             (str/starts-with? lower-url "https://"))
+         (let [parts (str/split url #"/")
+               host  (get parts 2 "")]
+           (if (or (str/includes? host ".")
+                 (= "localhost" (str/lower-case (first (str/split host #":"))))
+                 (re-matches #"^(\d{1,3}\.){3}\d{1,3}(:\d+)?$" host)
+                 (re-matches #"^\[[a-fA-F0-9:]+\](:\d+)?$" host))
+             url
+             (throw (ex-info (str "Invalid URL '" raw-input "'. URLs must include a scheme (https://) or be a valid domain.")
+                      {:url url :raw-input raw-input}))))
+         url)
+       (throw (ex-info (str "Invalid URL '" raw-input "'. URLs must include a scheme (https://) or be a valid domain.")
+                {:url url :raw-input raw-input}))))))
 
 (defn go-back
   "Navigates back in history.
