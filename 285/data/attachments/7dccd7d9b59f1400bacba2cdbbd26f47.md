@@ -1,0 +1,17 @@
+## GET /status/204 → 204 No Content
+
+### Request Headers
+```
+GET /status/204
+```
+
+### Response Headers
+```
+content-type: application/json
+date: Fri, 27 Feb 2026 07:54:21 GMT
+```
+
+### cURL
+```bash
+curl '/status/204'
+```
