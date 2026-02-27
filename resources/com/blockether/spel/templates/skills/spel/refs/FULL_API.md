@@ -1094,10 +1094,10 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `open <url>` | Navigate (aliases: goto, navigate) |
 | `open <url> --interactive` | Navigate with visible browser |
-| `click @e2yrjz` | Click element by ref or selector |
+| `click <sel>` | Click element by ref or selector |
 | `dblclick <sel>` | Double-click element |
-| `fill @e9mter \"text\"` | Clear and fill input |
-| `type @e9mter \"text\"` | Type without clearing |
+| `fill <sel> \"text\"` | Clear and fill input |
+| `type <sel> \"text\"` | Type without clearing |
 | `press <key>` | Press key (Enter, Tab, Control+a) (alias: key) |
 | `keydown <key>` | Hold key down |
 | `keyup <key>` | Release key |
@@ -1135,10 +1135,10 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `get text @e2yrjz` | Get text content |
-| `get html @e2yrjz` | Get innerHTML |
-| `get value @e2yrjz` | Get input value |
-| `get attr @e2yrjz <name>` | Get attribute value |
+| `get text <sel>` | Get text content |
+| `get html <sel>` | Get innerHTML |
+| `get value <sel>` | Get input value |
+| `get attr <sel> <name>` | Get attribute value |
 | `get url / get title` | Get page URL or title |
 | `get count <sel>` | Count matching elements |
 | `get box <sel>` | Get bounding box |

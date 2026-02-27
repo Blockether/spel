@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dogfood Report: {APP_NAME}</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-raised: #1c2129;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --critical: #f85149;
+    --high: #db6d28;
+    --medium: #d29922;
+    --low: #3fb950;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+  .meta-table {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+  .meta-table dt { font-weight: 600; color: var(--text); }
+  .meta-table dd { color: var(--text-muted); }
+
+  /* Summary */
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-item {
+    text-align: center;
+    min-width: 80px;
+  }
+  .summary-item .count {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+  }
+  .summary-item .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+  .count--critical { color: var(--critical); }
+  .count--high { color: var(--high); }
+  .count--medium { color: var(--medium); }
+  .count--low { color: var(--low); }
+  .count--total { color: var(--accent); }
+
+  /* Section titles */
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Video player */
+  .video-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+  .video-section video {
+    width: 100%;
+    display: block;
+    background: #000;
+  }
+  .video-caption {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* Transcript / timeline */
+  .transcript {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 2rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .transcript-entry {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 0.75rem;
+    padding: 0.6rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    transition: background 0.15s;
+  }
+  .transcript-entry:last-child { border-bottom: none; }
+  .transcript-entry:hover { background: var(--surface-raised); }
+  .transcript-entry.is-issue { background: rgba(248, 81, 73, 0.06); }
+  .transcript-entry.is-issue:hover { background: rgba(248, 81, 73, 0.12); }
+  .transcript-time {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    padding-top: 0.1rem;
+  }
+  .transcript-text { color: var(--text); }
+  .transcript-text .issue-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--critical);
+    background: rgba(248, 81, 73, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-right: 0.25rem;
+  }
+
+  /* URL map */
+  .url-map {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 2rem;
+    padding: 1.25rem;
+  }
+  .url-depth {
+    margin-bottom: 1rem;
+  }
+  .url-depth:last-child { margin-bottom: 0; }
+  .url-depth-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 0.35rem;
+  }
+  .url-depth ul {
+    list-style: none;
+    padding: 0;
+  }
+  .url-depth li {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.15rem 0;
+  }
+  .url-depth li::before {
+    content: "→ ";
+    color: var(--border);
+  }
+
+  /* Findings */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  .finding-header {
+    background: var(--surface-raised);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .finding-id {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .severity {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    color: var(--bg);
+  }
+  .severity--critical { background: var(--critical); }
+  .severity--high { background: var(--high); }
+  .severity--medium { background: var(--medium); }
+  .severity--low { background: var(--low); }
+  .category {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+  .finding-body { padding: 1.25rem; }
+  .finding-body h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .finding-url {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-bottom: 1rem;
+  }
+
+  /* Interleaved explanation + screenshot blocks */
+  .explanation {
+    background: var(--surface-raised);
+    border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    border-radius: 0 4px 4px 0;
+  }
+  .explanation::before {
+    content: "Agent";
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+  figure {
+    margin: 0.75rem 0;
+  }
+  figure img {
+    width: 100%;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  figcaption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    font-style: italic;
+  }
+  .console-output {
+    margin-top: 0.75rem;
+  }
+  .console-output pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--critical);
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: 2rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dogfood Report: {APP_NAME}</h1>
+  <dl class="meta-table">
+    <dt>Date</dt>        <dd>{DATE}</dd>
+    <dt>URL</dt>         <dd>{URL}</dd>
+    <dt>Crawl depth</dt> <dd>{CRAWL_DEPTH}</dd>
+    <dt>Session</dt>     <dd>{SESSION_NAME}</dd>
+    <dt>Scope</dt>       <dd>{SCOPE}</dd>
+    <dt>Tool</dt>        <dd>spel (Blockether Playwright wrapper)</dd>
+  </dl>
+</header>
+
+<div class="summary">
+  <div class="summary-item"><span class="count count--critical">{CRITICAL_COUNT}</span><span class="label">Critical</span></div>
+  <div class="summary-item"><span class="count count--high">{HIGH_COUNT}</span><span class="label">High</span></div>
+  <div class="summary-item"><span class="count count--medium">{MEDIUM_COUNT}</span><span class="label">Medium</span></div>
+  <div class="summary-item"><span class="count count--low">{LOW_COUNT}</span><span class="label">Low</span></div>
+  <div class="summary-item"><span class="count count--total">{TOTAL_COUNT}</span><span class="label">Total</span></div>
+</div>
+
+<!-- VIDEO SECTION — Embed the session recording -->
+
+<!--
+<h2 class="section-title">Session Recording</h2>
+<div class="video-section">
+  <video controls preload="metadata">
+    <source src="videos/session.mp4" type="video/mp4">
+    <source src="videos/session.webm" type="video/webm">
+    <track kind="subtitles" src="transcript.vtt" srclang="en" label="Agent transcript" default>
+    Your browser does not support the video tag.
+  </video>
+  <div class="video-caption">Full session recording with agent transcript as subtitles.</div>
+</div>
+-->
+
+<!-- URL MAP — Discovered URLs organized by crawl depth -->
+
+<!--
+<h2 class="section-title">Discovered URLs</h2>
+<div class="url-map">
+  <div class="url-depth">
+    <div class="url-depth-label">Depth 0 (entry point)</div>
+    <ul>
+      <li>https://github.com/</li>
+    </ul>
+  </div>
+  <div class="url-depth">
+    <div class="url-depth-label">Depth 1 (12 URLs)</div>
+    <ul>
+      <li>https://github.com/explore</li>
+      <li>https://github.com/trending</li>
+    </ul>
+  </div>
+</div>
+-->
+
+<!-- TRANSCRIPT — Agent activity timeline -->
+
+<!--
+<h2 class="section-title">Activity Transcript</h2>
+<div class="transcript">
+  <div class="transcript-entry">
+    <div class="transcript-time">00:00:00</div>
+    <div class="transcript-text">Opening github.com in stealth mode</div>
+  </div>
+  <div class="transcript-entry">
+    <div class="transcript-time">00:00:05</div>
+    <div class="transcript-text">Homepage loaded. Taking initial screenshot.</div>
+  </div>
+  <div class="transcript-entry is-issue">
+    <div class="transcript-time">00:01:22</div>
+    <div class="transcript-text"><span class="issue-tag">ISSUE-001</span>Search input has no visible focus indicator</div>
+  </div>
+</div>
+-->
+
+<!-- FINDINGS START — Append new findings above the FINDINGS END marker -->
+
+<!--
+FINDING TEMPLATE — Copy this block for each issue. The key pattern is interleaving
+screenshots with agent explanations so the report reads as a visual walkthrough.
+
+<section class="finding">
+  <div class="finding-header">
+    <span class="finding-id">ISSUE-001</span>
+    <span class="severity severity--medium">MEDIUM</span>
+    <span class="category">functional</span>
+  </div>
+  <div class="finding-body">
+    <h3>{Short title describing the issue}</h3>
+    <p class="finding-url">{page URL}</p>
+
+    <div class="explanation">
+      I navigated to the settings page to test form interactions.
+      The page loaded normally with all fields visible.
+    </div>
+
+    <figure>
+      <img src="screenshots/issue-001-step-1.png" alt="Settings page loaded">
+      <figcaption>Settings page in its initial state</figcaption>
+    </figure>
+
+    <div class="explanation">
+      I entered a valid email address and clicked Save. The button showed
+      a loading state briefly, then the page refreshed — but the old email
+      was still displayed. The change was not persisted.
+    </div>
+
+    <figure>
+      <img src="screenshots/issue-001-result.png" alt="Email not saved">
+      <figcaption>After save: the original email is still shown</figcaption>
+    </figure>
+
+    <div class="console-output">
+      <pre>PUT /api/settings 422 — {"error": "email_already_taken"}</pre>
+    </div>
+  </div>
+</section>
+-->
+
+<!-- FINDINGS END -->
+
+<footer>
+  Generated by spel dogfood workflow
+</footer>
+
+</body>
+</html>

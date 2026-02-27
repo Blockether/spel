@@ -9,8 +9,8 @@
    Usage:
      spel open https://example.com
      spel snapshot
-     spel click @e2yrjz
-     spel fill @e9mter \"search text\"
+     spel click @ref
+     spel fill @ref \"search text\"
      spel screenshot shot.png
      spel close"
   (:require
@@ -115,7 +115,7 @@
       "  spel click <selector>"
       ""
       "Examples:"
-      "  spel click @e2yrjz"
+      "  spel click @ref"
       "  spel click \"#submit-btn\""
       "  spel click \"text=Login\""])
 
@@ -127,7 +127,7 @@
       "  spel dblclick <selector>"
       ""
       "Examples:"
-      "  spel dblclick @e2yrjz"
+      "  spel dblclick @ref"
       "  spel dblclick \".editable-cell\""])
 
    "fill"
@@ -138,7 +138,7 @@
       "  spel fill <selector> <text>"
       ""
       "Examples:"
-      "  spel fill @e9mter \"user@example.com\""
+      "  spel fill @ref \"user@example.com\""
       "  spel fill \"#search\" \"search query\""])
 
    "type"
@@ -149,7 +149,7 @@
       "  spel type <selector> <text>"
       ""
       "Examples:"
-      "  spel type @e9mter \"additional text\""
+      "  spel type @ref \"additional text\""
       "  spel type \"#editor\" \"appended content\""])
 
    "clear"
@@ -160,7 +160,7 @@
       "  spel clear <selector>"
       ""
       "Examples:"
-      "  spel clear @e9mter"
+      "  spel clear @ref"
       "  spel clear \"#search\""])
 
    "press"
@@ -177,7 +177,7 @@
       "  spel press Enter"
       "  spel press Tab"
       "  spel press Control+a"
-      "  spel press @e2yrjz Enter"
+      "  spel press @ref Enter"
       "  spel key Escape"])
 
    "keydown"
@@ -210,7 +210,7 @@
       "  spel hover <selector>"
       ""
       "Examples:"
-      "  spel hover @e2yrjz"
+      "  spel hover @ref"
       "  spel hover \".dropdown-trigger\""])
 
    "mouse"
@@ -241,7 +241,7 @@
       "  spel check <selector>"
       ""
       "Examples:"
-      "  spel check @e6t2x4"
+      "  spel check @ref"
       "  spel check \"#agree-terms\""])
 
    "uncheck"
@@ -252,7 +252,7 @@
       "  spel uncheck <selector>"
       ""
       "Examples:"
-      "  spel uncheck @e6t2x4"
+      "  spel uncheck @ref"
       "  spel uncheck \"#newsletter\""])
 
    "select"
@@ -263,9 +263,9 @@
       "  spel select <selector> <value> [value...]"
       ""
       "Examples:"
-      "  spel select @e0k8qp \"option1\""
+      "  spel select @ref \"option1\""
       "  spel select \"#country\" \"US\""
-      "  spel select @e0k8qp \"opt1\" \"opt2\""])
+      "  spel select @ref \"opt1\" \"opt2\""])
 
    "focus"
    (str/join \newline
@@ -275,7 +275,7 @@
       "  spel focus <selector>"
       ""
       "Examples:"
-      "  spel focus @e2yrjz"
+      "  spel focus @ref"
       "  spel focus \"#email-input\""])
 
    "scroll"
@@ -289,7 +289,7 @@
       "Arguments:"
       "  direction    up, down, left, or right (default: down)"
       "  amount       Pixels to scroll (default: 500)"
-      "  selector     Element ref (@eXXXXX) or CSS selector to scroll within"
+      "  selector     Element ref (@ref) or CSS selector to scroll within"
       ""
       "Flags:"
       "  -S, --smooth    Smooth animated scroll (default: instant jump)"
@@ -299,7 +299,7 @@
       "  spel scroll                          Scroll page down 500px (instant)"
       "  spel scroll down 1000               Scroll page down 1000px"
       "  spel scroll up 500 --smooth          Smooth scroll page up 500px"
-      "  spel scroll down 300 @e2yrjz         Scroll within element by ref"
+      "  spel scroll down 300 @ref           Scroll within element by ref"
       "  spel scroll down 500 --in #sidebar   Scroll within #sidebar element"
       "  spel scroll -S down 800              Smooth scroll shorthand"])
 
@@ -313,7 +313,7 @@
       "  spel scrollintoview <selector>"
       ""
       "Examples:"
-      "  spel scrollintoview @ea3kf5"
+      "  spel scrollintoview @ref"
       "  spel scrollinto \"#footer\""])
 
    "drag"
@@ -324,7 +324,7 @@
       "  spel drag <source> <target>"
       ""
       "Examples:"
-      "  spel drag @e2yrjz @e9mter"
+      "  spel drag @ref @ref2"
       "  spel drag \"#item\" \"#dropzone\""])
 
    "upload"
@@ -335,7 +335,7 @@
       "  spel upload <selector> <file> [file...]"
       ""
       "Examples:"
-      "  spel upload @e2yrjz photo.jpg"
+      "  spel upload @ref photo.jpg"
       "  spel upload \"input[type=file]\" doc.pdf image.png"])
 
    "screenshot"
@@ -425,7 +425,7 @@
       "  spel wait --load <state>"
       ""
       "Examples:"
-      "  spel wait @e2yrjz"
+      "  spel wait @ref"
       "  spel wait 2000"
       "  spel wait --text \"Welcome\""
       "  spel wait --url \"**/dashboard\""
@@ -478,14 +478,14 @@
       "  box <sel>             Get bounding box {x, y, width, height}"
       ""
       "Examples:"
-      "  spel get text @e2yrjz"
+      "  spel get text @ref"
       "  spel get url"
       "  spel get title"
-      "  spel get html @e2yrjz"
-      "  spel get value @e9mter"
-      "  spel get attr @e2yrjz href"
+      "  spel get html @ref"
+      "  spel get value @ref"
+      "  spel get attr @ref href"
       "  spel get count \".items\""
-      "  spel get box @e2yrjz"])
+      "  spel get box @ref"])
 
    "is"
    (str/join \newline
@@ -500,9 +500,9 @@
       "  checked <sel>    Check if element is checked"
       ""
       "Examples:"
-      "  spel is visible @e2yrjz"
-      "  spel is enabled @e9mter"
-      "  spel is checked @e6t2x4"])
+      "  spel is visible @ref"
+      "  spel is enabled @ref"
+      "  spel is checked @ref"])
 
    "count"
    (str/join \newline
@@ -523,7 +523,7 @@
       "  spel bbox <selector>"
       ""
       "Examples:"
-      "  spel bbox @e2yrjz"
+      "  spel bbox @ref"
       "  spel bbox \"#header\""])
 
    "highlight"
@@ -534,7 +534,7 @@
       "  spel highlight <selector>"
       ""
       "Examples:"
-      "  spel highlight @e2yrjz"
+      "  spel highlight @ref"
       "  spel highlight \".target\""])
 
    "find"
