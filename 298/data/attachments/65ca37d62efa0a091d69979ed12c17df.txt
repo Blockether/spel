@@ -1,0 +1,10 @@
+content-encoding: gzip
+server: cloudflare
+age: 2452
+content-type: text/html
+allow: GET, HEAD
+cf-cache-status: HIT
+cf-ray: 9d477e407e24e1db-ORD
+date: Fri, 27 Feb 2026 11:55:26 GMT
+vary: Accept-Encoding
+last-modified: Wed, 25 Feb 2026 07:20:54 GMT
