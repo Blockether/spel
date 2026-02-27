@@ -390,9 +390,9 @@
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
    Three modes:
-   1. Real Chrome profile detected → decrypt cookies from Chrome's SQLite DB
-      using macOS Keychain, launch Playwright browser, inject cookies via
-      .addCookies (Chrome 136+ broke all other approaches)
+   1. Real Chrome/Edge profile detected → copy profile to temp dir, launch
+      persistent context (bookmarks, history, extensions, passwords), then
+      decrypt and inject cookies via .addCookies (Chrome 136+ workaround)
    2. --profile with non-Chrome dir → Playwright launchPersistentContext
    3. Normal → Playwright launch (or --cdp connect)
 
@@ -419,35 +419,57 @@
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
-        ;; ── Mode 1: Real Chrome profile → decrypt cookies & inject ─────
-        ;; Chrome 136+ blocks all subprocess-based cookie access (CDP, persistent
-        ;; context, Keychain). The proven solution: decrypt cookies ourselves from
-        ;; Chrome's SQLite DB using the macOS Keychain password, then inject them
-        ;; into a fresh Playwright context via .addCookies.
+        ;; ── Mode 1: Real Chrome/Edge profile → persistent context + cookies ──
+        ;; Chrome 136+ blocks cookie access from subprocesses. Solution:
+        ;; copy the profile to a temp dir, launch with persistent context
+        ;; (for bookmarks, history, extensions, passwords), then inject
+        ;; decrypted cookies via .addCookies. Uses :viewport nil to skip
+        ;; Playwright's getWindowForTarget call which crashes with Edge.
         (and profile-dir (real-chrome-profile? profile-dir))
-        (let [browser (check-anomaly!
-                        (core/launch-chromium pw launch-opts)
-                        "Failed to launch browser")
-              context (check-anomaly!
-                        (if (seq ctx-opts)
-                          (core/new-context browser ctx-opts)
-                          (core/new-context browser))
-                        "Failed to create browser context")
-              _       (when (get flags "stealth")
-                        (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-              n       (chrome-cookies/inject-cookies! context profile-dir {:channel (get flags "channel")})
-              _       (binding [*out* *err*]
-                        (println (str "spel: injected " n " cookies from browser profile")))
-              pg-inst (check-anomaly!
-                        (core/new-page-from-context context)
-                        "Failed to create page")]
-          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst))
+        (let [_           (binding [*out* *err*]
+                            (println (str "spel: [Mode 1] Real browser profile detected at " profile-dir))
+                            (println "spel: [Mode 1] Copying profile for full experience (bookmarks, extensions, history, passwords)..."))
+              tmp-profile (chrome-cookies/copy-profile-dir! profile-dir)
+              _           (binding [*out* *err*]
+                            (println (str "spel: [Mode 1] Profile copied to " tmp-profile))
+                            (when (get flags "channel")
+                              (println (str "spel: [Mode 1] Browser channel: " (get flags "channel")))))
+              launch-opts (-> launch-opts
+                            (update :ignore-default-args
+                              (fnil into [])
+                              ["--use-mock-keychain" "--password-store=basic"])
+                            (update :args
+                              (fnil conj [])
+                              "--disable-fre"))
+              persistent-opts (merge launch-opts ctx-opts {:viewport nil})
+              context     (check-anomaly!
+                            (core/launch-persistent-context
+                              (.chromium ^com.microsoft.playwright.Playwright pw)
+                              tmp-profile
+                              persistent-opts)
+                            "Failed to launch persistent browser context")
+              _           (when (get flags "stealth")
+                            (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+              n           (chrome-cookies/inject-cookies! context profile-dir {:channel (get flags "channel")})
+              _           (binding [*out* *err*]
+                            (println (str "spel: [Mode 1] Injected " n " cookies from browser profile")))
+              browser     (.browser ^BrowserContext context)
+              pg-inst     (if (seq (.pages ^BrowserContext context))
+                            (first (.pages ^BrowserContext context))
+                            (check-anomaly!
+                              (core/new-page-from-context context)
+                              "Failed to create page in persistent context"))]
+          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
+            :persistent-profile true :tmp-profile-dir tmp-profile))
 
         ;; ── Mode 2: --profile with non-Chrome dir → Playwright persistent ─
         ;; For fresh/temp profile directories (no Preferences file), use
         ;; Playwright's launchPersistentContext which creates its own profile.
         profile-dir
-        (let [launch-opts (update launch-opts :ignore-default-args
+        (let [_           (binding [*out* *err*]
+                            (println (str "spel: [Mode 2] Custom profile directory at " profile-dir))
+                            (println "spel: [Mode 2] No Chrome/Edge profile data detected (no Preferences or Cookies file)"))
+              launch-opts (update launch-opts :ignore-default-args
                             (fnil into [])
                             ["--use-mock-keychain" "--password-store=basic"])
               persistent-opts (merge launch-opts ctx-opts)
@@ -470,7 +492,14 @@
 
         ;; ── Mode 3: Normal → launch or explicit --cdp ───────────────────
         :else
-        (let [browser (if (get flags "cdp")
+        (let [_       (when profile-dir
+                        (binding [*out* *err*]
+                          (println (str "spel: [Mode 3] --profile ignored (not a browser profile directory): " profile-dir))))
+              _       (binding [*out* *err*]
+                        (println (str "spel: [Mode 3] Standard launch"
+                                   (when (get flags "cdp") (str " via CDP: " (get flags "cdp")))
+                                   (when (get flags "channel") (str ", channel: " (get flags "channel"))))))
+              browser (if (get flags "cdp")
                         (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
                         (check-anomaly!
                           (core/launch-chromium pw launch-opts)
@@ -1843,6 +1872,19 @@
     (when-let [c  (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
     (when-let [b  (:browser @!state)] (try (core/close-browser! b) (catch Exception e (warn "close-browser" e))))
     (when-let [pw (:pw @!state)]      (try (core/close! pw)        (catch Exception e (warn "close-playwright" e))))
+    ;; 3b. Clean up temp profile directory if one was created
+    (when-let [tmp-dir (:tmp-profile-dir @!state)]
+      (try
+        (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
+          (java.nio.file.Files/walkFileTree tmp-path
+            (proxy [java.nio.file.SimpleFileVisitor] []
+              (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
+                (java.nio.file.Files/deleteIfExists file)
+                java.nio.file.FileVisitResult/CONTINUE)
+              (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
+                (java.nio.file.Files/deleteIfExists dir)
+                java.nio.file.FileVisitResult/CONTINUE))))
+        (catch Exception e (warn "cleanup-tmp-profile" e))))
     ;; 4. Only delete files if they still belong to US (a new daemon may
     ;;    have already replaced them during our slow browser cleanup)
     (when (owns-pid-file? session)

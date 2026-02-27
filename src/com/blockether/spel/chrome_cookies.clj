@@ -41,7 +41,7 @@
   (:import
    [com.microsoft.playwright BrowserContext]
    [com.microsoft.playwright.options Cookie SameSiteAttribute]
-   [java.nio.file Files Paths StandardCopyOption]
+   [java.nio.file CopyOption FileVisitResult Files LinkOption OpenOption Path Paths SimpleFileVisitor StandardCopyOption]
    [java.util Arrays Base64]
    [javax.crypto Cipher SecretKeyFactory]
    [javax.crypto.spec GCMParameterSpec IvParameterSpec PBEKeySpec SecretKeySpec]))
@@ -338,6 +338,91 @@
               (String. decrypted "UTF-8"))))
         (catch Exception _
           nil)))))
+
+(def ^:private skip-dirs-on-copy
+  "Directory names to skip when copying a browser profile.
+   These are large cache directories that are not needed for bookmarks,
+   history, extensions, or other profile data."
+  #{"Service Worker" "IndexedDB" "GPUCache" "DawnGraphiteCache"
+    "DawnWebGPUCache" "Code Cache" "blob_storage" "Cache"
+    "ScriptCache" "component_crx_cache" "GrShaderCache"})
+
+(def ^:private strip-files-on-copy
+  "Files to remove from the profile copy.
+   Cookies are handled separately via decryption and injection.
+   Lock/Singleton files prevent Chromium from launching on a copied profile."
+  #{"Cookies" "Cookies-journal" "LOCK" "SingletonLock" "SingletonCookie"
+    "SingletonSocket" "lockfile" "Web Data-journal" "Login Data-journal"})
+
+(defn- patch-copied-preferences!
+  "Patches the Preferences file in the copied profile directory.
+   Sets profile.exit_type to \"Normal\" to prevent Chromium's crash
+   recovery dialog, which would appear because the original profile's
+   exit_type is typically \"Crashed\" (still open when copied)."
+  [^Path prefs-path]
+  (when (Files/exists prefs-path (into-array LinkOption []))
+    (let [content (String. (Files/readAllBytes prefs-path))
+          parsed  (json/read-json content)
+          profile (get parsed "profile" {})
+          patched (assoc parsed "profile" (assoc profile "exit_type" "Normal"))
+          bytes   (.getBytes ^String (json/write-json-str patched) "UTF-8")]
+      (Files/write prefs-path bytes (into-array java.nio.file.OpenOption [])))))
+
+(defn copy-profile-dir!
+  "Copies a Chromium browser profile directory to a temp user-data-dir for use
+   with launchPersistentContext. Creates a proper Chromium user-data-dir layout:
+   the profile is copied into a 'Default' subdirectory, and the parent's
+   'Local State' file is copied alongside it.
+
+   Skips large cache directories and strips lock files, the Cookies database
+   (cookies are injected separately via decryption and .addCookies), and
+   Secure Preferences (contains path-specific HMACs that become invalid).
+
+   After copying, patches the Preferences file to set profile.exit_type to
+   'Normal' so Chromium doesn't trigger crash recovery on the copied profile.
+
+   Returns the path (String) to the temporary user-data-dir (pass this to
+   launchPersistentContext, NOT the Default subdirectory inside it).
+
+   The copy preserves bookmarks, history, extensions, saved passwords,
+   autofill data, preferences, and other profile data needed for a full
+   browser experience."
+  ^String [^String profile-dir]
+  (let [source       (Paths/get profile-dir (into-array String []))
+        ;; Create temp user-data-dir with Default subdirectory
+        tmp-udd      (Paths/get (System/getProperty "java.io.tmpdir")
+                       (into-array String [(str "spel-profile-" (System/currentTimeMillis))]))
+        tmp-default  (.resolve tmp-udd "Default")
+        _            (Files/createDirectories tmp-default (into-array java.nio.file.attribute.FileAttribute []))
+        replace-co   (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])
+        empty-lo     (into-array LinkOption [])]
+    ;; Copy Local State from parent (Chromium needs it for profile loading)
+    (let [parent-dir  (.getParent (java.io.File. profile-dir))
+          local-state (java.io.File. ^String parent-dir "Local State")]
+      (when (.exists local-state)
+        (Files/copy (.toPath local-state)
+          (.resolve tmp-udd "Local State")
+          ^"[Ljava.nio.file.CopyOption;" replace-co)))
+    ;; Copy profile contents into Default subdirectory
+    (Files/walkFileTree source
+      (proxy [SimpleFileVisitor] []
+        (preVisitDirectory [^Path dir ^java.nio.file.attribute.BasicFileAttributes _attrs]
+          (let [dir-name (str (.getFileName dir))]
+            (if (contains? skip-dirs-on-copy dir-name)
+              FileVisitResult/SKIP_SUBTREE
+              (let [target (.resolve tmp-default (.relativize source dir))]
+                (when-not (Files/exists target empty-lo)
+                  (Files/createDirectories target (into-array java.nio.file.attribute.FileAttribute [])))
+                FileVisitResult/CONTINUE))))
+        (visitFile [^Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
+          (let [file-name (str (.getFileName file))]
+            (when-not (contains? strip-files-on-copy file-name)
+              (let [target (.resolve tmp-default (.relativize source file))]
+                (Files/copy ^Path file ^Path target ^"[Ljava.nio.file.CopyOption;" replace-co))))
+          FileVisitResult/CONTINUE)))
+    ;; Patch Preferences to prevent crash recovery dialog
+    (patch-copied-preferences! (.resolve tmp-default "Preferences"))
+    (str tmp-udd)))
 
 ;; =============================================================================
 ;; SQLite Query
