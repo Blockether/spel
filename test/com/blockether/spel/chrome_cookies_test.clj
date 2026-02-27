@@ -792,3 +792,101 @@
         (expect false "Should have thrown")
         (catch clojure.lang.ExceptionInfo e
           (expect (str/includes? (.getMessage e) "Cookies database not found")))))))
+
+;; =============================================================================
+;; Unit Tests — copy-profile-dir! (profile copying for persistent context)
+;; =============================================================================
+
+(defdescribe copy-profile-dir-test
+  "Unit tests for copy-profile-dir! — copies browser profile for persistent context"
+
+  (describe "skip-dirs-on-copy"
+    (it "contains Service Worker"
+      (expect (contains? @#'sut/skip-dirs-on-copy "Service Worker")))
+
+    (it "contains IndexedDB"
+      (expect (contains? @#'sut/skip-dirs-on-copy "IndexedDB")))
+
+    (it "contains GPUCache"
+      (expect (contains? @#'sut/skip-dirs-on-copy "GPUCache")))
+
+    (it "contains Cache"
+      (expect (contains? @#'sut/skip-dirs-on-copy "Cache")))
+
+    (it "does not contain Bookmarks"
+      (expect (not (contains? @#'sut/skip-dirs-on-copy "Bookmarks")))))
+
+  (describe "strip-files-on-copy"
+    (it "contains Cookies"
+      (expect (contains? @#'sut/strip-files-on-copy "Cookies")))
+
+    (it "contains Cookies-journal"
+      (expect (contains? @#'sut/strip-files-on-copy "Cookies-journal")))
+
+    (it "contains LOCK"
+      (expect (contains? @#'sut/strip-files-on-copy "LOCK")))
+
+    (it "contains SingletonLock"
+      (expect (contains? @#'sut/strip-files-on-copy "SingletonLock")))
+
+    (it "contains SingletonCookie"
+      (expect (contains? @#'sut/strip-files-on-copy "SingletonCookie")))
+
+    (it "contains SingletonSocket"
+      (expect (contains? @#'sut/strip-files-on-copy "SingletonSocket")))
+
+    (it "does not contain Preferences"
+      (expect (not (contains? @#'sut/strip-files-on-copy "Preferences")))))
+
+  (describe "copies profile directory"
+    (it "copies files into Default subdir and copies Local State"
+      (let [;; Create a fake user-data-dir with a profile subdir
+            udd-dir  (java.nio.file.Files/createTempDirectory "spel-test-udd"
+                       (into-array java.nio.file.attribute.FileAttribute []))
+            udd-path (str udd-dir)
+            src-path (str udd-path "/TestProfile")]
+        ;; Create Local State in parent
+        (spit (str udd-path "/Local State") "{\"profile\":{}}")
+        ;; Create mock profile structure
+        (.mkdirs (java.io.File. src-path))
+        (spit (str src-path "/Preferences") "{}")
+        (spit (str src-path "/Bookmarks") "{\"roots\": {}}")
+        (spit (str src-path "/Cookies") "encrypted-data")
+        (spit (str src-path "/LOCK") "")
+        (.mkdirs (java.io.File. (str src-path "/Extensions/ext1")))
+        (spit (str src-path "/Extensions/ext1/manifest.json") "{}")
+        (.mkdirs (java.io.File. (str src-path "/Service Worker/ScriptCache")))
+        (spit (str src-path "/Service Worker/ScriptCache/data.js") "cached")
+        (try
+          (let [result    (sut/copy-profile-dir! src-path)
+                result-f  (java.io.File. result)
+                default-d (str result "/Default")]
+            ;; Returns a string path (user-data-dir, not Default)
+            (expect (string? result))
+            ;; Temp dir exists
+            (expect (.isDirectory result-f))
+            ;; Local State copied to root
+            (expect (.exists (java.io.File. result "Local State")))
+            ;; Profile files are inside Default subdirectory
+            (expect (.exists (java.io.File. default-d "Preferences")))
+            ;; Bookmarks copied
+            (expect (.exists (java.io.File. default-d "Bookmarks")))
+            ;; Cookies NOT copied (stripped)
+            (expect (not (.exists (java.io.File. default-d "Cookies"))))
+            ;; LOCK NOT copied (stripped)
+            (expect (not (.exists (java.io.File. default-d "LOCK"))))
+            ;; Extensions copied recursively
+            (expect (.exists (java.io.File. default-d "Extensions/ext1/manifest.json")))
+            ;; Service Worker skipped entirely
+            (expect (not (.exists (java.io.File. default-d "Service Worker")))))
+          (finally
+            ;; Cleanup src (entire udd)
+            (doseq [f (reverse (file-seq (java.io.File. udd-path)))]
+              (.delete f))))))
+
+    (it "throws when source directory does not exist"
+      (expect
+        (try
+          (sut/copy-profile-dir! "/tmp/nonexistent-spel-profile-dir-12345")
+          false
+          (catch Exception _e true))))))
