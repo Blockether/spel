@@ -166,14 +166,15 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
 
 (defdescribe nav-snapshot-test
   (describe "navigation structure"
-    
+
     (it "matches expected ARIA structure"
-      (page/navigate page "https://example.com")
-      (let [la (assert/assert-that (page/locator page "body"))]
-        (expect (nil? (assert/matches-aria-snapshot la
-                        "- heading \"Example Domain\"
-                         - paragraph
-                         - link \"More information...\"")))))))
+      (core/with-testing-page [page]
+        (page/navigate page "https://example.com")
+        (let [la (assert/assert-that (page/locator page "body"))]
+          (expect (nil? (assert/matches-aria-snapshot la
+                          "- heading \"Example Domain\"
+                           - paragraph
+                           - link \"More information...\"\")))))))
 ```
 
 ### clojure.test
@@ -195,15 +196,16 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 (it "login form has expected structure"
-  (page/navigate page "https://example.com/login")
-  (let [{:keys [tree]} (snapshot/capture-snapshot page)]
-    (println tree))  ;; inspect during development
-  (let [la (assert/assert-that (page/locator page "form"))]
-    (assert/matches-aria-snapshot la
-      "- form:
-         - textbox \"Email\"
-         - textbox \"Password\"
-         - button \"Sign in\"")))
+  (core/with-testing-page [page]
+    (page/navigate page "https://example.com/login")
+    (let [{:keys [tree]} (snapshot/capture-snapshot page)]
+      (println tree))  ;; inspect during development
+    (let [la (assert/assert-that (page/locator page "form"))]
+      (assert/matches-aria-snapshot la
+        "- form:
+           - textbox \"Email\"
+           - textbox \"Password\"
+           - button \"Sign in\""))))
 ```
 
 ## Ref Traversal Patterns
@@ -212,15 +214,16 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 (it "has a submit button"
-  (page/navigate page "https://example.com/form")
-  (let [{:keys [refs]} (snapshot/capture-snapshot page)
-        submit-ref (->> refs
-                     (some (fn [[id info]]
-                             (when (and (= "button" (:role info))
-                                        (= "Submit" (:name info)))
-                               id))))]
-    (expect (some? submit-ref))
-    (expect (locator/is-visible? (snapshot/resolve-ref page submit-ref)))))
+  (core/with-testing-page [page]
+    (page/navigate page "https://example.com/form")
+    (let [{:keys [refs]} (snapshot/capture-snapshot page)
+          submit-ref (->> refs
+                       (some (fn [[id info]]
+                               (when (and (= "button" (:role info))
+                                          (= "Submit" (:name info)))
+                                 id))))]
+      (expect (some? submit-ref))
+      (expect (locator/is-visible? (snapshot/resolve-ref page submit-ref))))))
 ```
 
 ### Multi-Step Workflow with Audit Trail

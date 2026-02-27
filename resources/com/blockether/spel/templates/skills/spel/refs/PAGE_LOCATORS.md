@@ -187,17 +187,18 @@ Use it in tests:
 
 (defdescribe login-test
   (describe "login flow"
-    
 
     (it "logs in with valid credentials"
-      (page/navigate page "https://app.example.com/login")
-      (login/login! page "alice" "secret123")
-      (expect (nil? (assert/has-url (assert/assert-that page) #".*dashboard.*"))))
+      (core/with-testing-page [page]
+        (page/navigate page "https://app.example.com/login")
+        (login/login! page "alice" "secret123")
+        (expect (nil? (assert/has-url (assert/assert-that page) #".*dashboard.*")))))
 
     (it "shows error for bad password"
-      (page/navigate page "https://app.example.com/login")
-      (login/login! page "alice" "wrong")
-      (expect (nil? (assert/is-visible (assert/assert-that (login/error-msg page))))))))
+      (core/with-testing-page [page]
+        (page/navigate page "https://app.example.com/login")
+        (login/login! page "alice" "wrong")
+        (expect (nil? (assert/is-visible (assert/assert-that (login/error-msg page)))))))))
 ```
 
 ## Composable Modules
@@ -336,10 +337,11 @@ All assertion functions return `nil` on success or an anomaly map on failure. Wr
 
 ```clojure
 (it "shows welcome heading"
-  (page/navigate page "https://app.example.com")
-  (let [h1 (page/get-by-role page role/heading {:level 1})]
-    (expect (nil? (assert/has-text (assert/assert-that h1) "Welcome")))
-    (expect (nil? (assert/is-visible (assert/assert-that h1))))))
+  (core/with-testing-page [page]
+    (page/navigate page "https://app.example.com")
+    (let [h1 (page/get-by-role page role/heading {:level 1})]
+      (expect (nil? (assert/has-text (assert/assert-that h1) "Welcome")))
+      (expect (nil? (assert/is-visible (assert/assert-that h1)))))))
 ```
 
 The `nil?` check works because assertion functions return `nil` on success and an anomaly map on failure.
