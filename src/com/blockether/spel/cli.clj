@@ -39,6 +39,7 @@
       "  spel open <url>"
       "  spel open <url> --interactive"
       "  spel open <url> --screenshot [path]"
+      "  spel open <url> --viewport <WxH>"
       ""
       "Examples:"
       "  spel open https://example.com"
@@ -47,11 +48,13 @@
       "  spel open https://example.com --interactive"
       "  spel open https://example.com --screenshot page.png"
       "  spel open https://example.com --screenshot"
+      "  spel open https://example.com --viewport 1200x800"
       ""
       "Flags:"
       "  --interactive          Show browser window (headed mode)"
       "  --screenshot [path]    Take screenshot after navigation; saves to <path> or"
-      "                         a timestamped file in the system temp dir if omitted"])
+      "                         a timestamped file in the system temp dir if omitted"
+      "  --viewport <WxH>       Set viewport size before navigation (e.g. 1200x800)"])
 
    "back"
    (str/join \newline
@@ -349,9 +352,11 @@
       "  spel screenshot"
       "  spel screenshot page.png"
       "  spel screenshot -f full.png"
+      "  spel screenshot --crop-to-content cropped.png"
       ""
       "Flags:"
-      "  -f, --full-page, --full    Capture full page (not just viewport)"])
+      "  -f, --full-page, --full    Capture full page (not just viewport)"
+      "  --crop-to-content          Crop screenshot to actual content height"])
 
    "annotate"
    (str/join \newline
@@ -1328,9 +1333,21 @@
                   ;; Only treat the next token as a path if it isn't itself a flag
                   ss-path       (when (and ss-next (not (str/starts-with? ss-next "-")))
                                   ss-next)
-                  ;; Exclude flag tokens (and the screenshot path arg) before URL detection
-                  skip-tokens   (cond-> #{"--interactive" "--screenshot"}
-                                  ss-path (conj ss-path))
+                  ;; Parse --viewport WxH
+                  viewport?     (some #{"--viewport"} cmd-args)
+                  vp-idx        (when viewport?
+                                  (.indexOf ^java.util.List cmd-args-vec "--viewport"))
+                  vp-next       (when (and vp-idx (>= (long vp-idx) 0))
+                                  (nth cmd-args-vec (inc (long vp-idx)) nil))
+                  [vp-w vp-h]   (when vp-next
+                                  (let [parts (str/split vp-next #"[xX,]")]
+                                    (when (= 2 (count parts))
+                                      [(Integer/parseInt (first parts))
+                                       (Integer/parseInt (second parts))])))
+                  ;; Exclude flag tokens (and the screenshot/viewport value args) before URL detection
+                  skip-tokens   (cond-> #{"--interactive" "--screenshot" "--viewport"}
+                                  ss-path (conj ss-path)
+                                  vp-next (conj vp-next))
                   url-args      (remove #(or (str/starts-with? % "-") (skip-tokens %)) cmd-args)
                   raw-url       (first url-args)
                   url           (when raw-url
@@ -1347,7 +1364,8 @@
               (cond-> {:action "navigate" :url url :raw-input raw-url}
                 interactive? (assoc :interactive true)
                 screenshot?  (assoc :screenshot true)
-                ss-path      (assoc :screenshot-path ss-path)))
+                ss-path      (assoc :screenshot-path ss-path)
+                vp-w         (assoc :viewport-width vp-w :viewport-height vp-h)))
 
           ;; Snapshot (with filter options)
             "snapshot" (let [snap-flags (set cmd-args)]
@@ -1491,7 +1509,9 @@
                            (cond-> {:action "screenshot"}
                              path (assoc :path path)
                              (some #{"-f" "--full-page" "--full"} cmd-args)
-                             (assoc :fullPage true)))
+                             (assoc :fullPage true)
+                             (some #{"--crop-to-content"} cmd-args)
+                             (assoc :cropToContent true)))
 
           ;; Annotate (inject overlays onto the page for visible elements)
             "annotate" (cond-> {:action "annotate"}

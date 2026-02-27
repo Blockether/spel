@@ -1156,6 +1156,27 @@ assert_jq_eq "open example.com → .url" "$OUT" '.url' 'https://example.com/'
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "open https://example.com → .url" "$OUT" '.url' 'https://example.com/'
 
+# =============================================================================
+# VIEWPORT ON OPEN + CROP-TO-CONTENT (33)
+# =============================================================================
+section "Viewport on Open + Crop-to-Content (33)"
+
+# --viewport on open should set viewport and navigate
+OUT=$("$SPEL" --json open https://example.com --viewport 800x600 2>&1)
+assert_jq_eq "open --viewport → .url" "$OUT" '.url' 'https://example.com/'
+assert_jq "open --viewport → .viewport.width == 800" "$OUT" '.viewport.width == 800'
+assert_jq "open --viewport → .viewport.height == 600" "$OUT" '.viewport.height == 600'
+
+# --crop-to-content should produce a smaller screenshot than the viewport
+CROP_PATH="/tmp/test-cli-crop.png"
+TEMP_FILES+=("$CROP_PATH")
+OUT=$("$SPEL" --json screenshot --crop-to-content "$CROP_PATH" 2>&1)
+assert_jq_gt "screenshot --crop-to-content → .size > 0" "$OUT" '.size' 0
+assert_jq_contains "screenshot --crop-to-content → .path" "$OUT" '.path' 'test-cli-crop.png'
+
+# Restore viewport for subsequent tests
+"$SPEL" set viewport 1280 720 >/dev/null 2>&1
+
 
 # SUMMARY
 # =============================================================================

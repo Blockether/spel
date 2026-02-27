@@ -82,7 +82,33 @@
     (it "parses open with no URL"
       (let [c (cmd ["open"])]
         (expect (= "navigate" (:action c)))
-        (expect (nil? (:url c))))))
+        (expect (nil? (:url c)))))
+
+    (it "parses open with --viewport WxH"
+      (let [c (cmd ["open" "https://example.com" "--viewport" "1200x800"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "https://example.com" (:url c)))
+        (expect (= 1200 (:viewport-width c)))
+        (expect (= 800 (:viewport-height c)))))
+
+    (it "parses open with --viewport using comma separator"
+      (let [c (cmd ["open" "https://example.com" "--viewport" "1024,768"])]
+        (expect (= 1024 (:viewport-width c)))
+        (expect (= 768 (:viewport-height c)))))
+
+    (it "parses open with --viewport and --screenshot together"
+      (let [c (cmd ["open" "https://example.com" "--viewport" "800x600" "--screenshot" "out.png"])]
+        (expect (= "navigate" (:action c)))
+        (expect (= "https://example.com" (:url c)))
+        (expect (= 800 (:viewport-width c)))
+        (expect (= 600 (:viewport-height c)))
+        (expect (true? (:screenshot c)))
+        (expect (= "out.png" (:screenshot-path c)))))
+
+    (it "does not include viewport keys when --viewport not given"
+      (let [c (cmd ["open" "https://example.com"])]
+        (expect (nil? (:viewport-width c)))
+        (expect (nil? (:viewport-height c))))))
 
   (describe "back/forward/reload"
     (it "parses back"
@@ -276,7 +302,23 @@
       (let [c (cmd ["screenshot" "shot.png" "-f"])]
         (expect (= "screenshot" (:action c)))
         (expect (= "shot.png" (:path c)))
-        (expect (true? (:fullPage c))))))
+        (expect (true? (:fullPage c)))))
+
+    (it "parses screenshot with --crop-to-content flag"
+      (let [c (cmd ["screenshot" "shot.png" "--crop-to-content"])]
+        (expect (= "screenshot" (:action c)))
+        (expect (= "shot.png" (:path c)))
+        (expect (true? (:cropToContent c)))))
+
+    (it "parses screenshot with both -f and --crop-to-content"
+      (let [c (cmd ["screenshot" "shot.png" "-f" "--crop-to-content"])]
+        (expect (= "screenshot" (:action c)))
+        (expect (true? (:fullPage c)))
+        (expect (true? (:cropToContent c)))))
+
+    (it "does not include cropToContent when flag not given"
+      (let [c (cmd ["screenshot" "shot.png"])]
+        (expect (nil? (:cropToContent c))))))
 
   (describe "pdf"
     (it "parses pdf with path"

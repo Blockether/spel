@@ -455,9 +455,13 @@
 
 (defmulti ^:private handle-cmd (fn [action _params] action))
 
-(defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path raw-input]}]
+(defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path raw-input
+                                            viewport-width viewport-height]}]
   (ensure-browser!)
   (page/validate-url url (or raw-input url))
+  ;; Set viewport before navigation so the page renders at the requested size.
+  (when (and viewport-width viewport-height)
+    (page/set-viewport-size! (pg) (long viewport-width) (long viewport-height)))
   (page/navigate (pg) url)
   (page/wait-for-load-state (pg))
   (if screenshot
@@ -476,9 +480,11 @@
         (Path/of ^String path-str (into-array String []))
         ss-bytes
         ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-      {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)})
+      {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)
+       :viewport (page/viewport-size (pg))})
     (let [tree (snapshot-after-action!)]
       (cond-> {:snapshot tree :url (page/url (pg)) :title (page/title (pg))}
+        viewport-width (assoc :viewport (page/viewport-size (pg)))
         (page-description) (assoc :description (page-description))))))
 
 (defmethod handle-cmd "snapshot" [_ params]
@@ -572,13 +578,35 @@
 (defmethod handle-cmd "screenshot" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  (let [path-str    (get params "path")
-        full-page?  (get params "fullPage" false)
-        sel         (get params "selector")
-        ^bytes ss-bytes (if sel
-                          (locator/locator-screenshot (resolve-selector sel))
-                          (page/screenshot (pg) (cond-> {}
-                                                  full-page? (assoc :full-page true))))]
+  (let [path-str       (get params "path")
+        full-page?     (get params "fullPage" false)
+        crop-content?  (get params "cropToContent" false)
+        sel            (get params "selector")
+        ;; Skip crop-to-content when a selector is given — locator screenshots
+        ;; capture only the element, so viewport resize is pointless.
+        crop?          (and crop-content? (not sel))
+        ;; When --crop-to-content: resize viewport to content height, take normal
+        ;; screenshot, then restore. Uses try/finally to guarantee viewport restore
+        ;; even if the screenshot throws (timeout, etc.).
+        original-vp    (when crop? (page/viewport-size (pg)))
+        _              (when crop?
+                         (let [content-h (check-anomaly!
+                                           (page/evaluate (pg) "Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)")
+                                           "Failed to evaluate content height")
+                               vp-w      (:width original-vp)]
+                           (page/set-viewport-size! (pg) (long vp-w) (max 1 (long content-h)))))
+        ^bytes ss-bytes (if crop?
+                          ;; try/finally guarantees viewport restore on any exception
+                          (try
+                            (page/screenshot (pg))
+                            (finally
+                              (when original-vp
+                                (page/set-viewport-size! (pg) (long (:width original-vp)) (long (:height original-vp))))))
+                          ;; Normal path (no crop) — no viewport to restore
+                          (if sel
+                            (locator/locator-screenshot (resolve-selector sel))
+                            (page/screenshot (pg) (cond-> {}
+                                                    full-page? (assoc :full-page true)))))]
     (if path-str
       (do (java.nio.file.Files/write
             (Path/of ^String path-str (into-array String []))

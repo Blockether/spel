@@ -7,30 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v0.4.1] - 2026-02-27
+## [v0.4.2] - 2026-02-27
 
-### Changed
-- release: v0.4.1
-- chore: bump oh-my-opencode 3.8.5 → 3.9.0
-- feat: validate URLs on open — reject invalid domains with clear error (closes #36)
-- fix: replace hardcoded snapshot refs with generic <sel> and @ref in CLI help text
-- feat: smooth scroll + element scroll across library, SCI, CLI, and daemon
-- chore: regenerate help-registry and FULL_API.md
-- test: add 18 snapshot ref stability tests covering determinism, structural independence, and disambiguation
-- Switch spel daemon to virtual threads (BLO-132)
-- feat: make stealth mode automatic for all CLI and eval commands
-- feat: show page URL, title, and description in snapshot and eval output
-- feat: close --all-sessions, show ref table on not-found error
-- fix: skip daemon restart when already running in headed mode
-- Merge branch 'main' into opencode/nimble-island
-- enforce @ prefix for snapshot refs — bare refs no longer auto-detected
-- feat: auto-persist sessions by default, fix session list socket detection
-- feat: deterministic content-hash snapshot refs, get-by-ref, snapshot --all, codegen improvements
-- Fix search reliability — block detection, faster timeouts, diagnostics, --debug flag
-- Add opts arity to page/wait-for-function for explicit timeout control
-- feat: add Thread/sleep, System, File interop to SCI sandbox + codegen→eval round-trip tests
-- release: update version files for v0.4.0, bump to next dev version
+### Added
+- feat: `spel open --viewport WxH` — set viewport dimensions during navigation in one step
+- feat: `spel screenshot --crop-to-content` — crop full-page screenshots to actual content height
 
+### Fixed
+- fix: full-page screenshots capturing empty space below content due to Playwright's `max(viewport, content)` behavior (#33)
 
 ## [v0.4.1] - 2026-02-27
 
@@ -362,7 +346,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.4.2...HEAD
+[v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
