@@ -591,7 +591,7 @@
         original-vp    (when crop? (page/viewport-size (pg)))
         _              (when crop?
                          (let [content-h (check-anomaly!
-                                           (page/evaluate (pg) "Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)")
+                                           (page/evaluate (pg) "Math.min(document.body.scrollHeight, Math.max(document.body.offsetHeight, document.body.clientHeight))")
                                            "Failed to evaluate content height")
                                vp-w      (:width original-vp)]
                            (page/set-viewport-size! (pg) (long vp-w) (max 1 (long content-h)))))
