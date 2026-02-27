@@ -3,17 +3,12 @@
    This test tells agents how to configure the browser environment
    so that pages are already set up correctly."
   (:require
-   [clojure.test :refer [deftest testing is use-fixtures]]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]))
-
-;; Playwright + browser shared across all tests in this namespace
-(use-fixtures :once with-playwright with-browser)
-
-;; Fresh page (with tracing/HAR) for each test
-(use-fixtures :each with-traced-page)
+   [clojure.test :refer [deftest testing is]]
+   [com.blockether.spel.core :as core]
+   [com.blockether.spel.page :as page]))
 
 (deftest homepage-test
   (testing "loads successfully"
-    (page/navigate *page* "https://example.com")
-    (is (= "Example Domain" (page/title *page*)))))
+    (core/with-testing-page [page]
+      (page/navigate page "https://example.com")
+      (is (= "Example Domain" (page/title page))))))

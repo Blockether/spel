@@ -21,8 +21,8 @@ spel codegen --format=body recording.jsonl
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` (from `spel.allure`), `with-playwright`/`with-browser`/`with-context`/`with-traced-page` |
-| `:script` | Standalone script with `require`/`import` + `with-playwright` chain |
+| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` (from `spel.allure`) using `core/with-testing-page` |
+| `:script` | Standalone script with `require`/`import` + `with-testing-page` |
 | `:body` | Just action lines for pasting into existing code |
 
 ### Supported Actions

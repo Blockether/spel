@@ -52,69 +52,50 @@ com.blockether.spel and `spel.allure` (`defdescribe`, `it`, `expect`).
 
 ## Code Pattern
 
-ALWAYS use `:context` fixtures to share browser lifecycle across tests. NEVER create `with-playwright`/`with-browser`/`with-traced-page` inside each `it` block.
+ALWAYS use `core/with-testing-page` inside each `it` block. This macro handles the full Playwright stack automatically.
 
-The project provides shared fixtures in `com.blockether.spel.test-fixtures`:
-- `with-playwright` — `around` hook that binds `*pw*`
-- `with-browser` — `around` hook that binds `*browser*` (headless Chromium)
-- `with-traced-page` — **default** `around` hook that binds `*page*` (fresh page per test, always enables tracing/HAR)
-- `with-page` — like `with-traced-page` but tracing only when Allure is active (use only if you explicitly want no tracing)
+`core/with-testing-page` is the all-in-one macro. It creates playwright → browser → context → page, runs your test body, and tears everything down. When Allure is active, tracing and HAR are enabled automatically.
 
 ```clojure
 (ns my-app.e2e.feature-test
   (:require
    [com.blockether.spel.assertions :as assert]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as role]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe feature-test
   (describe "Scenario Group"
-    {:context [with-playwright with-browser with-traced-page]}
 
     (it "does specific thing"
-      ;; 1. Navigate to the page
-      (page/navigate *page* "http://localhost:8080")
+      (core/with-testing-page [page]
+        ;; 1. Navigate to the page
+        (page/navigate page "http://localhost:8080")
 
-      ;; 2. Click the submit button
-      (locator/click (page/get-by-role *page* role/button))
+        ;; 2. Click the submit button
+        (locator/click (page/get-by-role page role/button))
 
-      ;; 3. Assert expected text
-      (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome"))))))
+        ;; 3. Assert expected text
+        (expect (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Welcome")))))))
 ```
 
-### How `:context` works
 
-| Fixture | Binds | Scope |
-|---------|-------|-------|
-| `with-playwright` | `*pw*` | Shared across all `it` blocks in the `describe` |
-| `with-browser` | `*browser*` | Shared across all `it` blocks in the `describe` |
-| `with-traced-page` | `*page*` | **Default.** Fresh page for **each** `it` block (auto-cleanup, tracing/HAR always enabled) |
-
-The `with-traced-page` hook creates a new BrowserContext + Page before each `it` and closes them after. This means each test gets isolation without paying the cost of launching a new browser. Tracing and HAR capture are always enabled so traces are available for debugging.
-
-Use `before-each` to set up page state (e.g. navigate) shared by multiple `it` blocks in the same `describe`:
+For options (device, viewport, locale, auth state):
 
 ```clojure
-(describe "after navigating to dashboard"
-  {:context [with-playwright with-browser with-traced-page]}
-
-  (before-each
-    (page/navigate *page* "http://localhost:8080/dashboard"))
-
-  (it "shows welcome heading"
-    (expect (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Welcome"))))
-
-  (it "has sidebar navigation"
-    (expect (locator/is-visible? (page/locator *page* "nav.sidebar")))))
+(it "renders mobile layout"
+  (core/with-testing-page {:device :iphone-14} [page]
+    (page/navigate page "http://localhost:8080")
+    (expect (locator/is-visible? (page/locator page "nav.mobile")))))
 ```
+
 
 ## Critical Rules
 
-- **Fixtures via `:context`**: ALWAYS use `{:context [with-playwright with-browser with-traced-page]}` on `describe`. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `it` blocks.
-- **`*page*` dynamic var**: All test code uses `*page*` to access the current page. NEVER create pages manually in tests.
+- **`with-testing-page`**: ALWAYS use `(core/with-testing-page [page] ...)` inside `it` blocks. This handles the full stack automatically.
+- **Page binding**: The `[page]` binding in `with-testing-page` gives you the page. Use that symbol directly.
 - **`assert-that` first**: ALWAYS wrap locator/page with `(assert/assert-that ...)` before passing to assertion functions.
 - **`(expect (nil? ...))` for assertions**: Playwright assertions return `nil` on success. ALWAYS wrap in `(expect (nil? (assert/has-text ...)))` inside `it` blocks.
 - **Exact string assertions**: ALWAYS use exact text matching with `assert/has-text`. NEVER use substring.
@@ -143,18 +124,18 @@ For a test plan:
 Generate:
 ```clojure
 (describe "homepage navigation"
-  {:context [with-playwright with-browser with-traced-page]}
 
   (it "navigates to homepage and clicks Get Started"
-    ;; 1. Navigate to http://localhost:8080
-    (page/navigate *page* "http://localhost:8080")
+    (core/with-testing-page [page]
+      ;; 1. Navigate to http://localhost:8080
+      (page/navigate page "http://localhost:8080")
 
-    ;; 2. Verify page title is "My App"
-    (expect (nil? (assert/has-title (assert/assert-that *page*) "My App")))
+      ;; 2. Verify page title is "My App"
+      (expect (nil? (assert/has-title (assert/assert-that page) "My App")))
 
-    ;; 3. Click "Get Started" link
-    (locator/click (page/get-by-text *page* "Get Started"))
+      ;; 3. Click "Get Started" link
+      (locator/click (page/get-by-text page "Get Started"))
 
-    ;; Expected: URL changes to "/onboarding"
-    (expect (nil? (assert/has-url (assert/assert-that *page*) #".*\/onboarding")))))
+      ;; Expected: URL changes to "/onboarding"
+      (expect (nil? (assert/has-url (assert/assert-that page) #".*\/onboarding"))))))
 ```

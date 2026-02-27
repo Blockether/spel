@@ -1,7 +1,8 @@
 ## Testing Conventions
 
 - Framework: **`clojure.test`** (`deftest`, `testing`, `is`, `use-fixtures`)
-- Fixtures: `use-fixtures` with shared hooks from `com.blockether.spel.test-fixtures`
+- Page setup: **`core/with-testing-page`** — all-in-one macro (playwright + browser + context + page)
+- API testing: **`core/with-testing-api`** — all-in-one macro for API request contexts
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
 - Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
 - Integration tests: Live against `example.com`
@@ -19,61 +20,50 @@ clojure -M:test -n {{ns}}.e2e.seed-test
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 ```
 
-### Test Fixtures
+### with-testing-page
 
-The project provides shared fixture functions in `com.blockether.spel.test-fixtures`:
-
-| Fixture | Binds | Scope |
-|---------|-------|-------|
-| `with-playwright` | `*pw*` | Shared Playwright instance |
-| `with-browser` | `*browser*` | Shared headless Chromium browser |
-| `with-traced-page` | `*page*` | **Default.** Fresh page per `deftest` with tracing/HAR always enabled (auto-cleanup) |
-| `with-page` | `*page*` | Fresh page per `deftest` (auto-cleanup, tracing only when Allure is active) |
-| `with-traced-page-opts` | `*page*` | Like `with-traced-page` but accepts context-opts map (use `:around` key) |
-| `with-page-opts` | `*page*` | Like `with-page` but accepts context-opts map (use `:around` key) |
-| `with-test-server` | `*test-server-url*` | Local HTTP test server |
-
-**Always use `with-traced-page` as the default** — it enables Playwright tracing and HAR capture on every test run, so traces are always available for debugging. Use `with-page` only if you explicitly want tracing disabled outside Allure.
-
-Use `(use-fixtures :once with-playwright with-browser)` and `(use-fixtures :each with-traced-page)` at namespace level. NEVER nest `with-playwright`/`with-browser`/`with-traced-page` manually inside `deftest` blocks.
-
-#### Custom Context Options
-
-To pass `Browser$NewContextOptions` (viewport, locale, color-scheme, storage-state, user-agent, etc.) use `with-page-opts` or `with-traced-page-opts`:
+All-in-one macro that creates the full Playwright stack (playwright → browser → context → page), binds the page, runs body, and tears everything down automatically. When Allure is active, tracing and HAR are enabled automatically.
 
 ```clojure
-;; Mobile viewport with French locale — extract :around from opts map
-(use-fixtures :each (:around (with-traced-page-opts {:viewport {:width 375 :height 812}
-                                                      :locale "fr-FR"})))
+;; Basic usage
+(core/with-testing-page [page]
+  (page/navigate page "https://example.com")
+  (is (= "Example Domain" (page/title page))))
 
-(deftest renders-mobile-layout
-  (page/navigate *page* "https://example.com")
-  (is (= "fr-FR" (page/evaluate *page* "navigator.language"))))
+;; With options (device, viewport, locale, etc.)
+(core/with-testing-page {:device :iphone-14} [page]
+  (page/navigate page "https://example.com"))
+
+;; Load saved auth state
+(core/with-testing-page {:storage-state "auth.json"} [page]
+  (page/navigate page "https://app.example.com/dashboard"))
 ```
 
-All `*browser-context*` and `*browser-api*` bindings work the same as with the default fixtures.
+### with-testing-api
+
+All-in-one macro for API testing. Creates playwright → browser → context → API request context with automatic tracing.
+
+```clojure
+(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+  (api/get ctx "/users"))
+```
 
 ### Test Example
 
 ```clojure
 (ns my-app.e2e.seed-test
   (:require
-   [clojure.test :refer [deftest testing is use-fixtures]]
+   [clojure.test :refer [deftest testing is]]
    [com.blockether.spel.assertions :as assert]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.roles :as role]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]))
-
-;; Playwright + browser shared across all tests in this namespace
-(use-fixtures :once with-playwright with-browser)
-
-;; Fresh page (with tracing/HAR) for each test
-(use-fixtures :each with-traced-page)
+   [com.blockether.spel.roles :as role]))
 
 (deftest homepage-test
   (testing "loads successfully"
-    (page/navigate *page* "https://example.com")
-    (is (= "Example Domain" (page/title *page*)))
-    (is (nil? (assert/has-text (assert/assert-that (page/locator *page* "h1")) "Example Domain")))))
+    (core/with-testing-page [page]
+      (page/navigate page "https://example.com")
+      (is (= "Example Domain" (page/title page)))
+      (is (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Example Domain"))))))
 ```

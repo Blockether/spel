@@ -161,15 +161,15 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
   (:require
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-traced-page]]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe nav-snapshot-test
   (describe "navigation structure"
-    {:context [with-playwright with-browser with-traced-page]}
+    
     (it "matches expected ARIA structure"
-      (page/navigate *page* "https://example.com")
-      (let [la (assert/assert-that (page/locator *page* "body"))]
+      (page/navigate page "https://example.com")
+      (let [la (assert/assert-that (page/locator page "body"))]
         (expect (nil? (assert/matches-aria-snapshot la
                         "- heading \"Example Domain\"
                          - paragraph
@@ -195,10 +195,10 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 (it "login form has expected structure"
-  (page/navigate *page* "https://example.com/login")
-  (let [{:keys [tree]} (snapshot/capture-snapshot *page*)]
+  (page/navigate page "https://example.com/login")
+  (let [{:keys [tree]} (snapshot/capture-snapshot page)]
     (println tree))  ;; inspect during development
-  (let [la (assert/assert-that (page/locator *page* "form"))]
+  (let [la (assert/assert-that (page/locator page "form"))]
     (assert/matches-aria-snapshot la
       "- form:
          - textbox \"Email\"
@@ -212,15 +212,15 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 (it "has a submit button"
-  (page/navigate *page* "https://example.com/form")
-  (let [{:keys [refs]} (snapshot/capture-snapshot *page*)
+  (page/navigate page "https://example.com/form")
+  (let [{:keys [refs]} (snapshot/capture-snapshot page)
         submit-ref (->> refs
                      (some (fn [[id info]]
                              (when (and (= "button" (:role info))
                                         (= "Submit" (:name info)))
                                id))))]
     (expect (some? submit-ref))
-    (expect (locator/is-visible? (snapshot/resolve-ref *page* submit-ref)))))
+    (expect (locator/is-visible? (snapshot/resolve-ref page submit-ref)))))
 ```
 
 ### Multi-Step Workflow with Audit Trail
