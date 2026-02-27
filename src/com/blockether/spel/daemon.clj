@@ -435,9 +435,9 @@
                         "Failed to create browser context")
               _       (when (get flags "stealth")
                         (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-              n       (chrome-cookies/inject-cookies! context profile-dir)
+              n       (chrome-cookies/inject-cookies! context profile-dir {:channel (get flags "channel")})
               _       (binding [*out* *err*]
-                        (println (str "spel: injected " n " cookies from Chrome profile")))
+                        (println (str "spel: injected " n " cookies from browser profile")))
               pg-inst (check-anomaly!
                         (core/new-page-from-context context)
                         "Failed to create page")]

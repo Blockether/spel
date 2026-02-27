@@ -584,3 +584,211 @@
             (doseq [^Cookie c cookies]
               (expect (some? (.name c)))
               (expect (some? (.domain c))))))))))
+
+;; =============================================================================
+;; Unit Tests — detect-browser (multi-browser support)
+;; =============================================================================
+
+(defdescribe detect-browser-test
+  "Unit tests for detect-browser — identifies browser from profile path and channel"
+
+  (describe "detects from profile path"
+    (it "detects Chrome from macOS path"
+      (expect (= :chrome (#'sut/detect-browser
+                          "/Users/me/Library/Application Support/Google/Chrome/Profile 1"
+                          nil))))
+
+    (it "detects Edge from macOS path"
+      (expect (= :edge (#'sut/detect-browser
+                        "/Users/me/Library/Application Support/Microsoft Edge/Default"
+                        nil))))
+
+    (it "detects Brave from macOS path"
+      (expect (= :brave (#'sut/detect-browser
+                         "/Users/me/Library/Application Support/BraveSoftware/Brave-Browser/Default"
+                         nil))))
+
+    (it "detects Brave from Linux path"
+      (expect (= :brave (#'sut/detect-browser
+                         "/home/me/.config/brave-browser/Default"
+                         nil))))
+
+    (it "detects Vivaldi from path"
+      (expect (= :vivaldi (#'sut/detect-browser
+                           "/home/me/.config/vivaldi/Default"
+                           nil))))
+
+    (it "detects Opera from path"
+      (expect (= :opera (#'sut/detect-browser
+                         "/home/me/.config/opera/Default"
+                         nil))))
+
+    (it "detects Arc from path"
+      (expect (= :arc (#'sut/detect-browser
+                       "/Users/me/Library/Application Support/Arc/User Data/Default"
+                       nil))))
+
+    (it "detects Chromium from path"
+      (expect (= :chromium (#'sut/detect-browser
+                            "/home/me/.config/chromium/Default"
+                            nil))))
+
+    (it "defaults to :chrome for unknown path"
+      (expect (= :chrome (#'sut/detect-browser
+                          "/tmp/some-random-dir"
+                          nil)))))
+
+  (describe "detects from channel hint"
+    (it "maps msedge channel to :edge"
+      (expect (= :edge (#'sut/detect-browser nil "msedge"))))
+
+    (it "maps chrome channel to :chrome"
+      (expect (= :chrome (#'sut/detect-browser nil "chrome"))))
+
+    (it "maps chromium channel to :chromium"
+      (expect (= :chromium (#'sut/detect-browser nil "chromium"))))
+
+    (it "maps msedge-beta channel to :edge"
+      (expect (= :edge (#'sut/detect-browser nil "msedge-beta"))))
+
+    (it "maps chrome-canary channel to :chrome"
+      (expect (= :chrome (#'sut/detect-browser nil "chrome-canary")))))
+
+  (describe "channel takes priority over path"
+    (it "uses channel when both path and channel are provided"
+      (expect (= :edge (#'sut/detect-browser
+                        "/Users/me/Library/Application Support/Google/Chrome/Profile 1"
+                        "msedge"))))
+
+    (it "falls back to path when channel is nil"
+      (expect (= :edge (#'sut/detect-browser
+                        "/Users/me/Library/Application Support/Microsoft Edge/Default"
+                        nil)))))
+
+  (describe "edge cases"
+    (it "defaults to :chrome when both path and channel are nil"
+      (expect (= :chrome (#'sut/detect-browser nil nil))))
+
+    (it "handles case-insensitive path matching"
+      (expect (= :edge (#'sut/detect-browser
+                        "/Users/me/Library/Application Support/MICROSOFT EDGE/Default"
+                        nil))))
+
+    (it "handles case-insensitive channel matching"
+      (expect (= :edge (#'sut/detect-browser nil "MSEDGE"))))))
+
+;; =============================================================================
+;; Unit Tests — keychain-config / linux-keyring-app maps
+;; =============================================================================
+
+(defdescribe keychain-config-test
+  "Unit tests for keychain-config — verifies all browser entries exist"
+
+  (describe "has entries for all supported browsers"
+    (it "has :chrome entry"
+      (let [cfg (get @#'sut/keychain-config :chrome)]
+        (expect (some? (:service cfg)))
+        (expect (some? (:account cfg)))))
+
+    (it "has :edge entry"
+      (let [cfg (get @#'sut/keychain-config :edge)]
+        (expect (= "Microsoft Edge Safe Storage" (:service cfg)))
+        (expect (= "Microsoft Edge" (:account cfg)))))
+
+    (it "has :brave entry"
+      (expect (some? (get @#'sut/keychain-config :brave))))
+
+    (it "has :vivaldi entry"
+      (expect (some? (get @#'sut/keychain-config :vivaldi))))
+
+    (it "has :opera entry"
+      (expect (some? (get @#'sut/keychain-config :opera))))
+
+    (it "has :arc entry"
+      (expect (some? (get @#'sut/keychain-config :arc))))
+
+    (it "has :chromium entry"
+      (expect (some? (get @#'sut/keychain-config :chromium))))))
+
+(defdescribe linux-keyring-app-test
+  "Unit tests for linux-keyring-app — verifies Linux keyring app names"
+
+  (describe "has entries for all supported browsers"
+    (it "maps :chrome to chrome"
+      (expect (= "chrome" (get @#'sut/linux-keyring-app :chrome))))
+
+    (it "maps :edge to chromium"
+      (expect (= "chromium" (get @#'sut/linux-keyring-app :edge))))
+
+    (it "maps :brave to brave"
+      (expect (= "brave" (get @#'sut/linux-keyring-app :brave))))
+
+    (it "maps :chromium to chromium"
+      (expect (= "chromium" (get @#'sut/linux-keyring-app :chromium))))))
+
+;; =============================================================================
+;; Unit Tests — channel->browser map
+;; =============================================================================
+
+(defdescribe channel->browser-test
+  "Unit tests for channel->browser — maps CLI channel names to browser keywords"
+
+  (describe "maps all known channels"
+    (it "maps msedge to :edge"
+      (expect (= :edge (get @#'sut/channel->browser "msedge"))))
+
+    (it "maps chrome to :chrome"
+      (expect (= :chrome (get @#'sut/channel->browser "chrome"))))
+
+    (it "maps chromium to :chromium"
+      (expect (= :chromium (get @#'sut/channel->browser "chromium"))))
+
+    (it "maps chrome-beta to :chrome"
+      (expect (= :chrome (get @#'sut/channel->browser "chrome-beta"))))
+
+    (it "maps msedge-dev to :edge"
+      (expect (= :edge (get @#'sut/channel->browser "msedge-dev"))))
+
+    (it "maps msedge-canary to :edge"
+      (expect (= :edge (get @#'sut/channel->browser "msedge-canary"))))
+
+    (it "returns nil for unknown channel"
+      (expect (nil? (get @#'sut/channel->browser "firefox"))))))
+
+;; =============================================================================
+;; Unit Tests — extract-cookies multi-arity (backward compatibility)
+;; =============================================================================
+
+(defdescribe extract-cookies-arity-test
+  "Unit tests for extract-cookies multi-arity — verifies backward compatibility"
+
+  (describe "1-arity still works"
+    (it "throws with informative message for nonexistent profile (1-arity)"
+      (try
+        (sut/extract-cookies "/tmp/nonexistent-spel-test-profile")
+        (expect false "Should have thrown")
+        (catch clojure.lang.ExceptionInfo e
+          (expect (str/includes? (.getMessage e) "Cookies database not found"))))))
+
+  (describe "2-arity with opts map"
+    (it "throws with informative message for nonexistent profile (2-arity)"
+      (try
+        (sut/extract-cookies "/tmp/nonexistent-spel-test-profile" {:channel "msedge"})
+        (expect false "Should have thrown")
+        (catch clojure.lang.ExceptionInfo e
+          (expect (str/includes? (.getMessage e) "Cookies database not found")))))))
+
+;; =============================================================================
+;; Unit Tests — export-cookies-json multi-arity (backward compatibility)
+;; =============================================================================
+
+(defdescribe export-cookies-json-arity-test
+  "Unit tests for export-cookies-json — verifies all arities compile and dispatch"
+
+  (describe "4-arity with opts map"
+    (it "throws with informative message for nonexistent profile (4-arity with channel)"
+      (try
+        (sut/export-cookies-json "/tmp/nonexistent-spel-test-profile" nil true {:channel "msedge"})
+        (expect false "Should have thrown")
+        (catch clojure.lang.ExceptionInfo e
+          (expect (str/includes? (.getMessage e) "Cookies database not found")))))))

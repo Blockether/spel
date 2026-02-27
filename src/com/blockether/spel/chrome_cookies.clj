@@ -1,6 +1,7 @@
 (ns com.blockether.spel.chrome-cookies
-  "Extracts and decrypts cookies from a real Chrome profile's SQLite database.
+  "Extracts and decrypts cookies from a Chromium-based browser's SQLite database.
 
+   Supports Chrome, Edge, Brave, Vivaldi, Opera, Arc, and Chromium.
    Chrome 136+ (March 2025) intentionally broke all automation approaches that
    rely on Chrome's own cookie access from subprocesses. The only proven solution
    is to decrypt cookies ourselves from the OS credential store and inject them
@@ -9,7 +10,7 @@
    Supports macOS, Linux, and Windows:
 
    macOS:
-   1. Read Chrome Safe Storage password from macOS Keychain
+   1. Read Safe Storage password from macOS Keychain (browser-specific entry)
    2. Derive AES-128 key via PBKDF2(password, \"saltysalt\", 1003 iterations)
    3. Decrypt cookies with AES-CBC
 
@@ -24,7 +25,7 @@
    3. Decrypt cookies with AES-256-GCM (nonce from cookie, 128-bit auth tag)
 
    All platforms:
-   - Copy the Cookies SQLite file (Chrome locks it)
+   - Copy the Cookies SQLite file (browser locks it)
    - Query all cookies via `sqlite3` CLI
    - Map to Playwright Cookie objects
 
@@ -46,6 +47,66 @@
    [javax.crypto.spec GCMParameterSpec IvParameterSpec PBEKeySpec SecretKeySpec]))
 
 ;; =============================================================================
+;; Browser Detection
+;; =============================================================================
+
+(def ^:private keychain-config
+  "macOS Keychain service and account names for each Chromium browser."
+  {:chrome   {:service "Chrome Safe Storage"           :account "Chrome"}
+   :chromium {:service "Chromium Safe Storage"          :account "Chromium"}
+   :edge     {:service "Microsoft Edge Safe Storage"    :account "Microsoft Edge"}
+   :brave    {:service "Brave Safe Storage"             :account "Brave"}
+   :vivaldi  {:service "Vivaldi Safe Storage"           :account "Vivaldi"}
+   :opera    {:service "Opera Safe Storage"             :account "Opera"}
+   :arc      {:service "Arc Safe Storage"               :account "Arc"}})
+
+(def ^:private linux-keyring-app
+  "Linux keyring application names for each Chromium browser."
+  {:chrome   "chrome"
+   :chromium "chromium"
+   :edge     "chromium"  ;; Edge on Linux uses \"chromium\" as the app name
+   :brave    "brave"
+   :vivaldi  "vivaldi"
+   :opera    "opera"
+   :arc      "arc"})
+
+(def ^:private channel->browser
+  "Maps CLI --channel values to browser keywords."
+  {"msedge"   :edge
+   "chrome"   :chrome
+   "chromium" :chromium
+   "chrome-beta" :chrome
+   "chrome-dev"  :chrome
+   "chrome-canary" :chrome
+   "msedge-beta"  :edge
+   "msedge-dev"   :edge
+   "msedge-canary" :edge})
+
+(defn- detect-browser
+  "Detects the Chromium browser variant from a profile directory path and/or
+   CLI channel hint. Channel hint takes priority when provided.
+   Returns one of :chrome, :edge, :brave, :vivaldi, :opera, :arc, or :chromium.
+   Falls back to :chrome if the browser cannot be determined."
+  [^String profile-dir channel]
+  (or
+    ;; 1. Channel hint from CLI (--channel msedge, etc.)
+    (when channel (get channel->browser (str/lower-case (str channel))))
+    ;; 2. Detect from profile path
+    (when profile-dir
+      (let [path (str/lower-case profile-dir)]
+        (cond
+          (str/includes? path "microsoft edge")  :edge
+          (str/includes? path "bravesoftware")   :brave
+          (str/includes? path "brave-browser")   :brave
+          (str/includes? path "vivaldi")          :vivaldi
+          (str/includes? path "opera")            :opera
+          (str/includes? path "/arc/")            :arc
+          (str/includes? path "chromium")         :chromium
+          :else nil)))
+    ;; 3. Default
+    :chrome))
+
+;; =============================================================================
 ;; OS Detection
 ;; =============================================================================
 
@@ -58,7 +119,7 @@
       (str/includes? os "mac")   :macos
       (str/includes? os "linux") :linux
       (str/includes? os "win")   :windows
-      :else (throw (ex-info (str "Unsupported OS for Chrome cookie decryption: " os)
+      :else (throw (ex-info (str "Unsupported OS for cookie decryption: " os)
                      {:os os})))))
 
 ;; =============================================================================
@@ -81,19 +142,21 @@
 ;; =============================================================================
 
 (defn- keychain-password
-  "Retrieves Chrome Safe Storage password from macOS Keychain.
+  "Retrieves Safe Storage password from macOS Keychain for the given browser.
+   `browser` is a keyword from detect-browser (:chrome, :edge, etc.).
    Returns the password string. Throws on failure."
-  ^String []
-  (let [{:keys [exit stdout]} (run-process
+  ^String [browser]
+  (let [{:keys [service account]} (get keychain-config browser (get keychain-config :chrome))
+        {:keys [exit stdout]} (run-process
                                 "security" "find-generic-password" "-w"
-                                "-s" "Chrome Safe Storage" "-a" "Chrome")
+                                "-s" service "-a" account)
         password (str/trim stdout)]
     (when-not (zero? (long exit))
-      (throw (ex-info "Failed to read Chrome Safe Storage from Keychain. Is Chrome installed?"
-               {:exit-code exit})))
+      (throw (ex-info (str "Failed to read " service " from Keychain. Is " account " installed?")
+               {:exit-code exit :browser browser})))
     (when (str/blank? password)
-      (throw (ex-info "Chrome Safe Storage password is blank. Keychain access may have been denied."
-               {})))
+      (throw (ex-info (str service " password is blank. Keychain access may have been denied.")
+               {:browser browser})))
     password))
 
 ;; =============================================================================
@@ -101,23 +164,25 @@
 ;; =============================================================================
 
 (defn- linux-keyring-password
-  "Retrieves Chrome Safe Storage password from Linux keyring.
+  "Retrieves Safe Storage password from Linux keyring for the given browser.
+   `browser` is a keyword from detect-browser (:chrome, :edge, etc.).
    Tries GNOME Keyring (secret-tool) with v2 and v1 schemas, then falls back
    to the hardcoded password \"peanuts\" used when no keyring is available.
    Returns the password string."
-  ^String []
-  (let [try-secret-tool (fn [^String schema]
+  ^String [browser]
+  (let [app (get linux-keyring-app browser "chrome")
+        try-secret-tool (fn [^String schema]
                           (let [{:keys [exit stdout]}
                                 (run-process
                                   "secret-tool" "lookup"
                                   "xdg:schema" schema
-                                  "application" "chrome")
+                                  "application" app)
                                 pw (str/trim stdout)]
                             (when (and (zero? (long exit)) (not (str/blank? pw)))
                               pw)))]
     (or (try-secret-tool "chrome_libsecret_os_crypt_password_v2")
       (try-secret-tool "chrome_libsecret_os_crypt_password_v1")
-      ;; Hardcoded fallback — Chrome uses "peanuts" when no keyring backend
+      ;; Hardcoded fallback — Chromium uses \"peanuts\" when no keyring backend
       ;; is available (e.g. headless servers, basic text password store).
       ;; See: Chromium os_crypt_linux.cc, browser_cookie3, yt-dlp
       "peanuts")))
@@ -127,12 +192,13 @@
 ;; =============================================================================
 
 (defn- get-encryption-password
-  "Gets the Chrome encryption password for the current OS.
+  "Gets the browser encryption password for the current OS.
+   `browser` is a keyword from detect-browser (:chrome, :edge, etc.).
    macOS → Keychain, Linux → secret-tool/peanuts, Windows → nil (uses DPAPI)."
-  ^String [os]
+  ^String [os browser]
   (case os
-    :macos   (keychain-password)
-    :linux   (linux-keyring-password)
+    :macos   (keychain-password browser)
+    :linux   (linux-keyring-password browser)
     :windows nil))
 
 ;; =============================================================================
@@ -504,71 +570,96 @@
 ;; =============================================================================
 
 (defn extract-cookies
-  "Extracts and decrypts all cookies from a Chrome profile directory.
+  "Extracts and decrypts all cookies from a Chromium browser profile directory.
 
    Cross-platform: works on macOS (Keychain), Linux (GNOME Keyring/peanuts),
-   and Windows (DPAPI + AES-GCM).
-
-   Reads the OS-specific encryption key, copies the Cookies SQLite database,
-   decrypts all cookie values, and returns a java.util.List<Cookie> ready
-   for `BrowserContext.addCookies`.
+   and Windows (DPAPI + AES-GCM). Supports Chrome, Edge, Brave, Vivaldi,
+   Opera, Arc, and Chromium.
 
    Params:
-   `profile-dir` - String. Path to Chrome profile directory
+   `profile-dir` - String. Path to browser profile directory
                     (e.g. \"~/Library/Application Support/Google/Chrome/Profile 1\"
-                     or \"C:\\\\Users\\\\X\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Profile 1\")
+                     or \"~/Library/Application Support/Microsoft Edge/Default\")
+   `opts`        - Optional map with:
+                    :channel - String. CLI channel hint (e.g. \"msedge\", \"chrome\").
+                               Used to detect the browser if not obvious from path.
 
    Returns:
    java.util.List<Cookie> — Playwright Cookie objects with decrypted values.
 
    Throws:
    ex-info on credential access failure, missing Cookies DB, or sqlite3 errors."
-  [^String profile-dir]
-  (let [os         (detect-os)
-        ;; Platform-specific key derivation
-        secret-key (if (= os :windows)
-                     (windows-dpapi-decrypt-key profile-dir)
-                     (let [password   (get-encryption-password os)
-                           iterations (if (= os :macos) 1003 1)]
-                       (derive-key password iterations)))
-        ;; Platform-specific decryption function
-        decrypt-fn (if (= os :windows)
-                     decrypt-cookie-value-gcm
-                     decrypt-cookie-value)
-        tmp-db      (copy-cookies-db! profile-dir)
-        meta-ver    (query-meta-version tmp-db)
-        skip-bytes  (if (>= (long meta-ver) 24) 32 16)
-        raw-cookies (query-cookies-raw tmp-db)]
-    ;; Clean up temp DB
-    (try (.delete (java.io.File. tmp-db)) (catch Exception _))
-    (let [cookies (->> raw-cookies
-                    (keep (fn [raw]
-                            (when raw
-                              (let [enc-bytes (hex->bytes (:encrypted-hex raw))
-                                    value     (decrypt-fn secret-key enc-bytes skip-bytes)]
-                                (raw-cookie->playwright raw value)))))
-                    vec)]
-      (java.util.ArrayList. ^java.util.Collection cookies))))
+  ([^String profile-dir]
+   (extract-cookies profile-dir {}))
+  ([^String profile-dir opts]
+   (let [browser    (detect-browser profile-dir (:channel opts))
+         os         (detect-os)
+         ;; Copy DB first — fail fast if profile doesn't exist
+         tmp-db      (copy-cookies-db! profile-dir)
+         ;; Platform-specific key derivation (may prompt Keychain)
+         secret-key (if (= os :windows)
+                      (windows-dpapi-decrypt-key profile-dir)
+                      (let [password   (get-encryption-password os browser)
+                            iterations (if (= os :macos) 1003 1)]
+                        (derive-key password iterations)))
+         ;; Platform-specific decryption function
+         decrypt-fn (if (= os :windows)
+                      decrypt-cookie-value-gcm
+                      decrypt-cookie-value)
+         meta-ver    (query-meta-version tmp-db)
+         skip-bytes  (if (>= (long meta-ver) 24) 32 16)
+         raw-cookies (query-cookies-raw tmp-db)]
+     ;; Clean up temp DB
+     (try (.delete (java.io.File. tmp-db)) (catch Exception _))
+     (let [cookies (->> raw-cookies
+                     (keep (fn [raw]
+                             (when raw
+                               (let [enc-bytes (hex->bytes (:encrypted-hex raw))
+                                     value     (decrypt-fn secret-key enc-bytes skip-bytes)]
+                                 (raw-cookie->playwright raw value)))))
+                     vec)]
+       (java.util.ArrayList. ^java.util.Collection cookies)))))
 
 (defn inject-cookies!
-  "Extracts cookies from a Chrome profile and injects them into a Playwright
-   BrowserContext. This is the main entry point for authenticated browsing.
-
-   Cross-platform: works on macOS (Keychain), Linux (GNOME Keyring/peanuts),
-   and Windows (DPAPI + AES-GCM).
+  "Extracts cookies from a Chromium browser profile and injects them into a
+   Playwright BrowserContext. Supports Chrome, Edge, Brave, and other Chromium
+   browsers. Resilient: if batch injection fails, falls back to injecting cookies
+   one-by-one and skips any that CDP rejects (e.g. invalid fields, expired).
 
    Params:
    `context`     - BrowserContext instance.
-   `profile-dir` - String. Path to Chrome profile directory.
-
-   Returns:
-   Number of cookies injected."
-  [^BrowserContext context ^String profile-dir]
-  (let [^java.util.ArrayList cookies (extract-cookies profile-dir)
-        n (long (.size cookies))]
-    (when (pos? n)
-      (.addCookies context cookies))
-    n))
+   `profile-dir` - String. Path to browser profile directory.
+   `opts`        - Optional map with:
+                    :channel - String. CLI channel hint (e.g. \"msedge\")."
+  ([^BrowserContext context ^String profile-dir]
+   (inject-cookies! context profile-dir {}))
+  ([^BrowserContext context ^String profile-dir opts]
+   (let [^java.util.ArrayList cookies (extract-cookies profile-dir opts)
+         n (long (.size cookies))]
+     (if (zero? n)
+       0
+       (try
+         (.addCookies context cookies)
+         n
+         (catch Exception _batch-err
+           ;; Batch injection failed — try one-by-one to skip invalid cookies
+           (let [injected (atom 0)
+                 skipped  (atom 0)]
+             (doseq [^Cookie c cookies]
+               (try
+                 (let [^java.util.Collection coll [c]
+                       ^java.util.List single (java.util.ArrayList. coll)]
+                   (.addCookies context single))
+                 (catch Exception e
+                   (swap! skipped inc)
+                   (binding [*out* *err*]
+                     (println (str "spel: skipped cookie " (.name c)
+                                " for " (.domain c) ": " (.getMessage e)))))))
+             (binding [*out* *err*]
+               (println (str "spel: injected " @injected "/" n " cookies"
+                          (when (pos? (long @skipped))
+                            (str " (" @skipped " skipped due to invalid fields)")))))
+             @injected)))))))
 
 (defn- navigable-origin?
   "Returns true when `origin` is a valid HTTP(S) URL that Playwright can navigate to.
@@ -596,28 +687,29 @@
       entries)))
 
 (defn export-cookies-json
-  "Decrypts cookies and reads localStorage from a Chrome profile, returning
-   a Playwright-compatible storage-state JSON string. The output can be saved
-   to a file and loaded with `--storage-state` on any platform — no Chrome
-   profile or OS keyring needed on the target machine.
-
-   This is the portable profile export: decrypt on macOS/Linux/Windows, use
-   anywhere.
+  "Decrypts cookies and reads localStorage from a Chromium browser profile,
+   returning a Playwright-compatible storage-state JSON string. Supports Chrome,
+   Edge, Brave, and other Chromium browsers. The output can be saved to a file
+   and loaded with `--storage-state` on any platform.
 
    Params:
-   `profile-dir`            - String. Path to Chrome profile directory.
+   `profile-dir`            - String. Path to browser profile directory.
    `domain-filter`          - String or nil. Only include cookies/localStorage
                                whose domain/origin contains this string.
    `include-local-storage?` - Boolean (default true). When true, also exports
                                localStorage from the profile's LevelDB.
+   `opts`                   - Optional map with:
+                               :channel - String. CLI channel hint (e.g. \"msedge\").
 
    Returns:
    String — Playwright storage-state JSON:
    {\"cookies\": [...], \"origins\": [{\"origin\": \"...\", \"localStorage\": [...]}]}"
   (^String [^String profile-dir ^String domain-filter]
-   (export-cookies-json profile-dir domain-filter true))
+   (export-cookies-json profile-dir domain-filter true {}))
   (^String [^String profile-dir ^String domain-filter include-local-storage?]
-   (let [^java.util.ArrayList cookies (extract-cookies profile-dir)
+   (export-cookies-json profile-dir domain-filter include-local-storage? {}))
+  (^String [^String profile-dir ^String domain-filter include-local-storage? opts]
+   (let [^java.util.ArrayList cookies (extract-cookies profile-dir opts)
          cookie-maps (mapv cookie->map cookies)
          filtered-cookies (if (and domain-filter (not (str/blank? domain-filter)))
                             (filterv #(str/includes? (get % "domain") domain-filter) cookie-maps)

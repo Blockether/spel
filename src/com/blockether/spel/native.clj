@@ -778,13 +778,14 @@
                       "  - localStorage data (from Chrome's LevelDB Local Storage directory)"
                       ""
                       "Usage:"
-                      "  spel state export --profile <path> [-o <file>] [--domain <pattern>] [--no-local-storage]"
+                      "  spel state export --profile <path> [-o <file>] [--domain <pattern>] [--no-local-storage] [--channel <name>]"
                       ""
                       "Options:"
-                      "  --profile <path>       Chrome profile directory (required)"
+                      "  --profile <path>       Browser profile directory (required)"
                       "  -o, --output <file>    Output file path (default: stdout)"
                       "  --domain <pattern>     Filter cookies/localStorage by domain/origin (e.g. \".x.com\")"
                       "  --no-local-storage     Skip localStorage export (cookies only)"
+                      "  --channel <name>       Browser channel (e.g. \"msedge\", \"chrome\", \"brave\")"
                       "  --help, -h             Show this help"
                       ""
                       "Examples:"
@@ -800,34 +801,39 @@
                       "  # Use exported state on another machine"
                       "  scp state.json linux-server:~/"
                       "  ssh linux-server spel --load-state state.json open https://x.com --interactive"]))
-          (let [parsed (loop [args sub-args profile nil output nil domain nil include-ls true]
+          (let [parsed (loop [args sub-args profile nil output nil domain nil include-ls true channel nil]
                          (if (empty? args)
-                           {:profile profile :output output :domain domain :include-ls include-ls}
+                           {:profile profile :output output :domain domain :include-ls include-ls :channel channel}
                            (let [arg (first args)]
                              (cond
                                (= "--profile" arg)
-                               (recur (drop 2 args) (second args) output domain include-ls)
+                               (recur (drop 2 args) (second args) output domain include-ls channel)
                                (str/starts-with? arg "--profile=")
-                               (recur (rest args) (subs arg 10) output domain include-ls)
+                               (recur (rest args) (subs arg 10) output domain include-ls channel)
                                (or (= "-o" arg) (= "--output" arg))
-                               (recur (drop 2 args) profile (second args) domain include-ls)
+                               (recur (drop 2 args) profile (second args) domain include-ls channel)
                                (str/starts-with? arg "--output=")
-                               (recur (rest args) profile (subs arg 9) domain include-ls)
+                               (recur (rest args) profile (subs arg 9) domain include-ls channel)
                                (= "--domain" arg)
-                               (recur (drop 2 args) profile output (second args) include-ls)
+                               (recur (drop 2 args) profile output (second args) include-ls channel)
                                (str/starts-with? arg "--domain=")
-                               (recur (rest args) profile output (subs arg 9) include-ls)
+                               (recur (rest args) profile output (subs arg 9) include-ls channel)
                                (= "--no-local-storage" arg)
-                               (recur (rest args) profile output domain false)
+                               (recur (rest args) profile output domain false channel)
+                               (= "--channel" arg)
+                               (recur (drop 2 args) profile output domain include-ls (second args))
+                               (str/starts-with? arg "--channel=")
+                               (recur (rest args) profile output domain include-ls (subs arg 10))
                                :else
-                               (recur (rest args) profile output domain include-ls)))))]
+                               (recur (rest args) profile output domain include-ls channel)))))]
             (when-not (:profile parsed)
               (binding [*out* *err*]
                 (println "Error: --profile is required")
                 (println "Usage: spel state export --profile <path> [-o <file>] [--domain <pattern>]"))
               (System/exit 1))
             (let [json-str (chrome-cookies/export-cookies-json
-                             (:profile parsed) (:domain parsed) (:include-ls parsed))]
+                             (:profile parsed) (:domain parsed) (:include-ls parsed)
+                             {:channel (:channel parsed)})]
               (if (:output parsed)
                 (do (spit (:output parsed) json-str)
                     (let [parsed-json (json/read-json json-str)
