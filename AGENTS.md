@@ -12,6 +12,14 @@ SCI Bindings:
 - Lambdas break `gen-docs` introspection, hide functions from FULL_API.md, and make debugging impossible
 - This applies to: `:bindings` map values, `make-ns-map` entries, `core/` namespace stubs
 
+Daemon Session Isolation:
+- ALWAYS use a named session when starting a daemon during development/testing — NEVER use the default "default" session
+- Generate a unique session name at task start: `SESSION=agent-$(date +%s)`
+- Use it on every spel command: `spel --session $SESSION open <url>`, `spel --session $SESSION click ...`
+- Teardown at end (or on error): `spel --session $SESSION close` — kills ONLY your session
+- NEVER run `spel close` without `--session` — it kills the default session which may belong to the user
+- Verify isolation: `spel session list` shows active sessions by name
+
 Paren Repair:
 - NEVER fix unbalanced parens/brackets by hand — always: `clj-paren-repair path/to/file.clj`
 
