@@ -1398,7 +1398,15 @@
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))
                            (or (snap-flags "-a") (snap-flags "--all"))
-                           (assoc :all true)))
+                           (assoc :all true)
+                           (snap-flags "--no-network")
+                           (assoc :no_network true)
+                           (snap-flags "--no-console")
+                           (assoc :no_console true)
+                           (snap-flags "--network")
+                           (assoc :network true)
+                           (snap-flags "--console")
+                           (assoc :console true)))
 
           ;; Click
             "click"    {:action "click" :selector (first cmd-args)}
@@ -1717,6 +1725,12 @@
 
           ;; Network
             "network"  (let [sub (first cmd-args)]
+                         (cond
+                           ;; Drill-down: spel network @n1
+                           (and sub (re-matches #"@n\d+" sub))
+                           {:action "network_get_ref" :ref sub}
+
+                           :else
                          (case sub
                            "route"    (let [url       (second cmd-args)
                                             rest-args (set (drop 2 cmd-args))
@@ -1740,7 +1754,7 @@
                                           (flag-val "--method") (assoc :method (flag-val "--method"))
                                           (flag-val "--status") (assoc :status (flag-val "--status"))))
                            "clear"    {:action "network_clear"}
-                           {:error (str "Unknown network command: " sub)}))
+                           {:error (str "Unknown network command: " sub)})))
 
           ;; Frames
             "frame"    (let [sel (first cmd-args)]
@@ -1766,9 +1780,15 @@
                                     :path (second cmd-args)}
                            {:error (str "Unknown trace command: " sub)}))
 
-            "console"  (case (first cmd-args)
-                         ("clear" "--clear") {:action "console_clear"}
-                         {:action "console_get"})
+            "console"  (let [sub (first cmd-args)]
+                         (cond
+                           (and sub (re-matches #"@c\d+" sub))
+                           {:action "console_get_ref" :ref sub}
+                           :else
+                           (case sub
+                             ("clear" "--clear") {:action "console_clear"}
+                             (nil) {:action "console_get"}
+                             {:action "console_get"})))
 
             "errors"   (case (first cmd-args)
                          "clear" {:action "errors_clear"}
