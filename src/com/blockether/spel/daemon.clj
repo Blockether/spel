@@ -103,9 +103,119 @@
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
 
+;; =============================================================================
+;; Network + Console Sliding Window (TASK-013)
+;; =============================================================================
+
+(def ^:private max-window-per-page 1000)
+(def ^:private max-session-total 1000000)
+
+(defonce ^:private !network-window (atom []))
+(defonce ^:private !network-counter (atom 0))
+(defonce ^:private !network-full (atom {}))  ;; ref-id -> full entry with body/headers
+
+(defonce ^:private !console-window (atom []))
+(defonce ^:private !console-counter (atom 0))
+(defonce ^:private !console-full (atom {}))  ;; ref-id -> full entry
+
+(defonce ^:private !session-entry-count (atom 0))
+
+(defn- truncate-keys
+  "Returns a map with at most n top-level keys, values not expanded."
+  [m n]
+  (when (map? m)
+    (into {} (take n m))))
+
+(defn- safe-parse-json-body
+  "Tries to parse a string as JSON, returns parsed map or the raw string (truncated)."
+  [^String s max-len]
+  (when s
+    (try
+      (let [parsed (json/read-json s)]
+        (if (map? parsed)
+          (truncate-keys parsed 5)
+          (let [s-trunc (if (> (count s) max-len) (subs s 0 max-len) s)]
+            s-trunc)))
+      (catch Exception _
+        (let [s-trunc (if (> (count s) max-len) (subs s 0 max-len) s)]
+          s-trunc)))))
+
+(defn- track-network-entry!
+  "Tracks a network request/response with full details into the sliding window."
+  [^Response resp]
+  (when (< (long @!session-entry-count) (long max-session-total))
+    (let [^Request req (.request resp)
+          ref-id (str "n" (swap! !network-counter inc))
+          page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
+          req-headers (try (into {} (.allHeaders req)) (catch Exception _ {}))
+          resp-headers (try (into {} (.allHeaders resp)) (catch Exception _ {}))
+          post-data (try (.postData req) (catch Exception _ nil))
+          resp-body (try (.text resp) (catch Exception _ nil))
+          req-body-preview (safe-parse-json-body post-data 500)
+          resp-body-preview (safe-parse-json-body resp-body 500)
+          entry {:ref (str "@" ref-id)
+                 :method (.method req)
+                 :url (.url req)
+                 :resource_type (.resourceType req)
+                 :status (.status resp)
+                 :timestamp (System/currentTimeMillis)
+                 :page page-url
+                 :request_headers (truncate-keys req-headers 6)
+                 :response_headers (truncate-keys resp-headers 6)
+                 :request_body_preview req-body-preview
+                 :response_body_preview resp-body-preview}
+          full-entry (assoc entry
+                       :request_headers req-headers
+                       :response_headers resp-headers
+                       :request_body post-data
+                       :response_body resp-body)]
+      (swap! !network-full assoc ref-id full-entry)
+      (swap! !network-window
+        (fn [w]
+          (let [updated (conj w entry)
+                n (count updated)]
+            (if (> (long n) (long max-window-per-page))
+              (subvec updated (- (long n) (long max-window-per-page)))
+              updated))))
+      (swap! !session-entry-count inc))))
+
+(defn- track-console-entry!
+  "Tracks a console message into the sliding window."
+  [^ConsoleMessage msg]
+  (when (< (long @!session-entry-count) (long max-session-total))
+    (let [ref-id (str "c" (swap! !console-counter inc))
+          page-url (try (.url (.page msg)) (catch Exception _ "unknown"))
+          ;; Get stack trace if available via location
+          location (try
+                     (let [loc (.location msg)]
+                       (when loc
+                         (str (.url loc) ":" (.lineNumber loc) ":" (.columnNumber loc))))
+                     (catch Exception _ nil))
+          entry {:ref (str "@" ref-id)
+                 :type (.type msg)
+                 :text (.text msg)
+                 :timestamp (System/currentTimeMillis)
+                 :page page-url}
+          entry (if location (assoc entry :stack location) entry)]
+      (swap! !console-full assoc ref-id entry)
+      (swap! !console-window
+        (fn [w]
+          (let [updated (conj w entry)
+                n (count updated)]
+            (if (> (long n) (long max-window-per-page))
+              (subvec updated (- (long n) (long max-window-per-page)))
+              updated))))
+      (swap! !session-entry-count inc))))
+
+(defn- reset-network-console-windows!
+  "Resets per-page network/console windows (called on navigation)."
+  []
+  (reset! !network-window [])
+  (reset! !console-window []))
+
 (defn- track-response!
   "Appends a response summary to the tracked-requests ring buffer, capped at
-   `max-tracked-requests` most-recent entries."
+   `max-tracked-requests` most-recent entries. Also feeds the TASK-013 sliding window."
   [^Response resp]
   (let [^Request req (.request resp)
         entry {:url    (.url req)
@@ -118,7 +228,9 @@
               n (long (count updated))]
           (if (> n (long max-tracked-requests))
             (subvec updated (- n (long max-tracked-requests)))
-            updated))))))
+            updated))))
+    ;; TASK-013: also track into enriched sliding window
+    (track-network-entry! resp)))
 
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
@@ -349,10 +461,11 @@
       ;; Common setup for all paths
       (let [pg-inst (:page @!state)]
         (reset! !console-messages [])
-        (page/on-console pg-inst (fn [msg]
+        (page/on-console pg-inst (fn [^ConsoleMessage msg]
                                    (swap! !console-messages conj
-                                     {:type (.type ^ConsoleMessage msg)
-                                      :text (.text ^ConsoleMessage msg)})))
+                                     {:type (.type msg)
+                                      :text (.text msg)})
+                                   (track-console-entry! msg)))
         (reset! !page-errors [])
         (page/on-page-error pg-inst (fn [error]
                                       (swap! !page-errors conj
@@ -556,19 +669,44 @@
         viewport-width (assoc :viewport (page/viewport-size (pg)))
         (page-description) (assoc :description (page-description))))))
 
+(defn- build-structured-refs
+  "Builds the structured refs map for JSON output (AC-5/AC-6)."
+  [refs]
+  (into {}
+    (map (fn [[ref-id info]]
+           [ref-id
+            (cond-> {:role (:role info)}
+              (seq (:name info))        (assoc :name (:name info))
+              (:url info)               (assoc :url (:url info))
+              (:type info)              (assoc :type (:type info))
+              (some? (:checked info))   (assoc :checked (:checked info))
+              (:level info)             (assoc :level (:level info))
+              (:value info)             (assoc :value (:value info)))]))
+    refs))
+
 (defmethod handle-cmd "snapshot" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  (let [sel       (get params "selector")
-        all?      (get params "all")
-        snap      (if all?
-                    (snapshot/capture-full-snapshot (pg))
-                    (snapshot/capture-snapshot (pg) (cond-> {}
-                                                      sel (assoc :scope sel))))
-        _         (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-        tree      (filter-snapshot-tree (:tree snap) params)]
-    (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))}
-      (page-description) (assoc :description (page-description)))))
+  (let [sel            (get params "selector")
+        all?           (get params "all")
+        no-network?    (get params "no_network")
+        no-console?    (get params "no_console")
+        include-net?   (get params "network")
+        include-con?   (get params "console")
+        snap           (if all?
+                         (snapshot/capture-full-snapshot (pg))
+                         (snapshot/capture-snapshot (pg) (cond-> {}
+                                                           sel (assoc :scope sel))))
+        _              (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+        tree           (filter-snapshot-tree (:tree snap) params)
+        structured     (build-structured-refs (:refs snap))]
+    (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
+             :refs structured}
+      (page-description)          (assoc :description (page-description))
+      no-network?                 (dissoc :network)
+      no-console?                 (dissoc :console)
+      (not no-network?)           (assoc :network @!network-window)
+      (not no-console?)           (assoc :console @!console-window))))
 
 (defmethod handle-cmd "click" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1117,6 +1255,18 @@
     {:storage_cleared st}))
 
 ;; --- Phase 3: Network ---
+
+(defmethod handle-cmd "network_get_ref" [_ {:strs [ref]}]
+  (let [ref-id (str/replace (or ref "") #"^@" "")]
+    (if-let [entry (get @!network-full ref-id)]
+      entry
+      {:error (str "Network ref @" ref-id " not found")})))
+
+(defmethod handle-cmd "console_get_ref" [_ {:strs [ref]}]
+  (let [ref-id (str/replace (or ref "") #"^@" "")]
+    (if-let [entry (get @!console-full ref-id)]
+      entry
+      {:error (str "Console ref @" ref-id " not found")})))
 
 (defmethod handle-cmd "network_route" [_ {:strs [url action_type body status content_type]}]
   (let [handler (fn [route]

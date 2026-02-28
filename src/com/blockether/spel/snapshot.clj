@@ -195,6 +195,26 @@
     return MEANINGFUL_ROLES.has(role);
   }
 
+
+  function getHref(el) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'a') {
+      const href = el.getAttribute('href');
+      if (href) {
+        try { return new URL(href, document.baseURI).href; }
+        catch(e) { return href; }
+      }
+    }
+    return null;
+  }
+
+  function getInputType(el) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input') return (el.getAttribute('type') || 'text').toLowerCase();
+    if (tag === 'textarea') return 'textarea';
+    return null;
+  }
+
   function getAttributes(el, role) {
     const attrs = {};
     const level = headingLevel(el);
@@ -317,6 +337,9 @@
       counter++;
       el.setAttribute('data-pw-ref', ref);
       const rect = el.getBoundingClientRect();
+      const href = getHref(el);
+      const inputType = getInputType(el);
+      const level = headingLevel(el);
       refs[ref] = {
         role: effectiveRole,
         name: name,
@@ -326,15 +349,24 @@
         width: Math.round(rect.width),
         height: Math.round(rect.height)
       };
+      if (href) refs[ref].url = href;
+      if (inputType) refs[ref].type = inputType;
+      if (level) refs[ref].level = level;
+      if (el.type === 'checkbox' || el.type === 'radio') refs[ref].checked = !!el.checked;
+      if (el.value && (effectiveRole === 'textbox' || effectiveRole === 'searchbox' ||
+          effectiveRole === 'spinbutton' || effectiveRole === 'combobox'))
+        refs[ref].value = el.value.substring(0, 200);
       if (children.length > 0 && leafText) refs[ref].mixed = true;
     }
 
+    const nodeHref = getHref(el);
     return {
       role: role || tag,
       name: name,
       ref: ref,
       attrs: attrs,
       text: leafText,
+      href: nodeHref,
       children: children
     };
   }
@@ -401,12 +433,13 @@
 
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
-  [{:strs [role name ref attrs text]} depth]
+  [{:strs [role name ref attrs text href]} depth]
   (let [depth (long depth)
         indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
                  (seq name)  (conj (str "\"" name "\""))
                  ref         (conj (str "[@" ref "]"))
+                 (seq href)  (conj (str "[url=" href "]"))
                  (seq attrs) (conj (format-attrs attrs))
                  text        (conj (str ": " text)))]
     (str indent (str/join " " parts))))
@@ -465,7 +498,12 @@
                                            :y      (get info "y")
                                            :width  (get info "width")
                                            :height (get info "height")}}
-                           (get info "mixed") (assoc :mixed true))]))
+                           (get info "mixed")   (assoc :mixed true)
+                           (get info "url")     (assoc :url (get info "url"))
+                           (get info "type")    (assoc :type (get info "type"))
+                           (get info "level")   (assoc :level (get info "level"))
+                           (some? (get info "checked")) (assoc :checked (get info "checked"))
+                           (get info "value")   (assoc :value (get info "value")))]))
 
                  raw-refs)
       :counter (or counter 0)})))

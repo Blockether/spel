@@ -609,3 +609,91 @@
           (expect (some? (get (:refs after) email-ref)))
           (expect (some? (get (:refs after) pass-ref)))
           (expect (= "Log In" (:name (get (:refs after) submit-ref)))))))))
+
+;; =============================================================================
+;; Integration Tests — TASK-013: URL annotation in tree text
+;; =============================================================================
+
+(defdescribe url-annotation-test
+  "Tests for AC-1..AC-4: link URLs shown in snapshot tree text"
+
+  (describe "link URL annotation"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "links with href show [url=...] annotation in tree"
+      (page/set-content! *page*
+        "<a href='https://example.com/about'>About</a>")
+      (let [snap (sut/capture-snapshot *page*)]
+        (expect (str/includes? (:tree snap) "[url=https://example.com/about]"))))
+
+    (it "links without href do not show [url=...] annotation"
+      (page/set-content! *page*
+        "<a>No Link</a>")
+      (let [snap (sut/capture-snapshot *page*)]
+        (expect (not (str/includes? (:tree snap) "[url=")))))
+
+    (it "relative URLs are resolved to absolute"
+      (page/navigate *page* "https://example.com")
+      (page/evaluate *page*
+        "document.body.innerHTML = '<a href=\"/relative\">Relative</a>'")
+      (let [snap (sut/capture-snapshot *page*)]
+        (expect (str/includes? (:tree snap) "[url=https://example.com/relative]"))))
+
+    (it "URL appears after ref annotation"
+      (page/set-content! *page*
+        "<a href='https://example.com'>Link</a>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        ;; Pattern: [@eXXXXX] [url=...]
+        (expect (re-find #"\[@e[a-z0-9]+\] \[url=https://example\.com/?\]" tree))))))
+
+;; =============================================================================
+;; Integration Tests — TASK-013: Structured refs map
+;; =============================================================================
+
+(defdescribe structured-refs-test
+  "Tests for AC-5..AC-9: structured refs map in snapshot output"
+
+  (describe "refs include metadata fields"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "link refs include url field"
+      (page/set-content! *page*
+        "<a href='https://example.com'>Example</a>")
+      (let [snap (sut/capture-snapshot *page*)
+            link-ref (some (fn [[_ info]] (when (= "link" (:role info)) info))
+                       (:refs snap))]
+        (expect (= "https://example.com/" (:url link-ref)))))
+
+    (it "heading refs include level field"
+      (page/set-content! *page* "<h2>Subtitle</h2>")
+      (let [snap (sut/capture-snapshot *page*)
+            h-ref (some (fn [[_ info]] (when (= "heading" (:role info)) info))
+                    (:refs snap))]
+        (expect (= 2 (:level h-ref)))))
+
+    (it "input refs include type field"
+      (page/set-content! *page*
+        "<input type='email' placeholder='Email'/>")
+      (let [snap (sut/capture-snapshot *page*)
+            input-ref (some (fn [[_ info]] (when (= "textbox" (:role info)) info))
+                        (:refs snap))]
+        (expect (= "email" (:type input-ref)))))
+
+    (it "checkbox refs include checked field"
+      (page/set-content! *page*
+        "<input type='checkbox' aria-label='Accept'/><input type='checkbox' aria-label='Decline' checked/>")
+      (let [snap (sut/capture-snapshot *page*)
+            accept (some (fn [[_ info]] (when (= "Accept" (:name info)) info))
+                     (:refs snap))
+            decline (some (fn [[_ info]] (when (= "Decline" (:name info)) info))
+                      (:refs snap))]
+        (expect (= false (:checked accept)))
+        (expect (= true (:checked decline)))))
+
+    (it "refs always include role field"
+      (page/set-content! *page*
+        "<button>Btn</button><a href='/'>Link</a><h1>H</h1>")
+      (let [snap (sut/capture-snapshot *page*)]
+        (doseq [[_ info] (:refs snap)]
+          (expect (some? (:role info))))))))

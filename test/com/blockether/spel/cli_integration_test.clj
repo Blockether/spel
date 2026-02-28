@@ -57,6 +57,14 @@
       (reset! errors-a [])
       (reset! routes-a {})
       (reset! reqs-a [])
+      ;; Reset TASK-013 sliding windows
+      (reset! (deref #'daemon/!network-window) [])
+      (reset! (deref #'daemon/!network-counter) 0)
+      (reset! (deref #'daemon/!network-full) {})
+      (reset! (deref #'daemon/!console-window) [])
+      (reset! (deref #'daemon/!console-counter) 0)
+      (reset! (deref #'daemon/!console-full) {})
+      (reset! (deref #'daemon/!session-entry-count) 0)
       (page/on-console pg (fn [msg]
                             (swap! console-a conj
                               {:type (.type ^ConsoleMessage msg)
@@ -2094,3 +2102,81 @@
             _ (cmd "sci_eval" {"code" script})
             r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
         (expect (str/includes? (:result r) "/second-page"))))))
+
+;; =============================================================================
+;; TASK-013: Unified Snapshot Enrichment
+;; =============================================================================
+
+(defdescribe snapshot-enrichment-integration-test
+  "Integration tests for TASK-013: URL annotations, structured refs, network/console windows"
+
+  (describe "snapshot includes structured refs map"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "snapshot result contains :refs map with role for each ref"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (map? (:refs r)))
+        (expect (pos? (count (:refs r))))
+        (doseq [[_ info] (:refs r)]
+          (expect (some? (:role info))))))
+
+    (it "link refs include url in refs map"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})
+            link-ref (some (fn [[_ info]] (when (= "link" (:role info)) info))
+                       (:refs r))]
+        (when link-ref
+          (expect (some? (:url link-ref))))))
+
+    (it "snapshot tree contains [url=...] for links"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        ;; test-page should have links
+        (when (str/includes? (:snapshot r) "link")
+          (expect (str/includes? (:snapshot r) "[url="))))))
+
+  (describe "snapshot includes network and console windows"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "snapshot includes :network array"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (vector? (:network r)))))
+
+    (it "snapshot includes :console array"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (vector? (:console r)))))
+
+    (it "--no-network excludes network"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {"no_network" true})]
+        (expect (nil? (:network r)))))
+
+    (it "--no-console excludes console"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {"no_console" true})]
+        (expect (nil? (:console r))))))
+
+  (describe "network/console drill-down"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "network_get_ref returns entry for valid ref"
+      (nav! "/test-page")
+      ;; Wait a bit for network entries to be captured
+      (Thread/sleep 500)
+      (let [window @(deref #'daemon/!network-window)]
+        (when (seq window)
+          (let [ref-str (:ref (first window))
+                r (cmd "network_get_ref" {"ref" ref-str})]
+            (expect (some? (:url r)))
+            (expect (some? (:method r)))))))
+
+    (it "network_get_ref returns error for invalid ref"
+      (let [r (cmd "network_get_ref" {"ref" "@n99999"})]
+        (expect (some? (:error r)))))
+
+    (it "console_get_ref returns error for invalid ref"
+      (let [r (cmd "console_get_ref" {"ref" "@c99999"})]
+        (expect (some? (:error r)))))))
