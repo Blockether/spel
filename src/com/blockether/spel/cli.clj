@@ -2071,7 +2071,10 @@
     (let [{:keys [success data error]} response]
       (if success
         (println (json/write-json-str data :escape-slash false))
-        (println (json/write-json-str {:error (or error "Unknown error")} :escape-slash false))))
+        (let [err-map (cond-> {:error (or error "Unknown error")}
+                        (:call_log response) (assoc :call_log (:call_log response))
+                        (:selector response) (assoc :selector (:selector response)))]
+          (println (json/write-json-str err-map :escape-slash false)))))
     (let [{:keys [success data error]} response]
       (if success
         (cond

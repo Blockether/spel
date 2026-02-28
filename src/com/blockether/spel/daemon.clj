@@ -450,6 +450,63 @@
      (:tree snap))))
 
 ;; =============================================================================
+;; Error Helpers — used by command handlers and process-command
+;; =============================================================================
+
+(defn- parse-playwright-error
+  "Parses a Playwright error message to extract structured call log and selector.
+   Call log lines are extracted from between \"=== logs ===\" markers.
+   Selector is extracted from locator(\"...\") or getByRole/getByText/etc patterns.
+   Returns map with :call_log (vector of strings) and :selector (string or nil).
+   Returns empty map when msg is nil or has no parseable structure."
+  [msg]
+  (when msg
+    (let [;; Extract call log between === logs === markers
+          ;; Playwright format: ===...=== logs ===...=== \n lines \n ===...===
+          log-match (re-find #"(?s)={3,}\s*logs\s*={3,}\n(.*?)\n={3,}" msg)
+          call-log  (when-let [raw (second log-match)]
+                      (let [lines (->> (str/split-lines raw)
+                                    (mapv str/trim)
+                                    (filterv (complement str/blank?)))]
+                        (when (seq lines) lines)))
+          ;; Extract selector from locator("...") pattern
+          sel-match (re-find #"locator\(\"([^\"]+)\"\)" msg)
+          ;; Also try getByRole, getByText, etc.
+          get-by-match (when-not (second sel-match)
+                         (re-find #"(getBy\w+)\(([^)]+)\)" msg))
+          selector  (or (second sel-match)
+                      (when get-by-match
+                        (str (second get-by-match) "(" (nth get-by-match 2) ")")))]
+      (cond-> {}
+        call-log (assoc :call_log call-log)
+        selector (assoc :selector selector)))))
+
+(defn- error-response
+  "Creates a structured error response map from an error message string.
+   Parses Playwright error context (call_log, selector) when present.
+   Returns {:success false :error msg} with optional :call_log and :selector."
+  [^String msg]
+  (let [parsed (parse-playwright-error msg)]
+    (cond-> {:success false :error msg}
+      (:call_log parsed) (assoc :call_log (:call_log parsed))
+      (:selector parsed) (assoc :selector (:selector parsed)))))
+
+(defn- unwrap-anomaly!
+  "Checks if x is an anomaly map and re-throws the underlying error.
+   - Anomaly with :playwright/exception → re-throws the original exception.
+   - Anomaly without exception → throws ex-info with the anomaly message.
+   - Non-anomaly value → returns x unchanged.
+   Use this to wrap locator action results so errors propagate instead of
+   being silently discarded."
+  [x]
+  (if (anomaly/anomaly? x)
+    (if-let [ex (:playwright/exception x)]
+      (throw ex)
+      (throw (ex-info (or (::anomaly/message x) "Unknown error")
+               (dissoc x ::anomaly/message ::anomaly/category))))
+    x))
+
+;; =============================================================================
 ;; Command Handlers
 ;; =============================================================================
 
@@ -503,26 +560,26 @@
 
 (defmethod handle-cmd "click" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/click (resolve-selector selector))
+  (unwrap-anomaly! (locator/click (resolve-selector selector)))
   (let [tree (snapshot-after-action!)]
     {:clicked selector :snapshot tree}))
 
 (defmethod handle-cmd "fill" [_ {:strs [selector value]}]
   (ensure-page-loaded!)
-  (locator/fill (resolve-selector selector) value)
+  (unwrap-anomaly! (locator/fill (resolve-selector selector) value))
   (let [tree (snapshot-after-action!)]
     {:filled selector :snapshot tree}))
 
 (defmethod handle-cmd "type" [_ {:strs [selector text]}]
   (ensure-page-loaded!)
-  (locator/type-text (resolve-selector selector) text)
+  (unwrap-anomaly! (locator/type-text (resolve-selector selector) text))
   (let [tree (snapshot-after-action!)]
     {:typed selector :snapshot tree}))
 
 (defmethod handle-cmd "press" [_ {:strs [key selector]}]
   (ensure-page-loaded!)
   (if selector
-    (locator/press (resolve-selector selector) key)
+    (unwrap-anomaly! (locator/press (resolve-selector selector) key))
     (.press ^Keyboard (page/page-keyboard (pg)) key))
   (let [tree (snapshot-after-action!)]
     {:pressed key :snapshot tree}))
@@ -530,39 +587,39 @@
 (defmethod handle-cmd "hover" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (let [loc  (resolve-selector selector)
-        _    (locator/hover loc)
+        _    (unwrap-anomaly! (locator/hover loc))
         desc (describe-element loc)]
     (cond-> {:hovered selector}
       desc (assoc :desc desc))))
 
 (defmethod handle-cmd "check" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/check (resolve-selector selector))
+  (unwrap-anomaly! (locator/check (resolve-selector selector)))
   (let [tree (snapshot-after-action!)]
     {:checked selector :snapshot tree}))
 
 (defmethod handle-cmd "uncheck" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/uncheck (resolve-selector selector))
+  (unwrap-anomaly! (locator/uncheck (resolve-selector selector)))
   (let [tree (snapshot-after-action!)]
     {:unchecked selector :snapshot tree}))
 
 (defmethod handle-cmd "select" [_ {:strs [selector values]}]
   (ensure-page-loaded!)
-  (locator/select-option (resolve-selector selector) values)
+  (unwrap-anomaly! (locator/select-option (resolve-selector selector) values))
   (let [tree (snapshot-after-action!)]
     {:selected selector :snapshot tree}))
 
 (defmethod handle-cmd "dblclick" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/dblclick (resolve-selector selector))
+  (unwrap-anomaly! (locator/dblclick (resolve-selector selector)))
   (let [tree (snapshot-after-action!)]
     {:dblclicked selector :snapshot tree}))
 
 (defmethod handle-cmd "focus" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (let [loc  (resolve-selector selector)
-        _    (locator/focus loc)
+        _    (unwrap-anomaly! (locator/focus loc))
         desc (describe-element loc)]
     (cond-> {:focused selector}
       desc (assoc :desc desc))))
@@ -570,7 +627,7 @@
 (defmethod handle-cmd "clear" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (let [loc  (resolve-selector selector)
-        _    (locator/clear loc)
+        _    (unwrap-anomaly! (locator/clear loc))
         desc (describe-element loc)]
     (cond-> {:cleared selector}
       desc (assoc :desc desc))))
@@ -663,9 +720,10 @@
         sel       (get params "selector")
         smooth?   (get params "smooth" false)
         opts      {:amount amount :smooth? smooth?}
-        result    (if sel
-                    (locator/scroll (resolve-selector sel) direction opts)
-                    (page/scroll (pg) direction opts))
+        result    (unwrap-anomaly!
+                    (if sel
+                      (locator/scroll (resolve-selector sel) direction opts)
+                      (page/scroll (pg) direction opts)))
         tree      (snapshot-after-action!)]
     (assoc result :snapshot tree)))
 
@@ -690,27 +748,30 @@
 (defmethod handle-cmd "wait" [_ params]
   (cond
     (get params "text")
-    (do (page/wait-for-selector (pg) (str "text=" (get params "text")))
+    (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
         {:found_text (get params "text")})
 
     (get params "url")
-    (do (page/wait-for-url (pg) (get params "url"))
+    (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
         {:url (get params "url")})
 
     (get params "function")
-    (do (page/wait-for-function (pg) (get params "function"))
+    (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
         {:function_completed true})
 
     (get params "selector")
-    (do (page/wait-for-selector (pg) (get params "selector"))
-        {:found (get params "selector")})
+    (let [sel (get params "selector")]
+      (if (ref? sel)
+        (unwrap-anomaly! (locator/wait-for (resolve-selector sel)))
+        (unwrap-anomaly! (page/wait-for-selector (pg) sel)))
+      {:found sel})
 
     (get params "state")
-    (do (page/wait-for-load-state (pg) (keyword (get params "state")))
+    (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
         {:state (get params "state")})
 
     (get params "timeout")
-    (do (page/wait-for-timeout (pg) (double (get params "timeout")))
+    (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
         {:waited (get params "timeout")})
 
     :else
@@ -755,36 +816,36 @@
 (defmethod handle-cmd "content" [_ params]
   (ensure-page-loaded!)
   (if-let [sel (get params "selector")]
-    {:html (locator/inner-html (resolve-selector sel))}
+    {:html (unwrap-anomaly! (locator/inner-html (resolve-selector sel)))}
     {:html (page/content (pg))}))
 
 (defmethod handle-cmd "get_text" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:text (locator/text-content (resolve-selector selector))})
+  {:text (unwrap-anomaly! (locator/text-content (resolve-selector selector)))})
 
 (defmethod handle-cmd "get_attribute" [_ {:strs [selector attribute]}]
   (ensure-page-loaded!)
-  {:value (locator/get-attribute (resolve-selector selector) attribute)})
+  {:value (unwrap-anomaly! (locator/get-attribute (resolve-selector selector) attribute))})
 
 (defmethod handle-cmd "is_visible" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:visible (locator/is-visible? (resolve-selector selector))})
+  {:visible (unwrap-anomaly! (locator/is-visible? (resolve-selector selector)))})
 
 (defmethod handle-cmd "is_enabled" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:enabled (locator/is-enabled? (resolve-selector selector))})
+  {:enabled (unwrap-anomaly! (locator/is-enabled? (resolve-selector selector)))})
 
 (defmethod handle-cmd "is_checked" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:checked (locator/is-checked? (resolve-selector selector))})
+  {:checked (unwrap-anomaly! (locator/is-checked? (resolve-selector selector)))})
 
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:count (locator/count-elements (page/locator (pg) selector))})
+  {:count (unwrap-anomaly! (locator/count-elements (page/locator (pg) selector)))})
 
 (defmethod handle-cmd "bounding_box" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:box (locator/bounding-box (resolve-selector selector))})
+  {:box (unwrap-anomaly! (locator/bounding-box (resolve-selector selector)))})
 
 (defmethod handle-cmd "pdf" [_ {:strs [path]}]
   (ensure-page-loaded!)
@@ -1447,16 +1508,17 @@
                           (map? result)
                           (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
           (if anomaly-v
-            (let [msg (::anomaly/message anomaly-v)
-                  ex  (:playwright/exception anomaly-v)
-                  hint (when ex (reflection-error-hint ex))]
-              (json/write-json-str {:success false
-                                    :error (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")}))
+            (let [msg  (::anomaly/message anomaly-v)
+                  ex   (:playwright/exception anomaly-v)
+                  hint (when ex (reflection-error-hint ex))
+                  error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")]
+              (json/write-json-str (error-response error-msg)))
             (json/write-json-str {:success true :data result})))
         (catch Throwable e
-          (let [msg  (or (reflection-error-hint e) (.getMessage e))
+          (let [hint (reflection-error-hint e)
+                msg  (or hint (.getMessage e))
                 data (ex-data e)]
-            (json/write-json-str (cond-> {:success false :error msg}
+            (json/write-json-str (cond-> (error-response msg)
                                    (:stdout data) (assoc :data {:stdout (:stdout data)
                                                                 :stderr (:stderr data)})))))))
     (catch Throwable e

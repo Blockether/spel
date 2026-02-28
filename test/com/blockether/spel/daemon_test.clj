@@ -373,4 +373,141 @@
           (finally
             (.delete f)))))))
 
+;; =============================================================================
+;; Unit Tests — parse-playwright-error (private)
+;; =============================================================================
+
+(defdescribe parse-playwright-error-test
+  "Unit tests for parse-playwright-error — extracts call log and selector from Playwright errors"
+
+  (describe "call log extraction"
+    (it "extracts call log lines between === logs === markers"
+      (let [msg (str "locator.click: Timeout 30000ms exceeded.\n"
+                  "=========================== logs ===========================\n"
+                  "waiting for locator(\"#missing\")\n"
+                  "  locator resolved to 0 elements\n"
+                  "============================================================")
+            result (#'sut/parse-playwright-error msg)]
+        (expect (= ["waiting for locator(\"#missing\")" "locator resolved to 0 elements"]
+                  (:call_log result)))))
+
+    (it "handles single-line call log"
+      (let [msg (str "Error: something\n"
+                  "=========================== logs ===========================\n"
+                  "waiting for locator(\"button\")\n"
+                  "============================================================")
+            result (#'sut/parse-playwright-error msg)]
+        (expect (= ["waiting for locator(\"button\")"] (:call_log result))))))
+
+  (describe "selector extraction"
+    (it "extracts selector from locator() pattern"
+      (let [msg "locator.click: Timeout 30000ms exceeded. locator(\"#submit-btn\") resolved to 0 elements"
+            result (#'sut/parse-playwright-error msg)]
+        (expect (= "#submit-btn" (:selector result)))))
+
+    (it "extracts getByRole pattern when no locator() present"
+      (let [msg "locator.click: getByRole(BUTTON, name=\"Submit\") resolved to 0 elements"
+            result (#'sut/parse-playwright-error msg)]
+        (expect (str/includes? (:selector result) "getByRole")))))
+
+  (describe "nil and empty input"
+    (it "returns nil for nil input"
+      (expect (nil? (#'sut/parse-playwright-error nil))))
+
+    (it "returns empty map for plain error without call log or selector"
+      (let [result (#'sut/parse-playwright-error "Some generic error")]
+        (expect (= {} result))))))
+
+;; =============================================================================
+;; Unit Tests — error-response (private)
+;; =============================================================================
+
+(defdescribe error-response-test
+  "Unit tests for error-response — creates structured error map from error message"
+
+  (describe "basic error"
+    (it "returns success=false with error message"
+      (let [result (#'sut/error-response "Something went wrong")]
+        (expect (false? (:success result)))
+        (expect (= "Something went wrong" (:error result)))))
+
+    (it "omits call_log and selector when not present"
+      (let [result (#'sut/error-response "Simple error")]
+        (expect (not (contains? result :call_log)))
+        (expect (not (contains? result :selector))))))
+
+  (describe "Playwright error with call_log and selector"
+    (it "includes call_log and selector when present in error message"
+      (let [msg (str "locator.click: Timeout 30000ms exceeded.\n"
+                  "=========================== logs ===========================\n"
+                  "waiting for locator(\"#btn\")\n"
+                  "  locator resolved to 0 elements\n"
+                  "============================================================")
+            result (#'sut/error-response msg)]
+        (expect (false? (:success result)))
+        (expect (= msg (:error result)))
+        (expect (vector? (:call_log result)))
+        (expect (= "#btn" (:selector result)))))))
+
+;; =============================================================================
+;; Unit Tests — unwrap-anomaly! (private)
+;; =============================================================================
+
+(defdescribe unwrap-anomaly-test
+  "Unit tests for unwrap-anomaly! — converts anomaly maps to thrown exceptions"
+
+  (describe "pass-through for non-anomaly values"
+    (it "returns a string unchanged"
+      (expect (= "hello" (#'sut/unwrap-anomaly! "hello"))))
+
+    (it "returns nil unchanged"
+      (expect (nil? (#'sut/unwrap-anomaly! nil))))
+
+    (it "returns a regular map unchanged"
+      (let [m {:foo "bar"}]
+        (expect (= m (#'sut/unwrap-anomaly! m))))))
+
+  (describe "re-throws original Playwright exception"
+    (it "throws the original exception when :playwright/exception is present"
+      (let [original-ex (Exception. "Playwright timeout")
+            anomaly-map (assoc (anomaly/anomaly ::anomaly/busy "Timeout 30000ms exceeded"
+                                 {:playwright/error-type :playwright.error/timeout})
+                          :playwright/exception original-ex)]
+        (try
+          (#'sut/unwrap-anomaly! anomaly-map)
+          (expect false "Should have thrown")
+          (catch Exception e
+            (expect (= original-ex e)))))))
+
+  (describe "throws ex-info for anomaly without exception"
+    (it "throws ex-info with anomaly message"
+      (let [anomaly-map (anomaly/anomaly ::anomaly/fault "Browser not found"
+                          {:playwright/error-type :playwright.error/exception})]
+        (try
+          (#'sut/unwrap-anomaly! anomaly-map)
+          (expect false "Should have thrown")
+          (catch clojure.lang.ExceptionInfo e
+            (expect (= "Browser not found" (.getMessage e)))))))))
+
+;; =============================================================================
+;; Unit Tests — process-command error propagation
+;; =============================================================================
+
+(defdescribe process-command-error-propagation-test
+  "Unit tests for error propagation through process-command"
+
+  (describe "unknown action"
+    (it "returns success with error field for unknown action"
+      (let [response (json/read-json
+                       (#'sut/process-command
+                        (json/write-json-str {"action" "nonexistent_action"})))]
+        (expect (true? (get response "success")))
+        (expect (str/includes? (get-in response ["data" "error"])
+                  "Unknown action")))))
+
+  (describe "error response has success=false"
+    (it "returns success=false for parse errors"
+      (let [response (json/read-json (#'sut/process-command "invalid json!!!"))]
+        (expect (false? (get response "success")))
+        (expect (str/includes? (get response "error") "Parse error"))))))
 
