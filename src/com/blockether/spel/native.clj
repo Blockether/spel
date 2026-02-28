@@ -552,10 +552,18 @@
                 (println result-str))))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (binding [*out* *err*]
-                (println (str "Error: " (or (get-in response [:data :error])
-                                          (:error response)
-                                          "Unknown error")))))))
+              (let [error-msg (or (get-in response [:data :error])
+                                (:error response)
+                                "Unknown error")]
+                (if (:json? global)
+                  ;; --json mode: structured error with call_log/selector
+                  (let [err-map (cond-> {:error error-msg}
+                                  (:call_log response) (assoc :call_log (:call_log response))
+                                  (:selector response) (assoc :selector (:selector response)))]
+                    (println (json/write-json-str err-map :escape-slash false)))
+                  ;; text mode: print full error message as-is
+                  (binding [*out* *err*]
+                    (println (str "Error: " error-msg))))))))
       (catch Exception e
         (vreset! exit-code 1)
         (binding [*out* *err*]

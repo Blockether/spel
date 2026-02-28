@@ -1178,6 +1178,17 @@ assert_jq_contains "screenshot --crop-to-content → .path" "$OUT" '.path' 'test
 "$SPEL" set viewport 1280 720 >/dev/null 2>&1
 
 
+# =============================================================================
+# ERROR PROPAGATION (34)
+# =============================================================================
+section "Error Propagation (34)"
+
+# Click a non-existent ref — should fail with meaningful error, not "Unknown error"
+OUT=$("$SPEL" --json click @enonexistent 2>&1) || true
+assert_jq "click @enonexistent → has error" "$OUT" '.error != null'
+assert_jq "click @enonexistent → error != Unknown error" "$OUT" '.error != "Unknown error"'
+assert_jq_contains "click @enonexistent → error has context" "$OUT" '.error' 'not found'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
