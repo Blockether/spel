@@ -1726,13 +1726,10 @@
         (expect (nil? (:stdout r)))
         (expect (nil? (:stderr r)))))
 
-    (it "preserves stdout on error via ex-data"
-      (let [threw (try (cmd "sci_eval" {"code" "(println \"before boom\") (throw (ex-info \"boom\" {}))"})
-                       nil
-                       (catch Exception e e))]
-        (expect (some? threw))
-        (let [data (ex-data threw)]
-          (expect (= "before boom\n" (str/replace (str (:stdout data)) "\r\n" "\n"))))))
+    (it "preserves stdout on error — included in error response map"
+      (let [result (cmd "sci_eval" {"code" "(println \"before boom\") (throw (ex-info \"boom\" {}))"})]
+        (expect (false? (:success result)))
+        (expect (= "before boom\n" (str/replace (str (:stdout result)) "\r\n" "\n")))))
 
     ;; --- Console/error auto-inclusion in sci_eval response ---
 
@@ -1771,14 +1768,10 @@
     (it "sci_eval includes console messages even on eval error"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
       (cmd "console_clear" {})
-      (let [threw (try
-                    (cmd "sci_eval" {"code" "(do (spel/evaluate \"console.warn('before-error')\") (throw (ex-info \"boom\" {})))"})
-                    nil
-                    (catch Exception e e))]
-        (expect (some? threw))
-        (let [data (ex-data threw)]
-          (expect (some? (:console data)))
-          (expect (some #(= "before-error" (:text %)) (:console data))))))
+      (let [result (cmd "sci_eval" {"code" "(do (spel/evaluate \"console.warn('before-error')\") (throw (ex-info \"boom\" {})))"})]
+        (expect (false? (:success result)))
+        (expect (some? (:console result)))
+        (expect (some #(= "before-error" (:text %)) (:console result)))))
 
     ;; --- Help function ---
     ;; spel/help prints to stdout (captured as :stdout in daemon response)
@@ -2060,9 +2053,8 @@
                     "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"WRONG TEXT THAT DOES NOT EXIST ON PAGE\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            threw? (try (cmd "sci_eval" {"code" script}) false
-                        (catch Exception _ true))]
-        (expect threw?)))
+            result (cmd "sci_eval" {"code" script})]
+        (expect (false? (:success result)))))
 
     (it "NEGATIVE: assertChecked on unchecked box throws in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2070,9 +2062,8 @@
                     "{\"name\":\"assertChecked\",\"selector\":\"#checkbox\",\"checked\":true,\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            threw? (try (cmd "sci_eval" {"code" script}) false
-                        (catch Exception _ true))]
-        (expect threw?)))
+            result (cmd "sci_eval" {"code" script})]
+        (expect (false? (:success result)))))
 
     (it "NEGATIVE: assertValue with wrong value throws in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2080,9 +2071,8 @@
                     "{\"name\":\"assertValue\",\"selector\":\"#prefilled\",\"value\":\"COMPLETELY WRONG VALUE\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            threw? (try (cmd "sci_eval" {"code" script}) false
-                        (catch Exception _ true))]
-        (expect threw?)))
+            result (cmd "sci_eval" {"code" script})]
+        (expect (false? (:success result)))))
 
     ;; --- Side-effect verification: prove the script actually mutated the browser ---
 

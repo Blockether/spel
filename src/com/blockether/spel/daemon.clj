@@ -455,26 +455,38 @@
 
 (defn- parse-playwright-error
   "Parses a Playwright error message to extract structured call log and selector.
-   Call log lines are extracted from between \"=== logs ===\" markers.
-   Selector is extracted from locator(\"...\") or getByRole/getByText/etc patterns.
+   Handles two Playwright log formats:
+     - Structured: lines between \"=== logs ===\" markers (locator timeout errors)
+     - Inline: lines after \"Call log:\" header (raw Playwright exceptions)
+   Selector extracted from locator(\"...\") or getByRole/getByText/etc patterns.
    Returns map with :call_log (vector of strings) and :selector (string or nil).
    Returns empty map when msg is nil or has no parseable structure."
   [msg]
   (when msg
-    (let [;; Extract call log between === logs === markers
-          ;; Playwright format: ===...=== logs ===...=== \n lines \n ===...===
+    (let [;; Format 1: structured === logs === block
           log-match (re-find #"(?s)={3,}\s*logs\s*={3,}\n(.*?)\n={3,}" msg)
-          call-log  (when-let [raw (second log-match)]
-                      (let [lines (->> (str/split-lines raw)
+          ;; Format 2: inline "Call log:" section (Playwright raw exception format)
+          call-log-raw (when-not log-match
+                         (second (re-find #"(?s)Call log:\n(.*)" msg)))
+          call-log  (cond
+                      log-match
+                      (let [lines (->> (str/split-lines (second log-match))
+                                    (mapv str/trim)
+                                    (filterv (complement str/blank?)))]
+                        (when (seq lines) lines))
+                      call-log-raw
+                      (let [lines (->> (str/split-lines call-log-raw)
+                                    ;; Strip leading dashes+spaces (format: "-   - msg")
+                                    (mapv #(str/replace % #"^[-\s]+" ""))
                                     (mapv str/trim)
                                     (filterv (complement str/blank?)))]
                         (when (seq lines) lines)))
-          ;; Extract selector from locator("...") pattern
-          sel-match (re-find #"locator\(\"([^\"]+)\"\)" msg)
+          ;; Greedy match handles inner escaped quotes: locator("[data-pw-ref=\"x\"]")
+          sel-match (second (re-find #"locator\(\"(.+)\"\)" msg))
           ;; Also try getByRole, getByText, etc.
-          get-by-match (when-not (second sel-match)
+          get-by-match (when-not sel-match
                          (re-find #"(getBy\w+)\(([^)]+)\)" msg))
-          selector  (or (second sel-match)
+          selector  (or sel-match
                       (when get-by-match
                         (str (second get-by-match) "(" (nth get-by-match 2) ")")))]
       (cond-> {}
@@ -1415,7 +1427,7 @@
               new-console (subvec @!console-messages console-before)
               new-errors  (subvec @!page-errors errors-before)]
           (if (anomaly/anomaly? result)
-            (cond-> {:error (::anomaly/message result)}
+            (cond-> (error-response (::anomaly/message result))
               (seq captured-stdout) (assoc :stdout captured-stdout)
               (seq captured-stderr) (assoc :stderr captured-stderr)
               (seq new-console)     (assoc :console new-console)
@@ -1439,13 +1451,11 @@
                 captured-stderr (str stderr-writer)
                 new-console (subvec @!console-messages console-before)
                 new-errors  (subvec @!page-errors errors-before)]
-            (throw (ex-info (.getMessage e)
-                     (cond-> {}
-                       (seq captured-stdout) (assoc :stdout captured-stdout)
-                       (seq captured-stderr) (assoc :stderr captured-stderr)
-                       (seq new-console)     (assoc :console new-console)
-                       (seq new-errors)      (assoc :page-errors new-errors))
-                     e))))))))
+            (cond-> (error-response (.getMessage e))
+              (seq captured-stdout) (assoc :stdout captured-stdout)
+              (seq captured-stderr) (assoc :stderr captured-stderr)
+              (seq new-console)     (assoc :console new-console)
+              (seq new-errors)      (assoc :page-errors new-errors))))))))
 
 ;; --- Close & Default ---
 
@@ -1507,12 +1517,17 @@
                           result
                           (map? result)
                           (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
-          (if anomaly-v
+          (cond
+            ;; Handler returned an explicit failure map (e.g. sci_eval error path)
+            (and (map? result) (false? (:success result)))
+            (json/write-json-str result)
+            anomaly-v
             (let [msg  (::anomaly/message anomaly-v)
                   ex   (:playwright/exception anomaly-v)
                   hint (when ex (reflection-error-hint ex))
                   error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")]
               (json/write-json-str (error-response error-msg)))
+            :else
             (json/write-json-str {:success true :data result})))
         (catch Throwable e
           (let [hint (reflection-error-hint e)
