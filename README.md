@@ -272,8 +272,10 @@ make test-allure
 make repl
 ```
 
+## One-Shot Installation (for LLM agents)
+
 <details>
-<summary>One-Shot Installation (for LLM agents)</summary>
+<summary>Expand installation block</summary>
 
 > **This section is designed for LLM consumption.** Copy-paste the entire block into your agent prompt or tool call. It provides a single, linear flow to install spel correctly in any environment, including corporate networks with SSL-inspecting proxies.
 
