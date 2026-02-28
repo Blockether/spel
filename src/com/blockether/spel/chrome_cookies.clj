@@ -366,7 +366,7 @@
           profile (get parsed "profile" {})
           patched (assoc parsed "profile" (assoc profile "exit_type" "Normal"))
           bytes   (.getBytes ^String (json/write-json-str patched) "UTF-8")]
-      (Files/write prefs-path bytes (into-array java.nio.file.OpenOption [])))))
+      (Files/write ^Path prefs-path ^bytes bytes ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))))
 
 (defn copy-profile-dir!
   "Copies a Chromium browser profile directory to a temp user-data-dir for use
