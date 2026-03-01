@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.5.0] - 2026-03-01
 
+### Changed
+- release: v0.5.0 — extensions, download, flat snapshots, profile support, comparison update
+- feat(cli): add --extension flag for loading Chrome extensions (fixes #41)
+- fix(cli): detect URL at any position in open command args
+- fix(ci): add concurrency group and retry logic to pr-cleanup workflow
+- fix(graal): add type hints to Files/write call for native image compatibility
+- feat: Edge/Chrome profile support with persistent context, cookie injection, and logging
+- fix: increment injected counter and reorder copy-cookies-db! for fail-fast
+- fix: support Edge and other Chromium browsers for cookie decryption
+- chore: add CoVe report screenshot
+- fix: update test assertion to use example.org
+- fix: replace example.com with example.org
+- chore: add CoVe report screenshot
+- feat: add --flat option for snapshot command
+- chore: add CoVe report screenshot
+- fix(ui): correct mobile view for PRs (fixes #63)
+- fix(ui): correct mobile view for PRs (fixes #63)
+- feat: add download CLI command (fixes #40)
+- fix: resolve GraalVM reflection and boxed math warnings in daemon.clj and sci_env.clj
+- fix: video save-as - close page/context before saveAs (fixes #43)
+- fix: resolve CI failures - unused vars lint, console get dispatch
+- feat: update TASK-013 - preview structure, network/console get, page refs (AC-20..AC-25)
+- feat: unified snapshot enrichment - URLs, refs map, network/console scoping
+- fix(ci): only run Allure Report on successful CI builds
+- docs(agents): daemon session isolation rules
+- fix(sci_eval): propagate call_log/selector in SCI error responses
+- feat(daemon): propagate Playwright error context in CLI output
+- fix: wrap unbound page refs with with-testing-page in skill docs
+- fix(templates): migrate all templates from old fixtures to with-testing-page/with-testing-api
+- fix(screenshot): crop-to-content for content shorter than viewport (#52)
+- fix(ci): merge release + deploy-clojars into single job
+
+
+## [v0.5.0] - 2026-03-01
+
 ### Added
 - feat(cli): add `--extension` flag for loading Chrome extensions (#41)
 - feat: Edge/Chrome profile support with persistent context, cookie injection, and logging
