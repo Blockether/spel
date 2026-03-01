@@ -171,13 +171,24 @@
         (expect (= "snapshot" (:action c)))
         (expect (= ".content" (:selector c)))))
 
+    (it "parses snapshot -F flat flag"
+      (let [c (cmd ["snapshot" "-F"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:flat c)))))
+
+    (it "parses snapshot --flat flag"
+      (let [c (cmd ["snapshot" "--flat"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:flat c)))))
+
     (it "parses snapshot with combined flags"
-      (let [c (cmd ["snapshot" "-i" "-c" "-d" "3" "-s" "#main"])]
+      (let [c (cmd ["snapshot" "-i" "-c" "-d" "3" "-s" "#main" "--flat"])]
         (expect (= "snapshot" (:action c)))
         (expect (true? (:interactive c)))
         (expect (true? (:compact c)))
         (expect (= 3 (:depth c)))
-        (expect (= "#main" (:selector c)))))))
+        (expect (= "#main" (:selector c)))
+        (expect (true? (:flat c)))))))
 
 ;; =============================================================================
 ;; Click / Input

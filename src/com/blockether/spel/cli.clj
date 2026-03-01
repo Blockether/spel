@@ -101,11 +101,13 @@
       "  spel snapshot -s \"#main\""
       "  spel snapshot -a"
       "  spel snapshot -i -C"
+      "  spel snapshot -F"
       ""
       "Flags:"
       "  -i, --interactive    Interactive elements only"
       "  -c, --compact        Compact output format"
       "  -C, --cursor         Include cursor/pointer elements"
+      "  -F, --flat           Flat output (no nesting, all elements at same level)"
       "  -d, --depth N        Limit tree depth to N levels"
       "  -s, --selector SEL   Scope snapshot to CSS selector"
       "  -a, --all            Include all iframes in snapshot"])
@@ -1417,6 +1419,8 @@
                            (assoc :compact true)
                            (or (snap-flags "-C") (snap-flags "--cursor"))
                            (assoc :cursor true)
+                           (or (snap-flags "-F") (snap-flags "--flat"))
+                           (assoc :flat true)
                          ;; Parse -d N
                            (some #{"-d" "--depth"} cmd-args)
                            (assoc :depth (let [v    (vec cmd-args)

@@ -974,11 +974,21 @@
      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg)) pg)))
   ([page-or-opts]
    (if (map? page-or-opts)
-     (let [pg (require-page!)]
-       (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg page-or-opts)) pg))
+     (let [pg       (require-page!)
+           flat?    (:flat page-or-opts)
+           snap-opts (dissoc page-or-opts :flat)
+           snap     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)]
+       (if flat?
+         (update snap :tree snapshot/flatten-tree)
+         snap))
      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page-or-opts)) page-or-opts)))
   ([page opts]
-   (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page opts)) page)))
+   (let [flat?    (:flat opts)
+         snap-opts (dissoc opts :flat)
+         snap     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page snap-opts)) page)]
+     (if flat?
+       (update snap :tree snapshot/flatten-tree)
+       snap))))
 (defn sci-full-snapshot
   ([] (throw-if-anomaly (snapshot/capture-full-snapshot (require-page!))))
   ([page] (throw-if-anomaly (snapshot/capture-full-snapshot page))))

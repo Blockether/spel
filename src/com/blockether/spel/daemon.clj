@@ -277,7 +277,7 @@
 
 (defn- filter-snapshot-tree
   "Applies snapshot filters to the tree string."
-  [tree {:strs [interactive cursor compact depth]}]
+  [tree {:strs [interactive cursor compact depth flat]}]
   (if (or (nil? tree) (str/blank? tree))
     tree
     (let [lines (str/split-lines tree)
@@ -296,8 +296,11 @@
           lines (if depth
                   (let [max-indent (* 2 (long depth))]
                     (filter (fn [line]
-                              (<= (count (take-while #{\ } line)) max-indent))
+                              (<= (count (take-while #{\  } line)) max-indent))
                       lines))
+                  lines)
+          lines (if flat
+                  (map str/triml lines)
                   lines)]
       (str/join "\n" lines))))
 
