@@ -105,7 +105,8 @@ spel install   # install browsers
 spel version   # verify installation
 ```
 
-### One-Shot Installation (for LLM agents)
+<details>
+<summary>One-Shot Installation (for LLM agents)</summary>
 
 A single copy-paste block that installs spel from scratch — designed for LLM agents:
 
@@ -157,6 +158,8 @@ esac
 
 echo "✅ spel installed successfully: $("${INSTALL_DIR}/spel" version)"
 ```
+
+</details>
 
 ### Corporate Proxy / Custom CA Certificates
 
