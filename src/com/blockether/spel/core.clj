@@ -670,10 +670,13 @@
     (str (.path v))))
 
 (defn video-save-as!
-  "Saves the video to the specified path. Context must be closed first.
+  "Saves the video to the specified path.
+   IMPORTANT: The page AND context must be closed first to finalize the video file.
+   Calling this on an open page will throw 'Page is not yet closed'.
+   Prefer using `sci-finish-video-recording` with `:save-as` opt instead.
 
    Params:
-   `page` - Page instance.
+   `page` - Page instance (must be closed).
    `path` - String destination path.
 
    Returns:

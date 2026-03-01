@@ -8,56 +8,95 @@
   "Video recording via SCI eval"
 
   (describe "start and finish video recording"
-    (it "records and produces a video file"
+            (it "records and produces a video file"
       ;; Reset SCI atoms
-      (reset! sut/!pw nil) (reset! sut/!browser nil)
-      (reset! sut/!context nil) (reset! sut/!page nil)
-      (reset! sut/!daemon-mode? false)
-      (let [ctx (sut/create-sci-ctx)]
-        (try
+                (reset! sut/!pw nil) (reset! sut/!browser nil)
+                (reset! sut/!context nil) (reset! sut/!page nil)
+                (reset! sut/!daemon-mode? false)
+                (let [ctx (sut/create-sci-ctx)]
+                  (try
           ;; Start browser
-          (expect (= :started (sut/eval-string ctx "(spel/start!)")))
+                    (expect (= :started (sut/eval-string ctx "(spel/start!)")))
 
           ;; Start video recording
-          (let [result (sut/eval-string ctx "(spel/start-video-recording {:video-dir \"test-videos-sci\"})")]
-            (expect (map? result))
-            (expect (= "recording" (:status result)))
-            (expect (= "test-videos-sci" (:video-dir result))))
+                    (let [result (sut/eval-string ctx "(spel/start-video-recording {:video-dir \"test-videos-sci\"})")]
+                      (expect (map? result))
+                      (expect (= "recording" (:status result)))
+                      (expect (= "test-videos-sci" (:video-dir result))))
 
           ;; Navigate to generate some video content
-          (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
-          (sut/eval-string ctx "(spel/wait-for-timeout 500)")
+                    (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
+                    (sut/eval-string ctx "(spel/wait-for-timeout 500)")
 
           ;; Check video path is available
-          (let [vpath (sut/eval-string ctx "(spel/video-path)")]
-            (expect (string? vpath))
-            (expect (.contains ^String vpath "test-videos-sci")))
+                    (let [vpath (sut/eval-string ctx "(spel/video-path)")]
+                      (expect (string? vpath))
+                      (expect (.contains ^String vpath "test-videos-sci")))
 
           ;; Finish recording
-          (let [result (sut/eval-string ctx "(spel/finish-video-recording)")]
-            (expect (map? result))
-            (expect (= "stopped" (:status result)))
-            (expect (string? (:video-path result)))
+                    (let [result (sut/eval-string ctx "(spel/finish-video-recording)")]
+                      (expect (map? result))
+                      (expect (= "stopped" (:status result)))
+                      (expect (string? (:video-path result)))
             ;; Video file should exist after context close
-            (let [vpath (:video-path result)]
-              (expect (.exists (java.io.File. vpath)))))
+                      (let [vpath (:video-path result)]
+                        (expect (.exists (java.io.File. vpath)))))
 
           ;; Should have a new page without video
-          (let [vpath (sut/eval-string ctx "(spel/video-path)")]
-            (expect (nil? vpath)))
+                    (let [vpath (sut/eval-string ctx "(spel/video-path)")]
+                      (expect (nil? vpath)))
 
-          (finally
-            (sut/eval-string ctx "(spel/stop!)"))))))
+                    (finally
+                      (sut/eval-string ctx "(spel/stop!)")))))))
+
+(defdescribe sci-video-save-as-test
+  "Video recording with :save-as via SCI eval"
+
+  (describe "finish-video-recording with :save-as"
+            (it "copies video to specified path and returns save-as path"
+                (reset! sut/!pw nil) (reset! sut/!browser nil)
+                (reset! sut/!context nil) (reset! sut/!page nil)
+                (reset! sut/!daemon-mode? false)
+                (let [ctx (sut/create-sci-ctx)
+                      save-path "test-videos-sci/save-as-copy.webm"]
+                  (try
+                    (expect (= :started (sut/eval-string ctx "(spel/start!)")))
+
+          ;; Start recording
+                    (sut/eval-string ctx "(spel/start-video-recording {:video-dir \"test-videos-sci\"})")
+
+          ;; Generate content
+                    (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
+                    (sut/eval-string ctx "(spel/wait-for-timeout 500)")
+
+          ;; Finish with :save-as — must not throw
+                    (let [result (sut/eval-string ctx
+                                                  (str "(spel/finish-video-recording {:save-as \"" save-path "\"})"))]
+                      (expect (map? result))
+                      (expect (= "stopped" (:status result)))
+            ;; :video-path should equal the save-as path
+                      (expect (= save-path (:video-path result)))
+            ;; File should exist at save-as location
+                      (expect (.exists (java.io.File. save-path))))
+
+                    (finally
+                      (sut/eval-string ctx "(spel/stop!)")
+            ;; Cleanup
+                      (let [f (java.io.File. save-path)]
+                        (when (.exists f) (.delete f)))))))))
+
+(defdescribe sci-video-path-nil-test
+  "Video path nil when not recording"
 
   (describe "video-path is nil without recording"
-    (it "returns nil when not recording"
-      (reset! sut/!pw nil) (reset! sut/!browser nil)
-      (reset! sut/!context nil) (reset! sut/!page nil)
-      (reset! sut/!daemon-mode? false)
-      (let [ctx (sut/create-sci-ctx)]
-        (try
-          (expect (= :started (sut/eval-string ctx "(spel/start!)")))
-          (let [vpath (sut/eval-string ctx "(spel/video-path)")]
-            (expect (nil? vpath)))
-          (finally
-            (sut/eval-string ctx "(spel/stop!)")))))))
+            (it "returns nil when not recording"
+                (reset! sut/!pw nil) (reset! sut/!browser nil)
+                (reset! sut/!context nil) (reset! sut/!page nil)
+                (reset! sut/!daemon-mode? false)
+                (let [ctx (sut/create-sci-ctx)]
+                  (try
+                    (expect (= :started (sut/eval-string ctx "(spel/start!)")))
+                    (let [vpath (sut/eval-string ctx "(spel/video-path)")]
+                      (expect (nil? vpath)))
+                    (finally
+                      (sut/eval-string ctx "(spel/stop!)")))))))
