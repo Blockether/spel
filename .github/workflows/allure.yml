@@ -84,7 +84,12 @@ jobs:
                 echo "is_pr=true" >> $GITHUB_OUTPUT
                 echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
                 echo "pr_title=$(echo "$PR_DATA" | jq -r '.title // ""')" >> $GITHUB_OUTPUT
-                echo "pr_author=$(echo "$PR_DATA" | jq -r '.author.login // ""')" >> $GITHUB_OUTPUT
+                PR_AUTHOR_LOGIN=$(echo "$PR_DATA" | jq -r '.author.login // ""')
+                PR_AUTHOR_NAME=""
+                if [ -n "$PR_AUTHOR_LOGIN" ]; then
+                  PR_AUTHOR_NAME=$(gh api "users/$PR_AUTHOR_LOGIN" --jq '.name // ""' 2>/dev/null || echo "")
+                fi
+                echo "pr_author=${PR_AUTHOR_NAME:-$PR_AUTHOR_LOGIN}" >> $GITHUB_OUTPUT
                 echo "pr_branch=$(echo "$PR_DATA" | jq -r '.headRefName // ""')" >> $GITHUB_OUTPUT
                 echo "pr_sha=$(echo "$PR_DATA" | jq -r '.headRefOid // ""')" >> $GITHUB_OUTPUT
                 echo "pr_url=$(echo "$PR_DATA" | jq -r '.url // ""')" >> $GITHUB_OUTPUT
