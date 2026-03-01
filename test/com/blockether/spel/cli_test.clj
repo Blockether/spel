@@ -110,6 +110,31 @@
         (expect (nil? (:viewport-width c)))
         (expect (nil? (:viewport-height c))))))
 
+  (it "finds URL at end after --viewport flag"
+    (let [c (cmd ["open" "--viewport" "390x844" "https://example.com"])]
+      (expect (= "navigate" (:action c)))
+      (expect (= "https://example.com" (:url c)))
+      (expect (= 390 (:viewport-width c)))
+      (expect (= 844 (:viewport-height c)))))
+
+  (it "finds URL at end after unknown flags"
+    (let [c (cmd ["open" "--width" "390" "--height" "844" "https://example.com"])]
+      (expect (= "navigate" (:action c)))
+      (expect (= "https://example.com" (:url c)))))
+
+  (it "finds bare domain URL at end after flags"
+    (let [c (cmd ["open" "--interactive" "example.com"])]
+      (expect (= "navigate" (:action c)))
+      (expect (= "https://example.com" (:url c)))
+      (expect (= "example.com" (:raw-input c)))))
+
+  (it "finds URL between flags"
+    (let [c (cmd ["open" "--interactive" "https://example.com" "--screenshot"])]
+      (expect (= "navigate" (:action c)))
+      (expect (= "https://example.com" (:url c)))
+      (expect (true? (:interactive c)))
+      (expect (true? (:screenshot c)))))
+
   (describe "back/forward/reload"
     (it "parses back"
       (expect (= {:action "back"} (cmd ["back"]))))

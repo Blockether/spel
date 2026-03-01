@@ -23,6 +23,22 @@
    [java.nio.channels Channels SocketChannel]
    [java.nio.file Files]))
 
+(defn- looks-like-url?
+  "Returns true if the string looks like a URL (has a scheme, contains a dot,
+   or contains a slash). Used to disambiguate URLs from stray flag values."
+  [s]
+  (or (str/starts-with? s "http://")
+    (str/starts-with? s "https://")
+    (str/starts-with? s "file://")
+    (str/starts-with? s "data:")
+    (str/starts-with? s "about:")
+    (str/starts-with? s "chrome:")
+    (str/starts-with? s "javascript:")
+    (str/starts-with? s "blob:")
+    (str/includes? s ".")
+    (str/includes? s "/")
+    (str/starts-with? s "localhost")))
+
 ;; =============================================================================
 ;; Per-Command Help
 ;; =============================================================================
@@ -37,15 +53,17 @@
       ""
       "Usage:"
       "  spel open <url>"
-      "  spel open <url> --interactive"
-      "  spel open <url> --screenshot [path]"
-      "  spel open <url> --viewport <WxH>"
+      "  spel open <url> [flags]"
+      "  spel open [flags] <url>"
+      ""
+      "The URL can appear at any position — before or after flags."
       ""
       "Examples:"
       "  spel open https://example.org"
       "  spel open example.org"
       "  spel open file:///tmp/page.html"
       "  spel open https://example.org --interactive"
+      "  spel open --viewport 1200x800 https://example.org"
       "  spel open https://example.org --screenshot page.png"
       "  spel open https://example.org --screenshot"
       "  spel open https://example.org --viewport 1200x800"
@@ -1392,17 +1410,23 @@
                                   ss-path (conj ss-path)
                                   vp-next (conj vp-next))
                   url-args      (remove #(or (str/starts-with? % "-") (skip-tokens %)) cmd-args)
-                  raw-url       (first url-args)
+                  ;; Prefer the arg that looks like a URL; fall back to first positional.
+                  ;; This handles unknown flags whose values leak into positional args
+                  ;; (e.g. `open --width 390 --height 844 https://example.com`).
+                  raw-url       (or (some #(when (looks-like-url? %) %) url-args)
+                                  (first url-args))
                   url           (when raw-url
-                                  (if (or (str/starts-with? raw-url "http://")
-                                        (str/starts-with? raw-url "https://")
-                                        (str/starts-with? raw-url "file://")
-                                        (str/starts-with? raw-url "data:")
-                                        (str/starts-with? raw-url "about:")
-                                        (str/starts-with? raw-url "chrome:")
-                                        (str/starts-with? raw-url "javascript:")
-                                        (str/starts-with? raw-url "blob:"))
-                                    raw-url
+                                  (if (looks-like-url? raw-url)
+                                    (if (or (str/starts-with? raw-url "http://")
+                                          (str/starts-with? raw-url "https://")
+                                          (str/starts-with? raw-url "file://")
+                                          (str/starts-with? raw-url "data:")
+                                          (str/starts-with? raw-url "about:")
+                                          (str/starts-with? raw-url "chrome:")
+                                          (str/starts-with? raw-url "javascript:")
+                                          (str/starts-with? raw-url "blob:"))
+                                      raw-url
+                                      (str "https://" raw-url))
                                     (str "https://" raw-url)))]
               (cond-> {:action "navigate" :url url :raw-input raw-url}
                 interactive? (assoc :interactive true)
