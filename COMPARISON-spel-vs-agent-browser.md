@@ -11,9 +11,9 @@
 
 **spel is a browser automation _platform_. agent-browser is a browser automation _platform too_ now.**
 
-Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. Since the last comparison (Feb 2026), agent-browser has grown from ~30 commands to ~143 — adding diff engine, auth vault, HAR recording, profiler, screencast, and more. spel has grown from ~90 to ~120+ commands, fixing all P0 bugs and adding extension loading, download command, flat snapshots, and Edge/Chrome profile support.
+Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. Since the last comparison (Feb 2026), agent-browser has grown from ~30 commands to ~143 — adding diff engine, auth vault, profiler, screencast, and more. spel has grown from ~90 to ~120+ CLI commands (plus ~460 SCI functions and full Clojure library), fixing all P0 bugs and adding extension loading, download command, flat snapshots, link URLs in snapshots, structured refs in JSON, and Edge/Chrome profile support.
 
-spel wins on speed, programmability, and testing/CI infrastructure. agent-browser has closed the feature gap significantly and leads in diff tooling, auth vault, streaming, and mobile. Both are now serious tools.
+spel wins on speed, programmability, testing/CI infrastructure, and total API coverage (most agent-browser features already exist in spel's library/SCI layer). agent-browser leads in diff tooling, auth vault, and mobile. The apparent CLI command count gap (~120 vs ~143) is misleading — spel covers ~120/143 features when you count its library and `--eval` scripting layer.
 
 ---
 
@@ -84,15 +84,12 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 ### Format Comparison
 
-**spel** (github.com, `-i -c -d 3`):
+**spel** (example.org, `-i --json`, actual output from v0.5.0):
 ```
-- region [@e33f1m]
-    - link "Skip to content" [@e27w9t]
-    - banner [@e3k2ih]
-      - heading "Navigation Menu" [@e31tmw] [level=2]
-  - main [@e833h0]
-      - region [@e6wz3n]
-      ...
+  - heading "Example Domain" [@e2yrjz] [level=1]
+  - paragraph "This domain is for use in..." [@e9mter]
+  - paragraph [@e2m4ty]
+    - link "Learn more" [@e6t2x4] [url=https://iana.org/domains/example]
 ```
 
 **agent-browser** (github.com, `-i -c -d 3`):
@@ -113,8 +110,8 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 |---|---|---|---|
 | **Ref format** | `[@e2yrjz]` (6-char hash) | `[ref=e1]` (sequential) | AB — sequential refs are simpler for LLMs |
 | **Tree structure** | Preserves DOM hierarchy | Flat list of interactive elements | Depends — hierarchy aids context, flat aids action |
-| **Link URLs** | ❌ Not in snapshot | ✅ `/url: https://...` inline | AB — agents can see where links go |
-| **Refs in JSON** | `refs_count` only | Full `refs` map with role/name | AB — structured ref metadata |
+| **Link URLs** | ✅ `[url=https://...]` inline | ✅ `/url: https://...` inline | Tie — both show link destinations |
+| **Refs in JSON** | Full `refs` map with role/name/url + `pages`, `network`, `console` | Full `refs` map with role/name | spel — richer structured metadata |
 | **Metadata** | URL, title, description | Success/error wrapper | spel — richer page context |
 | **Size (github.com -i)** | 314 lines | 107 lines | AB — 3× more compact, less token waste |
 | **Size (github.com -i -c -d 3)** | 26 lines | 107 lines | spel — depth limit is very effective |
@@ -125,13 +122,20 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 ### JSON Output
 
-**spel**:
+**spel** (actual v0.5.0 output, truncated):
 ```json
 {
-  "snapshot": "- heading \"Example Domain\" [@e2yrjz]...",
+  "snapshot": "- heading \"Example Domain\" [@e2yrjz] [level=1]\n  ...",
   "refs_count": 4,
+  "refs": {
+    "e2yrjz": {"role": "heading", "name": "Example Domain", "level": 1},
+    "e6t2x4": {"role": "link", "name": "Learn more", "url": "https://iana.org/domains/example"}
+  },
   "url": "https://example.org/",
-  "title": "Example Domain"
+  "title": "Example Domain",
+  "pages": [{"ref": "@p1", "url": "https://example.org/", "status": 200, "title": "Example Domain"}],
+  "network": [{"ref": "@n1", "method": "GET", "url": "https://example.org/", "status": 200}],
+  "console": []
 }
 ```
 
@@ -150,7 +154,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 }
 ```
 
-agent-browser's JSON is more structured — the `refs` map lets you look up element role/name without parsing the tree text. spel gives you more page-level metadata (URL, title). **For machine consumption, agent-browser's format is slightly better.**
+**spel's JSON is now significantly richer** — it includes the `refs` map (role/name/url per element), plus `pages` (navigation history with status codes), `network` (request/response summaries), and `console` (log messages). agent-browser has the `refs` map but lacks the page-level observability metadata. **For machine consumption, spel's format is more complete.**
 
 ---
 
@@ -169,41 +173,41 @@ agent-browser's JSON is more structured — the `refs` map lets you look up elem
 | **Inspector** | `inspector [url]`, `show-trace` | Playwright Inspector + Trace Viewer |
 | **Chrome cookie export** | `state export` | Extract cookies from Chrome/Edge/Brave profiles |
 
-### Commands agent-browser has that spel doesn't
+### Commands agent-browser has that spel doesn't (at CLI level)
 
-> **Major change since Feb 2026**: agent-browser grew from ~30 to ~143 commands. This table now has 30+ entries.
+> **Important**: Many items below exist in spel's Clojure library and SCI (`--eval`) layer but lack a dedicated CLI daemon command. They are accessible via `spel --eval '(page/set-content! "...")` etc. Items marked ⚡ exist in library/SCI.
 
-| Category | Commands | Why it matters |
-|---|---|---|
-| **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | Snapshot Myers diff, pixel comparison, URL comparison |
-| **Auth vault** | `auth save/login/list/delete/show` | AES-256-GCM encrypted credential store with auto-login |
-| **Action policy** | `confirm`, `deny`, `--allowed-domains` | Safety guardrails for AI agents |
-| **Screencast** | `screencast start/stop` | WebSocket live browser streaming |
-| **Input injection** | `input_mouse`, `input_keyboard`, `input_touch` | CDP-level pair-browsing / remote control |
-| **Profiler** | `profiler start/stop` | Chrome DevTools performance profiling |
-| **HAR recording** | `har start/stop` | HTTP Archive capture for network analysis |
-| **Video recording** | `video start/stop`, `recording start/stop/restart` | Native video + coded recording |
-| **Window management** | `window new` | Open new browser window (not just tab) |
-| **Permissions** | `permissions` with grant/revoke | Browser permission management |
-| **Timezone** | `timezone <tz>` | Timezone emulation |
-| **Locale** | `locale <loc>` | Locale emulation |
-| **Clipboard** | `clipboard copy/paste/read` | Clipboard operations |
-| **Touch** | `tap <sel>` | Touch tap events (distinct from click) |
-| **Select all** | `selectall <sel>` | Select all text in element |
-| **Content injection** | `addscript`, `addstyle`, `addinitscript` | Inject JS/CSS into pages |
-| **Expose function** | `expose <name>` | Expose JS function to page context |
-| **Set content** | `setcontent <html>` | Set page HTML directly |
-| **Set value** | `setvalue <sel> <val>` | Set input value bypassing events |
-| **Dispatch event** | `dispatch <sel> <event>` | Fire custom DOM events |
-| **Response body** | `responsebody <url>` | Get HTTP response body for specific URL |
-| **Wait for download** | `waitfordownload` | Wait for download event to complete |
-| **Bring to front** | `bringtofront` | Bring page to foreground |
-| **Pause** | `pause` | Pause execution (debugger) |
-| **Multi-select** | `multiselect <sel> <vals>` | Multi-value select dropdown |
-| **Styles** | `get styles <sel>` | Computed CSS styles (fontSize, color, etc.) |
-| **iOS Simulator** | `-p ios`, `swipe`, `tap`, `device list` | Real mobile Safari testing via Appium |
-| **Cloud browsers** | `-p browserbase/kernel/browseruse` | Serverless browser instances |
-| **Config file** | `agent-browser.json` | Cascading configuration |
+| Category | Commands | CLI-only? | Why it matters |
+|---|---|---|---|
+| **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | ✅ Truly missing | Snapshot Myers diff, pixel comparison, URL comparison |
+| **Auth vault** | `auth save/login/list/delete/show` | ✅ Truly missing | AES-256-GCM encrypted credential store with auto-login |
+| **Computed styles** | `get styles <sel>` | ✅ Truly missing | Computed CSS styles (fontSize, color, etc.) |
+| **Clipboard** | `clipboard copy/paste/read` | ✅ Truly missing | Clipboard operations with auto permission grant |
+| **Action policy** | `confirm`, `deny`, `--allowed-domains` | ✅ Truly missing | Safety guardrails for AI agents |
+| **Screencast** | `screencast start/stop` | ✅ Truly missing | WebSocket live browser streaming |
+| **Input injection** | `input_mouse`, `input_keyboard`, `input_touch` | ✅ Truly missing | CDP-level pair-browsing / remote control |
+| **Profiler** | `profiler start/stop` | ✅ Truly missing | Chrome DevTools performance profiling |
+| **Config file** | `agent-browser.json` | ✅ Truly missing | Cascading configuration |
+| **iOS Simulator** | `-p ios`, `swipe`, `device list` | ✅ Truly missing | Real mobile Safari testing via Appium |
+| **Cloud browsers** | `-p browserbase/kernel/browseruse` | ✅ Truly missing | Serverless browser instances |
+| **Window management** | `window new` | ✅ Truly missing | Open new browser window (not just tab) |
+| **HAR recording** | `har start/stop` | ⚡ Library/SCI | `:record-har-path` context opt, `route-from-har!`, auto-included in `with-traced-page` |
+| **Permissions** | `permissions` grant/revoke | ⚡ Library/SCI | `context-grant-permissions!`, `context-clear-permissions!` in library+SCI |
+| **Timezone** | `timezone <tz>` | ⚡ Library | `:timezone-id` context option at launch |
+| **Locale** | `locale <loc>` | ⚡ Library | `:locale` context option at launch |
+| **Touch tap** | `tap <sel>` | ⚡ Library/SCI | `locator/tap-element`, `sci-tap` |
+| **Content injection** | `addscript`, `addstyle`, `addinitscript` | ⚡ Library/SCI | `page/add-script-tag`, `page/add-style-tag`, `page/add-init-script` |
+| **Expose function** | `expose <name>` | ⚡ Library/SCI | `page/expose-function!`, `page/expose-binding!` |
+| **Set content** | `setcontent <html>` | ⚡ Library/SCI | `page/set-content!` |
+| **Dispatch event** | `dispatch <sel> <event>` | ⚡ Library/SCI | `locator/dispatch-event` |
+| **Wait for download** | `waitfordownload` | ⚡ Library/SCI | `page/wait-for-download` |
+| **Bring to front** | `bringtofront` | ⚡ Library/SCI | `page/bring-to-front` |
+| **Multi-select** | `multiselect <sel> <vals>` | ⚡ Library/SCI | `locator/select-option` accepts multiple values |
+| **Response body** | `responsebody <url>` | ⚡ Library | `page/wait-for-response` + `.text()` |
+| **Video start/stop** | `video start/stop` | ⚡ Library/SCI | `start-video-recording`/`finish-video-recording` in SCI; `:record-video-dir` context option |
+| **Select all** | `selectall <sel>` | ⚡ Trivial | `press "Control+a"` — one-liner composition |
+| **Set value** | `setvalue <sel> <val>` | ⚡ Trivial | `eval "el.value = x"` — one-liner |
+| **Pause** | `pause` | ⚡ Alternative | `spel inspector` / `spel --headed` covers debugging |
 
 ### Shared (both have)
 
@@ -350,18 +354,18 @@ We ran the same dogfood scenario — systematic exploration of github.com — wi
 |---|---|---|---|
 | **Snapshot token efficiency** | 🟡 | 🟢 | AB is 3× more compact by default |
 | **Ref simplicity** | 🟡 | 🟢 | `@e1` vs `@e2yrjz` |
-| **Link discovery** | 🟡 | 🟢 | AB includes URLs in snapshots |
+| **Link discovery** | 🟢 | 🟢 | Both include URLs in snapshots (spel: `[url=...]`, AB: `/url: ...`) |
 | **Command speed** | 🟢 | 🟡 | spel's daemon = instant commands |
 | **Error recovery** | 🟢 | 🟡 | spel has more wait/retry strategies |
 | **Page understanding** | 🟢 | 🟡 | spel's hierarchy aids comprehension |
-| **Structured JSON** | 🟡 | 🟢 | AB's refs map is more machine-friendly |
+| **Structured JSON** | 🟢 | 🟡 | spel has `refs` map + `pages`/`network`/`console` metadata; AB has `refs` map only |
 
 ### For Human Developers
 
 | Aspect | spel | agent-browser | Notes |
 |---|---|---|---|
 | **Installation** | `make install-local` (build from source) | `bun install -g agent-browser` | AB is trivially installable |
-| **Learning curve** | Steeper (90+ commands, Clojure eval) | Gentle (30 commands, JS eval) | AB is simpler to start |
+| **Learning curve** | Steeper (120+ commands, Clojure eval) | Steeper now too (143 commands, JS eval) | Both are complex tools now |
 | **Documentation** | Excellent `--help`, FULL_API.md | Good `--help` | Both adequate |
 | **Debugging** | Trace viewer, console, errors, inspector | None | spel by a mile |
 | **Power ceiling** | Very high (full scripting, CI, reporting) | Low (shell piping only) | spel for serious work |
@@ -375,9 +379,9 @@ We ran the same dogfood scenario — systematic exploration of github.com — wi
 | **Test reporting** | ✅ Allure integration | ❌ None |
 | **CI pipeline** | ✅ `ci-assemble`, `merge-reports` | ❌ None |
 | **Codegen** | ✅ Record → Clojure scripts | ❌ None |
-| **State management** | ✅ Save/load/export auth state | 🟡 Load only |
-| **Network mocking** | ✅ Route/unroute with body/abort | ❌ None |
-| **Multi-tab** | ✅ Tab management | ❌ None |
+| **State management** | ✅ Save/load/export auth state | 🟡 Save/load (+ auth vault) |
+| **Network mocking** | ✅ Route/unroute with body/abort | ✅ Route/unroute added in 0.15 |
+| **Multi-tab** | ✅ Tab management | ✅ Tab management added in 0.15 |
 | **Parallel sessions** | ✅ Named sessions | ✅ Named sessions |
 
 ---
@@ -438,18 +442,24 @@ Every command spawns a new Node.js process that connects to an existing browser 
 1. ~~**Sequential refs**~~ — ❌ Rejected — hash refs are stable across snapshots; sequential refs break cross-snapshot reference in multi-step agent workflows
 2. ~~**Link URLs in snapshots**~~ — ✅ Done in spel 0.5.0 (`[url=https://...]` inline)
 3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
-4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — **NEW in AB 0.15**
-5. **Auth vault** — encrypted credential store with auto-login — **NEW in AB 0.15**
-6. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
-7. ~~**`download` command**~~ — ✅ Done in spel 0.5.0
-8. ~~**Better error propagation**~~ — ✅ Done in spel 0.5.0
-9. ~~**Bad URL detection**~~ — ✅ Done in spel 0.5.0
-10. **Timezone/locale emulation** — set timezone and locale per session — **NEW in AB 0.15**
-11. **Clipboard operations** — copy/paste/read — **NEW in AB 0.15**
-12. **Content injection** — `addscript`, `addstyle`, `addinitscript` — **NEW in AB 0.15**
-13. **Computed styles** — `get styles` returns fontSize, color, etc. — **NEW in AB 0.15**
-14. **Action policy** — confirmation system for dangerous actions — **NEW in AB 0.15**
-15. **HAR recording** — HTTP Archive capture — **NEW in AB 0.15**
+4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — truly missing, worth implementing
+5. **Computed styles** — `get styles` returns fontSize, color, etc. — truly missing, worth implementing
+6. **Clipboard** — copy/paste/read with auto permission grant — truly missing, moderate value
+7. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
+8. ~~**`download` command**~~ — ✅ Done in spel 0.5.0
+9. ~~**Better error propagation**~~ — ✅ Done in spel 0.5.0
+10. ~~**Bad URL detection**~~ — ✅ Done in spel 0.5.0
+11. ~~**Timezone/locale emulation**~~ — ✅ Already in spel library (`:timezone-id`, `:locale` context options)
+12. ~~**Content injection**~~ — ✅ Already in spel library+SCI (`page/add-script-tag`, `page/add-style-tag`, `page/add-init-script`)
+13. ~~**HAR recording**~~ — ✅ Already in spel library (`:record-har-path`, `:record-har-mode`, `route-from-har!`; auto-included in `with-traced-page`)
+14. ~~**Permissions**~~ — ✅ Already in spel library+SCI (`context-grant-permissions!`, `context-clear-permissions!`)
+15. ~~**Touch tap**~~ — ✅ Already in spel library+SCI (`locator/tap-element`)
+16. ~~**Expose function**~~ — ✅ Already in spel library+SCI (`page/expose-function!`, `page/expose-binding!`)
+17. ~~**Set content**~~ — ✅ Already in spel library+SCI (`page/set-content!`)
+18. ~~**Dispatch event**~~ — ✅ Already in spel library+SCI (`locator/dispatch-event`)
+19. ~~**Wait for download**~~ — ✅ Already in spel library+SCI (`page/wait-for-download`)
+20. ~~**Bring to front**~~ — ✅ Already in spel library+SCI (`page/bring-to-front`)
+21. **Auth vault** — encrypted credential store — low priority, `state save/load` covers 80%
 
 ### agent-browser should consider adopting from spel:
 1. **Daemon architecture** — still 5-10× slower per command
@@ -471,24 +481,24 @@ Every command spawns a new Node.js process that connects to an existing browser 
 | Category | Winner | Margin |
 |---|---|---|
 | **Raw performance** | spel | Large (5-10× per command, daemon architecture) |
-| **Command breadth** | agent-browser | Small (~143 vs ~120, but spel has deeper features) |
+| **Command breadth** | Tie | Both ~120-143 CLI commands. spel has ~460 SCI functions + full Clojure library on top |
 | **Programmability** | spel | Massive (full Clojure vs JS eval) |
 | **Testing/CI** | spel | Total (AB still has nothing) |
-| **Debugging** | Tie | Both have trace, console, errors. spel has Inspector + Trace Viewer. AB has profiler + HAR. |
+| **Debugging** | spel | spel has Inspector + Trace Viewer + HAR (via library). AB has profiler (CDP-only) |
 | **Diff tooling** | agent-browser | Total (spel has nothing) |
-| **Auth management** | agent-browser | Large (encrypted vault vs basic state files) |
-| **LLM snapshot ergonomics** | agent-browser | Medium (more compact, structured refs) |
+| **Auth management** | agent-browser | Medium (encrypted vault vs state save/load — state files cover 80%) |
+| **LLM snapshot ergonomics** | Tie | Both have link URLs and structured refs. AB is more compact; spel has richer metadata |
 | **Safety/policy** | agent-browser | Total (action confirmation, domain allowlist) |
 | **Ease of installation** | agent-browser | Large (npm vs build from source) |
-| **Learning curve** | agent-browser | Small (AB grew to 143 commands, not simple anymore) |
+| **Learning curve** | Tie | Both grew to 120-143 CLI commands; neither is simple anymore |
 | **Mobile testing** | agent-browser | Total (iOS support) |
 | **Cloud browsers** | agent-browser | Total (3 providers) |
 | **Error messages** | Tie | Both now propagate Playwright errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: The gap has narrowed significantly.** spel remains the more complete tool for _testing and CI workflows_ — its Allure integration, codegen, assertions, and programmability have no equivalent. But agent-browser is no longer a “basics only” tool. Its diff engine, auth vault, streaming, profiler, and safety features represent genuine capabilities spel lacks.
+**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The only genuine gaps are diff tooling (snapshot/pixel/URL comparison), computed styles, and clipboard CLI. agent-browser's CLI command count is slightly higher (~143 vs ~120), but spel's library layer covers most of those "missing" commands — accessible via `--eval` or Clojure code.
 
-The competitive landscape is now: **spel = testing platform + speed. agent-browser = agent ergonomics + breadth.** Teams choosing between them should ask: _"Do I need a testing framework and CI pipeline, or do I need diff tooling and auth vault for AI agents?"_
+The competitive landscape is now: **spel = testing platform + speed + full Playwright API coverage. agent-browser = simpler CLI surface + diff tooling + auth vault.** The "breadth gap" that appeared when agent-browser grew to 143 commands is largely illusory — most of those features already exist in spel's library, just not as standalone CLI commands.
 
 ---
 
