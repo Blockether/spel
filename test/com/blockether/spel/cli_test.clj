@@ -799,7 +799,28 @@
 
     (it "supports --channel=value syntax"
       (let [f (flags ["--channel=msedge" "open" "http://x.com"])]
-        (expect (= "msedge" (:channel f)))))))
+        (expect (= "msedge" (:channel f))))))
+
+  (describe "--extension flag"
+    (it "sets single extension path"
+      (let [f (flags ["--extension" "/tmp/my-ext" "open" "http://x.com"])]
+        (expect (= ["/tmp/my-ext"] (:extensions f)))))
+
+    (it "accumulates multiple --extension flags"
+      (let [f (flags ["--extension" "/tmp/ext1" "--extension" "/tmp/ext2" "open" "http://x.com"])]
+        (expect (= ["/tmp/ext1" "/tmp/ext2"] (:extensions f)))))
+
+    (it "supports --extension=value syntax"
+      (let [f (flags ["--extension=/tmp/my-ext" "open" "http://x.com"])]
+        (expect (= ["/tmp/my-ext"] (:extensions f)))))
+
+    (it "accumulates mixed --extension and --extension= syntax"
+      (let [f (flags ["--extension" "./ext1" "--extension=./ext2" "open" "http://x.com"])]
+        (expect (= ["./ext1" "./ext2"] (:extensions f)))))
+
+    (it "defaults to nil when no --extension given"
+      (let [f (flags ["open" "http://x.com"])]
+        (expect (nil? (:extensions f)))))))
 
 ;; =============================================================================
 ;; Network Route (Bug Fix)
