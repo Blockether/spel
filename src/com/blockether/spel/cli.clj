@@ -341,6 +341,20 @@
       "  spel upload @ref photo.jpg"
       "  spel upload \"input[type=file]\" doc.pdf image.png"])
 
+   "download"
+   (str/join \newline
+     ["download - Click an element and save the triggered download"
+      ""
+      "Usage:"
+      "  spel download <selector> <save-path>"
+      ""
+      "Examples:"
+      "  spel download \"#export-btn\" ./report.csv"
+      "  spel download @e5 ./file.zip"
+      ""
+      "Flags:"
+      "  --timeout <ms>            Download timeout in milliseconds"])
+
    "screenshot"
    (str/join \newline
      ["screenshot - Take a screenshot"
@@ -1075,6 +1089,7 @@
      "  scrollintoview          Scroll element into view"
      "  drag                    Drag and drop"
      "  upload                  Upload files"
+     "  download                 Download file (click + save)"
      ""
      "Capture:"
      "  screenshot              Take screenshot"
@@ -1437,6 +1452,12 @@
           ;; Click
             "click"    {:action "click" :selector (first cmd-args)}
             "dblclick"  {:action "dblclick" :selector (first cmd-args)}
+
+          ;; Download
+            "download" (let [[selector save-path] cmd-args
+                             timeout-ms (:timeout flags)]
+                         (cond-> {:action "download" :selector selector :save-path save-path}
+                           timeout-ms (assoc :timeout-ms timeout-ms)))
 
           ;; Input
             "fill"     {:action "fill"

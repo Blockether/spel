@@ -739,6 +739,22 @@
   (let [tree (snapshot-after-action!)]
     {:clicked selector :snapshot tree}))
 
+
+(defmethod handle-cmd "download" [_ {:strs [selector save-path timeout-ms]}]
+  (ensure-page-loaded!)
+  (let [loc      (resolve-selector selector)
+        dl-opts  (when timeout-ms {:timeout (double timeout-ms)})
+        download (unwrap-anomaly!
+                   (if dl-opts
+                     (page/wait-for-download (pg) #(unwrap-anomaly! (locator/click loc)) dl-opts)
+                     (page/wait-for-download (pg) #(unwrap-anomaly! (locator/click loc)))))
+        filename (page/download-suggested-filename download)
+        _        (unwrap-anomaly! (page/download-save-as! download save-path))
+        size     (try (.length (java.io.File. ^String save-path)) (catch Exception _ -1))]
+    {:filename filename
+     :size     size
+     :path     save-path}))
+
 (defmethod handle-cmd "fill" [_ {:strs [selector value]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/fill (resolve-selector selector) value))
