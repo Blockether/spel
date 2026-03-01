@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: gh-pages-cleanup
+  cancel-in-progress: false
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -56,11 +60,25 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             if [ "$PR_MERGED" = "true" ]; then
-              git commit -m "cleanup: remove PR #${PR_NUM} report"
+              COMMIT_MSG="cleanup: remove PR #${PR_NUM} report"
             else
-              git commit -m "cleanup: cancel PR #${PR_NUM} build"
+              COMMIT_MSG="cleanup: cancel PR #${PR_NUM} build"
             fi
-            git push origin gh-pages
+
+            # Retry loop: pull --rebase to handle concurrent gh-pages pushes
+            for attempt in 1 2 3; do
+              git commit -m "$COMMIT_MSG" || true
+              if git push origin gh-pages; then
+                echo "Push succeeded on attempt $attempt"
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::Failed to push after 3 attempts"
+                exit 1
+              fi
+              echo "Push failed (attempt $attempt), rebasing and retrying..."
+              git pull --rebase origin gh-pages
+            done
           else
             echo "Nothing to clean up for PR #${PR_NUM}"
           fi
