@@ -645,7 +645,7 @@
       (let [snap (sut/capture-snapshot *page*)
             tree (:tree snap)]
         ;; Pattern: [@eXXXXX] [url=...]
-        (expect (re-find #"\[@e[a-z0-9]+\] \[url=https://example\.com/?\]" tree))))))
+        (expect (re-find #"\[@e[a-z0-9]+\] \[url=https://example.org/?\]" tree))))))
 
 ;; =============================================================================
 ;; Integration Tests — TASK-013: Structured refs map
