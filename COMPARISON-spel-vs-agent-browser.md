@@ -1,7 +1,7 @@
 # spel vs agent-browser — Comprehensive Comparison
 
-> **Date**: February 26, 2026
-> **Versions**: spel 0.4.1 (Playwright 1.58.0) · agent-browser 0.9.0 (Playwright via Node.js)
+> **Date**: March 1, 2026 (updated from Feb 26 comparison)
+> **Versions**: spel 0.5.0 (Playwright 1.58.0) · agent-browser 0.15.1 (Playwright via Node.js)
 > **Method**: Hands-on dogfood of github.com + benchmarks on example.org
 > **Platform**: macOS (Apple Silicon)
 
@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-**spel is a browser automation _platform_. agent-browser is a browser automation _CLI_.**
+**spel is a browser automation _platform_. agent-browser is a browser automation _platform too_ now.**
 
-Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. But they serve different scopes: agent-browser does the basics well and stays minimal. spel does the basics, the advanced stuff, the testing infrastructure, the CI pipeline, and the programmability layer.
+Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. Since the last comparison (Feb 2026), agent-browser has grown from ~30 commands to ~143 — adding diff engine, auth vault, HAR recording, profiler, screencast, and more. spel has grown from ~90 to ~120+ commands, fixing all P0 bugs and adding extension loading, download command, flat snapshots, and Edge/Chrome profile support.
 
-spel wins on breadth, speed, and programmability. agent-browser wins on snapshot ergonomics for LLMs and has a few niche features (iOS, cloud browsers) that spel lacks. Both have real pitfalls.
+spel wins on speed, programmability, and testing/CI infrastructure. agent-browser has closed the feature gap significantly and leads in diff tooling, auth vault, streaming, and mobile. Both are now serious tools.
 
 ---
 
@@ -23,14 +23,18 @@ spel wins on breadth, speed, and programmability. agent-browser wins on snapshot
 |---|---|---|
 | Language | Clojure → GraalVM native image | Rust CLI shell → Node.js Playwright |
 | Binary size | 71 MB (self-contained) | 4.4 MB node_modules (requires Node.js) |
-| CLI commands | ~90+ | ~30 |
+| CLI commands | ~120+ | ~143 |
 | Architecture | Long-running daemon (IPC) | Process-per-command |
 | Programmability | Full Clojure scripting (`--eval`) | JS `eval` only |
 | Testing framework | Built-in (Allure, assertions, codegen) | None |
 | CI tooling | `ci-assemble`, `merge-reports`, `init-agents` | None |
+| Diff engine | ❌ | ✅ (snapshot diff, pixel diff, URL diff) |
+| Auth vault | ❌ | ✅ (AES-256-GCM encrypted) |
+| Chrome extensions | ✅ `--extension` | ✅ `--extension` |
+| Chrome profile | ✅ `--profile` (Edge/Chrome/Brave) | ✅ `--profile` |
 | iOS support | ❌ | ✅ (Appium + Xcode) |
 | Cloud browsers | ❌ | ✅ (BrowserBase, Kernel, BrowserUse) |
-| License | Source-available | MIT |
+| License | Source-available | Apache-2.0 |
 
 ---
 
@@ -157,40 +161,53 @@ agent-browser's JSON is more structured — the `refs` map lets you look up elem
 | Category | Commands | Why it matters |
 |---|---|---|
 | **Annotations** | `annotate`, `unannotate` with `--scope`, `--no-badges` | Visual debugging overlays on any page |
-| **Network interception** | `network route/unroute/requests/clear` with URL/type/method/status filters | Mock APIs, block tracking, test error states |
-| **Full cookie/storage CRUD** | `cookies set/clear`, `storage local/session set/clear` | Auth testing, state manipulation |
-| **State management** | `state save/load/list/show/rename/clear/export` | Persist and replay auth across sessions |
-| **Mouse control** | `mouse move/down/up/wheel` | Drag operations, canvas interactions, hover states |
-| **Dialog handling** | `dialog accept/dismiss` | Confirm/alert handling in test flows |
-| **Frame navigation** | `frame <sel>/main/list` | iframe-heavy apps (embeds, payment forms) |
-| **Trace & debug** | `trace start/stop`, `show-trace`, `console`, `errors`, `inspector` | Rich post-mortem debugging |
-| **Tab management** | `tab/tab new/tab close/tab <n>` | Multi-tab workflows (OAuth, new window) |
-| **Get info** | `get text/html/value/attr/url/title/count/box` | 8 dedicated extraction commands |
-| **State checks** | `is visible/enabled/checked` | Boolean assertions for test flows |
-| **Wait variants** | `wait --text/--url/--load/--fn` | 4 additional wait strategies |
-| **Find (semantic)** | `find role/text/label/first/last/nth` with chained actions | Accessible, position-based element targeting |
 | **Stitch** | `stitch <imgs...>` | Combine screenshots into one image |
-| **Device emulation** | `set device <name>` (named devices) | Quick mobile testing without manual viewport |
-| **Media/geo/offline** | `set media dark\|light`, `set geo`, `set offline` | Environment simulation |
-| **Key hold/release** | `keydown/keyup` | Modifier key testing, keyboard shortcuts |
-| **Google search** | `search <query>` | Search from CLI without browser UI |
+| **Google search** | `search <query>` | Built-in Google search from CLI |
 | **Codegen** | `codegen record`, `codegen [file]` | Record → Clojure replay scripts |
 | **CI tools** | `ci-assemble`, `merge-reports`, `init-agents` | Full CI/CD pipeline support |
 | **Allure reporting** | Built-in test reporting framework | Structured test results with screenshots |
+| **Inspector** | `inspector [url]`, `show-trace` | Playwright Inspector + Trace Viewer |
+| **Chrome cookie export** | `state export` | Extract cookies from Chrome/Edge/Brave profiles |
 
 ### Commands agent-browser has that spel doesn't
 
+> **Major change since Feb 2026**: agent-browser grew from ~30 to ~143 commands. This table now has 30+ entries.
+
 | Category | Commands | Why it matters |
 |---|---|---|
-| **iOS Simulator** | `-p ios`, `device list`, `swipe`, `tap` | Real mobile Safari testing via Appium |
-| **Cloud browsers** | `-p browserbase/kernel/browseruse` | Serverless browser instances for CI/scale |
-| **Extensions** | `--extension <path>` | Load Chrome extensions (ad-blockers, auth) |
-| **Download** | `download <sel> <path>` | Explicit file download by clicking element |
-| **WebSocket streaming** | `AGENT_BROWSER_STREAM_PORT` | Live browser state streaming |
+| **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | Snapshot Myers diff, pixel comparison, URL comparison |
+| **Auth vault** | `auth save/login/list/delete/show` | AES-256-GCM encrypted credential store with auto-login |
+| **Action policy** | `confirm`, `deny`, `--allowed-domains` | Safety guardrails for AI agents |
+| **Screencast** | `screencast start/stop` | WebSocket live browser streaming |
+| **Input injection** | `input_mouse`, `input_keyboard`, `input_touch` | CDP-level pair-browsing / remote control |
+| **Profiler** | `profiler start/stop` | Chrome DevTools performance profiling |
+| **HAR recording** | `har start/stop` | HTTP Archive capture for network analysis |
+| **Video recording** | `video start/stop`, `recording start/stop/restart` | Native video + coded recording |
+| **Window management** | `window new` | Open new browser window (not just tab) |
+| **Permissions** | `permissions` with grant/revoke | Browser permission management |
+| **Timezone** | `timezone <tz>` | Timezone emulation |
+| **Locale** | `locale <loc>` | Locale emulation |
+| **Clipboard** | `clipboard copy/paste/read` | Clipboard operations |
+| **Touch** | `tap <sel>` | Touch tap events (distinct from click) |
+| **Select all** | `selectall <sel>` | Select all text in element |
+| **Content injection** | `addscript`, `addstyle`, `addinitscript` | Inject JS/CSS into pages |
+| **Expose function** | `expose <name>` | Expose JS function to page context |
+| **Set content** | `setcontent <html>` | Set page HTML directly |
+| **Set value** | `setvalue <sel> <val>` | Set input value bypassing events |
+| **Dispatch event** | `dispatch <sel> <event>` | Fire custom DOM events |
+| **Response body** | `responsebody <url>` | Get HTTP response body for specific URL |
+| **Wait for download** | `waitfordownload` | Wait for download event to complete |
+| **Bring to front** | `bringtofront` | Bring page to foreground |
+| **Pause** | `pause` | Pause execution (debugger) |
+| **Multi-select** | `multiselect <sel> <vals>` | Multi-value select dropdown |
+| **Styles** | `get styles <sel>` | Computed CSS styles (fontSize, color, etc.) |
+| **iOS Simulator** | `-p ios`, `swipe`, `tap`, `device list` | Real mobile Safari testing via Appium |
+| **Cloud browsers** | `-p browserbase/kernel/browseruse` | Serverless browser instances |
+| **Config file** | `agent-browser.json` | Cascading configuration |
 
 ### Shared (both have)
 
-open, click, dblclick, type, fill, press, hover, focus, check/uncheck, select, drag, upload, scroll, scrollintoview, wait, screenshot, pdf, snapshot, eval, connect (CDP), close, sessions, viewport, proxy, user-agent, stealth/anti-detection, JSON output, `--headed` mode.
+open, click, dblclick, type, fill, press, keydown/keyup, hover, focus, check/uncheck, select, drag, upload, scroll, scrollintoview, wait (selector/timeout/text/url/load/fn), screenshot, pdf, snapshot (-i/-c/-d/-s/--flat), eval, connect (CDP), close, sessions, viewport, device emulation, proxy, user-agent, stealth, JSON output, `--headed` mode, dialog accept/dismiss, frame switch/main/list, tab new/switch/close/list, mouse move/down/up/wheel, cookies get/set/clear, storage local/session get/set/clear, state save/load/list/show/rename/clear/clean, set media/geo/offline/headers/credentials, network route/unroute/requests/clear, get text/html/value/attr/url/title/count/box, is visible/enabled/checked, find role/text/label/placeholder/alt/title/testid/first/last/nth, trace start/stop, console/errors, highlight, download, --extension, --profile, back/forward/reload.
 
 ---
 
@@ -246,36 +263,36 @@ This works, but you're limited to what bash can do. No structured data manipulat
 
 | Issue | Severity | Details |
 |---|---|---|
-| **Bad URL silently succeeds** | 🔴 High | `spel open not-a-url` navigates to `about:blank` with exit code 0. Should fail like agent-browser does. |
-| **Generic error messages** | 🔴 High | `spel click @nonexistent` → "Unknown error". agent-browser gives the full Playwright call log. Playwright's error context is being swallowed. |
-| **No link URLs in snapshots** | 🟡 Medium | Snapshot tree doesn't include `href` for links. Agent must use `eval` to extract URLs. agent-browser includes `/url:` inline. |
+| ~~**Bad URL silently succeeds**~~ | ✅ Fixed in 0.5.0 | `spel open not-a-url` now returns exit code 1 with clear error message. |
+| ~~**Generic error messages**~~ | ✅ Fixed in 0.5.0 | `spel click @nonexistent` now propagates full Playwright error context including call log, selector, and reason. |
+| **No link URLs in snapshots** | 🟡 Medium | Snapshot tree doesn't include `href` for links. Agent must use `eval` to extract URLs. |
 | **No structured refs in JSON** | 🟡 Medium | JSON snapshot only has `refs_count`, not a map of ref → role/name. agent-browser provides this. |
-| **71MB binary** | 🟡 Medium | Large for a CLI tool. GraalVM native image trade-off. |
-| **Snapshot verbosity** | 🟡 Medium | 314 lines for github.com `-i` vs agent-browser's 107. More tokens for LLMs. Mitigated by `-c -d` flags. |
+| **91MB binary** | 🟡 Medium | Large for a CLI tool. GraalVM native image trade-off. |
+| **Snapshot verbosity** | 🟡 Medium | More tokens for LLMs than agent-browser’s flat format. Mitigated by `--flat`, `-c`, `-d` flags. |
 | **Ref format less LLM-friendly** | 🟠 Low | `[@e2yrjz]` (6 random chars) vs `[ref=e1]` (sequential). Sequential is easier for LLMs to reference. |
-| **Video save-as bug** | 🟠 Low | `finish-video-recording {:save-as "..."}` throws "Page not yet closed". Must use workaround (get path → finish → cp). |
-| **No snapshot with no browser returns good error** | ✅ Fine | "No page loaded. Navigate first: spel open <url>" — this is actually good. |
+| ~~**Video save-as bug**~~ | ✅ Fixed in 0.5.0 | Video `save-as` now correctly closes page/context before `saveAs`. |
+| **No diff engine** | 🟡 Medium | No snapshot diff or pixel comparison. agent-browser added Myers diff + pixel diff in 0.15.x. |
+| **No auth vault** | 🟠 Low | No encrypted credential store. agent-browser has AES-256-GCM auth vault. |
 | **No iOS/cloud browser support** | 🟠 Low | Missing for teams that need real mobile testing or serverless browsers. |
 
 ### agent-browser Pitfalls
 
+> **Note**: agent-browser 0.15.1 has fixed several issues from the 0.9.0 comparison. The table below reflects remaining issues and notes what changed.
+
 | Issue | Severity | Details |
 |---|---|---|
-| **No daemon — 9-17× slower per command** | 🔴 High | Every command spawns a new Node.js process. 210-240ms overhead per command adds up fast. |
-| **Empty snapshot with no browser** | 🔴 High | `agent-browser snapshot` with no browser open returns `- document` with exit code 0. Should error. |
-| **Annotate times out on complex pages** | 🔴 High | `--annotate` flag timed out on github.com. Unusable on real-world sites. |
-| **Video recording produced zero bytes** | 🔴 High | `record start` appeared to work but `videos/` directory was empty after recording. Unreliable. |
-| **No network interception** | 🟡 Medium | Can't mock APIs, block requests, or test error states. |
-| **No cookie/storage management** | 🟡 Medium | Can't inspect or modify cookies/storage. Must use `eval` for everything. |
-| **No test/assertion framework** | 🟡 Medium | No built-in way to assert page state. Must build from scratch. |
-| **No trace/debug tooling** | 🟡 Medium | No trace recording, no console capture, no error capture. |
-| **No dialog handling** | 🟡 Medium | Confirm/alert dialogs will block the page with no way to dismiss. |
-| **No frame support** | 🟡 Medium | iframe-heavy apps (payment forms, embeds) are inaccessible. |
-| **No state persistence** | 🟡 Medium | `--state` loads state but no save/export/manage workflow. |
-| **No tab management** | 🟠 Low | Multi-tab workflows (OAuth redirects, new windows) unsupported. |
-| **Requires Node.js runtime** | 🟠 Low | Not self-contained. Needs Node.js installed. |
+| **Still no daemon — slower per command** | 🟡 Medium | Still process-per-command architecture. But Rust CLI is faster than before — overhead is ~100-150ms vs spel’s ~15-25ms. |
+| **No test/assertion framework** | 🟡 Medium | Still no built-in way to assert page state. Must build from scratch. |
 | **No CI tooling** | 🟠 Low | No report generation, no CI assembly, no report merging. |
-
+| **Requires Node.js runtime** | 🟠 Low | Not self-contained. Needs Node.js installed. |
+| ✅ Now has network interception | | `route/unroute/requests` added since 0.9.0 |
+| ✅ Now has cookie/storage management | | Full CRUD for cookies and localStorage/sessionStorage |
+| ✅ Now has trace recording | | `trace start/stop` added |
+| ✅ Now has console/errors capture | | `console`, `errors` commands added |
+| ✅ Now has dialog handling | | `dialog accept/dismiss` added |
+| ✅ Now has frame support | | `frame`/`mainframe` added |
+| ✅ Now has state persistence | | Full `state save/load/list/show/rename/clear/clean` |
+| ✅ Now has tab management | | `tab_new/list/switch/close` + `window_new` |
 ---
 
 ## 7. Dogfood Results (github.com)
@@ -421,50 +438,58 @@ Every command spawns a new Node.js process that connects to an existing browser 
 1. **Sequential refs** (`@e1`, `@e2`) — simpler for LLMs than `@e2yrjz`
 2. **Link URLs in snapshots** — `/url: https://...` inline saves an eval call
 3. **Structured refs in JSON** — `refs` map with role/name per ref
-4. **iOS Simulator support** — real mobile Safari testing
-5. **Cloud browser providers** — BrowserBase/Kernel for CI at scale
-6. **Extension loading** — `--extension` flag for Chrome extensions
-7. **`download` command** — explicit file download
-8. **Better error propagation** — pass through Playwright's call log, don't swallow it
-9. **Bad URL detection** — fail on obviously invalid URLs instead of `about:blank`
+4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — **NEW in AB 0.15**
+5. **Auth vault** — encrypted credential store with auto-login — **NEW in AB 0.15**
+6. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
+7. ~~**`download` command**~~ — ✅ Done in spel 0.5.0
+8. ~~**Better error propagation**~~ — ✅ Done in spel 0.5.0
+9. ~~**Bad URL detection**~~ — ✅ Done in spel 0.5.0
+10. **Timezone/locale emulation** — set timezone and locale per session — **NEW in AB 0.15**
+11. **Clipboard operations** — copy/paste/read — **NEW in AB 0.15**
+12. **Content injection** — `addscript`, `addstyle`, `addinitscript` — **NEW in AB 0.15**
+13. **Computed styles** — `get styles` returns fontSize, color, etc. — **NEW in AB 0.15**
+14. **Action policy** — confirmation system for dangerous actions — **NEW in AB 0.15**
+15. **HAR recording** — HTTP Archive capture — **NEW in AB 0.15**
 
 ### agent-browser should consider adopting from spel:
-1. **Daemon architecture** — 10× command speedup
-2. **Network interception** — route/unroute for API mocking
-3. **Cookie/storage CRUD** — full state management
-4. **Dialog handling** — accept/dismiss for confirm/alert
-5. **Frame navigation** — iframe support
-6. **Trace recording** — Playwright traces for debugging
-7. **Console/error capture** — surface browser errors
-8. **Tab management** — multi-tab workflows
-9. **Assertions** — built-in state checking
-10. **CI tooling** — report generation and assembly
-11. **Fix video recording** — it produced zero bytes in our test
-12. **Fix annotate on complex pages** — timed out on github.com
-
+1. **Daemon architecture** — still 5-10× slower per command
+2. ~~**Network interception**~~ — ✅ Done in AB 0.15
+3. ~~**Cookie/storage CRUD**~~ — ✅ Done in AB 0.15
+4. ~~**Dialog handling**~~ — ✅ Done in AB 0.15
+5. ~~**Frame navigation**~~ — ✅ Done in AB 0.15
+6. ~~**Trace recording**~~ — ✅ Done in AB 0.15
+7. ~~**Console/error capture**~~ — ✅ Done in AB 0.15
+8. ~~**Tab management**~~ — ✅ Done in AB 0.15
+9. **Assertions** — still no built-in state checking or testing framework
+10. **CI tooling** — still no report generation and assembly
+11. **Annotation overlays** — spel's scoped annotate with role-colored overlays
+12. **Codegen** — record-and-replay code generation
 ---
 
 ## 12. Final Verdict
 
 | Category | Winner | Margin |
 |---|---|---|
-| **Raw performance** | spel | Large (9-17× per command) |
-| **Command breadth** | spel | Large (3× more commands) |
-| **Programmability** | spel | Massive (full language vs eval) |
-| **Testing/CI** | spel | Total (AB has nothing) |
-| **Debugging** | spel | Large (trace, console, inspector) |
+| **Raw performance** | spel | Large (5-10× per command, daemon architecture) |
+| **Command breadth** | agent-browser | Small (~143 vs ~120, but spel has deeper features) |
+| **Programmability** | spel | Massive (full Clojure vs JS eval) |
+| **Testing/CI** | spel | Total (AB still has nothing) |
+| **Debugging** | Tie | Both have trace, console, errors. spel has Inspector + Trace Viewer. AB has profiler + HAR. |
+| **Diff tooling** | agent-browser | Total (spel has nothing) |
+| **Auth management** | agent-browser | Large (encrypted vault vs basic state files) |
 | **LLM snapshot ergonomics** | agent-browser | Medium (more compact, structured refs) |
+| **Safety/policy** | agent-browser | Total (action confirmation, domain allowlist) |
 | **Ease of installation** | agent-browser | Large (npm vs build from source) |
-| **Learning curve** | agent-browser | Medium (simpler surface) |
+| **Learning curve** | agent-browser | Small (AB grew to 143 commands, not simple anymore) |
 | **Mobile testing** | agent-browser | Total (iOS support) |
 | **Cloud browsers** | agent-browser | Total (3 providers) |
-| **Error messages** | Mixed | AB better for Playwright errors, spel better for "no browser" |
+| **Error messages** | Tie | Both now propagate Playwright errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: spel is the more capable, faster, and more complete tool by a significant margin.** It's what you reach for when browser automation is core to your workflow. agent-browser is what you reach for when you need a quick, simple browser CLI for an LLM agent and don't need the testing/CI/debugging ecosystem.
+**Overall: The gap has narrowed significantly.** spel remains the more complete tool for _testing and CI workflows_ — its Allure integration, codegen, assertions, and programmability have no equivalent. But agent-browser is no longer a “basics only” tool. Its diff engine, auth vault, streaming, profiler, and safety features represent genuine capabilities spel lacks.
 
-The gap will narrow if agent-browser adds a daemon mode and more commands. The gap will widen if spel improves its LLM ergonomics (sequential refs, inline URLs, structured JSON refs) — which would eliminate agent-browser's few advantages while keeping all of spel's.
+The competitive landscape is now: **spel = testing platform + speed. agent-browser = agent ergonomics + breadth.** Teams choosing between them should ask: _"Do I need a testing framework and CI pipeline, or do I need diff tooling and auth vault for AI agents?"_
 
 ---
 
-*Generated by dogfooding both tools against github.com on February 26, 2026.*
+*Updated March 1, 2026. Original comparison: February 26, 2026.*

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-03-01
+
+### Added
+- feat(cli): add `--extension` flag for loading Chrome extensions (#41)
+- feat: Edge/Chrome profile support with persistent context, cookie injection, and logging
+- feat: add `--flat` option for snapshot command
+- feat: add `download` CLI command (#40)
+- feat: unified snapshot enrichment — URLs, refs map, network/console scoping
+- feat: preview structure, network/console get, page refs
+- feat(daemon): propagate Playwright error context in CLI output
+
+### Fixed
+- fix(cli): detect URL at any position in `open` command args
+- fix(graal): add type hints to `Files/write` call for native image compatibility
+- fix: increment injected counter and reorder `copy-cookies-db!` for fail-fast
+- fix: support Edge and other Chromium browsers for cookie decryption
+- fix(ui): correct mobile view for PRs (#63)
+- fix: resolve GraalVM reflection and boxed math warnings in `daemon.clj` and `sci_env.clj`
+- fix: video `save-as` — close page/context before `saveAs` (#43)
+- fix: resolve CI failures — unused vars lint, console get dispatch
+- fix(sci_eval): propagate `call_log`/`selector` in SCI error responses
+- fix(templates): migrate all templates from old fixtures to `with-testing-page`/`with-testing-api`
+- fix(screenshot): `crop-to-content` for content shorter than viewport (#52)
+- fix(ci): merge release + deploy-clojars into single job
+- fix(ci): add concurrency group and retry logic to pr-cleanup workflow
+- fix(ci): only run Allure Report on successful CI builds
+
 ## [v0.4.2] - 2026-02-27
 
 ### Added
@@ -346,13 +373,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
-[v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
-[v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
-[v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
-[v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
-[v0.3.0]: https://github.com/Blockether/spel/releases/tag/v0.3.0
+[v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
+[v0.4.0]: https://github.com/Blockether/spel/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/Blockether/spel/releases/tag/v0.3.1
-[v0.4.0]: https://github.com/Blockether/spel/releases/tag/v0.4.0
-[v0.4.1]: https://github.com/Blockether/spel/releases/tag/v0.4.1
+[v0.3.0]: https://github.com/Blockether/spel/releases/tag/v0.3.0
+[v0.2.0]: https://github.com/Blockether/spel/releases/tag/v0.2.0
+[v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
+[v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
+[v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1

@@ -91,7 +91,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `video-obj-path` | [video] | Returns the path to the video file from a Video instance. |
 | `video-obj-save-as!` | [video path] | Saves the video to the given path from a Video instance. |
 | `video-path` | [page] | Returns the video file path for a page, or nil if not recording. |
-| `video-save-as!` | [page path] | Saves the video to the specified path. Context must be closed first. |
+| `video-save-as!` | [page path] | Saves the video to the specified path. |
 | `webkit` | [pw] | Returns the WebKit BrowserType. |
 | _(macro)_ `with-api-context` | [[sym expr] & body] | Binds a single APIRequestContext and ensures disposal. |
 | _(macro)_ `with-api-contexts` | [bindings & body] | Binds multiple APIRequestContexts and disposes all on exit. |
@@ -437,6 +437,7 @@ _Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
+| `flatten-tree` | [tree] | Flattens a YAML-like tree string by stripping all leading whitespace. |
 | `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
 
