@@ -652,9 +652,12 @@
      ["network - Network inspection and request interception"
       ""
       "Usage:"
-      "  spel network <subcommand> [args]"
+      "  spel network                    List recent network entries"
+      "  spel network get @n1            Get full details for a network ref"
+      "  spel network <subcommand>       Run a network subcommand"
       ""
       "Subcommands:"
+      "  get <@ref>            Get full network entry by ref (e.g. @n1)"
       "  requests [flags]      View tracked requests (auto-tracked, last 500)"
       "  route <url> [flags]   Intercept requests matching URL pattern"
       "  unroute <url>         Remove route for URL pattern"
@@ -671,6 +674,8 @@
       "  --body JSON       Fulfill with mock response body"
       ""
       "Examples:"
+      "  spel network"
+      "  spel network get @n1"
       "  spel network requests"
       "  spel network requests --type fetch --status 4"
       "  spel network requests --filter \"/api\""
@@ -738,14 +743,17 @@
       "Console messages are automatically captured from the moment a page opens."
       ""
       "Usage:"
+      "  spel console                    List recent console entries"
+      "  spel console get @c1            Get full details for a console ref"
       "  spel console [subcommand]"
       ""
       "Subcommands:"
-      "  (none)    View all captured console messages"
-      "  clear     Clear captured messages"
+      "  get <@ref>    Get console entry by ref (e.g. @c1)"
+      "  clear         Clear captured messages"
       ""
       "Examples:"
       "  spel console"
+      "  spel console get @c1"
       "  spel console clear"])
 
    "errors"
@@ -764,6 +772,21 @@
       "Examples:"
       "  spel errors"
       "  spel errors clear"])
+
+   "pages"
+   (str/join \newline
+     ["pages - View tracked page navigations"
+      ""
+      "Usage:"
+      "  spel pages                      List all tracked page navigations"
+      "  spel pages get @p1              Get details for a page ref"
+      ""
+      "Subcommands:"
+      "  get <@ref>    Get page entry by ref (e.g. @p1)"
+      ""
+      "Examples:"
+      "  spel pages"
+      "  spel pages get @p1"])
 
    "state"
    (str/join \newline
@@ -1091,7 +1114,10 @@
      "  storage                 Manage localStorage / sessionStorage"
      ""
      "Network:"
-     "  network                 Inspect requests, intercept routes"
+     "  network                 List/get network entries, intercept routes"
+     ""
+     "Pages:"
+     "  pages                   List/get tracked page navigations"
      ""
      "Frames:"
      "  frame                   Navigate between frames"
@@ -1101,7 +1127,7 @@
      ""
      "Debug:"
      "  trace                   Record Playwright traces"
-     "  console                 View console messages"
+     "  console                 List/get console messages"
      "  errors                  View page errors"
      ""
      "State Management:"
@@ -1724,37 +1750,42 @@
                            {:action "storage_get" :type st :key sub}))
 
           ;; Network
-            "network"  (let [sub (first cmd-args)]
+            "network"  (let [sub (first cmd-args)
+                             arg (second cmd-args)]
                          (cond
-                           ;; Drill-down: spel network @n1
-                           (and sub (re-matches #"@n\d+" sub))
-                           {:action "network_get_ref" :ref sub}
+                           ;; spel network get @n1
+                           (= sub "get")
+                           {:action "network_get_ref" :ref arg}
+
+                           ;; spel network (no args) → list recent entries
+                           (nil? sub)
+                           {:action "network_list"}
 
                            :else
-                         (case sub
-                           "route"    (let [url       (second cmd-args)
-                                            rest-args (set (drop 2 cmd-args))
-                                            abort?    (rest-args "--abort")
-                                            body-idx  (long (.indexOf ^java.util.List (vec cmd-args) "--body"))
-                                            body      (when (>= body-idx 0)
-                                                        (nth cmd-args (inc body-idx) nil))]
-                                        (cond-> {:action "network_route" :url url}
-                                          abort? (assoc :action_type "abort" :action "network_route")
-                                          body   (assoc :action_type "fulfill" :body body)
-                                          (not (or abort? body)) (assoc :action_type "continue")))
-                           "unroute"  {:action "network_unroute"
-                                       :url (second cmd-args)}
-                           "requests" (let [args-v    (vec cmd-args)
-                                            flag-val  (fn [flag]
-                                                        (let [i (long (.indexOf ^java.util.List args-v flag))]
-                                                          (when (>= i 0) (nth args-v (inc i) nil))))]
-                                        (cond-> {:action "network_requests"}
-                                          (flag-val "--filter") (assoc :filter (flag-val "--filter"))
-                                          (flag-val "--type")   (assoc :type   (flag-val "--type"))
-                                          (flag-val "--method") (assoc :method (flag-val "--method"))
-                                          (flag-val "--status") (assoc :status (flag-val "--status"))))
-                           "clear"    {:action "network_clear"}
-                           {:error (str "Unknown network command: " sub)})))
+                           (case sub
+                             "route"    (let [url       (second cmd-args)
+                                              rest-args (set (drop 2 cmd-args))
+                                              abort?    (rest-args "--abort")
+                                              body-idx  (long (.indexOf ^java.util.List (vec cmd-args) "--body"))
+                                              body      (when (>= body-idx 0)
+                                                          (nth cmd-args (inc body-idx) nil))]
+                                          (cond-> {:action "network_route" :url url}
+                                            abort? (assoc :action_type "abort" :action "network_route")
+                                            body   (assoc :action_type "fulfill" :body body)
+                                            (not (or abort? body)) (assoc :action_type "continue")))
+                             "unroute"  {:action "network_unroute"
+                                         :url (second cmd-args)}
+                             "requests" (let [args-v    (vec cmd-args)
+                                              flag-val  (fn [flag]
+                                                          (let [i (long (.indexOf ^java.util.List args-v flag))]
+                                                            (when (>= i 0) (nth args-v (inc i) nil))))]
+                                          (cond-> {:action "network_requests"}
+                                            (flag-val "--filter") (assoc :filter (flag-val "--filter"))
+                                            (flag-val "--type")   (assoc :type   (flag-val "--type"))
+                                            (flag-val "--method") (assoc :method (flag-val "--method"))
+                                            (flag-val "--status") (assoc :status (flag-val "--status"))))
+                             "clear"    {:action "network_clear"}
+                             {:error (str "Unknown network command: " sub)})))
 
           ;; Frames
             "frame"    (let [sel (first cmd-args)]
@@ -1780,20 +1811,35 @@
                                     :path (second cmd-args)}
                            {:error (str "Unknown trace command: " sub)}))
 
-            "console"  (let [sub (first cmd-args)]
+            "console"  (let [sub (first cmd-args)
+                             arg (second cmd-args)]
                          (cond
-                           (and sub (re-matches #"@c\d+" sub))
-                           {:action "console_get_ref" :ref sub}
+                           ;; spel console get @c1
+                           (= sub "get")
+                           {:action "console_get_ref" :ref arg}
+
+                           ;; spel console (no args) → list recent entries
+                           (nil? sub)
+                           {:action "console_list"}
+
                            :else
                            (case sub
                              ("clear" "--clear") {:action "console_clear"}
-                             (nil) {:action "console_get"}
                              {:action "console_get"})))
 
             "errors"   (case (first cmd-args)
                          "clear" {:action "errors_clear"}
                          "--clear" {:action "errors_get" :clear true}
                          {:action "errors_get"})
+
+          ;; Pages
+            "pages"    (let [sub (first cmd-args)
+                             arg (second cmd-args)]
+                         (cond
+                           (= sub "get")
+                           {:action "pages_get_ref" :ref arg}
+                           :else
+                           {:action "pages_list"}))
 
           ;; State management
             "state"    (let [sub (first cmd-args)]
