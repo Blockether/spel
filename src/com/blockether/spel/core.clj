@@ -8,7 +8,7 @@
     (with-playwright [pw (create)]
       (with-browser [browser (launch-chromium pw {:headless true})]
         (with-page [page (new-page browser)]
-          (navigate page \"https://example.com\")
+          (navigate page \"https://example.org\")
           (text-content page \"h1\"))))
     
     All operations return anomaly maps on failure instead of throwing exceptions."
@@ -643,7 +643,7 @@
    
    Usage:
    (with-page [page (new-page browser)]
-     (navigate page \"https://example.com\"))"
+     (navigate page \"https://example.org\"))"
   [[sym expr] & body]
   `(let [~sym ~expr]
      (try
@@ -978,29 +978,29 @@
    Usage:
      ;; Minimal — headless Chromium, default viewport (opts omitted)
      (with-testing-page [page]
-       (page/navigate page \"https://example.com\")
+       (page/navigate page \"https://example.org\")
        (page/title page))
 
      ;; With device emulation
      (with-testing-page {:device :iphone-14} [page]
-       (page/navigate page \"https://example.com\"))
+       (page/navigate page \"https://example.org\"))
 
      ;; With viewport preset
      (with-testing-page {:viewport :desktop-hd :locale \"fr-FR\"} [page]
-       (page/navigate page \"https://example.com\"))
+       (page/navigate page \"https://example.org\"))
 
      ;; Firefox, headed mode
      (with-testing-page {:browser-type :firefox :headless false} [page]
-       (page/navigate page \"https://example.com\"))
+       (page/navigate page \"https://example.org\"))
 
      ;; Persistent profile (keeps login sessions across runs)
      (with-testing-page {:profile \"/tmp/my-chrome-profile\"} [page]
-       (page/navigate page \"https://example.com\"))
+       (page/navigate page \"https://example.org\"))
 
      ;; Custom browser executable + extra args
      (with-testing-page {:executable-path \"/usr/bin/chromium\"
                          :args [\"--disable-gpu\"]} [page]
-       (page/navigate page \"https://example.com\"))"
+       (page/navigate page \"https://example.org\"))"
   [opts-or-binding & args]
   (if (vector? opts-or-binding)
     ;; No opts: (with-testing-page [sym] body...)
@@ -1289,7 +1289,7 @@
 
    Examples:
    (new-api-context (api-request pw)
-     {:base-url \"https://api.example.com\"
+     {:base-url \"https://api.example.org\"
       :extra-http-headers {\"Authorization\" \"Bearer token\"}
       :timeout 10000})"
   (^APIRequestContext [^APIRequest api-req]
@@ -1331,7 +1331,7 @@
   "Binds a single APIRequestContext and ensures disposal.
 
    Usage:
-   (with-api-context [ctx (new-api-context (api-request pw) {:base-url \"https://api.example.com\"})]
+   (with-api-context [ctx (new-api-context (api-request pw) {:base-url \"https://api.example.org\"})]
      (api-get ctx \"/users\"))"
   [[sym expr] & body]
   `(let [~sym ~expr]
@@ -1348,13 +1348,13 @@
 
    Usage:
    (with-api-contexts [users   (new-api-context (api-request pw)
-                                 {:base-url \"https://users.example.com\"
+                                 {:base-url \"https://users.example.org\"
                                   :extra-http-headers {\"Authorization\" \"Bearer token\"}})
                        billing (new-api-context (api-request pw)
-                                 {:base-url \"https://billing.example.com\"
+                                 {:base-url \"https://billing.example.org\"
                                   :extra-http-headers {\"X-API-Key\" \"key\"}})
                        public  (new-api-context (api-request pw)
-                                 {:base-url \"https://public.example.com\"})]
+                                 {:base-url \"https://public.example.org\"})]
      (api-get users \"/me\")
      (api-get billing \"/invoices\")
      (api-get public \"/catalog\"))"
@@ -1651,7 +1651,7 @@
      (api-response->map resp))
    ;; => {:status 200
    ;;     :status-text \"OK\"
-   ;;     :url \"https://api.example.com/users\"
+   ;;     :url \"https://api.example.org/users\"
    ;;     :ok? true
    ;;     :headers {\"content-type\" \"application/json\"}
     ;;     :body \"{\\\"users\\\": [...]}\"}"
@@ -1685,19 +1685,19 @@
 
    Examples:
    ;; Simple GET — no setup, no cleanup
-   (request! pw :get \"https://api.example.com/health\")
+   (request! pw :get \"https://api.example.org/health\")
    ;; => {:status 200 :ok? true :body \"OK\" ...}
 
    ;; POST with JSON body
-   (request! pw :post \"https://api.example.com/users\"
+   (request! pw :post \"https://api.example.org/users\"
      {:data    \"{\\\"name\\\": \\\"Alice\\\"}\"
       :headers {\"Content-Type\" \"application/json\"
                 \"Authorization\" \"Bearer token\"}})
 
    ;; Hit multiple domains without any context setup
-   (let [users    (request! pw :get \"https://users.example.com/me\"
+   (let [users    (request! pw :get \"https://users.example.org/me\"
                     {:headers {\"Authorization\" \"Bearer user-token\"}})
-         invoices (request! pw :get \"https://billing.example.com/invoices\"
+         invoices (request! pw :get \"https://billing.example.org/invoices\"
                     {:headers {\"X-API-Key\" \"billing-key\"}})]
      [users invoices])"
   ([^Playwright pw method ^String url]
@@ -1815,7 +1815,7 @@
 
    ;; Retry standalone requests too
    (with-retry {:max-attempts 3}
-     (request! pw :get \"https://api.example.com/health\"))"
+     (request! pw :get \"https://api.example.org/health\"))"
   [opts-or-body & body]
   (if (and (map? opts-or-body) (seq body))
     `(retry (fn [] ~@body) ~opts-or-body)
@@ -1839,7 +1839,7 @@
 
    Examples:
    (with-testing-page [pg]
-     (page/navigate pg \"https://example.com/login\")
+     (page/navigate pg \"https://example.org/login\")
      ;; API calls share the browser session (cookies, auth)
      (let [resp (api-get (page-api pg) \"/api/me\")]
        (api-response-status resp)))"
@@ -1861,7 +1861,7 @@
    Examples:
    (with-playwright [pw]
      (with-browser [browser (launch-chromium pw)]
-       (with-context [ctx (new-context browser {:base-url \"https://api.example.com\"})]
+       (with-context [ctx (new-context browser {:base-url \"https://api.example.org\"})]
          (let [resp (api-get (context-api ctx) \"/users\")]
            (api-response-status resp)))))"
   ^APIRequestContext [^BrowserContext ctx]
@@ -1891,7 +1891,7 @@
      + any key accepted by `new-context` (:locale, :timezone-id, etc.)
 
    Examples:
-   (run-with-testing-api {:base-url \"https://api.example.com\"}
+   (run-with-testing-api {:base-url \"https://api.example.org\"}
      (fn [ctx]
        (api-get ctx \"/users\")))"
   [opts f]
@@ -1970,18 +1970,18 @@
 
    Usage:
      ;; Minimal — hit a base URL
-     (with-testing-api {:base-url \"https://api.example.com\"} [ctx]
+     (with-testing-api {:base-url \"https://api.example.org\"} [ctx]
        (api-get ctx \"/users\"))
 
      ;; With custom headers and JSON encoder
-     (with-testing-api {:base-url \"https://api.example.com\"
+     (with-testing-api {:base-url \"https://api.example.org\"
                         :extra-http-headers {\"Authorization\" \"Bearer token\"}
                         :json-encoder cheshire.core/generate-string} [ctx]
        (api-post ctx \"/users\" {:json {:name \"Alice\"}}))
 
      ;; Minimal — no opts
      (with-testing-api [ctx]
-       (api-get ctx \"https://api.example.com/health\"))"
+       (api-get ctx \"https://api.example.org/health\"))"
   [opts-or-binding & args]
   (if (vector? opts-or-binding)
     ;; No opts: (with-testing-api [sym] body...)
@@ -2018,7 +2018,7 @@
    Result of calling `f`.
 
    Examples:
-   (run-with-page-api pg {:base-url \"https://api.example.com\"}
+   (run-with-page-api pg {:base-url \"https://api.example.org\"}
      (fn [ctx]
        (api-get ctx \"/users\")))"
   [^Page pg opts f]
@@ -2060,14 +2060,14 @@
    Usage:
      ;; API calls to different domain, sharing browser cookies
      (with-testing-page [pg]
-       (page/navigate pg \"https://example.com/login\")
+       (page/navigate pg \"https://example.org/login\")
        ;; ... login via UI ...
-       (with-page-api pg {:base-url \"https://api.example.com\"} [ctx]
+       (with-page-api pg {:base-url \"https://api.example.org\"} [ctx]
          ;; ctx has cookies from the browser session
          (api-get ctx \"/me\")))
 
      ;; With JSON encoder
-     (with-page-api pg {:base-url \"https://api.example.com\"
+     (with-page-api pg {:base-url \"https://api.example.org\"
                        :json-encoder cheshire.core/generate-string} [ctx]
        (api-post ctx \"/users\" {:json {:name \"Alice\"}}))"
 

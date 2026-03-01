@@ -40,7 +40,7 @@ After a snapshot, resolve refs to Locators for interaction:
 ;; --eval — @ prefix required for refs
 (spel/click "@e6t2x4")
 (spel/text-content "@ea3kf5")
-(spel/fill "@e5dw2c" "hello@example.com")
+(spel/fill "@e5dw2c" "hello@example.org")
 
 ;; Library
 (let [loc (snapshot/resolve-ref pg "e6t2x4")]
@@ -169,7 +169,7 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
 
     (it "matches expected ARIA structure"
       (core/with-testing-page [page]
-        (page/navigate page "https://example.com")
+        (page/navigate page "https://example.org")
         (let [la (assert/assert-that (page/locator page "body"))]
           (expect (nil? (assert/matches-aria-snapshot la
                           "- heading \"Example Domain\"
@@ -182,7 +182,7 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
 ```clojure
 (deftest nav-snapshot-test
   (core/with-testing-page [pg]
-    (page/navigate pg "https://example.com")
+    (page/navigate pg "https://example.org")
     (let [la (assert/assert-that (page/locator pg "body"))]
       (is (nil? (assert/matches-aria-snapshot la
                   "- heading \"Example Domain\"
@@ -197,7 +197,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 ```clojure
 (it "login form has expected structure"
   (core/with-testing-page [page]
-    (page/navigate page "https://example.com/login")
+    (page/navigate page "https://example.org/login")
     (let [{:keys [tree]} (snapshot/capture-snapshot page)]
       (println tree))  ;; inspect during development
     (let [la (assert/assert-that (page/locator page "form"))]
@@ -215,7 +215,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 ```clojure
 (it "has a submit button"
   (core/with-testing-page [page]
-    (page/navigate page "https://example.com/form")
+    (page/navigate page "https://example.org/form")
     (let [{:keys [refs]} (snapshot/capture-snapshot page)
           submit-ref (->> refs
                        (some (fn [[id info]]
@@ -230,7 +230,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ```clojure
 ;; --eval
-(spel/navigate "https://example.com/checkout")
+(spel/navigate "https://example.org/checkout")
 (spel/wait-for-load-state)
 
 (def snap1 (spel/capture-snapshot))

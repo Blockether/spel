@@ -611,13 +611,13 @@
           (expect (= :started (sut/eval-string ctx "(spel/start!)")))
 
           ;; Navigate
-          (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
+          (sut/eval-string ctx "(spel/navigate \"https://example.org\")")
 
           ;; Query page info
           (let [title (sut/eval-string ctx "(spel/title)")
                 url   (sut/eval-string ctx "(spel/url)")]
             (expect (= "Example Domain" title))
-            (expect (.contains ^String url "example.com")))
+            (expect (.contains ^String url "example.org")))
 
           ;; Get snapshot
           (let [snap (sut/eval-string ctx "(spel/capture-snapshot)")]

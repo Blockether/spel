@@ -7,7 +7,7 @@
    If the daemon isn't running, it auto-starts one in the background.
 
    Usage:
-     spel open https://example.com
+     spel open https://example.org
      spel snapshot
      spel click @ref
      spel fill @ref \"search text\"
@@ -42,13 +42,13 @@
       "  spel open <url> --viewport <WxH>"
       ""
       "Examples:"
-      "  spel open https://example.com"
-      "  spel open example.com"
+      "  spel open https://example.org"
+      "  spel open example.org"
       "  spel open file:///tmp/page.html"
-      "  spel open https://example.com --interactive"
-      "  spel open https://example.com --screenshot page.png"
-      "  spel open https://example.com --screenshot"
-      "  spel open https://example.com --viewport 1200x800"
+      "  spel open https://example.org --interactive"
+      "  spel open https://example.org --screenshot page.png"
+      "  spel open https://example.org --screenshot"
+      "  spel open https://example.org --viewport 1200x800"
       ""
       "Flags:"
       "  --interactive          Show browser window (headed mode)"
@@ -143,7 +143,7 @@
       "  spel fill <selector> <text>"
       ""
       "Examples:"
-      "  spel fill @ref \"user@example.com\""
+      "  spel fill @ref \"user@example.org\""
       "  spel fill \"#search\" \"search query\""])
 
    "type"
@@ -476,7 +476,7 @@
       "Examples:"
       "  spel tab"
       "  spel tab list"
-      "  spel tab new https://example.com"
+      "  spel tab new https://example.org"
       "  spel tab 0"
       "  spel tab close"])
 
@@ -586,7 +586,7 @@
       "  spel find role button click"
       "  spel find role button click --name Submit"
       "  spel find text \"Login\" click"
-      "  spel find label \"Email\" fill \"user@example.com\""
+      "  spel find label \"Email\" fill \"user@example.org\""
       "  spel find link click"
       "  spel find heading text"
       "  spel find first \".item\" click"
@@ -847,7 +847,7 @@
       "Examples:"
       "  spel session"
       "  spel session list"
-      "  spel --session work open https://example.com"])
+      "  spel --session work open https://example.org"])
 
    "connect"
    (str/join \newline
@@ -907,20 +907,20 @@
       "  spel codegen record [options] [url]"
       ""
       "Examples:"
-      "  spel codegen record https://example.com                       # auto-saves to recording-YYYYMMDD-HHmmss.jsonl"
-      "  spel codegen record -o recording.jsonl https://example.com"
-      "  spel codegen record --target=java https://example.com"
-      "  spel codegen record -b firefox https://example.com"
+      "  spel codegen record https://example.org                       # auto-saves to recording-YYYYMMDD-HHmmss.jsonl"
+      "  spel codegen record -o recording.jsonl https://example.org"
+      "  spel codegen record --target=java https://example.org"
+      "  spel codegen record -b firefox https://example.org"
       ""
       "Full workflow:"
       "  # 1. Record (opens browser with codegen panel)"
-      "  spel codegen record -o recording.jsonl https://example.com"
+      "  spel codegen record -o recording.jsonl https://example.org"
       ""
       "  # 2. Record with pre-loaded auth state (cookies/localStorage)"
-      "  spel codegen record --load-state auth-state.json -o recording.jsonl https://example.com"
+      "  spel codegen record --load-state auth-state.json -o recording.jsonl https://example.org"
       ""
       "  # 3. Record and save state on exit"
-      "  spel codegen record --save-state auth-state.json -o recording.jsonl https://example.com"
+      "  spel codegen record --save-state auth-state.json -o recording.jsonl https://example.org"
       ""
       "  # 4. Transform to idiomatic Clojure"
       "  spel codegen recording.jsonl"
@@ -957,9 +957,9 @@
       ""
       "Examples:"
       "  spel inspector"
-      "  spel inspector https://example.com"
-      "  spel inspector -b firefox https://example.com"
-      "  spel inspector --device \"iPhone 14\" https://example.com"
+      "  spel inspector https://example.org"
+      "  spel inspector -b firefox https://example.org"
+      "  spel inspector --device \"iPhone 14\" https://example.org"
       ""
       "Options:"
       "  -b, --browser <type>         Browser: cr, chromium, ff, firefox, wk, webkit (default: chromium)"

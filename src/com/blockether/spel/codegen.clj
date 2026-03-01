@@ -20,7 +20,7 @@
       cat recording.jsonl | clojure -M -m com.blockether.spel.codegen
 
    Workflow:
-      clojure -M -m com.blockether.spel.cli codegen --target=jsonl -o recording.jsonl https://example.com
+      clojure -M -m com.blockether.spel.cli codegen --target=jsonl -o recording.jsonl https://example.org
       clojure -M -m com.blockether.spel.codegen recording.jsonl > test/my_test.clj
 
    Any unrecognized action, unsupported signal, or unimplemented feature
@@ -674,10 +674,10 @@
       (println "")
       (println "Workflow:")
       (println "  # 1. Record browser session (opens interactive recorder)")
-      (println "  spel codegen record -o recording.jsonl https://example.com")
+      (println "  spel codegen record -o recording.jsonl https://example.org")
       (println "")
       (println "  # 2. Record with pre-loaded auth state (cookies/localStorage)")
-      (println "  spel codegen record --load-storage auth-state.json -o recording.jsonl https://example.com")
+      (println "  spel codegen record --load-storage auth-state.json -o recording.jsonl https://example.org")
       (println "")
       (println "  # 3. Transform to Clojure")
       (println "  spel codegen recording.jsonl")

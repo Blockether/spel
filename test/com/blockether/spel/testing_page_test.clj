@@ -159,20 +159,20 @@
     (it "creates a page and navigates without opts"
       (core/with-testing-page [pg]
         (expect (instance? Page pg))
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (expect (= "Example Domain" (page/title pg))))))
 
   (describe "basic usage — empty opts"
     (it "creates a page and navigates with empty opts"
       (core/with-testing-page {} [pg]
         (expect (instance? Page pg))
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (expect (= "Example Domain" (page/title pg))))))
 
   (describe "viewport preset"
     (it "uses :desktop-hd viewport"
       (core/with-testing-page {:viewport :desktop-hd} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (expect (= 1920 (:width vp)))
           (expect (= 1080 (:height vp)))))))
@@ -180,7 +180,7 @@
   (describe "viewport map"
     (it "uses custom viewport dimensions"
       (core/with-testing-page {:viewport {:width 800 :height 600}} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (expect (= 800 (:width vp)))
           (expect (= 600 (:height vp)))))))
@@ -188,7 +188,7 @@
   (describe "device preset"
     (it "uses :iphone-14 device emulation"
       (core/with-testing-page {:device :iphone-14} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (expect (= 390 (:width vp)))
           (expect (= 844 (:height vp)))))))
@@ -196,14 +196,14 @@
   (describe "return value — opts omitted"
     (it "returns the body result"
       (let [result (core/with-testing-page [pg]
-                     (page/navigate pg "https://example.com")
+                     (page/navigate pg "https://example.org")
                      (page/title pg))]
         (expect (= "Example Domain" result)))))
 
   (describe "return value — with opts"
     (it "returns the body result"
       (let [result (core/with-testing-page {} [pg]
-                     (page/navigate pg "https://example.com")
+                     (page/navigate pg "https://example.org")
                      (page/title pg))]
         (expect (= "Example Domain" result))))))
 
@@ -221,7 +221,7 @@
         (.delete (java.io.File. profile-dir))
         (core/with-testing-page {:profile profile-dir} [pg]
           (expect (instance? Page pg))
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (expect (= "Example Domain" (page/title pg)))))))
 
   (describe "persistent context with viewport"
@@ -230,7 +230,7 @@
                                (.delete)))]
         (core/with-testing-page {:profile profile-dir
                                  :viewport {:width 800 :height 600}} [pg]
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (let [vp (page/viewport-size pg)]
             (expect (= 800 (:width vp)))
             (expect (= 600 (:height vp))))))))
@@ -241,7 +241,7 @@
                                (.delete)))]
         (core/with-testing-page {:profile profile-dir
                                  :device :iphone-14} [pg]
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (let [vp (page/viewport-size pg)]
             (expect (= 390 (:width vp)))
             (expect (= 844 (:height vp)))))))))
@@ -253,14 +253,14 @@
     (it "passes :args to browser launch without error"
       (core/with-testing-page {:args ["--disable-extensions"]} [pg]
         (expect (instance? Page pg))
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (expect (= "Example Domain" (page/title pg))))))
 
   (describe "slow-mo option"
     (it "accepts :slow-mo without error"
       (core/with-testing-page {:slow-mo 10} [pg]
         (expect (instance? Page pg))
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (expect (= "Example Domain" (page/title pg))))))
 
   (describe "combined launch + context opts"
@@ -268,7 +268,7 @@
       (core/with-testing-page {:args ["--disable-extensions"]
                                :viewport :desktop-hd
                                :locale "en-US"} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (expect (= 1920 (:width vp)))
           (expect (= 1080 (:height vp))))))))

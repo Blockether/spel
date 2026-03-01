@@ -190,13 +190,13 @@ Use it in tests:
 
     (it "logs in with valid credentials"
       (core/with-testing-page [page]
-        (page/navigate page "https://app.example.com/login")
+        (page/navigate page "https://app.example.org/login")
         (login/login! page "alice" "secret123")
         (expect (nil? (assert/has-url (assert/assert-that page) #".*dashboard.*")))))
 
     (it "shows error for bad password"
       (core/with-testing-page [page]
-        (page/navigate page "https://app.example.com/login")
+        (page/navigate page "https://app.example.org/login")
         (login/login! page "alice" "wrong")
         (expect (nil? (assert/is-visible (assert/assert-that (login/error-msg page)))))))))
 ```
@@ -259,7 +259,7 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 
 ```clojure
 ;; SCI/eval mode
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 
 ;; 1. Take snapshot, see the tree
@@ -338,7 +338,7 @@ All assertion functions return `nil` on success or an anomaly map on failure. Wr
 ```clojure
 (it "shows welcome heading"
   (core/with-testing-page [page]
-    (page/navigate page "https://app.example.com")
+    (page/navigate page "https://app.example.org")
     (let [h1 (page/get-by-role page role/heading {:level 1})]
       (expect (nil? (assert/has-text (assert/assert-that h1) "Welcome")))
       (expect (nil? (assert/is-visible (assert/assert-that h1)))))))
@@ -402,7 +402,7 @@ Build rich HTML or PDF reports from test results using typed entry maps.
 
 ```clojure
 ;; Generate PDF presentation from current page
-(spel/navigate "https://app.example.com/dashboard")
+(spel/navigate "https://app.example.org/dashboard")
 (spel/wait-for-load-state)
 (spel/report->pdf
   [{:type :section :text "Dashboard Audit" :level 1}

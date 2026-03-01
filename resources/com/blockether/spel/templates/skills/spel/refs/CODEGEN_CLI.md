@@ -9,7 +9,7 @@ Record browser sessions and transform to idiomatic Clojure.
 ```bash
 # 1. Record browser session (opens interactive Playwright Codegen recorder)
 # Defaults to --target=jsonl for the spel transform pipeline
-spel codegen record -o recording.jsonl https://example.com
+spel codegen record -o recording.jsonl https://example.org
 
 # 2. Transform JSONL to Clojure test
 spel codegen recording.jsonl > my_test.clj
@@ -125,9 +125,9 @@ Launch Playwright's built-in visual tools directly from `spel`:
 # Inspector — opens a headed browser with the Playwright Inspector panel.
 # Use to explore the page, pick locators, and record actions interactively.
 spel inspector                                      # Open Inspector (blank page)
-spel inspector https://example.com                  # Open Inspector on URL
-spel inspector -b firefox https://example.com       # Use Firefox
-spel inspector --device "iPhone 14" https://example.com  # Emulate device
+spel inspector https://example.org                  # Open Inspector on URL
+spel inspector -b firefox https://example.org       # Use Firefox
+spel inspector --device "iPhone 14" https://example.org  # Emulate device
 
 # Trace Viewer — opens the Playwright Trace Viewer to inspect recorded traces.
 # Traces are created via `spel trace start` / `spel trace stop` or automatically
@@ -167,7 +167,7 @@ The `spel` CLI provides comprehensive page exploration capabilities without writ
 
 ```bash
 # 1. Navigate to a page
-spel open https://example.com
+spel open https://example.org
 
 # 2. Get accessibility snapshot with numbered refs (e1, e2, etc.)
 spel snapshot
@@ -230,7 +230,7 @@ spel find role button click --name "Submit"
 spel find text "Login" click
 
 # Find by label
-spel find label "Email" fill "test@example.com"
+spel find label "Email" fill "test@example.org"
 
 # Position-based
 spel find first ".item" click
@@ -315,7 +315,7 @@ spel errors clear                      # Clear captured errors
 
 ```bash
 # Open page
-spel open https://example.com
+spel open https://example.org
 
 # Get initial snapshot
 spel snapshot -i

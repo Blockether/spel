@@ -65,7 +65,7 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 
 ## 3. `assert-url` Fails with Partial URLs
 
-**Problem:** `(spel/assert-url "example.com/page")` fails even though the URL contains that string.
+**Problem:** `(spel/assert-url "example.org/page")` fails even though the URL contains that string.
 
 **Cause:** `spel/assert-url` wraps Playwright's `has-url` which does exact string matching by default, but also accepts `java.util.regex.Pattern` for flexible matching.
 
@@ -73,7 +73,7 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 
 ```clojure
 ;; Exact match
-(spel/assert-url (spel/assert-that (spel/page)) "https://example.com/page")
+(spel/assert-url (spel/assert-that (spel/page)) "https://example.org/page")
 
 ;; Regex pattern — substring, wildcard, etc.
 (spel/assert-url (spel/assert-that (spel/page)) #".*example\.com.*")
@@ -135,7 +135,7 @@ Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load`
 ```clojure
 ;; Ensure headless Chromium (the default)
 (spel/start! {:browser :chromium :headless true})
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/pdf {:path "/tmp/output.pdf"})
 ```
 

@@ -64,7 +64,7 @@
       (expect (instance? FormData fd))))
 
   (it "map->form-data converts a map to FormData"
-    (let [fd (sut/map->form-data {:name "Alice" :email "alice@example.com"})]
+    (let [fd (sut/map->form-data {:name "Alice" :email "alice@example.org"})]
       (expect (instance? FormData fd))))
 
   (it "map->form-data handles empty map"

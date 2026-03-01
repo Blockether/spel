@@ -138,7 +138,7 @@
           (allure/step "CREATE — POST new resource"
             (let [resp (allure/api-step "POST /echo — create user"
                          (api/api-post ctx "/echo"
-                           {:json {:name "Alice" :email "alice@example.com"}}))]
+                           {:json {:name "Alice" :email "alice@example.org"}}))]
               (allure/step "Verify creation succeeded"
                 (expect (= 200 (api/api-response-status resp)))
                 (let [body (api/api-response-text resp)]
@@ -158,7 +158,7 @@
           (allure/step "UPDATE — PUT resource"
             (let [resp (allure/api-step "PUT /echo — update user"
                          (api/api-put ctx "/echo"
-                           {:json {:name "Alice Updated" :email "alice2@example.com"}}))]
+                           {:json {:name "Alice Updated" :email "alice2@example.org"}}))]
               (allure/step "Verify update succeeded"
                 (expect (= 200 (api/api-response-status resp)))
                 (expect (str/includes? (api/api-response-text resp) "PUT")))))
@@ -166,7 +166,7 @@
           (allure/step "PATCH — Partial update"
             (let [resp (allure/api-step "PATCH /echo — patch email"
                          (api/api-patch ctx "/echo"
-                           {:json {:email "alice3@example.com"}}))]
+                           {:json {:email "alice3@example.org"}}))]
               (allure/step "Verify patch succeeded"
                 (expect (= 200 (api/api-response-status resp)))
                 (expect (str/includes? (api/api-response-text resp) "PATCH")))))
@@ -625,7 +625,7 @@
                      (api/api-post *browser-api*
                        (str *test-server-url* "/echo")
                        {:json {:name "Bob"
-                               :email "bob@example.com"
+                               :email "bob@example.org"
                                :role "admin"}}))]
           (allure/step "Verify response echoes POST"
             (let [status (api/api-response-status resp)

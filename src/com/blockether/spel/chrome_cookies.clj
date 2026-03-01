@@ -381,7 +381,7 @@
            ^String value]
   (when (and value (not (str/blank? value)))
     (let [cookie (Cookie. name value)]
-      ;; Domain: Chrome stores ".example.com" — Playwright expects the same
+      ;; Domain: Chrome stores ".example.org" — Playwright expects the same
       (.setDomain cookie host-key)
       (.setPath cookie (if (str/blank? path) "/" path))
       (.setExpires cookie (chrome-expires->unix expires-utc has-expires))

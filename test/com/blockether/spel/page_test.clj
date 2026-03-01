@@ -262,12 +262,12 @@
 
   (describe "validate-url"
     (it "returns valid URLs as-is"
-      (expect (= "https://example.com" (sut/validate-url "https://example.com")))
-      (expect (= "http://example.com" (sut/validate-url "http://example.com")))
-      (expect (= "https://sub.example.com" (sut/validate-url "https://sub.example.com")))
-      (expect (= "https://example.com/path" (sut/validate-url "https://example.com/path")))
-      (expect (= "https://example.com?q=1" (sut/validate-url "https://example.com?q=1")))
-      (expect (= "https://example.com#frag" (sut/validate-url "https://example.com#frag")))
+      (expect (= "https://example.org" (sut/validate-url "https://example.org")))
+      (expect (= "http://example.org" (sut/validate-url "http://example.org")))
+      (expect (= "https://sub.example.org" (sut/validate-url "https://sub.example.org")))
+      (expect (= "https://example.org/path" (sut/validate-url "https://example.org/path")))
+      (expect (= "https://example.org?q=1" (sut/validate-url "https://example.org?q=1")))
+      (expect (= "https://example.org#frag" (sut/validate-url "https://example.org#frag")))
       (expect (= "http://localhost" (sut/validate-url "http://localhost")))
       (expect (= "http://localhost:3000" (sut/validate-url "http://localhost:3000")))
       (expect (= "https://192.168.1.1" (sut/validate-url "https://192.168.1.1")))
@@ -277,7 +277,7 @@
       (expect (= "data:text/html,<h1>hi</h1>" (sut/validate-url "data:text/html,<h1>hi</h1>")))
       (expect (= "chrome://settings" (sut/validate-url "chrome://settings")))
       (expect (= "javascript:void(0)" (sut/validate-url "javascript:void(0)")))
-      (expect (= "blob:http://example.com/abc" (sut/validate-url "blob:http://example.com/abc")))
+      (expect (= "blob:http://example.org/abc" (sut/validate-url "blob:http://example.org/abc")))
       (expect (= "https://example.co.uk" (sut/validate-url "https://example.co.uk"))))
 
     (it "throws for invalid single-word domain"

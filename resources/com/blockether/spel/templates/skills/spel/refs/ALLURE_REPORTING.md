@@ -13,12 +13,12 @@ Call these functions inside test bodies to add metadata to Allure test results:
 (allure/feature "Authentication")
 (allure/story "Login Flow")
 (allure/severity :critical)          ; :blocker :critical :normal :minor :trivial
-(allure/owner "team@example.com")
+(allure/owner "team@example.org")
 (allure/tag "smoke")
 (allure/description "Tests the complete login flow")
-(allure/link "Docs" "https://example.com/docs")
+(allure/link "Docs" "https://example.org/docs")
 (allure/issue "BUG-123" "https://github.com/example/issues/123")
-(allure/tms "TC-456" "https://tms.example.com/456")
+(allure/tms "TC-456" "https://tms.example.org/456")
 (allure/parameter "browser" "chromium")
 ```
 
@@ -43,7 +43,7 @@ Create step hierarchies for better test readability and failure debugging:
 ```clojure
 ;; Simple step
 (allure/step "Navigate to login page"
-  (page/navigate pg "https://example.com/login"))
+  (page/navigate pg "https://example.org/login"))
 
 ;; Nested steps
 (allure/step "Login flow"

@@ -3,7 +3,7 @@
 
    Unit tests verify JS generation logic, annotation filtering, and
    containment dedup (no browser needed).
-   Integration tests run against example.com using Playwright."
+   Integration tests run against example.org using Playwright."
   (:require
    [com.blockether.spel.annotate :as sut]
    [com.blockether.spel.page :as page]
@@ -266,7 +266,7 @@
         (expect (= refs (sut/filter-annotatable refs))))))
 
   (describe "combined filtering (structural + containment)"
-    (it "filters example.com-like structure: heading + paragraphs + link"
+    (it "filters example.org-like structure: heading + paragraphs + link"
       (let [refs {"e1" {:role "heading"   :bbox {:x 0 :y 50 :width 768 :height 45}}
                   "e2" {:role "paragraph" :bbox {:x 0 :y 97 :width 768 :height 20}}
                   ;; e3 paragraph wraps e4 link (link bbox inside paragraph bbox)
@@ -397,7 +397,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "returns valid PNG bytes with annotations"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap   (snapshot/capture-snapshot *page*)
             result (sut/annotated-screenshot *page* (:refs snap))]
         (expect (bytes? result))
@@ -409,7 +409,7 @@
           (expect (pos? (.getHeight img))))))
 
     (it "annotated is larger than raw screenshot"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap      (snapshot/capture-snapshot *page*)
             raw       (page/screenshot *page*)
             annotated (sut/annotated-screenshot *page* (:refs snap))]
@@ -426,7 +426,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "writes a non-empty PNG file"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap     (snapshot/capture-snapshot *page*)
             tmp-file (File/createTempFile "annotate-test-" ".png")
             path     (.getAbsolutePath tmp-file)]
@@ -451,7 +451,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "annotates fewer elements when scoped to a subtree"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap      (snapshot/capture-snapshot *page*)
             refs      (:refs snap)
             full-n    (sut/inject-overlays! *page* refs)
@@ -463,7 +463,7 @@
         (expect (<= scoped-n full-n))))
 
     (it "returns 0 when scope selector matches nothing"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (snapshot/capture-snapshot *page*)
             n    (sut/inject-overlays! *page* (:refs snap) {:scope "#nonexistent-element"})]
         (expect (= 0 n)))))
@@ -472,14 +472,14 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "captures fewer refs when scoped"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [full-snap   (snapshot/capture-snapshot *page*)
             scoped-snap (snapshot/capture-snapshot *page* {:scope "div > p"})]
         ;; Scoped snapshot should have fewer (or equal) refs
         (expect (<= (count (:refs scoped-snap)) (count (:refs full-snap))))))
 
     (it "returns empty snapshot when scope matches nothing"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (snapshot/capture-snapshot *page* {:scope "#nonexistent"})]
         (expect (nil? (:tree snap)))
         (expect (= 0 (count (:refs snap))))
@@ -489,7 +489,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "produces valid PNG with scoped annotations"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap   (snapshot/capture-snapshot *page*)
             result (sut/annotated-screenshot *page* (:refs snap) {:scope "body"})]
         (expect (bytes? result))

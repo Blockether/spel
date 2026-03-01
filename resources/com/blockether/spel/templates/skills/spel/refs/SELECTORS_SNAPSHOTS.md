@@ -22,7 +22,7 @@ So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every ot
 
 ;; Use directly in actions (no need to call spel/locator first)
 (spel/click "#submit")
-(spel/fill "input[name=email]" "test@example.com")
+(spel/fill "input[name=email]" "test@example.org")
 (spel/text-content "h1.title")
 ```
 
@@ -43,7 +43,7 @@ So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every ot
 
 ;; By label (<label> association)
 (spel/get-by-label "Email")
-(spel/fill (spel/get-by-label "Email") "user@example.com")
+(spel/fill (spel/get-by-label "Email") "user@example.org")
 
 ;; By placeholder text
 (spel/get-by-placeholder "Search...")

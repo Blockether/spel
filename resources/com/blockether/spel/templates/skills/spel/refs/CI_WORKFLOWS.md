@@ -492,7 +492,7 @@ jobs:
           sed -i "s/{:mvn\/version \"[^\"]*\"}/{:mvn\/version \"$VERSION\"}/g" README.md
           # ... update CHANGELOG.md with git log between tags ...
           git config user.name "deployer"
-          git config user.email "deploy@example.com"
+          git config user.email "deploy@example.org"
           git add README.md CHANGELOG.md
           git commit -m "release: update for ${{ github.ref_name }}" || true
           git push origin HEAD:main

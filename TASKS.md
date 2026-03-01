@@ -1,7 +1,7 @@
 # TASKS — spel Backlog
 
 > Sourced from the spel vs agent-browser dogfood comparison (Feb 26, 2026).
-> Benchmarked against agent-browser 0.9.0, tested on github.com and example.com.
+> Benchmarked against agent-browser 0.9.0, tested on github.com and example.org.
 
 ---
 
@@ -16,13 +16,13 @@ This makes debugging from the CLI nearly impossible. The user has to guess what 
 ### Reproduction
 
 ```bash
-spel open https://example.com
+spel open https://example.org
 spel click @nonexistent
 # Output: "Error: Unknown error"
 # Exit code: 1
 
 # Compare with agent-browser:
-agent-browser open https://example.com
+agent-browser open https://example.org
 agent-browser click @nonexistent
 # Output: "✗ locator.click: Unsupported token "@nonexistent" while parsing css selector "@nonexistent".
 #          Did you mean to CSS.escape it?
@@ -109,8 +109,8 @@ agent-browser open not-a-url
 
 1. `spel open not-a-url` returns exit code 1 with error message: `"Error: Invalid URL 'not-a-url'. URLs must include a scheme (https://) or be a valid domain."`
 2. `spel open foo` returns exit code 1 (no TLD, no scheme)
-3. `spel open example.com` still works (auto-prepends `https://`)
-4. `spel open https://nonexistent.example.com` fails with the DNS/network error from Playwright (not our validation)
+3. `spel open example.org` still works (auto-prepends `https://`)
+4. `spel open https://nonexistent.example.org` fails with the DNS/network error from Playwright (not our validation)
 5. `spel open file:///tmp/test.html` still works (valid scheme)
 6. `spel open about:blank` still works (explicit intent)
 7. `--json` mode: `{"error": "Invalid URL ...", "url": "not-a-url"}`
@@ -225,13 +225,13 @@ agent-browser includes `/url: https://...` inline for every link in the snapshot
 ### Reproduction
 
 ```bash
-spel open https://example.com
+spel open https://example.org
 spel snapshot
 # Output:
 # - link "Learn more" [@e6t2x4]
 # ← No URL shown. Agent doesn't know where this link goes.
 
-agent-browser open https://example.com
+agent-browser open https://example.org
 agent-browser snapshot
 # Output:
 # - link "Learn more" [ref=e2]:
@@ -297,12 +297,12 @@ For AI agents and programmatic consumers, the refs map is essential — it allow
 ### Reproduction
 
 ```bash
-spel open https://example.com
+spel open https://example.org
 spel snapshot --json
 # {"snapshot": "- heading \"Example Domain\" [@e2yrjz]...", "refs_count": 4, "url": "...", "title": "..."}
 # ← refs_count=4 but no way to know what e2yrjz IS without parsing the tree text
 
-agent-browser open https://example.com
+agent-browser open https://example.org
 agent-browser snapshot --json
 # {"data": {"refs": {"e1": {"name": "Example Domain", "role": "heading"}, "e2": {"name": "Learn more", "role": "link"}}, "snapshot": "..."}}
 # ← Structured lookup: refs.e2.role === "link"
@@ -430,7 +430,7 @@ Not a bug — missing feature:
 
 ```bash
 # agent-browser:
-agent-browser --extension ./my-extension open https://example.com
+agent-browser --extension ./my-extension open https://example.org
 
 # spel: No equivalent
 ```
@@ -445,7 +445,7 @@ agent-browser --extension ./my-extension open https://example.com
 
 ### Acceptance Criteria
 
-1. `spel --extension /path/to/extension open https://example.com` loads the extension on browser launch
+1. `spel --extension /path/to/extension open https://example.org` loads the extension on browser launch
 2. Multiple extensions: `spel --extension ./ext1 --extension ./ext2 open ...`
 3. Extension persists across the session (all subsequent commands see it)
 4. Error if extension path doesn't exist: `"Error: Extension not found: /path/to/ext"`
@@ -554,9 +554,9 @@ Calling `(spel/finish-video-recording {:save-as "/path/to/output.webm"})` via `-
 ```bash
 spel --eval '
 (do
-  (spel/navigate "https://example.com")
+  (spel/navigate "https://example.org")
   (spel/start-video-recording)
-  (spel/navigate "https://example.com")
+  (spel/navigate "https://example.org")
   (Thread/sleep 2000)
   (spel/finish-video-recording {:save-as "/tmp/test-video.webm"}))'
 # Error: "Page is not yet closed"
@@ -566,9 +566,9 @@ spel --eval '
 ```bash
 spel --eval '
 (do
-  (spel/navigate "https://example.com")
+  (spel/navigate "https://example.org")
   (spel/start-video-recording)
-  (spel/navigate "https://example.com")
+  (spel/navigate "https://example.org")
   (Thread/sleep 2000)
   (let [path (spel/video-path)]
     (spel/finish-video-recording)  ;; no save-as
@@ -621,7 +621,7 @@ spel --eval '
 
 ### Problem Statement
 
-agent-browser supports iOS Simulator testing via Appium: `-p ios open https://example.com`, with device listing, swipe gestures, and tap interactions. spel has `set device <name>` for viewport/UA emulation but no real mobile browser engine testing.
+agent-browser supports iOS Simulator testing via Appium: `-p ios open https://example.org`, with device listing, swipe gestures, and tap interactions. spel has `set device <name>` for viewport/UA emulation but no real mobile browser engine testing.
 
 Real iOS testing catches bugs that viewport emulation cannot: Safari-specific rendering, iOS-specific touch behaviors, platform-specific font rendering, iOS permission dialogs.
 
@@ -631,7 +631,7 @@ Not a bug — missing feature:
 
 ```bash
 # agent-browser:
-agent-browser -p ios --device "iPhone 15 Pro" open https://example.com
+agent-browser -p ios --device "iPhone 15 Pro" open https://example.org
 agent-browser -p ios swipe up
 agent-browser -p ios tap @e1
 agent-browser -p ios device list
@@ -650,7 +650,7 @@ spel set device "iphone 14"  # only viewport + UA emulation, not real Safari
 
 ### Acceptance Criteria
 
-1. `spel --provider ios open https://example.com` launches iOS Simulator with Safari
+1. `spel --provider ios open https://example.org` launches iOS Simulator with Safari
 2. `spel --provider ios --device "iPhone 15 Pro" open ...` targets specific simulator
 3. `spel --provider ios device list` shows available simulators
 4. Standard commands work: `snapshot`, `screenshot`, `click`, `fill`
@@ -697,11 +697,11 @@ Not a bug — missing feature:
 
 ```bash
 # agent-browser:
-agent-browser -p browserbase open https://example.com  # cloud browser
-agent-browser -p kernel open https://example.com        # another provider
+agent-browser -p browserbase open https://example.org  # cloud browser
+agent-browser -p kernel open https://example.org        # another provider
 
 # spel: local browser only
-spel open https://example.com  # always local Chromium
+spel open https://example.org  # always local Chromium
 ```
 
 ### Type
@@ -714,7 +714,7 @@ spel open https://example.com  # always local Chromium
 
 ### Acceptance Criteria
 
-1. `spel --provider browserbase open https://example.com` connects to a BrowserBase cloud browser
+1. `spel --provider browserbase open https://example.org` connects to a BrowserBase cloud browser
 2. At least one cloud provider is supported (BrowserBase recommended — largest ecosystem)
 3. Authentication via environment variables (API key)
 4. All standard commands work through the cloud browser
@@ -758,7 +758,7 @@ This task specifically addresses the **JSON API contract** — making `--json` o
 ### Reproduction
 
 ```bash
-spel open https://example.com
+spel open https://example.org
 spel snapshot --json
 # Current: {"snapshot": "...", "refs_count": 4, "url": "...", "title": "..."}
 # Desired: {"snapshot": "...", "refs_count": 4, "url": "...", "title": "...",

@@ -42,7 +42,7 @@
   (it "enriches test with links"
     (allure/link "Documentation" "https://allurereport.org")
     (allure/issue "BUG-42" "https://github.com/example/issues/42")
-    (allure/tms "TC-100" "https://tms.example.com/tc/100")
+    (allure/tms "TC-100" "https://tms.example.org/tc/100")
     (expect true))
 
   (it "enriches test with parameters"

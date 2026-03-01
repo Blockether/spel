@@ -68,7 +68,7 @@ Extract information from request objects.
 
 ```clojure
 (let [req some-request]
-  (net/request-url req)            ; "https://example.com/api"
+  (net/request-url req)            ; "https://example.org/api"
   (net/request-method req)         ; "GET"
   (net/request-headers req)        ; {"accept" "text/html" ...}
   (net/request-post-data req)      ; POST body string or nil
@@ -84,7 +84,7 @@ Extract information from response objects.
 
 ```clojure
 (let [resp some-response]
-  (net/response-url resp)          ; "https://example.com/api"
+  (net/response-url resp)          ; "https://example.org/api"
   (net/response-status resp)       ; 200
   (net/response-status-text resp)  ; "OK"
   (net/response-ok? resp)          ; true

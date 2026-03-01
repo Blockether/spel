@@ -14,7 +14,7 @@ Use the CLI `--profile` flag to launch with a persistent profile:
 # First run: log in via script (--interactive opens visible browser)
 spel --profile /tmp/my-chrome-profile --interactive --eval '
 (spel/navigate "https://myapp.com/login")
-(spel/fill "#email" "me@example.com")
+(spel/fill "#email" "me@example.org")
 (spel/fill "#password" "secret123")
 (spel/click "button[type=submit]")
 (spel/wait-for-url "**/dashboard")
@@ -60,7 +60,7 @@ Stealth mode is **ON by default** for all CLI and `--eval` commands. Anti-detect
 
 ```bash
 # Stealth is automatic — no flag needed
-spel open https://example.com
+spel open https://example.org
 spel --eval 'script.clj'
 spel --profile /path/to/profile open https://protected-site.com
 
@@ -68,11 +68,11 @@ spel --profile /path/to/profile open https://protected-site.com
 spel --channel chrome --profile ~/.config/google-chrome/Profile\ 1 open https://x.com
 
 # Disable stealth if needed
-spel --no-stealth open https://example.com
+spel --no-stealth open https://example.org
 
 # Environment variable to disable stealth
 export SPEL_STEALTH=false
-spel open https://example.com
+spel open https://example.org
 ```
 
 ### What Stealth Does
@@ -131,7 +131,7 @@ spel --load-state auth.json open https://protected-site.com
     (core/with-context [ctx (core/new-context browser)]
       (.addInitScript ctx (stealth/stealth-init-script))
       (core/with-page [pg (core/new-page-from-context ctx)]
-        (page/navigate pg "https://example.com")))))
+        (page/navigate pg "https://example.org")))))
 ```
 
 ### Limitations
@@ -172,11 +172,11 @@ Standard Playwright storage-state JSON:
 ```json
 {
   "cookies": [
-    {"name": "session_id", "value": "abc123", "domain": ".example.com", "path": "/", ...}
+    {"name": "session_id", "value": "abc123", "domain": ".example.org", "path": "/", ...}
   ],
   "origins": [
     {
-      "origin": "https://example.com",
+      "origin": "https://example.org",
       "localStorage": [
         {"name": "theme", "value": "dark"},
         {"name": "user_prefs", "value": "{...}"}
@@ -226,8 +226,8 @@ Chrome profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `c
 `--load-state` is the primary flag. `--storage-state` is kept as an alias for Playwright familiarity:
 
 ```bash
-spel --load-state auth.json open https://example.com
-spel --storage-state auth.json open https://example.com   # alias, same thing
+spel --load-state auth.json open https://example.org
+spel --storage-state auth.json open https://example.org   # alias, same thing
 spel --eval --load-state auth.json 'script.clj'
 spel --eval --storage-state auth.json 'script.clj'        # alias, same thing
 ```
@@ -245,13 +245,13 @@ Three approaches, each with different fidelity.
 ```clojure
 ;; Daemon mode: just set viewport and go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/mobile-view.png"})
 ```
 ### Approach 2: Full Device Preset (CLI Daemon)
 The daemon's `set device` command configures viewport, DPR, user agent, and touch all at once.
 ```bash
-spel open https://example.com
+spel open https://example.org
 spel set device "iPhone 14"
 spel screenshot /tmp/iphone14.png
 ```
@@ -263,18 +263,18 @@ Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch,
 ;; Daemon: use CLI to set device on existing session
 ;; $ spel set device "iPhone 14"
 ;; Then --eval just navigates:
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 
 ;; Standalone --eval (no daemon): start! with device option
 (spel/start! {:device :iphone-14})
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 (spel/stop!)
 
 ;; Library
 (core/with-testing-page {:device :pixel-7} [pg]
-  (page/navigate pg "https://example.com")
+  (page/navigate pg "https://example.org")
   (page/screenshot pg {:path "/tmp/pixel7.png"}))
 ```
 ### Comparison
@@ -323,7 +323,7 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 
 ;; Library
 (core/with-testing-page {:browser-type :firefox} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Headed mode (visible browser window)
 ;; Daemon: spel open URL (already headed)
@@ -334,7 +334,7 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 
 ;; Library headed mode
 (core/with-testing-page {:headless false :slow-mo 300} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 ```
 
 ### Browser-Specific Notes
@@ -354,7 +354,7 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 ```clojure
 ;; Save after logging in (daemon mode)
 (spel/navigate "https://myapp.com/login")
-(spel/fill "#email" "me@example.com")
+(spel/fill "#email" "me@example.org")
 (spel/fill "#password" "secret")
 (spel/click "button[type=submit]")
 (spel/wait-for-url "**/dashboard")

@@ -25,7 +25,7 @@
                       (expect (= "test-videos-sci" (:video-dir result))))
 
           ;; Navigate to generate some video content
-                    (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
+                    (sut/eval-string ctx "(spel/navigate \"https://example.org\")")
                     (sut/eval-string ctx "(spel/wait-for-timeout 500)")
 
           ;; Check video path is available
@@ -66,7 +66,7 @@
                     (sut/eval-string ctx "(spel/start-video-recording {:video-dir \"test-videos-sci\"})")
 
           ;; Generate content
-                    (sut/eval-string ctx "(spel/navigate \"https://example.com\")")
+                    (sut/eval-string ctx "(spel/navigate \"https://example.org\")")
                     (sut/eval-string ctx "(spel/wait-for-timeout 500)")
 
           ;; Finish with :save-as — must not throw

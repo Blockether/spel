@@ -15,7 +15,7 @@ Use `assert/assert-that` with a Page to get PageAssertions.
 ```clojure
 (let [pa (assert/assert-that pg)]
   (assert/has-title pa "My Page")
-  (assert/has-url pa "https://example.com"))
+  (assert/has-url pa "https://example.org"))
 ```
 
 ### Locator Assertions
@@ -38,7 +38,7 @@ Use `assert/assert-that` with a Locator to get LocatorAssertions.
   (assert/is-in-viewport la)
   (assert/has-value la "hello")
   (assert/has-values la ["a" "b"])
-  (assert/has-attribute la "href" "https://example.com")
+  (assert/has-attribute la "href" "https://example.org")
   (assert/has-class la "active")
   (assert/contains-class la "active")
   (assert/has-css la "color" "rgb(0, 0, 0)")
