@@ -105,10 +105,62 @@ spel install   # install browsers
 spel version   # verify installation
 ```
 
-<details>
-<summary><strong>Corporate Proxy / Custom CA Certificates</strong></summary>
+### One-Shot Installation (for LLM agents)
 
-Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
+A single copy-paste block that installs spel from scratch — designed for LLM agents:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ── Detect platform ───────────────────────────────────────────────────
+OS=$(uname -s)    # Darwin | Linux
+ARCH=$(uname -m)  # x86_64 | aarch64 | arm64
+
+case "${OS}-${ARCH}" in
+  Darwin-arm64)   BINARY=spel-macos-arm64  ;;
+  Linux-x86_64)   BINARY=spel-linux-amd64  ;;
+  Linux-aarch64)  BINARY=spel-linux-arm64  ;;
+  *) echo "Unsupported platform: ${OS}-${ARCH}" >&2; exit 1 ;;
+esac
+
+# ── Download & install ────────────────────────────────────────────────
+INSTALL_DIR="${HOME}/.local/bin"
+mkdir -p "${INSTALL_DIR}"
+curl -fsSL "https://github.com/Blockether/spel/releases/latest/download/${BINARY}" \
+  -o "${INSTALL_DIR}/spel"
+chmod +x "${INSTALL_DIR}/spel"
+
+# ── macOS: remove quarantine flag (binary is not Apple-signed) ───────
+if [ "${OS}" = "Darwin" ]; then
+  xattr -d com.apple.quarantine "${INSTALL_DIR}/spel" 2>/dev/null || true
+fi
+
+# ── Ensure PATH includes ~/.local/bin ─────────────────────────────────
+case ":${PATH}:" in
+  *:${INSTALL_DIR}:*) ;;  # already in PATH
+  *) export PATH="${INSTALL_DIR}:${PATH}"
+     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.bashrc" 2>/dev/null || true
+     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.zshrc"  2>/dev/null || true
+     ;;
+esac
+
+# ── Corporate proxy / custom CA certs (Zscaler, Netskope, etc.) ──────
+# If behind a corporate SSL-inspecting proxy, set these BEFORE spel install:
+#   export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
+#   export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+# Both are optional. If unset, spel uses system defaults.
+
+# ── Install browsers & verify ────────────────────────────────────────
+"${INSTALL_DIR}/spel" install
+"${INSTALL_DIR}/spel" version
+
+echo "✅ spel installed successfully: $("${INSTALL_DIR}/spel" version)"
+```
+
+### Corporate Proxy / Custom CA Certificates
+
+If you're behind a corporate SSL-inspecting proxy (Zscaler, Netskope, etc.), `spel install` may fail with "PKIX path building failed". Set these env vars **before** running `spel install`:
 
 | Env Var | Format | On missing file | Description |
 |---------|--------|----------------|-------------|
@@ -125,8 +177,6 @@ spel install --with-deps
 ```
 
 All options merge with built-in defaults — public CDN certs continue to work.
-
-</details>
 
 ### Browser Automation
 
