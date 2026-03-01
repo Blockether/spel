@@ -65,13 +65,18 @@
       (reset! (deref #'daemon/!console-counter) 0)
       (reset! (deref #'daemon/!console-full) {})
       (reset! (deref #'daemon/!session-entry-count) 0)
+      ;; Reset page tracking atoms
+      (reset! (deref #'daemon/!pages) [])
+      (reset! (deref #'daemon/!page-counter) 0)
       (page/on-console pg (fn [msg]
                             (swap! console-a conj
                               {:type (.type ^ConsoleMessage msg)
-                               :text (.text ^ConsoleMessage msg)})))
+                               :text (.text ^ConsoleMessage msg)})
+                            (#'daemon/track-console-entry! msg)))
       (page/on-page-error pg (fn [error]
                                (swap! errors-a conj
                                  {:message (str error)})))
+      (page/on-response pg #'daemon/track-response!)
       (reset! state-a {:pw *pw* :browser *browser* :context ctx :page pg
                        :refs {} :counter 0 :headless true :session "integ-test"
                        :launch-flags {}})
@@ -2180,3 +2185,118 @@
     (it "console_get_ref returns error for invalid ref"
       (let [r (cmd "console_get_ref" {"ref" "@c99999"})]
         (expect (some? (:error r)))))))
+
+;; =============================================================================
+;; TASK-013: Pages command
+;; =============================================================================
+
+(defdescribe pages-integration-test
+  "Integration tests for pages list and get"
+
+  (describe "page tracking"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "pages_list returns visited pages"
+      (nav! "/test-page")
+      (nav! "/second-page")
+      (let [r (cmd "pages_list" {})]
+        (expect (vector? (:pages r)))
+        (expect (= 2 (count (:pages r))))
+        (expect (str/includes? (:url (first (:pages r))) "/test-page"))
+        (expect (str/includes? (:url (second (:pages r))) "/second-page"))))
+
+    (it "pages_get_ref returns page details"
+      (nav! "/test-page")
+      (let [pages (:pages (cmd "pages_list" {}))
+            ref (:ref (first pages))
+            r (cmd "pages_get_ref" {"ref" ref})]
+        (expect (str/includes? (:url r) "/test-page"))
+        (expect (some? (:navigated_at r)))))
+
+    (it "network entries include page_ref"
+      (nav! "/test-page")
+      ;; Trigger a fetch AFTER page is tracked, so page_ref resolves
+      (cmd "evaluate" {"script" "fetch(window.location.href).catch(() => {})"})
+      (Thread/sleep 500)
+      (let [entries (:entries (cmd "network_list" {}))]
+        (when (seq entries)
+          (expect (some :page_ref entries)))))))
+
+;; =============================================================================
+;; TASK-013: Network get / Console get syntax
+;; =============================================================================
+
+(defdescribe network-get-integration-test
+  "Integration tests for network get @ref and network list"
+
+  (describe "network list and get"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "network_list returns entries vector"
+      (nav! "/test-page")
+      (Thread/sleep 300)
+      (let [r (cmd "network_list" {})]
+        (expect (vector? (:entries r)))))
+
+    (it "network entries have preview structure"
+      (nav! "/test-page")
+      (Thread/sleep 300)
+      (let [entries (:entries (cmd "network_list" {}))]
+        (when (seq entries)
+          (let [e (first entries)]
+            (expect (contains? e :preview))
+            (expect (map? (:preview e)))
+            (expect (contains? (:preview e) :request))
+            (expect (contains? (:preview e) :response))))))
+
+    (it "network_get_ref returns full entry"
+      (nav! "/test-page")
+      (Thread/sleep 300)
+      (let [entries (:entries (cmd "network_list" {}))]
+        (when (seq entries)
+          (let [ref (:ref (first entries))
+                r (cmd "network_get_ref" {"ref" ref})]
+            (expect (some? (:url r)))
+            (expect (contains? r :request))
+            (expect (contains? r :response))))))))
+
+;; =============================================================================
+;; TASK-013: Console list
+;; =============================================================================
+
+(defdescribe console-list-integration-test
+  "Integration tests for console list and get"
+
+  (describe "console list and get"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "console_list returns entries vector"
+      (nav! "/test-page")
+      (Thread/sleep 300)
+      (let [r (cmd "console_list" {})]
+        (expect (vector? (:entries r)))))
+
+    (it "console_get_ref returns entry"
+      (nav! "/test-page")
+      (Thread/sleep 300)
+      (let [entries (:entries (cmd "console_list" {}))]
+        (when (seq entries)
+          (let [ref (:ref (first entries))
+                r (cmd "console_get_ref" {"ref" ref})]
+            (expect (some? (:text r)))))))))
+
+;; =============================================================================
+;; TASK-013: Snapshot includes pages
+;; =============================================================================
+
+(defdescribe snapshot-pages-integration-test
+  "Integration tests for pages in snapshot output"
+
+  (describe "snapshot includes pages"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "snapshot output includes pages array"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (vector? (:pages r)))
+        (expect (pos? (count (:pages r))))))))

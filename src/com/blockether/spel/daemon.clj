@@ -118,6 +118,9 @@
 (defonce ^:private !console-counter (atom 0))
 (defonce ^:private !console-full (atom {}))  ;; ref-id -> full entry
 
+(defonce ^:private !pages (atom []))
+(defonce ^:private !page-counter (atom 0))
+
 (defonce ^:private !session-entry-count (atom 0))
 
 (defn- truncate-keys
@@ -140,6 +143,23 @@
         (let [s-trunc (if (> (count s) max-len) (subs s 0 max-len) s)]
           s-trunc)))))
 
+(defn- current-page-ref
+  "Returns the page ref for the given URL, or nil."
+  [page-url]
+  (when-let [pages (seq @!pages)]
+    (:ref (last (filter #(= (:url %) page-url) pages)))))
+
+(defn- track-page-navigation!
+  "Tracks a page navigation into the pages list."
+  [url status title]
+  (let [ref-id (str "p" (swap! !page-counter inc))]
+    (swap! !pages conj {:ref (str "@" ref-id)
+                        :url url
+                        :status (or status 200)
+                        :title (or title "")
+                        :navigated_at (System/currentTimeMillis)})
+    (str "@" ref-id)))
+
 (defn- track-network-entry!
   "Tracks a network request/response with full details into the sliding window."
   [^Response resp]
@@ -153,22 +173,36 @@
           resp-body (try (.text resp) (catch Exception _ nil))
           req-body-preview (safe-parse-json-body post-data 500)
           resp-body-preview (safe-parse-json-body resp-body 500)
+          duration (try
+                     (let [timing (.timing resp)]
+                       (long (- (.responseEnd timing) (.requestStart timing))))
+                     (catch Exception _ 0))
           entry {:ref (str "@" ref-id)
                  :method (.method req)
                  :url (.url req)
                  :resource_type (.resourceType req)
                  :status (.status resp)
+                 :duration_ms duration
                  :timestamp (System/currentTimeMillis)
                  :page page-url
-                 :request_headers (truncate-keys req-headers 6)
-                 :response_headers (truncate-keys resp-headers 6)
-                 :request_body_preview req-body-preview
-                 :response_body_preview resp-body-preview}
-          full-entry (assoc entry
-                       :request_headers req-headers
-                       :response_headers resp-headers
-                       :request_body post-data
-                       :response_body resp-body)]
+                 :page_ref (current-page-ref page-url)
+                 :preview {:request  {:headers (truncate-keys req-headers 5)
+                                      :body    req-body-preview}
+                           :response {:headers (truncate-keys resp-headers 5)
+                                      :body    resp-body-preview}}}
+          full-entry {:ref (str "@" ref-id)
+                      :method (.method req)
+                      :url (.url req)
+                      :resource_type (.resourceType req)
+                      :status (.status resp)
+                      :duration_ms duration
+                      :timestamp (System/currentTimeMillis)
+                      :page page-url
+                      :page_ref (current-page-ref page-url)
+                      :request {:headers req-headers
+                                :body post-data}
+                      :response {:headers resp-headers
+                                 :body resp-body}}]
       (swap! !network-full assoc ref-id full-entry)
       (swap! !network-window
         (fn [w]
@@ -195,7 +229,8 @@
                  :type (.type msg)
                  :text (.text msg)
                  :timestamp (System/currentTimeMillis)
-                 :page page-url}
+                 :page page-url
+                 :page_ref (current-page-ref page-url)}
           entry (if location (assoc entry :stack location) entry)]
       (swap! !console-full assoc ref-id entry)
       (swap! !console-window
@@ -646,6 +681,8 @@
     (page/set-viewport-size! (pg) (long viewport-width) (long viewport-height)))
   (page/navigate (pg) url)
   (page/wait-for-load-state (pg))
+  ;; Track page navigation for page refs
+  (track-page-navigation! (page/url (pg)) 200 (try (page/title (pg)) (catch Exception _ "")))
   (if screenshot
     ;; --screenshot flag: capture page and save to disk after navigation.
     ;; Uses the provided path, or generates a timestamped file in the system
@@ -701,7 +738,7 @@
         tree           (filter-snapshot-tree (:tree snap) params)
         structured     (build-structured-refs (:refs snap))]
     (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
-             :refs structured}
+             :refs structured :pages @!pages}
       (page-description)          (assoc :description (page-description))
       no-network?                 (dissoc :network)
       no-console?                 (dissoc :console)
@@ -1267,6 +1304,21 @@
     (if-let [entry (get @!console-full ref-id)]
       entry
       {:error (str "Console ref @" ref-id " not found")})))
+
+(defmethod handle-cmd "pages_list" [_ _]
+  {:pages @!pages})
+
+(defmethod handle-cmd "pages_get_ref" [_ {:strs [ref]}]
+  (let [ref-id (str/replace (or ref "") #"^@" "")]
+    (if-let [entry (some #(when (= (:ref %) (str "@" ref-id)) %) @!pages)]
+      entry
+      {:error (str "Page ref @" ref-id " not found")})))
+
+(defmethod handle-cmd "network_list" [_ _]
+  {:entries @!network-window})
+
+(defmethod handle-cmd "console_list" [_ _]
+  {:entries @!console-window})
 
 (defmethod handle-cmd "network_route" [_ {:strs [url action_type body status content_type]}]
   (let [handler (fn [route]
