@@ -296,7 +296,7 @@
           lines (if depth
                   (let [max-indent (* 2 (long depth))]
                     (filter (fn [line]
-                              (<= (count (take-while #{\  } line)) max-indent))
+                              (<= (count (take-while #{\ } line)) max-indent))
                       lines))
                   lines)
           lines (if flat
@@ -401,6 +401,16 @@
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
           profile-dir (get flags "profile")
+          extensions  (get flags "extensions")
+          _           (when (seq extensions)
+                        (doseq [ext extensions]
+                          (when-not (.isDirectory (java.io.File. ^String ext))
+                            (throw (ex-info (str "Extension path does not exist or is not a directory: " ext)
+                                     {:extension-path ext}))))
+                        (binding [*out* *err*]
+                          (println (str "spel: Loading " (count extensions) " extension(s): "
+                                     (str/join ", " extensions)))
+                          (println "spel: Note: --extension is Chromium-only; extensions are ignored on Firefox/WebKit")))
           launch-opts (cond-> {:headless (:headless @!state)}
                         (get flags "executable-path") (assoc :executable-path (get flags "executable-path"))
                         (get flags "args")            (assoc :args (clojure.string/split (get flags "args") #","))
@@ -409,7 +419,12 @@
                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
                         (get flags "channel")          (assoc :channel (get flags "channel"))
                         (get flags "stealth")         (update :args (fnil into []) (stealth/stealth-args))
-                        (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args)))
+                        (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args))
+                        (seq extensions)
+                        (update :args (fnil conj [])
+                          (str "--load-extension=" (str/join "," extensions)))
+                        (seq extensions)
+                        (update :ignore-default-args (fnil conj []) "--disable-extensions"))
           ctx-opts    (cond-> {}
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
@@ -770,7 +785,6 @@
   (unwrap-anomaly! (locator/click (resolve-selector selector)))
   (let [tree (snapshot-after-action!)]
     {:clicked selector :snapshot tree}))
-
 
 (defmethod handle-cmd "download" [_ {:strs [selector save-path timeout-ms]}]
   (ensure-page-loaded!)

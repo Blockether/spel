@@ -1201,6 +1201,7 @@
      "  --profile PATH          Chrome user data directory (persistent profile)"
      "  --channel NAME         Browser channel (e.g. \"chrome\", \"msedge\")"
      "  --no-stealth            Disable stealth mode (stealth is ON by default)"
+     "  --extension PATH        Load Chrome extension (repeatable, Chromium-only)"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
@@ -1363,6 +1364,12 @@
 
                 (= "--no-stealth" arg)
                 (recur (rest args) (assoc flags :stealth false) remaining)
+
+                (= "--extension" arg)
+                (recur (drop 2 args) (update flags :extensions (fnil conj []) (second args)) remaining)
+
+                (str/starts-with? arg "--extension=")
+                (recur (rest args) (update flags :extensions (fnil conj []) (subs arg 12)) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
