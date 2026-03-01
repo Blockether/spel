@@ -131,16 +131,16 @@
 
 (defn- safe-parse-json-body
   "Tries to parse a string as JSON, returns parsed map or the raw string (truncated)."
-  [^String s max-len]
+  [^String s ^long max-len]
   (when s
     (try
       (let [parsed (json/read-json s)]
         (if (map? parsed)
           (truncate-keys parsed 5)
-          (let [s-trunc (if (> (count s) max-len) (subs s 0 max-len) s)]
+          (let [s-trunc (if (> (long (count s)) max-len) (subs s 0 max-len) s)]
             s-trunc)))
       (catch Exception _
-        (let [s-trunc (if (> (count s) max-len) (subs s 0 max-len) s)]
+        (let [s-trunc (if (> (long (count s)) max-len) (subs s 0 max-len) s)]
           s-trunc)))))
 
 (defn- current-page-ref
@@ -173,10 +173,7 @@
           resp-body (try (.text resp) (catch Exception _ nil))
           req-body-preview (safe-parse-json-body post-data 500)
           resp-body-preview (safe-parse-json-body resp-body 500)
-          duration (try
-                     (let [timing (.timing resp)]
-                       (long (- (.responseEnd timing) (.requestStart timing))))
-                     (catch Exception _ 0))
+          duration 0
           entry {:ref (str "@" ref-id)
                  :method (.method req)
                  :url (.url req)
@@ -221,9 +218,8 @@
           page-url (try (.url (.page msg)) (catch Exception _ "unknown"))
           ;; Get stack trace if available via location
           location (try
-                     (let [loc (.location msg)]
-                       (when loc
-                         (str (.url loc) ":" (.lineNumber loc) ":" (.columnNumber loc))))
+                     (let [^String loc (.location ^ConsoleMessage msg)]
+                       (when (and loc (not (.isEmpty loc))) loc))
                      (catch Exception _ nil))
           entry {:ref (str "@" ref-id)
                  :type (.type msg)

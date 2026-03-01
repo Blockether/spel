@@ -742,8 +742,8 @@
                       (let [src (Path/of video-path (into-array String []))
                             dst (Path/of save-path (into-array String []))]
                         (Files/createDirectories (.getParent dst) (into-array FileAttribute []))
-                        (Files/copy src dst
-                          (into-array CopyOption
+                        (Files/copy ^java.nio.file.Path src ^java.nio.file.Path dst
+                          ^"[Ljava.nio.file.CopyOption;" (into-array CopyOption
                             [StandardCopyOption/REPLACE_EXISTING]))))
          ;; 3. Create fresh context without video
          browser    (require-browser!)
