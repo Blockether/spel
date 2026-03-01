@@ -314,7 +314,8 @@
      :pr-title      - PR title
      :branch        - PR head branch
      :sha           - head commit SHA
-     :author        - PR author
+     :author        - PR author (GitHub username)
+     :author-name   - PR author display name (first + last name)
      :run-number    - workflow run number
      :run-url       - CI run URL
      :repo-url      - repository URL
@@ -325,7 +326,7 @@
      :test-counts   - map with :passed :failed :broken :skipped :total
      :max-pr-builds - maximum PR entries to keep (default: 50)
      :pr-url        - direct URL to the PR (e.g. GitHub/GitLab/Bitbucket)"
-  [{:keys [site-dir pr-number pr-title branch sha author
+  [{:keys [site-dir pr-number pr-title branch sha author author-name
            run-number run-url repo-url version version-badge
            status tests-passed test-counts max-pr-builds pr-url]}]
   (let [site     (io/file (or site-dir "gh-pages-site"))
@@ -347,6 +348,7 @@
                   "sha"        (or sha "")
                   "message"    (or msg-first "")
                   "author"     (or author "")
+                  "author_name" (or author-name "")
                   "timestamp"  ts
                   "passed"     (when (some? tests-passed) (boolean tests-passed))
                   "status"     (or status "in_progress")
