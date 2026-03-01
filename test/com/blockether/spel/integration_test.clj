@@ -1,5 +1,5 @@
 (ns com.blockether.spel.integration-test
-  "Integration tests against live example.com.
+  "Integration tests against live example.org.
 
    Tests real HTTP navigation, response inspection, content extraction,
    screenshot capture, locator queries, assertions, and network APIs
@@ -26,46 +26,46 @@
 ;; =============================================================================
 
 (defdescribe navigation-integration-test
-  "Tests for navigating to example.com and inspecting the response"
+  "Tests for navigating to example.org and inspecting the response"
 
-  (describe "navigate to example.com"
+  (describe "navigate to example.org"
     {:context [with-playwright with-browser with-page]}
 
     (it "returns a Response object"
-      (let [resp (page/navigate *page* "https://example.com")]
+      (let [resp (page/navigate *page* "https://example.org")]
         (expect (instance? Response resp))))
 
     (it "response status is 200"
-      (let [resp (page/navigate *page* "https://example.com")]
+      (let [resp (page/navigate *page* "https://example.org")]
         (expect (= 200 (net/response-status resp)))))
 
     (it "response is ok"
-      (let [resp (page/navigate *page* "https://example.com")]
+      (let [resp (page/navigate *page* "https://example.org")]
         (expect (true? (net/response-ok? resp)))))
 
-    (it "response URL contains example.com"
-      (let [resp (page/navigate *page* "https://example.com")]
-        (expect (.contains (net/response-url resp) "example.com"))))
+    (it "response URL contains example.org"
+      (let [resp (page/navigate *page* "https://example.org")]
+        (expect (.contains (net/response-url resp) "example.org"))))
 
     (it "response headers contain content-type"
-      (let [resp (page/navigate *page* "https://example.com")
+      (let [resp (page/navigate *page* "https://example.org")
             headers (net/response-headers resp)]
         (expect (some? (get headers "content-type")))))
 
     (it "response body is non-empty"
-      (let [resp (page/navigate *page* "https://example.com")
+      (let [resp (page/navigate *page* "https://example.org")
             body (net/response-text resp)]
         (expect (string? body))
         (expect (pos? (count body)))))
 
     (it "response headers is a non-empty map"
-      (let [resp (page/navigate *page* "https://example.com")
+      (let [resp (page/navigate *page* "https://example.org")
             headers (net/response-headers resp)]
         (expect (map? headers))
         (expect (pos? (count headers)))))
 
     (it "response request is a navigation request"
-      (let [resp (page/navigate *page* "https://example.com")
+      (let [resp (page/navigate *page* "https://example.org")
             req  (net/response-request resp)]
         (expect (true? (net/request-is-navigation? req)))
         (expect (= "GET" (net/request-method req)))))))
@@ -75,91 +75,91 @@
 ;; =============================================================================
 
 (defdescribe page-content-integration-test
-  "Tests for page content, title, URL after navigating to example.com"
+  "Tests for page content, title, URL after navigating to example.org"
 
   (describe "page state after navigation"
     {:context [with-playwright with-browser with-page]}
 
-    (it "page URL is example.com"
-      (page/navigate *page* "https://example.com")
-      (expect (.contains (page/url *page*) "example.com")))
+    (it "page URL is example.org"
+      (page/navigate *page* "https://example.org")
+      (expect (.contains (page/url *page*) "example.org")))
 
     (it "page title is 'Example Domain'"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= "Example Domain" (page/title *page*))))
 
     (it "page content contains expected HTML"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [html (page/content *page*)]
         (expect (.contains html "Example Domain"))
         (expect (.contains html "<h1>"))))
 
     (it "page is not closed"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (false? (page/is-closed? *page*))))
 
     (it "viewport-size returns dimensions"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [vp (page/viewport-size *page*)]
         (expect (pos? (:width vp)))
         (expect (pos? (:height vp)))))
 
     (it "main-frame is accessible"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [frame (page/main-frame *page*)]
         (expect (some? frame))
-        (expect (.contains (.url frame) "example.com"))))))
+        (expect (.contains (.url frame) "example.org"))))))
 
 ;; =============================================================================
 ;; Locators
 ;; =============================================================================
 
 (defdescribe locator-integration-test
-  "Tests for locator operations on example.com"
+  "Tests for locator operations on example.org"
 
   (describe "CSS and text locators"
     {:context [with-playwright with-browser with-page]}
 
     (it "locates h1 by CSS"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [h1 (page/locator *page* "h1")]
         (expect (instance? Locator h1))
         (expect (= "Example Domain" (locator/text-content h1)))))
 
     (it "locates paragraph text"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [p (locator/first-element (page/locator *page* "p"))]
         (expect (locator/is-visible? p))
         (let [text (locator/text-content p)]
           (expect (.contains text "domain")))))
 
     (it "locates link by CSS and verifies text"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [link (page/locator *page* "a")]
         (expect (locator/is-visible? link))
         (expect (= "Learn more" (locator/text-content link)))))
 
     (it "locates link by CSS selector"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [a (page/locator *page* "a")]
         (expect (= 1 (locator/count-elements a)))
         (let [href (locator/get-attribute a "href")]
           (expect (.contains href "iana.org")))))
 
     (it "inner-html returns element markup"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [body (page/locator *page* "body")
             html (locator/inner-html body)]
         (expect (.contains html "<h1>"))
         (expect (.contains html "Example Domain"))))
 
     (it "inner-text returns visible text"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [h1 (page/locator *page* "h1")]
         (expect (= "Example Domain" (locator/inner-text h1)))))
 
     (it "all-text-contents returns vector"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [ps (page/locator *page* "p")
             texts (locator/all-text-contents ps)]
         (expect (vector? texts))
@@ -169,19 +169,19 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "h1 is visible"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (true? (locator/is-visible? (page/locator *page* "h1")))))
 
     (it "h1 is enabled"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (true? (locator/is-enabled? (page/locator *page* "h1")))))
 
     (it "non-existent element is hidden"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (true? (locator/is-hidden? (page/locator *page* "#does-not-exist")))))
 
     (it "bounding-box returns dimensions for h1"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [bb (locator/bounding-box (page/locator *page* "h1"))]
         (expect (map? bb))
         (expect (pos? (:width bb)))
@@ -192,44 +192,44 @@
 ;; =============================================================================
 
 (defdescribe assertions-integration-test
-  "Tests for Playwright assertions on example.com"
+  "Tests for Playwright assertions on example.org"
 
   (describe "page assertions"
     {:context [with-playwright with-browser with-page]}
 
     (it "has-title passes for Example Domain"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/has-title *page* "Example Domain"))
 
-    (it "has-url passes for example.com"
-      (page/navigate *page* "https://example.com")
+    (it "has-url passes for example.org"
+      (page/navigate *page* "https://example.org")
       (assert/has-url *page* #"example\.com")))
 
   (describe "locator assertions"
     {:context [with-playwright with-browser with-page]}
 
     (it "has-text passes for h1"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/has-text (page/locator *page* "h1") "Example Domain"))
 
     (it "contains-text passes for paragraph"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/contains-text (locator/first-element (page/locator *page* "p")) "domain"))
 
     (it "is-visible passes for h1"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/is-visible (page/locator *page* "h1")))
 
     (it "is-enabled passes for link"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/is-enabled (page/locator *page* "a")))
 
     (it "has-attribute passes for link href"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/has-attribute (page/locator *page* "a") "href" #"iana\.org"))
 
     (it "has-count passes for single h1"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (assert/has-count (page/locator *page* "h1") 1))))
 
 ;; =============================================================================
@@ -237,22 +237,22 @@
 ;; =============================================================================
 
 (defdescribe evaluate-integration-test
-  "Tests for JavaScript evaluation on example.com"
+  "Tests for JavaScript evaluation on example.org"
 
   (describe "evaluate on live page"
     {:context [with-playwright with-browser with-page]}
 
     (it "reads document.title"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= "Example Domain" (page/evaluate *page* "document.title"))))
 
     (it "reads DOM element text"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= "Example Domain"
                 (page/evaluate *page* "document.querySelector('h1').textContent"))))
 
     (it "reads link count"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= 1 (long (page/evaluate *page* "document.querySelectorAll('a').length")))))))
 
 ;; =============================================================================
@@ -260,13 +260,13 @@
 ;; =============================================================================
 
 (defdescribe screenshot-integration-test
-  "Tests for screenshot capture on example.com"
+  "Tests for screenshot capture on example.org"
 
   (describe "screenshot of live page"
     {:context [with-playwright with-browser with-page]}
 
     (it "captures non-empty screenshot bytes"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [bytes (page/screenshot *page*)]
         (expect (bytes? bytes))
                   ;; PNG magic bytes: 0x89504E47
@@ -276,7 +276,7 @@
         (expect (= 71 (aget ^bytes bytes 3)))))
 
     (it "captures full-page screenshot"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [bytes (page/screenshot *page* {:full-page true})]
         (expect (bytes? bytes))
         (expect (pos? (alength ^bytes bytes)))))))
@@ -292,10 +292,10 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "datafied page includes url and title"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [d (datafy *page*)]
         (expect (map? d))
-        (expect (.contains ^String (:page/url d) "example.com"))
+        (expect (.contains ^String (:page/url d) "example.org"))
         (expect (= "Example Domain" (:page/title d)))))
 
     (it "datafied browser includes contexts"
@@ -309,19 +309,19 @@
 ;; =============================================================================
 
 (defdescribe wait-integration-test
-  "Tests for wait operations on example.com"
+  "Tests for wait operations on example.org"
 
   (describe "wait-for-load-state"
     {:context [with-playwright with-browser with-page]}
 
     (it "waits for load state after navigation"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [result (page/wait-for-load-state *page* :load)]
                   ;; Returns nil on success
         (expect (nil? result))))
 
     (it "waits for domcontentloaded"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [result (page/wait-for-load-state *page* :domcontentloaded)]
         (expect (nil? result)))))
 
@@ -329,7 +329,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "waits for h1 to be visible"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [eh (page/wait-for-selector *page* "h1")]
         (expect (some? eh))))))
 
@@ -347,7 +347,7 @@
       (let [ctx (core/new-context *browser* {:user-agent "PlaywrightClj/Test"})
             pg  (core/new-page-from-context ctx)]
         (try
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (let [ua (page/evaluate pg "navigator.userAgent")]
             (expect (= "PlaywrightClj/Test" ua)))
           (finally
@@ -358,7 +358,7 @@
       (let [ctx (core/new-context *browser* {:viewport {:width 800 :height 600}})
             pg  (core/new-page-from-context ctx)]
         (try
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (let [vp (page/viewport-size pg)]
             (expect (= 800 (:width vp)))
             (expect (= 600 (:height vp))))
@@ -387,7 +387,7 @@
             ctx     (core/new-context browser)
             pg      (core/new-page-from-context ctx)]
         (try
-          (let [result (page/navigate pg "http://example.com"
+          (let [result (page/navigate pg "http://example.org"
                          {:timeout 5000})]
             ;; Navigation through dead proxy should return an anomaly
             (expect (core/anomaly? result)))
@@ -397,17 +397,17 @@
             (core/close-browser! browser)))))
 
     (it "proxy bypass allows direct access for bypassed hosts"
-      ;; Launch with proxy pointing to dead server but bypass example.com.
-      ;; Navigation to example.com should succeed because it's bypassed.
+      ;; Launch with proxy pointing to dead server but bypass example.org.
+      ;; Navigation to example.org should succeed because it's bypassed.
       ;; Use <-loopback> to bypass the proxy for all loopback and also
       ;; specify the target domain. Use HTTP to avoid TLS complications.
       (let [browser (core/launch-chromium *pw* {:headless true
                                                 :proxy {:server "http://127.0.0.1:19999"
-                                                        :bypass ".example.com,example.com"}})
+                                                        :bypass ".example.org,example.org"}})
             ctx     (core/new-context browser)
             pg      (core/new-page-from-context ctx)]
         (try
-          (let [result (page/navigate pg "http://example.com"
+          (let [result (page/navigate pg "http://example.org"
                          {:timeout 10000})]
             ;; Bypassed host should navigate successfully
             (expect (instance? Response result))
@@ -438,7 +438,7 @@
                  (first (.pages ^BrowserContext context))
                  (core/new-page-from-context context))]
         (try
-          (page/navigate pg "https://example.com")
+          (page/navigate pg "https://example.org")
           (expect (= "Example Domain" (page/title pg)))
           ;; Verify we can get the browser from the context
           (expect (some? (.browser ^BrowserContext context)))
@@ -455,7 +455,7 @@
                      (first (.pages ^BrowserContext ctx1))
                      (core/new-page-from-context ctx1))]
           (try
-            (page/navigate pg1 "https://example.com")
+            (page/navigate pg1 "https://example.org")
             (page/evaluate pg1 "document.cookie = 'profile_test=persisted; path=/; max-age=3600'")
             (finally
               (.close ^BrowserContext ctx1))))
@@ -466,7 +466,7 @@
                      (first (.pages ^BrowserContext ctx2))
                      (core/new-page-from-context ctx2))]
           (try
-            (page/navigate pg2 "https://example.com")
+            (page/navigate pg2 "https://example.org")
             (let [cookie (page/evaluate pg2 "document.cookie")]
               (expect (str/includes? (str cookie) "profile_test=persisted")))
             (finally
@@ -477,13 +477,13 @@
 ;; =============================================================================
 
 (defdescribe reload-integration-test
-  "Tests for reload and navigation history on example.com"
+  "Tests for reload and navigation history on example.org"
 
   (describe "reload"
     {:context [with-playwright with-browser with-page]}
 
     (it "reloads the page successfully"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [resp (page/reload *page*)]
         (expect (instance? Response resp))
         (expect (= 200 (net/response-status resp)))
@@ -500,7 +500,7 @@
     {:context [with-playwright with-browser (with-page-opts {:viewport {:width 375 :height 812}})]}
 
     (it "applies viewport from context-opts"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [size (page/viewport-size *page*)]
         (expect (= 375 (:width size)))
         (expect (= 812 (:height size)))))
@@ -512,7 +512,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "creates a page with default viewport"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [size (page/viewport-size *page*)]
         (expect (pos? (:width size)))
         (expect (pos? (:height size))))))
@@ -521,7 +521,7 @@
     {:context [with-playwright with-browser (with-traced-page-opts {:viewport {:width 320 :height 568}})]}
 
     (it "applies viewport from context-opts"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [size (page/viewport-size *page*)]
         (expect (= 320 (:width size)))
         (expect (= 568 (:height size)))))
@@ -533,7 +533,7 @@
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "creates a page with default viewport"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [size (page/viewport-size *page*)]
         (expect (pos? (:width size)))
         (expect (pos? (:height size))))))
@@ -542,7 +542,7 @@
     {:context [with-playwright with-browser (with-page-opts {:locale "fr-FR"})]}
 
     (it "applies locale to the context"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       ;; Verify locale was set by checking navigator.language via JS eval
       (let [lang (page/evaluate *page* "navigator.language")]
         (expect (= "fr-FR" lang))))))

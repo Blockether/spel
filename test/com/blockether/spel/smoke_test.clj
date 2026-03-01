@@ -1,5 +1,5 @@
 (ns com.blockether.spel.smoke-test
-  "End-to-end smoke tests against example.com.
+  "End-to-end smoke tests against example.org.
 
    Showcases the Allure in-test API with epics, features, stories, steps,
    screenshots, parameters, attachments, and links. Run with the Allure
@@ -25,30 +25,30 @@
 ;; =============================================================================
 
 (defdescribe example-com-navigation-smoke-test
-  "Smoke: example.com navigation and HTTP response"
+  "Smoke: example.org navigation and HTTP response"
 
   (describe "HTTP response inspection"
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "returns HTTP 200 with valid headers"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Navigation")
       (allure/severity :blocker)
       (allure/owner "spel")
       (allure/tag "smoke")
-      (allure/tag "example.com")
-      (allure/link "Site" "https://example.com")
+      (allure/tag "example.org")
+      (allure/link "Site" "https://example.org")
       (allure/description
-        "Navigates to example.com and validates HTTP response status,
+        "Navigates to example.org and validates HTTP response status,
         headers, URL, and body content. This is the most basic smoke
         test — if this fails, the internet is down.")
 
-      (allure/step "Navigate to example.com"
-        (println "[navigate] Starting navigation to example.com")
-        (let [resp (page/navigate *page* "https://example.com")]
+      (allure/step "Navigate to example.org"
+        (println "[navigate] Starting navigation to example.org")
+        (let [resp (page/navigate *page* "https://example.org")]
           (println "[navigate] Navigation complete, response received")
-          (allure/parameter "url" "https://example.com")
+          (allure/parameter "url" "https://example.org")
           (expect (instance? Response resp))
 
           (allure/step "Verify HTTP status 200"
@@ -64,7 +64,7 @@
             (let [url (net/response-url resp)]
               (println "[url] Response URL:" url)
               (allure/parameter "response-url" url)
-              (expect (.contains ^String url "example.com"))))
+              (expect (.contains ^String url "example.org"))))
 
           (allure/step "Verify content-type header"
             (let [headers (net/response-headers resp)
@@ -81,25 +81,25 @@
               (expect (pos? (count body)))))))
 
       (allure/step "Screenshot after navigation"
-        (allure/screenshot *page* "example.com loaded")))))
+        (allure/screenshot *page* "example.org loaded")))))
 
 (defdescribe example-com-content-smoke-test
-  "Smoke: example.com page content and DOM structure"
+  "Smoke: example.org page content and DOM structure"
 
   (describe "page title, content, and structure"
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "has correct title and heading"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Content Verification")
       (allure/severity :critical)
       (allure/tag "smoke")
-      (allure/tag "example.com")
+      (allure/tag "example.org")
 
       (allure/step "Navigate"
-        (println "Loading example.com...")
-        (page/navigate *page* "https://example.com")
+        (println "Loading example.org...")
+        (page/navigate *page* "https://example.org")
         (println "Page loaded successfully"))
 
       (allure/step "Verify page title"
@@ -112,7 +112,7 @@
         (let [url (page/url *page*)]
           (println "Current URL:" url)
           (allure/parameter "url" url)
-          (expect (.contains ^String url "example.com"))))
+          (expect (.contains ^String url "example.org"))))
 
       (allure/step "Verify H1 heading"
         (let [h1 (page/locator *page* "h1")
@@ -132,13 +132,13 @@
 
     (it "has a 'Learn more' link to IANA"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Content Verification")
       (allure/severity :normal)
       (allure/tag "smoke")
 
       (allure/step "Navigate"
-        (page/navigate *page* "https://example.com"))
+        (page/navigate *page* "https://example.org"))
 
       (allure/step "Find the link"
         (let [link (page/locator *page* "a")]
@@ -162,25 +162,25 @@
               (expect (= 1 n))))))
 
       (allure/step "Screenshot of page with link"
-        (allure/screenshot *page* "example.com link")))))
+        (allure/screenshot *page* "example.org link")))))
 
 (defdescribe example-com-assertions-smoke-test
-  "Smoke: Playwright assertions against example.com"
+  "Smoke: Playwright assertions against example.org"
 
   (describe "Playwright built-in assertions"
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "passes all Playwright assertions"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Playwright Assertions")
       (allure/severity :critical)
       (allure/tag "smoke")
       (allure/tag "assertions")
 
       (allure/step "Navigate"
-        (println "Opening example.com for assertion tests...")
-        (page/navigate *page* "https://example.com")
+        (println "Opening example.org for assertion tests...")
+        (page/navigate *page* "https://example.org")
         (println "Ready for assertions"))
 
       (allure/step "Page assertions"
@@ -189,9 +189,9 @@
           (println "Asserting title = 'Example Domain'")
           (assert/has-title *page* "Example Domain"))
 
-        (allure/step "has-url contains 'example.com'"
-          (println "Asserting URL contains 'example.com'")
-          (assert/has-url *page* "example.com" {:substring true}))
+        (allure/step "has-url contains 'example.org'"
+          (println "Asserting URL contains 'example.org'")
+          (assert/has-url *page* "example.org" {:substring true}))
         (println "All page assertions passed"))
 
       (allure/step "Locator assertions on H1"
@@ -241,15 +241,15 @@
 
     (it "evaluates JS and captures full-page screenshot"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "JS Evaluation & Screenshots")
       (allure/severity :normal)
       (allure/tag "smoke")
       (allure/tag "javascript")
 
       (allure/step "Navigate"
-        (println "Loading example.com for JS evaluation tests...")
-        (page/navigate *page* "https://example.com"))
+        (println "Loading example.org for JS evaluation tests...")
+        (page/navigate *page* "https://example.org"))
 
       (allure/step "Read document.title via JS"
         (let [title (page/evaluate *page* "document.title")]
@@ -279,7 +279,7 @@
 
       (allure/step "Capture full-page screenshot"
         (println "Taking full-page screenshot...")
-        (allure/screenshot *page* "example.com full page"))
+        (allure/screenshot *page* "example.org full page"))
 
       (allure/step "Attach page HTML as text"
         (let [html (page/content *page*)]
@@ -291,27 +291,27 @@
 ;; =============================================================================
 
 (defdescribe example-com-snapshot-smoke-test
-  "Smoke: accessibility snapshots and ref-based interaction on example.com"
+  "Smoke: accessibility snapshots and ref-based interaction on example.org"
 
   (describe "capture snapshot and interact via refs"
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "captures accessibility tree with numbered refs"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Accessibility Snapshots")
       (allure/severity :critical)
       (allure/owner "spel")
       (allure/tag "smoke")
       (allure/tag "snapshot")
-      (allure/link "Site" "https://example.com")
+      (allure/link "Site" "https://example.org")
       (allure/description
-        "Captures the accessibility snapshot of example.com, verifies the
+        "Captures the accessibility snapshot of example.org, verifies the
         tree structure contains expected elements with refs, and resolves
         refs back to Playwright locators for interaction.")
 
-      (allure/step "Navigate to example.com"
-        (page/navigate *page* "https://example.com")
+      (allure/step "Navigate to example.org"
+        (page/navigate *page* "https://example.org")
         (page/wait-for-load-state *page* "load"))
 
       (allure/step "Capture accessibility snapshot"
@@ -338,18 +338,18 @@
               (expect (pos? ref-count))))))
 
       (allure/step "Screenshot with snapshot overlay"
-        (allure/screenshot *page* "example.com accessibility")))
+        (allure/screenshot *page* "example.org accessibility")))
 
     (it "resolves snapshot refs to working locators"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Accessibility Snapshots")
       (allure/severity :critical)
       (allure/tag "smoke")
       (allure/tag "snapshot")
 
       (allure/step "Navigate"
-        (page/navigate *page* "https://example.com"))
+        (page/navigate *page* "https://example.org"))
 
       (allure/step "Capture snapshot and resolve refs"
         (let [snap (snapshot/capture-snapshot *page*)
@@ -399,7 +399,7 @@
 
     (it "clicks the IANA link, navigates away, and returns via back/forward"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Navigation Flow")
       (allure/severity :critical)
       (allure/tag "smoke")
@@ -409,10 +409,10 @@
         link → verify new page → go back → verify original page → go
         forward → verify we're back on the target page.")
 
-      (allure/step "Navigate to example.com"
-        (page/navigate *page* "https://example.com")
+      (allure/step "Navigate to example.org"
+        (page/navigate *page* "https://example.org")
         (assert/has-title *page* "Example Domain")
-        (allure/screenshot *page* "Step 1: example.com loaded"))
+        (allure/screenshot *page* "Step 1: example.org loaded"))
 
       (allure/step "Click the 'Learn more' link"
         (let [link (page/get-by-text *page* "Learn more")]
@@ -427,15 +427,15 @@
           (expect (.contains ^String url "iana.org"))
           (allure/screenshot *page* "Step 2: IANA page")))
 
-      (allure/step "Go back to example.com"
+      (allure/step "Go back to example.org"
         (page/go-back *page*)
         (page/wait-for-load-state *page* "domcontentloaded")
         (let [url (page/url *page*)]
           (println "After back URL:" url)
           (allure/parameter "back-url" url)
-          (expect (.contains ^String url "example.com")))
+          (expect (.contains ^String url "example.org")))
         (assert/has-title *page* "Example Domain")
-        (allure/screenshot *page* "Step 3: back to example.com"))
+        (allure/screenshot *page* "Step 3: back to example.org"))
 
       (allure/step "Go forward to IANA again"
         (page/go-forward *page*)
@@ -448,14 +448,14 @@
 
     (it "reload preserves the page"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Navigation Flow")
       (allure/severity :normal)
       (allure/tag "smoke")
       (allure/tag "navigation")
 
-      (allure/step "Navigate to example.com"
-        (page/navigate *page* "https://example.com"))
+      (allure/step "Navigate to example.org"
+        (page/navigate *page* "https://example.org"))
 
       (allure/step "Reload the page"
         (page/reload *page*)
@@ -466,24 +466,24 @@
         (assert/has-text (page/locator *page* "h1") "Example Domain")
         (let [url (page/url *page*)]
           (allure/parameter "url-after-reload" url)
-          (expect (.contains ^String url "example.com"))))))
+          (expect (.contains ^String url "example.org"))))))
 
   (describe "network inspection during navigation"
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "inspects request and response details for navigation"
       (allure/epic "Smoke Tests")
-      (allure/feature "example.com")
+      (allure/feature "example.org")
       (allure/story "Network Inspection")
       (allure/severity :normal)
       (allure/tag "smoke")
       (allure/tag "network")
       (allure/description
-        "Navigates to example.com and inspects the HTTP request/response
+        "Navigates to example.org and inspects the HTTP request/response
         chain: method, headers, timing, and body content.")
 
       (allure/step "Navigate and capture response"
-        (let [resp (page/navigate *page* "https://example.com")]
+        (let [resp (page/navigate *page* "https://example.org")]
           (expect (instance? Response resp))
 
           (allure/step "Inspect request details"
@@ -494,7 +494,7 @@
               (allure/parameter "request-method" method)
               (allure/parameter "request-url" url)
               (expect (= "GET" method))
-              (expect (.contains ^String url "example.com"))
+              (expect (.contains ^String url "example.org"))
               (expect (true? (net/request-is-navigation? req)))))
 
           (allure/step "Inspect response headers"

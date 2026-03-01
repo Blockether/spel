@@ -135,7 +135,7 @@ All options merge with built-in defaults — public CDN certs continue to work.
          '[com.blockether.spel.page :as page])
 
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com")
+  (page/navigate pg "https://example.org")
   (page/title pg))
 ;; => "Example Domain"
 ```
@@ -144,7 +144,7 @@ Pass an opts map for device emulation:
 
 ```clojure
 (core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 ```
 
 For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](.opencode/skills/spel/SKILL.md).
@@ -155,14 +155,14 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 
 ```clojure
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com")
+  (page/navigate pg "https://example.org")
   (page/title pg))
 ```
 
 **API testing:**
 
 ```clojure
-(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+(core/with-testing-api {:base-url "https://api.example.org"} [ctx]
   (core/api-get ctx "/users"))
 ```
 
@@ -171,13 +171,13 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 ```clojure
 ;; page-api: same context, same trace
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
+  (page/navigate pg "https://example.org/login")
   (core/api-get (core/page-api pg) "/api/me"))
 
 ;; with-page-api: same context, different base-url
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+  (page/navigate pg "https://example.org/login")
+  (core/with-page-api pg {:base-url "https://api.example.org"} [ctx]
     (core/api-get ctx "/me")))
 ```
 
@@ -193,10 +193,10 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defdescribe my-test
-  (describe "example.com"
+  (describe "example.org"
     {:context [with-playwright with-browser with-page]}
     (it "navigates and asserts"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= "Example Domain" (page/title *page*))))))
 ```
 
@@ -248,7 +248,7 @@ See [recording options and test fixtures](.opencode/skills/spel/SKILL.md).
 Record browser sessions and transform them to idiomatic Clojure code.
 
 ```bash
-spel codegen record -o recording.jsonl https://example.com
+spel codegen record -o recording.jsonl https://example.org
 spel codegen recording.jsonl > my_test.clj
 ```
 

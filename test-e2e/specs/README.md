@@ -121,7 +121,7 @@ Screenshots:
 **Steps:**
 1. Navigate to `<url>`
 2. Click the element with text "Submit"
-3. Fill the input with label "Email" with "test@example.com"
+3. Fill the input with label "Email" with "test@example.org"
 
 **Expected:**
 - Page title changes to "Dashboard"

@@ -20,7 +20,7 @@
   (testing "creates page and navigates — opts omitted"
     (core/with-testing-page [pg]
       (is (instance? Page pg))
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (is (= "Example Domain" (page/title pg))))))
 
 (deftest basic-usage-empty-opts-test
@@ -30,7 +30,7 @@
   (testing "creates page and navigates — empty opts"
     (core/with-testing-page {} [pg]
       (is (instance? Page pg))
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (is (= "Example Domain" (page/title pg))))))
 
 (deftest viewport-preset-test
@@ -39,7 +39,7 @@
   (allure/tag "clojure.test")
   (testing "uses :desktop-hd viewport preset"
     (core/with-testing-page {:viewport :desktop-hd} [pg]
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (let [vp (page/viewport-size pg)]
         (is (= 1920 (:width vp)))
         (is (= 1080 (:height vp)))))))
@@ -50,7 +50,7 @@
   (allure/tag "clojure.test")
   (testing "uses custom viewport map"
     (core/with-testing-page {:viewport {:width 800 :height 600}} [pg]
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (let [vp (page/viewport-size pg)]
         (is (= 800 (:width vp)))
         (is (= 600 (:height vp)))))))
@@ -61,7 +61,7 @@
   (allure/tag "clojure.test")
   (testing "uses :iphone-14 device emulation"
     (core/with-testing-page {:device :iphone-14} [pg]
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (let [vp (page/viewport-size pg)]
         (is (= 390 (:width vp)))
         (is (= 844 (:height vp)))))))
@@ -72,7 +72,7 @@
   (allure/tag "clojure.test")
   (testing "returns body result — opts omitted"
     (let [result (core/with-testing-page [pg]
-                   (page/navigate pg "https://example.com")
+                   (page/navigate pg "https://example.org")
                    (page/title pg))]
       (is (= "Example Domain" result)))))
 
@@ -82,7 +82,7 @@
   (allure/tag "clojure.test")
   (testing "returns body result — with opts"
     (let [result (core/with-testing-page {} [pg]
-                   (page/navigate pg "https://example.com")
+                   (page/navigate pg "https://example.org")
                    (page/title pg))]
       (is (= "Example Domain" result)))))
 
@@ -97,7 +97,7 @@
                              (.delete)))]
       (core/with-testing-page {:profile profile-dir} [pg]
         (is (instance? Page pg))
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (is (= "Example Domain" (page/title pg)))))))
 
 (deftest profile-viewport-test
@@ -109,7 +109,7 @@
                              (.delete)))]
       (core/with-testing-page {:profile profile-dir
                                :viewport {:width 800 :height 600}} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (is (= 800 (:width vp)))
           (is (= 600 (:height vp))))))))
@@ -123,7 +123,7 @@
                              (.delete)))]
       (core/with-testing-page {:profile profile-dir
                                :device :iphone-14} [pg]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (let [vp (page/viewport-size pg)]
           (is (= 390 (:width vp)))
           (is (= 844 (:height vp))))))))
@@ -137,7 +137,7 @@
   (testing "passes :args to browser launch without error"
     (core/with-testing-page {:args ["--disable-extensions"]} [pg]
       (is (instance? Page pg))
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (is (= "Example Domain" (page/title pg))))))
 
 (deftest launch-slow-mo-test
@@ -147,7 +147,7 @@
   (testing "accepts :slow-mo without error"
     (core/with-testing-page {:slow-mo 10} [pg]
       (is (instance? Page pg))
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (is (= "Example Domain" (page/title pg))))))
 
 (deftest combined-launch-context-opts-test
@@ -158,7 +158,7 @@
     (core/with-testing-page {:args ["--disable-extensions"]
                              :viewport :desktop-hd
                              :locale "en-US"} [pg]
-      (page/navigate pg "https://example.com")
+      (page/navigate pg "https://example.org")
       (let [vp (page/viewport-size pg)]
         (is (= 1920 (:width vp)))
         (is (= 1080 (:height vp)))))))

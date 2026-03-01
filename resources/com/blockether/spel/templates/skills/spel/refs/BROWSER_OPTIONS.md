@@ -87,7 +87,7 @@ Detailed reference for browser launch options, context options, device/viewport 
                                                  "X-Custom" "value"}})
 
 ;; Base URL (for relative navigations)
-(core/new-context browser {:base-url "https://example.com"})
+(core/new-context browser {:base-url "https://example.org"})
 
 ;; Storage state (restore cookies + localStorage)
 (core/new-context browser {:storage-state "state.json"})
@@ -127,7 +127,7 @@ For quick tests, scripts, and standalone test cases, `with-testing-page` creates
 
 ;; Minimal — headless Chromium, default viewport
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com")
+  (page/navigate pg "https://example.org")
   (page/title pg))
 ;; => "Example Domain"
 ```
@@ -137,24 +137,24 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 ```clojure
 ;; Device emulation
 (core/with-testing-page {:device :iphone-14} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Viewport preset
 (core/with-testing-page {:viewport :desktop-hd :locale "fr-FR"} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Firefox, headed mode
 (core/with-testing-page {:browser-type :firefox :headless false} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Persistent profile (keeps login sessions across runs)
 (core/with-testing-page {:profile "/tmp/my-chrome-profile"} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Custom browser executable + extra args
 (core/with-testing-page {:executable-path "/usr/bin/chromium"
                          :args ["--disable-gpu"]} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 ```
 
 ### `with-testing-page` Options
@@ -221,7 +221,7 @@ When the Allure reporter is active (either Lazytest or clojure.test), tracing (s
   (core/with-browser [browser (core/launch-chromium pw {:headless true})]
     (core/with-context [ctx (core/new-context browser)]
       (core/with-page [pg (core/new-page-from-context ctx)]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         ;; returns nil on success, throws on failure
         (assert/has-title (assert/assert-that pg) "Example Domain")))))
 ```
@@ -239,7 +239,7 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 
 ```clojure
 ;; All wrapped functions return either a value or an anomaly map
-(let [result (page/navigate pg "https://example.com")]
+(let [result (page/navigate pg "https://example.org")]
   (if (anomaly/anomaly? result)
     (println "Error:" (:cognitect.anomalies/message result))
     (println "Navigated!")))
@@ -267,12 +267,12 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 (page/set-viewport-size! pg 1024 768)
 
 ;; Add script/style tags
-(page/add-script-tag pg {:url "https://cdn.example.com/lib.js"})
+(page/add-script-tag pg {:url "https://cdn.example.org/lib.js"})
 (page/add-script-tag pg {:content "window.myVar = 42;"})
 (page/add-script-tag pg {:path "/path/to/local.js"})
 
 (page/add-style-tag pg {:content "body { background: red; }"})
-(page/add-style-tag pg {:url "https://cdn.example.com/style.css"})
+(page/add-style-tag pg {:url "https://cdn.example.org/style.css"})
 
 ;; Expose Clojure function to JavaScript
 (page/expose-function! pg "clojureAdd" (fn [a b] (+ a b)))
@@ -420,7 +420,7 @@ Sets width and height but NOT device pixel ratio, user agent, or touch support.
 ```clojure
 ;; Daemon mode: just set viewport and go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 ```
 
@@ -436,7 +436,7 @@ spel screenshot /tmp/iphone14.png
 ```clojure
 ;; In library code (NOT --eval), use :device option
 (core/with-testing-page {:device :iphone-14} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 ```
 
 ### Comparison

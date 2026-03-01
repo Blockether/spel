@@ -12,5 +12,5 @@
     {:context [with-playwright with-browser with-traced-page]}
 
     (it "sets up and navigates to the application"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (expect (= "Example Domain" (page/title *page*))))))

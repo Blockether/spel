@@ -31,19 +31,19 @@
 
   (describe "open command"
     (it "parses open with URL"
-      (let [c (cmd ["open" "https://example.com"])]
+      (let [c (cmd ["open" "https://example.org"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c)))))
+        (expect (= "https://example.org" (:url c)))))
 
     (it "parses goto as alias for open"
-      (let [c (cmd ["goto" "https://example.com"])]
+      (let [c (cmd ["goto" "https://example.org"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c)))))
+        (expect (= "https://example.org" (:url c)))))
 
     (it "auto-prefixes https for bare domains"
-      (let [c (cmd ["open" "example.com"])]
+      (let [c (cmd ["open" "example.org"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c)))))
+        (expect (= "https://example.org" (:url c)))))
 
     (it "preserves file:// protocol"
       (let [c (cmd ["open" "file:///tmp/page.html"])]
@@ -70,14 +70,14 @@
         (expect (= "javascript:void(0)" (:url c)))))
 
     (it "preserves blob: protocol"
-      (let [c (cmd ["open" "blob:http://example.com/abc"])]
+      (let [c (cmd ["open" "blob:http://example.org/abc"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "blob:http://example.com/abc" (:url c)))))
+        (expect (= "blob:http://example.org/abc" (:url c)))))
 
     (it "includes raw-input in command map"
-      (let [c (cmd ["open" "example.com"])]
-        (expect (= "example.com" (:raw-input c)))
-        (expect (= "https://example.com" (:url c)))))
+      (let [c (cmd ["open" "example.org"])]
+        (expect (= "example.org" (:raw-input c)))
+        (expect (= "https://example.org" (:url c)))))
 
     (it "parses open with no URL"
       (let [c (cmd ["open"])]
@@ -85,28 +85,28 @@
         (expect (nil? (:url c)))))
 
     (it "parses open with --viewport WxH"
-      (let [c (cmd ["open" "https://example.com" "--viewport" "1200x800"])]
+      (let [c (cmd ["open" "https://example.org" "--viewport" "1200x800"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c)))
+        (expect (= "https://example.org" (:url c)))
         (expect (= 1200 (:viewport-width c)))
         (expect (= 800 (:viewport-height c)))))
 
     (it "parses open with --viewport using comma separator"
-      (let [c (cmd ["open" "https://example.com" "--viewport" "1024,768"])]
+      (let [c (cmd ["open" "https://example.org" "--viewport" "1024,768"])]
         (expect (= 1024 (:viewport-width c)))
         (expect (= 768 (:viewport-height c)))))
 
     (it "parses open with --viewport and --screenshot together"
-      (let [c (cmd ["open" "https://example.com" "--viewport" "800x600" "--screenshot" "out.png"])]
+      (let [c (cmd ["open" "https://example.org" "--viewport" "800x600" "--screenshot" "out.png"])]
         (expect (= "navigate" (:action c)))
-        (expect (= "https://example.com" (:url c)))
+        (expect (= "https://example.org" (:url c)))
         (expect (= 800 (:viewport-width c)))
         (expect (= 600 (:viewport-height c)))
         (expect (true? (:screenshot c)))
         (expect (= "out.png" (:screenshot-path c)))))
 
     (it "does not include viewport keys when --viewport not given"
-      (let [c (cmd ["open" "https://example.com"])]
+      (let [c (cmd ["open" "https://example.org"])]
         (expect (nil? (:viewport-width c)))
         (expect (nil? (:viewport-height c))))))
 
@@ -480,9 +480,9 @@
       (expect (= "tab_new" (:action (cmd ["tab" "new"])))))
 
     (it "parses tab new with URL"
-      (let [c (cmd ["tab" "new" "https://example.com"])]
+      (let [c (cmd ["tab" "new" "https://example.org"])]
         (expect (= "tab_new" (:action c)))
-        (expect (= "https://example.com" (:url c)))))
+        (expect (= "https://example.org" (:url c)))))
 
     (it "parses tab switch by index"
       (let [c (cmd ["tab" "2"])]
@@ -1587,7 +1587,7 @@
 
   (describe "open --interactive"
     (it "parses open --interactive"
-      (let [c (cmd ["open" "https://example.com" "--interactive"])]
+      (let [c (cmd ["open" "https://example.org" "--interactive"])]
         (expect (= "navigate" (:action c)))
         (expect (true? (:interactive c))))))
 
@@ -1597,19 +1597,19 @@
         (expect (= "inspector" (:action c)))))
 
     (it "parses inspector with url"
-      (let [c (cmd ["inspector" "https://example.com"])]
+      (let [c (cmd ["inspector" "https://example.org"])]
         (expect (= "inspector" (:action c)))
-        (expect (= ["https://example.com"] (:cli-args c)))))
+        (expect (= ["https://example.org"] (:cli-args c)))))
 
     (it "parses inspector with browser flag"
-      (let [c (cmd ["inspector" "-b" "firefox" "https://example.com"])]
+      (let [c (cmd ["inspector" "-b" "firefox" "https://example.org"])]
         (expect (= "inspector" (:action c)))
-        (expect (= ["-b" "firefox" "https://example.com"] (:cli-args c)))))
+        (expect (= ["-b" "firefox" "https://example.org"] (:cli-args c)))))
 
     (it "parses inspector with device flag"
-      (let [c (cmd ["inspector" "--device" "iPhone 14" "https://example.com"])]
+      (let [c (cmd ["inspector" "--device" "iPhone 14" "https://example.org"])]
         (expect (= "inspector" (:action c)))
-        (expect (= ["--device" "iPhone 14" "https://example.com"] (:cli-args c))))))
+        (expect (= ["--device" "iPhone 14" "https://example.org"] (:cli-args c))))))
 
   (describe "show-trace command"
     (it "parses show-trace"

@@ -508,8 +508,8 @@
       (println (str "     :deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
       (println "")
       (println "  3. Use spel for browser automation:")
-      (println "     spel open https://example.com")
-      (println "     spel --eval '(page/navigate \"https://example.com\")'"))
+      (println "     spel open https://example.org")
+      (println "     spel --eval '(page/navigate \"https://example.org\")'"))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
         (println "Done! Use @spel-test-planner to start planning tests.")

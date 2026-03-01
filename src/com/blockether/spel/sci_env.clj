@@ -21,7 +21,7 @@
    Usage:
      (def ctx (create-sci-ctx))
       (eval-string ctx \"(spel/start!)\")
-      (eval-string ctx \"(spel/navigate \\\"https://example.com\\\")\")
+      (eval-string ctx \"(spel/navigate \\\"https://example.org\\\")\")
       (eval-string ctx \"(spel/capture-snapshot)\")
       (eval-string ctx \"(spel/stop!)\")"
   (:require

@@ -5,7 +5,7 @@
 - API testing: **`core/with-testing-api`** — all-in-one macro for API request contexts
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
 - Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
-- Integration tests: Live against `example.com`
+- Integration tests: Live against `example.org`
 
 ### Running Tests (clojure.test)
 
@@ -27,16 +27,16 @@ All-in-one macro that creates the full Playwright stack (playwright → browser 
 ```clojure
 ;; Basic usage
 (core/with-testing-page [page]
-  (page/navigate page "https://example.com")
+  (page/navigate page "https://example.org")
   (is (= "Example Domain" (page/title page))))
 
 ;; With options (device, viewport, locale, etc.)
 (core/with-testing-page {:device :iphone-14} [page]
-  (page/navigate page "https://example.com"))
+  (page/navigate page "https://example.org"))
 
 ;; Load saved auth state
 (core/with-testing-page {:storage-state "auth.json"} [page]
-  (page/navigate page "https://app.example.com/dashboard"))
+  (page/navigate page "https://app.example.org/dashboard"))
 ```
 
 ### with-testing-api
@@ -44,7 +44,7 @@ All-in-one macro that creates the full Playwright stack (playwright → browser 
 All-in-one macro for API testing. Creates playwright → browser → context → API request context with automatic tracing.
 
 ```clojure
-(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+(core/with-testing-api {:base-url "https://api.example.org"} [ctx]
   (api/get ctx "/users"))
 ```
 
@@ -63,7 +63,7 @@ All-in-one macro for API testing. Creates playwright → browser → context →
 (deftest homepage-test
   (testing "loads successfully"
     (core/with-testing-page [page]
-      (page/navigate page "https://example.com")
+      (page/navigate page "https://example.org")
       (is (= "Example Domain" (page/title page)))
       (is (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Example Domain"))))))
 ```

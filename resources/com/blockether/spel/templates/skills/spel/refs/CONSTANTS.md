@@ -35,8 +35,8 @@ Playwright enum values exposed as Clojure vars. Flat naming: `constants/<categor
 | `constants/wait-until-commit` | `WaitUntilState/COMMIT` | Response headers received |
 
 ```clojure
-(spel/navigate "https://example.com" {:wait-until :networkidle})    ;; --eval
-(page/navigate pg "https://example.com" {:wait-until :commit})    ;; library
+(spel/navigate "https://example.org" {:wait-until :networkidle})    ;; --eval
+(page/navigate pg "https://example.org" {:wait-until :commit})    ;; library
 ```
 
 ### Color Schemes
@@ -247,7 +247,7 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 
 ;; Library
 (core/with-testing-page {:device :iphone-14} [pg]
-  (page/navigate pg "https://example.com"))
+  (page/navigate pg "https://example.org"))
 
 ;; Extract viewport from a preset (daemon mode)
 (let [{:keys [viewport]} device/iphone-14]

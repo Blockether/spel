@@ -10,13 +10,13 @@ Navigate to a URL and optionally control when the navigation is considered "done
 
 ```clojure
 ;; Basic navigation (waits for "load" event by default)
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 
 ;; Wait until no network requests for 500ms
-(spel/navigate "https://example.com" {:wait-until :networkidle})
+(spel/navigate "https://example.org" {:wait-until :networkidle})
 
 ;; Custom timeout (ms)
-(spel/navigate "https://example.com" {:wait-until :networkidle :timeout 30000})
+(spel/navigate "https://example.org" {:wait-until :networkidle :timeout 30000})
 ```
 
 The `:wait-until` option controls what "loaded" means:
@@ -31,8 +31,8 @@ The `:wait-until` option controls what "loaded" means:
 Library equivalent:
 
 ```clojure
-(page/navigate pg "https://example.com")
-(page/navigate pg "https://example.com" {:wait-until :networkidle :timeout 30000})
+(page/navigate pg "https://example.org")
+(page/navigate pg "https://example.org" {:wait-until :networkidle :timeout 30000})
 ```
 
 ### History Navigation
@@ -127,7 +127,7 @@ Waits for the page URL to match a pattern. Essential for SPA navigation where cl
 (spel/wait-for-url "**/dashboard")
 
 ;; Exact URL
-(spel/wait-for-url "https://example.com/dashboard")
+(spel/wait-for-url "https://example.org/dashboard")
 ```
 
 Library equivalent:

@@ -2,7 +2,7 @@
   "Tests for the snapshot namespace.
 
    Unit tests for pure helper functions and integration tests
-   that run against example.com using Playwright."
+   that run against example.org using Playwright."
   (:require
    [clojure.string :as str]
    [com.blockether.spel.page :as page]
@@ -45,13 +45,13 @@
 ;; =============================================================================
 
 (defdescribe capture-snapshot-test
-  "Integration tests for capture-snapshot against example.com"
+  "Integration tests for capture-snapshot against example.org"
 
   (describe "snapshot structure"
     {:context [with-playwright with-browser with-page]}
 
     (it "returns map with :tree :refs :counter keys"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (map? snap))
         (expect (contains? snap :tree))
@@ -59,38 +59,38 @@
         (expect (contains? snap :counter))))
 
     (it "tree is a non-empty string"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (string? (:tree snap)))
         (expect (pos? (count (:tree snap))))))
 
     (it "counter is a positive number"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (number? (:counter snap)))
         (expect (pos? (:counter snap)))))
 
     (it "refs is a non-empty map"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (map? (:refs snap)))
         (expect (pos? (count (:refs snap)))))))
 
-  (describe "tree content for example.com"
+  (describe "tree content for example.org"
     {:context [with-playwright with-browser with-page]}
 
     (it "contains heading role"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (str/includes? (:tree snap) "heading"))))
 
     (it "contains link role"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (str/includes? (:tree snap) "link"))))
 
     (it "contains ref annotations"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (expect (str/includes? (:tree snap) "[@e")))))
 
@@ -98,7 +98,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "ref entries have correct structure"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)
             first-ref (val (first (:refs snap)))]
         (expect (contains? first-ref :role))
@@ -107,7 +107,7 @@
         (expect (contains? first-ref :tag))))
 
     (it "bbox values are numbers"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)
             first-ref (val (first (:refs snap)))
             bbox (:bbox first-ref)]
@@ -117,7 +117,7 @@
         (expect (number? (:height bbox)))))
 
     (it "ref keys follow content-hash pattern"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)]
         (doseq [ref-id (keys (:refs snap))]
           (expect (re-matches #"e[a-z0-9]+" ref-id)))))))
@@ -133,7 +133,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "returns a Locator for valid ref"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)
             first-ref-id (key (first (:refs snap)))
             locator (sut/resolve-ref *page* first-ref-id)]
@@ -141,7 +141,7 @@
         (expect (instance? com.microsoft.playwright.Locator locator))))
 
     (it "locator matches the correct element"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-snapshot *page*)
             ;; Find the heading ref
             heading-ref (some (fn [[ref-id info]]
@@ -164,7 +164,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "removes data-pw-ref attributes"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       ;; First capture to add refs
       (sut/capture-snapshot *page*)
       ;; Verify refs exist
@@ -189,7 +189,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "returns same structure as capture-snapshot for simple pages"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap (sut/capture-full-snapshot *page*)]
         (expect (map? snap))
         (expect (contains? snap :tree))
@@ -212,7 +212,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "two consecutive snapshots produce identical ref keys"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap1 (sut/capture-snapshot *page*)
             snap2 (sut/capture-snapshot *page*)]
         (expect (= (set (keys (:refs snap1)))
@@ -223,9 +223,9 @@
           (expect (= (:name info) (:name (get (:refs snap2) ref-id)))))))
 
     (it "refs are stable after page reload"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap1 (sut/capture-snapshot *page*)]
-        (page/navigate *page* "https://example.com")
+        (page/navigate *page* "https://example.org")
         (let [snap2 (sut/capture-snapshot *page*)]
           (expect (= (set (keys (:refs snap1)))
                     (set (keys (:refs snap2)))))))))
@@ -234,7 +234,7 @@
     {:context [with-playwright with-browser with-page]}
 
     (it "adding a new element does not change existing refs"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap-before (sut/capture-snapshot *page*)
             before-refs (:refs snap-before)]
         ;; Inject a new button into the page
@@ -252,7 +252,7 @@
           (expect (> (count after-refs) (count before-refs))))))
 
     (it "removing an element does not change remaining refs"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (let [snap-before (sut/capture-snapshot *page*)
             before-refs (:refs snap-before)
             ;; Find the link ref to remove
@@ -593,7 +593,7 @@
       (page/set-content! *page*
         (str "<form>"
           "<label for='email'>Email</label>"
-          "<input id='email' type='email' placeholder='you@example.com'/>"
+          "<input id='email' type='email' placeholder='you@example.org'/>"
           "<label for='pass'>Password</label>"
           "<input id='pass' type='password' placeholder='********'/>"
           "<button type='submit'>Log In</button>"
@@ -622,9 +622,9 @@
 
     (it "links with href show [url=...] annotation in tree"
       (page/set-content! *page*
-        "<a href='https://example.com/about'>About</a>")
+        "<a href='https://example.org/about'>About</a>")
       (let [snap (sut/capture-snapshot *page*)]
-        (expect (str/includes? (:tree snap) "[url=https://example.com/about]"))))
+        (expect (str/includes? (:tree snap) "[url=https://example.org/about]"))))
 
     (it "links without href do not show [url=...] annotation"
       (page/set-content! *page*
@@ -633,15 +633,15 @@
         (expect (not (str/includes? (:tree snap) "[url=")))))
 
     (it "relative URLs are resolved to absolute"
-      (page/navigate *page* "https://example.com")
+      (page/navigate *page* "https://example.org")
       (page/evaluate *page*
         "document.body.innerHTML = '<a href=\"/relative\">Relative</a>'")
       (let [snap (sut/capture-snapshot *page*)]
-        (expect (str/includes? (:tree snap) "[url=https://example.com/relative]"))))
+        (expect (str/includes? (:tree snap) "[url=https://example.org/relative]"))))
 
     (it "URL appears after ref annotation"
       (page/set-content! *page*
-        "<a href='https://example.com'>Link</a>")
+        "<a href='https://example.org'>Link</a>")
       (let [snap (sut/capture-snapshot *page*)
             tree (:tree snap)]
         ;; Pattern: [@eXXXXX] [url=...]
@@ -659,11 +659,11 @@
 
     (it "link refs include url field"
       (page/set-content! *page*
-        "<a href='https://example.com'>Example</a>")
+        "<a href='https://example.org'>Example</a>")
       (let [snap (sut/capture-snapshot *page*)
             link-ref (some (fn [[_ info]] (when (= "link" (:role info)) info))
                        (:refs snap))]
-        (expect (= "https://example.com/" (:url link-ref)))))
+        (expect (= "https://example.org/" (:url link-ref)))))
 
     (it "heading refs include level field"
       (page/set-content! *page* "<h2>Subtitle</h2>")

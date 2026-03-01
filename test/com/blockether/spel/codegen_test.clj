@@ -34,7 +34,7 @@
   (str/join "\n"
     ["{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":false},\"contextOptions\":{},\"generateAutoExpect\":true}"
      "{\"name\":\"openPage\",\"url\":\"about:blank\",\"signals\":[],\"pageGuid\":\"page@07f352880dafdf485e2be771e2e1ee43\",\"pageAlias\":\"page\",\"framePath\":[]}"
-     "{\"name\":\"navigate\",\"url\":\"https://example.com/\",\"signals\":[],\"pageGuid\":\"page@07f352880dafdf485e2be771e2e1ee43\",\"pageAlias\":\"page\",\"framePath\":[]}"
+     "{\"name\":\"navigate\",\"url\":\"https://example.org/\",\"signals\":[],\"pageGuid\":\"page@07f352880dafdf485e2be771e2e1ee43\",\"pageAlias\":\"page\",\"framePath\":[]}"
      "{\"name\":\"assertText\",\"selector\":\"internal:role=heading\",\"signals\":[],\"text\":\"Example Domain\",\"substring\":true,\"pageGuid\":\"page@07f352880dafdf485e2be771e2e1ee43\",\"pageAlias\":\"page\",\"framePath\":[],\"locator\":{\"kind\":\"role\",\"body\":\"heading\",\"options\":{\"attrs\":[]}}}"
      "{\"name\":\"closePage\",\"signals\":[],\"pageGuid\":\"page@07f352880dafdf485e2be771e2e1ee43\",\"pageAlias\":\"page\",\"framePath\":[]}"]))
 
@@ -45,18 +45,18 @@
 (defdescribe body-format-test
   "Exact output verification for :body format"
 
-  (it "produces exact output for example.com recording"
+  (it "produces exact output for example.org recording"
     (let [result (codegen example-com-jsonl :body)]
       (expect (= result
                 (str ";; New page: pg\n"
-                  "(page/navigate pg \"https://example.com/\")\n"
+                  "(page/navigate pg \"https://example.org/\")\n"
                   "(assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
                   "(core/close-page! pg)")))))
 
   (it "produces exact navigate action"
-    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.com/path\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.org/path\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(page/navigate pg \"https://example.com/path\")"))))
+      (expect (= result "(page/navigate pg \"https://example.org/path\")"))))
 
   (it "produces exact closePage action"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"closePage\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
@@ -70,10 +70,10 @@
 
   (it "produces openPage with navigate for non-blank URL"
       ;; NOTE: action->raw-code for openPage hard-codes 10-space indent on the navigate line
-    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"openPage\",\"url\":\"https://example.com\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"openPage\",\"url\":\"https://example.org\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
       (expect (= result (str ";; New page: pg\n"
-                          "          (page/navigate pg \"https://example.com\")")))))
+                          "          (page/navigate pg \"https://example.org\")")))))
 
   (it "produces exact click action"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"click\",\"selector\":\"button.submit\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
@@ -86,9 +86,9 @@
       (expect (= result "(locator/dblclick (page/locator pg \"button\"))"))))
 
   (it "produces exact fill action"
-    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"fill\",\"selector\":\"input[name=email]\",\"text\":\"test@example.com\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"fill\",\"selector\":\"input[name=email]\",\"text\":\"test@example.org\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl)]
-      (expect (= result "(locator/fill (page/locator pg \"input[name=email]\") \"test@example.com\")"))))
+      (expect (= result "(locator/fill (page/locator pg \"input[name=email]\") \"test@example.org\")"))))
 
   (it "produces exact assertText with substring=true"
     (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Hello World\",\"substring\":true,\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
@@ -117,7 +117,7 @@
 (defdescribe test-format-test
   "Exact output verification for :test format"
 
-  (it "produces exact output for example.com recording"
+  (it "produces exact output for example.org recording"
     (let [result (codegen example-com-jsonl :test)]
       (expect (= result
                 (str
@@ -139,7 +139,7 @@
                   "  (it \"recorded test\"\n"
                   "    (core/with-testing-page {:headless false} [pg]\n"
                   "      ;; New page: pg\n"
-                  "      (page/navigate pg \"https://example.com/\")\n"
+                  "      (page/navigate pg \"https://example.org/\")\n"
                   "      (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
                   "      (core/close-page! pg))))\n"))))))
 
@@ -150,7 +150,7 @@
 (defdescribe script-format-test
   "Exact output verification for :script format"
 
-  (it "produces exact output for example.com recording"
+  (it "produces exact output for example.org recording"
     (let [result (codegen example-com-jsonl :script)]
       (expect (= result
                 (str
@@ -163,7 +163,7 @@
                   "\n"
                   "(core/with-testing-page {:headless false} [pg]\n"
                   "  ;; New page: pg\n"
-                  "  (page/navigate pg \"https://example.com/\")\n"
+                  "  (page/navigate pg \"https://example.org/\")\n"
                   "  (assert/contains-text (assert/assert-that (page/get-by-role pg role/heading)) \"Example Domain\")\n"
                   "  (core/close-page! pg))\n"))))))
 
@@ -392,7 +392,7 @@
   "Tests that codegen only emits requires for namespaces actually used in the body"
 
   (it "navigate-only recording omits assert, locator, role requires"
-    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.com/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.org/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl :test)]
       (expect (str/includes? result "[com.blockether.spel.core :as core]"))
       (expect (str/includes? result "[com.blockether.spel.page :as page]"))
@@ -422,7 +422,7 @@
       (expect (str/includes? result "[com.blockether.spel.core :as core]"))))
 
   (it "script format also applies conditional requires"
-    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.com/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
+    (let [jsonl "{\"browserName\":\"chromium\"}\n{\"name\":\"navigate\",\"url\":\"https://example.org/\",\"signals\":[],\"pageGuid\":\"page@123\",\"pageAlias\":\"page\",\"framePath\":[]}"
           result (codegen jsonl :script)]
       (expect (str/includes? result "(require '[com.blockether.spel.core :as core])"))
       (expect (str/includes? result "(require '[com.blockether.spel.page :as page])"))

@@ -8,7 +8,7 @@ Create an isolated API request context with custom base URL and headers.
 (require '[com.blockether.spel.core :as core])
 
 (core/with-api-context [ctx (core/new-api-context (core/api-request pw)
-                             {:base-url "https://api.example.com"
+                             {:base-url "https://api.example.org"
                               :extra-http-headers {"Authorization" "Bearer token"}})]
   (let [resp (core/api-get ctx "/users")]
     (println (core/api-response-status resp))     ; 200
@@ -21,8 +21,8 @@ Work with multiple API contexts simultaneously, each with different base URLs.
 
 ```clojure
 (core/with-api-contexts
-  [users   (core/new-api-context (core/api-request pw) {:base-url "https://users.example.com"})
-   billing (core/new-api-context (core/api-request pw) {:base-url "https://billing.example.com"})]
+  [users   (core/new-api-context (core/api-request pw) {:base-url "https://users.example.org"})
+   billing (core/new-api-context (core/api-request pw) {:base-url "https://billing.example.org"})]
   (core/api-get users "/me")
   (core/api-get billing "/invoices"))
 ```
@@ -134,10 +134,10 @@ Fire-and-forget requests without context setup. Creates an ephemeral context int
 
 ```clojure
 ;; Simple GET
-(core/request! pw :get "https://api.example.com/health")
+(core/request! pw :get "https://api.example.org/health")
 
 ;; POST with data
-(core/request! pw :post "https://api.example.com/users"
+(core/request! pw :post "https://api.example.org/users"
   {:data "{\"name\":\"Alice\"}" :headers {"Content-Type" "application/json"}})
 ```
 
@@ -148,7 +148,7 @@ Fire-and-forget requests without context setup. Creates an ephemeral context int
 Creates a full Playwright stack for API-only testing.
 
 ```clojure
-(core/with-testing-api {:base-url "https://api.example.com"} [ctx]
+(core/with-testing-api {:base-url "https://api.example.org"} [ctx]
   (core/api-get ctx "/users"))
 ```
 
@@ -158,7 +158,7 @@ Share browser cookies and session with API requests from a page. Uses `page-api`
 
 ```clojure
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
+  (page/navigate pg "https://example.org/login")
   (let [resp (core/api-get (core/page-api pg) "/api/me")]
     (core/api-response-status resp)))
 ```
@@ -169,9 +169,9 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
 
 ```clojure
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
+  (page/navigate pg "https://example.org/login")
   ;; ... login via UI ...
-  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]
+  (core/with-page-api pg {:base-url "https://api.example.org"} [ctx]
     (core/api-get ctx "/me")))
 ```
 
@@ -184,18 +184,18 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
 ```clojure
 ;; BAD: Two separate Playwright instances, two separate traces
 (core/with-testing-page [pg]                        ;; Playwright #1 → Browser #1 → Context #1
-  (page/navigate pg "https://example.com/login")
-  (core/with-testing-api {:base-url "https://api.example.com"} [ctx]  ;; Playwright #2 → Browser #2 → Context #2
+  (page/navigate pg "https://example.org/login")
+  (core/with-testing-api {:base-url "https://api.example.org"} [ctx]  ;; Playwright #2 → Browser #2 → Context #2
     (core/api-get ctx "/users")))
 
 ;; GOOD: One Playwright, one trace — use page-api or with-page-api
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
+  (page/navigate pg "https://example.org/login")
   (core/api-get (core/page-api pg) "/api/me"))       ;; Same context, same trace
 
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com/login")
-  (core/with-page-api pg {:base-url "https://api.example.com"} [ctx]  ;; Same context, different base-url
+  (page/navigate pg "https://example.org/login")
+  (core/with-page-api pg {:base-url "https://api.example.org"} [ctx]  ;; Same context, different base-url
     (core/api-get ctx "/me")))
 ```
 

@@ -393,19 +393,19 @@
   (describe "web result cards"
     (it "prints title, URL, and snippet for each result"
       (binding [sut/*color-enabled* false]
-        (let [results [{:title "Example" :url "https://example.com" :snippet "A snippet" :position 1}]
+        (let [results [{:title "Example" :url "https://example.org" :snippet "A snippet" :position 1}]
               output (with-out-str (#'sut/print-web-cards results))]
           (expect (.contains ^String output "1"))
           (expect (.contains ^String output "Example"))
-          (expect (.contains ^String output "https://example.com"))
+          (expect (.contains ^String output "https://example.org"))
           (expect (.contains ^String output "A snippet")))))
 
     (it "omits snippet line when snippet is nil"
       (binding [sut/*color-enabled* false]
-        (let [results [{:title "No Snippet" :url "https://example.com" :snippet nil :position 1}]
+        (let [results [{:title "No Snippet" :url "https://example.org" :snippet nil :position 1}]
               output (with-out-str (#'sut/print-web-cards results))]
           (expect (.contains ^String output "No Snippet"))
-          (expect (.contains ^String output "https://example.com"))
+          (expect (.contains ^String output "https://example.org"))
           ;; Should have title line + url line = 2 non-blank lines
           (expect (= 2 (count (remove str/blank? (str/split output #"\n"))))))))
 

@@ -103,7 +103,7 @@ After exploring, **output the full script** you used so the user can reproduce y
 I explored the application with the following commands:
 
 ```bash
-spel open https://example.com --interactive
+spel open https://example.org --interactive
 spel snapshot -i
 spel annotate
 spel screenshot homepage-annotated.png
@@ -149,7 +149,7 @@ Screenshots:
 **Steps:**
 1. Navigate to `<url>`
 2. Click the element with text "Submit"
-3. Fill the input with label "Email" with "test@example.com"
+3. Fill the input with label "Email" with "test@example.org"
 
 **Expected:**
 - Page title changes to "Dashboard"

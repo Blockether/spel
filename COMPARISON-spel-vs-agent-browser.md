@@ -2,7 +2,7 @@
 
 > **Date**: February 26, 2026
 > **Versions**: spel 0.4.1 (Playwright 1.58.0) · agent-browser 0.9.0 (Playwright via Node.js)
-> **Method**: Hands-on dogfood of github.com + benchmarks on example.com
+> **Method**: Hands-on dogfood of github.com + benchmarks on example.org
 > **Platform**: macOS (Apple Silicon)
 
 ---
@@ -36,7 +36,7 @@ spel wins on breadth, speed, and programmability. agent-browser wins on snapshot
 
 ## 2. Performance Benchmarks
 
-Tested on `https://example.com` — cold start (first `open`) then sequential commands.
+Tested on `https://example.org` — cold start (first `open`) then sequential commands.
 
 ### Cold Start (version check)
 
@@ -126,7 +126,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 {
   "snapshot": "- heading \"Example Domain\" [@e2yrjz]...",
   "refs_count": 4,
-  "url": "https://example.com/",
+  "url": "https://example.org/",
   "title": "Example Domain"
 }
 ```
@@ -200,7 +200,7 @@ open, click, dblclick, type, fill, press, hover, focus, check/uncheck, select, d
 
 ```clojure
 ;; Run as: spel --eval script.clj
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (let [snapshot (spel/capture-snapshot {:interactive? true})
       title    (:title snapshot)
       links    (spel/evaluate "Array.from(document.querySelectorAll('a')).map(a => a.href)")]
@@ -225,7 +225,7 @@ agent-browser eval "Array.from(document.querySelectorAll('a')).map(a => a.href)"
 No loops, no assertions, no file I/O, no test reporting. To build a multi-page workflow, you chain shell commands:
 
 ```bash
-agent-browser open https://example.com
+agent-browser open https://example.org
 agent-browser snapshot -i
 agent-browser click @e2
 agent-browser wait --load networkidle

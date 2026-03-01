@@ -19,7 +19,7 @@
 
         (it \"logs in with valid credentials\"
           (allure/step \"Navigate to login page\"
-            (page/navigate page \"https://example.com/login\"))
+            (page/navigate page \"https://example.org/login\"))
           (allure/step \"Enter credentials\"
             (allure/parameter \"username\" \"admin\")
             (locator/fill (locator/locator page \"#username\") \"admin\")
@@ -1066,7 +1066,7 @@
      ;; Browser network
      (allure/api-step \"Navigate to page\"
        (page/wait-for-response pg \"**/api/data\"
-         #(page/navigate pg \"https://example.com\")))
+         #(page/navigate pg \"https://example.org\")))
 
    Works with any expression — only attaches metadata when the result
    is an APIResponse or browser Response instance. No-op when not running

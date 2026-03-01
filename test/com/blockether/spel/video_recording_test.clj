@@ -36,7 +36,7 @@
             ctx  (core/new-context *browser* {:record-video-dir video-dir
                                               :record-video-size {:width 1280 :height 720}})
             pg   (core/new-page-from-context ctx)]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (Thread/sleep 500)
         (let [vpath (core/video-path pg)]
           (expect (string? vpath))
@@ -57,7 +57,7 @@
             ctx  (core/new-context *browser* {:record-video-dir video-dir
                                               :record-video-size {:width 640 :height 480}})
             pg   (core/new-page-from-context ctx)]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         (Thread/sleep 500)
         (core/close-page! pg)
         (core/close-context! ctx)
@@ -75,18 +75,18 @@
       (expect (string? tf/*video-path*))
       (expect (clojure.string/includes? tf/*video-path* "test-videos-fixture"))
 
-      ;; Step 1: Navigate to example.com
-      (step "Navigate to example.com"
-        (page/navigate *page* "https://example.com")
+      ;; Step 1: Navigate to example.org
+      (step "Navigate to example.org"
+        (page/navigate *page* "https://example.org")
         (page/wait-for-load-state *page*))
 
       ;; Step 2: Capture accessibility snapshot and annotate
-      (step "Annotate example.com"
+      (step "Annotate example.org"
         (let [snap (snapshot/capture-snapshot *page*)
               refs (:refs snap)]
           (annotate/inject-overlays! *page* refs)
           (Thread/sleep 800)
-          (screenshot *page* "example.com with annotations")
+          (screenshot *page* "example.org with annotations")
           (annotate/remove-overlays! *page*)))
 
       ;; Step 3: Load a custom interactive page

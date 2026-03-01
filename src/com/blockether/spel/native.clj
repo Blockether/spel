@@ -8,7 +8,7 @@
    - Eval: Evaluate a Clojure expression and exit
 
    Usage:
-     spel open https://example.com   # Navigate (auto-starts browser)
+     spel open https://example.org   # Navigate (auto-starts browser)
      spel snapshot                    # ARIA snapshot with refs
      spel click @ref                  # Click by ref
      spel fill @ref \"search text\" # Fill input by ref
@@ -234,7 +234,7 @@
   (println "  --eval --load-state F      Load auth/state before evaluation (alias: --storage-state)")
   (println "")
   (println "Examples:")
-  (println "  spel open example.com")
+  (println "  spel open example.org")
   (println "  spel snapshot -i --json")
   (println "  spel click @ref")
   (println "  spel find role button click --name Submit")

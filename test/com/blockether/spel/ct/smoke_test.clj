@@ -1,5 +1,5 @@
 (ns com.blockether.spel.ct.smoke-test
-  "Smoke tests using standard clojure.test against example.com.
+  "Smoke tests using standard clojure.test against example.org.
 
    Demonstrates that clojure.test deftest/testing/is/use-fixtures work
    alongside Lazytest defdescribe tests, with Allure reporting for both."
@@ -24,12 +24,12 @@
 
 (deftest homepage-navigation-test
   (allure/epic "Smoke Tests (clojure.test)")
-  (allure/feature "example.com")
+  (allure/feature "example.org")
   (allure/severity :critical)
   (allure/tag "smoke")
   (allure/tag "clojure.test")
-  (testing "navigates to example.com"
-    (page/navigate *page* "https://example.com")
+  (testing "navigates to example.org"
+    (page/navigate *page* "https://example.org")
     (is (= "Example Domain" (page/title *page*))))
   (testing "h1 heading is correct"
     (let [h1 (page/locator *page* "h1")]
@@ -41,7 +41,7 @@
   (allure/feature "Assertions")
   (allure/tag "clojure.test")
   (testing "page-level assertions"
-    (page/navigate *page* "https://example.com")
+    (page/navigate *page* "https://example.org")
     (assert/has-title *page* "Example Domain")
     (is (= "Example Domain" (page/title *page*))))
   (testing "locator assertions"
@@ -52,10 +52,10 @@
 
 (deftest link-test
   (allure/epic "Smoke Tests (clojure.test)")
-  (allure/feature "example.com")
+  (allure/feature "example.org")
   (allure/tag "clojure.test")
   (testing "has a link to IANA"
-    (page/navigate *page* "https://example.com")
+    (page/navigate *page* "https://example.org")
     (let [link (page/locator *page* "a")
           href (locator/get-attribute link "href")]
       (is (.contains ^String href "iana.org"))

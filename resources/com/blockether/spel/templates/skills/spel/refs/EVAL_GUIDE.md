@@ -2,7 +2,7 @@
 spel's `--eval` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Just pass code directly:
 
 ```bash
-spel --eval '(spel/navigate "https://example.com") (println (spel/title))'
+spel --eval '(spel/navigate "https://example.org") (println (spel/title))'
 ```
 
 Or run a file:
@@ -14,7 +14,7 @@ spel --eval script.clj
 Or pipe from stdin:
 
 ```bash
-echo '(spel/navigate "https://example.com") (println (spel/title))' | spel --eval --stdin
+echo '(spel/navigate "https://example.org") (println (spel/title))' | spel --eval --stdin
 ```
 
 > **Daemon mode is default.** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
@@ -94,7 +94,7 @@ In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts wr
               :slow-mo 500          ;; slow down every action by 500ms
               :browser :firefox      ;; :chromium (default), :firefox, :webkit
               :viewport {:width 1920 :height 1080}
-              :base-url "https://example.com"  ;; relative URLs resolve against this
+              :base-url "https://example.org"  ;; relative URLs resolve against this
               :user-agent "MyBot/1.0"
               :locale "fr-FR"
               :timezone-id "Europe/Paris"

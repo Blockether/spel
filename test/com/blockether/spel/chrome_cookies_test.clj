@@ -179,7 +179,7 @@
 
   (describe "builds cookie from raw data"
     (it "creates a valid Cookie object"
-      (let [raw {:host-key    ".example.com"
+      (let [raw {:host-key    ".example.org"
                  :name        "session_id"
                  :path        "/"
                  :expires-utc "13380508800000000"
@@ -191,7 +191,7 @@
         (expect (instance? Cookie cookie))
         (expect (= "session_id" (.name cookie)))
         (expect (= "my-session-value" (.value cookie)))
-        (expect (= ".example.com" (.domain cookie)))
+        (expect (= ".example.org" (.domain cookie)))
         (expect (= "/" (.path cookie)))
         (expect (true? (.httpOnly cookie)))
         (expect (true? (.secure cookie)))
@@ -200,14 +200,14 @@
   (describe "returns nil for invalid values"
     (it "returns nil for nil value"
       (expect (nil? (#'sut/raw-cookie->playwright
-                     {:host-key ".example.com" :name "test"
+                     {:host-key ".example.org" :name "test"
                       :path "/" :expires-utc "0" :is-httponly "0"
                       :is-secure "0" :samesite "0" :has-expires "0"}
                      nil))))
 
     (it "returns nil for blank value"
       (expect (nil? (#'sut/raw-cookie->playwright
-                     {:host-key ".example.com" :name "test"
+                     {:host-key ".example.org" :name "test"
                       :path "/" :expires-utc "0" :is-httponly "0"
                       :is-secure "0" :samesite "0" :has-expires "0"}
                      ""))))))
@@ -472,7 +472,7 @@
     (it "accepts http origin"
       (expect (true? (#'sut/navigable-origin? "http://localhost:3000"))))
     (it "accepts https origin with path"
-      (expect (true? (#'sut/navigable-origin? "https://www.example.com/page")))))
+      (expect (true? (#'sut/navigable-origin? "https://www.example.org/page")))))
 
   (describe "non-HTTP schemes"
     (it "rejects devtools:// origin"
@@ -507,12 +507,12 @@
                     "devtools://devtools"                         {"dk" "dv"}
                     "https://www.google.com/^0https://x.com"     {"gk" "gv"}
                     "chrome://settings"                           {"ck" "cv"}
-                    "https://example.com"                         {"ek" "ev"}}
+                    "https://example.org"                         {"ek" "ev"}}
             result (#'sut/ls-map->origins ls-map nil)]
         (expect (= 2 (count result)))
         (let [origins (set (map #(get % "origin") result))]
           (expect (contains? origins "https://x.com"))
-          (expect (contains? origins "https://example.com"))
+          (expect (contains? origins "https://example.org"))
           (expect (not (contains? origins "devtools://devtools")))
           (expect (not (contains? origins "https://www.google.com/^0https://x.com")))
           (expect (not (contains? origins "chrome://settings")))))))
@@ -520,7 +520,7 @@
   (describe "filtering combined with domain filter"
     (it "applies both navigability and domain filters"
       (let [ls-map {"https://x.com"            {"key1" "val1"}
-                    "https://example.com"       {"ek" "ev"}
+                    "https://example.org"       {"ek" "ev"}
                     "devtools://devtools"        {"dk" "dv"}}
             result (#'sut/ls-map->origins ls-map "x.com")]
         (expect (= 1 (count result)))

@@ -23,7 +23,7 @@ Library:
 
 ```clojure
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.com")
+  (page/navigate pg "https://example.org")
   (page/pdf pg {:path "/tmp/doc.pdf" :format "A4"}))
 ```
 
@@ -112,10 +112,10 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 ```clojure
 ;; --eval: capture pages and build a PDF report
 ;; Daemon mode: omit start!/stop! — daemon owns the browser
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 (let [shot1 (spel/screenshot)  ;; returns byte[] when no :path given
-      _     (spel/navigate "https://example.com/about")
+      _     (spel/navigate "https://example.org/about")
       _     (spel/wait-for-load-state)
       shot2 (spel/screenshot)]
   (spel/report->pdf
@@ -245,7 +245,7 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 ```clojure
 ;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording)
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 ;; ... actions ...
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
@@ -287,7 +287,7 @@ Pass `:record-video-dir` when creating a context:
                               {:record-video-dir "videos"
                                :record-video-size {:width 1280 :height 720}})]
       (core/with-page [pg (core/new-page-from-context ctx)]
-        (page/navigate pg "https://example.com")
+        (page/navigate pg "https://example.org")
         ;; Video finalizes when context closes
         (core/video-save-as! pg "/tmp/recording.webm")))))
 ```
@@ -300,9 +300,9 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 ;; --eval: record a login flow (daemon manages the browser)
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
-(spel/navigate "https://example.com/login")
+(spel/navigate "https://example.org/login")
 (spel/wait-for-load-state)
-(spel/fill "#email" "user@example.com")
+(spel/fill "#email" "user@example.org")
 (spel/fill "#password" "secret")
 (spel/click "button[type=submit]")
 (spel/wait-for-load-state :networkidle)
@@ -328,7 +328,7 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 ```clojure
 ;; Daemon mode: no start!/stop! needed
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 (spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.get-started")
@@ -358,7 +358,7 @@ For higher quality, use API-based TTS (Google Cloud TTS, Amazon Polly, ElevenLab
 #!/bin/bash
 spel --eval '
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-(spel/navigate "https://example.com")
+(spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 (spel/evaluate "await new Promise(r => setTimeout(r, 3000))")
 (spel/click "a.learn-more")
