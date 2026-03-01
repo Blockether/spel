@@ -435,7 +435,7 @@ Every command spawns a new Node.js process that connects to an existing browser 
 ## 11. Feature Wishlist (What Each Could Steal)
 
 ### spel should consider adopting from agent-browser:
-1. **Sequential refs** (`@e1`, `@e2`) — simpler for LLMs than `@e2yrjz`
+1. ~~**Sequential refs**~~ — ❌ Rejected — hash refs are stable across snapshots; sequential refs break cross-snapshot reference in multi-step agent workflows
 2. ~~**Link URLs in snapshots**~~ — ✅ Done in spel 0.5.0 (`[url=https://...]` inline)
 3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
 4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — **NEW in AB 0.15**
