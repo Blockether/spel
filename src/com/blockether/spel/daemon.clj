@@ -242,12 +242,6 @@
               updated))))
       (swap! !session-entry-count inc))))
 
-(defn- reset-network-console-windows!
-  "Resets per-page network/console windows (called on navigation)."
-  []
-  (reset! !network-window [])
-  (reset! !console-window []))
-
 (defn- track-response!
   "Appends a response summary to the tracked-requests ring buffer, capped at
    `max-tracked-requests` most-recent entries. Also feeds the TASK-013 sliding window."
@@ -728,8 +722,6 @@
         all?           (get params "all")
         no-network?    (get params "no_network")
         no-console?    (get params "no_console")
-        include-net?   (get params "network")
-        include-con?   (get params "console")
         snap           (if all?
                          (snapshot/capture-full-snapshot (pg))
                          (snapshot/capture-snapshot (pg) (cond-> {}

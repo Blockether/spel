@@ -1289,8 +1289,13 @@
   "Tests for console and errors commands"
 
   (describe "console"
-    (it "parses console get"
-      (expect (= "console_get" (:action (cmd ["console"])))))
+    (it "parses console (no args) as console_list"
+      (expect (= "console_list" (:action (cmd ["console"])))))
+
+    (it "parses console get @c1 as console_get_ref"
+      (let [c (cmd ["console" "get" "@c1"])]
+        (expect (= "console_get_ref" (:action c)))
+        (expect (= "@c1" (:ref c)))))
 
     (it "parses console --clear flag"
       (expect (= "console_clear" (:action (cmd ["console" "--clear"])))))
@@ -1488,6 +1493,15 @@
       (let [c (cmd ["wait" "--fn" "window.ready === true"])]
         (expect (= "wait" (:action c)))
         (expect (= "window.ready === true" (:function c))))))
+
+  (describe "network list and get"
+    (it "parses network (no args) as network_list"
+      (expect (= "network_list" (:action (cmd ["network"])))))
+
+    (it "parses network get @n1 as network_get_ref"
+      (let [c (cmd ["network" "get" "@n1"])]
+        (expect (= "network_get_ref" (:action c)))
+        (expect (= "@n1" (:ref c))))))
 
   (describe "network unroute and requests"
     (it "parses network unroute"
