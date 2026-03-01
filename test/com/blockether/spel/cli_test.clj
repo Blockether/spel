@@ -995,6 +995,35 @@
         (expect (= ["file1.txt" "file2.pdf"] (:files c)))))))
 
 ;; =============================================================================
+;; Download
+;; =============================================================================
+
+(defdescribe download-test
+  "Tests for download command"
+
+  (describe "download with CSS selector"
+    (it "parses download with selector and path"
+      (let [c (cmd ["download" "#export-btn" "./report.csv"])]
+        (expect (= "download" (:action c)))
+        (expect (= "#export-btn" (:selector c)))
+        (expect (= "./report.csv" (:save-path c))))))
+
+  (describe "download with ref"
+    (it "parses download with element ref"
+      (let [c (cmd ["download" "@e5" "./file.zip"])]
+        (expect (= "download" (:action c)))
+        (expect (= "@e5" (:selector c)))
+        (expect (= "./file.zip" (:save-path c))))))
+
+  (describe "download with timeout"
+    (it "parses download with --timeout flag"
+      (let [c (cmd ["download" "--timeout" "5000" "#btn" "./out.pdf"])]
+        (expect (= "download" (:action c)))
+        (expect (= "#btn" (:selector c)))
+        (expect (= "./out.pdf" (:save-path c)))
+        (expect (= 5000 (:timeout-ms c)))))))
+
+;; =============================================================================
 ;; Find (Semantic Locators)
 ;; =============================================================================
 
@@ -1136,7 +1165,7 @@
       (doseq [cmd-name ["open" "back" "forward" "reload" "snapshot" "click" "dblclick"
                         "fill" "type" "clear" "press" "keydown" "keyup" "hover" "mouse"
                         "check" "uncheck" "select" "focus" "scroll" "scrollintoview"
-                        "drag" "upload" "screenshot" "annotate" "unannotate" "pdf"
+                        "drag" "upload" "download" "screenshot" "annotate" "unannotate" "pdf"
                         "eval" "wait" "tab" "get" "is" "count" "bbox" "highlight"
                         "find" "set" "cookies" "storage" "network" "frame" "dialog"
                         "trace" "console" "errors" "state" "session" "connect"
