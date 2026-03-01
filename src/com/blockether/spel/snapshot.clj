@@ -454,6 +454,22 @@
         (mapcat #(render-tree % (inc (long depth))))
         children))))
 
+(defn flatten-tree
+  "Flattens a YAML-like tree string by stripping all leading whitespace.
+   Each node appears at depth 0, removing the nested hierarchy.
+
+   Useful for AI agents that need a simple list of elements without
+   nesting structure.
+
+   Params:
+   `tree` - String. YAML-like accessibility tree from capture-snapshot.
+
+   Returns:
+   String with all lines at depth 0, or nil if tree is nil."
+  [^String tree]
+  (when tree
+    (str/join "\n"
+      (map str/triml (str/split-lines tree)))))
 ;; =============================================================================
 ;; Public API
 ;; =============================================================================
