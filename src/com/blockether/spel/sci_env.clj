@@ -57,7 +57,7 @@
     SameSiteAttribute ScreenshotType ServiceWorkerPolicy
     WaitForSelectorState WaitUntilState]
    [java.io File]
-   [java.nio.file Files LinkOption Path Paths]
+   [java.nio.file CopyOption Files LinkOption Path Paths StandardCopyOption]
    [java.nio.file.attribute FileAttribute]
    [java.util Base64]))
 
@@ -728,25 +728,32 @@
    Returns the video file path. Creates a new context/page without video.
 
    Opts:
-   :save-as - String. Copy video to this path before cleanup."
+   :save-as - String. Copy video to this path after finalization."
   ([] (sci-finish-video-recording {}))
   ([opts]
-   (let [pg      (require-page!)
+   (let [pg         (require-page!)
          video-path (core/video-path pg)
-         _       (when-let [save-path (:save-as opts)]
-                   (core/video-save-as! pg save-path))
-         ;; Close page first, then context to finalize video
-         _       (core/close-page! pg)
-         _       (when-let [c @!context] (core/close-context! c))
-         ;; Create fresh context without video
-         browser (require-browser!)
-         ctx     (core/new-context browser)
-         new-pg  (core/new-page-from-context ctx)]
+         save-path  (:save-as opts)
+         ;; 1. Close page + context first — this finalizes the video
+         _          (core/close-page! pg)
+         _          (when-let [c @!context] (core/close-context! c))
+         ;; 2. Now save-as is safe (file is finalized)
+         _          (when save-path
+                      (let [src (Path/of video-path (into-array String []))
+                            dst (Path/of save-path (into-array String []))]
+                        (Files/createDirectories (.getParent dst) (into-array FileAttribute []))
+                        (Files/copy src dst
+                          (into-array CopyOption
+                            [StandardCopyOption/REPLACE_EXISTING]))))
+         ;; 3. Create fresh context without video
+         browser    (require-browser!)
+         ctx        (core/new-context browser)
+         new-pg     (core/new-page-from-context ctx)]
      (when-let [timeout @!default-timeout]
        (page/set-default-timeout! new-pg timeout))
      (reset! !context ctx)
      (reset! !page new-pg)
-     {:status "stopped" :video-path video-path})))
+     {:status "stopped" :video-path (or save-path video-path)})))
 
 (defn sci-video-path
   "Returns the video file path for the current page, or nil if not recording."
@@ -2066,6 +2073,10 @@
                     'java.nio.file.LinkOption java.nio.file.LinkOption
                     'FileAttribute       java.nio.file.attribute.FileAttribute
                     'java.nio.file.attribute.FileAttribute java.nio.file.attribute.FileAttribute
+                    'CopyOption          java.nio.file.CopyOption
+                    'java.nio.file.CopyOption java.nio.file.CopyOption
+                    'StandardCopyOption   java.nio.file.StandardCopyOption
+                    'java.nio.file.StandardCopyOption java.nio.file.StandardCopyOption
                     ;; JDK utility classes
                     'Thread              java.lang.Thread
                     'java.lang.Thread    java.lang.Thread
