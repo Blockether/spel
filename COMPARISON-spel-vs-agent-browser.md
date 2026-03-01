@@ -265,8 +265,8 @@ This works, but you're limited to what bash can do. No structured data manipulat
 |---|---|---|
 | ~~**Bad URL silently succeeds**~~ | ✅ Fixed in 0.5.0 | `spel open not-a-url` now returns exit code 1 with clear error message. |
 | ~~**Generic error messages**~~ | ✅ Fixed in 0.5.0 | `spel click @nonexistent` now propagates full Playwright error context including call log, selector, and reason. |
-| **No link URLs in snapshots** | 🟡 Medium | Snapshot tree doesn't include `href` for links. Agent must use `eval` to extract URLs. |
-| **No structured refs in JSON** | 🟡 Medium | JSON snapshot only has `refs_count`, not a map of ref → role/name. agent-browser provides this. |
+| ~~**No link URLs in snapshots**~~ | ✅ Fixed in 0.5.0 | Links now show `[url=https://...]` inline in snapshot tree. |
+| ~~**No structured refs in JSON**~~ | ✅ Fixed in 0.5.0 | JSON snapshot now includes full `refs` map with role/name/url per ref, plus `pages`, `network`, `console` metadata. |
 | **91MB binary** | 🟡 Medium | Large for a CLI tool. GraalVM native image trade-off. |
 | **Snapshot verbosity** | 🟡 Medium | More tokens for LLMs than agent-browser’s flat format. Mitigated by `--flat`, `-c`, `-d` flags. |
 | **Ref format less LLM-friendly** | 🟠 Low | `[@e2yrjz]` (6 random chars) vs `[ref=e1]` (sequential). Sequential is easier for LLMs to reference. |
@@ -436,8 +436,8 @@ Every command spawns a new Node.js process that connects to an existing browser 
 
 ### spel should consider adopting from agent-browser:
 1. **Sequential refs** (`@e1`, `@e2`) — simpler for LLMs than `@e2yrjz`
-2. **Link URLs in snapshots** — `/url: https://...` inline saves an eval call
-3. **Structured refs in JSON** — `refs` map with role/name per ref
+2. ~~**Link URLs in snapshots**~~ — ✅ Done in spel 0.5.0 (`[url=https://...]` inline)
+3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
 4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — **NEW in AB 0.15**
 5. **Auth vault** — encrypted credential store with auto-login — **NEW in AB 0.15**
 6. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)

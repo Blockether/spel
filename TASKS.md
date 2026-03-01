@@ -804,41 +804,30 @@ See TASK-004 and TASK-005. Implement together — the tree walk that generates t
 
 ## Summary — Priority Matrix
 
-| Task | Type | Priority | Effort | Impact | Pareto |
-|---|---|---|---|---|---|
-| **TASK-001** Error propagation | 🐛 Bug | P0 | 20% | 80% | **Best ROI** |
-| **TASK-002** Invalid URL detection | 🐛 Bug | P0 | 15% | 70% | **Best ROI** |
-| **TASK-003** Sequential refs | ✨ Feature | P1 | 25% | 75% | High ROI |
-| **TASK-004** Link URLs in snapshots | ✨ Feature | P1 | 20% | 70% | High ROI |
-| **TASK-005** Structured refs in JSON | ✨ Feature | P1 | 25% | 65% | High ROI |
-| **TASK-012** Combined JSON enrichment | ✨ Feature | P1 | 30% | 80% | **Best ROI (combined)** |
-| **TASK-008** Flat snapshot mode | ✨ Feature | P2 | 20% | 50% | Medium ROI |
-| **TASK-006** Download command | ✨ Feature | P2 | 30% | 40% | Medium ROI |
-| **TASK-009** Video save-as bug | 🐛 Bug | P2 | 20% | 30% | Medium ROI |
-| **TASK-007** Extension loading | ✨ Feature | P2 | 15% | 25% | Low-Medium ROI |
-| **TASK-011** Cloud browser providers | ✨ Feature | P3 | 60% | 20% | Low ROI |
-| **TASK-010** iOS Simulator | ✨ Feature | P3 | 80% | 15% | **Worst ROI** |
+| Task | Type | Priority | Effort | Impact | Pareto | Status |
+|---|---|---|---|---|---|---|
+| **TASK-001** Error propagation | 🐛 Bug | P0 | 20% | 80% | **Best ROI** | ✅ Done (0.5.0) |
+| **TASK-002** Invalid URL detection | 🐛 Bug | P0 | 15% | 70% | **Best ROI** | ✅ Done (0.4.2) |
+| **TASK-003** Sequential refs | ✨ Feature | P1 | 25% | 75% | High ROI | ⏳ Open |
+| **TASK-004** Link URLs in snapshots | ✨ Feature | P1 | 20% | 70% | High ROI | ✅ Done (0.5.0) |
+| **TASK-005** Structured refs in JSON | ✨ Feature | P1 | 25% | 65% | High ROI | ✅ Done (0.5.0) |
+| **TASK-012** Combined JSON enrichment | ✨ Feature | P1 | 30% | 80% | **Best ROI** | ✅ Done (0.5.0) |
+| **TASK-008** Flat snapshot mode | ✨ Feature | P2 | 20% | 50% | Medium ROI | ✅ Done (0.5.0) |
+| **TASK-006** Download command | ✨ Feature | P2 | 30% | 40% | Medium ROI | ✅ Done (0.5.0) |
+| **TASK-009** Video save-as bug | 🐛 Bug | P2 | 20% | 30% | Medium ROI | ✅ Done (0.5.0) |
+| **TASK-007** Extension loading | ✨ Feature | P2 | 15% | 25% | Low-Medium ROI | ✅ Done (0.5.0) |
+| **TASK-011** Cloud browser providers | ✨ Feature | P3 | 60% | 20% | Low ROI | ⏳ Open |
+| **TASK-010** iOS Simulator | ✨ Feature | P3 | 80% | 15% | **Worst ROI** | ⏳ Open |
 
-### Recommended Implementation Order
+### Completion Summary (as of v0.5.0)
 
-**Sprint 1 — Bug fixes (2-3 hours)**
-1. TASK-001: Error propagation
-2. TASK-002: Invalid URL detection
+**10 of 12 tasks completed.** Remaining:
+- TASK-003: Sequential refs (LLM ergonomics)
+- TASK-010: iOS Simulator (niche)
+- TASK-011: Cloud browser providers (niche)
 
-**Sprint 2 — LLM ergonomics (4-6 hours)**
-3. TASK-012: Combined JSON enrichment (TASK-004 + TASK-005 together)
-4. TASK-003: Sequential refs
-
-**Sprint 3 — Polish (3-4 hours)**
-5. TASK-008: Flat snapshot mode
-6. TASK-009: Video save-as bug
-
-**Backlog — As needed**
-7. TASK-006: Download command
-8. TASK-007: Extension loading
-9. TASK-011: Cloud providers
-10. TASK-010: iOS Simulator
+See `POTENTIAL_TASKS.md` for 32 additional features identified from agent-browser 0.15.1.
 
 ---
 
-*Generated from spel vs agent-browser comparison, February 26, 2026.*
+*Generated from spel vs agent-browser comparison, February 26, 2026. Updated March 1, 2026.*
