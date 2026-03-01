@@ -105,8 +105,10 @@ spel install   # install browsers
 spel version   # verify installation
 ```
 
+### One-Shot Installation (for LLM agents)
+
 <details>
-<summary>One-Shot Installation (for LLM agents)</summary>
+<summary>Full installation script</summary>
 
 A single copy-paste block that installs spel from scratch — designed for LLM agents:
 
