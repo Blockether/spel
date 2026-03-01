@@ -197,12 +197,20 @@
 
     /* --- Mobile: list view --- */
     @media (max-width: 640px) {
+      .main { max-width: 100%; padding: 0.5rem 1rem 3rem; }
       .meta { display: none; }
       .card { padding: 0.45rem 0.75rem 0.45rem 0; gap: 0.5rem; }
       .run { padding-left: 0.5rem; min-width: 2.75rem; }
       .run-num { font-size: 0.95rem; }
       .info-top { flex-wrap: wrap; gap: 4px; align-items: flex-start; }
       .pill { margin-left: 0; }
+      /* PR mobile: show compact date like builds grid, tighten badges */
+      .card.pr .meta { display: block; text-align: left; padding-top: 0.15rem; }
+      .card.pr .meta-date { font-size: 0.6rem; }
+      .card.pr .meta-rel { display: none; }
+      .card.pr .author { font-size: 0.62rem; }
+      .card.pr .info-top { gap: 3px; }
+      .card.pr .pill { font-size: 0.55rem; padding: 1px 5px; }
     }
 
     /* ================================================================
@@ -536,7 +544,8 @@
       var prBadge = isPR && prUrl ? '<a href="' + prUrl + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : (isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '');
       var mergedBadge = isMerged ? '<span class="pill pill-purple" style="opacity:0.7">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
-      var authorLine = author ? '<p class="author">by ' + author + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
+      var displayAuthor = b.author_name || author;
+      var authorLine = displayAuthor ? '<p class="author">by ' + displayAuthor + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
 
       var clickHandler = (inProgress || isCancelled) ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
