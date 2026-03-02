@@ -237,6 +237,39 @@ spel install --with-deps
 
 All options merge with built-in defaults — public CDN certs continue to work.
 
+### Environment Variables
+
+All env vars are optional. **CLI flags always take priority over env vars.**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
+| **Browser** | | |
+| `SPEL_CHANNEL` | `--channel` | Browser channel: `chrome`, `msedge`, `brave` |
+| `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory (full profile: extensions, passwords, bookmarks) |
+| `SPEL_LOAD_STATE` | `--load-state` | Playwright storage state JSON path (alias: `SPEL_STORAGE_STATE`) |
+| `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
+| `SPEL_USER_AGENT` | `--user-agent` | Custom user agent string |
+| `SPEL_STEALTH` | `--no-stealth` | Set to `false` to disable stealth mode (ON by default) |
+| **Session** | | |
+| `SPEL_SESSION` | `--session` | Session name (default: `default`) |
+| `SPEL_JSON` | `--json` | Set to `true` for JSON output |
+| `SPEL_TIMEOUT` | `--timeout` | Command timeout in milliseconds |
+| **Network** | | |
+| `SPEL_PROXY` | `--proxy` | Proxy server URL |
+| `SPEL_PROXY_BYPASS` | `--proxy-bypass` | Proxy bypass patterns |
+| `SPEL_HEADERS` | `--headers` | Default HTTP headers (JSON string) |
+| `SPEL_IGNORE_HTTPS_ERRORS` | `--ignore-https-errors` | Set to `true` to ignore HTTPS errors |
+| **SSL/TLS** | | |
+| `SPEL_CA_BUNDLE` | — | PEM file with extra CA certs (merged with defaults) |
+| `NODE_EXTRA_CA_CERTS` | — | PEM file, also respected by Node.js subprocess |
+| `SPEL_TRUSTSTORE` | — | JKS/PKCS12 truststore path |
+| `SPEL_TRUSTSTORE_TYPE` | — | Truststore type (default: JKS) |
+| `SPEL_TRUSTSTORE_PASSWORD` | — | Truststore password |
+| **Advanced** | | |
+| `SPEL_CDP` | `--cdp` | Connect via Chrome DevTools Protocol URL |
+| `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
+| `SPEL_DEBUG` | `--debug` | Set to `true` for debug logging |
+
 ### Browser Automation
 
 ```clojure
