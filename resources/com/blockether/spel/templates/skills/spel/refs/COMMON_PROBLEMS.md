@@ -304,3 +304,72 @@ spel network requests --status 4    # show 4xx errors
 spel network requests --status 5    # show 5xx errors
 spel network requests --type fetch  # show API calls
 ```
+
+---
+
+## 12. Daemon Hangs / Unresponsive Browser
+
+**Problem:** spel command appears to hang, doesn't return, or the browser seems frozen.
+
+**Common causes:**
+- Stale daemon from a previous session still running
+- Browser crashed but daemon process didn't exit
+- Persistent context lock (another process holds the profile directory)
+- Edge/Chrome profile migration running in the background on first launch
+
+### Diagnose
+
+```bash
+# Check if daemon is running
+spel session list
+
+# Check daemon log for errors
+tail -50 /tmp/spel-default.log
+
+# Check for zombie browser processes
+ps aux | grep -E "chrome|chromium|msedge|spel" | grep -v grep
+```
+
+### Fix: Kill and restart
+
+```bash
+# Graceful: close your session
+spel close
+# or with a named session:
+spel --session mysession close
+
+# Nuclear: kill ALL spel and browser processes
+pkill -f "spel daemon"
+pkill -f "chrome-headless-shell"
+pkill -f "chromium"
+pkill -f "msedge"
+
+# Verify nothing is left
+ps aux | grep -E "spel|chrome|msedge" | grep -v grep
+
+# Start fresh
+spel open https://example.com
+```
+
+### Fix: Profile directory locked
+
+If using `--profile` and getting hangs, the profile dir may be locked by another process:
+
+```bash
+# Check for lock files
+ls -la /path/to/profile/SingletonLock 2>/dev/null
+ls -la /path/to/profile/SingletonCookie 2>/dev/null
+
+# Remove locks (only if no other Chrome/Edge instance uses this profile)
+rm -f /path/to/profile/SingletonLock /path/to/profile/SingletonCookie
+
+# Or use a fresh temp profile instead
+spel --profile /tmp/fresh-profile open https://example.com
+```
+
+### Prevention
+
+- **Always close sessions** when done: `spel close` or `spel --session <name> close`
+- **Use named sessions** in automation: `spel --session agent-$(date +%s) open <url>` — avoids collision with default session
+- **Don't share profiles** between concurrent processes — Chromium locks the directory
+- **Check `spel session list`** before starting if you suspect a stale daemon
