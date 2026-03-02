@@ -140,7 +140,7 @@ Based on the answer, set the default channel:
 | Edge | `msedge` |
 | Brave | `brave` |
 
-Set `SPEL_DEFAULT_CHANNEL` environment variable to the chosen channel (e.g. `msedge`, `brave`). Skip for Chrome — it's the default.
+Set `SPEL_CHANNEL` environment variable to the chosen channel (e.g. `msedge`, `brave`). Skip for Chrome — it's the default.
 
 #### Step 3: Ask — Use your real browser profile?
 
@@ -156,7 +156,7 @@ If **yes**, detect the profile path:
 
 Verify the profile exists, then set:
 
-Set `SPEL_DEFAULT_PROFILE` environment variable to the detected path.
+Set `SPEL_PROFILE` environment variable to the detected path.
 
 If **no**, skip — spel will use a fresh browser context each time.
 
