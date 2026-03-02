@@ -30,6 +30,11 @@ If the installed version does not match **{{version}}**:
 | `spel open <url>` | Open URL (stealth mode is ON by default) |
 | `spel state export --help` | State export help (cookies + localStorage) |
 | `spel state export --profile <path> -o auth.json` | Export Chrome cookies + localStorage to Playwright JSON |
+| `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
+| `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
+| `spel --load-state auth.json open <url>` | Open with exported state JSON |
+| `spel --load-state auth.json --eval 'script.clj'` | Run script with pre-loaded auth state |
+| `spel --channel msedge state export --profile <path>` | Export Edge cookies to Playwright JSON |
 | `spel codegen --help` | Codegen CLI help |
 | `spel init-agents --help` | Agent scaffolding help |
 | `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
