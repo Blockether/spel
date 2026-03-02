@@ -1,0 +1,2 @@
+Merged 1 files from 1 directories into /tmp/merge-noclean-test5461034370408824233/merged/
+  2 test results
