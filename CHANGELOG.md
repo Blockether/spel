@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.1] - 2026-03-02
+
+### Changed
+- refactor: replace (binding [*out* *err*]) with eprintln/eprint helpers (BLO-160)
+- feat(skill): add skill-version field and agent validation — agents detect stale skills (BLO-161)
+- docs(skill): add profile vs state comparison, Edge/channel support, Chrome profile docs (BLO-162)
+- docs(skill): add daemon launch modes comparison (Mode 1/2/3) (BLO-162)
+- fix(ci): Allure workflow now runs on failed CI — failures visible in builds page (BLO-163)
+- fix(docs): audit and correct comparison file — 6 sections had stale claims
+- docs: rewrite POTENTIAL_TASKS.md — correct 13 features mislabeled as missing
+
 ## [v0.5.0] - 2026-03-01
 
 ### Changed
