@@ -135,6 +135,29 @@ ANY of these changed → MUST run steps 4-8:
 - `src/com/blockether/spel/sci_env.clj`
 - `src/com/blockether/spel/gen_docs.clj`
 
+## Release Process
+
+**Tag-only. The Release workflow handles everything.**
+
+```bash
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+Done. The workflow (.github/workflows/release.yml) automatically:
+- Builds native binaries (linux-amd64, linux-arm64, macos-arm64, windows-amd64)
+- Deploys JAR to Clojars
+- Creates GitHub Release with all binaries attached
+- Updates CHANGELOG.md with commit log
+- Bumps SPEL_VERSION to next patch
+- Commits and pushes version files to main
+
+**NEVER manually:**
+- Create a release with `gh release create` (conflicts with workflow, GitHub immutable releases break)
+- Edit CHANGELOG.md for a release (workflow generates it)
+- Bump SPEL_VERSION for a release (workflow does it)
+- Upload binaries to a release
+
 ## Key References
 
 | Resource | Location |
