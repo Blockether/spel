@@ -386,3 +386,37 @@
         (expect (instance? FrameLocator fl))
         (let [h1 (.locator fl "h1")]
           (expect (= "Inside Frame" (sut/text-content h1))))))))
+
+;; =============================================================================
+;; Computed Styles
+;; =============================================================================
+
+(defdescribe computed-styles-test
+  "Tests for locator/computed-styles"
+
+  (describe "curated styles"
+    {:context [with-playwright with-browser with-page]}
+    (it "returns a map of curated CSS properties"
+      (page/set-content! *page*
+        "<h1 style='color: red; font-size: 24px;'>Styled</h1>")
+      (let [loc    (page/locator *page* "h1")
+            styles (sut/computed-styles loc)]
+        (expect (map? styles))
+        (expect (contains? styles "fontSize"))
+        (expect (contains? styles "color"))
+        (expect (contains? styles "display"))))
+
+    (it "does not include non-curated properties by default"
+      (page/set-content! *page* "<div>Test</div>")
+      (let [styles (sut/computed-styles (page/locator *page* "div"))]
+        ;; curated set has ~16 properties, not hundreds
+        (expect (<= (count styles) 20)))))
+
+  (describe "full styles"
+    {:context [with-playwright with-browser with-page]}
+    (it "returns all computed properties with {:full true}"
+      (page/set-content! *page* "<p>Full styles</p>")
+      (let [styles (sut/computed-styles (page/locator *page* "p") {:full true})]
+        (expect (map? styles))
+        ;; full computed styles have 100+ properties
+        (expect (> (count styles) 50))))))

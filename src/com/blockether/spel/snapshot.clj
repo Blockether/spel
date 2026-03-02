@@ -613,3 +613,44 @@
    Map {:x :y :width :height} or nil."
   [refs ref-id]
   (:bbox (get refs ref-id)))
+
+;; =============================================================================
+;; Snapshot Diffing
+;; =============================================================================
+
+(defn diff-snapshots
+  "Compares two accessibility snapshot strings line-by-line.
+
+   Returns a map with diff statistics and individual line changes.
+
+   Params:
+   `baseline` - String. The baseline snapshot text.
+   `current`  - String. The current snapshot text.
+
+   Returns:
+   {:added N :removed N :changed N :unchanged N :diff [\"  line\" \"- old\" \"+ new\" ...]}."
+  [^String baseline ^String current]
+  (let [old-lines (str/split-lines baseline)
+        new-lines (str/split-lines current)
+        max-len   (max (count old-lines) (count new-lines))]
+    (loop [i 0 adds 0 removes 0 changes 0 unchanged 0 diff-lines []]
+      (if (>= i max-len)
+        {:added adds :removed removes :changed changes :unchanged unchanged :diff diff-lines}
+        (let [old-line (get old-lines i)
+              new-line (get new-lines i)]
+          (cond
+            (= old-line new-line)
+            (recur (inc i) adds removes changes (inc unchanged)
+              (conj diff-lines (str "  " old-line)))
+
+            (and old-line new-line)
+            (recur (inc i) adds removes (inc changes) unchanged
+              (conj diff-lines (str "- " old-line) (str "+ " new-line)))
+
+            (and (nil? old-line) new-line)
+            (recur (inc i) (inc adds) removes changes unchanged
+              (conj diff-lines (str "+ " new-line)))
+
+            :else
+            (recur (inc i) adds (inc removes) changes unchanged
+              (conj diff-lines (str "- " old-line)))))))))

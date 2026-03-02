@@ -1189,6 +1189,33 @@ assert_jq "click @enonexistent → has error" "$OUT" '.error != null'
 assert_jq "click @enonexistent → error != Unknown error" "$OUT" '.error != "Unknown error"'
 assert_jq_contains "click @enonexistent → error has context" "$OUT" '.error' 'not found'
 
+section "Styles, Clipboard, Diff (35)"
+
+# Styles --help
+OUT=$("$SPEL" styles --help 2>&1) || true
+assert_contains "styles --help → mentions selector" "$OUT" "selector"
+
+# Styles on example.org
+OUT=$("$SPEL" --json styles h1 2>&1)
+assert_jq "styles h1 → has styles" "$OUT" '.styles != null'
+assert_jq "styles h1 → has fontSize" "$OUT" '.styles.fontSize != null'
+assert_jq "styles h1 → has color" "$OUT" '.styles.color != null'
+
+# Clipboard round-trip
+OUT=$("$SPEL" --json clipboard copy "cli-test-clipboard" 2>&1)
+assert_jq "clipboard copy → copied true" "$OUT" '.copied == true'
+OUT=$("$SPEL" --json clipboard read 2>&1)
+assert_jq_eq "clipboard read → content" "$OUT" '.content' 'cli-test-clipboard'
+
+# Diff snapshot (same page = no changes)
+BASELINE_FILE=$(mktemp)
+TEMP_FILES+=("$BASELINE_FILE")
+"$SPEL" snapshot -i > "$BASELINE_FILE"
+OUT=$("$SPEL" --json diff snapshot --baseline "$BASELINE_FILE" 2>&1)
+assert_jq "diff snapshot → added is number" "$OUT" '.added != null'
+assert_jq "diff snapshot same → 0 changed" "$OUT" '.changed == 0'
+assert_jq "diff snapshot same → 0 added" "$OUT" '.added == 0'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

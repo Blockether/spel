@@ -1069,8 +1069,60 @@
       "Options:"
       "  -b, --browser <type>    Browser for viewer: cr, ff, wk (default: chromium)"
       "  -h, --host <host>       Host to serve trace on (opens in browser tab)"
-      "  -p, --port <port>       Port to serve trace on (0 = any free port)"])})
+      "  -p, --port <port>       Port to serve trace on (0 = any free port)"])
 
+   "styles"
+   (str/join \newline
+     ["styles - Get computed CSS styles for an element"
+      ""
+      "Usage:"
+      "  spel styles <selector> [--full]"
+      ""
+      "Returns a curated set of computed CSS properties by default:"
+      "  fontSize, fontWeight, fontFamily, color, backgroundColor,"
+      "  borderRadius, border, boxShadow, padding, margin,"
+      "  display, position, width, height, lineHeight, textAlign"
+      ""
+      "Use --full to return all 300+ computed CSS properties."
+      ""
+      "Examples:"
+      "  spel styles h1"
+      "  spel styles \"#main\" --full"
+      "  spel styles @e3 --json"])
+
+   "clipboard"
+   (str/join \newline
+     ["clipboard - Browser clipboard operations"
+      ""
+      "Usage:"
+      "  spel clipboard copy <text>    Write text to clipboard"
+      "  spel clipboard read           Read clipboard text"
+      "  spel clipboard paste          Paste into focused element"
+      ""
+      "Clipboard permissions are granted automatically."
+      ""
+      "Examples:"
+      "  spel clipboard copy \"Hello World\""
+      "  spel clipboard read --json"
+      "  spel clipboard paste"])
+
+   "diff"
+   (str/join \newline
+     ["diff - Compare page states"
+      ""
+      "Usage:"
+      "  spel diff snapshot --baseline <file>   Compare current snapshot vs baseline file"
+      ""
+      "The diff command compares the current page state against a saved baseline."
+      "The baseline is a text file containing a previous snapshot output."
+      ""
+      "Returns added, removed, changed, and unchanged line counts."
+      ""
+      "Examples:"
+      "  spel snapshot -i > baseline.txt"
+      "  # ... make changes ..."
+      "  spel diff snapshot --baseline baseline.txt"
+      "  spel diff snapshot --baseline baseline.txt --json"])})
 (defn top-level-help
   "Returns the top-level help string shown by `spel --help`."
   []
@@ -1926,6 +1978,34 @@
 
           ;; Connect CDP
             "connect"  {:action "connect" :url (first cmd-args)}
+
+          ;; Styles
+            "styles"   (let [sel  (first cmd-args)
+                             full (some #{"--full"} cmd-args)]
+                         (cond-> {:action "get_styles" :selector sel}
+                           full (assoc :full true)))
+
+          ;; Clipboard
+            "clipboard" (let [sub (first cmd-args)]
+                          (case sub
+                            "copy"  {:action "clipboard_copy" :text (second cmd-args)}
+                            "read"  {:action "clipboard_read"}
+                            "paste" {:action "clipboard_paste"}
+                            {:error (str "Unknown clipboard command: " sub)}))
+
+          ;; Diff
+            "diff"     (let [sub (first cmd-args)]
+                         (case sub
+                           "snapshot" (let [args-v    (vec cmd-args)
+                                            bl-idx   (long (.indexOf ^java.util.List args-v "--baseline"))
+                                            baseline (when (>= bl-idx 0) (nth args-v (inc bl-idx) nil))
+                                            content  (when baseline (slurp baseline))]
+                                        (cond-> {:action "diff_snapshot"}
+                                          content (assoc :baseline content)
+                                          (some #{"--compact" "-c"} cmd-args) (assoc :compact true)
+                                          (some #{"--no-network"} cmd-args) (assoc :no-network true)
+                                          (some #{"--no-console"} cmd-args) (assoc :no-console true)))
+                           {:error (str "Unknown diff command: " sub)}))
 
           ;; Close (+ aliases)
             ("close" "quit" "exit")

@@ -593,6 +593,31 @@
 (defn sci-expose-binding! [binding-name f]
   (page/expose-binding! (require-page!) binding-name f))
 
+;; --- Computed Styles ---
+
+(defn sci-get-styles
+  "Returns computed CSS styles for an element. Pass {:full true} for all properties."
+  ([sel] (sci-get-styles sel {}))
+  ([sel opts]
+   (throw-if-anomaly (locator/computed-styles (sci-$ sel) opts))))
+
+;; --- Clipboard ---
+
+(defn sci-clipboard-copy
+  "Writes text to the browser clipboard."
+  [text]
+  (page/clipboard-copy (require-page!) text))
+
+(defn sci-clipboard-read
+  "Reads text from the browser clipboard."
+  []
+  (page/clipboard-read (require-page!)))
+
+(defn sci-clipboard-paste
+  "Pastes clipboard contents into the currently focused element."
+  []
+  (page/clipboard-paste (require-page!)))
+
 ;; =============================================================================
 ;; Page Events
 ;; =============================================================================
@@ -1258,6 +1283,12 @@
                   ['add-style-tag    sci-add-style-tag]
                   ['expose-function! sci-expose-function!]
                   ['expose-binding!  sci-expose-binding!]
+                  ;; Computed styles
+                  ['get-styles      sci-get-styles]
+                  ;; Clipboard
+                  ['clipboard-copy  sci-clipboard-copy]
+                  ['clipboard-read  sci-clipboard-read]
+                  ['clipboard-paste sci-clipboard-paste]
                   ;; Page events
                   ['on-console   sci-on-console]
                   ['on-dialog    sci-on-dialog]
