@@ -1907,6 +1907,26 @@
                         (catch Exception _ true))]
         (expect threw?)))))
 
+    ;; --- Computed styles via SCI ---
+
+(it "spel/get-styles returns map of CSS properties"
+  (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+  (let [r (cmd "sci_eval" {"code" "(map? (spel/get-styles \"h1\"))"})]
+    (expect (= "true" (:result r)))))
+
+(it "spel/get-styles with :full returns many properties"
+  (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+  (let [r (cmd "sci_eval" {"code" "(> (count (spel/get-styles \"h1\" {:full true})) 20)"})]
+    (expect (= "true" (:result r)))))
+
+    ;; --- Clipboard via SCI ---
+
+(it "spel/clipboard-copy and spel/clipboard-read round-trip"
+  (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+  (let [_ (cmd "sci_eval" {"code" "(spel/clipboard-copy \"sci-clipboard-test\")"})
+        r (cmd "sci_eval" {"code" "(spel/clipboard-read)"})]
+    (expect (= "\"sci-clipboard-test\"" (:result r)))))
+
 ;; =============================================================================
 ;; 43. Codegen → SCI Eval Round-Trip (Clojure ↔ SCI compatibility)
 ;; =============================================================================
@@ -2300,3 +2320,98 @@
       (let [r (cmd "snapshot" {})]
         (expect (vector? (:pages r)))
         (expect (pos? (count (:pages r))))))))
+
+;; =============================================================================
+;; Computed Styles
+;; =============================================================================
+
+(defdescribe styles-integration-test
+  "Integration tests for get_styles daemon handler"
+
+  (describe "get_styles handler"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns curated styles for element"
+      (nav! "/test-page")
+      (let [r (cmd "get_styles" {"selector" "h1"})]
+        (expect (map? (:styles r)))
+        (expect (contains? (:styles r) "fontSize"))))
+
+    (it "returns display and position properties"
+      (nav! "/test-page")
+      (let [r (cmd "get_styles" {"selector" "h1"})]
+        (expect (contains? (:styles r) "display"))))
+
+    (it "returns full styles with full flag"
+      (nav! "/test-page")
+      (let [r (cmd "get_styles" {"selector" "h1" "full" true})]
+        ;; Full mode returns all 300+ computed properties
+        (expect (> (count (:styles r)) 20))))
+
+    (it "includes selector in response"
+      (nav! "/test-page")
+      (let [r (cmd "get_styles" {"selector" "h1"})]
+        (expect (= "h1" (:selector r)))))))
+
+;; =============================================================================
+;; Clipboard
+;; =============================================================================
+
+(defdescribe clipboard-integration-test
+  "Integration tests for clipboard daemon handlers"
+
+  (describe "clipboard operations"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "clipboard_copy returns copied confirmation"
+      (nav! "/test-page")
+      (let [r (cmd "clipboard_copy" {"text" "hello clipboard"})]
+        (expect (:copied r))
+        (expect (= "hello clipboard" (:text r)))))
+
+    (it "clipboard_read returns copied text"
+      (nav! "/test-page")
+      (cmd "clipboard_copy" {"text" "read-me-back"})
+      (let [r (cmd "clipboard_read" {})]
+        (expect (= "read-me-back" (:content r)))))
+
+    (it "clipboard_paste types clipboard into focused input"
+      (nav! "/test-page")
+      (cmd "clipboard_copy" {"text" "pasted-text"})
+      ;; Focus an input that exists on test-page
+      (cmd "click" {"selector" "#text-input"})
+      (let [r (cmd "clipboard_paste" {})]
+        (expect (:pasted r))))))
+
+;; =============================================================================
+;; Diff Snapshot
+;; =============================================================================
+
+(defdescribe diff-snapshot-integration-test
+  "Integration tests for diff_snapshot daemon handler"
+
+  (describe "diff_snapshot handler"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "detects no changes when baseline matches current"
+      (nav! "/test-page")
+      (let [snap (:snapshot (cmd "snapshot" {"interactive" true}))
+            r    (cmd "diff_snapshot" {"baseline" snap})]
+        (expect (= 0 (:added r)))
+        (expect (= 0 (:removed r)))
+        (expect (= 0 (:changed r)))
+        (expect (pos? (:unchanged r)))))
+
+    (it "detects changes after page modification"
+      (nav! "/test-page")
+      (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
+            _          (cmd "evaluate" {"script" "document.querySelector('h1').textContent = 'Changed'"})
+            r          (cmd "diff_snapshot" {"baseline" snap-before})]
+        (expect (or (pos? (:changed r)) (pos? (:added r)) (pos? (:removed r))))))
+
+    (it "returns current snapshot in diff result"
+      (nav! "/test-page")
+      (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
+            r          (cmd "diff_snapshot" {"baseline" snap-before})]
+        (expect (string? (:current r)))
+        (expect (pos? (:total-lines r)))))))

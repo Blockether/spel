@@ -113,6 +113,9 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `add-script-tag` | [page opts] | Adds a script tag to the page. |
 | `add-style-tag` | [page opts] | Adds a style tag to the page. |
 | `bring-to-front` | [page] | Brings page to front (activates tab). |
+| `clipboard-copy` | [page text] | Writes text to the browser clipboard. |
+| `clipboard-paste` | [page] | Pastes clipboard contents into the currently focused element. |
+| `clipboard-read` | [page] | Reads text from the browser clipboard. |
 | `clock-fast-forward!` | [clock ticks] | Fast-forwards the clock by the given time. |
 | `clock-install!` | [clock] | Installs fake timers on the clock. |
 | `clock-pause-at!` | [clock time] | Pauses the clock at the given time. |
@@ -223,6 +226,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `check` | [loc] \| [loc check-opts] | Checks a checkbox or radio button. |
 | `clear` | [loc] | Clears input field content. |
 | `click` | [loc] \| [loc click-opts] | Clicks an element. |
+| `computed-styles` | [loc] \| [loc opts] | Returns computed CSS styles for the element matched by this locator. |
 | `content-frame` | [loc] | Returns a FrameLocator pointing to the same iframe as this locator. |
 | `count-elements` | [loc] | Returns the number of elements matching the locator. |
 | `dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
@@ -437,6 +441,7 @@ _Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
+| `diff-snapshots` | [baseline current] | Compares two accessibility snapshot strings line-by-line. |
 | `flatten-tree` | [tree] | Flattens a YAML-like tree string by stripping all leading whitespace. |
 | `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
@@ -666,6 +671,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/clear` | [sel] | Clears input field content. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `spel/click` | [sel] \| [sel opts] | Clicks an element. |
+| `spel/clipboard-copy` | [text] | Writes text to the browser clipboard. |
+| `spel/clipboard-paste` | [] | Pastes clipboard contents into the currently focused element. |
+| `spel/clipboard-read` | [] | Reads text from the browser clipboard. |
 | `spel/content` | [] | Returns the full HTML content of the page. |
 | `spel/context` | [] | Returns the current BrowserContext instance. |
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
@@ -708,6 +716,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/get-by-test-id` | [id] | Locates elements by test ID attribute. |
 | `spel/get-by-text` | [text] | Locates elements by their text content. |
 | `spel/get-by-title` | [text] | Locates elements by title attribute. |
+| `spel/get-styles` | [sel] \| [sel opts] | Returns computed CSS styles for an element. Pass {:full true} for all properties. |
 | `spel/go-back` | [] | Navigates back in history. |
 | `spel/go-forward` | [] | Navigates forward in history. |
 | `spel/help` | [] \| [query] | Lists all available SCI eval functions with arglists and descriptions. |
@@ -1144,6 +1153,11 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `get url / get title` | Get page URL or title |
 | `get count <sel>` | Count matching elements |
 | `get box <sel>` | Get bounding box |
+| `styles <sel> [--full]` | Get computed CSS styles |
+| `clipboard copy <text>` | Write text to clipboard |
+| `clipboard read` | Read clipboard text |
+| `clipboard paste` | Paste clipboard into focused element |
+| `diff snapshot --baseline <file>` | Diff current vs baseline snapshot |
 
 ### Find (Semantic Locators)
 

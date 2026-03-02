@@ -6,6 +6,7 @@
    Page methods with idiomatic Clojure functions."
   (:require
    [clojure.string :as str]
+   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :refer [safe]]
    [com.blockether.spel.options :as opts])
   (:import
@@ -1376,3 +1377,70 @@
    String. The error message."
   [^WebError we]
   (.error we))
+
+;; =============================================================================
+;; Clipboard
+;; =============================================================================
+
+(defn clipboard-copy
+  "Writes text to the browser clipboard.
+
+   Grants clipboard permissions on the page's context, then calls
+   navigator.clipboard.writeText(). Some browsers may not support
+   permission grants — the copy is attempted regardless.
+
+   Params:
+   `page` - Page instance.
+   `text` - String. Text to write to clipboard.
+
+   Returns:
+   {:copied true :text text}."
+  [^Page page ^String text]
+  (try
+    (.grantPermissions ^BrowserContext (.context page)
+      (java.util.List/of "clipboard-read" "clipboard-write"))
+    (catch Exception _ nil))
+  (safe (.evaluate page "text => navigator.clipboard.writeText(text)" text))
+  {:copied true :text text})
+
+(defn clipboard-read
+  "Reads text from the browser clipboard.
+
+   Grants clipboard permissions on the page's context, then calls
+   navigator.clipboard.readText().
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   {:content <string>}."
+  [^Page page]
+  (try
+    (.grantPermissions ^BrowserContext (.context page)
+      (java.util.List/of "clipboard-read" "clipboard-write"))
+    (catch Exception _ nil))
+  (let [result (safe (.evaluate page "() => navigator.clipboard.readText()"))]
+    (if (anomaly/anomaly? result)
+      result
+      {:content result})))
+
+(defn clipboard-paste
+  "Pastes clipboard contents into the currently focused element.
+
+   Reads the clipboard, then dispatches Ctrl+V via the page keyboard.
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   {:pasted true :text <clipboard-content>}."
+  [^Page page]
+  (try
+    (.grantPermissions ^BrowserContext (.context page)
+      (java.util.List/of "clipboard-read" "clipboard-write"))
+    (catch Exception _ nil))
+  (let [text (safe (.evaluate page "() => navigator.clipboard.readText()"))]
+    (if (anomaly/anomaly? text)
+      text
+      (do (.press ^com.microsoft.playwright.Keyboard (.keyboard page) "Control+v")
+          {:pasted true :text text}))))

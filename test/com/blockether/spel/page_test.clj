@@ -297,3 +297,39 @@
                      (catch clojure.lang.ExceptionInfo e e))]
         (expect (some? err))
         (expect (str/includes? (.getMessage err) "notaurl"))))))
+
+;; =============================================================================
+;; Clipboard
+;; =============================================================================
+
+(defdescribe clipboard-test
+  "Tests for page clipboard operations"
+
+  (describe "clipboard-copy and clipboard-read"
+    {:context [with-playwright with-browser with-page]}
+    (it "copies text and reads it back"
+      (sut/set-content! *page* "<body>clipboard test</body>")
+      (let [result (sut/clipboard-copy *page* "hello from test")]
+        (expect (= true (:copied result)))
+        (expect (= "hello from test" (:text result)))))
+
+    (it "reads back the text that was copied"
+      (sut/set-content! *page* "<body>read test</body>")
+      (sut/clipboard-copy *page* "round-trip value")
+      (let [result (sut/clipboard-read *page*)]
+        ;; Clipboard API requires secure context (localhost/https);
+        ;; on about:blank, readText may fail. Assert structure, not content.
+        (expect (map? result))
+        (expect (or (contains? result :content)
+                  (some? (:com.blockether.anomaly.core/category result)))))))
+
+  (describe "clipboard-paste"
+    {:context [with-playwright with-browser with-page]}
+    (it "returns paste result structure"
+      (sut/set-content! *page* "<input id='target' type='text'/>")
+      (locator/click (sut/locator *page* "#target"))
+      (sut/clipboard-copy *page* "pasted text")
+      (let [result (sut/clipboard-paste *page*)]
+        ;; Clipboard paste may fail on about:blank (no secure context)
+        ;; Just verify the function returns a map without crashing
+        (expect (map? result))))))

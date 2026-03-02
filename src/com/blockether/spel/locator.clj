@@ -886,3 +886,41 @@
    `handle` - JSHandle instance."
   [^JSHandle handle]
   (.dispose handle))
+
+;; =============================================================================
+;; Computed Styles
+;; =============================================================================
+
+(defn computed-styles
+  "Returns computed CSS styles for the element matched by this locator.
+
+   By default returns a curated set of commonly-used properties.
+   Pass `{:full true}` to return all computed properties.
+
+   Params:
+   `loc`  - Locator instance.
+   `opts` - Map, optional. {:full true} for all properties.
+
+   Returns:
+   Map of CSS property names (camelCase strings) to values, or anomaly map."
+  ([^Locator loc] (computed-styles loc {}))
+  ([^Locator loc opts]
+   (let [full (:full opts)
+         js   (str "el => {"
+                "  const s = getComputedStyle(el);"
+                (if full
+                  "  const result = {}; for (const p of s) result[p] = s.getPropertyValue(p); return result;"
+                  (str "  return {"
+                    "    fontSize: s.fontSize, fontWeight: s.fontWeight, fontFamily: s.fontFamily,"
+                    "    color: s.color, backgroundColor: s.backgroundColor,"
+                    "    borderRadius: s.borderRadius, border: s.border,"
+                    "    boxShadow: s.boxShadow, padding: s.padding, margin: s.margin,"
+                    "    display: s.display, position: s.position,"
+                    "    width: s.width, height: s.height,"
+                    "    lineHeight: s.lineHeight, textAlign: s.textAlign"
+                    "  };"))
+                "}")
+         result (safe (.evaluate ^Locator loc js))]
+     (if (instance? java.util.Map result)
+       (into {} result)
+       result))))

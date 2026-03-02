@@ -1076,6 +1076,45 @@
   (ensure-page-loaded!)
   {:checked (unwrap-anomaly! (locator/is-checked? (resolve-selector selector)))})
 
+;; --- Computed Styles ---
+
+(defmethod handle-cmd "get_styles" [_ {:strs [selector full]}]
+  (ensure-page-loaded!)
+  (let [loc    (resolve-selector selector)
+        styles (unwrap-anomaly! (locator/computed-styles loc (when full {:full true})))]
+    {:styles styles :selector (str selector)}))
+
+;; --- Clipboard ---
+
+(defmethod handle-cmd "clipboard_copy" [_ {:strs [text]}]
+  (ensure-page-loaded!)
+  (page/clipboard-copy (pg) text))
+
+(defmethod handle-cmd "clipboard_read" [_ _]
+  (ensure-page-loaded!)
+  (page/clipboard-read (pg)))
+
+(defmethod handle-cmd "clipboard_paste" [_ _]
+  (ensure-page-loaded!)
+  (page/clipboard-paste (pg)))
+
+;; --- Diff Engine ---
+
+(defmethod handle-cmd "diff_snapshot" [_ {:strs [baseline selector compact maxDepth no-network no-console]}]
+  (ensure-page-loaded!)
+  (let [current-snap (:snapshot (handle-cmd "snapshot"
+                                  {"interactive" true
+                                   "compact" compact
+                                   "maxDepth" maxDepth
+                                   "selector" selector
+                                   "no-network" no-network
+                                   "no-console" no-console}))
+        diffs        (snapshot/diff-snapshots (str/trim baseline) (str/trim current-snap))]
+    (assoc diffs
+      :current current-snap
+      :total-lines (max (count (str/split-lines baseline))
+                     (count (str/split-lines current-snap))))))
+
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   {:count (unwrap-anomaly! (locator/count-elements (page/locator (pg) selector)))})

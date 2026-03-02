@@ -697,3 +697,45 @@
       (let [snap (sut/capture-snapshot *page*)]
         (doseq [[_ info] (:refs snap)]
           (expect (some? (:role info))))))))
+
+;; =============================================================================
+;; Snapshot Diffing (pure unit tests)
+;; =============================================================================
+
+(defdescribe diff-snapshots-test
+  "Tests for snapshot/diff-snapshots"
+
+  (describe "identical snapshots"
+    (it "returns zero changes"
+      (let [text "line1\nline2\nline3"
+            result (sut/diff-snapshots text text)]
+        (expect (= 0 (:added result)))
+        (expect (= 0 (:removed result)))
+        (expect (= 0 (:changed result)))
+        (expect (= 3 (:unchanged result))))))
+
+  (describe "changed lines"
+    (it "detects modified lines"
+      (let [baseline "line1\noriginal\nline3"
+            current  "line1\nmodified\nline3"
+            result   (sut/diff-snapshots baseline current)]
+        (expect (= 1 (:changed result)))
+        (expect (= 2 (:unchanged result)))
+        (expect (some #(str/starts-with? % "- ") (:diff result)))
+        (expect (some #(str/starts-with? % "+ ") (:diff result))))))
+
+  (describe "added lines"
+    (it "detects new lines at the end"
+      (let [baseline "line1\nline2"
+            current  "line1\nline2\nline3"
+            result   (sut/diff-snapshots baseline current)]
+        (expect (= 1 (:added result)))
+        (expect (= 2 (:unchanged result))))))
+
+  (describe "removed lines"
+    (it "detects removed lines"
+      (let [baseline "line1\nline2\nline3"
+            current  "line1\nline2"
+            result   (sut/diff-snapshots baseline current)]
+        (expect (= 1 (:removed result)))
+        (expect (= 2 (:unchanged result)))))))
