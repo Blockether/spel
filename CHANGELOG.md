@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.5.2] - 2026-03-02
 
 ### Changed
+- release: v0.5.2 (v0.5.1 tag immutable, re-releasing as 0.5.2)
+- release: bump to next dev version 0.5.2
+- release: v0.5.1 — eprintln helpers, versioned skill, profile docs, CI fix
+- fix(ci): Allure workflow now runs on failed CI — shows failures in builds page (BLO-163)
+- docs(skill): add daemon launch modes comparison (Mode 1/2/3) (BLO-162)
+- docs(skill): add profile vs state comparison, Edge support, Quick Reference (BLO-162)
+- refactor: replace (binding [*out* *err*]) with eprintln/eprint helpers (BLO-160)
+- feat(skill): add skill-version field and agent validation (BLO-161)
+- fix(docs): audit and correct comparison file — 6 sections had stale claims
+- docs: rewrite POTENTIAL_TASKS.md — correct 13 features mislabeled as missing
+- chore: remove TASK-003 (sequential refs) — rejected by design, hash refs preferred
+- release: update version files for v0.5.0, bump to next dev version
+- chore: remove 9 completed tasks from TASKS.md — verified via CLI
+- fix(docs): mark link URLs and structured refs as done in 0.5.0 — verified via CLI
+
+
+## [v0.5.2] - 2026-03-02
+
+### Changed
 - refactor: replace (binding [*out* *err*]) with eprintln/eprint helpers (BLO-160)
 - feat(skill): add skill-version field and agent validation — agents detect stale skills (BLO-161)
 - docs(skill): add profile vs state comparison, Edge/channel support, Chrome profile docs (BLO-162)
@@ -419,7 +438,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.2...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -430,3 +449,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.1.0]: https://github.com/Blockether/spel/releases/tag/v0.1.0
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
+[v0.5.2]: https://github.com/Blockether/spel/releases/tag/v0.5.2
