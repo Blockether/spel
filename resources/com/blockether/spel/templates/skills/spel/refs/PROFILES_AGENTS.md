@@ -100,6 +100,53 @@ Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome:/
 
 ---
 
+## Daemon Launch Modes
+
+When using `--profile`, spel auto-detects which launch mode to use:
+
+| Mode | Trigger | What Happens | Use Case |
+|------|---------|-------------|----------|
+| **Mode 1: Real Chrome profile** | `--profile` points to a dir with `Preferences` or `Cookies` file | Copies profile to temp dir, launches persistent context, decrypts and injects cookies via `.addCookies` (Chrome 136+ workaround) | Your actual Chrome profile — full experience |
+| **Mode 2: Custom profile dir** | `--profile` points to a dir without Chrome data files | Uses Playwright `launchPersistentContext` directly on the dir | Fresh/scratch profiles, temp directories |
+| **Mode 3: Normal** | No `--profile` flag | Standard `launch` + `new-context`, no persistence | One-off automation, CI with `--load-state` |
+
+### Mode 1 Details (Real Chrome Profile)
+
+This is the most powerful mode. When spel detects a real Chrome profile:
+
+1. **Copies** the profile to a temp directory (avoids locking your real Chrome)
+2. **Launches** with `launchPersistentContext` — extensions, bookmarks, history, passwords all load
+3. **Decrypts** cookies from Chrome's encrypted SQLite database (using OS keychain)
+4. **Injects** cookies via Playwright's `.addCookies` API (bypasses Chrome 136+ subprocess cookie restrictions)
+
+You get the full Chrome experience — exactly like opening Chrome yourself, but controlled by spel.
+
+### Mode 2 Details (Custom Profile Dir)
+
+For directories that aren't real Chrome profiles (no `Preferences`/`Cookies` files):
+
+- Playwright creates its own profile data in that directory
+- Session data persists between runs (cookies, localStorage)
+- No extensions or Chrome-specific features
+
+### Mode 3 Details (Normal)
+
+Standard Playwright launch — fresh context every time. Use `--load-state` to inject cookies from a previous `state export`.
+
+### How spel Decides
+
+```
+--profile given?
+  |-- Yes -> Directory has Preferences or Cookies file?
+  |          |-- Yes -> Mode 1 (real Chrome profile)
+  |          |-- No  -> Mode 2 (custom Playwright profile)
+  |-- No  -> Mode 3 (normal launch)
+```
+
+All modes support stealth (on by default), `--channel`, and `--interactive`.
+
+---
+
 ## Stealth Mode
 
 Stealth mode is **ON by default** for all CLI and `--eval` commands. Anti-detection patches hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). Use `--no-stealth` to disable.
