@@ -1,6 +1,7 @@
 ---
 name: spel
 description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when working with browser automation, E2E tests, Playwright API, or visual testing in Clojure."
+version: "{{version}}"
 license: Apache-2.0
 compatibility: opencode
 ---
@@ -8,6 +9,18 @@ compatibility: opencode
 # spel - Clojure Playwright Wrapper
 
 `com.blockether.spel` wraps Playwright Java 1.58.0 with idiomatic Clojure.
+
+## Version Check
+
+This skill was generated for spel **{{version}}**. Before proceeding, verify compatibility:
+
+```bash
+spel version
+```
+
+If the installed version does not match **{{version}}**:
+1. Show warning: **"spel skill is outdated (skill: {{version}}, installed: <actual version>)."**
+2. Propose reinitialization: **"Run `spel init-agents` to reinitialize the skill for the installed version."**
 
 ## Quick Reference
 

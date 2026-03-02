@@ -223,12 +223,13 @@
 
 (defn- process-template
   "Processes a template by replacing placeholders.
-   Replaces {{ns}} and {{testing-conventions}} (flavour-specific testing section)."
+   Replaces {{ns}}, {{version}}, and {{testing-conventions}} (flavour-specific testing section)."
   [content ns-name flavour]
   (let [testing-section (or (read-flavour-section "testing-conventions.md" flavour)
                           "")]
     (-> content
       (str/replace "{{ns}}" ns-name)
+      (str/replace "{{version}}" @spel-version)
       (str/replace "{{testing-conventions}}" testing-section))))
 
 ;; =============================================================================
