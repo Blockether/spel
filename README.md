@@ -105,63 +105,138 @@ spel install   # install browsers
 spel version   # verify installation
 ```
 
-### One-Shot Installation (for LLM agents)
+### Guided Installation (for LLM agents)
 
-<details>
-<summary>Full installation script</summary>
+If you're an LLM agent installing spel for a user, follow these steps. Ask questions where indicated — adapt to the user's answers.
 
-A single copy-paste block that installs spel from scratch — designed for LLM agents:
+#### Step 1: Detect platform and install binary
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-# ── Detect platform ───────────────────────────────────────────────────
-OS=$(uname -s)    # Darwin | Linux
-ARCH=$(uname -m)  # x86_64 | aarch64 | arm64
-
+OS=$(uname -s)
+ARCH=$(uname -m)
 case "${OS}-${ARCH}" in
   Darwin-arm64)   BINARY=spel-macos-arm64  ;;
   Linux-x86_64)   BINARY=spel-linux-amd64  ;;
   Linux-aarch64)  BINARY=spel-linux-arm64  ;;
-  *) echo "Unsupported platform: ${OS}-${ARCH}" >&2; exit 1 ;;
+  *) echo "Unsupported: ${OS}-${ARCH}" >&2; exit 1 ;;
 esac
-
-# ── Download & install ────────────────────────────────────────────────
 INSTALL_DIR="${HOME}/.local/bin"
 mkdir -p "${INSTALL_DIR}"
-curl -fsSL "https://github.com/Blockether/spel/releases/latest/download/${BINARY}" \
-  -o "${INSTALL_DIR}/spel"
+curl -fsSL "https://github.com/Blockether/spel/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/spel"
 chmod +x "${INSTALL_DIR}/spel"
-
-# ── macOS: remove quarantine flag (binary is not Apple-signed) ───────
-if [ "${OS}" = "Darwin" ]; then
-  xattr -d com.apple.quarantine "${INSTALL_DIR}/spel" 2>/dev/null || true
-fi
-
-# ── Ensure PATH includes ~/.local/bin ─────────────────────────────────
-case ":${PATH}:" in
-  *:${INSTALL_DIR}:*) ;;  # already in PATH
-  *) export PATH="${INSTALL_DIR}:${PATH}"
-     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.bashrc" 2>/dev/null || true
-     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.zshrc"  2>/dev/null || true
-     ;;
-esac
-
-# ── Corporate proxy / custom CA certs (Zscaler, Netskope, etc.) ──────
-# If behind a corporate SSL-inspecting proxy, set these BEFORE spel install:
-#   export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
-#   export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
-# Both are optional. If unset, spel uses system defaults.
-
-# ── Install browsers & verify ────────────────────────────────────────
-"${INSTALL_DIR}/spel" install
-"${INSTALL_DIR}/spel" version
-
-echo "✅ spel installed successfully: $("${INSTALL_DIR}/spel" version)"
+# macOS: remove quarantine
+[ "$(uname -s)" = "Darwin" ] && xattr -d com.apple.quarantine "${INSTALL_DIR}/spel" 2>/dev/null || true
+# Ensure PATH
+export PATH="${INSTALL_DIR}:${PATH}"
 ```
 
-</details>
+#### Step 2: Ask — Which browser?
+
+> "Which browser do you primarily use? **Chrome**, **Edge**, or **Brave**?"
+
+Based on the answer, set the default channel:
+
+| Answer | Channel |
+|--------|---------|
+| Chrome (default) | `chrome` (no flag needed) |
+| Edge | `msedge` |
+| Brave | `brave` |
+
+```bash
+# Only needed for non-Chrome browsers:
+export SPEL_DEFAULT_CHANNEL=msedge   # or brave
+```
+
+#### Step 3: Ask — Use your real browser profile?
+
+> "Do you want spel to use your real browser profile? This gives you all your extensions, saved passwords, bookmarks, and preferences inside spel."
+
+If **yes**, detect the profile path:
+
+| OS | Chrome | Edge |
+|----|--------|------|
+| macOS | `~/Library/Application Support/Google/Chrome/Default` | `~/Library/Application Support/Microsoft Edge/Default` |
+| Linux | `~/.config/google-chrome/Default` | `~/.config/microsoft-edge/Default` |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` | `%LOCALAPPDATA%\Microsoft\Edge\User Data\Default` |
+
+Verify the profile exists, then set:
+
+```bash
+export SPEL_DEFAULT_PROFILE="$DETECTED_PATH"
+```
+
+If **no**, skip — spel will use a fresh browser context each time.
+
+#### Step 4: Ask — Corporate proxy?
+
+> "Are you behind a corporate proxy (Zscaler, Netskope, etc.)? If unsure, try `spel install` first — if it fails with 'PKIX path building failed', you need this."
+
+If **yes**:
+
+```bash
+# Point to your corporate CA bundle (PEM format)
+export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
+```
+
+See the [Corporate Proxy](#corporate-proxy--custom-ca-certificates) section below for details.
+
+#### Step 5: Install browsers
+
+```bash
+spel install          # Chromium (default)
+# spel install msedge # if using Edge
+```
+
+#### Step 6: Ask — Automation or testing?
+
+> "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
+
+Based on the answer, scaffold agent skills:
+
+```bash
+# Automation only (default)
+spel init-agents
+
+# Testing — adds test scaffolding, Allure config
+spel init-agents --with-tests
+```
+
+Choose the right loop for your coding agent:
+
+```bash
+spel init-agents --loop=opencode   # OpenCode (default)
+spel init-agents --loop=claude     # Claude Code
+spel init-agents --loop=vscode     # VS Code / Copilot
+```
+
+#### Step 7: Verify
+
+```bash
+spel version
+spel open https://example.com    # should open and return JSON
+spel close
+```
+
+If using a profile:
+
+```bash
+spel --profile "$SPEL_DEFAULT_PROFILE" open https://example.com
+```
+
+#### Step 8: Persist configuration (optional)
+
+Save the user's choices so they don't need to pass flags every time:
+
+```bash
+cat >> ~/.bashrc << 'EOF'
+export PATH="${HOME}/.local/bin:${PATH}"
+export SPEL_DEFAULT_CHANNEL=msedge        # if non-Chrome
+export SPEL_DEFAULT_PROFILE="/path/to/profile"  # if using profile
+# export SPEL_CA_BUNDLE=/path/to/ca.pem  # if corporate proxy
+EOF
+```
+
 
 ### Corporate Proxy / Custom CA Certificates
 
