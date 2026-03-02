@@ -35,6 +35,24 @@
   (:gen-class))
 
 ;; =============================================================================
+;; Stderr Helpers
+;; =============================================================================
+
+(defn- eprint
+  "Write to stderr and flush immediately."
+  [& args]
+  (let [^java.io.PrintWriter w *err*]
+    (.print w ^String (apply str args))
+    (.flush w)))
+
+(defn- eprintln
+  "Write line to stderr and flush immediately."
+  [& args]
+  (let [^java.io.PrintWriter w *err*]
+    (.println w ^String (apply str args))
+    (.flush w)))
+
+;; =============================================================================
 ;; Driver Setup
 ;; =============================================================================
 
@@ -327,17 +345,15 @@
             (needs-display? cmd-args)
             (not (has-display?))
             (not (xvfb-run-available?)))
-      (binding [*out* *err*]
-        (println "Warning: No display server detected and xvfb-run is not installed.")
-        (println "This command requires a display (X11/Wayland).")
-        (println "")
-        (println "To fix, install Xvfb:")
-        (println "  sudo apt-get install -y xvfb    # Debian/Ubuntu")
-        (println "  sudo dnf install -y xorg-x11-server-Xvfb  # Fedora/RHEL")
-        (println "")
-        (println "Or set DISPLAY if you have a remote display:")
-        (println "  export DISPLAY=:0")
-        (flush)))
+      (eprintln "Warning: No display server detected and xvfb-run is not installed.")
+      (eprintln "This command requires a display (X11/Wayland).")
+      (eprintln "")
+      (eprintln "To fix, install Xvfb:")
+      (eprintln "  sudo apt-get install -y xvfb    # Debian/Ubuntu")
+      (eprintln "  sudo dnf install -y xorg-x11-server-Xvfb  # Fedora/RHEL")
+      (eprintln "")
+      (eprintln "Or set DISPLAY if you have a remote display:")
+      (eprintln "  export DISPLAY=:0"))
     (let [pb (doto (ProcessBuilder. ^java.util.List args)
                (.inheritIO))
           proc (.start pb)
@@ -501,9 +517,8 @@
                      {"action" "state_load" "path" state-path}
                      boot-timeout)]
           (when-not (:success resp)
-            (binding [*out* *err*]
-              (println (str "Warning: failed to load state from " state-path ": "
-                         (or (get-in resp [:data :error]) (:error resp))))))))
+            (eprintln (str "Warning: failed to load state from " state-path ": "
+                        (or (get-in resp [:data :error]) (:error resp)))))))
       ;; Send eval command to daemon — no transport timeout.
       ;; Playwright action timeouts are the correct control mechanism.
       (let [response     (cli/send-command! session
@@ -518,20 +533,14 @@
           (print stdout-str)
           (flush))
         (when (and stderr-str (not (str/blank? stderr-str)))
-          (binding [*out* *err*]
-            (print stderr-str)
-            (flush)))
+          (eprint stderr-str))
         ;; Print browser console messages and page errors to stderr
         (when (seq console-msgs)
-          (binding [*out* *err*]
-            (doseq [{:keys [type text]} console-msgs]
-              (println (str "[console." type "] " text)))
-            (flush)))
+          (doseq [{:keys [type text]} console-msgs]
+            (eprintln (str "[console." type "] " text))))
         (when (seq page-errors)
-          (binding [*out* *err*]
-            (doseq [{:keys [message]} page-errors]
-              (println (str "[page-error] " message)))
-            (flush)))
+          (doseq [{:keys [message]} page-errors]
+            (eprintln (str "[page-error] " message))))
         (if (and response (:success response))
           ;; Success — print the result
           (let [data       (get response :data)
@@ -562,12 +571,10 @@
                                   (:selector response) (assoc :selector (:selector response)))]
                     (println (json/write-json-str err-map :escape-slash false)))
                   ;; text mode: print full error message as-is
-                  (binding [*out* *err*]
-                    (println (str "Error: " error-msg))))))))
+                  (eprintln (str "Error: " error-msg)))))))
       (catch Exception e
         (vreset! exit-code 1)
-        (binding [*out* *err*]
-          (println (str "Error: " (.getMessage e)))))
+        (eprintln (str "Error: " (.getMessage e))))
       (finally
         ;; --autoclose: shut down daemon after eval
         (when (:autoclose? global)
@@ -827,9 +834,8 @@
                                :else
                                (recur (rest args) profile output domain include-ls channel)))))]
             (when-not (:profile parsed)
-              (binding [*out* *err*]
-                (println "Error: --profile is required")
-                (println "Usage: spel state export --profile <path> [-o <file>] [--domain <pattern>]"))
+              (eprintln "Error: --profile is required")
+              (eprintln "Usage: spel state export --profile <path> [-o <file>] [--domain <pattern>]")
               (System/exit 1))
             (let [json-str (chrome-cookies/export-cookies-json
                              (:profile parsed) (:domain parsed) (:include-ls parsed)
@@ -838,8 +844,7 @@
                 (do (spit (:output parsed) json-str)
                     (let [parsed-json (json/read-json json-str)
                           n (count (get parsed-json "cookies"))]
-                      (binding [*out* *err*]
-                        (println (str "Exported " n " cookies to " (:output parsed))))))
+                      (eprintln (str "Exported " n " cookies to " (:output parsed)))))
                 (println json-str))))))
 
       ;; Stitch — local image stitching, no daemon needed
@@ -870,15 +875,13 @@
                              (str "/tmp/spel-stitched-" (System/currentTimeMillis) ".png"))]
             (cond
               (< (count inputs) 2)
-              (do (binding [*out* *err*]
-                    (println "Error: stitch requires at least 2 input images")
-                    (println "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]"))
+              (do (eprintln "Error: stitch requires at least 2 input images")
+                  (eprintln "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]")
                   (System/exit 1))
 
               (some #(not (.exists (java.io.File. ^String %))) inputs)
               (let [missing (first (filter #(not (.exists (java.io.File. ^String %))) inputs))]
-                (binding [*out* *err*]
-                  (println (str "Error: file not found: " missing)))
+                (eprintln (str "Error: file not found: " missing))
                 (System/exit 1))
 
               :else
@@ -921,8 +924,7 @@
                        (slurp (java.io.File. ^String code-or-file))
                        code-or-file)]
             (run-eval! code global))
-          (do (binding [*out* *err*]
-                (println "Error: --eval requires a code argument or .clj file path"))
+          (do (eprintln "Error: --eval requires a code argument or .clj file path")
               (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))

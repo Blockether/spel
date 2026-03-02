@@ -62,6 +62,17 @@
    [java.util Base64]))
 
 ;; =============================================================================
+;; Stderr Helpers
+;; =============================================================================
+
+(defn- eprintln
+  "Write line to stderr and flush immediately."
+  [& args]
+  (let [^java.io.PrintWriter w *err*]
+    (.println w ^String (apply str args))
+    (.flush w)))
+
+;; =============================================================================
 ;; Session State (shared with SCI)
 ;; =============================================================================
 
@@ -195,13 +206,11 @@
       (when-let [b @!browser]
         (try (core/close-browser! b)
              (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-browser failed: " (.getMessage e)))))))
+               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
              (catch Exception e
-               (binding [*out* *err*]
-                 (println (str "spel: warn: close-playwright failed: " (.getMessage e)))))))
+               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
