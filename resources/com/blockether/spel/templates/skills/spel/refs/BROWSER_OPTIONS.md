@@ -11,9 +11,8 @@ Detailed reference for browser launch options, context options, device/viewport 
 ;; Headed mode for debugging
 (core/launch-chromium pw {:headless false :slow-mo 500})
 
-;; Use Chrome/Edge channel
+;; Use Chrome channel
 (core/launch-chromium pw {:channel "chrome"})
-(core/launch-chromium pw {:channel "msedge"})
 
 ;; Custom browser args
 (core/launch-chromium pw {:args ["--disable-gpu" "--no-sandbox"]})
@@ -44,7 +43,7 @@ Detailed reference for browser launch options, context options, device/viewport 
 | Option | Type | Description |
 |--------|------|-------------|
 | `:headless` | boolean | Run without visible window (default: `true`) |
-| `:channel` | string | Browser channel: `"chrome"`, `"msedge"`, `"chrome-beta"`, etc. |
+| `:channel` | string | Browser channel: `"chrome"`, `"chrome-beta"`, etc. |
 | `:args` | vector | Extra Chromium CLI args |
 | `:ignore-default-args` | vector | Chromium default args to suppress |
 | `:ignore-all-default-args` | boolean | Suppress ALL default Chromium args |
@@ -168,7 +167,7 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 | `:slow-mo` | Millis to slow down operations | — |
 | `:profile` | String path to persistent user data dir | — |
 | `:executable-path` | String path to browser executable | — |
-| `:channel` | `"chrome"`, `"msedge"`, etc. | — |
+| `:channel` | `"chrome"`, `"chrome-beta"`, etc. | — |
 | `:proxy` | `{:server "..." :bypass "..." :username "..." :password "..."}` | — |
 | `:args` | Vector of extra browser CLI args | — |
 | `:downloads-path` | String path for downloaded files | — |

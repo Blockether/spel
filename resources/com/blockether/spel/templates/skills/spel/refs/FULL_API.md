@@ -1279,7 +1279,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--json` | JSON output (for agents) |
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
-| `--channel <name>` | Browser channel (e.g. \"chrome\", \"msedge\") |
+| `--channel <name>` | Browser channel (e.g. "chrome", "chrome-beta") |
 | `--executable-path <path>` | Custom browser executable |
 | `--user-agent <ua>` | Custom user agent string |
 | `--proxy <url>` | Proxy server URL |

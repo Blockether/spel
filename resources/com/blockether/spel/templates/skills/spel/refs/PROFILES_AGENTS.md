@@ -58,12 +58,11 @@ spel supports two auth approaches. Use this table to pick the right one:
 
 | | `--profile` (persistent context) | `state export` + `--load-state` (portable JSON) |
 |---|---|---|
-| **How it works** | Launches browser with a real Chrome/Edge user data dir | Exports cookies + localStorage to JSON, loads into fresh context |
+| **How it works** | Launches browser with your real Chrome user data dir — extensions, passwords, bookmarks, everything | Exports cookies + localStorage to JSON, loads into fresh context |
 | **Auth persists** | Yes, automatically (in the profile dir) | Snapshot at export time — re-export to refresh |
 | **Cross-machine** | No (cookies encrypted with OS keychain) | Yes (decrypted portable JSON) |
-| **Extensions/prefs** | Yes (full Chrome profile) | No (cookies + localStorage only) |
+| **Extensions/prefs** | Yes (full Chrome profile — extensions, saved passwords, bookmarks, preferences) | No (cookies + localStorage only) |
 | **Concurrent use** | No (Chromium locks the dir) | Yes (read-only JSON, any number of browsers) |
-| **Edge support** | `--channel msedge --profile <path>` | `--channel msedge` on `state export` |
 | **Best for** | Local automation, dev workflows, interactive sessions | CI pipelines, cross-platform, agent automation, parallel runs |
 
 ### Quick Decision
@@ -73,30 +72,15 @@ spel supports two auth approaches. Use this table to pick the right one:
 - **Need concurrent browser sessions with same auth?** Use `--load-state` (profiles lock)
 - **Need extensions or browser preferences?** Use `--profile`
 
-### Edge / Other Chromium Browsers
+### Chrome Profile Paths
 
-Use `--channel` to target non-default Chromium browsers:
+| OS | Default Profile |
+|----|----------------|
+| macOS | `~/Library/Application Support/Google/Chrome/Default` |
+| Linux | `~/.config/google-chrome/Default` |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` |
 
-```bash
-# Persistent Edge profile
-spel --channel msedge --profile ~/.config/microsoft-edge/Default open https://example.com
-
-# Export Edge cookies
-spel state export --channel msedge --profile ~/.config/microsoft-edge/Default -o edge-auth.json
-
-# Use exported Edge cookies in any browser
-spel --load-state edge-auth.json open https://example.com
-```
-
-### Browser Profile Paths
-
-| OS | Chrome Default | Edge Default |
-|----|----------------|--------------|
-| macOS | `~/Library/Application Support/Google/Chrome/Default` | `~/Library/Application Support/Microsoft Edge/Default` |
-| Linux | `~/.config/google-chrome/Default` | `~/.config/microsoft-edge/Default` |
-| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` | `%LOCALAPPDATA%\Microsoft\Edge\User Data\Default` |
-
-Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome://version` or `edge://version` to find the exact path.
+Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome://version` in your browser to find the exact path.
 
 ---
 

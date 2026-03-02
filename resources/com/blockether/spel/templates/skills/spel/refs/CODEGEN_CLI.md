@@ -142,7 +142,7 @@ spel show-trace --port 8080 trace.zip  # Serve on specific port
 | Flag | Description |
 |------|-------------|
 | `-b, --browser <type>` | Browser engine: `cr`/`chromium`, `ff`/`firefox`, `wk`/`webkit` (default: chromium) |
-| `--channel <channel>` | Chromium channel: `chrome`, `chrome-beta`, `msedge-dev`, etc. |
+| `--channel <channel>` | Chromium channel: `chrome`, `chrome-beta`, etc. |
 | `--device <name>` | Emulate device (e.g. `"iPhone 14"`, `"Pixel 7"`) |
 | `--color-scheme <scheme>` | `light` or `dark` |
 | `--geolocation <lat,lng>` | Geolocation coordinates |

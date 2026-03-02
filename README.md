@@ -210,6 +210,23 @@ See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.
 
 spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `--eval` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
 
+### Real Chrome Profiles
+
+Use your actual Chrome profile with all extensions, saved passwords, and preferences:
+
+```bash
+# macOS
+spel --profile ~/Library/Application\ Support/Google/Chrome/Default open https://example.com
+
+# Linux
+spel --profile ~/.config/google-chrome/Default open https://example.com
+
+# Windows
+spel --profile "%LOCALAPPDATA%\Google\Chrome\User Data\Default" open https://example.com
+```
+
+Your extensions, saved passwords, bookmarks, and preferences — all there. Combined with stealth mode (on by default), this gives you a fully virtualized browser that looks and behaves exactly like your daily driver.
+
 ## Agent Scaffolding
 
 Point your AI agent at spel and let it write your E2E tests.
