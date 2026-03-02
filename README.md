@@ -111,24 +111,22 @@ If you're an LLM agent installing spel for a user, follow these steps. Ask quest
 
 #### Step 1: Detect platform and install binary
 
-```bash
-OS=$(uname -s)
-ARCH=$(uname -m)
-case "${OS}-${ARCH}" in
-  Darwin-arm64)   BINARY=spel-macos-arm64  ;;
-  Linux-x86_64)   BINARY=spel-linux-amd64  ;;
-  Linux-aarch64)  BINARY=spel-linux-arm64  ;;
-  *) echo "Unsupported: ${OS}-${ARCH}" >&2; exit 1 ;;
-esac
-INSTALL_DIR="${HOME}/.local/bin"
-mkdir -p "${INSTALL_DIR}"
-curl -fsSL "https://github.com/Blockether/spel/releases/latest/download/${BINARY}" -o "${INSTALL_DIR}/spel"
-chmod +x "${INSTALL_DIR}/spel"
-# macOS: remove quarantine
-[ "$(uname -s)" = "Darwin" ] && xattr -d com.apple.quarantine "${INSTALL_DIR}/spel" 2>/dev/null || true
-# Ensure PATH
-export PATH="${INSTALL_DIR}:${PATH}"
-```
+Detect the user's OS and architecture, then download the correct binary:
+
+| Platform | Binary name |
+|----------|------------|
+| macOS Apple Silicon | `spel-macos-arm64` |
+| Linux x86_64 | `spel-linux-amd64` |
+| Linux ARM64 | `spel-linux-arm64` |
+| Windows x86_64 | `spel-windows-amd64.exe` |
+
+**Agent:**
+1. Run `uname -s` + `uname -m` (Unix) or check `$env:PROCESSOR_ARCHITECTURE` (Windows)
+2. Download from `https://github.com/Blockether/spel/releases/latest/download/<binary>`
+3. Place in `~/.local/bin/` (Unix) or `%LOCALAPPDATA%\spel\` (Windows)
+4. Make executable: `chmod +x` (Unix only)
+5. On macOS: remove quarantine with `xattr -d com.apple.quarantine`
+6. Ensure the install directory is in PATH — detect shell and add to the correct config file
 
 #### Step 2: Ask — Which browser?
 
@@ -142,10 +140,7 @@ Based on the answer, set the default channel:
 | Edge | `msedge` |
 | Brave | `brave` |
 
-```bash
-# Only needed for non-Chrome browsers:
-export SPEL_DEFAULT_CHANNEL=msedge   # or brave
-```
+Set `SPEL_DEFAULT_CHANNEL` environment variable to the chosen channel (e.g. `msedge`, `brave`). Skip for Chrome — it's the default.
 
 #### Step 3: Ask — Use your real browser profile?
 
@@ -161,9 +156,7 @@ If **yes**, detect the profile path:
 
 Verify the profile exists, then set:
 
-```bash
-export SPEL_DEFAULT_PROFILE="$DETECTED_PATH"
-```
+Set `SPEL_DEFAULT_PROFILE` environment variable to the detected path.
 
 If **no**, skip — spel will use a fresh browser context each time.
 
@@ -173,20 +166,13 @@ If **no**, skip — spel will use a fresh browser context each time.
 
 If **yes**:
 
-```bash
-# Point to your corporate CA bundle (PEM format)
-export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
-export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
-```
+Set both `SPEL_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` environment variables to the path of the corporate CA bundle (PEM format). Ask the user where the cert file is, or help them find it.
 
 See the [Corporate Proxy](#corporate-proxy--custom-ca-certificates) section below for details.
 
 #### Step 5: Install browsers
 
-```bash
-spel install          # Chromium (default)
-# spel install msedge # if using Edge
-```
+Run `spel install` to download Chromium. If the user chose Edge, also run `spel install msedge`.
 
 #### Step 6: Ask — Automation or testing?
 
@@ -212,30 +198,23 @@ spel init-agents --loop=vscode     # VS Code / Copilot
 
 #### Step 7: Verify
 
-```bash
-spel version
-spel open https://example.com    # should open and return JSON
-spel close
-```
+Run `spel version` to confirm installation. Then test with `spel open https://example.com` — it should open and return JSON. Run `spel close` after.
 
-If using a profile:
+If the user chose to use a profile, test with their profile path to verify it works.
 
-```bash
-spel --profile "$SPEL_DEFAULT_PROFILE" open https://example.com
-```
+#### Step 8: Persist configuration
 
-#### Step 8: Persist configuration (optional)
+Save the user's choices so they don't need to pass flags every time. Detect their shell and OS, then write to the correct config file:
 
-Save the user's choices so they don't need to pass flags every time:
+| OS | Shell | Config file |
+|----|-------|-------------|
+| macOS/Linux | zsh | `~/.zshrc` |
+| macOS/Linux | bash | `~/.bashrc` |
+| macOS/Linux | fish | `~/.config/fish/config.fish` (use `set -Ux VAR value`) |
+| Windows | PowerShell | `$PROFILE` (use `[Environment]::SetEnvironmentVariable("VAR", "value", "User")`) |
+| Windows | cmd | `setx VAR value` |
 
-```bash
-cat >> ~/.bashrc << 'EOF'
-export PATH="${HOME}/.local/bin:${PATH}"
-export SPEL_DEFAULT_CHANNEL=msedge        # if non-Chrome
-export SPEL_DEFAULT_PROFILE="/path/to/profile"  # if using profile
-# export SPEL_CA_BUNDLE=/path/to/ca.pem  # if corporate proxy
-EOF
-```
+**Agent:** detect the shell (`echo $SHELL` on Unix, `$PSVersionTable` on Windows) and write the env vars to the correct file using the correct syntax. Do not assume bash.
 
 
 ### Corporate Proxy / Custom CA Certificates
