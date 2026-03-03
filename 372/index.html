@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+<head>
+    <meta charset="utf-8">
+    <title> #372 · 48646305e22011f71afa473ba09a3ec3512aae08 · Michał Kruk · chore: remove artistry override, B3 uses direct ACP spawn </title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg width='32' height='32' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M22.232 4.662a3.6 3.6 0 0 1 5.09.035c2.855 2.894 4.662 6.885 4.662 11.295a3.6 3.6 0 0 1-7.2 0c0-2.406-.981-4.61-2.587-6.24a3.6 3.6 0 0 1 .035-5.09Z' fill='url(%23a)'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M12.392 3.6a3.6 3.6 0 0 1 3.6-3.6c4.41 0 8.401 1.807 11.296 4.662a3.6 3.6 0 1 1-5.056 5.126C20.602 8.18 18.398 7.2 15.992 7.2a3.6 3.6 0 0 1-3.6-3.6Z' fill='url(%23b)'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 15.992C0 7.157 7.157 0 15.992 0a3.6 3.6 0 0 1 0 7.2A8.789 8.789 0 0 0 7.2 15.992c0 2.406.981 4.61 2.588 6.24a3.6 3.6 0 0 1-5.126 5.056C1.807 24.393 0 20.402 0 15.992Z' fill='url(%23c)'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4.661 22.232a3.6 3.6 0 0 1 5.091-.035c1.63 1.606 3.834 2.587 6.24 2.587a3.6 3.6 0 0 1 0 7.2c-4.41 0-8.401-1.807-11.295-4.661a3.6 3.6 0 0 1-.036-5.091Z' fill='url(%23d)'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M28.384 12.392a3.6 3.6 0 0 1 3.6 3.6c0 8.835-7.157 15.992-15.992 15.992a3.6 3.6 0 0 1 0-7.2 8.789 8.789 0 0 0 8.792-8.792 3.6 3.6 0 0 1 3.6-3.6Z' fill='url(%23e)'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M28.385 12.392a3.6 3.6 0 0 1 3.6 3.6v12.392a3.6 3.6 0 0 1-7.2 0V15.992a3.6 3.6 0 0 1 3.6-3.6Z' fill='url(%23f)'/%3E%3Cg clip-path='url(%23g)'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M22.232 4.662a3.6 3.6 0 0 1 5.091.035c2.855 2.894 4.662 6.885 4.662 11.295a3.6 3.6 0 0 1-7.2 0c0-2.406-.982-4.61-2.588-6.24a3.6 3.6 0 0 1 .035-5.09Z' fill='url(%23h)'/%3E%3C/g%3E%3Cdefs%3E%3ClinearGradient id='a' x1='26.4' y1='9.6' x2='28.8' y2='15' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%237E22CE'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3ClinearGradient id='b' x1='26.8' y1='9.4' x2='17.8' y2='3.6' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23EF4444'/%3E%3Cstop offset='1' stop-color='%23DC2626'/%3E%3C/linearGradient%3E%3ClinearGradient id='c' x1='3.6' y1='14' x2='5.4' y2='24.8' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%2322C55E'/%3E%3Cstop offset='1' stop-color='%2315803D'/%3E%3C/linearGradient%3E%3ClinearGradient id='d' x1='4.8' y1='22.2' x2='14.4' y2='29.2' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%2394A3B8'/%3E%3Cstop offset='.958' stop-color='%2364748B'/%3E%3Cstop offset='1' stop-color='%2364748B'/%3E%3C/linearGradient%3E%3ClinearGradient id='e' x1='28.4' y1='22.173' x2='22.188' y2='28.384' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23D97706'/%3E%3Cstop offset='1' stop-color='%23FBBF24'/%3E%3C/linearGradient%3E%3ClinearGradient id='f' x1='29.2' y1='54.4' x2='30.626' y2='54.256' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23FBBF24'/%3E%3Cstop offset='1' stop-color='%23FBBF24'/%3E%3C/linearGradient%3E%3ClinearGradient id='h' x1='26.4' y1='9.6' x2='28.8' y2='15' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%237E22CE'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3CclipPath id='g'%3E%3Cpath fill='%23fff' transform='translate(24.8 12)' d='M0 0h7.2v8H0z'/%3E%3C/clipPath%3E%3C/defs%3E%3C/svg%3E" />
+    <link rel="stylesheet" type="text/css" href="styles-13107bbe6906beabc50f.css">
+<link rel="preload" href="pt-root-ui_vf.woff" as="font" type="font/woff" crossorigin /> 
+<link rel="preload" href="JetBrainsMono_vf.woff2" as="font" type="font/woff" crossorigin /> 
+<link rel="preload" href="pt-root-ui_vf.woff2" as="font" type="font/woff" crossorigin /> 
+<link rel="preload" href="JetBrainsMono_vf.woff" as="font" type="font/woff" crossorigin /> 
+    <script>
+      window.allureReportOptions = {"id":"awesome","reportName":"#372 · 48646305e22011f71afa473ba09a3ec3512aae08 · Michał Kruk · chore: remove artistry override, B3 uses direct ACP spawn","logo":"logo.svg","theme":"auto","reportLanguage":"en","createdAt":1772528323945,"reportUuid":"98ccecf7-fd0f-42fc-b656-a546ac4cbbd5","groupBy":["parentSuite","suite","subSuite"],"cacheKey":"1772528323945","ci":{"type":"github","detected":true,"repoName":"spel","jobUid":"Blockether/spel_Allure Report","jobUrl":"https://github.com/Blockether/spel/actions?query=workflow%3A%22Allure%20Report%22","jobName":"Blockether/spel - Allure Report","jobRunUid":"22615533738","jobRunUrl":"https://github.com/Blockether/spel/actions/runs/22615533738","jobRunName":"report #376","jobRunBranch":"main","pullRequestUrl":"","pullRequestName":""},"layout":"base","allureVersion":"3.2.0","sections":["charts","timeline"],"defaultSection":""}
+    </script>
+
+<script>
+// Pre-register Playwright trace viewer Service Worker.
+// Starts immediately on page load so the SW is active and
+// controlling the scope before any trace attachment is opened.
+(function(){
+  if(!navigator.serviceWorker)return;
+  navigator.serviceWorker.register('./trace-viewer/sw.bundle.js',
+    {scope:'./trace-viewer/'}).catch(function(){});
+}());
+</script>
+
+<style>
+.video-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;align-items:center;justify-content:center}
+.video-modal.show{display:flex}
+.video-modal-content{max-width:90vw;max-height:90vh;position:relative}
+.video-modal video{max-width:100%;max-height:85vh;border-radius:8px;background:#000}
+.video-modal-close{position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer}
+.video-modal-title{position:absolute;bottom:20px;left:20px;right:60px;color:#fff;font-size:0.9rem;background:rgba(0,0,0,0.6);padding:0.5rem 1rem;border-radius:4px}
+</style>
+
+<style id="spel-md-css">
+.spel-md{font-family:var(--font-family,system-ui);line-height:1.6;padding:0;font-size:.9rem;margin-top:12px}
+.spel-md .http-title{display:flex;align-items:center;gap:8px;padding:10px 14px;margin:0;border-radius:8px 8px 0 0;background:var(--bg-control-secondary,#f0f0f0);border-bottom:2px solid var(--border-secondary,#ddd)}
+.spel-md .http-method{display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.8em;font-family:var(--font-family-mono,monospace);color:#fff;text-transform:uppercase;flex-shrink:0}
+.spel-md .http-method.get{background:#61affe}.spel-md .http-method.post{background:#49cc90}.spel-md .http-method.put{background:#fca130}.spel-md .http-method.patch{background:#50e3c2}.spel-md .http-method.delete{background:#f93e3e}.spel-md .http-method.head{background:#9012fe}.spel-md .http-method.options{background:#0d5aa7}
+.spel-md .http-url{font-family:var(--font-family-mono,monospace);font-size:.85em;color:var(--text-primary,#333);word-break:break-all;min-width:0}
+.spel-md .http-status{margin-left:auto;white-space:nowrap;font-weight:600;font-size:.85em;padding:2px 10px;border-radius:4px;flex-shrink:0}
+.spel-md .http-status.s2xx{background:#e6f9ee;color:#1a7f37}.spel-md .http-status.s3xx{background:#fff3cd;color:#856404}.spel-md .http-status.s4xx{background:#fce4e4;color:#c0392b}.spel-md .http-status.s5xx{background:#fce4e4;color:#c0392b}
+.spel-md .http-card{margin:6px 0 0;border-radius:8px;border:1px solid var(--border-secondary,#e0e0e0);overflow:hidden}
+.spel-md .http-card:first-of-type{margin-top:0}
+.spel-md .http-card .card-hdr{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:.75em;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.spel-md .http-card.req .card-hdr{background:rgba(73,204,144,.12);color:#1a7f37;border-bottom:1px solid rgba(73,204,144,.25)}
+.spel-md .http-card.res .card-hdr{background:rgba(97,175,254,.12);color:#1565c0;border-bottom:1px solid rgba(97,175,254,.25)}
+.spel-md .http-card.curl .card-hdr{background:rgba(252,161,48,.12);color:#a35d00;border-bottom:1px solid rgba(252,161,48,.25)}
+.spel-md .card-icon{font-size:1.1em}
+.spel-md .http-card .card-body{padding:0}
+.spel-md .http-section{padding:8px 12px;border-top:1px solid var(--border-secondary,#eee)}
+.spel-md .http-section:first-child{border-top:none}
+.spel-md .section-hdr{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:.75em;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary,#888)}
+.spel-md .code-wrap{position:relative;margin:4px 0 0}
+.spel-md .code-wrap pre{margin:0;border-radius:6px;padding:10px 14px 10px 14px;background:var(--bg-control-secondary,#f5f5f5);overflow-x:auto}
+.spel-md .code-wrap pre code{background:none;padding:0;font-family:var(--font-family-mono,monospace);font-size:.85em;line-height:1.5}
+.spel-md .copy-btn{position:absolute;top:4px;right:4px;padding:3px 8px;border:1px solid var(--border-secondary,#ccc);border-radius:4px;background:var(--bg-control-secondary,#f5f5f5);color:var(--text-secondary,#666);font-size:.7em;cursor:pointer;font-family:var(--font-family,system-ui)}
+.spel-md .copy-btn:hover{background:var(--bg-control-primary,#e0e0e0)}
+.spel-md .copy-btn.copied{color:#1a7f37;border-color:#49cc90}
+.spel-md h2{font-size:1em;font-weight:600;margin:1em 0 .4em}
+.spel-md h3{font-size:.9em;font-weight:600;margin:.6em 0 .3em;color:var(--text-secondary,#666)}
+.spel-md code{background:var(--bg-control-secondary,#f5f5f5);padding:1px 5px;border-radius:3px;font-size:.9em}
+.spel-md p{margin:.3em 0}
+.spel-md hr{border:none;border-top:1px solid var(--border-secondary,#e0e0e0);margin:1em 0}
+.spel-md strong{font-weight:600}
+.spel-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.7em;font-weight:900;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;letter-spacing:.03em;margin-right:8px;vertical-align:middle;line-height:1.6}
+.spel-badge.api{background:#e8f4fd;color:#1976d2;border:1px solid #90caf9}
+.spel-badge.ui{background:#f3e8fd;color:#7b1fa2;border:1px solid #ce93d8}
+.spel-badge.ui-api{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}
+</style>
+</head>
+<body>
+<div id="videoModal" class="video-modal" onclick="if(event.target===this)closeVideoModal()">
+<div class="video-modal-content">
+<button class="video-modal-close" onclick="closeVideoModal()">&times;</button>
+<video id="videoPlayer" controls playsinline></video>
+<div id="videoModalTitle" class="video-modal-title"></div>
+</div>
+</div>
+
+    <div id="app"></div>
+    
+    <script>
+      const { origin, pathname } = window.location; 
+      const url = new URL(pathname, origin);
+      const baseEl = document.createElement("base");
+      
+      baseEl.href = url.toString();
+      
+      window.document.head.appendChild(baseEl);
+    </script>
+  
+    <script>
+      window.allure = window.allure || {};
+    </script>
+    <script   src="app-d0210ed2e64d38a2ee8e.js"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-LNDJ3J7WT0"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-LNDJ3J7WT0', {
+          "report": "awesome",
+          "allureVersion": "3.2.0",
+          "reportUuid": "98ccecf7-fd0f-42fc-b656-a546ac4cbbd5",
+          "single_file": "false"
+        });
+    </script>
+    
+      <script async>
+        window.allureReportDataReady = true;
+      </script>
+    
+<script>
+function openVideoModal(e,t){var n=document.getElementById('videoModal'),r=document.getElementById('videoPlayer'),a=document.getElementById('videoModalTitle');r.src=e,a.textContent=t||'Video',n.classList.add('show'),r.play()}
+function closeVideoModal(){var e=document.getElementById('videoModal'),t=document.getElementById('videoPlayer');t.pause(),t.src='',e.classList.remove('show')}
+document.addEventListener('keydown',function(e){'Escape'===e.key&&closeVideoModal()});
+// Intercept video attachment clicks to open in modal
+(function(){
+  var observer=new MutationObserver(function(){document.querySelectorAll('a[href]').forEach(function(link){if(link.href&&link.href.match(/\.webm($|\?)|video\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})});
+  observer.observe(document.body,{childList:true,subtree:true});
+  setTimeout(function(){document.querySelectorAll('a[href]').forEach(function(link){if(link.href&&link.href.match(/\.webm($|\?)|video\//i)){link.onclick=function(e){e.preventDefault();openVideoModal(link.href,link.textContent.trim()||'Video Recording')}}})},3000);
+}());
+</script>
+<script id="spel-md-renderer">
+(function(){
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function parseHttpTitle(line){
+  var m=line.match(/^##\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(.+?)\s*\u2192\s*(\d+)\s*(.*)$/);
+  if(!m)return null;
+  return{method:m[1],url:m[2],status:parseInt(m[3]),statusText:m[4].trim()}
+}
+function sectionType(heading){
+  var h=heading.toLowerCase();
+  if(h==='curl')return{type:'curl',label:'cURL'};
+  if(/^request/.test(h))return{type:'req',label:heading};
+  if(/^response/.test(h))return{type:'res',label:heading};
+  return null;
+}
+function statusCls(code){
+  if(code>=200&&code<300)return 's2xx';
+  if(code>=300&&code<400)return 's3xx';
+  if(code>=400&&code<500)return 's4xx';
+  return 's5xx';
+}
+var cardIcon={req:'\u2191',res:'\u2193',curl:'\u2706'};
+var cardTitle={req:'Request',res:'Response',curl:'cURL'};
+function codeBlock(lang,code){
+  return '<div class="code-wrap"><button class="copy-btn" onclick="spelCopy(this)">Copy</button>'+'<pre><code class="language-'+(lang||'text')+'">'+esc(code)+'</code></pre></div>';
+}
+function spelMd(s){
+  var lines=s.split('\n'),tokens=[],inCode=false,codeLang='',codeLines=[];
+  for(var i=0;i<lines.length;i++){
+    var L=lines[i];
+    if(!inCode&&/^```/.test(L)){inCode=true;codeLang=L.slice(3).trim();codeLines=[];continue}
+    if(inCode){if(/^```/.test(L)){inCode=false;tokens.push({t:'code',lang:codeLang,text:codeLines.join('\n')});continue}codeLines.push(L);continue}
+    if(/^---+$/.test(L)){tokens.push({t:'hr'});continue}
+    var ht=(/^## /.test(L))?parseHttpTitle(L):null;
+    if(ht){tokens.push({t:'http-title',d:ht});continue}
+    if(/^## /.test(L)){tokens.push({t:'h2',text:L.slice(3)});continue}
+    var sec=(/^### /.test(L))?sectionType(L.slice(4).trim()):null;
+    if(sec){tokens.push({t:'section',sec:sec});continue}
+    if(/^### /.test(L)){tokens.push({t:'h3',text:L.slice(4).trim()});continue}
+    if(L.trim()==='')continue;
+    var t=esc(L).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>');
+    tokens.push({t:'p',text:t});
+  }
+  if(inCode){tokens.push({t:'code',lang:codeLang,text:codeLines.join('\n')})}
+  var out=[],j=0,curCard=null;
+  function openCard(type){
+    if(curCard)out.push('</div></div>');
+    curCard=type;
+    out.push('<div class="http-card '+type+'">');
+    out.push('<div class="card-hdr"><span class="card-icon">'+(cardIcon[type]||'')+'</span>'+cardTitle[type]+'</div>');
+    out.push('<div class="card-body">');
+  }
+  function closeCard(){if(curCard){out.push('</div></div>');curCard=null}}
+  while(j<tokens.length){
+    var tk=tokens[j];
+    if(tk.t==='http-title'){
+      closeCard();
+      out.push('<div class="http-title">');
+      out.push('<span class="http-method '+tk.d.method.toLowerCase()+'">'+tk.d.method+'</span>');
+      out.push('<span class="http-url">'+esc(tk.d.url)+'</span>');
+      out.push('<span class="http-status '+statusCls(tk.d.status)+'">'+tk.d.status+' '+esc(tk.d.statusText)+'</span>');
+      out.push('</div>');
+    }else if(tk.t==='section'){
+      var st=tk.sec.type;
+      if(curCard!==st){closeCard();openCard(st)}
+      out.push('<div class="http-section">');
+      out.push('<div class="section-hdr">'+esc(tk.sec.label)+'</div>');
+      j++;
+      while(j<tokens.length&&tokens[j].t!=='section'&&tokens[j].t!=='http-title'&&tokens[j].t!=='hr'){
+        var ct=tokens[j];
+        if(ct.t==='code')out.push(codeBlock(ct.lang,ct.text));
+        else if(ct.t==='p')out.push('<p>'+ct.text+'</p>');
+        else if(ct.t==='h3')out.push('<h3>'+esc(ct.text)+'</h3>');
+        j++;
+      }
+      out.push('</div>');
+      continue;
+    }else if(tk.t==='code'){closeCard();out.push(codeBlock(tk.lang,tk.text))}
+    else if(tk.t==='hr'){closeCard();out.push('<hr>')}
+    else if(tk.t==='h2'){closeCard();out.push('<h2>'+esc(tk.text)+'</h2>')}
+    else if(tk.t==='h3'){closeCard();out.push('<h3>'+esc(tk.text)+'</h3>')}
+    else if(tk.t==='p'){out.push('<p>'+tk.text+'</p>')}
+    j++;
+  }
+  closeCard();
+  return out.join('\n');
+}
+window.spelCopy=function(btn){
+  var code=btn.parentElement.querySelector('code');
+  if(!code)return;
+  navigator.clipboard.writeText(code.textContent).then(function(){
+    btn.textContent='Copied!';
+    btn.classList.add('copied');
+    setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied')},1500);
+  });
+};
+var badgeMap={'[UI+API] ':{cls:'ui-api',label:'UI+API'},'[API] ':{cls:'api',label:'API'},'[UI] ':{cls:'ui',label:'UI'}};
+function renderBadges(){
+  document.querySelectorAll('[data-testid="test-result-step-title"]').forEach(function(el){
+    if(el.dataset.spelBadge)return;
+    var txt=el.textContent;
+    for(var prefix in badgeMap){
+      if(txt.indexOf(prefix)===0){
+        el.dataset.spelBadge='1';
+        var b=badgeMap[prefix];
+        var span=document.createElement('span');
+        span.className='spel-badge '+b.cls;
+        span.textContent=b.label;
+        var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+        while(walker.nextNode()){
+          var n=walker.currentNode;
+          var idx=n.textContent.indexOf(prefix);
+          if(idx>=0){
+            var after=n.splitText(idx);
+            after.textContent=after.textContent.slice(prefix.length);
+            n.parentNode.insertBefore(span,after);
+            break;
+          }
+        }
+        break;
+      }
+    }
+  });
+}
+function renderMd(){
+  document.querySelectorAll('pre[data-testid="code-attachment-content"].language-md').forEach(function(pre){
+    if(pre.dataset.spelRendered)return;
+    pre.dataset.spelRendered='1';
+    var code=pre.querySelector('code');
+    if(!code)return;
+    var div=document.createElement('div');
+    div.className='spel-md';
+    div.innerHTML=spelMd(code.textContent);
+    pre.replaceWith(div);
+  });
+}
+var obs=new MutationObserver(function(){renderMd();renderBadges()});
+obs.observe(document.body,{childList:true,subtree:true});
+setTimeout(function(){renderMd();renderBadges()},2000);
+}());
+</script>
+</body>
+</html>
