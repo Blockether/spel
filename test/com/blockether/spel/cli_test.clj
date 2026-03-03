@@ -1238,7 +1238,7 @@
       (let [h (sut/top-level-help)]
         (expect (.contains ^String h "Navigation:"))
         (expect (.contains ^String h "Global Flags:"))
-        (expect (.contains ^String h "Environment Variables:"))))))
+        (expect (.contains ^String h "Environment Variables"))))))
 
 ;; =============================================================================
 ;; Cookies
