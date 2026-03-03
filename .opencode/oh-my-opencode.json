@@ -4,9 +4,6 @@
     "playwright"
   ],
   "categories": {
-    "artistry": {
-      "model": "zai-coding-plan/glm-5"
-    },
     "ultrabrain": {
       "model": "anthropic/claude-opus-4-6",
       "variant": "max"
