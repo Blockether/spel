@@ -209,16 +209,57 @@
   "Unit tests for discover-cdp-endpoint"
 
   (describe "returns valid CDP URL or throws when no Chrome is running"
-            (it "returns a string starting with http://127.0.0.1: or throws ex-info"
+            (it "returns a string starting with http:// or ws:// or throws ex-info"
                 (try
                   (let [url (sut/discover-cdp-endpoint)]
                     ;; If Chrome is running locally, we get a valid URL
                     (expect (string? url))
-                    (expect (str/starts-with? url "http://127.0.0.1:")))
+                    (expect (or (str/starts-with? url "http://127.0.0.1:")
+                                (str/starts-with? url "ws://127.0.0.1:"))))
                   (catch clojure.lang.ExceptionInfo e
                     ;; If no Chrome is running, we get a descriptive error
-                    (expect (str/includes? (.getMessage e) "--auto-connect"))
-                    (expect (contains? (ex-data e) :probed-ports)))))))
+                    (expect (str/includes? (.getMessage e) "No running Chrome"))
+                    (expect (contains? (ex-data e) :probed-ports))))))
+
+  (describe "parse-devtools-active-port"
+            (it "parses a valid DevToolsActivePort file"
+                (let [tmp-dir (java.io.File/createTempFile "spel-dt-test" "")
+                      _      (.delete tmp-dir)
+                      _      (.mkdirs tmp-dir)
+                      dt-file (java.io.File. tmp-dir "DevToolsActivePort")]
+                  (try
+                    (spit dt-file "9222\n/devtools/browser/abc-123\n")
+                    (let [result (#'sut/parse-devtools-active-port (.getPath dt-file))]
+                      (expect (= 9222 (:port result)))
+                      (expect (= "/devtools/browser/abc-123" (:ws-path result))))
+                    (finally
+                      (.delete dt-file)
+                      (.delete tmp-dir)))))
+
+            (it "returns nil for missing file"
+                (expect (nil? (#'sut/parse-devtools-active-port "/nonexistent/DevToolsActivePort"))))
+
+            (it "returns nil for invalid content"
+                (let [tmp (java.io.File/createTempFile "spel-dt-bad" ".txt")]
+                  (try
+                    (spit tmp "not-a-port\n")
+                    (expect (nil? (#'sut/parse-devtools-active-port (.getPath tmp))))
+                    (finally
+                      (.delete tmp)))))
+
+            (it "handles port-only file (no ws-path)"
+                (let [tmp (java.io.File/createTempFile "spel-dt-port" ".txt")]
+                  (try
+                    (spit tmp "9222\n")
+                    (let [result (#'sut/parse-devtools-active-port (.getPath tmp))]
+                      (expect (= 9222 (:port result)))
+                      (expect (nil? (:ws-path result))))
+                    (finally
+                      (.delete tmp))))))
+
+  (describe "probe-http-cdp"
+            (it "returns nil for ports not listening"
+                (expect (nil? (#'sut/probe-http-cdp 19999 500))))))
 
 ;; =============================================================================
 ;; Unit Tests — process-command with _flags

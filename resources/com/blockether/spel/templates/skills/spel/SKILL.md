@@ -28,18 +28,17 @@ If the installed version does not match **{{version}}**:
 |---------|---------|
 | `spel --help` | CLI help |
 | `spel open <url>` | Open URL (stealth mode is ON by default) |
-| `spel state export --help` | State export help (cookies + localStorage) |
-| `spel state export --profile <path> -o auth.json` | Export Chrome cookies + localStorage to Playwright JSON |
+| `spel --auto-connect open <url>` | Auto-discover running Chrome and open URL via CDP |
+| `spel --cdp http://127.0.0.1:9222 open <url>` | Connect to Chrome via explicit CDP endpoint |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
-| `spel --load-state auth.json open <url>` | Open with exported state JSON |
+| `spel --load-state auth.json open <url>` | Open with browser state JSON (cookies/localStorage) |
 | `spel --load-state auth.json --eval 'script.clj'` | Run script with pre-loaded auth state |
-| `spel --channel msedge state export --profile <path>` | Export Edge cookies to Playwright JSON |
 | `spel codegen --help` | Codegen CLI help |
 | `spel init-agents --help` | Agent scaffolding help |
 | `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
 | `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
-| `spel init-agents --loop=vscode` | Scaffold E2E agents for VS Code / Copilot |
+| `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
 | `spel search "query"` | Google search (table output) |
 | `spel search "query" --json` | Google search (JSON output) |
 | `spel search "query" --images` | Google image search |
@@ -241,7 +240,7 @@ Detailed documentation is split into topic-specific reference files:
 |-----|-------|
 | `refs/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
 | `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `refs/PROFILES_AGENTS.md` | Browser profiles, **stealth mode**, **cookie export**, storage state, agent scaffolding |
+| `refs/PROFILES_AGENTS.md` | Browser profiles, **stealth mode**, **CDP auto-connect**, storage state, agent scaffolding |
 
 ### Troubleshooting
 | Ref | Topic |

@@ -15,7 +15,7 @@
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
-    [com.blockether.spel.core :as core]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
@@ -81,51 +81,102 @@
              "spel-" session ".flags.json")
     (into-array String [])))
 
+(defn- parse-devtools-active-port
+  "Parses a DevToolsActivePort file, returning {:port N :ws-path \"/devtools/...\"} or nil."
+  [^String path]
+  (let [f (java.io.File. path)]
+    (when (.exists f)
+      (try
+        (let [content (slurp f)
+              lines   (str/split-lines content)
+              port    (parse-long (str/trim (first lines)))
+              ws-path (when (>= (count lines) 2)
+                        (str/trim (second lines)))]
+          (when (and port (pos? port) (<= port 65535))
+            {:port port :ws-path ws-path}))
+        (catch Exception _ nil)))))
+
+(defn- scan-playwright-devtools
+  "Scans ms-playwright cache dir for subdirectories containing DevToolsActivePort.
+   Returns first match or nil. Finds Chrome launched by chrome-devtools-mcp etc."
+  [^String cache-dir]
+  (let [parent (java.io.File. cache-dir)]
+    (when (.isDirectory parent)
+      (some (fn [^java.io.File child]
+              (when (.isDirectory child)
+                (parse-devtools-active-port
+                  (str (.getPath child) "/DevToolsActivePort"))))
+        (.listFiles parent)))))
+
+(defn- probe-http-cdp
+  "Probes an HTTP endpoint for CDP. Returns the port on success, nil on failure."
+  [port timeout-ms]
+  (try
+    (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
+          conn (doto (.openConnection url)
+                 (.setConnectTimeout (int timeout-ms))
+                 (.setReadTimeout (int timeout-ms))
+                 (.connect))]
+      (.disconnect ^HttpURLConnection conn)
+      port)
+    (catch Exception _ nil)))
+
 (defn discover-cdp-endpoint
   "Auto-discovers a running Chrome's CDP endpoint.
-   Checks DevToolsActivePort files first, then probes common ports (9222, 9229).
-   Returns a CDP URL string (e.g. \"http://127.0.0.1:9222\") or throws ex-info."
+   Checks DevToolsActivePort files first (Chrome data dirs + ms-playwright cache),
+   then probes common ports (9222, 9229).
+   Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
+
+   Chrome 136+ ignores --remote-debugging-port without --user-data-dir.
+   Chrome 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
   []
-  (let [home       (System/getProperty "user.home")
-        os-name    (str/lower-case (System/getProperty "os.name"))
-        mac?       (str/includes? os-name "mac")
-        candidates (if mac?
-                     [(str home "/Library/Application Support/Google/Chrome/DevToolsActivePort")]
-                     [(str home "/.config/google-chrome/DevToolsActivePort")
-                      (str home "/.config/chromium/DevToolsActivePort")])
-        ;; Try DevToolsActivePort files
-        port-from-file
-        (some (fn [path]
-                (let [f (java.io.File. ^String path)]
-                  (when (.exists f)
-                    (try
-                      (let [content (slurp f)
-                            lines   (str/split-lines content)
-                            port    (parse-long (str/trim (first lines)))]
-                        (when (and port (pos? port))
-                          port))
-                      (catch Exception _ nil)))))
-              candidates)]
-    (if port-from-file
-      (str "http://127.0.0.1:" port-from-file)
-      ;; Probe common ports
-      (let [probe-port
-            (fn [port]
-              (try
-                (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
-                      conn (doto (.openConnection url)
-                             (.setConnectTimeout 1000)
-                             (.setReadTimeout 1000)
-                             (.connect))]
-                  (.disconnect ^HttpURLConnection conn)
-                  port)
-                (catch Exception _ nil)))
-            found (some probe-port [9222 9229])]
+  (let [home    (System/getProperty "user.home")
+        os-name (str/lower-case (System/getProperty "os.name"))
+        mac?    (str/includes? os-name "mac")
+        ;; Standard Chrome data directories
+        chrome-candidates
+        (if mac?
+          [(str home "/Library/Application Support/Google/Chrome/DevToolsActivePort")
+           (str home "/Library/Application Support/Google/Chrome Canary/DevToolsActivePort")
+           (str home "/Library/Application Support/Chromium/DevToolsActivePort")]
+          [(str home "/.config/google-chrome/DevToolsActivePort")
+           (str home "/.config/chromium/DevToolsActivePort")
+           (str home "/.config/google-chrome-unstable/DevToolsActivePort")])
+        ;; ms-playwright cache (chrome-devtools-mcp, agent-browser, etc.)
+        pw-cache (if mac?
+                   (str home "/Library/Caches/ms-playwright")
+                   (str home "/.cache/ms-playwright"))
+        ;; Try Chrome data dirs first, then ms-playwright subdirs
+        dt-info  (or (some parse-devtools-active-port chrome-candidates)
+                   (scan-playwright-devtools pw-cache))]
+    (if dt-info
+      ;; DevToolsActivePort found — try HTTP probe first, fall back to direct WebSocket
+      (let [port    (:port dt-info)
+            ws-path (:ws-path dt-info)]
+        (if (probe-http-cdp port 2000)
+          ;; Pre-M144 Chrome: HTTP endpoint works
+          (str "http://127.0.0.1:" port)
+          ;; Chrome M144+: WebSocket-only server (chrome://inspect remote debugging)
+          ;; HTTP endpoints return 404, must connect via WebSocket directly.
+          (if ws-path
+            (str "ws://127.0.0.1:" port ws-path)
+            (str "http://127.0.0.1:" port))))
+      ;; No DevToolsActivePort — probe common ports
+      (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
         (if found
           (str "http://127.0.0.1:" found)
-          (throw (ex-info "No running Chrome found for --auto-connect. Start Chrome with --remote-debugging-port=9222 or check DevToolsActivePort file."
-                   {:candidates candidates
-                    :probed-ports [9222 9229]})))))))
+          (throw (ex-info (str "No running Chrome with remote debugging found.\n\n"
+                            "Chrome 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
+                            "Option 1 — Launch Chrome with debug port:\n"
+                            "  " (if mac?
+                                   "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
+                                   "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
+                            "\n\n"
+                            "Option 2 — Enable in running Chrome (M144+):\n"
+                            "  Open chrome://inspect/#remote-debugging and toggle it on.\n")
+                   {:chrome-candidates chrome-candidates
+                    :pw-cache          pw-cache
+                    :probed-ports      [9222 9229]})))))))
 
 ;; =============================================================================
 ;; State
@@ -1787,10 +1838,10 @@
       (try
         (let [result (binding [*out* stdout-writer
                                *err* stderr-writer]
-                        (sci/binding [sci-env/sci-command-line-args-var args-vec]
-                          (let [r (sci-env/eval-string ctx code)]
-                            (sync-sci-to-state!)
-                            r)))
+                       (sci/binding [sci-env/sci-command-line-args-var args-vec]
+                         (let [r (sci-env/eval-string ctx code)]
+                           (sync-sci-to-state!)
+                           r)))
               captured-stdout (str stdout-writer)
               captured-stderr (str stderr-writer)
               ;; Collect NEW console messages and page errors from this eval

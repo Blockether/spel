@@ -52,26 +52,22 @@ For lower-level control, use `core/launch-persistent-context` on the browser typ
 
 ---
 
-## Profile vs State: When to Use Which
+## Profile vs Load-State: When to Use Which
 
-spel supports two auth approaches. Use this table to pick the right one:
+spel supports two auth approaches:
 
-| | `--profile` (persistent context) | `state export` + `--load-state` (portable JSON) |
+| | `--profile` (persistent context) | `--load-state` (portable JSON) |
 |---|---|---|
-| **How it works** | Launches browser with a real Chrome/Edge user data dir | Exports cookies + localStorage to JSON, loads into fresh context |
-| **Auth persists** | Yes, automatically (in the profile dir) | Snapshot at export time — re-export to refresh |
-| **Cross-machine** | No (cookies encrypted with OS keychain) | Yes (decrypted portable JSON) |
-| **Extensions/prefs** | Yes (full Chrome profile) | No (cookies + localStorage only) |
+| **How it works** | Launches browser with a user data directory via Playwright `launchPersistentContext` | Loads cookies + localStorage JSON into fresh context |
+| **Auth persists** | Yes, automatically (in the profile dir) | Snapshot at save time — re-save to refresh |
 | **Concurrent use** | No (Chromium locks the dir) | Yes (read-only JSON, any number of browsers) |
-| **Edge support** | `--channel msedge --profile <path>` | `--channel msedge` on `state export` |
-| **Best for** | Local automation, dev workflows, interactive sessions | CI pipelines, cross-platform, agent automation, parallel runs |
+| **Best for** | Local automation, dev workflows, interactive sessions | CI pipelines, cross-platform, parallel runs |
 
 ### Quick Decision
 
 - **Working locally on your machine?** Use `--profile`
-- **Running in CI or sharing auth across machines?** Use `state export` + `--load-state`
 - **Need concurrent browser sessions with same auth?** Use `--load-state` (profiles lock)
-- **Need extensions or browser preferences?** Use `--profile`
+- **Running in CI?** Use `--load-state` with a saved storage-state JSON
 
 ### Edge / Other Chromium Browsers
 
@@ -81,11 +77,8 @@ Use `--channel` to target non-default Chromium browsers:
 # Persistent Edge profile
 spel --channel msedge --profile ~/.config/microsoft-edge/Default open https://example.com
 
-# Export Edge cookies
-spel state export --channel msedge --profile ~/.config/microsoft-edge/Default -o edge-auth.json
-
-# Use exported Edge cookies in any browser
-spel --load-state edge-auth.json open https://example.com
+# Use exported state in any browser
+spel --load-state auth.json open https://example.com
 ```
 
 ### Browser Profile Paths
@@ -102,49 +95,101 @@ Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome:/
 
 ## Daemon Launch Modes
 
-When using `--profile`, spel auto-detects which launch mode to use:
+The daemon has two launch modes:
 
 | Mode | Trigger | What Happens | Use Case |
 |------|---------|-------------|----------|
-| **Mode 1: Real Chrome profile** | `--profile` points to a dir with `Preferences` or `Cookies` file | Copies profile to temp dir, launches persistent context, decrypts and injects cookies via `.addCookies` (Chrome 136+ workaround) | Your actual Chrome profile — full experience |
-| **Mode 2: Custom profile dir** | `--profile` points to a dir without Chrome data files | Uses Playwright `launchPersistentContext` directly on the dir | Fresh/scratch profiles, temp directories |
-| **Mode 3: Normal** | No `--profile` flag | Standard `launch` + `new-context`, no persistence | One-off automation, CI with `--load-state` |
+| **Mode 1: Persistent profile** | `--profile <dir>` | Uses Playwright `launchPersistentContext` on the directory | Local automation with session persistence |
+| **Mode 2: Normal / CDP** | No `--profile` | Standard `launch` + `new-context`, or `--cdp` / `--auto-connect` for CDP | One-off automation, CI, connecting to existing Chrome |
 
-### Mode 1 Details (Real Chrome Profile)
+### Mode 1 Details (Persistent Profile)
 
-This is the most powerful mode. When spel detects a real Chrome profile:
+Playwright creates/manages browser data in the given directory:
 
-1. **Copies** the profile to a temp directory (avoids locking your real Chrome)
-2. **Launches** with `launchPersistentContext` — extensions, bookmarks, history, passwords all load
-3. **Decrypts** cookies from Chrome's encrypted SQLite database (using OS keychain)
-4. **Injects** cookies via Playwright's `.addCookies` API (bypasses Chrome 136+ subprocess cookie restrictions)
+- Session data persists between runs (cookies, localStorage, IndexedDB)
+- Session isolation per directory — don't share between concurrent processes
+- Supports `--channel` for Edge, Chrome Canary, etc.
 
-You get the full Chrome experience — exactly like opening Chrome yourself, but controlled by spel.
+### Mode 2 Details (Normal / CDP)
 
-### Mode 2 Details (Custom Profile Dir)
+**Normal**: Standard Playwright launch — fresh context every time. Use `--load-state` to inject pre-saved cookies.
 
-For directories that aren't real Chrome profiles (no `Preferences`/`Cookies` files):
-
-- Playwright creates its own profile data in that directory
-- Session data persists between runs (cookies, localStorage)
-- No extensions or Chrome-specific features
-
-### Mode 3 Details (Normal)
-
-Standard Playwright launch — fresh context every time. Use `--load-state` to inject cookies from a previous `state export`.
-
-### How spel Decides
-
-```
---profile given?
-  |-- Yes -> Directory has Preferences or Cookies file?
-  |          |-- Yes -> Mode 1 (real Chrome profile)
-  |          |-- No  -> Mode 2 (custom Playwright profile)
-  |-- No  -> Mode 3 (normal launch)
-```
+**CDP Connect** (`--cdp <url>` or `--auto-connect`): Connects to an already-running Chrome via Chrome DevTools Protocol. Reuses the browser's existing contexts, pages, and sessions.
 
 All modes support stealth (on by default), `--channel`, and `--interactive`.
 
+---
+
+## CDP Auto-Connect
+
+Connect to a running Chrome instance via Chrome DevTools Protocol (CDP). This lets spel control your actual Chrome with its real login sessions, cookies, and tabs.
+
+### Setup (Chrome 136+ Security Change)
+
+**Chrome 136+ (April 2025) intentionally ignores `--remote-debugging-port` when targeting the default user data directory.** This is a security change, not a bug.
+
+Two ways to enable CDP:
+
+#### Option 1: Launch Chrome with debug port + custom user-data-dir
+
+```bash
+# macOS
+open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+
+# Linux
+google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+```
+
+Then connect:
+```bash
+spel --auto-connect open https://example.com
+# or explicitly:
+spel --cdp http://127.0.0.1:9222 open https://example.com
+```
+
+#### Option 2: Enable in running Chrome (M144+)
+
+1. Open `chrome://inspect/#remote-debugging` in Chrome
+2. Toggle remote debugging ON
+3. Chrome creates a `DevToolsActivePort` file automatically
+
+Then connect:
+```bash
+spel --auto-connect open https://example.com
+```
+
+### How Auto-Connect Discovery Works
+
+1. Checks `DevToolsActivePort` files in Chrome data directories:
+   - macOS: `~/Library/Application Support/Google/Chrome/`, `Chrome Canary/`, `Chromium/`
+   - Linux: `~/.config/google-chrome/`, `chromium/`, `google-chrome-unstable/`
+2. Checks `ms-playwright` cache dirs (finds Chrome launched by `chrome-devtools-mcp` etc.)
+3. Probes common ports: 9222, 9229 via HTTP `GET /json/version`
+4. For Chrome 144+ WebSocket-only mode: falls back to direct WebSocket connection
+
+### Flag Persistence
+
+After the first successful `--auto-connect`, the discovered CDP URL is persisted to a session flags file. Subsequent commands reuse it automatically:
+
+```bash
+spel --auto-connect open https://example.com   # discovers CDP, persists URL
+spel snapshot                                    # reuses persisted CDP URL
+spel click @eXXXX                                # still connected
+```
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `SPEL_CDP` | CDP endpoint URL (same as `--cdp`) |
+| `SPEL_AUTO_CONNECT` | Enable auto-connect (any value, same as `--auto-connect`) |
+
+### Limitations
+
+- CDP is **Chromium-only**. Firefox and WebKit don't support it.
+- Chrome must be launched with `--user-data-dir` pointing to a **non-default** directory (Chrome 136+ security requirement).
+- If Chrome is already running, you cannot add `--remote-debugging-port` retroactively — use `chrome://inspect/#remote-debugging` instead (M144+).
+- The `--user-data-dir` Chrome instance has a fresh profile unless you point it to an existing one.
 ---
 
 ## Stealth Mode
@@ -189,15 +234,12 @@ spel open https://example.org
 | `outerWidth/Height` | Matches inner dimensions (headless mismatch) |
 | `iframe contentWindow` | Prevents iframe-based fingerprinting |
 
-### Stealth + Cookies Export Workflow
+### Stealth + Load-State Workflow
 
-For maximum authenticity — combine stealth with real Chrome cookies:
+For maximum authenticity — combine stealth with saved browser state:
 
 ```bash
-# 1. Export cookies from your real Chrome profile
-spel state export --profile ~/.config/google-chrome/Default -o auth.json
-
-# 2. Use exported state (stealth is already on by default)
+# Use saved state (stealth is already on by default)
 spel --load-state auth.json open https://protected-site.com
 ```
 
@@ -234,99 +276,11 @@ spel --load-state auth.json open https://protected-site.com
 - Stealth patches help with common detection but are **not foolproof** against sophisticated fingerprinting (e.g., TLS fingerprint, HTTP/2 settings, canvas noise)
 - Some sites (banks, Google login) may still detect automation regardless
 - **Headed mode** (`--interactive`) combined with stealth (which is on by default) gives the best results
-- Works with all three daemon modes: normal launch, persistent profile, and Chrome cookie injection
+- Works with all launch modes: normal, persistent profile, and CDP connect
 
 ---
 
-## State Export (`state export`)
-
-Export cookies and localStorage from a real Chrome profile to a portable Playwright state JSON file. Works cross-platform (macOS, Linux, Windows).
-
-(Alias: `spel cookies-export`)
-
-### CLI
-
-```bash
-# Export from default Chrome profile
-spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default
-
-# Export to a specific file
-spel state export --profile ~/.config/google-chrome/Profile\ 1 -o auth.json
-
-# Export cookies only (skip localStorage)
-spel state export --profile /path/to/profile --no-local-storage
-
-# Pipe to stdout (default when no -o)
-spel state export --profile /path/to/profile > cookies.json
-```
-
-### Output Format
-
-Standard Playwright storage-state JSON:
-
-```json
-{
-  "cookies": [
-    {"name": "session_id", "value": "abc123", "domain": ".example.org", "path": "/", ...}
-  ],
-  "origins": [
-    {
-      "origin": "https://example.org",
-      "localStorage": [
-        {"name": "theme", "value": "dark"},
-        {"name": "user_prefs", "value": "{...}"}
-      ]
-    }
-  ]
-}
-```
-
-### How It Works
-
-1. Copies Chrome's `Cookies` SQLite database to a temp file (avoids locking)
-2. Decrypts cookie values using the OS keychain:
-   - **macOS**: Reads encryption key from Keychain via `security` CLI
-   - **Linux**: Reads from GNOME Keyring (`secret-tool`) or falls back to `"peanuts"`
-   - **Windows**: Reads DPAPI-encrypted key from `Local State` JSON
-3. Reads localStorage from Chrome's LevelDB files (Snappy-compressed SSTables)
-4. Outputs standard Playwright storage-state JSON
-
-### Cross-Platform Transfer
-
-Export on macOS, use on Linux CI:
-
-```bash
-# On macOS (your dev machine)
-spel state export --profile ~/Library/Application\ Support/Google/Chrome/Profile\ 1 -o auth.json
-
-# Copy to Linux CI server
-scp auth.json ci-server:/tmp/
-
-# On Linux CI
-spel --load-state /tmp/auth.json --eval 'script.clj'
-```
-
-### Common Profile Paths
-
-| OS | Default Profile |
-|----|----------------|
-| macOS | `~/Library/Application Support/Google/Chrome/Default` |
-| Linux | `~/.config/google-chrome/Default` |
-| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` |
-
-Chrome profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome://version` in your browser to find the exact path.
-
-### CLI Aliases
-
-`--load-state` is the primary flag. `--storage-state` is kept as an alias for Playwright familiarity:
-
-```bash
-spel --load-state auth.json open https://example.org
-spel --storage-state auth.json open https://example.org   # alias, same thing
-spel --eval --load-state auth.json 'script.clj'
-spel --eval --storage-state auth.json 'script.clj'        # alias, same thing
-```
-
+---
 ---
 
 ## Device Emulation
@@ -493,7 +447,7 @@ Library:
 ```bash
 spel init-agents                              # OpenCode (default)
 spel init-agents --loop=claude                # Claude Code
-spel init-agents --loop=vscode                # VS Code / Copilot
+spel init-agents --loop=vscode                # VS Code / Copilot (DEPRECATED — exits with error)
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
 spel init-agents --no-tests                   # SKILL only, no test agents
 ```
@@ -502,7 +456,7 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
+| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
 | `--ns NS` | directory name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | off | Only scaffold the SKILL (API reference), skip test agents |
@@ -538,4 +492,4 @@ The `spel-test-workflow` prompt chains all three: plan first, generate second, h
 |--------|--------|--------|---------|
 | `opencode` | `.opencode/agents/` | `.opencode/skills/spel/` | `.opencode/prompts/` |
 | `claude` | `.claude/agents/` | `.claude/docs/spel/` | `.claude/prompts/` |
-| `vscode` | `.github/agents/` | `.github/docs/spel/` | `.github/prompts/` |
+| `vscode` | `.github/agents/` | `.github/docs/spel/` | `.github/prompts/` | ⚠️ DEPRECATED |

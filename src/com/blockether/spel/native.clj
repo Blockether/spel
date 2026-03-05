@@ -235,6 +235,8 @@
   (println "  --args <args>             Browser args (comma-separated)")
   (println "  --cdp <url>               Connect via CDP endpoint")
   (println "  --auto-connect            Auto-discover running Chrome CDP endpoint")
+  (println "                            Chrome 136+ requires --user-data-dir to enable debug port")
+  (println "                            See: chrome://inspect/#remote-debugging (M144+)")
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
   (println "  --no-stealth              Disable stealth mode (stealth is ON by default)")
