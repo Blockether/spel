@@ -1,0 +1,39 @@
+## POST /echo → 200 OK
+
+### Request Headers
+```
+Authorization: Bearer test-token
+```
+
+### Request Body
+```json
+{
+  "action": "create"
+}
+```
+
+### Response Headers
+```
+content-length: 59
+content-type: application/json
+date: Thu, 05 Mar 2026 07:41:32 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "POST",
+  "path": "/echo",
+  "body": {
+    "action": "create"
+  }
+}
+```
+
+### cURL
+```bash
+curl '/echo' \
+  -X POST \
+  -H 'Authorization: Bearer test-token' \
+  -d '{"action":"create"}'
+```
