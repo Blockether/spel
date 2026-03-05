@@ -181,14 +181,19 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (tests are included by default — use `--no-tests` for automation-only):
+Scaffold agent skills (all 8 agents by default — use `--only` to scaffold a subset, or `--no-tests` for automation-only):
 
 ```bash
-# Full scaffolding with test agents (default)
+# Full scaffolding with all 8 agents (default)
 spel init-agents
 
 # Automation only — SKILL reference only, no test scaffolding
 spel init-agents --no-tests
+
+# Scaffold only specific groups
+spel init-agents --only=test          # test agents only
+spel init-agents --only=automation    # browser automation agents only
+spel init-agents --only=visual        # visual QA agents only
 ```
 
 Choose the right loop for your coding agent:
@@ -196,7 +201,6 @@ Choose the right loop for your coding agent:
 ```bash
 spel init-agents --loop=opencode   # OpenCode (default)
 spel init-agents --loop=claude     # Claude Code
-spel init-agents --loop=vscode     # VS Code / Copilot
 ```
 
 #### Step 7: Verify
@@ -342,16 +346,20 @@ spel compiles to a native binary via GraalVM - no JVM startup, instant execution
 Point your AI agent at spel and let it write your E2E tests.
 
 ```bash
-spel init-agents                              # OpenCode (default)
+spel init-agents                              # all 8 agents, OpenCode (default)
 spel init-agents --loop=claude                # Claude Code
-spel init-agents --loop=vscode                # VS Code / Copilot
+spel init-agents --only=test                  # test agents only
+spel init-agents --only=automation            # browser automation agents only
+spel init-agents --only=visual                # visual QA agents only
+spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
 spel init-agents --no-tests                   # SKILL only (interactive dev)
 ```
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude`, `vscode` |
+| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
+| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual` |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |

@@ -82,7 +82,39 @@ make lint                    # clojure-lsp diagnostics --raw
 make validate-safe-graal     # check for reflection/boxed-math warnings
 make gen-docs                # regenerate refs/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
-make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding
+make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 8 agents)
+```
+
+## Agent Scaffolding
+
+`spel init-agents` scaffolds 8 agents across three groups. Use `--only` to scaffold a subset.
+
+```bash
+spel init-agents                              # all 8 agents (default)
+spel init-agents --only=test                  # test agents only
+spel init-agents --only=automation            # browser automation agents only
+spel init-agents --only=visual                # visual QA agents only
+spel init-agents --only=test,visual           # combine groups with commas
+```
+
+### Subagent groups
+
+| Group | Agents | Use for |
+|-------|--------|---------|
+| `test` | spel-test-planner, spel-test-generator, spel-test-healer | E2E test writing |
+| `automation` | spel-explorer, spel-automator, spel-interactive | Browser automation |
+| `visual` | spel-presenter, spel-visual-qa | Visual content + QA |
+
+Individual agent names also work as `--only` values: `explorer`, `automator`, `interactive`, `presenter`, `visual-qa`.
+
+### `--loop` flag
+
+Valid values: `opencode` (default), `claude`. The `vscode` value is **deprecated** and now exits with an error.
+
+```bash
+spel init-agents --loop=opencode   # OpenCode (default)
+spel init-agents --loop=claude     # Claude Code
+# spel init-agents --loop=vscode   # DEPRECATED — exits with error
 ```
 
 Single test namespace / var:
