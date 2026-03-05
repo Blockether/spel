@@ -249,12 +249,12 @@
   }
 
   // --- Computed Styles: three-tier system (opt-in via __STYLES__) ---
-  var STYLE_MINIMAL = ['display','position','backgroundColor','color','fontSize','fontWeight',
+  var STYLE_MINIMAL = ['display','position','top','left','right','bottom','backgroundColor','color','fontSize','fontWeight',
     'padding','margin','width','height','borderRadius','border'];
   var STYLE_BASE = STYLE_MINIMAL.concat(['fontFamily','lineHeight','textAlign','boxShadow',
-    'opacity','overflow','textDecoration','cursor','flexDirection','justifyContent','alignItems','gap']);
+    'opacity','visibility','overflow','textDecoration','cursor','float','clear','flexDirection','justifyContent','alignItems','gap']);
   var STYLE_MAX = STYLE_BASE.concat(['zIndex','textTransform','letterSpacing','whiteSpace',
-    'textOverflow','maxWidth','maxHeight','minWidth','minHeight','backgroundImage','pointerEvents','outline']);
+    'textOverflow','maxWidth','maxHeight','minWidth','minHeight','backgroundImage','pointerEvents','outline','transform']);
 
   function toKebab(s) { return s.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); }); }
 
@@ -262,6 +262,7 @@
     switch(k) {
       case 'display': return v==='block'||v==='inline';
       case 'position': return v==='static';
+      case 'top': case 'left': case 'right': case 'bottom': return v==='auto';
       case 'backgroundColor': return v==='rgba(0, 0, 0, 0)'||v==='transparent';
       case 'color': return false;
       case 'fontSize': return false;
@@ -274,9 +275,12 @@
       case 'textAlign': return v==='start'||v==='left';
       case 'boxShadow': return v==='none';
       case 'opacity': return v==='1';
+      case 'visibility': return v==='visible';
       case 'overflow': return v==='visible';
       case 'textDecoration': return v==='none'||v.startsWith('none');
       case 'cursor': return v==='auto'||v==='default';
+      case 'float': return v==='none';
+      case 'clear': return v==='none';
       case 'flexDirection': return v==='row';
       case 'justifyContent': return v==='normal'||v==='flex-start';
       case 'alignItems': return v==='normal'||v==='stretch';
@@ -291,6 +295,7 @@
       case 'backgroundImage': return v==='none';
       case 'pointerEvents': return v==='auto';
       case 'outline': return v==='none'||v.startsWith('0px');
+      case 'transform': return v==='none';
       default: return false;
     }
   }
@@ -528,13 +533,14 @@
 (def ^:private style-display-order
   "Display order for CSS style keys in tree output.
    Layout → box → visual → typography → text → border → misc."
-  ["display" "position" "flex-direction" "justify-content" "align-items" "gap"
-   "width" "height" "max-width" "max-height" "min-width" "min-height"
-   "padding" "margin" "overflow"
-   "background-color" "background-image" "color" "opacity"
-   "font-size" "font-weight" "font-family" "line-height" "text-align"
-   "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
-   "border" "border-radius" "box-shadow" "outline"
+  ["display" "position" "top" "left" "right" "bottom" "flex-direction" "justify-content" "align-items" "gap"
+    "width" "height" "max-width" "max-height" "min-width" "min-height"
+    "padding" "margin" "overflow"
+    "background-color" "background-image" "color" "opacity" "visibility" "transform"
+    "float" "clear"
+    "font-size" "font-weight" "font-family" "line-height" "text-align"
+    "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
+    "border" "border-radius" "box-shadow" "outline"
    "z-index" "cursor" "pointer-events"])
 
 (defn- format-styles

@@ -746,15 +746,33 @@
   (describe "capture-snapshot with styles and viewport"
     {:context [with-playwright with-browser with-page]}
 
+    (it "capture-snapshot with minimal styles returns 16 style properties"
+      (page/navigate *page* "https://example.org")
+      (let [snap   (sut/capture-snapshot *page* {:styles true :styles-detail "minimal"})
+            styled (filter :styles (vals (:refs snap)))]
+        (expect (pos? (count styled)))
+        (doseq [ref styled]
+          (expect (= 16 (count (:styles ref)))))))
+
     (it "capture-snapshot with base styles includes styles in refs"
       (page/navigate *page* "https://example.org")
       (let [snap   (sut/capture-snapshot *page* {:styles true :styles-detail "base"})
             styled (filter :styles (vals (:refs snap)))]
         (expect (pos? (count styled)))
+        (doseq [ref styled]
+          (expect (= 31 (count (:styles ref)))))
         (expect (map? (:styles (first styled))))
         (expect (string? (first (keys (:styles (first styled))))))
         (expect (or (contains? (:styles (first styled)) "font-size")
                   (contains? (:styles (first styled)) "display")))))
+
+    (it "capture-snapshot with max styles returns 44 style properties"
+      (page/navigate *page* "https://example.org")
+      (let [snap   (sut/capture-snapshot *page* {:styles true :styles-detail "max"})
+            styled (filter :styles (vals (:refs snap)))]
+        (expect (pos? (count styled)))
+        (doseq [ref styled]
+          (expect (= 44 (count (:styles ref)))))))
 
     (it "capture-snapshot without styles has no styles in refs"
       (page/navigate *page* "https://example.org")
