@@ -2492,15 +2492,15 @@
   (describe "styles_detail tier behavior"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
-    (it "minimal returns 12 style keys per styled ref"
+    (it "minimal returns 16 style keys per styled ref"
       (nav! "/test-page")
       (let [r      (cmd "snapshot" {"styles" true "styles_detail" "minimal"})
             styled (filter :styles (vals (:refs r)))]
         (expect (pos? (count styled)))
         (doseq [ref styled]
-          (expect (= 12 (count (:styles ref)))))))
+          (expect (= 16 (count (:styles ref)))))))
 
-    (it "base returns 24 style keys and max returns 36"
+    (it "base returns 31 style keys and max returns 44"
       (nav! "/test-page")
       (let [base-r      (cmd "snapshot" {"styles" true "styles_detail" "base"})
             max-r       (cmd "snapshot" {"styles" true "styles_detail" "max"})
@@ -2509,9 +2509,9 @@
         (expect (pos? (count base-styled)))
         (expect (pos? (count max-styled)))
         (doseq [ref base-styled]
-          (expect (= 24 (count (:styles ref)))))
+          (expect (= 31 (count (:styles ref)))))
         (doseq [ref max-styled]
-          (expect (= 36 (count (:styles ref)))))))
+          (expect (= 44 (count (:styles ref)))))))
 
     (it "style keys are kebab-case and tree includes inline style braces"
       (nav! "/test-page")
