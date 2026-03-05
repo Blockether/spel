@@ -22,7 +22,7 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
-   [com.blockether.spel.chrome-cookies :as chrome-cookies]
+
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -234,6 +234,7 @@
   (println "  --headers <json>          HTTP headers")
   (println "  --args <args>             Browser args (comma-separated)")
   (println "  --cdp <url>               Connect via CDP endpoint")
+  (println "  --auto-connect            Auto-discover running Chrome CDP endpoint")
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
   (println "  --no-stealth              Disable stealth mode (stealth is ON by default)")
@@ -242,7 +243,7 @@
   (println "  --help, -h                Show this help")
   (println "")
   (println "Tools:")
-  (println "  state export [opts]       Export Chrome cookies + localStorage to Playwright state JSON (--help)")
+
   (println "  search <query> [opts]     Google search from the CLI (--help for details)")
   (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
@@ -442,7 +443,7 @@
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :browser (System/getenv "SPEL_BROWSER") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :auto-connect (some? (System/getenv "SPEL_AUTO_CONNECT")) :browser (System/getenv "SPEL_BROWSER") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -538,6 +539,11 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :cdp val))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
+
+          ;; --auto-connect
+          (= "--auto-connect" arg)
+          (recur (rest remaining) cmd-args (assoc opts :auto-connect true))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
@@ -557,6 +563,10 @@
                     (assoc :cdp (get persisted "cdp"))
                     (and (get persisted "browser") (not (:browser global)))
                     (assoc :browser (get persisted "browser")))
+        ;; Auto-connect: discover running Chrome if no explicit --cdp
+        global    (if (and (:auto-connect global) (not (:cdp global)))
+                    (assoc global :cdp (daemon/discover-cdp-endpoint))
+                    global)
         ;; Bootstrap timeout: 30s for single-action setup commands (state_load, nil eval).
         ;; These are short operations that should never take long.
         boot-timeout 30000
@@ -858,89 +868,6 @@
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
             (run-playwright-cmd! (into ["show-trace"] rest-args)))))
-
-      ;; State export (primary) / cookies-export (deprecated alias)
-      (or (and (= "state" first-arg) (= "export" (second cmd-args)))
-        (= "cookies-export" first-arg))
-      (let [sub-args (if (= "cookies-export" first-arg)
-                       (rest cmd-args)
-                       (drop 2 cmd-args))]
-        (if (some #{"--help" "-h"} sub-args)
-          (println (str/join \newline
-                     ["state export — Export Chrome cookies + localStorage to Playwright state JSON"
-                      ""
-                      "Decrypts cookies and reads localStorage from a real Chrome profile, writing"
-                      "them as a portable JSON file compatible with --load-state. Use this to"
-                      "transfer authenticated sessions between machines or platforms (e.g. macOS → Linux)."
-                      ""
-                      "(Alias: spel cookies-export)"
-                      ""
-                      "The output includes both:"
-                      "  - Decrypted cookies (from Chrome's encrypted SQLite Cookies database)"
-                      "  - localStorage data (from Chrome's LevelDB Local Storage directory)"
-                      ""
-                      "Usage:"
-                      "  spel state export --profile <path> [-o <file>] [--domain <pattern>] [--no-local-storage] [--channel <name>]"
-                      ""
-                      "Options:"
-                      "  --profile <path>       Browser profile directory (required)"
-                      "  -o, --output <file>    Output file path (default: stdout)"
-                      "  --domain <pattern>     Filter cookies/localStorage by domain/origin (e.g. \".x.com\")"
-                      "  --no-local-storage     Skip localStorage export (cookies only)"
-                      "  --channel <name>       Browser channel (e.g. \"msedge\", \"chrome\", \"brave\")"
-                      "  --help, -h             Show this help"
-                      ""
-                      "Examples:"
-                      "  # Export all cookies + localStorage to file"
-                      "  spel state export --profile \"~/Library/Application Support/Google/Chrome/Profile 1\" -o state.json"
-                      ""
-                      "  # Export only x.com cookies + localStorage"
-                      "  spel state export --profile \"~/.config/google-chrome/Default\" --domain \".x.com\" -o x-state.json"
-                      ""
-                      "  # Pipe to stdout (e.g. for jq)"
-                      "  spel state export --profile ~/snap/chromium/common/chromium/Default --domain github.com"
-                      ""
-                      "  # Use exported state on another machine"
-                      "  scp state.json linux-server:~/"
-                      "  ssh linux-server spel --load-state state.json open https://x.com --interactive"]))
-          (let [parsed (loop [args sub-args profile nil output nil domain nil include-ls true channel nil]
-                         (if (empty? args)
-                           {:profile profile :output output :domain domain :include-ls include-ls :channel channel}
-                           (let [arg (first args)]
-                             (cond
-                               (= "--profile" arg)
-                               (recur (drop 2 args) (second args) output domain include-ls channel)
-                               (str/starts-with? arg "--profile=")
-                               (recur (rest args) (subs arg 10) output domain include-ls channel)
-                               (or (= "-o" arg) (= "--output" arg))
-                               (recur (drop 2 args) profile (second args) domain include-ls channel)
-                               (str/starts-with? arg "--output=")
-                               (recur (rest args) profile (subs arg 9) domain include-ls channel)
-                               (= "--domain" arg)
-                               (recur (drop 2 args) profile output (second args) include-ls channel)
-                               (str/starts-with? arg "--domain=")
-                               (recur (rest args) profile output (subs arg 9) include-ls channel)
-                               (= "--no-local-storage" arg)
-                               (recur (rest args) profile output domain false channel)
-                               (= "--channel" arg)
-                               (recur (drop 2 args) profile output domain include-ls (second args))
-                               (str/starts-with? arg "--channel=")
-                               (recur (rest args) profile output domain include-ls (subs arg 10))
-                               :else
-                               (recur (rest args) profile output domain include-ls channel)))))]
-            (when-not (:profile parsed)
-              (eprintln "Error: --profile is required")
-              (eprintln "Usage: spel state export --profile <path> [-o <file>] [--domain <pattern>]")
-              (System/exit 1))
-            (let [json-str (chrome-cookies/export-cookies-json
-                             (:profile parsed) (:domain parsed) (:include-ls parsed)
-                             {:channel (:channel parsed)})]
-              (if (:output parsed)
-                (do (spit (:output parsed) json-str)
-                  (let [parsed-json (json/read-json json-str)
-                        n (count (get parsed-json "cookies"))]
-                    (eprintln (str "Exported " n " cookies to " (:output parsed)))))
-                (println json-str))))))
 
       ;; Stitch — local image stitching, no daemon needed
       (= "stitch" first-arg)

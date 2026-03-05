@@ -29,7 +29,7 @@
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
    [java.io BufferedReader File InputStreamReader OutputStreamWriter]
-   [java.net StandardProtocolFamily UnixDomainSocketAddress]
+   [java.net HttpURLConnection StandardProtocolFamily UnixDomainSocketAddress URL]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
    [java.util Base64]
@@ -80,6 +80,52 @@
              File/separator
              "spel-" session ".flags.json")
     (into-array String [])))
+
+(defn discover-cdp-endpoint
+  "Auto-discovers a running Chrome's CDP endpoint.
+   Checks DevToolsActivePort files first, then probes common ports (9222, 9229).
+   Returns a CDP URL string (e.g. \"http://127.0.0.1:9222\") or throws ex-info."
+  []
+  (let [home       (System/getProperty "user.home")
+        os-name    (str/lower-case (System/getProperty "os.name"))
+        mac?       (str/includes? os-name "mac")
+        candidates (if mac?
+                     [(str home "/Library/Application Support/Google/Chrome/DevToolsActivePort")]
+                     [(str home "/.config/google-chrome/DevToolsActivePort")
+                      (str home "/.config/chromium/DevToolsActivePort")])
+        ;; Try DevToolsActivePort files
+        port-from-file
+        (some (fn [path]
+                (let [f (java.io.File. ^String path)]
+                  (when (.exists f)
+                    (try
+                      (let [content (slurp f)
+                            lines   (str/split-lines content)
+                            port    (parse-long (str/trim (first lines)))]
+                        (when (and port (pos? port))
+                          port))
+                      (catch Exception _ nil)))))
+              candidates)]
+    (if port-from-file
+      (str "http://127.0.0.1:" port-from-file)
+      ;; Probe common ports
+      (let [probe-port
+            (fn [port]
+              (try
+                (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
+                      conn (doto (.openConnection url)
+                             (.setConnectTimeout 1000)
+                             (.setReadTimeout 1000)
+                             (.connect))]
+                  (.disconnect ^HttpURLConnection conn)
+                  port)
+                (catch Exception _ nil)))
+            found (some probe-port [9222 9229])]
+        (if found
+          (str "http://127.0.0.1:" found)
+          (throw (ex-info "No running Chrome found for --auto-connect. Start Chrome with --remote-debugging-port=9222 or check DevToolsActivePort file."
+                   {:candidates candidates
+                    :probed-ports [9222 9229]})))))))
 
 ;; =============================================================================
 ;; State

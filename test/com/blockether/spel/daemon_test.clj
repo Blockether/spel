@@ -205,6 +205,21 @@
                       (java.nio.file.Files/deleteIfExists (sut/flags-file-path session))))))))
 
 
+(defdescribe discover-cdp-endpoint-test
+  "Unit tests for discover-cdp-endpoint"
+
+  (describe "returns valid CDP URL or throws when no Chrome is running"
+            (it "returns a string starting with http://127.0.0.1: or throws ex-info"
+                (try
+                  (let [url (sut/discover-cdp-endpoint)]
+                    ;; If Chrome is running locally, we get a valid URL
+                    (expect (string? url))
+                    (expect (str/starts-with? url "http://127.0.0.1:")))
+                  (catch clojure.lang.ExceptionInfo e
+                    ;; If no Chrome is running, we get a descriptive error
+                    (expect (str/includes? (.getMessage e) "--auto-connect"))
+                    (expect (contains? (ex-data e) :probed-ports)))))))
+
 ;; =============================================================================
 ;; Unit Tests — process-command with _flags
 ;; =============================================================================

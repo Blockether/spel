@@ -859,7 +859,6 @@
       "  spel state <subcommand> [args]"
       ""
       "Subcommands:"
-      "  export [opts]              Export Chrome cookies + localStorage (--help for details)"
       "  save [path]                Save current state"
       "  load [path]                Load saved state"
       "  list                       List saved state files"
@@ -877,8 +876,7 @@
       "  spel state rename old.json new.json"
       "  spel state clear auth.json"
       "  spel state clear --all"
-      "  spel state clean --older-than 30"
-      "  spel state export --profile ~/Library/Application\\ Support/Google/Chrome/Default -o auth.json"])
+      "  spel state clean --older-than 30"])
 
    "session"
    (str/join \newline
@@ -1278,6 +1276,7 @@
      "  --executable-path PATH  Custom browser binary"
      "  --args \"ARG1,ARG2\"     Extra browser arguments"
      "  --cdp URL               Connect via Chrome DevTools Protocol"
+     "  --auto-connect            Auto-discover running Chrome CDP endpoint"
      "  --ignore-https-errors   Ignore HTTPS certificate errors"
      "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
@@ -1306,6 +1305,7 @@
      "  SPEL_TRUSTSTORE_TYPE     Truststore type (default: JKS)"
      "  SPEL_TRUSTSTORE_PASSWORD Truststore password"
      "  SPEL_CDP                Connect via Chrome DevTools Protocol URL"
+     "  SPEL_AUTO_CONNECT         Set to any value to auto-discover Chrome CDP"
      "  SPEL_ARGS               Extra Chromium launch args (comma-separated)"
      "  SPEL_DEBUG              Set to \"true\" for debug logging"]))
 
@@ -1465,6 +1465,10 @@
 
                 (str/starts-with? arg "--extension=")
                 (recur (rest args) (update flags :extensions (fnil conj []) (subs arg 12)) remaining)
+
+
+                (= "--auto-connect" arg)
+                (recur (rest args) (assoc flags :auto-connect true) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
@@ -2564,6 +2568,10 @@
                 (assoc :browser (get persisted "browser"))
                 (and (get persisted "profile") (not (:profile flags)))
                 (assoc :profile (get persisted "profile")))
+        ;; Auto-connect: discover running Chrome if no explicit --cdp
+        flags (if (and (:auto-connect flags) (not (:cdp flags)))
+                (assoc flags :cdp (daemon/discover-cdp-endpoint))
+                flags)
         ;; open --interactive launches the browser in headed (visible) mode so you
         ;; can watch and interact with the page while commands run. This restarts
         ;; the daemon if it was previously running headless. Only applies to
