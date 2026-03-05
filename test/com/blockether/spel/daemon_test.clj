@@ -220,7 +220,6 @@
           (expect (str/includes? (.getMessage e) "No running browser"))
           (expect (contains? (ex-data e) :probed-ports))))))
 
-
   (describe "parse-devtools-active-port"
     (it "parses a valid DevToolsActivePort file"
       (let [tmp-dir (java.io.File/createTempFile "spel-dt-test" "")

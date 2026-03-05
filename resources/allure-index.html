@@ -76,8 +76,10 @@
     .card:hover { border-color: var(--border-hover); border-left-color: var(--green); background: var(--bg-card-hover); box-shadow: var(--shadow-h); transform: translateY(-1px); }
     .card.pr { border-left-color: var(--purple); }
     .card.pr:hover { border-color: var(--purple-border); border-left-color: var(--purple); }
-    .card.failed { border-left-color: var(--red); background: var(--red-bg); }
-    .card.failed:hover { border-color: var(--red-border); border-left-color: var(--red); }
+.card.failed { border-left-color: var(--red); background: var(--red-bg); }
+.card.failed:hover { border-color: var(--red-border); border-left-color: var(--red); }
+.card.failed.empty { opacity: 0.65; cursor: default; }
+.card.failed.empty:hover { opacity: 0.8; }
     .card.in-progress { border-left-color: var(--yellow); background: var(--yellow-bg); }
     .card.in-progress:hover { border-color: var(--yellow-border); border-left-color: var(--yellow); }
     html.dark .card.in-progress { background: var(--yellow-bg); }
@@ -461,6 +463,10 @@
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     }
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
     function truncate(s, n) {
       if (!s) return '';
       var f = s.split('\n')[0];
@@ -484,7 +490,7 @@
       var fullSha = b.sha || '';
       var repoUrl = b.repo_url || '';
       var runUrl = b.run_url || '';
-      var msg = truncate(b.message, 80);
+      var msg = escapeHtml(truncate(b.message, 80));
       var author = b.author_name || b.author || '';
       var date = b.timestamp ? formatDate(b.timestamp) : '';
       var rel = b.timestamp ? relativeTime(b.timestamp) : '';
@@ -492,16 +498,18 @@
       var inProgress = b.status === 'in_progress';
       var isCancelled = b.status === 'cancelled';
       var failed = !inProgress && !isCancelled && b.passed === false;
+      var hasTestData = b.tests && (b.tests.total > 0 || b.tests.passed > 0 || b.tests.failed > 0 || b.tests.broken > 0);
+      var emptyReport = failed && !hasTestData;
       var isPR = b.type === 'pr';
       var isMerged = isPR && b.merged === true;
-      var cardClass = 'card' + (isPR ? ' pr' : '') + (isMerged ? ' merged' : '') + (failed ? ' failed' : '') + (inProgress ? ' in-progress' : '') + (isCancelled ? ' cancelled' : '');
+      var cardClass = 'card' + (isPR ? ' pr' : '') + (isMerged ? ' merged' : '') + (emptyReport ? ' failed empty' : (failed ? ' failed' : '')) + (inProgress ? ' in-progress' : '') + (isCancelled ? ' cancelled' : '');
 
       var shaHtml = '';
       if (sha) {
         if (repoUrl && fullSha) {
-          shaHtml = '<a href="' + repoUrl + '/commit/' + fullSha + '" class="sha sha-link" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + sha + '</a>';
+          shaHtml = '<a href="' + escapeHtml(repoUrl) + '/commit/' + escapeHtml(fullSha) + '" class="sha sha-link" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + escapeHtml(sha) + '</a>';
         } else {
-          shaHtml = '<code class="sha">' + sha + '</code>';
+          shaHtml = '<code class="sha">' + escapeHtml(sha) + '</code>';
         }
       }
 
@@ -519,12 +527,14 @@
       var versionBadge = '';
       if (b.version) {
         var pillClass = b.badge === 'release' ? 'pill-green' : 'pill-yellow';
-        versionBadge = '<span class="pill ' + pillClass + '">' + b.version + '</span>';
+        versionBadge = '<span class="pill ' + pillClass + '">' + escapeHtml(b.version) + '</span>';
       }
 
       var testBadge = '';
       if (isCancelled) {
         testBadge = '<span class="pill pill-cancelled">Cancelled</span>';
+      } else if (emptyReport) {
+        testBadge = '<span class="pill pill-red">No Report</span>';
       } else if (inProgress) {
         testBadge = '<span class="pill pill-in-progress">In Progress</span>';
       } else if (b.tests) {
@@ -538,18 +548,20 @@
       }
 
       var prUrl = isPR ? (b.pr_url || ((b.repo_url || '') + '/pull/' + b.pr_number)) : '';
-      var prBadge = isPR && prUrl ? '<a href="' + prUrl + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + b.pr_number + '</a>' : (isPR ? '<span class="pill pill-purple">PR #' + b.pr_number + '</span>' : '');
+      var prBadge = isPR && prUrl ? '<a href="' + escapeHtml(prUrl) + '" class="pill pill-purple" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">PR #' + escapeHtml(b.pr_number) + '</a>' : (isPR ? '<span class="pill pill-purple">PR #' + escapeHtml(b.pr_number) + '</span>' : '');
       var mergedBadge = isMerged ? '<span class="pill pill-purple" style="opacity:0.7">Merged</span>' : '';
       var runLabel = '#' + (isPR ? (b.run_number || b.pr_number) : b.run);
-      var displayAuthor = b.author_name || author;
-      var authorLine = displayAuthor ? '<p class="author">by ' + displayAuthor + (isPR && b.branch ? ' \u00b7 ' + b.branch : '') + '</p>' : '';
+      var displayAuthor = escapeHtml(b.author_name || author);
+      var authorLine = displayAuthor ? '<p class="author">by ' + displayAuthor + (isPR && b.branch ? ' \u00b7 ' + escapeHtml(b.branch) : '') + '</p>' : '';
 
-      var clickHandler = (inProgress || isCancelled) ? '' : 'onclick="window.location.href=\'' + b.run + '/\'"';
-      return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + ' role="link" tabindex="0">'
+      var noReport = inProgress || isCancelled || emptyReport;
+      var clickHandler = noReport ? '' : 'onclick="window.location.href=\'' + escapeHtml(b.run) + '/\'"';
+      var cardRole = noReport ? '' : ' role="link" tabindex="0"';
+      return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + cardRole + '>'
         + '<div class="run">'
         + (runUrl
-          ? '<a href="' + runUrl + '" class="run-num run-link" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View CI pipeline">' + runLabel + '</a>'
-          : '<div class="run-num">' + runLabel + '</div>')
+          ? '<a href="' + escapeHtml(runUrl) + '" class="run-num run-link" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="View CI pipeline">' + escapeHtml(runLabel) + '</a>'
+          : '<div class="run-num">' + escapeHtml(runLabel) + '</div>')
         + statusDot
         + '</div>'
         + '<div class="info"><div class="info-top">'

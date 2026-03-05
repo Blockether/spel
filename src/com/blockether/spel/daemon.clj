@@ -93,7 +93,7 @@
               port    (parse-long (str/trim (first lines)))
               ws-path (when (>= (count lines) 2)
                         (str/trim (second lines)))]
-          (when (and port (pos? port) (<= port 65535))
+          (when (and port (pos? (long port)) (<= (long port) 65535))
             {:port port :ws-path ws-path}))
         (catch Exception _ nil)))))
 

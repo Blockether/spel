@@ -272,8 +272,8 @@ function drawGrayPixel(img, i, alpha, output) {
         current-dims (png-dimensions current)
         baseline-b64 (bytes->base64 baseline)
         current-b64 (bytes->base64 current)
-        max-w (long (max (:width baseline-dims) (:width current-dims)))
-        max-h (long (max (:height baseline-dims) (:height current-dims)))
+        max-w (long (Math/max (long (:width baseline-dims)) (long (:width current-dims))))
+        max-h (long (Math/max (long (:height baseline-dims)) (long (:height current-dims))))
         html (build-diff-html baseline-b64 current-b64 {:threshold threshold
                                                         :include-aa include-aa
                                                         :alpha alpha})
@@ -296,7 +296,7 @@ function drawGrayPixel(img, i, alpha, output) {
         width (long (or (:width result) (get result "width") max-w))
         height (long (or (:height result) (get result "height") max-h))
         diff-percent (if (pos? total-pixels)
-                       (Double/parseDouble (format "%.2f" (* 100.0 (/ diff-count total-pixels))))
+                       (Double/parseDouble (format "%.2f" (* 100.0 (/ (double diff-count) (double total-pixels)))))
                        0.0)
         dimension-mismatch (or (not= (:width baseline-dims) (:width current-dims))
                              (not= (:height baseline-dims) (:height current-dims)))]
@@ -307,9 +307,9 @@ function drawGrayPixel(img, i, alpha, output) {
       (throw (ex-info (str "Failed to capture diff screenshot: " (:anomaly/message diff-bytes))
                (select-keys diff-bytes [:anomaly/category :anomaly/message]))))
     (when diff-path
-      (Files/write (Path/of diff-path (into-array String []))
+      (Files/write (Path/of ^String diff-path (into-array String []))
         ^bytes diff-bytes
-        (into-array java.nio.file.OpenOption [])))
+        ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))
     {:matched (zero? diff-count)
      :diff-count diff-count
      :total-pixels total-pixels
