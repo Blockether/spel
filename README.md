@@ -105,63 +105,116 @@ spel install   # install browsers
 spel version   # verify installation
 ```
 
-### One-Shot Installation (for LLM agents)
+### Guided Installation (for LLM agents)
 
-<details>
-<summary>Full installation script</summary>
+If you're an LLM agent installing spel for a user, follow these steps. Ask questions where indicated — adapt to the user's answers.
 
-A single copy-paste block that installs spel from scratch — designed for LLM agents:
+#### Step 1: Detect platform and install binary
+
+Detect the user's OS and architecture, then download the correct binary:
+
+| Platform | Binary name |
+|----------|------------|
+| macOS Apple Silicon | `spel-macos-arm64` |
+| Linux x86_64 | `spel-linux-amd64` |
+| Linux ARM64 | `spel-linux-arm64` |
+| Windows x86_64 | `spel-windows-amd64.exe` |
+
+**Agent:**
+1. Run `uname -s` + `uname -m` (Unix) or check `$env:PROCESSOR_ARCHITECTURE` (Windows)
+2. Download from `https://github.com/Blockether/spel/releases/latest/download/<binary>`
+3. Place in `~/.local/bin/` (Unix) or `%LOCALAPPDATA%\spel\` (Windows)
+4. Make executable: `chmod +x` (Unix only)
+5. On macOS: remove quarantine with `xattr -d com.apple.quarantine`
+6. Ensure the install directory is in PATH — detect shell and add to the correct config file
+
+#### Step 2: Ask — Which browser?
+
+> "Which browser do you primarily use? **Chrome**, **Edge**, or **Brave**?"
+
+Based on the answer, set the default channel:
+
+| Answer | Channel |
+|--------|---------|
+| Chrome (default) | `chrome` (no flag needed) |
+| Edge | `msedge` |
+| Brave | `brave` |
+
+Set `SPEL_CHANNEL` environment variable to the chosen channel (e.g. `msedge`, `brave`). Skip for Chrome — it's the default.
+
+#### Step 3: Ask — Use your real browser profile?
+
+> "Do you want spel to use your real browser profile? This gives you all your extensions, saved passwords, bookmarks, and preferences inside spel."
+
+If **yes**, detect the profile path:
+
+| OS | Chrome | Edge |
+|----|--------|------|
+| macOS | `~/Library/Application Support/Google/Chrome/Default` | `~/Library/Application Support/Microsoft Edge/Default` |
+| Linux | `~/.config/google-chrome/Default` | `~/.config/microsoft-edge/Default` |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` | `%LOCALAPPDATA%\Microsoft\Edge\User Data\Default` |
+
+Verify the profile exists, then set:
+
+Set `SPEL_PROFILE` environment variable to the detected path.
+
+If **no**, skip — spel will use a fresh browser context each time.
+
+#### Step 4: Ask — Corporate proxy?
+
+> "Are you behind a corporate proxy (Zscaler, Netskope, etc.)? If unsure, try `spel install` first — if it fails with 'PKIX path building failed', you need this."
+
+If **yes**:
+
+Set both `SPEL_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS` environment variables to the path of the corporate CA bundle (PEM format). Ask the user where the cert file is, or help them find it.
+
+See the [Corporate Proxy](#corporate-proxy--custom-ca-certificates) section below for details.
+
+#### Step 5: Install browsers
+
+Run `spel install` to download Chromium. If the user chose Edge, also run `spel install msedge`.
+
+#### Step 6: Ask — Automation or testing?
+
+> "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
+
+Scaffold agent skills (tests are included by default — use `--no-tests` for automation-only):
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
+# Full scaffolding with test agents (default)
+spel init-agents
 
-# ── Detect platform ───────────────────────────────────────────────────
-OS=$(uname -s)    # Darwin | Linux
-ARCH=$(uname -m)  # x86_64 | aarch64 | arm64
-
-case "${OS}-${ARCH}" in
-  Darwin-arm64)   BINARY=spel-macos-arm64  ;;
-  Linux-x86_64)   BINARY=spel-linux-amd64  ;;
-  Linux-aarch64)  BINARY=spel-linux-arm64  ;;
-  *) echo "Unsupported platform: ${OS}-${ARCH}" >&2; exit 1 ;;
-esac
-
-# ── Download & install ────────────────────────────────────────────────
-INSTALL_DIR="${HOME}/.local/bin"
-mkdir -p "${INSTALL_DIR}"
-curl -fsSL "https://github.com/Blockether/spel/releases/latest/download/${BINARY}" \
-  -o "${INSTALL_DIR}/spel"
-chmod +x "${INSTALL_DIR}/spel"
-
-# ── macOS: remove quarantine flag (binary is not Apple-signed) ───────
-if [ "${OS}" = "Darwin" ]; then
-  xattr -d com.apple.quarantine "${INSTALL_DIR}/spel" 2>/dev/null || true
-fi
-
-# ── Ensure PATH includes ~/.local/bin ─────────────────────────────────
-case ":${PATH}:" in
-  *:${INSTALL_DIR}:*) ;;  # already in PATH
-  *) export PATH="${INSTALL_DIR}:${PATH}"
-     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.bashrc" 2>/dev/null || true
-     echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.zshrc"  2>/dev/null || true
-     ;;
-esac
-
-# ── Corporate proxy / custom CA certs (Zscaler, Netskope, etc.) ──────
-# If behind a corporate SSL-inspecting proxy, set these BEFORE spel install:
-#   export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
-#   export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
-# Both are optional. If unset, spel uses system defaults.
-
-# ── Install browsers & verify ────────────────────────────────────────
-"${INSTALL_DIR}/spel" install
-"${INSTALL_DIR}/spel" version
-
-echo "✅ spel installed successfully: $("${INSTALL_DIR}/spel" version)"
+# Automation only — SKILL reference only, no test scaffolding
+spel init-agents --no-tests
 ```
 
-</details>
+Choose the right loop for your coding agent:
+
+```bash
+spel init-agents --loop=opencode   # OpenCode (default)
+spel init-agents --loop=claude     # Claude Code
+spel init-agents --loop=vscode     # VS Code / Copilot
+```
+
+#### Step 7: Verify
+
+Run `spel version` to confirm installation. Then test with `spel open https://example.com` — it should open and return JSON. Run `spel close` after.
+
+If the user chose to use a profile, test with their profile path to verify it works.
+
+#### Step 8: Persist configuration
+
+Save the user's choices so they don't need to pass flags every time. Detect their shell and OS, then write to the correct config file:
+
+| OS | Shell | Config file |
+|----|-------|-------------|
+| macOS/Linux | zsh | `~/.zshrc` |
+| macOS/Linux | bash | `~/.bashrc` |
+| macOS/Linux | fish | `~/.config/fish/config.fish` (use `set -Ux VAR value`) |
+| Windows | PowerShell | `$PROFILE` (use `[Environment]::SetEnvironmentVariable("VAR", "value", "User")`) |
+| Windows | cmd | `setx VAR value` |
+
+**Agent:** detect the shell (`echo $SHELL` on Unix, `$PSVersionTable` on Windows) and write the env vars to the correct file using the correct syntax. Do not assume bash.
 
 ### Corporate Proxy / Custom CA Certificates
 
@@ -182,6 +235,39 @@ spel install --with-deps
 ```
 
 All options merge with built-in defaults — public CDN certs continue to work.
+
+### Environment Variables
+
+All env vars are optional. **CLI flags always take priority over env vars.**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
+| **Browser** | | |
+| `SPEL_CHANNEL` | `--channel` | Browser channel: `chrome`, `msedge`, `brave` |
+| `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory (full profile: extensions, passwords, bookmarks) |
+| `SPEL_LOAD_STATE` | `--load-state` | Playwright storage state JSON path (alias: `SPEL_STORAGE_STATE`) |
+| `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
+| `SPEL_USER_AGENT` | `--user-agent` | Custom user agent string |
+| `SPEL_STEALTH` | `--no-stealth` | Set to `false` to disable stealth mode (ON by default) |
+| **Session** | | |
+| `SPEL_SESSION` | `--session` | Session name (default: `default`) |
+| `SPEL_JSON` | `--json` | Set to `true` for JSON output |
+| `SPEL_TIMEOUT` | `--timeout` | Command timeout in milliseconds |
+| **Network** | | |
+| `SPEL_PROXY` | `--proxy` | Proxy server URL |
+| `SPEL_PROXY_BYPASS` | `--proxy-bypass` | Proxy bypass patterns |
+| `SPEL_HEADERS` | `--headers` | Default HTTP headers (JSON string) |
+| `SPEL_IGNORE_HTTPS_ERRORS` | `--ignore-https-errors` | Set to `true` to ignore HTTPS errors |
+| **SSL/TLS** | | |
+| `SPEL_CA_BUNDLE` | — | PEM file with extra CA certs (merged with defaults) |
+| `NODE_EXTRA_CA_CERTS` | — | PEM file, also respected by Node.js subprocess |
+| `SPEL_TRUSTSTORE` | — | JKS/PKCS12 truststore path |
+| `SPEL_TRUSTSTORE_TYPE` | — | Truststore type (default: JKS) |
+| `SPEL_TRUSTSTORE_PASSWORD` | — | Truststore password |
+| **Advanced** | | |
+| `SPEL_CDP` | `--cdp` | Connect via Chrome DevTools Protocol URL |
+| `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
+| `SPEL_DEBUG` | `--debug` | Set to `true` for debug logging |
 
 ### Browser Automation
 

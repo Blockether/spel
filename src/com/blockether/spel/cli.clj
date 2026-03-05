@@ -1287,15 +1287,28 @@
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
-     "Environment Variables:"
+     "Environment Variables (CLI flags take priority):"
+     "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\", \"brave\")"
+     "  SPEL_PROFILE            Chrome/Edge user data directory path"
+     "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
      "  SPEL_SESSION            Default session name"
      "  SPEL_JSON               Set to \"true\" for JSON output"
-     "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
-     "  SPEL_PROFILE            Chrome user data directory path"
-     "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\")"
+     "  SPEL_TIMEOUT            Command timeout in milliseconds"
      "  SPEL_STEALTH            Set to \"false\" to disable stealth mode (ON by default)"
+     "  SPEL_PROXY              Proxy server URL"
+     "  SPEL_PROXY_BYPASS       Proxy bypass patterns"
      "  SPEL_HEADERS            Default HTTP headers (JSON)"
-     "  SPEL_EXECUTABLE_PATH    Default browser executable"]))
+     "  SPEL_IGNORE_HTTPS_ERRORS Set to \"true\" to ignore HTTPS errors"
+     "  SPEL_USER_AGENT         Custom user agent string"
+     "  SPEL_EXECUTABLE_PATH    Custom browser executable path"
+     "  SPEL_CA_BUNDLE          PEM file with extra CA certs (corporate proxy)"
+     "  NODE_EXTRA_CA_CERTS     PEM file, also used by Node.js subprocess"
+     "  SPEL_TRUSTSTORE          JKS/PKCS12 truststore path (corporate proxy)"
+     "  SPEL_TRUSTSTORE_TYPE     Truststore type (default: JKS)"
+     "  SPEL_TRUSTSTORE_PASSWORD Truststore password"
+     "  SPEL_CDP                Connect via Chrome DevTools Protocol URL"
+     "  SPEL_ARGS               Extra Chromium launch args (comma-separated)"
+     "  SPEL_DEBUG              Set to \"true\" for debug logging"]))
 
 ;; =============================================================================
 ;; Arg Parsing
