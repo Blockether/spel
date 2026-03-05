@@ -16,8 +16,8 @@ concurrency:
 
 env:
   PAGES_BASE_URL: https://blockether.github.io/spel
-  MAX_REPORTS: 100
-  MAX_PR_REPORTS: 50
+  MAX_REPORTS: 15
+  MAX_PR_REPORTS: 3
 
 jobs:
   report:
@@ -257,11 +257,21 @@ jobs:
 
       - name: Deploy PR report to GitHub Pages
         if: steps.ctx.outputs.is_pr == 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: /tmp/pr-deploy
-          keep_files: true
+        env:
+          PR_NUM: ${{ steps.ctx.outputs.pr_number }}
+        run: |
+          git fetch origin gh-pages --depth=1
+          git worktree add /tmp/gh-pages origin/gh-pages
+          rm -rf "/tmp/gh-pages/pr/${PR_NUM}"
+          cp -r /tmp/pr-deploy/* /tmp/gh-pages/
+          cd /tmp/gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "deploy: PR #${PR_NUM} allure report" --allow-empty
+          git push origin gh-pages
+          cd "${{ github.workspace }}"
+          git worktree remove /tmp/gh-pages --force 2>/dev/null || true
 
       # =========================================================================
       # Main: Full site deploy with per-build reports
@@ -305,6 +315,24 @@ jobs:
               done
               git worktree remove /tmp/gh-pages-checkout --force 2>/dev/null || true
               echo "Restored $(ls -1d gh-pages-site/[0-9]* 2>/dev/null | wc -l) existing report(s)"
+
+              # Prune stale PR directories — only keep PRs listed in pr-builds.json (up to MAX_PR_REPORTS)
+              if [ -f "gh-pages-site/pr-builds.json" ] && [ -d "gh-pages-site/pr" ]; then
+                ACTIVE_PRS=$(python3 -c "
+          import json, sys
+          data = json.load(open('gh-pages-site/pr-builds.json'))
+          print(' '.join(str(b.get('pr_number','')) for b in data[:${MAX_PR_REPORTS}]))
+          " 2>/dev/null || true)
+                for pr_dir in gh-pages-site/pr/*/; do
+                  [ -d "$pr_dir" ] || continue
+                  pr_num=$(basename "$pr_dir")
+                  if ! echo " $ACTIVE_PRS " | grep -q " $pr_num "; then
+                    echo "Pruning stale PR directory: pr/$pr_num"
+                    rm -rf "$pr_dir"
+                  fi
+                done
+                echo "Kept PR directories: $ACTIVE_PRS"
+              fi
             fi
           fi
 

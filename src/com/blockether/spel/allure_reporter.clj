@@ -1248,6 +1248,14 @@
               exit    (long (run-proc! cmd))]
           (if (zero? exit)
             (do
+              ;; Remove awesome/ — it duplicates data/ and doubles report size
+              ;; (allure awesome generates a root report AND an awesome/ sub-report
+              ;;  with byte-identical attachments, inflating ~63 MB → ~127 MB per build)
+              (let [awesome (io/file report "awesome")]
+                (when (.isDirectory awesome)
+                  (doseq [^File f (reverse (file-seq awesome))]
+                    (.delete f))
+                  (println "  Removed awesome/ (saves ~50% report size)")))
               ;; Embed trace viewer from classpath resources
               (when (copy-trace-viewer! (io/file report "trace-viewer"))
                 (patch-trace-viewer-url! report)
