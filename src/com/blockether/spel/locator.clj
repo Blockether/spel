@@ -461,8 +461,8 @@
      (when-not bb
        (throw (ex-info "Cannot resolve bounding box for drag-by"
                 {:selector (str loc) :dx dx :dy dy})))
-     (let [cx (+ (:x bb) (/ (:width bb) 2.0))
-           cy (+ (:y bb) (/ (:height bb) 2.0))]
+     (let [cx (+ (double (:x bb)) (/ (double (:width bb)) 2.0))
+           cy (+ (double (:y bb)) (/ (double (:height bb)) 2.0))]
        (input/mouse-drag (.mouse page) cx cy dx dy opts)))))
 
 (defn count-elements

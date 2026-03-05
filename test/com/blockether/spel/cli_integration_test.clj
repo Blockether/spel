@@ -514,21 +514,21 @@
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
     (it "drags source to target"
       (nav! "/test-page")
-      (let [r (cmd "drag" {"source" "button" "target" "input"})]
+      (let [r (cmd "drag" {"source" "#submit-btn" "target" "#text-input"})]
         (expect (map? (:dragged r)))
         (expect (contains? r :snapshot))))
     (it "drag with steps option"
       (nav! "/test-page")
-      (let [r (cmd "drag" {"source" "button" "target" "input" "steps" 5})]
+      (let [r (cmd "drag" {"source" "#submit-btn" "target" "#text-input" "steps" 5})]
         (expect (map? (:dragged r)))))
     (it "drag-by with pixel offset"
       (nav! "/test-page")
-      (let [r (cmd "drag-by" {"selector" "button" "dx" 100 "dy" 0})]
+      (let [r (cmd "drag-by" {"selector" "#submit-btn" "dx" 100 "dy" 0})]
         (expect (map? (:dragged_by r)))
         (expect (contains? r :snapshot))))
     (it "drag-by with steps"
       (nav! "/test-page")
-      (let [r (cmd "drag-by" {"selector" "button" "dx" 50 "dy" 50 "steps" 10})]
+      (let [r (cmd "drag-by" {"selector" "#submit-btn" "dx" 50 "dy" 50 "steps" 10})]
         (expect (map? (:dragged_by r)))))))
 
 ;; =============================================================================
@@ -1856,12 +1856,12 @@
 
     (it "spel/drag-to drags element"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (let [r (cmd "sci_eval" {"code" "(spel/drag-to \"button\" \"input\")"})]
+      (let [r (cmd "sci_eval" {"code" "(spel/drag-to \"#submit-btn\" \"#text-input\")"})]
         (expect (= "nil" (:result r)))))
 
     (it "spel/drag-by drags by offset"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
-      (let [r (cmd "sci_eval" {"code" "(spel/drag-by \"button\" 100 0)"})]
+      (let [r (cmd "sci_eval" {"code" "(spel/drag-by \"#submit-btn\" 100 0)"})]
         (expect (= "nil" (:result r)))))
 
     ;; --- File I/O in SCI ---

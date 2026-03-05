@@ -121,8 +121,8 @@
                           ;; Don't suppress mixed-content containers — they have
                           ;; their own direct text content distinct from children
                           (not (:mixed info-a)))
-                  :let [area-a (bbox-area bbox-a)
-                        area-b (bbox-area bbox-b)]
+                  :let [area-a (long (bbox-area bbox-a))
+                        area-b (long (bbox-area bbox-b))]
                   ;; A zero-area child (invisible/hidden element) must not
                   ;; trigger suppression of a visible container (e.g., a 0×0
                   ;; hidden link inside a CSS-background logo div)

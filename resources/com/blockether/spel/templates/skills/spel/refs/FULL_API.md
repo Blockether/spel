@@ -231,7 +231,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `count-elements` | [loc] | Returns the number of elements matching the locator. |
 | `dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
 | `dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
-| `drag-to` | [loc target] | Drags this locator to another locator. |
+| `drag-by` | [page loc dx dy] \| [page loc dx dy opts] | Drags an element by a pixel offset using mouse events. |
+| `drag-to` | [loc target] \| [loc target drag-opts] | Drags this locator to another locator. |
 | `eh-bounding-box` | [eh] | Returns the bounding box of the element handle. |
 | `eh-click` | [eh] \| [eh click-opts] | Clicks an element handle. |
 | `eh-dispose!` | [eh] | Disposes the element handle. |
@@ -372,6 +373,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `mouse-click` | [mouse x y] \| [mouse x y click-opts] | Clicks at the given coordinates. |
 | `mouse-dblclick` | [mouse x y] \| [mouse x y dblclick-opts] | Double-clicks at the given coordinates. |
 | `mouse-down` | [mouse] | Dispatches a mousedown event. |
+| `mouse-drag` | [mouse x y dx dy] \| [mouse x y dx dy opts] | Drags from (x,y) to (x+dx, y+dy) using a mouse event sequence. |
 | `mouse-move` | [mouse x y] \| [mouse x y move-opts] | Moves the mouse to the given coordinates. |
 | `mouse-up` | [mouse] | Dispatches a mouseup event. |
 | `mouse-wheel` | [mouse delta-x delta-y] | Dispatches a wheel event. |
@@ -690,7 +692,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
 | `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
-| `spel/drag-to` | [sel target-sel] | Drags this locator to another locator. |
+| `spel/drag-by` | [sel dx dy] \| [sel dx dy opts] | Drags an element by pixel offset using mouse events. |
+| `spel/drag-to` | [sel target-sel] \| [sel target-sel opts] | Drags an element to another element. |
 | `spel/editable?` | [sel] | Returns whether the element is editable. |
 | `spel/emulate-media!` | [opts] | Emulates media type and features. |
 | `spel/enabled?` | [sel] | Returns whether the element is enabled. |
@@ -846,6 +849,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `input/mouse-click` | [mouse x y] \| [mouse x y click-opts] | Clicks at the given coordinates. |
 | `input/mouse-dblclick` | [mouse x y] \| [mouse x y dblclick-opts] | Double-clicks at the given coordinates. |
 | `input/mouse-down` | [mouse] | Dispatches a mousedown event. |
+| `input/mouse-drag` | [mouse x y dx dy] \| [mouse x y dx dy opts] | Drags from (x,y) to (x+dx, y+dy) using a mouse event sequence. |
 | `input/mouse-move` | [mouse x y] \| [mouse x y move-opts] | Moves the mouse to the given coordinates. |
 | `input/mouse-up` | [mouse] | Dispatches a mouseup event. |
 | `input/mouse-wheel` | [mouse delta-x delta-y] | Dispatches a wheel event. |
@@ -950,7 +954,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `loc/count-elements` | [loc] | Returns the number of elements matching the locator. |
 | `loc/dblclick` | [loc] \| [loc dblclick-opts] | Double-clicks an element. |
 | `loc/dispatch-event` | [loc type] | Dispatches a DOM event on the element. |
-| `loc/drag-to` | [loc target] | Drags this locator to another locator. |
+| `loc/drag-by` | [page loc dx dy] \| [page loc dx dy opts] | Drags an element by a pixel offset using mouse events. |
+| `loc/drag-to` | [loc target] \| [loc target drag-opts] | Drags this locator to another locator. |
 | `loc/element-handle` | [loc] | Returns the ElementHandle for the first matching element. |
 | `loc/element-handles` | [loc] | Returns all ElementHandles matching the locator. |
 | `loc/evaluate` | [loc expression] \| [loc expression arg] | Evaluates JavaScript on the element found by this locator. |
@@ -1131,6 +1136,9 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `snapshot -i` | Interactive elements only |
 | `snapshot -i -c -d 5` | Compact, depth-limited |
 | `snapshot -i -C` | Interactive + cursor elements |
+| `snapshot -S` | Include computed CSS styles |
+| `snapshot -S --minimal` | Styles: 12 essential properties |
+| `snapshot -S --max` | Styles: all 36 tracked properties |
 | `snapshot -s \"#main\"` | Scoped to selector |
 | `screenshot [path]` | Take screenshot (-f full page) |
 | `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
@@ -1293,6 +1301,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--json` | JSON output (for agents) |
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
+| `--browser <engine>` | Browser engine: chromium, firefox, webkit |
 | `--channel <name>` | Browser channel (e.g. \"chrome\", \"msedge\") |
 | `--executable-path <path>` | Custom browser executable |
 | `--user-agent <ua>` | Custom user agent string |
