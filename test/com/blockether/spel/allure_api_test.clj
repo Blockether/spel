@@ -102,7 +102,17 @@
       (allure/step "Verify page title"
         (let [title (page/title *page*)]
           (allure/parameter "title" title)
-          (expect true))))))
+          (expect true))))
+
+    (it "compares baseline screenshot and returns diff stats"
+      (page/set-content! *page* "<h1>Visual Baseline</h1><p>before</p>")
+      (let [baseline (page/screenshot *page*)]
+        (page/set-content! *page* "<h1>Visual Baseline</h1><p>after</p>")
+        (let [r (allure/visual-diff *page* baseline "Visual Diff")]
+          (expect (map? r))
+          (expect (contains? r :matched))
+          (expect (number? (:diff-count r)))
+          (expect (nil? (:diff-image r))))))))
 
 ;; =============================================================================
 ;; ui-step — before/after screenshots

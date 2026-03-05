@@ -32,6 +32,7 @@
    [clojure.string :as str]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.visual-diff :as visual-diff-core]
    [lazytest.core :as lt-core])
   (:import
    [com.microsoft.playwright Request Response Tracing Tracing$GroupOptions]
@@ -403,6 +404,26 @@
   (let [img-bytes (page/screenshot pg)]
     (when (bytes? img-bytes)
       (attach-bytes att-name img-bytes "image/png"))))
+
+(defn visual-diff
+  "Compare current page screenshot against baseline bytes using pixelmatch.
+   Attaches baseline, current, and diff images to the Allure report.
+   Returns the comparison result map."
+  ([pg arg2 arg3]
+   (if (string? arg2)
+     (visual-diff pg arg2 arg3 {})
+     (visual-diff pg arg3 arg2 {})))
+  ([pg arg2 arg3 opts]
+   (let [[att-name baseline-bytes] (if (string? arg2)
+                                     [arg2 arg3]
+                                     [arg3 arg2])
+         current-bytes (page/screenshot pg)
+         result (apply visual-diff-core/compare-screenshots baseline-bytes current-bytes
+                  (mapcat identity opts))]
+     (attach-bytes (str att-name " (baseline)") baseline-bytes "image/png")
+     (attach-bytes (str att-name " (current)") current-bytes "image/png")
+     (attach-bytes (str att-name " (diff)") (:diff-image result) "image/png")
+     (dissoc result :diff-image))))
 
 ;; =============================================================================
 ;; Steps

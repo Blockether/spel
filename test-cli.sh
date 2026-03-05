@@ -1249,6 +1249,17 @@ assert_jq "diff snapshot → added is number" "$OUT" '.added != null'
 assert_jq "diff snapshot same → 0 changed" "$OUT" '.changed == 0'
 assert_jq "diff snapshot same → 0 added" "$OUT" '.added == 0'
 
+# Diff screenshot (same page = matched)
+BASELINE_SS=$(mktemp --suffix=.png)
+TEMP_FILES+=("$BASELINE_SS")
+"$SPEL" screenshot "$BASELINE_SS" >/dev/null 2>&1
+OUT=$("$SPEL" --json diff screenshot --baseline "$BASELINE_SS" 2>&1)
+assert_jq "diff screenshot → has matched" "$OUT" '.matched != null'
+assert_jq "diff screenshot same → matched true" "$OUT" '.matched == true'
+assert_jq "diff screenshot → has diff_percent" "$OUT" '.diff_percent != null'
+assert_jq "diff screenshot → has diff_path" "$OUT" '.diff_path != null'
+assert_jq "diff screenshot → has total_pixels" "$OUT" '.total_pixels > 0'
+
 # =============================================================================
 # SNAPSHOT STYLES, VIEWPORT & DEVICE (36)
 # =============================================================================

@@ -1911,3 +1911,23 @@
       (let [c (cmd ["snapshot" "-S" "-s" "body"])]
         (expect (true? (:styles c)))
         (expect (= "body" (:selector c)))))))
+
+;; =============================================================================
+;; Diff CLI
+;; =============================================================================
+
+(defdescribe diff-cli-test
+  "Tests for diff command parsing"
+
+  (describe "diff screenshot parsing"
+    (it "parses diff screenshot baseline"
+      (let [c (cmd ["diff" "screenshot" "--baseline" "before.png"])]
+        (expect (= "diff_screenshot" (:action c)))
+        (expect (= "before.png" (:baseline c)))))
+
+    (it "parses diff screenshot threshold and output path"
+      (let [c (cmd ["diff" "screenshot" "--baseline" "before.png" "--threshold" "0.03" "-o" "out.png"])]
+        (expect (= "diff_screenshot" (:action c)))
+        (expect (= "before.png" (:baseline c)))
+        (expect (= "0.03" (:threshold c)))
+        (expect (= "out.png" (:path c)))))))

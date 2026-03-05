@@ -24,7 +24,8 @@
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.options :as options]
    [com.blockether.spel.sci-env :as sci-env]
-   [com.blockether.spel.stealth :as stealth])
+   [com.blockether.spel.stealth :as stealth]
+   [com.blockether.spel.visual-diff :as visual-diff])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
@@ -152,7 +153,7 @@
                    (str home "/.cache/ms-playwright"))
         ;; Try browser data dirs first, then ms-playwright subdirs
         dt-info  (or (some parse-devtools-active-port browser-candidates)
-                     (scan-playwright-devtools pw-cache))]
+                   (scan-playwright-devtools pw-cache))]
     (if dt-info
       ;; DevToolsActivePort found — try HTTP probe first, fall back to direct WebSocket
       (let [port    (:port dt-info)
@@ -170,19 +171,19 @@
         (if found
           (str "http://127.0.0.1:" found)
           (throw (ex-info (str "No running browser with remote debugging found.\n\n"
-                               "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
-                               "Option 1 — Launch browser with debug port:\n"
-                               "  " (if mac?
-                                         "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
-                                         "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
-                               "\n"
-                               "  " (if mac?
-                                         "open -na \"Microsoft Edge\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run"
-                                         "microsoft-edge --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run")
-                               "\n\n"
-                               "Option 2 — Enable in running browser (M144+):\n"
-                               "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
-                               "  (Works in both Chrome and Edge)\n")
+                            "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
+                            "Option 1 — Launch browser with debug port:\n"
+                            "  " (if mac?
+                                   "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
+                                   "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
+                            "\n"
+                            "  " (if mac?
+                                   "open -na \"Microsoft Edge\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run"
+                                   "microsoft-edge --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run")
+                            "\n\n"
+                            "Option 2 — Enable in running browser (M144+):\n"
+                            "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
+                            "  (Works in both Chrome and Edge)\n")
                    {:browser-candidates browser-candidates
                     :pw-cache           pw-cache
                     :probed-ports       [9222 9229]})))))))
@@ -1223,6 +1224,26 @@
       :current current-snap
       :total-lines (max (count (str/split-lines baseline))
                      (count (str/split-lines current-snap))))))
+
+(defmethod handle-cmd "diff_screenshot" [_ {:strs [baseline path threshold]}]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [baseline-bytes (java.nio.file.Files/readAllBytes
+                         (java.nio.file.Path/of ^String baseline (into-array String [])))
+        current-bytes  (page/screenshot (pg))
+        threshold-val  (if threshold (Double/parseDouble (str threshold)) 0.1)
+        result         (visual-diff/compare-screenshots baseline-bytes current-bytes
+                         :threshold threshold-val)
+        diff-path      (or path
+                         (str (System/getProperty "java.io.tmpdir")
+                           java.io.File/separator
+                           "spel-diff-" (System/currentTimeMillis) ".png"))]
+    (java.nio.file.Files/write
+      (java.nio.file.Path/of ^String diff-path (into-array String []))
+      ^bytes (:diff-image result)
+      ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+    (-> (dissoc result :diff-image)
+      (assoc :diff-path diff-path))))
 
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)

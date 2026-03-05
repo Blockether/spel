@@ -1975,6 +1975,27 @@
         r (cmd "sci_eval" {"code" "(spel/clipboard-read)"})]
     (expect (= "\"sci-clipboard-test\"" (:result r)))))
 
+(defdescribe sci-visual-diff-integration-test
+  "Integration tests for SCI screenshot comparison helpers"
+
+  (describe "spel/compare-screenshots and spel/compare-screenshot-files"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "compares screenshot bytes and files in SCI"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [tmpdir         (System/getProperty "java.io.tmpdir")
+            baseline-path  (str tmpdir java.io.File/separator "spel-sci-baseline-" (System/currentTimeMillis) ".png")
+            current-path   (str tmpdir java.io.File/separator "spel-sci-current-" (System/currentTimeMillis) ".png")
+            escaped-base   (str/replace baseline-path "\\" "\\\\")
+            escaped-current (str/replace current-path "\\" "\\\\")
+            _              (cmd "sci_eval" {"code" (str "(spel/screenshot \"" escaped-base "\")")})
+            _              (cmd "sci_eval" {"code" (str "(spel/screenshot \"" escaped-current "\")")})
+            bytes-r        (cmd "sci_eval" {"code" "(:matched (spel/compare-screenshots (spel/screenshot) (spel/screenshot)))"})
+            files-r        (cmd "sci_eval" {"code" (str "(:matched (spel/compare-screenshot-files \""
+                                                     escaped-base "\" \"" escaped-current "\"))")})]
+        (expect (= "true" (:result bytes-r)))
+        (expect (= "true" (:result files-r)))))))
+
 ;; =============================================================================
 ;; 43. Codegen → SCI Eval Round-Trip (Clojure ↔ SCI compatibility)
 ;; =============================================================================
@@ -2463,6 +2484,36 @@
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (string? (:current r)))
         (expect (pos? (:total-lines r)))))))
+
+(defdescribe diff-screenshot-integration-test
+  "Integration tests for diff_screenshot daemon handler"
+
+  (describe "diff_screenshot handler"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "detects no visual diff when baseline matches current screenshot"
+      (nav! "/test-page")
+      (let [tmpdir        (System/getProperty "java.io.tmpdir")
+            baseline-path (str tmpdir java.io.File/separator "spel-diff-baseline-" (System/currentTimeMillis) ".png")
+            out-path      (str tmpdir java.io.File/separator "spel-diff-out-" (System/currentTimeMillis) ".png")
+            _             (cmd "screenshot" {"path" baseline-path})
+            r             (cmd "diff_screenshot" {"baseline" baseline-path
+                                                  "path" out-path})]
+        (expect (true? (:matched r)))
+        (expect (= 0 (:diff-count r)))
+        (expect (= out-path (:diff-path r)))
+        (expect (.exists (io/file (:diff-path r))))))
+
+    (it "detects visual diff after page mutation"
+      (nav! "/test-page")
+      (let [tmpdir        (System/getProperty "java.io.tmpdir")
+            baseline-path (str tmpdir java.io.File/separator "spel-diff-baseline-" (System/currentTimeMillis) ".png")
+            _             (cmd "screenshot" {"path" baseline-path})
+            _             (cmd "evaluate" {"script" "document.querySelector('h1').textContent = 'Changed visual diff'"})
+            r             (cmd "diff_screenshot" {"baseline" baseline-path})]
+        (expect (false? (:matched r)))
+        (expect (pos? (:diff-count r)))
+        (expect (.exists (io/file (:diff-path r))))))))
 
 ;; =============================================================================
 ;; Snapshot viewport/device/styles-detail

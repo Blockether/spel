@@ -42,7 +42,8 @@
    [com.blockether.spel.roles :as roles]
    [com.blockether.spel.search :as search]
    [com.blockether.spel.snapshot :as snapshot]
-   [com.blockether.spel.stitch :as stitch])
+   [com.blockether.spel.stitch :as stitch]
+   [com.blockether.spel.visual-diff :as visual-diff])
   (:import
    [com.microsoft.playwright
     APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -434,6 +435,24 @@
      (if (string? path-or-opts)
        (page/screenshot (require-page!) {:path path-or-opts})
        (page/screenshot (require-page!) path-or-opts)))))
+
+(defn sci-compare-screenshots
+  "Compare two PNG screenshots pixel-by-pixel using pixelmatch.
+   Returns {:matched :diff-count :diff-percent :diff-image ...}."
+  ([baseline-bytes current-bytes]
+   (visual-diff/compare-screenshots baseline-bytes current-bytes))
+  ([baseline-bytes current-bytes opts]
+   (apply visual-diff/compare-screenshots baseline-bytes current-bytes
+     (mapcat identity opts))))
+
+(defn sci-compare-screenshot-files
+  "Compare two PNG files pixel-by-pixel. See compare-screenshots for details."
+  ([baseline-path current-path]
+   (visual-diff/compare-screenshot-files baseline-path current-path))
+  ([baseline-path current-path opts]
+   (apply visual-diff/compare-screenshot-files baseline-path current-path
+     (mapcat identity opts))))
+
 (defn sci-pdf
   ([] (throw-if-anomaly (page/pdf (require-page!))))
   ([path-or-opts]
@@ -1263,8 +1282,10 @@
                   ;; JavaScript
                   ['evaluate      sci-eval-js]
                   ['evaluate-handle sci-evaluate-handle]
-                  ;; Screenshots
+                   ;; Screenshots
                   ['screenshot    sci-screenshot]
+                  ['compare-screenshots sci-compare-screenshots]
+                  ['compare-screenshot-files sci-compare-screenshot-files]
                   ['pdf           sci-pdf]
                   ;; Waiting
                   ['wait-for-selector   sci-wait-for]

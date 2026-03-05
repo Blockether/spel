@@ -1139,6 +1139,11 @@
       ""
       "Usage:"
       "  spel diff snapshot --baseline <file>   Compare current snapshot vs baseline file"
+      "  spel diff screenshot --baseline <file> Compare current page screenshot against a baseline PNG image"
+      "                                      Outputs JSON with diff stats and saves diff image"
+      "    --baseline <file>                 Path to baseline PNG file (required)"
+      "    --threshold <0.0-1.0>             Matching sensitivity (default: 0.1, lower=stricter)"
+      "    -o <path>                         Output path for diff image (default: temp file)"
       ""
       "The diff command compares the current page state against a saved baseline."
       "The baseline is a text file containing a previous snapshot output."
@@ -2096,6 +2101,16 @@
                                           (some #{"--compact" "-c"} cmd-args) (assoc :compact true)
                                           (some #{"--no-network"} cmd-args) (assoc :no-network true)
                                           (some #{"--no-console"} cmd-args) (assoc :no-console true)))
+                           "screenshot" {:action "diff_screenshot"
+                                         :baseline (let [args (rest cmd-args)
+                                                         idx (.indexOf ^java.util.List (vec args) "--baseline")]
+                                                     (when (>= idx 0) (nth args (inc idx))))
+                                         :threshold (let [args (rest cmd-args)
+                                                          idx (.indexOf ^java.util.List (vec args) "--threshold")]
+                                                      (when (>= idx 0) (nth args (inc idx))))
+                                         :path (let [args (rest cmd-args)
+                                                     idx (.indexOf ^java.util.List (vec args) "-o")]
+                                                 (when (>= idx 0) (nth args (inc idx))))}
                            {:error (str "Unknown diff command: " sub)}))
 
           ;; Close (+ aliases)
