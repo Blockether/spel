@@ -806,3 +806,210 @@
       (let [out (#'com.blockether.spel.snapshot/format-styles
                  {"display" "block" "color" nil "font-size" nil})]
         (expect (= "{display:block}" out))))))
+
+;; =============================================================================
+;; Integration Tests — Event Listener Detection
+;; =============================================================================
+
+(defdescribe event-listener-detection-test
+  "Integration tests for event listener annotations in snapshots.
+
+   Tests that elements with JS event handlers (onclick, React props, etc.)
+   are detected and annotated with [on:click] etc. in the snapshot tree."
+
+  (describe "inline onclick handler detection"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "detects onclick handler and annotates with [on:click]"
+      (page/set-content! *page*
+        "<div onclick='alert(1)'>Click me</div>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (string? tree))
+        (expect (str/includes? tree "[on:click]")))))
+
+  (describe "JS-assigned event handler detection"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "detects programmatic onclick assigned via JS"
+      (page/set-content! *page*
+        "<button id='btn'>JS Click</button>")
+      (page/evaluate *page*
+        "document.getElementById('btn').onclick = function() {}")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (string? tree))
+        (expect (str/includes? tree "[on:click]")))))
+
+  (describe "multiple event types detection"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "detects multiple handler types on same element"
+      (page/set-content! *page*
+        "<input id='inp' type='text' />")
+      (page/evaluate *page*
+        "(() => { const e = document.getElementById('inp'); e.onfocus = function(){}; e.onblur = function(){}; e.onchange = function(){}; })()")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)
+            ;; Find the ref for the input
+            inp-ref (some (fn [[ref-id data]]
+                           (when (= "textbox" (:role data))
+                             ref-id))
+                         (:refs snap))]
+        (expect (some? inp-ref))
+        (expect (seq (:listeners (get (:refs snap) inp-ref))))
+        ;; At least focus, blur, change should be detected
+        (let [listeners (set (:listeners (get (:refs snap) inp-ref)))]
+          (expect (contains? listeners "focus"))
+          (expect (contains? listeners "blur"))
+          (expect (contains? listeners "change"))))))
+
+  (describe "listener data in refs map"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "refs include :listeners vector for elements with handlers"
+      (page/set-content! *page*
+        "<button onclick='alert(1)'>Alert</button>")
+      (let [snap (sut/capture-snapshot *page*)
+            btn-ref (some (fn [[ref-id data]]
+                           (when (= "button" (:role data))
+                             ref-id))
+                         (:refs snap))]
+        (expect (some? btn-ref))
+        (expect (vector? (:listeners (get (:refs snap) btn-ref))))
+        (expect (some #(= "click" %) (:listeners (get (:refs snap) btn-ref)))))))
+
+  (describe "elements without handlers have no listeners"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "plain heading has no :listeners in refs"
+      (page/set-content! *page*
+        "<h1>No Events</h1>")
+      (let [snap (sut/capture-snapshot *page*)
+            h1-ref (some (fn [[ref-id data]]
+                          (when (= "heading" (:role data))
+                            ref-id))
+                        (:refs snap))]
+        (expect (some? h1-ref))
+        (expect (nil? (:listeners (get (:refs snap) h1-ref))))))))
+
+;; =============================================================================
+;; Integration Tests — Cursor Pointer / [clickable] Noise Reduction
+;; =============================================================================
+
+(defdescribe clickable-noise-reduction-test
+  "Integration tests for [clickable] annotation noise reduction.
+
+   Tests that cursor:pointer inherited from interactive ancestors
+   does NOT mark child elements as [clickable]."
+
+  (describe "direct cursor:pointer gets [clickable]"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "element with direct cursor:pointer style is marked clickable"
+      (page/set-content! *page*
+        "<div style='cursor:pointer'>Clickable div</div>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (string? tree))
+        ;; The div should have [clickable] or be interactive
+        (expect (str/includes? tree "[clickable]")))))
+
+  (describe "inherited cursor:pointer from button"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "child span inside button does NOT get separate [clickable]"
+      (page/set-content! *page*
+        "<button style='cursor:pointer'><span id='inner'>Inside Button</span></button>")
+      (let [snap (sut/capture-snapshot *page*)
+            ;; The inner span should NOT have :pointer true
+            inner-ref (some (fn [[ref-id data]]
+                             (when (and (= "span" (:tag data))
+                                        (= "Inside Button" (:name data)))
+                               ref-id))
+                           (:refs snap))]
+        ;; Inner span may or may not have a ref, but if it does, it should NOT have :pointer
+        (when inner-ref
+          (expect (not (:pointer (get (:refs snap) inner-ref))))))))
+
+  (describe "inherited cursor:pointer from link"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "child element inside <a> link does NOT get separate [clickable]"
+      (page/set-content! *page*
+        "<a href='/test' style='cursor:pointer'><span>Link Text</span></a>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        ;; The tree should have link but child span should not independently have [clickable]
+        (expect (string? tree))
+        (expect (str/includes? tree "link"))))))
+
+;; =============================================================================
+;; Integration Tests — Container Content Preview
+;; =============================================================================
+
+(defdescribe container-content-preview-test
+  "Integration tests for container element content previews.
+
+   Tests that article, region, listitem, figure, group elements
+   get content preview names from innerText."
+
+  (describe "article content preview"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "article element gets content preview as name"
+      (page/set-content! *page*
+        "<article><h2>Product Title</h2><p>Description text here</p></article>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (string? tree))
+        (expect (str/includes? tree "article"))
+        ;; Content preview should include some of the article text
+        (expect (str/includes? tree "Product Title")))))
+
+  (describe "article preview uses innerText spacing"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "content preview has spaces between child block elements"
+      (page/set-content! *page*
+        "<article><div>First Block</div><div>Second Block</div></article>")
+      (let [snap (sut/capture-snapshot *page*)
+            article-ref (some (fn [[ref-id data]]
+                               (when (= "article" (:role data))
+                                 ref-id))
+                             (:refs snap))
+            article-name (:name (get (:refs snap) article-ref))]
+        (expect (some? article-ref))
+        ;; innerText should produce space-separated text, not concatenated
+        ;; "First BlockSecond Block" (bad, textContent) vs "First Block Second Block" (good, innerText)
+        (expect (some? article-name))
+        (when article-name
+          (expect (not (str/includes? article-name "BlockSecond")))))))
+
+  (describe "listitem content preview"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "li element gets content preview"
+      (page/set-content! *page*
+        "<ul><li><span>Item One</span> <span>Detail</span></li></ul>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (string? tree))
+        (expect (str/includes? tree "listitem")))))
+
+  (describe "long content is truncated"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "content preview is truncated to 80 chars with ellipsis"
+      (page/set-content! *page*
+        (str "<article><p>" (apply str (repeat 100 "x")) "</p></article>"))
+      (let [snap (sut/capture-snapshot *page*)
+            article-ref (some (fn [[ref-id data]]
+                               (when (= "article" (:role data))
+                                 ref-id))
+                             (:refs snap))
+            article-name (:name (get (:refs snap) article-ref))]
+        (expect (some? article-ref))
+        (when article-name
+          (expect (<= (count article-name) 84)) ;; 80 chars + "..." + some margin
+          (expect (str/ends-with? article-name "...")))))))

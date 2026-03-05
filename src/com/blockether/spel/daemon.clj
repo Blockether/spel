@@ -373,29 +373,12 @@
              (:playwright/exception result)))
     result))
 
-;; =============================================================================
-;; Real Chrome Profile Detection
-;; =============================================================================
-
-(defn- real-chrome-profile?
-  "Returns true if `path` looks like a real Chrome profile directory
-   (contains Preferences or Cookies — files only Chrome creates).
-   This distinguishes real profiles from fresh temp dirs used by Playwright."
-  [^String path]
-  (let [dir (java.io.File. path)]
-    (and (.isDirectory dir)
-      (or (.exists (java.io.File. dir "Preferences"))
-        (.exists (java.io.File. dir "Cookies"))))))
-
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
-   Three modes:
-   1. Real Chrome/Edge profile detected → copy profile to temp dir, launch
-      persistent context (bookmarks, history, extensions, passwords), then
-      decrypt and inject cookies via .addCookies (Chrome 136+ workaround)
-   2. --profile with non-Chrome dir → Playwright launchPersistentContext
-   3. Normal → Playwright launch (or --cdp connect)
+   Two modes:
+   1. --profile with directory → Playwright launchPersistentContext
+   2. Normal → Playwright launch (or --cdp connect)
 
    Auto-loads persisted session state unless --no-persist is set."
   []
@@ -418,7 +401,6 @@
                         (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
                                                                      :bypass (get flags "proxy-bypass" "")})
                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
-                        (get flags "channel")          (assoc :channel (get flags "channel"))
                         (get flags "stealth")         (update :args (fnil into []) (stealth/stealth-args))
                         (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args))
                         (seq extensions)
@@ -431,60 +413,15 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
-        ;; ── Mode 1: Real Chrome/Edge profile → persistent context + cookies ──
-        ;; Chrome 136+ blocks cookie access from subprocesses. Solution:
-        ;; copy the profile to a temp dir, launch with persistent context
-        ;; (for bookmarks, history, extensions, passwords), then inject
-        ;; decrypted cookies via .addCookies. Uses :viewport nil to skip
-        ;; Playwright's getWindowForTarget call which crashes with Edge.
-        (and profile-dir (real-chrome-profile? profile-dir))
-        (let [_           (binding [*out* *err*]
-                            (println (str "spel: [Mode 1] Real browser profile detected at " profile-dir))
-                            (println "spel: [Mode 1] Copying profile for full experience (bookmarks, extensions, history, passwords)..."))
-              tmp-profile (chrome-cookies/copy-profile-dir! profile-dir)
-              _           (binding [*out* *err*]
-                            (println (str "spel: [Mode 1] Profile copied to " tmp-profile))
-                            (when (get flags "channel")
-                              (println (str "spel: [Mode 1] Browser channel: " (get flags "channel")))))
-              launch-opts (-> launch-opts
-                            (update :ignore-default-args
-                              (fnil into [])
-                              ["--use-mock-keychain" "--password-store=basic"])
-                            (update :args
-                              (fnil conj [])
-                              "--disable-fre"))
-              persistent-opts (merge launch-opts ctx-opts {:viewport nil})
-              context     (check-anomaly!
-                            (core/launch-persistent-context
-                              (.chromium ^com.microsoft.playwright.Playwright pw)
-                              tmp-profile
-                              persistent-opts)
-                            "Failed to launch persistent browser context")
-              _           (when (get flags "stealth")
-                            (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-              n           (chrome-cookies/inject-cookies! context profile-dir {:channel (get flags "channel")})
-              _           (binding [*out* *err*]
-                            (println (str "spel: [Mode 1] Injected " n " cookies from browser profile")))
-              browser     (.browser ^BrowserContext context)
-              pg-inst     (if (seq (.pages ^BrowserContext context))
-                            (first (.pages ^BrowserContext context))
-                            (check-anomaly!
-                              (core/new-page-from-context context)
-                              "Failed to create page in persistent context"))]
-          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
-            :persistent-profile true :tmp-profile-dir tmp-profile))
-
-        ;; ── Mode 2: --profile with non-Chrome dir → Playwright persistent ─
-        ;; For fresh/temp profile directories (no Preferences file), use
-        ;; Playwright's launchPersistentContext which creates its own profile.
+        ;; ── Mode 1: --profile with directory → Playwright persistent ──────
+        ;; Use Playwright's launchPersistentContext for custom profile dirs.
         profile-dir
         (let [_           (binding [*out* *err*]
-                            (println (str "spel: [Mode 2] Custom profile directory at " profile-dir))
-                            (println "spel: [Mode 2] No Chrome/Edge profile data detected (no Preferences or Cookies file)"))
+                            (println (str "spel: [Mode 1] Persistent context with profile: " profile-dir)))
               launch-opts (update launch-opts :ignore-default-args
                             (fnil into [])
                             ["--use-mock-keychain" "--password-store=basic"])
@@ -506,36 +443,53 @@
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
             :persistent-profile true))
 
-        ;; ── Mode 3: Normal → launch or explicit --cdp ───────────────────
+        ;; ── Mode 2: Normal launch or CDP connect ─────────────────────────
         :else
-        (let [_       (when profile-dir
-                        (binding [*out* *err*]
-                          (println (str "spel: [Mode 3] --profile ignored (not a browser profile directory): " profile-dir))))
-              _       (binding [*out* *err*]
-                        (println (str "spel: [Mode 3] Standard launch"
-                                   (when (get flags "cdp") (str " via CDP: " (get flags "cdp")))
-                                   (when (get flags "channel") (str ", channel: " (get flags "channel"))))))
+        (let [_       (binding [*out* *err*]
+                        (println (str "spel: [Mode 2] "
+                                   (if (get flags "cdp")
+                                     (str "CDP connect: " (get flags "cdp"))
+                                     "Standard launch"))))
               browser-type (get flags "browser" "chromium")
               launch-fn   (case browser-type
                             "firefox" core/launch-firefox
                             "webkit"  core/launch-webkit
                             core/launch-chromium)
-              browser (if (get flags "cdp")
-                        (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
-                        (check-anomaly!
-                          (launch-fn pw launch-opts)
-                          "Failed to launch browser"))
-              context (check-anomaly!
-                        (if (seq ctx-opts)
-                          (core/new-context browser ctx-opts)
-                          (core/new-context browser))
-                        "Failed to create browser context")
-              _       (when (get flags "stealth")
-                        (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-              pg-inst (check-anomaly!
-                        (core/new-page-from-context context)
-                        "Failed to create page")]
-          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))
+              cdp-url     (get flags "cdp")
+              browser     (if cdp-url
+                            (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
+                            (check-anomaly!
+                              (launch-fn pw launch-opts)
+                              "Failed to launch browser"))]
+          (if cdp-url
+            ;; CDP: reuse the REAL browser's existing contexts and pages.
+            ;; The whole point of CDP is to control the user's actual Chrome
+            ;; with its real login sessions, cookies, tabs — NOT create new ones.
+            (let [contexts (.contexts ^com.microsoft.playwright.Browser browser)
+                  context  (if (seq contexts)
+                             (first contexts)
+                             (check-anomaly!
+                               (core/new-context browser)
+                               "No existing context found via CDP and failed to create one"))
+                  pages    (.pages ^com.microsoft.playwright.BrowserContext context)
+                  pg-inst  (if (seq pages)
+                             (first pages)
+                             (check-anomaly!
+                               (core/new-page-from-context context)
+                               "No existing page found via CDP and failed to create one"))]
+              (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true))
+            ;; Normal launch: create fresh context and page as before.
+            (let [context (check-anomaly!
+                            (if (seq ctx-opts)
+                              (core/new-context browser ctx-opts)
+                              (core/new-context browser))
+                            "Failed to create browser context")
+                  _       (when (get flags "stealth")
+                            (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+                  pg-inst (check-anomaly!
+                            (core/new-page-from-context context)
+                            "Failed to create page")]
+              (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
       ;; Common setup for all paths
       (let [pg-inst (:page @!state)]
         (reset! !console-messages [])
@@ -551,7 +505,7 @@
         (reset! !tracked-requests [])
         (page/on-response pg-inst track-response!)
         ;; Auto-load persisted session state (not for persistent/CDP profiles)
-        (when-not profile-dir
+        (when-not (or profile-dir (get flags "cdp"))
           (auto-load-session-state!))))))
 
 ;; =============================================================================
@@ -921,7 +875,7 @@
             (Path/of ^String path-str (into-array String []))
             ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-          {:path path-str :size (alength ss-bytes)})
+        {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
@@ -1001,15 +955,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1020,11 +974,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -1236,13 +1190,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "click" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "fill" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -1393,7 +1347,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -1469,12 +1423,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -1596,7 +1550,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -1999,19 +1953,23 @@
 
    Params:
    `opts` - Map:
-     :session  - String (default \"default\")
+     :session  - String (default 'default')
      :headless - Boolean (default true)
-     :browser  - String (optional, e.g. \"firefox\", \"webkit\")"
+     :browser  - String (optional, e.g. 'firefox', 'webkit')
+     :cdp      - String (optional, CDP endpoint URL)"
   [opts]
   (let [session  (get opts :session "default")
         headless (get opts :headless true)
         browser  (get opts :browser)
+        cdp-url  (get opts :cdp)
         sock-path (socket-path session)
         pid-path  (pid-file-path session)]
     ;; Store session config + initial launch flags (browser type from CLI args)
     (swap! !state assoc :headless headless :session session)
     (when browser
       (swap! !state assoc-in [:launch-flags "browser"] browser))
+    (when cdp-url
+      (swap! !state assoc-in [:launch-flags "cdp"] cdp-url))
 
     ;; Clean up stale socket
     (cleanup! session)

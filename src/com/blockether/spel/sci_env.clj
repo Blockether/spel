@@ -59,7 +59,8 @@
    [java.io File]
    [java.nio.file CopyOption Files LinkOption Path Paths StandardCopyOption]
    [java.nio.file.attribute FileAttribute]
-   [java.util Base64]))
+   [java.util Base64]
+   [java.net URLEncoder URLDecoder]))
 
 ;; =============================================================================
 ;; Stderr Helpers
@@ -203,19 +204,19 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -2161,6 +2162,11 @@
                     'java.nio.file.CopyOption java.nio.file.CopyOption
                     'StandardCopyOption   java.nio.file.StandardCopyOption
                     'java.nio.file.StandardCopyOption java.nio.file.StandardCopyOption
+                    ;; URL encoding/decoding
+                    'URLEncoder          java.net.URLEncoder
+                    'java.net.URLEncoder java.net.URLEncoder
+                    'URLDecoder          java.net.URLDecoder
+                    'java.net.URLDecoder java.net.URLDecoder
                     ;; JDK utility classes
                     'Thread              java.lang.Thread
                     'java.lang.Thread    java.lang.Thread

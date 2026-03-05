@@ -352,7 +352,8 @@
    Cookies are handled separately via decryption and injection.
    Lock/Singleton files prevent Chromium from launching on a copied profile."
   #{"Cookies" "Cookies-journal" "LOCK" "SingletonLock" "SingletonCookie"
-    "SingletonSocket" "lockfile" "Web Data-journal" "Login Data-journal"})
+    "SingletonSocket" "lockfile" "Web Data-journal" "Login Data-journal"
+    "RunningChromeVersion"})
 
 (defn- patch-copied-preferences!
   "Patches the Preferences file in the copied profile directory.

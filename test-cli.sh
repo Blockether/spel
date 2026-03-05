@@ -363,11 +363,11 @@ assert_jq_contains "pdf → .path" "$OUT" '.path' 'test-cli-page.pdf'
 # =============================================================================
 section "JavaScript (2)"
 
-OUT=$("$SPEL" --json eval "document.title" 2>&1)
-assert_jq_eq "eval document.title → .result" "$OUT" '.result' 'Example Domain'
+OUT=$("$SPEL" --json eval-js "document.title" 2>&1)
+assert_jq_eq "eval-js document.title → .result" "$OUT" '.result' 'Example Domain'
 
-OUT=$("$SPEL" --json eval "document.title" -b 2>&1)
-assert_jq_eq "eval -b → .result (base64)" "$OUT" '.result' 'RXhhbXBsZSBEb21haW4='
+OUT=$("$SPEL" --json eval-js "document.title" -b 2>&1)
+assert_jq_eq "eval-js -b → .result (base64)" "$OUT" '.result' 'RXhhbXBsZSBEb21haW4='
 
 # =============================================================================
 # WAIT (6)
@@ -471,7 +471,7 @@ OUT=$("$SPEL" --json find nth 0 p click 2>&1)
 assert_jq_eq "find nth 0 p click → .found" "$OUT" '.found' 'nth'
 
 # Inject elements for placeholder/alt/title/testid find tests
-"$SPEL" eval "document.body.innerHTML = '<input placeholder=\"Search here\" /><img alt=\"Logo\" src=\"#\" /><span title=\"Tooltip\">hover me</span><button data-testid=\"submit-btn\">Submit</button>'" >/dev/null 2>&1
+"$SPEL" eval-js "document.body.innerHTML = '<input placeholder=\"Search here\" /><img alt=\"Logo\" src=\"#\" /><span title=\"Tooltip\">hover me</span><button data-testid=\"submit-btn\">Submit</button>'" >/dev/null 2>&1
 
 OUT=$("$SPEL" --json find placeholder "Search here" click 2>&1)
 assert_jq_eq "find placeholder → .found" "$OUT" '.found' 'placeholder'
@@ -745,9 +745,9 @@ assert_jq "errors start → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json errors --clear 2>&1)
 assert_jq "errors --clear → success" "$OUT" 'has("error") | not'
 
-# Verify --eval prints console messages with actual text (not empty [console.] )
-OUT=$("$SPEL" --eval '(spel/evaluate "console.log(\"spel-console-test-42\")") nil' 2>&1)
-assert_contains "eval console → message text" "$OUT" "[console.log] spel-console-test-42"
+# Verify eval-sci prints console messages with actual text (not empty [console.] )
+OUT=$("$SPEL" eval-sci '(spel/evaluate "console.log(\"spel-console-test-42\")") nil' 2>&1)
+assert_contains "eval-sci console → message text" "$OUT" "[console.log] spel-console-test-42"
 
 # =============================================================================
 # STATE MANAGEMENT (9)
@@ -1114,42 +1114,42 @@ else
   fail "codegen -o → file created" "File $CODEGEN_SCRIPT not found"
 fi
 
-# --- Run generated script via --eval (the ultimate compatibility test) ---
+# --- Run generated script via eval-sci (the ultimate compatibility test) ---
 # This proves: JSONL recording → codegen → Clojure script → SCI eval → real browser
 # Run WITHOUT --autoclose so browser stays alive for subsequent verification queries
-OUT=$("$SPEL" --eval "$CODEGEN_SCRIPT" 2>&1)
+OUT=$("$SPEL" eval-sci "$CODEGEN_SCRIPT" 2>&1)
 EVAL_EXIT=$?
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ $EVAL_EXIT -eq 0 ]]; then
-  pass "eval codegen script → exit 0 (Clojure↔SCI compat)"
+  pass "eval-sci codegen script → exit 0 (Clojure↔SCI compat)"
 else
-  fail "eval codegen script → exit 0 (Clojure↔SCI compat)" "Exit code: $EVAL_EXIT, Output: $(echo "$OUT" | head -c 500)"
+  fail "eval-sci codegen script → exit 0 (Clojure↔SCI compat)" "Exit code: $EVAL_EXIT, Output: $(echo "$OUT" | head -c 500)"
 fi
 
-# Verify the eval output doesn't contain error
+# Verify the eval-sci output doesn't contain error
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ "$OUT" != *"Error:"* ]]; then
-  pass "eval codegen script → no errors in output"
+  pass "eval-sci codegen script → no errors in output"
 else
-  fail "eval codegen script → no errors in output" "Output: $(echo "$OUT" | head -c 500)"
+  fail "eval-sci codegen script → no errors in output" "Output: $(echo "$OUT" | head -c 500)"
 fi
 
-# Verify eval result is "nil" (the actual return value of the last assertion)
-assert_contains "eval codegen script → result is nil" "$OUT" "nil"
+# Verify eval-sci result is "nil" (the actual return value of the last assertion)
+assert_contains "eval-sci codegen script → result is nil" "$OUT" "nil"
 
 # --- MEANINGFUL VERIFICATION: query the browser state left by the codegen script ---
 # Prove the script actually navigated to the page and the browser is on example.com
 
 # Verify page title is "Example Domain" (the script navigated to example.com)
-TITLE_OUT=$("$SPEL" --eval '(page/title (spel/page))' 2>&1)
-assert_contains "eval → page title is Example Domain" "$TITLE_OUT" "Example Domain"
+TITLE_OUT=$("$SPEL" eval-sci '(page/title (spel/page))' 2>&1)
+assert_contains "eval-sci → page title is Example Domain" "$TITLE_OUT" "Example Domain"
 
 # Verify page URL contains example.com
-URL_OUT=$("$SPEL" --eval '(page/url (spel/page))' 2>&1)
-assert_contains "eval → page URL contains example.com" "$URL_OUT" "example.com"
+URL_OUT=$("$SPEL" eval-sci '(page/url (spel/page))' 2>&1)
+assert_contains "eval-sci → page URL contains example.com" "$URL_OUT" "example.com"
 
 # Clean up: close the daemon session
-"$SPEL" --eval '(do nil)' --autoclose >/dev/null 2>&1 || true
+"$SPEL" eval-sci '(do nil)' --autoclose >/dev/null 2>&1 || true
 
 # --- NEGATIVE: prove wrong assertions FAIL (not silently swallowed) ---
 CODEGEN_BAD_JSONL="/tmp/test-codegen-bad.jsonl"
@@ -1163,24 +1163,24 @@ cat > "$CODEGEN_BAD_JSONL" <<'JSONL'
 JSONL
 
 "$SPEL" codegen --format=script -o "$CODEGEN_BAD_SCRIPT" "$CODEGEN_BAD_JSONL" 2>&1
-OUT=$( "$SPEL" --eval "$CODEGEN_BAD_SCRIPT" --autoclose 2>&1 )
+OUT=$( "$SPEL" eval-sci "$CODEGEN_BAD_SCRIPT" --autoclose 2>&1 )
 BAD_EXIT=$?
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ $BAD_EXIT -ne 0 ]]; then
-  pass "NEGATIVE: eval wrong assertion → exit non-zero"
+  pass "NEGATIVE: eval-sci wrong assertion → exit non-zero"
 else
-  fail "NEGATIVE: eval wrong assertion → exit non-zero" "Expected failure but got exit 0. Output: $(echo "$OUT" | head -c 300)"
+  fail "NEGATIVE: eval-sci wrong assertion → exit non-zero" "Expected failure but got exit 0. Output: $(echo "$OUT" | head -c 300)"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ "$OUT" == *"Error:"* ]]; then
-  pass "NEGATIVE: eval wrong assertion → Error in output"
+  pass "NEGATIVE: eval-sci wrong assertion → Error in output"
 else
-  fail "NEGATIVE: eval wrong assertion → Error in output" "Expected 'Error:' but got: $(echo "$OUT" | head -c 300)"
+  fail "NEGATIVE: eval-sci wrong assertion → Error in output" "Expected 'Error:' but got: $(echo "$OUT" | head -c 300)"
 fi
 
 # Verify the error mentions the expected text or assertion failure details
-assert_contains "NEGATIVE: eval wrong assertion → error mentions assertion context" "$OUT" "THIS TEXT DOES NOT EXIST ANYWHERE"
+assert_contains "NEGATIVE: eval-sci wrong assertion → error mentions assertion context" "$OUT" "THIS TEXT DOES NOT EXIST ANYWHERE"
 # =============================================================================
 # =============================================================================
 # URL VALIDATION (32)

@@ -168,6 +168,17 @@
       return text.substring(0, 197) + '...';
     }
 
+    // 7. Content preview for container elements with meaningful roles
+    const containerPreviewRoles = new Set(['article', 'region', 'listitem', 'figure', 'group']);
+    const elRole = getRole(el);
+    if (el.children.length > 0 && containerPreviewRoles.has(elRole)) {
+      const fullText = (el.innerText || '').trim();
+      if (fullText) {
+        const preview = fullText.substring(0, 80).replace(/\\s+/g, ' ');
+        return preview + (fullText.length > 80 ? '...' : '');
+      }
+    }
+
     return '';
   }
 
@@ -189,14 +200,122 @@
     return null;
   }
 
+  function isJSInteractive(el) {
+    // JS-assigned on* handler properties (not HTML attributes)
+    if (typeof el.onclick === 'function' || typeof el.ondblclick === 'function' ||
+        typeof el.onmousedown === 'function' || typeof el.onpointerdown === 'function' ||
+        typeof el.ontouchstart === 'function') return true;
+    // cursor: pointer - but ONLY if not inherited from an interactive ancestor
+    try {
+      if (getComputedStyle(el).cursor === 'pointer') {
+        // Walk up to find if cursor:pointer is set on this element or inherited from a clickable ancestor
+        let anc = el.parentElement;
+        while (anc && anc !== document.body) {
+          if (INTERACTIVE_TAGS.has(anc.tagName.toLowerCase()) || anc.getAttribute('role') === 'button' ||
+              anc.getAttribute('role') === 'link' || anc.getAttribute('tabindex') !== null ||
+              typeof anc.onclick === 'function') {
+            // cursor:pointer is inherited from interactive ancestor - not independently clickable
+            return false;
+          }
+          // If ancestor has cursor:pointer explicitly set, it is the source - stop
+          try { if (getComputedStyle(anc).cursor === 'pointer') break; } catch(e) { break; }
+          anc = anc.parentElement;
+        }
+        return true;
+      }
+    } catch(e) {}
+    // React event props (__reactProps$ or __reactFiber$)
+    for (const k of Object.keys(el)) {
+      if (k.startsWith('__reactProps$')) {
+        const p = el[k];
+        if (p && (p.onClick || p.onClickCapture || p.onMouseDown || p.onChange)) return true;
+      }
+      if (k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')) {
+        let f = el[k];
+        for (let i = 0; i < 3 && f; i++) {
+          const p = f.memoizedProps || f.pendingProps;
+          if (p && (p.onClick || p.onClickCapture)) return true;
+          f = f.return;
+        }
+      }
+    }
+    return false;
+  }
+
+  function detectListeners(el) {
+    const evts = new Set();
+    const ps = ['onclick','ondblclick','onmousedown','onmouseup','onpointerdown',
+                'onpointerup','ontouchstart','ontouchend','onkeydown','onkeyup',
+                'onchange','oninput','onfocus','onblur','onsubmit'];
+    for (const p of ps) { if (typeof el[p] === 'function') evts.add(p.substring(2)); }
+    // React props
+    for (const k of Object.keys(el)) {
+      if (k.startsWith('__reactProps$')) {
+        const p = el[k]; if (!p) continue;
+        if (p.onClick || p.onClickCapture) evts.add('click');
+        if (p.onMouseDown) evts.add('mousedown');
+        if (p.onChange) evts.add('change');
+        if (p.onInput) evts.add('input');
+        if (p.onSubmit) evts.add('submit');
+        if (p.onKeyDown) evts.add('keydown');
+        if (p.onFocus) evts.add('focus');
+        if (p.onBlur) evts.add('blur');
+      }
+      if (k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')) {
+        let f = el[k];
+        for (let i = 0; i < 5 && f; i++) {
+          const p = f.memoizedProps || f.pendingProps;
+          if (p) {
+            if (p.onClick || p.onClickCapture) evts.add('click');
+            if (p.onMouseDown) evts.add('mousedown');
+            if (p.onChange) evts.add('change');
+            if (p.onInput) evts.add('input');
+            if (p.onSubmit) evts.add('submit');
+            if (p.onKeyDown) evts.add('keydown');
+            if (p.onFocus) evts.add('focus');
+            if (p.onBlur) evts.add('blur');
+            break;
+          }
+          f = f.return;
+        }
+      }
+    }
+    // jQuery
+    if (typeof jQuery !== 'undefined') {
+      try {
+        const d = jQuery._data(el, 'events');
+        if (d) for (const t of Object.keys(d)) evts.add(t);
+      } catch(e) {}
+    }
+    // cursor: pointer - only if not inherited from interactive ancestor
+    let ptr = false;
+    try {
+      if (getComputedStyle(el).cursor === 'pointer') {
+        ptr = true;
+        // Check if pointer is inherited from interactive ancestor
+        let anc = el.parentElement;
+        while (anc && anc !== document.body) {
+          if (INTERACTIVE_TAGS.has(anc.tagName.toLowerCase()) || anc.getAttribute('role') === 'button' ||
+              anc.getAttribute('role') === 'link' || anc.getAttribute('tabindex') !== null ||
+              typeof anc.onclick === 'function') {
+            ptr = false; break;
+          }
+          try { if (getComputedStyle(anc).cursor === 'pointer') break; } catch(e) { break; }
+          anc = anc.parentElement;
+        }
+      }
+    } catch(e) {}
+    return {events: [...evts], pointer: ptr};
+  }
+
   function shouldAssignRef(el, role) {
     if (INTERACTIVE_TAGS.has(el.tagName.toLowerCase())) return true;
     if (el.getAttribute('tabindex') !== null) return true;
     if (el.getAttribute('onclick') !== null) return true;
     if (el.getAttribute('contenteditable') === 'true') return true;
+    if (isJSInteractive(el)) return true;
     return MEANINGFUL_ROLES.has(role);
   }
-
 
   function getHref(el) {
     const tag = el.tagName.toLowerCase();
@@ -416,6 +535,8 @@
     // text-bearing leaves, mixed content elements, and CSS-rendered images
     let ref = null;
     let _elStyles = null;
+    let _listeners = null;
+    let _pointer = false;
     if (isInteractive || (hasMeaningfulRole && hasContent) || isTextLeaf || isMixedContent || hasCSSImage) {
       const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
       ref = stableRef(el, effectiveRole, name);
@@ -444,6 +565,10 @@
       if (children.length > 0 && leafText) refs[ref].mixed = true;
       _elStyles = extractStyles(el);
       if (_elStyles && _elStyles.full) refs[ref].styles = _elStyles.full;
+      // Detect event listeners and pointer cursor
+      const _li = detectListeners(el);
+      if (_li.events.length) { _listeners = _li.events; refs[ref].listeners = _listeners; }
+      if (_li.pointer) { _pointer = true; refs[ref].pointer = true; }
     }
 
     const nodeHref = getHref(el);
@@ -455,6 +580,8 @@
       text: leafText,
       href: nodeHref,
       styles: _elStyles ? _elStyles.compact : null,
+      listeners: _listeners,
+      pointer: _pointer,
       children: children
     };
   }
@@ -553,16 +680,18 @@
 
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
-  [{:strs [role name ref attrs text href styles]} depth]
+  [{:strs [role name ref attrs text href styles listeners pointer]} depth]
   (let [depth (long depth)
         indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
-                 (seq name)    (conj (str "\"" name "\""))
-                 ref           (conj (str "[@" ref "]"))
-                 (seq href)    (conj (str "[url=" href "]"))
-                 (seq attrs)   (conj (format-attrs attrs))
-                 (seq styles)  (conj (format-styles styles))
-                 text          (conj (str ": " text)))]
+                 (seq name)      (conj (str "\"" name "\""))
+                 ref             (conj (str "[@" ref "]"))
+                 (seq href)      (conj (str "[url=" href "]"))
+                 (seq attrs)     (conj (format-attrs attrs))
+                 (seq listeners) (conj (str "[on:" (str/join "," listeners) "]"))
+                 pointer         (conj "[clickable]")
+                 (seq styles)    (conj (format-styles styles))
+                 text            (conj (str ": " text)))]
     (str indent (str/join " " parts))))
 
 (defn- render-tree
@@ -647,6 +776,8 @@
                            (get info "level")   (assoc :level (get info "level"))
                            (some? (get info "checked")) (assoc :checked (get info "checked"))
                            (get info "value")   (assoc :value (get info "value"))
+                           (get info "listeners") (assoc :listeners (vec (get info "listeners")))
+                           (get info "pointer")  (assoc :pointer true)
                            (get info "styles")  (assoc :styles (into {} (get info "styles"))))]))
 
                  raw-refs)
