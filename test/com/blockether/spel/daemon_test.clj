@@ -149,6 +149,62 @@
                   (expect (str/includes? result "level1"))
                   (expect (not (str/includes? result "level3")))))))
 
+(defdescribe flags-file-path-test
+  "Unit tests for flags-file-path"
+
+  (describe "returns path with session name and .flags.json extension"
+            (it "contains session name and .flags.json"
+                (let [p (str (sut/flags-file-path "test-session"))]
+                  (expect (clojure.string/includes? p "test-session"))
+                  (expect (clojure.string/ends-with? p ".flags.json"))))
+
+            (it "uses the spel prefix"
+                (let [p (str (sut/flags-file-path "default"))]
+                  (expect (clojure.string/includes? p "spel-default.flags.json"))))))
+
+(defdescribe persist-and-read-launch-flags-test
+  "Unit tests for launch flags persistence (write to file + read back)"
+
+  (describe "round-trips flags through file"
+            (it "persists flags and reads them back"
+                (let [state-atom (deref #'sut/!state)
+                      session    "flags-test-roundtrip"]
+                  (try
+                    (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                                        :refs {} :counter 0 :headless true
+                                        :session session
+                                        :launch-flags {"cdp" "http://127.0.0.1:9222"
+                                                       "browser" "chromium"}})
+                    (#'sut/persist-launch-flags!)
+                    (let [read-back (sut/read-session-flags session)]
+                      (expect (= "http://127.0.0.1:9222" (get read-back "cdp")))
+                      (expect (= "chromium" (get read-back "browser"))))
+                    (finally
+                      (java.nio.file.Files/deleteIfExists (sut/flags-file-path session)))))))
+
+  (describe "read returns empty map for nonexistent session"
+            (it "returns {} when no flags file"
+                (expect (= {} (sut/read-session-flags "nonexistent-flags-session-xyz")))))
+
+  (describe "process-command persists flags to file"
+            (it "writes flags file when _flags present in command"
+                (let [state-atom (deref #'sut/!state)
+                      session    "flags-test-process-cmd"]
+                  (try
+                    (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                                        :refs {} :counter 0 :headless true
+                                        :session session
+                                        :launch-flags {}})
+                    (#'sut/process-command
+                      (charred.api/write-json-str
+                        {"action" "close"
+                         "_flags" {"cdp" "http://localhost:9222"}}))
+                    (let [read-back (sut/read-session-flags session)]
+                      (expect (= "http://localhost:9222" (get read-back "cdp"))))
+                    (finally
+                      (java.nio.file.Files/deleteIfExists (sut/flags-file-path session))))))))
+
+
 ;; =============================================================================
 ;; Unit Tests — process-command with _flags
 ;; =============================================================================

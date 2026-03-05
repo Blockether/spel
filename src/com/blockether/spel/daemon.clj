@@ -74,6 +74,14 @@
              "spel-" session ".log")
     (into-array String [])))
 
+(defn flags-file-path
+  "Returns the launch flags persistence file path for a session."
+  ^Path [^String session]
+  (Path/of (str (System/getProperty "java.io.tmpdir")
+             File/separator
+             "spel-" session ".flags.json")
+    (into-array String [])))
+
 ;; =============================================================================
 ;; State
 ;; =============================================================================
@@ -103,6 +111,32 @@
 (defonce ^:private !tracked-requests (atom []))
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
+
+(defn- persist-launch-flags!
+  "Writes current launch-flags to the session's flags file for CLI to read.
+   Called after flags are stored in !state so subsequent commands and daemon
+   restarts can recover the flags (e.g. --cdp URL) without the user re-typing them."
+  []
+  (try
+    (let [session (:session @!state)
+          flags   (get @!state :launch-flags {})]
+      (when (and session (seq flags))
+        (Files/writeString (flags-file-path session)
+          (json/write-json-str flags)
+          (into-array java.nio.file.OpenOption []))))
+    (catch Exception e (warn "persist-launch-flags" e))))
+
+(defn read-session-flags
+  "Reads persisted launch flags for a session from the flags file.
+   Returns a map of flag-name->value, or empty map if file doesn't exist.
+   Used by CLI to recover flags like --cdp without requiring them on every command."
+  [^String session]
+  (let [path (flags-file-path session)]
+    (if (Files/exists path (into-array java.nio.file.LinkOption []))
+      (try
+        (json/read-json (String. (Files/readAllBytes path)))
+        (catch Exception _ {}))
+      {})))
 
 ;; =============================================================================
 ;; Network + Console Sliding Window (TASK-013)
@@ -1799,8 +1833,10 @@
           flags  (get cmd "_flags")
           params (dissoc cmd "action" "_flags")]
       ;; Store launch flags if present (used by ensure-browser!)
+      ;; Persist to disk so CLI can recover them on daemon restart.
       (when (seq flags)
-        (swap! !state update :launch-flags merge flags))
+        (swap! !state update :launch-flags merge flags)
+        (persist-launch-flags!))
       (try
         (let [result    (handle-cmd action params)
               anomaly-v (cond
@@ -1858,10 +1894,11 @@
         (try (.close client) (catch Exception e (warn "close-client" e)))))))
 
 (defn- cleanup!
-  "Removes socket and PID files."
+  "Removes socket, PID, and flags files."
   [^String session]
   (try (Files/deleteIfExists (socket-path session)) (catch Exception e (warn "delete-socket" e)))
-  (try (Files/deleteIfExists (pid-file-path session)) (catch Exception e (warn "delete-pid" e))))
+  (try (Files/deleteIfExists (pid-file-path session)) (catch Exception e (warn "delete-pid" e)))
+  (try (Files/deleteIfExists (flags-file-path session)) (catch Exception e (warn "delete-flags" e))))
 
 (defn daemon-running?
   "Checks if a daemon is running for the given session."
@@ -1970,6 +2007,9 @@
       (swap! !state assoc-in [:launch-flags "browser"] browser))
     (when cdp-url
       (swap! !state assoc-in [:launch-flags "cdp"] cdp-url))
+
+    ;; Persist launch flags so CLI can recover them (e.g. --cdp) on subsequent commands
+    (persist-launch-flags!)
 
     ;; Clean up stale socket
     (cleanup! session)

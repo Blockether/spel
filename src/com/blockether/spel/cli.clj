@@ -2550,6 +2550,20 @@
    Returns the response map (for programmatic use) or nil on error."
   [args]
   (let [{:keys [command flags]} (parse-args args)
+        ;; Recover persisted launch flags from the daemon's flags file.
+        ;; This lets --cdp, --browser, etc. be specified once and reused
+        ;; across commands without re-typing them every time.
+        session (or (:session flags) "default")
+        persisted (daemon/read-session-flags session)
+        ;; Merge persisted flags as DEFAULTS — CLI args always win.
+        ;; Only merge keys that the daemon actually uses as launch flags.
+        flags (cond-> flags
+                (and (get persisted "cdp") (not (:cdp flags)))
+                (assoc :cdp (get persisted "cdp"))
+                (and (get persisted "browser") (not (:browser flags)))
+                (assoc :browser (get persisted "browser"))
+                (and (get persisted "profile") (not (:profile flags)))
+                (assoc :profile (get persisted "profile")))
         ;; open --interactive launches the browser in headed (visible) mode so you
         ;; can watch and interact with the page while commands run. This restarts
         ;; the daemon if it was previously running headless. Only applies to

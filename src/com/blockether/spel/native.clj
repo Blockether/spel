@@ -550,6 +550,13 @@
   [code eval-args global]
   (driver/ensure-driver!)
   (let [session   (or (:session global) "default")
+        ;; Recover persisted launch flags (e.g. --cdp) so user doesn't repeat them.
+        persisted (daemon/read-session-flags session)
+        global    (cond-> global
+                    (and (get persisted "cdp") (not (:cdp global)))
+                    (assoc :cdp (get persisted "cdp"))
+                    (and (get persisted "browser") (not (:browser global)))
+                    (assoc :browser (get persisted "browser")))
         ;; Bootstrap timeout: 30s for single-action setup commands (state_load, nil eval).
         ;; These are short operations that should never take long.
         boot-timeout 30000
