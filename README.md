@@ -238,26 +238,7 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 
 > **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
 
-**Test example** using `spel.allure` (`defdescribe`, `describe`, `it`, `expect`):
-
-```clojure
-(ns my-app.test
-  (:require
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
-
-(defdescribe my-test
-  (describe "example.org"
-    {:context [with-playwright with-browser with-page]}
-    (it "navigates and asserts"
-      (page/navigate *page* "https://example.org")
-      (expect (= "Example Domain" (page/title *page*))))))
-```
-
-```bash
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-```
+See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
 See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
