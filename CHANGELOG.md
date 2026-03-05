@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.3] - 2026-03-05
+
+### Changed
+- docs: agentic guided install with env vars reference
+- docs: remove test example from README, link to SKILL.md instead
+- feat: add drag-and-drop support with options across library, SCI, and CLI layers
+- fix: support --profile and --channel flags in --eval mode
+- docs: add library-first development order rule to AGENTS.md
+- chore: add verify.sh script and update verification docs
+- test: add CLI bash and Clojure tests for styles, viewport, device, --browser
+- fix: replace bc with awk in test assertions and skip headed tests without display
+- fix: make stitch command browser-aware via SPEL_BROWSER env
+- feat: add viewport, device tracking, and --browser to snapshot pipeline
+- feat: computed styles, clipboard ops, snapshot diff — library + daemon + CLI + SCI
+- Update opencode.json
+- chore: remove artistry override, B3 uses direct ACP spawn
+- chore: add ultrabrain→opus override for CoVe B2
+- chore: override artistry category to zai-coding-plan/glm-5 for CoVe B3
+- fix: move One-Shot Installation heading outside details (visible header, collapsed content)
+- docs: wrap LLM install section in details collapse
+- docs: add one-shot LLM installation section + surface corporate CA setup (fixes #47)
+- docs(skill): add daemon hang/kill troubleshooting to COMMON_PROBLEMS.md
+- docs: add release process to AGENTS.md — tag-only, never manual
+- release: update version files for v0.5.2, bump to next dev version
+- release: bump to next dev version 0.5.3
+
+
 ## [v0.5.2] - 2026-03-02
 
 ### Changed
@@ -438,7 +465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.3...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -450,3 +477,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.0.2]: https://github.com/Blockether/spel/releases/tag/v0.0.2
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.5.2]: https://github.com/Blockether/spel/releases/tag/v0.5.2
+[v0.5.3]: https://github.com/Blockether/spel/releases/tag/v0.5.3
