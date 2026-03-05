@@ -436,7 +436,7 @@
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :browser (System/getenv "SPEL_BROWSER")}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :browser (System/getenv "SPEL_BROWSER") :profile (System/getenv "SPEL_PROFILE") :channel nil}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -508,6 +508,30 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :load-state path))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
+          ;; --profile=<path>
+          (and (string? arg) (str/starts-with? arg "--profile="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :profile (subs arg 10)))
+
+          ;; --profile <path>
+          (= "--profile" arg)
+          (let [val (second remaining)]
+            (if val
+              (recur (drop 2 remaining) cmd-args (assoc opts :profile val))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
+          ;; --channel=<name>
+          (and (string? arg) (str/starts-with? arg "--channel="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :channel (subs arg 10)))
+
+          ;; --channel <name>
+          (= "--channel" arg)
+          (let [val (second remaining)]
+            (if val
+              (recur (drop 2 remaining) cmd-args (assoc opts :channel val))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
@@ -530,9 +554,11 @@
         action-timeout (or (:timeout-ms global) 30000)
         eval-timeout   (max 120000 (* 4 (long action-timeout)))
         ;; Build _flags for daemon (same pattern as CLI mode in cli.clj).
-        ;; The daemon uses these to configure browser type, etc.
+        ;; The daemon uses these to configure browser type, profile, etc.
         eval-flags   (cond-> {}
-                       (:browser global) (assoc "browser" (:browser global)))
+                       (:browser global) (assoc "browser" (:browser global))
+                       (:profile global) (assoc "profile" (:profile global))
+                       (:channel global) (assoc "channel" (:channel global)))
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)

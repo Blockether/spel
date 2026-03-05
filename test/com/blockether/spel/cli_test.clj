@@ -1760,7 +1760,67 @@
                ["--browser" "firefox" "--autoclose" "--session" "dev" "--eval" "(+ 1 2)"])]
         (expect (= "firefox" (:browser g)))
         (expect (true? (:autoclose? g)))
-        (expect (= "dev" (:session g)))))))
+        (expect (= "dev" (:session g))))))
+
+  (describe "--profile flag"
+    (it "defaults to SPEL_PROFILE env when no CLI override"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (= (System/getenv "SPEL_PROFILE") (:profile g)))))
+
+    (it "parses --profile <path>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--profile" "/path/to/chrome" "--eval" "(+ 1 2)"])]
+        (expect (= "/path/to/chrome" (:profile g)))))
+
+    (it "parses --profile=<path>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--profile=/path/to/chrome" "--eval" "(+ 1 2)"])]
+        (expect (= "/path/to/chrome" (:profile g)))))
+
+    (it "strips --profile from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--profile" "/path/to/chrome" "--eval" "(+ 1 2)"])]
+        (expect (= ["--eval" "(+ 1 2)"] (:command-args g)))))
+
+    (it "preserves --eval as first command-arg when --profile precedes it"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--profile" "/path/to/chrome" "--eval" "(do (println :ok))"])]
+        (expect (= "/path/to/chrome" (:profile g)))
+        (expect (= "--eval" (first (:command-args g))))))
+
+    (it "handles paths with spaces"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--profile" "/Users/user/Library/Application Support/Google/Chrome" "--eval" "(+ 1 2)"])]
+        (expect (= "/Users/user/Library/Application Support/Google/Chrome" (:profile g)))
+        (expect (= ["--eval" "(+ 1 2)"] (:command-args g)))))
+
+    (it "combines --profile with --browser and --session"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--profile" "/path/to/chrome" "--browser" "chromium" "--session" "dev" "--eval" "(+ 1 2)"])]
+        (expect (= "/path/to/chrome" (:profile g)))
+        (expect (= "chromium" (:browser g)))
+        (expect (= "dev" (:session g))))))
+
+  (describe "--channel flag"
+    (it "defaults to nil"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (nil? (:channel g)))))
+
+    (it "parses --channel <name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel" "chrome" "--eval" "(+ 1 2)"])]
+        (expect (= "chrome" (:channel g)))))
+
+    (it "parses --channel=<name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel=msedge" "--eval" "(+ 1 2)"])]
+        (expect (= "msedge" (:channel g)))))
+
+    (it "strips --channel from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel" "chrome" "--eval" "(+ 1 2)"])]
+        (expect (= ["--eval" "(+ 1 2)"] (:command-args g)))))
+
+    (it "combines --profile --channel for Chrome profile with custom channel"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--profile" "/path/to/chrome" "--channel" "chrome" "--eval" "(+ 1 2)"])]
+        (expect (= "/path/to/chrome" (:profile g)))
+        (expect (= "chrome" (:channel g)))
+        (expect (= ["--eval" "(+ 1 2)"] (:command-args g)))))))
 
 ;; =============================================================================
 ;; merge-reports arg parsing
