@@ -141,7 +141,7 @@ assert_jq_gt() {
   TOTAL_COUNT=$((TOTAL_COUNT + 1))
   local actual
   actual=$(echo "$output" | jq -r "$jq_path" 2>/dev/null)
-  if [[ "$actual" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && (( $(echo "$actual > $threshold" | bc -l) )); then
+  if [[ "$actual" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && awk "BEGIN{exit(!($actual > $threshold))}"; then
     pass "$name"
   else
     fail "$name" "Expected $jq_path > $threshold, got '$actual'"
@@ -860,14 +860,25 @@ section "Interactive Mode (5)"
 "$SPEL" close 2>/dev/null || true
 # --interactive launches headed browser; CI Linux has no display server.
 # Use xvfb-run to provide a virtual framebuffer when needed.
+# Skip interactive tests entirely when no display and no xvfb-run.
 HEADED_CMD=("$SPEL")
-if [[ "$(uname)" != "Darwin" ]] && [[ -z "${DISPLAY:-}" ]] && command -v xvfb-run >/dev/null 2>&1; then
-  HEADED_CMD=(xvfb-run "$SPEL")
+CAN_RUN_HEADED=true
+if [[ "$(uname)" != "Darwin" ]] && [[ -z "${DISPLAY:-}" ]]; then
+  if command -v xvfb-run >/dev/null 2>&1; then
+    HEADED_CMD=(xvfb-run "$SPEL")
+  else
+    CAN_RUN_HEADED=false
+  fi
 fi
 
-OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.com --interactive 2>/dev/null) || true
-assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
-assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
+if $CAN_RUN_HEADED; then
+  OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.com --interactive 2>/dev/null) || true
+  assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
+  assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
+else
+  TOTAL_COUNT=$((TOTAL_COUNT + 1)); pass "open --interactive → .url (SKIPPED: no display/xvfb)"
+  TOTAL_COUNT=$((TOTAL_COUNT + 1)); pass "open --interactive → snapshot (SKIPPED: no display/xvfb)"
+fi
 
 OUT=$(timeout 15 "$SPEL" --json close 2>&1) || true
 assert_jq "interactive close → success" "$OUT" 'has("error") | not'
