@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.6] - 2026-03-05
+
+### Changed
+- fix(release): fetch tags in release job, reorder Clojars deploy after GitHub release
+- chore: trigger release v0.5.5
+- Delete LESSONS.md
+- fix: restore CI workflows and remove unused chrome-cookies require
+- feat: persist launch flags per session — --cdp only needed once
+- chore: remove .github directory (cove images, CI workflows)
+- fix: rename --eval to eval-sci in CLI tests, add LESSONS.md and snapshot rules to AGENTS.md
+- feat: CDP support, eval-js/eval-sci rename, snapshot event listeners & clickable detection
+- fix(docs): update stale style tier counts in docstrings (12/24/36 → 16/31/44)
+- test: integration tests for subagent scaffolding, --args, and snapshot position props
+- test: integration tests for subagent scaffolding, --args, and snapshot position props
+- docs: update AGENTS.md and README for subagent architecture + --only flag
+- feat(templates): add workflow prompts for visual and automation subagent groups
+- feat(templates): add 5 new subagent templates (explorer, automator, interactive, presenter, visual-qa)
+- feat(templates): add presenter reference docs extracted from visual-explainer
+- refactor(templates): refine test agent templates with priority refs
+- refactor(init-agents): add --only flag for selective scaffolding
+- refactor(init-agents): add --only flag for selective scaffolding
+- feat(templates): add visual QA reference guide
+- feat(cli): add -- args separator with *command-line-args* binding
+- feat(cli): add -- args separator with *command-line-args* binding
+- refactor(init-agents): smart ref assignment data structure
+- refactor(init-agents): deprecate --loop=vscode with error message
+- feat(snapshot): add position properties to MINIMAL style tier
+- fix: resolve strict mode violations in drag tests and boxed math warnings
+- release: update version files for v0.5.3, bump to next dev version
+- docs: collapse guided install section by default
+
+
 ## [v0.5.3] - 2026-03-05
 
 ### Changed
@@ -465,7 +497,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.6...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -478,3 +510,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.0.1]: https://github.com/Blockether/spel/releases/tag/v0.0.1
 [v0.5.2]: https://github.com/Blockether/spel/releases/tag/v0.5.2
 [v0.5.3]: https://github.com/Blockether/spel/releases/tag/v0.5.3
+[v0.5.6]: https://github.com/Blockether/spel/releases/tag/v0.5.6
