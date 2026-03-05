@@ -130,8 +130,8 @@
       "  -s, --selector SEL   Scope snapshot to CSS selector"
       "  -a, --all            Include all iframes in snapshot"
       "  -S, --styles         Include computed CSS styles per element"
-      "      --minimal        Styles: 12 core properties (with -S)"
-      "      --max            Styles: 36 properties (with -S, default: 24)"])
+      "      --minimal        Styles: 16 core properties (with -S)"
+      "      --max            Styles: 44 properties (with -S, default: 31)"])
 
    "click"
    (str/join \newline

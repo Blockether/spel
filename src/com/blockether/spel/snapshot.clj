@@ -501,7 +501,7 @@
 
     When `:styles` is true, each ref'd element includes computed CSS styles
     in kebab-case CSS property names.  The `:styles-detail` option selects
-    the tier: 'minimal' (12 props), 'base' (24, default), or 'max' (36).
+    the tier: 'minimal' (16 props), 'base' (31, default), or 'max' (44).
 
     Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
   [opts]
