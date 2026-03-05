@@ -148,12 +148,12 @@ _test_full() {
   echo "$output"
   [ $code -ne 0 ] && return $code
 
-  # Sanity: lazytest should run ~1268 cases
+  # Sanity: lazytest should run ~1795 cases
   local lt_count
   lt_count=$(echo "$output" | grep -oP 'Ran \K\d+(?= test cases)' | tail -1 || true)
   if [ -n "$lt_count" ] && [ "$lt_count" -lt 1000 ]; then
     echo ""
-    echo "WARNING: Only $lt_count lazytest cases (expected ~1268). Possible subset run."
+    echo "WARNING: Only $lt_count lazytest cases (expected ~1795). Possible subset run."
     return 1
   fi
 

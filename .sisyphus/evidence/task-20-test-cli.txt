@@ -1,0 +1,426 @@
+./test-cli.sh
+[1mspel CLI Regression Test Suite[0m
+Binary: ./target/spel
+Date:   Thu Mar  5 12:37:37 PM CET 2026
+
+Browser closed.
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Navigation (4)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m open → .url
+  [0;32m✓ PASS[0m open → .title
+  [0;32m✓ PASS[0m open → .snapshot has refs
+  [0;32m✓ PASS[0m back → success
+  [0;32m✓ PASS[0m forward → success
+  [0;32m✓ PASS[0m reload → snapshot has refs
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Snapshot (5)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m snapshot → has refs
+  [0;32m✓ PASS[0m snapshot -i → has refs
+  [0;32m✓ PASS[0m snapshot -i -c -d 5 → has refs
+  [0;32m✓ PASS[0m snapshot -i -C → has refs
+  [0;32m✓ PASS[0m snapshot -s body → has refs
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Element Interactions (19)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m click @ref → success
+  [0;32m✓ PASS[0m dblclick @ref → success
+  [0;32m✓ PASS[0m hover @ref → .hovered
+  [0;32m✓ PASS[0m focus @ref → .focused
+  [0;32m✓ PASS[0m press Enter → .pressed
+  [0;32m✓ PASS[0m press @ref Tab → .pressed
+  [0;32m✓ PASS[0m keydown Shift → .keydown
+  [0;32m✓ PASS[0m keyup Shift → .keyup
+  [0;32m✓ PASS[0m scroll down 500 → success
+  [0;32m✓ PASS[0m scrollintoview @ref2 → success
+  [0;32m✓ PASS[0m drag @ref1 @ref2 → success
+  [0;32m✓ PASS[0m highlight @ref → .highlighted
+  [0;32m✓ PASS[0m fill → .filled
+  [0;32m✓ PASS[0m type → success
+  [0;32m✓ PASS[0m clear → success
+  [0;32m✓ PASS[0m check checkbox → success
+  [0;32m✓ PASS[0m uncheck checkbox → success
+  [0;32m✓ PASS[0m select dropdown → success
+  [0;32m✓ PASS[0m upload file → success
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Screenshots & PDF (4)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m screenshot → .size > 0
+  [0;32m✓ PASS[0m screenshot (named) → .path
+  [0;32m✓ PASS[0m screenshot -f → .size > 0
+  [0;32m✓ PASS[0m pdf → .path
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  JavaScript (2)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m eval document.title → .result
+  [0;32m✓ PASS[0m eval -b → .result (base64)
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Wait (6)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m wait @ref → .found
+  [0;32m✓ PASS[0m wait 500 → .waited == 500
+  [0;32m✓ PASS[0m wait --text → .found_text
+  [0;32m✓ PASS[0m wait --url → success
+  [0;32m✓ PASS[0m wait --load → .state
+  [0;32m✓ PASS[0m wait --fn → .function_completed
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Get Info (8)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m get text @ref → .text
+  [0;32m✓ PASS[0m get html @ref → .html
+  [0;32m✓ PASS[0m get value @ref → expected failure
+  [0;32m✓ PASS[0m get attr @link href → .value has iana
+  [0;32m✓ PASS[0m get url → .url
+  [0;32m✓ PASS[0m get title → .title
+  [0;32m✓ PASS[0m get count div → .count > 0
+  [0;32m✓ PASS[0m get box @ref → .box.width > 0
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Check State (3)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m is visible @ref → .visible
+  [0;32m✓ PASS[0m is enabled @ref → .enabled
+  [0;32m✓ PASS[0m is checked @ref → expected failure
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Find (11)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m find role heading click → .found
+  [0;32m✓ PASS[0m find role heading click → .action
+  [0;32m✓ PASS[0m find text click → .found
+  [0;32m✓ PASS[0m find label type → .found
+  [0;32m✓ PASS[0m find role button --name → .found
+  [0;32m✓ PASS[0m find first p click → .found
+  [0;32m✓ PASS[0m find last p click → .found
+  [0;32m✓ PASS[0m find nth 0 p click → .found
+  [0;32m✓ PASS[0m find placeholder → .found
+  [0;32m✓ PASS[0m find alt → .found
+  [0;32m✓ PASS[0m find title → .found
+  [0;32m✓ PASS[0m find testid → .found
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Mouse Control (4)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m mouse move → .moved.x == 100
+  [0;32m✓ PASS[0m mouse move → .moved.y == 200
+  [0;32m✓ PASS[0m mouse down → .mouse_down
+  [0;32m✓ PASS[0m mouse up → .mouse_up
+  [0;32m✓ PASS[0m mouse wheel → .wheel.dy == 100
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Browser Settings (7)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m set viewport → .viewport.width == 1280
+  [0;32m✓ PASS[0m set viewport → .viewport.height == 720
+  [0;32m✓ PASS[0m set device → success
+  [0;32m✓ PASS[0m set geo → .geolocation.latitude == 37.7
+  [0;32m✓ PASS[0m set offline on → .offline
+  [0;32m✓ PASS[0m set headers → success
+  [0;32m✓ PASS[0m set credentials → success
+  [0;32m✓ PASS[0m set media dark → .media.colorScheme
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Cookies & Storage (11)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m cookies list → success
+  [0;32m✓ PASS[0m cookies set → .cookie_set.name
+  [0;32m✓ PASS[0m cookies after set → has testcookie
+  [0;32m✓ PASS[0m cookies clear → .cookies_cleared
+  [0;32m✓ PASS[0m storage local → .storage
+  [0;32m✓ PASS[0m storage local set → success
+  [0;32m✓ PASS[0m storage local clear → .storage_cleared
+  [0;32m✓ PASS[0m storage session → .storage
+  [0;32m✓ PASS[0m storage session set → success
+  [0;32m✓ PASS[0m storage session get-key → success
+  [0;32m✓ PASS[0m storage session clear → .storage_cleared
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Network (12)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m network route *.svg → .route_added
+  [0;32m✓ PASS[0m network route --abort → .route_added
+  [0;32m✓ PASS[0m network route --body → .route_added
+  [0;32m✓ PASS[0m network unroute *.svg → success
+  [0;32m✓ PASS[0m network unroute all → .all_routes_removed
+  [0;32m✓ PASS[0m network requests → success
+  [0;32m✓ PASS[0m network requests --filter → success
+  [0;32m✓ PASS[0m network requests --type → success
+  [0;32m✓ PASS[0m network requests --method → success
+  [0;32m✓ PASS[0m network requests --status → success
+  [0;32m✓ PASS[0m network requests (combined) → success
+  [0;32m✓ PASS[0m network clear → success
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Tabs & Windows (13)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m tab list → success
+  [0;32m✓ PASS[0m tab new → .tab
+  [0;32m✓ PASS[0m tab list after new → 2 tabs
+  [0;32m✓ PASS[0m tab 0 switch → success
+  [0;32m✓ PASS[0m tab close (2nd tab) → .closed
+  [0;32m✓ PASS[0m after closing 2nd tab → back on example.com
+  [0;32m✓ PASS[0m tab new url → .tab
+  [0;32m✓ PASS[0m tab 0 (switch to original) → success
+  [0;32m✓ PASS[0m tab 0 → url is example.com
+  [0;32m✓ PASS[0m tab 1 (switch to 2nd) → success
+  [0;32m✓ PASS[0m tab 1 → url is the-internet
+  [0;32m✓ PASS[0m tab close (from 2nd tab) → .closed
+  [0;32m✓ PASS[0m after close → landed on tab 0
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Frames & Dialogs (5)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m frame list → success
+  [0;32m✓ PASS[0m frame main → .frame
+  [0;32m✓ PASS[0m frame 'iframe' (handled gracefully)
+  [0;32m✓ PASS[0m dialog accept → success
+  [0;32m✓ PASS[0m dialog dismiss → success
+  [0;32m✓ PASS[0m dialog accept text → .text
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Debug (7)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m trace start → .trace
+  [0;32m✓ PASS[0m trace stop → .trace
+  [0;32m✓ PASS[0m console start → success
+  [0;32m✓ PASS[0m console list → success
+  [0;32m✓ PASS[0m console --clear → success
+  [0;32m✓ PASS[0m errors start → success
+  [0;32m✓ PASS[0m errors --clear → success
+  [0;32m✓ PASS[0m eval console → message text
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  State Management (9)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m state save → .path
+  [0;32m✓ PASS[0m state save path → .path
+  [0;32m✓ PASS[0m state list → success
+  [0;32m✓ PASS[0m state show → success
+  [0;32m✓ PASS[0m state clear → success
+  [0;32m✓ PASS[0m state load → success
+  [0;32m✓ PASS[0m get url after state load → .url
+  [0;32m✓ PASS[0m state rename → .renamed.to
+  [0;32m✓ PASS[0m state clear --all → .cleared >= 1
+  [0;32m✓ PASS[0m state clean --older-than → success
+  [0;32m✓ PASS[0m state clean → success
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Sessions (3)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m session → .session
+  [0;32m✓ PASS[0m session list → success
+  [0;32m✓ PASS[0m --session testsession → .url
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Utility (5)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m version
+  [0;32m✓ PASS[0m help
+  [0;32m✓ PASS[0m connect (no endpoint) → failure
+  [0;32m✓ PASS[0m install (exit code 0)
+  [0;32m✓ PASS[0m close → success
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Global Flags (2)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m --json flag → .url
+  [0;32m✓ PASS[0m --session flag → .url
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Interactive Mode (5)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+Browser closed.
+  [0;32m✓ PASS[0m open --interactive → .url (SKIPPED: no display/xvfb)
+  [0;32m✓ PASS[0m open --interactive → snapshot (SKIPPED: no display/xvfb)
+  [0;32m✓ PASS[0m interactive close → success
+  [0;32m✓ PASS[0m headless reopen after interactive → .url
+  [0;32m✓ PASS[0m headless reopen → snapshot
+Browser closed.
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Stitch (5)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m stitch -o → output file exists
+  [0;32m✓ PASS[0m stitch --overlap → output file exists
+  [0;32m✓ PASS[0m stitch (no -o) → default output written
+  [0;32m✓ PASS[0m stitch non-existent file → error message
+  [0;32m✓ PASS[0m stitch --help mentions stitch
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Annotate & Unannotate (4)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m annotate → .annotated > 0
+  [0;32m✓ PASS[0m annotate --full → count >= viewport-only count
+  [0;32m✓ PASS[0m unannotate → .removed
+  [0;32m✓ PASS[0m unannotate (idempotent) → .removed
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Tool Commands (8)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m codegen --help mentions codegen
+  [0;32m✓ PASS[0m init-agents --help mentions scaffold
+  [0;32m✓ PASS[0m init-agents --loop=vscode shows deprecation error
+  [0;32m✓ PASS[0m init-agents --only test includes test-planner
+  [0;32m✓ PASS[0m init-agents --only test includes SKILL
+  [0;32m✓ PASS[0m init-agents --only test excludes explorer
+  [0;32m✓ PASS[0m init-agents --only automation includes explorer
+  [0;32m✓ PASS[0m init-agents --only automation includes automator
+  [0;32m✓ PASS[0m init-agents --only automation excludes test-planner
+  [0;32m✓ PASS[0m init-agents --only invalid shows error
+  [0;32m✓ PASS[0m init-agents --help mentions --only
+  [0;32m✓ PASS[0m ci-assemble --help mentions assemble
+  [0;32m✓ PASS[0m merge-reports --help mentions merge
+  [0;32m✓ PASS[0m show-trace --help mentions trace
+  [0;32m✓ PASS[0m stitch --help mentions vertical
+  [0;32m✓ PASS[0m state export --help mentions export
+  [0;32m✓ PASS[0m state export --help mentions profile
+  [0;32m✓ PASS[0m state export --help mentions load-state
+  [0;32m✓ PASS[0m state export --help mentions localStorage
+  [0;32m✓ PASS[0m state export --help mentions no-local-storage
+  [0;32m✓ PASS[0m cookies-export alias works
+  [0;32m✓ PASS[0m help mentions stealth
+  [0;32m✓ PASS[0m help mentions load-state
+  [0;32m✓ PASS[0m help mentions state export
+  [0;32m✓ PASS[0m search --help mentions search
+  [0;32m✓ PASS[0m search --help mentions limit
+  [0;32m✓ PASS[0m search --help mentions open
+  [0;32m✓ PASS[0m search --help mentions images
+  [0;32m✓ PASS[0m search --help mentions json
+  [0;32m✓ PASS[0m search --help mentions stealth
+  [0;32m✓ PASS[0m search --help mentions debug
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Codegen + Eval Compatibility (31)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m codegen script → has require
+  [0;32m✓ PASS[0m codegen script → has core/with-testing-page
+  [0;32m✓ PASS[0m codegen script → has page/navigate
+  [0;32m✓ PASS[0m codegen script → has role/heading
+  [0;32m✓ PASS[0m codegen script → has assert/contains-text
+  [0;32m✓ PASS[0m codegen script → has assert/assert-that
+  [0;32m✓ PASS[0m codegen script → has page/get-by-role
+  [0;32m✓ PASS[0m codegen test → has ns declaration
+  [0;32m✓ PASS[0m codegen test → has defdescribe
+  [0;32m✓ PASS[0m codegen test → has page/navigate
+  [0;32m✓ PASS[0m codegen test → has assert/contains-text
+  [0;32m✓ PASS[0m codegen body → has page/navigate
+  [0;32m✓ PASS[0m codegen body → has assert/contains-text
+  [0;32m✓ PASS[0m codegen body → has role/heading
+  [0;32m✓ PASS[0m codegen recording.jsonl → has core/with-testing-page
+  [0;32m✓ PASS[0m codegen recording.jsonl → has role/link
+Written to /tmp/test-codegen-compat.clj
+  [0;32m✓ PASS[0m codegen -o → file created
+  [0;32m✓ PASS[0m eval codegen script → exit 0 (Clojure↔SCI compat)
+  [0;32m✓ PASS[0m eval codegen script → no errors in output
+  [0;32m✓ PASS[0m eval codegen script → result is nil
+  [0;32m✓ PASS[0m eval → page title is Example Domain
+  [0;32m✓ PASS[0m eval → page URL contains example.com
+Written to /tmp/test-codegen-bad.clj
+  [0;32m✓ PASS[0m NEGATIVE: eval wrong assertion → exit non-zero
+  [0;32m✓ PASS[0m NEGATIVE: eval wrong assertion → Error in output
+  [0;32m✓ PASS[0m NEGATIVE: eval wrong assertion → error mentions assertion context
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  URL Validation (32)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m open not-a-url → error
+  [0;32m✓ PASS[0m open not-a-url → error message
+  [0;32m✓ PASS[0m open example.com → .url
+  [0;32m✓ PASS[0m open https://example.com → .url
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Viewport on Open + Crop-to-Content (33)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m open --viewport → .url
+  [0;32m✓ PASS[0m open --viewport → .viewport.width == 800
+  [0;32m✓ PASS[0m open --viewport → .viewport.height == 600
+  [0;32m✓ PASS[0m screenshot --crop-to-content → .size > 0
+  [0;32m✓ PASS[0m screenshot --crop-to-content → .path
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Error Propagation (34)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m click @enonexistent → has error
+  [0;32m✓ PASS[0m click @enonexistent → error != Unknown error
+  [0;32m✓ PASS[0m click @enonexistent → error has context
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Styles, Clipboard, Diff (35)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m styles --help → mentions selector
+  [0;32m✓ PASS[0m styles h1 → has styles
+  [0;32m✓ PASS[0m styles h1 → has fontSize
+  [0;32m✓ PASS[0m styles h1 → has color
+  [0;32m✓ PASS[0m clipboard copy → copied true
+  [0;32m✓ PASS[0m clipboard read → content
+  [0;32m✓ PASS[0m diff snapshot → added is number
+  [0;32m✓ PASS[0m diff snapshot same → 0 changed
+  [0;32m✓ PASS[0m diff snapshot same → 0 added
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Snapshot Styles, Viewport & Device (36)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m snapshot -S --minimal → 16 style props
+  [0;32m✓ PASS[0m snapshot -S (base) → 31 style props
+  [0;32m✓ PASS[0m snapshot -S --max → 44 style props
+  [0;32m✓ PASS[0m snapshot -S → has font-size key
+  [0;32m✓ PASS[0m snapshot -S → has background-color key
+  [0;32m✓ PASS[0m snapshot -S → tree has style braces
+  [0;32m✓ PASS[0m snapshot (no -S) → no styles in refs
+  [0;32m✓ PASS[0m snapshot → viewport.width > 0
+  [0;32m✓ PASS[0m snapshot → viewport.height > 0
+  [0;32m✓ PASS[0m snapshot → tree has viewport header
+  [0;32m✓ PASS[0m set device iphone 14 → no error
+  [0;32m✓ PASS[0m snapshot after device → tree has device
+  [0;32m✓ PASS[0m help → mentions --browser
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Drag and Drop (37)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m drag --help → usage
+  [0;32m✓ PASS[0m drag-by --help → usage
+  [0;32m✓ PASS[0m drag @ref → success
+  [0;32m✓ PASS[0m drag --steps → success
+  [0;32m✓ PASS[0m drag-by @ref → success
+  [0;32m✓ PASS[0m drag-by --steps → success
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Args Support (38)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m --eval args separator → includes foo
+  [0;32m✓ PASS[0m --eval args separator → includes bar
+  [0;32m✓ PASS[0m --eval without args → nil
+  [0;32m✓ PASS[0m --eval args first call → includes first
+  [0;32m✓ PASS[0m --eval args do not persist across calls
+
+[0;36m[1m═══════════════════════════════════════════════════[0m
+[0;36m[1m  Snapshot Position Props (39)[0m
+[0;36m[1m═══════════════════════════════════════════════════[0m
+  [0;32m✓ PASS[0m positioned element setup via eval → no error
+  [0;32m✓ PASS[0m snapshot -S --minimal positioned element → has top key
+  [0;32m✓ PASS[0m snapshot -S --minimal positioned element → has left key
+  [0;32m✓ PASS[0m snapshot -S --minimal positioned element → has right key
+  [0;32m✓ PASS[0m snapshot -S --minimal positioned element → has bottom key
+  [0;32m✓ PASS[0m snapshot -S (base) positioned element → has top key
+
+[1m═══════════════════════════════════════════════════[0m
+[1m  RESULTS[0m
+[1m═══════════════════════════════════════════════════[0m
+
+  [0;32mPassed:  270[0m
+  [0;31mFailed:  0[0m
+  [0;31mErrors:  0[0m
+  [1mTotal:   270[0m
+
+  Duration: 44s
+
+  [0;32m[1mALL TESTS PASSED ✓[0m
+Browser closed.
