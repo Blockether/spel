@@ -853,9 +853,9 @@
             tree (:tree snap)
             ;; Find the ref for the input
             inp-ref (some (fn [[ref-id data]]
-                           (when (= "textbox" (:role data))
-                             ref-id))
-                         (:refs snap))]
+                            (when (= "textbox" (:role data))
+                              ref-id))
+                      (:refs snap))]
         (expect (some? inp-ref))
         (expect (seq (:listeners (get (:refs snap) inp-ref))))
         ;; At least focus, blur, change should be detected
@@ -872,9 +872,9 @@
         "<button onclick='alert(1)'>Alert</button>")
       (let [snap (sut/capture-snapshot *page*)
             btn-ref (some (fn [[ref-id data]]
-                           (when (= "button" (:role data))
-                             ref-id))
-                         (:refs snap))]
+                            (when (= "button" (:role data))
+                              ref-id))
+                      (:refs snap))]
         (expect (some? btn-ref))
         (expect (vector? (:listeners (get (:refs snap) btn-ref))))
         (expect (some #(= "click" %) (:listeners (get (:refs snap) btn-ref)))))))
@@ -887,9 +887,9 @@
         "<h1>No Events</h1>")
       (let [snap (sut/capture-snapshot *page*)
             h1-ref (some (fn [[ref-id data]]
-                          (when (= "heading" (:role data))
-                            ref-id))
-                        (:refs snap))]
+                           (when (= "heading" (:role data))
+                             ref-id))
+                     (:refs snap))]
         (expect (some? h1-ref))
         (expect (nil? (:listeners (get (:refs snap) h1-ref))))))))
 
@@ -924,10 +924,10 @@
       (let [snap (sut/capture-snapshot *page*)
             ;; The inner span should NOT have :pointer true
             inner-ref (some (fn [[ref-id data]]
-                             (when (and (= "span" (:tag data))
-                                        (= "Inside Button" (:name data)))
-                               ref-id))
-                           (:refs snap))]
+                              (when (and (= "span" (:tag data))
+                                      (= "Inside Button" (:name data)))
+                                ref-id))
+                        (:refs snap))]
         ;; Inner span may or may not have a ref, but if it does, it should NOT have :pointer
         (when inner-ref
           (expect (not (:pointer (get (:refs snap) inner-ref))))))))
@@ -975,9 +975,9 @@
         "<article><div>First Block</div><div>Second Block</div></article>")
       (let [snap (sut/capture-snapshot *page*)
             article-ref (some (fn [[ref-id data]]
-                               (when (= "article" (:role data))
-                                 ref-id))
-                             (:refs snap))
+                                (when (= "article" (:role data))
+                                  ref-id))
+                          (:refs snap))
             article-name (:name (get (:refs snap) article-ref))]
         (expect (some? article-ref))
         ;; innerText should produce space-separated text, not concatenated
@@ -1005,9 +1005,9 @@
         (str "<article><p>" (apply str (repeat 100 "x")) "</p></article>"))
       (let [snap (sut/capture-snapshot *page*)
             article-ref (some (fn [[ref-id data]]
-                               (when (= "article" (:role data))
-                                 ref-id))
-                             (:refs snap))
+                                (when (= "article" (:role data))
+                                  ref-id))
+                          (:refs snap))
             article-name (:name (get (:refs snap) article-ref))]
         (expect (some? article-ref))
         (when article-name

@@ -252,7 +252,8 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
 | **Browser** | | |
-| `SPEL_CHANNEL` | `--channel` | Browser channel: `chrome`, `msedge`, `brave` |
+| `SPEL_BROWSER` | `--browser` | Browser engine: `chromium` (default), `firefox`, `webkit` |
+| `SPEL_CHANNEL` | `--channel` | Chromium channel: `chrome`, `msedge`, `chrome-beta`, etc. |
 | `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory (full profile: extensions, passwords, bookmarks) |
 | `SPEL_LOAD_STATE` | `--load-state` | Playwright storage state JSON path (alias: `SPEL_STORAGE_STATE`) |
 | `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
@@ -273,9 +274,14 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | `SPEL_TRUSTSTORE` | — | JKS/PKCS12 truststore path |
 | `SPEL_TRUSTSTORE_TYPE` | — | Truststore type (default: JKS) |
 | `SPEL_TRUSTSTORE_PASSWORD` | — | Truststore password |
+| **Testing** | | |
+| `SPEL_INTERACTIVE` | — | Set to `true` for headed mode in test fixtures |
+| `SPEL_SLOW_MO` | — | Slow motion delay in ms for test fixtures |
 | **Advanced** | | |
+| `SPEL_AUTO_CONNECT` | `--auto-connect` | Set to any value to auto-discover Chrome CDP |
 | `SPEL_CDP` | `--cdp` | Connect via Chrome DevTools Protocol URL |
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
+| `SPEL_DRIVER_DIR` | — | Override Playwright browser driver directory |
 | `SPEL_DEBUG` | `--debug` | Set to `true` for debug logging |
 
 ### Browser Automation

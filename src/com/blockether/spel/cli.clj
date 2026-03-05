@@ -1288,28 +1288,30 @@
      "  --debug                 Enable debug logging"
      ""
      "Environment Variables (CLI flags take priority):"
-     "  SPEL_CHANNEL            Browser channel (e.g. \"chrome\", \"msedge\", \"brave\")"
-     "  SPEL_PROFILE            Chrome/Edge user data directory path"
-     "  SPEL_LOAD_STATE         Default state file path (alias: SPEL_STORAGE_STATE)"
-     "  SPEL_SESSION            Default session name"
-     "  SPEL_JSON               Set to \"true\" for JSON output"
-     "  SPEL_TIMEOUT            Command timeout in milliseconds"
-     "  SPEL_STEALTH            Set to \"false\" to disable stealth mode (ON by default)"
-     "  SPEL_PROXY              Proxy server URL"
-     "  SPEL_PROXY_BYPASS       Proxy bypass patterns"
-     "  SPEL_HEADERS            Default HTTP headers (JSON)"
+     "  SPEL_BROWSER             Browser engine: chromium (default), firefox, webkit"
+     "  SPEL_CHANNEL             Chromium channel (e.g. \"chrome\", \"msedge\", \"chrome-beta\")"
+     "  SPEL_PROFILE             Chrome/Edge user data directory path"
+     "  SPEL_LOAD_STATE          Default state file path (alias: SPEL_STORAGE_STATE)"
+     "  SPEL_SESSION             Default session name"
+     "  SPEL_JSON                Set to \"true\" for JSON output"
+     "  SPEL_TIMEOUT             Command timeout in milliseconds"
+     "  SPEL_STEALTH             Set to \"false\" to disable stealth mode (ON by default)"
+     "  SPEL_PROXY               Proxy server URL"
+     "  SPEL_PROXY_BYPASS        Proxy bypass patterns"
+     "  SPEL_HEADERS             Default HTTP headers (JSON)"
      "  SPEL_IGNORE_HTTPS_ERRORS Set to \"true\" to ignore HTTPS errors"
-     "  SPEL_USER_AGENT         Custom user agent string"
-     "  SPEL_EXECUTABLE_PATH    Custom browser executable path"
-     "  SPEL_CA_BUNDLE          PEM file with extra CA certs (corporate proxy)"
-     "  NODE_EXTRA_CA_CERTS     PEM file, also used by Node.js subprocess"
+     "  SPEL_USER_AGENT          Custom user agent string"
+     "  SPEL_EXECUTABLE_PATH     Custom browser executable path"
+     "  SPEL_CA_BUNDLE           PEM file with extra CA certs (corporate proxy)"
+     "  NODE_EXTRA_CA_CERTS      PEM file, also used by Node.js subprocess"
      "  SPEL_TRUSTSTORE          JKS/PKCS12 truststore path (corporate proxy)"
      "  SPEL_TRUSTSTORE_TYPE     Truststore type (default: JKS)"
      "  SPEL_TRUSTSTORE_PASSWORD Truststore password"
-     "  SPEL_CDP                Connect via Chrome DevTools Protocol URL"
-     "  SPEL_AUTO_CONNECT         Set to any value to auto-discover Chrome CDP"
-     "  SPEL_ARGS               Extra Chromium launch args (comma-separated)"
-     "  SPEL_DEBUG              Set to \"true\" for debug logging"]))
+     "  SPEL_AUTO_CONNECT        Set to any value to auto-discover Chrome CDP"
+     "  SPEL_CDP                 Connect via Chrome DevTools Protocol URL"
+     "  SPEL_ARGS                Extra Chromium launch args (comma-separated)"
+     "  SPEL_DRIVER_DIR          Override Playwright browser driver directory"
+     "  SPEL_DEBUG               Set to \"true\" for debug logging"]))
 
 ;; =============================================================================
 ;; Arg Parsing
@@ -1352,6 +1354,8 @@
                        (assoc :cdp (System/getenv "SPEL_CDP"))
                        (System/getenv "SPEL_BROWSER")
                        (assoc :browser (System/getenv "SPEL_BROWSER"))
+                       (System/getenv "SPEL_CHANNEL")
+                       (assoc :channel (System/getenv "SPEL_CHANNEL"))
                        (System/getenv "SPEL_ARGS")
                        (assoc :args (System/getenv "SPEL_ARGS"))
                        (System/getenv "SPEL_TIMEOUT")
@@ -1401,6 +1405,12 @@
 
                 (str/starts-with? arg "--browser=")
                 (recur (rest args) (assoc flags :browser (subs arg 10)) remaining)
+
+                (= "--channel" arg)
+                (recur (drop 2 args) (assoc flags :channel (second args)) remaining)
+
+                (str/starts-with? arg "--channel=")
+                (recur (rest args) (assoc flags :channel (subs arg 10)) remaining)
 
                 (= "--headers" arg)
                 (recur (drop 2 args) (assoc flags :headers (second args)) remaining)
@@ -1467,7 +1477,6 @@
 
                 (str/starts-with? arg "--extension=")
                 (recur (rest args) (update flags :extensions (fnil conj []) (subs arg 12)) remaining)
-
 
                 (= "--auto-connect" arg)
                 (recur (rest args) (assoc flags :auto-connect true) remaining)
@@ -1558,19 +1567,19 @@
                                                idx1 (long (.indexOf ^java.util.List v "-d"))
                                                idx2 (long (.indexOf ^java.util.List v "--depth"))
                                                idx  (long (cond (>= idx1 0) idx1
-                                                            (>= idx2 0) idx2
-                                                            :else -1))]
+                                                                (>= idx2 0) idx2
+                                                                :else -1))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
                            (assoc :selector (let [v    (vec cmd-args)
                                                   idx1 (long (.indexOf ^java.util.List v "-s"))
                                                   idx2 (long (.indexOf ^java.util.List v "--selector"))
                                                   idx  (long (cond (>= idx1 0) idx1
-                                                               (>= idx2 0) idx2
-                                                               :else -1))]
+                                                                   (>= idx2 0) idx2
+                                                                   :else -1))]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))
                            (or (snap-flags "-a") (snap-flags "--all"))
@@ -1666,7 +1675,7 @@
                              second-arg (first rest-pos)
                              amount    (if second-arg
                                          (try (Integer/parseInt second-arg)
-                                           (catch Exception _ 500))
+                                              (catch Exception _ 500))
                                          500)
                              ;; Third positional as selector, or second if it's not a number
                              sel       (or in-idx
@@ -1678,7 +1687,7 @@
                                            ;; If second-arg wasn't a number, it's a selector
                                          (when (and second-arg
                                                  (not (try (Integer/parseInt second-arg) true
-                                                        (catch Exception _ false)))
+                                                           (catch Exception _ false)))
                                                  (or (str/starts-with? second-arg "@")
                                                    (str/starts-with? second-arg "#")
                                                    (str/starts-with? second-arg ".")))
@@ -1702,26 +1711,26 @@
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                            (some #{"--timeout"} cmd-args)
                            (assoc :timeout (let [idx (long (.indexOf ^java.util.List v "--timeout"))]
                                              (when (>= idx 0)
                                                (try (Double/parseDouble (nth cmd-args (inc idx)))
-                                                 (catch Exception _ nil)))))))
+                                                    (catch Exception _ nil)))))))
 
             "drag-by"  (let [positional (remove #(str/starts-with? % "-") cmd-args)
                              v          (vec cmd-args)]
                          (cond-> {:action    "drag-by"
                                   :selector  (first positional)
                                   :dx        (try (Double/parseDouble (second positional))
-                                               (catch Exception _ 0))
+                                                  (catch Exception _ 0))
                                   :dy        (try (Double/parseDouble (nth positional 2))
-                                               (catch Exception _ 0))}
+                                                  (catch Exception _ 0))}
                            (some #{"--steps"} cmd-args)
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))))
+                                                  (catch Exception _ nil)))))))
 
             "upload"   {:action "upload"
                         :selector (first cmd-args)
@@ -1761,7 +1770,7 @@
             "pdf"      {:action "pdf" :path (or (first cmd-args) "page.pdf")}
 
           ;; JavaScript
-          "eval-js"  (let [base64?  (some #{"-b" "--base64"} cmd-args)
+            "eval-js"  (let [base64?  (some #{"-b" "--base64"} cmd-args)
                              stdin?   (some #{"--stdin"} cmd-args)
                              js-args  (remove #(#{"-b" "--base64" "--stdin"} %) cmd-args)]
                          (cond-> {:action "evaluate"
@@ -2048,7 +2057,7 @@
                                       {:action "state_clean"
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                            (catch Exception _ 30)))})
+                                                               (catch Exception _ 30)))})
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
@@ -2163,9 +2172,9 @@
              (json/read-json result :key-fn keyword))))
        (finally
          (try (.close channel)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "warn: close-channel: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
   [^String pid]
@@ -2178,9 +2187,9 @@
   "Deletes stale socket and PID files for a session."
   [session]
   (try (Files/deleteIfExists (daemon/socket-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
   (try (Files/deleteIfExists (daemon/pid-file-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
 
 (defn- read-pid
   "Reads the PID from a session's PID file, or nil if unavailable."
@@ -2188,7 +2197,7 @@
   (let [pid-path (daemon/pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
-        (catch Exception _ nil)))))
+           (catch Exception _ nil)))))
 
 (defn- discover-sessions
   "Finds all active spel sessions by looking for .sock files in tmpdir.
@@ -2267,7 +2276,7 @@
   (when-let [old-pid (read-pid session)]
     (when (process-alive? old-pid)
       (try (.start (ProcessBuilder. ^java.util.List (list "kill" "-9" old-pid)))
-        (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
+           (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
       ;; Wait for process to die
       (loop [tries 0]
         (when (and (< tries 50) (process-alive? old-pid))
@@ -2312,7 +2321,7 @@
         (if (socket-connectable? session)
           true
           (do (Thread/sleep 100)
-            (recur (inc tries))))))))
+              (recur (inc tries))))))))
 
 (defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
@@ -2329,7 +2338,7 @@
           (daemon/daemon-running? session)
           (socket-connectable? session))
     (let [resp (try (send-command! session {:action "session_info"} 5000)
-                 (catch Exception _ nil))]
+                    (catch Exception _ nil))]
       (when (get-in resp [:data :headless])
         (restart-daemon! session))))
 
@@ -2374,12 +2383,12 @@
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
-            (when (:url data)
-              (println (str "\n  URL: " (:url data))))
-            (when (:title data)
-              (println (str "  Title: " (:title data))))
-            (when (:description data)
-              (println (str "  Description: " (:description data)))))
+              (when (:url data)
+                (println (str "\n  URL: " (:url data))))
+              (when (:title data)
+                (println (str "  Title: " (:title data))))
+              (when (:description data)
+                (println (str "  Description: " (:description data)))))
 
           ;; Screenshot
           (:base64 data)
@@ -2638,9 +2647,9 @@
           (do (doseq [s sessions]
                 (close-session! s)
                 (println (str "Closed session: " s)))
-            (System/exit 0))
+              (System/exit 0))
           (do (println "No active sessions.")
-            (System/exit 0)))))
+              (System/exit 0)))))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)
@@ -2673,13 +2682,13 @@
                          ;; Treat as retriable — kill stale daemon and restart
                          (and (nil? res) (< retries 5))
                          (do (Thread/sleep 200)
-                           (kill-stale-daemon! (:session flags))
-                           (ensure-daemon! (:session flags) flags)
-                           (recur (inc retries)))
+                             (kill-stale-daemon! (:session flags))
+                             (ensure-daemon! (:session flags) flags)
+                             (recur (inc retries)))
                          :else res)))]
       (if response
         (do (print-result response (:json flags))
-          (System/exit (if (:success response) 0 1)))
+            (System/exit (if (:success response) 0 1)))
         (do (binding [*out* *err*]
               (println "Error: Could not connect to daemon"))
-          (System/exit 1))))))
+            (System/exit 1))))))

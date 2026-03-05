@@ -661,13 +661,13 @@
   "Display order for CSS style keys in tree output.
    Layout → box → visual → typography → text → border → misc."
   ["display" "position" "top" "left" "right" "bottom" "flex-direction" "justify-content" "align-items" "gap"
-    "width" "height" "max-width" "max-height" "min-width" "min-height"
-    "padding" "margin" "overflow"
-    "background-color" "background-image" "color" "opacity" "visibility" "transform"
-    "float" "clear"
-    "font-size" "font-weight" "font-family" "line-height" "text-align"
-    "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
-    "border" "border-radius" "box-shadow" "outline"
+   "width" "height" "max-width" "max-height" "min-width" "min-height"
+   "padding" "margin" "overflow"
+   "background-color" "background-image" "color" "opacity" "visibility" "transform"
+   "float" "clear"
+   "font-size" "font-weight" "font-family" "line-height" "text-align"
+   "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
+   "border" "border-radius" "box-shadow" "outline"
    "z-index" "cursor" "pointer-events"])
 
 (defn- format-styles

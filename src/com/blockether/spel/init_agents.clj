@@ -41,21 +41,21 @@
       str/trim)))
 
 (def ^:private loop-targets
-   "Configuration for each supported agent loop target.
+  "Configuration for each supported agent loop target.
     Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
     agent-ref-fmt is a format string for agent references in prompts (takes agent name)."
-   {"opencode" {:agent-dir ".opencode/agents"
-                :prompt-dir ".opencode/prompts"
-                :skill-dir ".opencode/skills/spel"
-                :agent-ext ".md"
-                :agent-ref-fmt "@%s"
-                :desc "OpenCode"}
-    "claude"   {:agent-dir ".claude/agents"
-                :prompt-dir ".claude/prompts"
-                :skill-dir ".claude/docs/spel"
-                :agent-ext ".md"
-                :agent-ref-fmt "@%s"
-                :desc "Claude Code"}})
+  {"opencode" {:agent-dir ".opencode/agents"
+               :prompt-dir ".opencode/prompts"
+               :skill-dir ".opencode/skills/spel"
+               :agent-ext ".md"
+               :agent-ref-fmt "@%s"
+               :desc "OpenCode"}
+   "claude"   {:agent-dir ".claude/agents"
+               :prompt-dir ".claude/prompts"
+               :skill-dir ".claude/docs/spel"
+               :agent-ext ".md"
+               :agent-ref-fmt "@%s"
+               :desc "Claude Code"}})
 
 (def ^:private valid-flavours
   "Supported test framework flavours."
@@ -64,9 +64,9 @@
 (def ^:private subagent-ref-map
   "Maps subagent group keywords to their relevant ref file names.
    :core refs are ALWAYS included regardless of agent selection."
-   {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
-    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
-           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
+  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
+   :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
+          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
               "NAVIGATION_WAIT.md"]
    :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
@@ -124,10 +124,10 @@
                       resolved-only
                       (reduce into #{} (vals subagent-groups)))
         ordered-subagent-keys (filter #(and (not= :core %)
-                                            (contains? active-keys %))
-                                   (keys subagent-ref-map))
+                                         (contains? active-keys %))
+                                (keys subagent-ref-map))
         selected-ref-files (->> (concat (:core subagent-ref-map)
-                                     (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
+                                  (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
                              distinct
                              vec)
         skill-files (into [["skills/spel/SKILL.md"
@@ -146,62 +146,62 @@
                                (str "ref: " (str/replace filename ".md" ""))
                                "+"
                                nil])
-                         selected-ref-files))
+                        selected-ref-files))
         all-test-files [["agents/spel-test-planner.md"
-                     (str agent-dir "/spel-test-planner" agent-ext)
-                     "test planner agent"
-                     "+"
-                     "spel-test-planner"]
-                    [generator-template
-                     (str agent-dir "/spel-test-generator" agent-ext)
-                     "test generator agent"
-                     "+"
-                     "spel-test-generator"]
-                     ["agents/spel-test-healer.md"
-                      (str agent-dir "/spel-test-healer" agent-ext)
-                      "test healer agent"
-                      "+"
-                      "spel-test-healer"]
-                     ["agents/spel-explorer.md"
-                      (str agent-dir "/spel-explorer" agent-ext)
-                      "explorer agent"
-                      "+"
-                      "spel-explorer"]
-                     ["agents/spel-automator.md"
-                      (str agent-dir "/spel-automator" agent-ext)
-                      "automator agent"
-                      "+"
-                      "spel-automator"]
-                     ["agents/spel-interactive.md"
-                      (str agent-dir "/spel-interactive" agent-ext)
-                      "interactive agent"
-                      "+"
-                      "spel-interactive"]
-                     ["agents/spel-presenter.md"
-                      (str agent-dir "/spel-presenter" agent-ext)
-                      "presenter agent"
-                      "+"
-                      "spel-presenter"]
-                     ["agents/spel-visual-qa.md"
-                      (str agent-dir "/spel-visual-qa" agent-ext)
-                      "visual qa agent"
-                      "+"
-                      "spel-visual-qa"]
-                     ["prompts/spel-test-workflow.md"
-                      (str prompt-dir "/spel-test-workflow.md")
-                      "coverage workflow"
-                      "+"
-                      nil]
-                     ["prompts/spel-visual-workflow.md"
-                      (str prompt-dir "/spel-visual-workflow.md")
-                      "visual workflow"
-                      "+"
-                      nil]
-                     ["prompts/spel-automation-workflow.md"
-                      (str prompt-dir "/spel-automation-workflow.md")
-                      "automation workflow"
-                      "+"
-                      nil]]
+                         (str agent-dir "/spel-test-planner" agent-ext)
+                         "test planner agent"
+                         "+"
+                         "spel-test-planner"]
+                        [generator-template
+                         (str agent-dir "/spel-test-generator" agent-ext)
+                         "test generator agent"
+                         "+"
+                         "spel-test-generator"]
+                        ["agents/spel-test-healer.md"
+                         (str agent-dir "/spel-test-healer" agent-ext)
+                         "test healer agent"
+                         "+"
+                         "spel-test-healer"]
+                        ["agents/spel-explorer.md"
+                         (str agent-dir "/spel-explorer" agent-ext)
+                         "explorer agent"
+                         "+"
+                         "spel-explorer"]
+                        ["agents/spel-automator.md"
+                         (str agent-dir "/spel-automator" agent-ext)
+                         "automator agent"
+                         "+"
+                         "spel-automator"]
+                        ["agents/spel-interactive.md"
+                         (str agent-dir "/spel-interactive" agent-ext)
+                         "interactive agent"
+                         "+"
+                         "spel-interactive"]
+                        ["agents/spel-presenter.md"
+                         (str agent-dir "/spel-presenter" agent-ext)
+                         "presenter agent"
+                         "+"
+                         "spel-presenter"]
+                        ["agents/spel-visual-qa.md"
+                         (str agent-dir "/spel-visual-qa" agent-ext)
+                         "visual qa agent"
+                         "+"
+                         "spel-visual-qa"]
+                        ["prompts/spel-test-workflow.md"
+                         (str prompt-dir "/spel-test-workflow.md")
+                         "coverage workflow"
+                         "+"
+                         nil]
+                        ["prompts/spel-visual-workflow.md"
+                         (str prompt-dir "/spel-visual-workflow.md")
+                         "visual workflow"
+                         "+"
+                         nil]
+                        ["prompts/spel-automation-workflow.md"
+                         (str prompt-dir "/spel-automation-workflow.md")
+                         "automation workflow"
+                         "+"
+                         nil]]
         test-files (if resolved-only
                      (filterv (fn [[resource-path _ _ _ agent-name]]
                                 (if agent-name
@@ -371,18 +371,17 @@
       (str new-fm new-body))
     content))
 
-
 (defn- transform-agent-template
-   "Transforms an agent template for the target loop format.
+  "Transforms an agent template for the target loop format.
     Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
-   [content loop-target agent-name]
-   (if (nil? agent-name)
-     content
-     (let [skill-dir (:skill-dir (get loop-targets loop-target))]
-       (case loop-target
-         "opencode" content
-         "claude"   (transform-for-claude content agent-name skill-dir)
-         content))))
+  [content loop-target agent-name]
+  (if (nil? agent-name)
+    content
+    (let [skill-dir (:skill-dir (get loop-targets loop-target))]
+      (case loop-target
+        "opencode" content
+        "claude"   (transform-for-claude content agent-name skill-dir)
+        content))))
 
 ;; =============================================================================
 ;; CLI Argument Parsing
@@ -659,7 +658,7 @@
         (System/exit 1))
 
       (and (:only opts)
-           (some #(not (contains? subagent-groups %)) (:only opts)))
+        (some #(not (contains? subagent-groups %)) (:only opts)))
       (let [invalid (first (remove #(contains? subagent-groups %) (:only opts)))]
         (binding [*out* *err*]
           (println (str "Error: Unknown --only value: '" (name invalid)
