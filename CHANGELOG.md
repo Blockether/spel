@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.7] - 2026-03-05
+
+### Changed
+- feat: delete chrome_cookies, remove state export, add --auto-connect
+- release: update version files for v0.5.6, bump to next dev version
+
+
 ## [v0.5.6] - 2026-03-05
 
 ### Changed
@@ -497,7 +504,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.7...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -511,3 +518,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.2]: https://github.com/Blockether/spel/releases/tag/v0.5.2
 [v0.5.3]: https://github.com/Blockether/spel/releases/tag/v0.5.3
 [v0.5.6]: https://github.com/Blockether/spel/releases/tag/v0.5.6
+[v0.5.7]: https://github.com/Blockether/spel/releases/tag/v0.5.7
