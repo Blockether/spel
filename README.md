@@ -107,6 +107,9 @@ spel version   # verify installation
 
 ### Guided Installation (for LLM agents)
 
+<details>
+<summary>Step-by-step agent-driven install guide</summary>
+
 If you're an LLM agent installing spel for a user, follow these steps. Ask questions where indicated — adapt to the user's answers.
 
 #### Step 1: Detect platform and install binary
@@ -215,6 +218,8 @@ Save the user's choices so they don't need to pass flags every time. Detect thei
 | Windows | cmd | `setx VAR value` |
 
 **Agent:** detect the shell (`echo $SHELL` on Unix, `$PSVersionTable` on Windows) and write the env vars to the correct file using the correct syntax. Do not assume bash.
+
+</details>
 
 ### Corporate Proxy / Custom CA Certificates
 
