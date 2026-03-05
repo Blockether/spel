@@ -1341,24 +1341,24 @@ assert_jq "drag-by --steps → success" "$OUT" 'has("error") | not'
 
 section "Args Support (38)"
 
-OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' -- foo bar 2>&1)
-assert_contains "--eval args separator → includes foo" "$OUT" 'foo'
-assert_contains "--eval args separator → includes bar" "$OUT" 'bar'
+OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' -- foo bar 2>&1)
+assert_contains "eval-sci args separator → includes foo" "$OUT" 'foo'
+assert_contains "eval-sci args separator → includes bar" "$OUT" 'bar'
 
-OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' 2>&1)
-assert_contains "--eval without args → nil" "$OUT" 'nil'
+OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' 2>&1)
+assert_contains "eval-sci without args → nil" "$OUT" 'nil'
 
-OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' -- first 2>&1)
-assert_contains "--eval args first call → includes first" "$OUT" 'first'
+OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' -- first 2>&1)
+assert_contains "eval-sci args first call → includes first" "$OUT" 'first'
 
-OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' 2>&1)
-assert_contains "--eval args do not persist across calls" "$OUT" 'nil'
+OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' 2>&1)
+assert_contains "eval-sci args do not persist across calls" "$OUT" 'nil'
 
 section "Snapshot Position Props (39)"
 
 nav "https://example.com"
 
-OUT=$("$SPEL" --json eval 'document.body.innerHTML = `<div id="pos" style="position:absolute;top:10px;left:20px;right:30px;bottom:40px">test</div>`' 2>&1)
+OUT=$("$SPEL" --json eval-js 'document.body.innerHTML = `<div id="pos" style="position:absolute;top:10px;left:20px;right:30px;bottom:40px">test</div>`' 2>&1)
 assert_jq "positioned element setup via eval → no error" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json snapshot -S --minimal 2>&1)
