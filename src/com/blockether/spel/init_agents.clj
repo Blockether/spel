@@ -64,9 +64,9 @@
 (def ^:private subagent-ref-map
   "Maps subagent group keywords to their relevant ref file names.
    :core refs are ALWAYS included regardless of agent selection."
-  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
-   :test ["TESTING_CONVENTIONS.md" "ASSERTIONS_EVENTS.md" "API_TESTING.md"
-          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
+   {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
+    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
+           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
               "NAVIGATION_WAIT.md"]
    :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
