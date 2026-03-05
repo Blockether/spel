@@ -154,8 +154,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
 | `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
 | `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
-| `constants/` | 25 | Playwright enum constants with flat naming: `constants/load-state-networkidle`, `constants/wait-until-commit`, `constants/color-scheme-dark`, `constants/mouse-button-left`, etc. See [CONSTANTS.md](CONSTANTS.md). |
-| `device/` | ~20 presets | Device emulation presets: `device/iphone-14`, `device/pixel-7`, `device/ipad`, `device/desktop-chrome`, etc. Each returns a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. |
+
 
 ### When to Use Which Namespace
 
@@ -169,25 +168,26 @@ Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
 
 ### Constants & Device Presets
 
-The `constants/` namespace provides Playwright Java enums as Clojure-friendly values. The `device/` namespace provides device emulation presets. Both are available without any import.
+Playwright enum values are passed as **keywords** in option maps. The options layer converts them to Java enums automatically. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
 
 ```clojure
-;; Wait for network idle using named constant
-(spel/wait-for-load-state constants/load-state-networkidle)
+;; Keywords (recommended)
+(spel/wait-for-load-state :networkidle)
+(spel/navigate "https://example.org" {:wait-until :commit})
+(spel/emulate-media! {:color-scheme :dark})
+(spel/click "#el" {:button :right})
 
-;; Use device presets for viewport sizing
-(let [{:keys [viewport]} device/iphone-14]
-  (spel/set-viewport-size! (:width viewport) (:height viewport)))
+;; Java enum interop (also works)
+(spel/wait-for-load-state LoadState/NETWORKIDLE)
 
-;; Constants work with all APIs that accept enum values
-(page/wait-for-load-state (spel/page) constants/load-state-domcontentloaded)
-(page/emulate-media! (spel/page) {:color-scheme constants/color-scheme-dark})
+;; Device presets via start! (keyword in opts map)
+(spel/start! {:device :iphone-14})
 
 ;; Dynamic JSON encoder (pre-bound to json/write-json-str)
 (*json-encoder* {:a 1 :b [2 3]})  ;; => "{\"a\":1,\"b\":[2,3]}"
 ```
 
-See [CONSTANTS.md](CONSTANTS.md) for the complete list.
+See [CONSTANTS.md](CONSTANTS.md) for the complete keyword reference.
 
 ## Clojure Standard Library
 These Clojure namespaces are available without any `require`:

@@ -132,8 +132,8 @@ Add arbitrary attachments to test results:
 ;; Convenience: capture and attach PNG screenshot
 (allure/screenshot pg "After navigation")
 
-;; Attach full API response (status, headers, body)
-(allure/attach-api-response! resp)
+;; Attach API response as formatted Markdown (method, URL, status, headers, body)
+(allure/attach-http-markdown! resp {})
 ```
 
 ## Allure Reporter

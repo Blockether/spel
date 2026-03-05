@@ -72,14 +72,14 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 **Fix:**
 
 ```clojure
-;; Exact match
-(spel/assert-url (spel/assert-that (spel/page)) "https://example.org/page")
+;; Exact match (uses implicit page)
+(spel/assert-url "https://example.org/page")
 
 ;; Regex pattern — substring, wildcard, etc.
-(spel/assert-url (spel/assert-that (spel/page)) #".*example\.com.*")
+(spel/assert-url #".*example\.com.*")
 
 ;; Regex for path prefix
-(spel/assert-url (spel/assert-that (spel/page)) #".*/page.*")
+(spel/assert-url #".*/page.*")
 ```
 
 ## 4. Snapshot Ref Not Found / Stale Refs

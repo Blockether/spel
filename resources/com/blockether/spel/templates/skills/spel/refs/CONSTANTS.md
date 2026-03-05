@@ -4,131 +4,46 @@ Quick reference for all typed constants in spel's `--eval` sandbox and library c
 
 | Namespace | What it holds | Count |
 |-----------|---------------|-------|
-| `constants/` | Playwright enum values as flat Clojure vars | 25 |
 | `role/` | AriaRole constants for role-based selectors | 82 |
-| `device/` | Device preset maps (viewport, UA, scale, touch) | 18 |
 
-## `constants/` Namespace
+> **Keyword shorthand** is the primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. Java enum interop (e.g. `LoadState/NETWORKIDLE`) is also available.
 
-Playwright enum values exposed as Clojure vars. Flat naming: `constants/<category>-<value>`.
+## Keyword Constants (Primary API)
 
-### Load States
+spel functions accept keywords for all Playwright enum values. The options layer converts automatically.
 
-| Var | Java equivalent | Fires when |
-|-----|-----------------|------------|
-| `constants/load-state-load` | `LoadState/LOAD` | All resources loaded |
-| `constants/load-state-domcontentloaded` | `LoadState/DOMCONTENTLOADED` | HTML parsed, deferred scripts done |
-| `constants/load-state-networkidle` | `LoadState/NETWORKIDLE` | No network requests for 500ms |
-
-```clojure
-(spel/wait-for-load-state :networkidle)                          ;; --eval
-(page/wait-for-load-state pg constants/load-state-networkidle)    ;; library
-```
-
-### Wait-Until States
-
-| Var | Java equivalent | Fires when |
-|-----|-----------------|------------|
-| `constants/wait-until-load` | `WaitUntilState/LOAD` | All resources loaded |
-| `constants/wait-until-domcontentloaded` | `WaitUntilState/DOMCONTENTLOADED` | HTML parsed |
-| `constants/wait-until-networkidle` | `WaitUntilState/NETWORKIDLE` | Network quiet for 500ms |
-| `constants/wait-until-commit` | `WaitUntilState/COMMIT` | Response headers received |
-
-```clojure
-(spel/navigate "https://example.org" {:wait-until :networkidle})    ;; --eval
-(page/navigate pg "https://example.org" {:wait-until :commit})    ;; library
-```
-
-### Color Schemes
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/color-scheme-dark` | `ColorScheme/DARK` |
-| `constants/color-scheme-light` | `ColorScheme/LIGHT` |
-| `constants/color-scheme-no-preference` | `ColorScheme/NO_PREFERENCE` |
-
-```clojure
-(spel/emulate-media! {:color-scheme :dark})                       ;; --eval
-(core/with-testing-page {:color-scheme :dark} [pg] ...)           ;; library
-```
-
-### Mouse Buttons
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/mouse-button-left` | `MouseButton/LEFT` |
-| `constants/mouse-button-right` | `MouseButton/RIGHT` |
-| `constants/mouse-button-middle` | `MouseButton/MIDDLE` |
-
-```clojure
-(spel/click "#element" {:button :right})
-```
-
-### Screenshot Types
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/screenshot-type-png` | `ScreenshotType/PNG` |
-| `constants/screenshot-type-jpeg` | `ScreenshotType/JPEG` |
-
-```clojure
-(spel/screenshot {:path "/tmp/shot.jpg" :type :jpeg})
-```
-
-### Forced Colors
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/forced-colors-active` | `ForcedColors/ACTIVE` |
-| `constants/forced-colors-none` | `ForcedColors/NONE` |
-
-### Reduced Motion
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/reduced-motion-reduce` | `ReducedMotion/REDUCE` |
-| `constants/reduced-motion-no-preference` | `ReducedMotion/NO_PREFERENCE` |
-
-### Media Type
-
-| Var | Java equivalent |
-|-----|-----------------|
-| `constants/media-screen` | `Media/SCREEN` |
-| `constants/media-print` | `Media/PRINT` |
-
-```clojure
-(spel/emulate-media! {:media :print})    ;; emulate print media for PDF
-```
-
-### Selector States
-
-| Var | Java equivalent | Meaning |
-|-----|-----------------|---------|
-| `constants/selector-state-attached` | `WaitForSelectorState/ATTACHED` | Element in DOM (may be hidden) |
-| `constants/selector-state-detached` | `WaitForSelectorState/DETACHED` | Element not in DOM |
-| `constants/selector-state-visible` | `WaitForSelectorState/VISIBLE` | Exists and visible |
-| `constants/selector-state-hidden` | `WaitForSelectorState/HIDDEN` | Missing or not visible |
-
-```clojure
-(spel/wait-for-selector ".spinner" {:state :hidden})               ;; --eval
-(page/wait-for-selector pg ".spinner" {:state :hidden})           ;; library
-```
-
-### Keyword Shorthand
-
-Most spel functions accept keywords instead of constants. The options layer converts automatically.
-
-| Category | Keywords |
-|----------|----------|
-| Load state | `:load`, `:domcontentloaded`, `:networkidle` |
-| Wait-until | `:load`, `:domcontentloaded`, `:networkidle`, `:commit` |
-| Color scheme | `:light`, `:dark`, `:no-preference` |
-| Mouse button | `:left`, `:right`, `:middle` |
-| Screenshot type | `:png`, `:jpeg` |
-| Selector state | `:attached`, `:detached`, `:visible`, `:hidden` |
-| Media | `:screen`, `:print` |
+| Category | Keywords | Used in |
+|----------|----------|---------|
+| Load state | `:load`, `:domcontentloaded`, `:networkidle` | `wait-for-load-state` |
+| Wait-until | `:load`, `:domcontentloaded`, `:networkidle`, `:commit` | `navigate` opts |
+| Color scheme | `:light`, `:dark`, `:no-preference` | `emulate-media!`, context opts |
+| Mouse button | `:left`, `:right`, `:middle` | `click` opts |
+| Screenshot type | `:png`, `:jpeg` | `screenshot` opts |
+| Selector state | `:attached`, `:detached`, `:visible`, `:hidden` | `wait-for-selector` opts |
+| Media | `:screen`, `:print` | `emulate-media!` opts |
+| Forced colors | `:active`, `:none` | `emulate-media!` opts |
+| Reduced motion | `:reduce`, `:no-preference` | `emulate-media!` opts |
 
 In `--eval` mode, string forms also work for load states and selector states (e.g. `"networkidle"`, `"hidden"`).
+
+### Usage Examples
+
+```clojure
+;; --eval mode (keywords)
+(spel/wait-for-load-state :networkidle)
+(spel/navigate "https://example.org" {:wait-until :commit})
+(spel/emulate-media! {:color-scheme :dark})
+(spel/click "#element" {:button :right})
+(spel/screenshot {:path "/tmp/shot.jpg" :type :jpeg})
+(spel/wait-for-selector ".spinner" {:state :hidden})
+(spel/emulate-media! {:media :print})
+
+;; Library mode (same keywords)
+(page/wait-for-load-state pg :networkidle)
+(page/navigate pg "https://example.org" {:wait-until :commit})
+(page/wait-for-selector pg ".spinner" {:state :hidden})
+(core/with-testing-page {:color-scheme :dark} [pg] ...)
+```
 
 ## `role/` Namespace
 
@@ -181,67 +96,57 @@ AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 | Tables | `role/table` | `(spel/get-by-role role/table)` |
 | Tabs | `role/tab` | `(spel/get-by-role role/tab {:name "Settings"})` |
 
-## `device/` Namespace
+## Device Presets
 
-Device preset maps from `com.blockether.spel.devices/device-presets`. Each var is a map:
+Device presets are used via the `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, and user agent.
 
-```clojure
-device/iphone-14
-;; => {:viewport {:width 390 :height 844}
-;;     :device-scale-factor 3
-;;     :is-mobile true
-;;     :has-touch true
-;;     :user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 ...) ..."}
-```
+> **Note**: Device presets are used as keywords in option maps (`:iphone-14`, `:pixel-7`). They are available in library mode and `--eval` with `spel/start!`. There is no `device/` namespace in `--eval` mode.
 
 ### All Device Presets
 
 #### Apple iPhones
 
-| Var | Viewport | Scale |
-|-----|----------|-------|
-| `device/iphone-se` | 375 x 667 | 2 |
-| `device/iphone-12` | 390 x 844 | 3 |
-| `device/iphone-13` | 390 x 844 | 3 |
-| `device/iphone-14` | 390 x 844 | 3 |
-| `device/iphone-14-pro` | 393 x 852 | 3 |
-| `device/iphone-15` | 393 x 852 | 3 |
-| `device/iphone-15-pro` | 393 x 852 | 3 |
+| Keyword | Viewport | Scale |
+|---------|----------|-------|
+| `:iphone-se` | 375 x 667 | 2 |
+| `:iphone-12` | 390 x 844 | 3 |
+| `:iphone-13` | 390 x 844 | 3 |
+| `:iphone-14` | 390 x 844 | 3 |
+| `:iphone-14-pro` | 393 x 852 | 3 |
+| `:iphone-15` | 393 x 852 | 3 |
+| `:iphone-15-pro` | 393 x 852 | 3 |
 
 #### Apple iPads
 
-| Var | Viewport | Scale |
-|-----|----------|-------|
-| `device/ipad` | 810 x 1080 | 2 |
-| `device/ipad-mini` | 768 x 1024 | 2 |
-| `device/ipad-pro-11` | 834 x 1194 | 2 |
-| `device/ipad-pro` | 1024 x 1366 | 2 |
+| Keyword | Viewport | Scale |
+|---------|----------|-------|
+| `:ipad` | 810 x 1080 | 2 |
+| `:ipad-mini` | 768 x 1024 | 2 |
+| `:ipad-pro-11` | 834 x 1194 | 2 |
+| `:ipad-pro` | 1024 x 1366 | 2 |
 
 #### Android
 
-| Var | Viewport | Scale |
-|-----|----------|-------|
-| `device/pixel-5` | 393 x 851 | 2.75 |
-| `device/pixel-7` | 412 x 915 | 2.625 |
-| `device/galaxy-s24` | 360 x 780 | 3 |
-| `device/galaxy-s9` | 360 x 740 | 3 |
+| Keyword | Viewport | Scale |
+|---------|----------|-------|
+| `:pixel-5` | 393 x 851 | 2.75 |
+| `:pixel-7` | 412 x 915 | 2.625 |
+| `:galaxy-s24` | 360 x 780 | 3 |
+| `:galaxy-s9` | 360 x 740 | 3 |
 
 #### Desktop
 
-| Var | Viewport | Scale |
-|-----|----------|-------|
-| `device/desktop-chrome` | 1280 x 720 | 1 |
-| `device/desktop-firefox` | 1280 x 720 | 1 |
-| `device/desktop-safari` | 1280 x 720 | 1 |
+| Keyword | Viewport | Scale |
+|---------|----------|-------|
+| `:desktop-chrome` | 1280 x 720 | 1 |
+| `:desktop-firefox` | 1280 x 720 | 1 |
+| `:desktop-safari` | 1280 x 720 | 1 |
 
 All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop presets have both `false`.
 
 ### Using Devices
 
 ```clojure
-;; Daemon: use CLI to set device
-;; $ spel set device "iPhone 14"
-
 ;; Standalone --eval (no daemon)
 (spel/start! {:device :iphone-14})
 
@@ -249,9 +154,8 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 (core/with-testing-page {:device :iphone-14} [pg]
   (page/navigate pg "https://example.org"))
 
-;; Extract viewport from a preset (daemon mode)
-(let [{:keys [viewport]} device/iphone-14]
-  (spel/set-viewport-size! (:width viewport) (:height viewport)))
+;; Manual viewport sizing in daemon mode
+(spel/set-viewport-size! 390 844)
 ```
 
 ### Viewport Presets (dimensions only)
