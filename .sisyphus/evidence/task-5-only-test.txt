@@ -1,0 +1,42 @@
+Warning: No --ns provided, deriving from directory name.
+         Tip: use --ns my-app to set namespace explicitly.
+
+Initializing Playwright E2E testing agents for OpenCode...
+
+  + .opencode/agents/spel-test-planner.md - test planner agent (dry-run)
+  + .opencode/agents/spel-test-generator.md - test generator agent (dry-run)
+  + .opencode/agents/spel-test-healer.md - test healer agent (dry-run)
+  + .opencode/prompts/spel-test-workflow.md - coverage workflow (dry-run)
+  + .opencode/skills/spel/SKILL.md - API reference skill (dry-run)
+  + .opencode/skills/spel/refs/TESTING_CONVENTIONS.md - ref: TESTING_CONVENTIONS (dry-run)
+  + .opencode/skills/spel/refs/FULL_API.md - ref: FULL_API (dry-run)
+  + .opencode/skills/spel/refs/CONSTANTS.md - ref: CONSTANTS (dry-run)
+  + .opencode/skills/spel/refs/COMMON_PROBLEMS.md - ref: COMMON_PROBLEMS (dry-run)
+  + .opencode/skills/spel/refs/ENVIRONMENT_VARIABLES.md - ref: ENVIRONMENT_VARIABLES (dry-run)
+  + .opencode/skills/spel/refs/TESTING_CONVENTIONS.md - ref: TESTING_CONVENTIONS (Template not found: skills/spel/refs/TESTING_CONVENTIONS.md)
+  + .opencode/skills/spel/refs/ASSERTIONS_EVENTS.md - ref: ASSERTIONS_EVENTS (dry-run)
+  + .opencode/skills/spel/refs/API_TESTING.md - ref: API_TESTING (dry-run)
+  + .opencode/skills/spel/refs/ALLURE_REPORTING.md - ref: ALLURE_REPORTING (dry-run)
+  + .opencode/skills/spel/refs/SNAPSHOT_TESTING.md - ref: SNAPSHOT_TESTING (dry-run)
+  + test-e2e/specs/README.md - test plans directory (Already exists (use --force to overwrite))
+  + test-e2e/witty_tiger/e2e/seed_test.clj - seed test (dry-run)
+
+Done! Use @spel-test-planner to start planning tests.
+
+Next steps:
+
+  1. Install Playwright browsers:
+     spel install --with-deps chromium
+
+  2. Add the :e2e alias to your deps.edn:
+
+     :e2e {:extra-paths ["test-e2e"]
+           :extra-deps {com.blockether/spel {:mvn/version "0.5.3"}}
+           :main-opts ["-m" "lazytest.main" "--dir" "test-e2e"]}
+
+  3. Run the E2E tests:
+     clojure -M:e2e
+
+  4. Update the seed test URL in
+     test-e2e/<ns>/e2e/seed_test.clj
+     to point to your development server.

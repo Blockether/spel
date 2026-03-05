@@ -990,6 +990,36 @@ assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
 OUT=$("$SPEL" init-agents --loop=vscode 2>&1 || true)
 assert_contains "init-agents --loop=vscode shows deprecation error" "$OUT" "removed"
 
+# --only test --dry-run: includes test agents, excludes others
+OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)
+assert_contains "init-agents --only test includes test-planner" "$OUT" "spel-test-planner"
+assert_contains "init-agents --only test includes SKILL" "$OUT" "SKILL.md"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "spel-explorer"; then
+  fail "init-agents --only test excludes explorer"
+else
+  pass "init-agents --only test excludes explorer"
+fi
+
+# --only automation --dry-run: includes automation agents, excludes test
+OUT=$("$SPEL" init-agents --only automation --dry-run 2>&1)
+assert_contains "init-agents --only automation includes explorer" "$OUT" "spel-explorer"
+assert_contains "init-agents --only automation includes automator" "$OUT" "spel-automator"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "agents/spel-test-planner"; then
+  fail "init-agents --only automation excludes test-planner"
+else
+  pass "init-agents --only automation excludes test-planner"
+fi
+
+# --only invalid: shows error with valid values
+OUT=$("$SPEL" init-agents --only invalid 2>&1 || true)
+assert_contains "init-agents --only invalid shows error" "$OUT" "Unknown --only"
+
+# --help mentions --only
+OUT=$("$SPEL" init-agents --help 2>&1)
+assert_contains "init-agents --help mentions --only" "$OUT" "--only"
+
 OUT=$("$SPEL" ci-assemble --help 2>&1)
 assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"
 

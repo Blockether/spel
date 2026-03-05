@@ -89,21 +89,42 @@
    :automation #{:explorer :automator :interactive}
    :visual #{:presenter :visual-qa}})
 
+(def ^:private agent-to-subagent
+  "Maps agent template names to their subagent group keyword."
+  {"spel-test-planner" :test
+   "spel-test-generator" :test
+   "spel-test-healer" :test
+   "spel-explorer" :explorer
+   "spel-automator" :automator
+   "spel-interactive" :interactive
+   "spel-presenter" :presenter
+   "spel-visual-qa" :visual-qa})
+
+(def ^:private workflow-required-agents
+  "Maps workflow prompt resource paths to the set of subagent keywords they require.
+   A workflow is only scaffolded if ALL its required agents are selected."
+  {"prompts/spel-test-workflow.md" #{:test}
+   "prompts/spel-visual-workflow.md" #{:presenter :visual-qa}
+   "prompts/spel-automation-workflow.md" #{:explorer :automator :interactive}})
+
 (defn- files-to-create
-  "Returns file specs based on loop target, flavour, and whether tests are included.
+  "Returns file specs based on loop target, flavour, --only filter, and whether tests are included.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for agent templates that need frontmatter transformation.
-   When no-tests is true, only the SKILL file is generated (no test agents/prompts)."
-  [loop-target no-tests flavour]
+   When no-tests is true, only the SKILL file is generated (no test agents/prompts).
+   resolved-only: nil for all agents, or a set of resolved subagent keywords to filter by."
+  [loop-target no-tests flavour resolved-only]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
         ct? (= "clojure-test" flavour)
         generator-template (if ct?
                              "agents/spel-test-generator-ct.md"
                              "agents/spel-test-generator.md")
         testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
-        selected-subagent-keys (reduce into #{} (vals subagent-groups))
+        active-keys (if resolved-only
+                      resolved-only
+                      (reduce into #{} (vals subagent-groups)))
         ordered-subagent-keys (filter #(and (not= :core %)
-                                            (contains? selected-subagent-keys %))
+                                            (contains? active-keys %))
                                    (keys subagent-ref-map))
         selected-ref-files (->> (concat (:core subagent-ref-map)
                                      (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
@@ -126,7 +147,7 @@
                                "+"
                                nil])
                          selected-ref-files))
-        test-files [["agents/spel-test-planner.md"
+        all-test-files [["agents/spel-test-planner.md"
                      (str agent-dir "/spel-test-planner" agent-ext)
                      "test planner agent"
                      "+"
@@ -180,7 +201,16 @@
                       (str prompt-dir "/spel-automation-workflow.md")
                       "automation workflow"
                       "+"
-                      nil]]]
+                      nil]]
+        test-files (if resolved-only
+                     (filterv (fn [[resource-path _ _ _ agent-name]]
+                                (if agent-name
+                                  (contains? active-keys (get agent-to-subagent agent-name))
+                                  (if-let [required (get workflow-required-agents resource-path)]
+                                    (every? #(contains? active-keys %) required)
+                                    true)))
+                       all-test-files)
+                     all-test-files)]
     (if no-tests
       skill-files
       (into test-files skill-files))))
@@ -358,9 +388,19 @@
 ;; CLI Argument Parsing
 ;; =============================================================================
 
+(defn- parse-only-value
+  "Parses a comma-separated --only value into a set of keywords.
+   E.g. \"test,automation\" => #{:test :automation}"
+  [s]
+  (->> (str/split s #",")
+    (map str/trim)
+    (remove str/blank?)
+    (map keyword)
+    set))
+
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR"
+   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS"
   [args]
   (loop [remaining args
          opts {:dry-run false
@@ -383,6 +423,14 @@
 
           (= "--no-tests" arg)
           (recur (rest remaining) (assoc opts :no-tests true))
+
+          (= "--only" arg)
+          (recur (drop 2 remaining)
+            (assoc opts :only (parse-only-value (second remaining))))
+
+          (str/starts-with? arg "--only=")
+          (recur (rest remaining)
+            (assoc opts :only (parse-only-value (subs arg (count "--only=")))))
 
           (= "--flavour" arg)
           (recur (drop 2 remaining)
@@ -497,6 +545,11 @@
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
   (println "  --no-tests        Scaffold only the SKILL (API reference) — no test agents, specs, or seed test.")
   (println "                    Use this when spel is for interactive development, not E2E testing.")
+  (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
+  (println "                    Values: test, explorer, automator, interactive, presenter, visual-qa")
+  (println "                    Groups: automation (explorer+automator+interactive), visual (presenter+visual-qa)")
+  (println "                    Example: --only test,automation")
+  (println "                    SKILL.md and core refs are always included")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
   (println "  --specs-dir DIR   Test plans directory (default: test-e2e/specs)")
   (println "  --dry-run         Show what would be created without writing")
@@ -605,10 +658,25 @@
           (println (str "Valid flavours: " (str/join ", " (sort valid-flavours)))))
         (System/exit 1))
 
+      (and (:only opts)
+           (some #(not (contains? subagent-groups %)) (:only opts)))
+      (let [invalid (first (remove #(contains? subagent-groups %) (:only opts)))]
+        (binding [*out* *err*]
+          (println (str "Error: Unknown --only value: '" (name invalid)
+                     "'. Valid values: "
+                     (str/join ", " (sort (map name (keys subagent-groups)))))))
+        (System/exit 1))
+
       :else
       (let [loop-target (:loop opts)
             no-tests (:no-tests opts)
             flavour (:flavour opts)
+            only-set (:only opts)
+            _ (when (and no-tests only-set (contains? only-set :test))
+                (binding [*out* *err*]
+                  (println "Warning: --no-tests overrides --only test")))
+            resolved-only (when (and only-set (not no-tests))
+                            (reduce into #{} (map #(get subagent-groups %) only-set)))
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
                           (println "         Tip: use --ns my-app to set namespace explicitly.")
@@ -619,7 +687,7 @@
         (print-banner loop-target no-tests)
 
         ;; Scaffold files (skill only when --no-tests, full set otherwise)
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests flavour)]
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests flavour resolved-only)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 

@@ -1,0 +1,45 @@
+Warning: No --ns provided, deriving from directory name.
+         Tip: use --ns my-app to set namespace explicitly.
+
+Initializing Playwright E2E testing agents for OpenCode...
+
+  + .opencode/agents/spel-explorer.md - explorer agent (Template not found: agents/spel-explorer.md)
+  + .opencode/agents/spel-automator.md - automator agent (Template not found: agents/spel-automator.md)
+  + .opencode/agents/spel-interactive.md - interactive agent (Template not found: agents/spel-interactive.md)
+  + .opencode/prompts/spel-automation-workflow.md - automation workflow (Template not found: prompts/spel-automation-workflow.md)
+  + .opencode/skills/spel/SKILL.md - API reference skill (dry-run)
+  + .opencode/skills/spel/refs/TESTING_CONVENTIONS.md - ref: TESTING_CONVENTIONS (dry-run)
+  + .opencode/skills/spel/refs/FULL_API.md - ref: FULL_API (dry-run)
+  + .opencode/skills/spel/refs/CONSTANTS.md - ref: CONSTANTS (dry-run)
+  + .opencode/skills/spel/refs/COMMON_PROBLEMS.md - ref: COMMON_PROBLEMS (dry-run)
+  + .opencode/skills/spel/refs/ENVIRONMENT_VARIABLES.md - ref: ENVIRONMENT_VARIABLES (dry-run)
+  + .opencode/skills/spel/refs/EVAL_GUIDE.md - ref: EVAL_GUIDE (dry-run)
+  + .opencode/skills/spel/refs/SELECTORS_SNAPSHOTS.md - ref: SELECTORS_SNAPSHOTS (dry-run)
+  + .opencode/skills/spel/refs/PAGE_LOCATORS.md - ref: PAGE_LOCATORS (dry-run)
+  + .opencode/skills/spel/refs/NAVIGATION_WAIT.md - ref: NAVIGATION_WAIT (dry-run)
+  + .opencode/skills/spel/refs/NETWORK_ROUTING.md - ref: NETWORK_ROUTING (dry-run)
+  + .opencode/skills/spel/refs/BROWSER_OPTIONS.md - ref: BROWSER_OPTIONS (dry-run)
+  + .opencode/skills/spel/refs/CODEGEN_CLI.md - ref: CODEGEN_CLI (dry-run)
+  + .opencode/skills/spel/refs/PROFILES_AGENTS.md - ref: PROFILES_AGENTS (dry-run)
+  + test-e2e/specs/README.md - test plans directory (Already exists (use --force to overwrite))
+  + test-e2e/witty_tiger/e2e/seed_test.clj - seed test (dry-run)
+
+Done! Use @spel-test-planner to start planning tests.
+
+Next steps:
+
+  1. Install Playwright browsers:
+     spel install --with-deps chromium
+
+  2. Add the :e2e alias to your deps.edn:
+
+     :e2e {:extra-paths ["test-e2e"]
+           :extra-deps {com.blockether/spel {:mvn/version "0.5.3"}}
+           :main-opts ["-m" "lazytest.main" "--dir" "test-e2e"]}
+
+  3. Run the E2E tests:
+     clojure -M:e2e
+
+  4. Update the seed test URL in
+     test-e2e/<ns>/e2e/seed_test.clj
+     to point to your development server.
