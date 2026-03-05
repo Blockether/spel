@@ -135,6 +135,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          fetch-tags: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: DeLaGuardo/setup-clojure@13.5
@@ -152,15 +153,7 @@ jobs:
           restore-keys: |
             deps-${{ runner.os }}-
 
-      # --- Deploy to Clojars ---
-      - name: Build & Deploy to Clojars
-        env:
-          VERSION: ${{ github.ref_name }}
-          CLOJARS_USERNAME: blockether-deployer
-          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
-        run: clojure -T:build deploy
-
-      # --- Generate changelog ---
+      # --- Generate changelog (safe, read-only — do FIRST) ---
       - name: Generate changelog
         id: changelog
         run: |
@@ -181,7 +174,7 @@ jobs:
             echo "**Full Changelog**: https://github.com/Blockether/spel/compare/${PREV_TAG}...${CURRENT_TAG}"
           } > /tmp/release_body.md
 
-      # --- GitHub Release with binaries ---
+      # --- GitHub Release with binaries (reversible — do before Clojars) ---
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -202,6 +195,28 @@ jobs:
             artifacts/spel-linux-arm64/spel-linux-arm64
             artifacts/spel-macos-arm64/spel-macos-arm64
             artifacts/spel-windows-amd64/spel-windows-amd64.exe
+
+      # --- Deploy to Clojars (irreversible — do LAST, with existence check) ---
+      - name: Check if version exists on Clojars
+        id: check-clojars
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://repo.clojars.org/com/blockether/spel/$VERSION/spel-$VERSION.jar")
+          if [ "$STATUS" = "200" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Version $VERSION already exists on Clojars — skipping deploy"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build & Deploy to Clojars
+        if: steps.check-clojars.outputs.exists != 'true'
+        env:
+          VERSION: ${{ github.ref_name }}
+          CLOJARS_USERNAME: blockether-deployer
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
+        run: clojure -T:build deploy
 
       # --- Update version files on main ---
       - name: Update README.md version
