@@ -2415,3 +2415,88 @@
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (string? (:current r)))
         (expect (pos? (:total-lines r)))))))
+
+;; =============================================================================
+;; Snapshot viewport/device/styles-detail
+;; =============================================================================
+
+(defdescribe snapshot-viewport-integration-test
+  "Integration tests for snapshot viewport metadata"
+
+  (describe "snapshot viewport response"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "snapshot includes viewport map and header"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})
+            vp (:viewport r)]
+        (expect (map? vp))
+        (expect (number? (:width vp)))
+        (expect (number? (:height vp)))
+        (expect (pos? (:width vp)))
+        (expect (pos? (:height vp)))
+        (expect (str/includes? (:snapshot r)
+                  (str "viewport: " (:width vp) "x" (:height vp))))))))
+
+(defdescribe snapshot-styles-detail-integration-test
+  "Integration tests for snapshot styles_detail tiers"
+
+  (describe "styles_detail tier behavior"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "minimal returns 12 style keys per styled ref"
+      (nav! "/test-page")
+      (let [r      (cmd "snapshot" {"styles" true "styles_detail" "minimal"})
+            styled (filter :styles (vals (:refs r)))]
+        (expect (pos? (count styled)))
+        (doseq [ref styled]
+          (expect (= 12 (count (:styles ref)))))))
+
+    (it "base returns 24 style keys and max returns 36"
+      (nav! "/test-page")
+      (let [base-r      (cmd "snapshot" {"styles" true "styles_detail" "base"})
+            max-r       (cmd "snapshot" {"styles" true "styles_detail" "max"})
+            base-styled (filter :styles (vals (:refs base-r)))
+            max-styled  (filter :styles (vals (:refs max-r)))]
+        (expect (pos? (count base-styled)))
+        (expect (pos? (count max-styled)))
+        (doseq [ref base-styled]
+          (expect (= 24 (count (:styles ref)))))
+        (doseq [ref max-styled]
+          (expect (= 36 (count (:styles ref)))))))
+
+    (it "style keys are kebab-case and tree includes inline style braces"
+      (nav! "/test-page")
+      (let [r      (cmd "snapshot" {"styles" true "styles_detail" "base"})
+            styled (first (filter :styles (vals (:refs r))))]
+        (expect (some? styled))
+        (doseq [k (keys (:styles styled))]
+          (expect (re-matches #"[a-z][a-z0-9-]*" k)))
+        (expect (str/includes? (:snapshot r) "{"))
+        (expect (str/includes? (:snapshot r) "}"))))
+
+    (it "snapshot without styles request has no styles in refs"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (every? (comp nil? :styles) (vals (:refs r))))))))
+
+(defdescribe device-tracking-integration-test
+  "Integration tests for device tracking in snapshot responses"
+
+  (describe "device metadata"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "snapshot without set_device has nil or absent device"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (nil? (:device r)))))
+
+    (it "snapshot includes device after set_device"
+      (nav! "/test-page")
+      (let [browser-name (.name (.browserType *browser*))
+            state-a (deref #'daemon/!state)]
+        (swap! state-a assoc-in [:launch-flags "browser"] browser-name)
+        (cmd "set_device" {"device" "iPhone 14"})
+        (let [r (cmd "snapshot" {})]
+          (expect (= "iPhone 14" (:device r)))
+          (expect (str/includes? (:snapshot r) "device: iPhone 14")))))))

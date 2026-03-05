@@ -739,3 +739,52 @@
             result   (sut/diff-snapshots baseline current)]
         (expect (= 1 (:removed result)))
         (expect (= 2 (:unchanged result)))))))
+
+(defdescribe snapshot-styles-test
+  "Integration tests for capture-snapshot styles and viewport"
+
+  (describe "capture-snapshot with styles and viewport"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "capture-snapshot with base styles includes styles in refs"
+      (page/navigate *page* "https://example.org")
+      (let [snap   (sut/capture-snapshot *page* {:styles true :styles-detail "base"})
+            styled (filter :styles (vals (:refs snap)))]
+        (expect (pos? (count styled)))
+        (expect (map? (:styles (first styled))))
+        (expect (string? (first (keys (:styles (first styled))))))
+        (expect (or (contains? (:styles (first styled)) "font-size")
+                  (contains? (:styles (first styled)) "display")))))
+
+    (it "capture-snapshot without styles has no styles in refs"
+      (page/navigate *page* "https://example.org")
+      (let [snap (sut/capture-snapshot *page*)]
+        (expect (every? (comp nil? :styles val) (:refs snap)))))
+
+    (it "capture-snapshot returns viewport width and height"
+      (page/navigate *page* "https://example.org")
+      (let [snap (sut/capture-snapshot *page*)
+            vp   (:viewport snap)]
+        (expect (map? vp))
+        (expect (number? (:width vp)))
+        (expect (number? (:height vp)))
+        (expect (pos? (:width vp)))
+        (expect (pos? (:height vp)))))))
+
+(defdescribe format-styles-unit-test
+  "Unit tests for private format-styles"
+
+  (describe "format-styles output"
+    (it "formats style map with semicolon separator and display order"
+      (let [styles {"color" "rgb(0, 0, 0)" "display" "block"}
+            out    (#'com.blockether.spel.snapshot/format-styles styles)]
+        (expect (= "{display:block;color:rgb(0, 0, 0)}" out))
+        (expect (str/includes? out ";"))
+        (expect (not (str/includes? out "; ")))
+        (expect (< (.indexOf ^String out "display:block")
+                  (.indexOf ^String out "color:rgb(0, 0, 0)")))))
+
+    (it "filters out nil style values"
+      (let [out (#'com.blockether.spel.snapshot/format-styles
+                 {"display" "block" "color" nil "font-size" nil})]
+        (expect (= "{display:block}" out))))))

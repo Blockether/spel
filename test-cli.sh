@@ -1227,6 +1227,65 @@ assert_jq "diff snapshot → added is number" "$OUT" '.added != null'
 assert_jq "diff snapshot same → 0 changed" "$OUT" '.changed == 0'
 assert_jq "diff snapshot same → 0 added" "$OUT" '.added == 0'
 
+# =============================================================================
+# SNAPSHOT STYLES, VIEWPORT & DEVICE (36)
+# =============================================================================
+section "Snapshot Styles, Viewport & Device (36)"
+
+nav "https://example.com"
+
+# --- Style tiers: verify property counts per tier ---
+
+OUT=$("$SPEL" --json snapshot -S --minimal 2>&1)
+assert_jq "snapshot -S --minimal → 12 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 12'
+
+OUT=$("$SPEL" --json snapshot -S 2>&1)
+assert_jq "snapshot -S (base) → 24 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 24'
+
+OUT=$("$SPEL" --json snapshot -S --max 2>&1)
+assert_jq "snapshot -S --max → 36 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 36'
+
+# --- Style keys are kebab-case CSS ---
+
+OUT=$("$SPEL" --json snapshot -S 2>&1)
+assert_jq "snapshot -S → has font-size key" "$OUT" \
+  '.refs | to_entries[0].value.styles | has("font-size")'
+assert_jq "snapshot -S → has background-color key" "$OUT" \
+  '.refs | to_entries[0].value.styles | has("background-color")'
+
+# --- Tree text includes inline style syntax ---
+
+assert_jq_contains "snapshot -S → tree has style braces" "$OUT" '.snapshot' 'font-size:'
+
+# --- Without -S: no styles in refs or tree ---
+
+OUT=$("$SPEL" --json snapshot 2>&1)
+assert_jq "snapshot (no -S) → no styles in refs" "$OUT" \
+  '[.refs | to_entries[] | select(.value.styles != null)] | length == 0'
+
+# --- Viewport in snapshot ---
+
+assert_jq "snapshot → viewport.width > 0" "$OUT" '.viewport.width > 0'
+assert_jq "snapshot → viewport.height > 0" "$OUT" '.viewport.height > 0'
+assert_jq_contains "snapshot → tree has viewport header" "$OUT" '.snapshot' '[viewport:'
+
+# --- Device in snapshot after set device ---
+
+OUT=$("$SPEL" --json set device "iphone 14" 2>&1)
+assert_jq "set device iphone 14 → no error" "$OUT" 'has("error") | not'
+nav "https://example.com"
+OUT=$("$SPEL" --json snapshot 2>&1)
+assert_jq_contains "snapshot after device → tree has device" "$OUT" '.snapshot' 'device:'
+"$SPEL" set viewport 1280 720 >/dev/null 2>&1
+
+# --- --browser flag in help ---
+
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help → mentions --browser" "$OUT" "--browser"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
