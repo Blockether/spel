@@ -225,7 +225,8 @@ Save the user's choices so they don't need to pass flags every time. Detect thei
 
 </details>
 
-### Corporate Proxy / Custom CA Certificates
+<details>
+<summary>Corporate Proxy / Custom CA Certificates</summary>
 
 If you're behind a corporate SSL-inspecting proxy (Zscaler, Netskope, etc.), `spel install` may fail with "PKIX path building failed". Set these env vars **before** running `spel install`:
 
@@ -245,7 +246,10 @@ spel install --with-deps
 
 All options merge with built-in defaults — public CDN certs continue to work.
 
-### Environment Variables
+</details>
+
+<details>
+<summary>Environment Variables</summary>
 
 All env vars are optional. **CLI flags always take priority over env vars.**
 
@@ -283,6 +287,8 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
 | `SPEL_DRIVER_DIR` | — | Override Playwright browser driver directory |
 | `SPEL_DEBUG` | `--debug` | Set to `true` for debug logging |
+
+</details>
 
 ### Browser Automation
 
