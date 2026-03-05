@@ -4,7 +4,6 @@
    Supports multiple agent loop targets via --loop:
    - opencode (default) — .opencode/agents/, .opencode/prompts/, .opencode/skills/
    - claude             — .claude/agents/, .claude/prompts/, .claude/docs/
-   - vscode             — .github/agents/, .github/prompts/, .github/docs/
 
    Supports test framework flavours via --flavour:
    - lazytest (default) — defdescribe/it/expect from spel.allure, :context fixtures
@@ -17,7 +16,6 @@
    Usage:
      spel init-agents --ns my-app
      spel init-agents --ns my-app --loop=claude
-     spel init-agents --ns my-app --loop=vscode
      spel init-agents --ns my-app --flavour=clojure-test
      spel init-agents --ns my-app --no-tests
      spel init-agents --ns my-app --test-dir test-e2e --specs-dir test-e2e/specs
@@ -43,27 +41,21 @@
       str/trim)))
 
 (def ^:private loop-targets
-  "Configuration for each supported agent loop target.
-   Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
-   agent-ref-fmt is a format string for agent references in prompts (takes agent name)."
-  {"opencode" {:agent-dir ".opencode/agents"
-               :prompt-dir ".opencode/prompts"
-               :skill-dir ".opencode/skills/spel"
-               :agent-ext ".md"
-               :agent-ref-fmt "@%s"
-               :desc "OpenCode"}
-   "claude"   {:agent-dir ".claude/agents"
-               :prompt-dir ".claude/prompts"
-               :skill-dir ".claude/docs/spel"
-               :agent-ext ".md"
-               :agent-ref-fmt "@%s"
-               :desc "Claude Code"}
-   "vscode"   {:agent-dir ".github/agents"
-               :prompt-dir ".github/prompts"
-               :skill-dir ".github/docs/spel"
-               :agent-ext ".agent.md"
-               :agent-ref-fmt "#agent:%s"
-               :desc "VS Code / Copilot"}})
+   "Configuration for each supported agent loop target.
+    Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
+    agent-ref-fmt is a format string for agent references in prompts (takes agent name)."
+   {"opencode" {:agent-dir ".opencode/agents"
+                :prompt-dir ".opencode/prompts"
+                :skill-dir ".opencode/skills/spel"
+                :agent-ext ".md"
+                :agent-ref-fmt "@%s"
+                :desc "OpenCode"}
+    "claude"   {:agent-dir ".claude/agents"
+                :prompt-dir ".claude/prompts"
+                :skill-dir ".claude/docs/spel"
+                :agent-ext ".md"
+                :agent-ref-fmt "@%s"
+                :desc "Claude Code"}})
 
 (def ^:private valid-flavours
   "Supported test framework flavours."
@@ -293,33 +285,18 @@
       (str new-fm new-body))
     content))
 
-(defn- transform-for-vscode
-  "Transforms OpenCode agent template to VS Code / Copilot format.
-   Replaces frontmatter with VS Code fields and updates skill instruction."
-  [content agent-name skill-dir]
-  (if-let [[fm-str body] (extract-frontmatter content)]
-    (let [description (extract-fm-field fm-str "description")
-          new-fm (str "---\n"
-                   "name: " agent-name "\n"
-                   "description: " (pr-str description) "\n"
-                   "tools: ['editFiles', 'createFile', 'runInTerminal', 'readFile', 'listDirectory', 'searchFiles']\n"
-                   "---\n")
-          new-body (replace-skill-instruction body skill-dir)]
-      (str new-fm new-body))
-    content))
 
 (defn- transform-agent-template
-  "Transforms an agent template for the target loop format.
-   Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
-  [content loop-target agent-name]
-  (if (nil? agent-name)
-    content
-    (let [skill-dir (:skill-dir (get loop-targets loop-target))]
-      (case loop-target
-        "opencode" content
-        "claude"   (transform-for-claude content agent-name skill-dir)
-        "vscode"   (transform-for-vscode content agent-name skill-dir)
-        content))))
+   "Transforms an agent template for the target loop format.
+    Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
+   [content loop-target agent-name]
+   (if (nil? agent-name)
+     content
+     (let [skill-dir (:skill-dir (get loop-targets loop-target))]
+       (case loop-target
+         "opencode" content
+         "claude"   (transform-for-claude content agent-name skill-dir)
+         content))))
 
 ;; =============================================================================
 ;; CLI Argument Parsing
@@ -449,7 +426,6 @@
   (println "Usage:")
   (println "  spel init-agents --ns my-app")
   (println "  spel init-agents --ns my-app --loop=claude")
-  (println "  spel init-agents --ns my-app --loop=vscode")
   (println "  spel init-agents --ns my-app --test-dir test/e2e --specs-dir test-e2e/specs")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
@@ -457,7 +433,7 @@
   (println "  spel init-agents --ns my-app --force")
   (println "")
   (println "Options:")
-  (println "  --loop TARGET     Agent format: opencode (default), claude, vscode")
+  (println "  --loop TARGET     Agent format: opencode (default), claude")
   (println "  --ns NS           Base namespace for generated tests (e.g. my-app → my-app.e2e.seed-test)")
   (println "                    If omitted, derived from the current directory name")
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
@@ -474,7 +450,6 @@
   (println "Loop targets:")
   (println "  opencode          .opencode/agents/, .opencode/prompts/, .opencode/skills/")
   (println "  claude            .claude/agents/, .claude/prompts/, .claude/docs/")
-  (println "  vscode            .github/agents/, .github/prompts/, .github/docs/")
   (println "")
   (println "Also generates (all targets, unless --no-tests):")
   (println "  test-e2e/specs/                — Test plans directory (with README)")
@@ -553,6 +528,12 @@
     (cond
       (:help opts)
       (print-help)
+
+      (= "vscode" (:loop opts))
+      (do
+        (binding [*out* *err*]
+          (println "Error: --loop=vscode has been removed. Use --loop=opencode (default) or --loop=claude instead."))
+        (System/exit 1))
 
       (not (contains? loop-targets (:loop opts)))
       (do

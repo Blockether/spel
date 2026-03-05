@@ -987,6 +987,9 @@ assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
 OUT=$("$SPEL" init-agents --help 2>&1)
 assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
 
+OUT=$("$SPEL" init-agents --loop=vscode 2>&1 || true)
+assert_contains "init-agents --loop=vscode shows deprecation error" "$OUT" "removed"
+
 OUT=$("$SPEL" ci-assemble --help 2>&1)
 assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"
 
