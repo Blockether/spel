@@ -64,9 +64,11 @@
 (def ^:private subagent-ref-map
   "Maps subagent group keywords to their relevant ref file names.
    :core refs are ALWAYS included regardless of agent selection."
-  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
+  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"
+          "AGENT_COMMON.md"]
    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
+   :spec-skeptic ["ASSERTIONS_EVENTS.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
               "NAVIGATION_WAIT.md"]
    :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
@@ -75,37 +77,54 @@
    :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
                "SLIDE_PATTERNS.md"]
    :visual-qa ["SELECTORS_SNAPSHOTS.md" "SNAPSHOT_TESTING.md"
-               "ASSERTIONS_EVENTS.md"]})
+               "ASSERTIONS_EVENTS.md" "VISUAL_QA_GUIDE.md"]
+   :bug-hunter ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
+                "BUGFIND_GUIDE.md" "NAVIGATION_WAIT.md" "NETWORK_ROUTING.md"
+                "PAGE_LOCATORS.md"]
+   :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
+                 "BUGFIND_GUIDE.md"]
+   :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
+                 "BUGFIND_GUIDE.md"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
    Used to resolve which agents and refs to scaffold."
   {:test #{:test}
+   :spec-skeptic #{:spec-skeptic}
    :explorer #{:explorer}
    :automator #{:automator}
    :interactive #{:interactive}
    :presenter #{:presenter}
    :visual-qa #{:visual-qa}
+   :bug-hunter #{:bug-hunter}
+   :bug-skeptic #{:bug-skeptic}
+   :bug-referee #{:bug-referee}
    :automation #{:explorer :automator :interactive}
-   :visual #{:presenter :visual-qa}})
+   :visual #{:presenter :visual-qa}
+   :bugfind #{:bug-hunter :bug-skeptic :bug-referee}})
 
 (def ^:private agent-to-subagent
   "Maps agent template names to their subagent group keyword."
   {"spel-test-planner" :test
    "spel-test-generator" :test
    "spel-test-healer" :test
+   "spel-spec-skeptic" :spec-skeptic
    "spel-explorer" :explorer
    "spel-automator" :automator
    "spel-interactive" :interactive
    "spel-presenter" :presenter
-   "spel-visual-qa" :visual-qa})
+   "spel-visual-qa" :visual-qa
+   "spel-bug-hunter" :bug-hunter
+   "spel-bug-skeptic" :bug-skeptic
+   "spel-bug-referee" :bug-referee})
 
 (def ^:private workflow-required-agents
   "Maps workflow prompt resource paths to the set of subagent keywords they require.
    A workflow is only scaffolded if ALL its required agents are selected."
   {"prompts/spel-test-workflow.md" #{:test}
    "prompts/spel-visual-workflow.md" #{:presenter :visual-qa}
-   "prompts/spel-automation-workflow.md" #{:explorer :automator :interactive}})
+   "prompts/spel-automation-workflow.md" #{:explorer :automator :interactive}
+   "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}})
 
 (defn- files-to-create
   "Returns file specs based on loop target, flavour, --only filter, and whether tests are included.
@@ -200,6 +219,31 @@
                         ["prompts/spel-automation-workflow.md"
                          (str prompt-dir "/spel-automation-workflow.md")
                          "automation workflow"
+                         "+"
+                         nil]
+                        ["agents/spel-spec-skeptic.md"
+                         (str agent-dir "/spel-spec-skeptic" agent-ext)
+                         "spec skeptic agent"
+                         "+"
+                         "spel-spec-skeptic"]
+                        ["agents/spel-bug-hunter.md"
+                         (str agent-dir "/spel-bug-hunter" agent-ext)
+                         "bug hunter agent"
+                         "+"
+                         "spel-bug-hunter"]
+                        ["agents/spel-bug-skeptic.md"
+                         (str agent-dir "/spel-bug-skeptic" agent-ext)
+                         "bug skeptic agent"
+                         "+"
+                         "spel-bug-skeptic"]
+                        ["agents/spel-bug-referee.md"
+                         (str agent-dir "/spel-bug-referee" agent-ext)
+                         "bug referee agent"
+                         "+"
+                         "spel-bug-referee"]
+                        ["prompts/spel-bugfind-workflow.md"
+                         (str prompt-dir "/spel-bugfind-workflow.md")
+                         "bugfind workflow"
                          "+"
                          nil]]
         test-files (if resolved-only
@@ -330,11 +374,15 @@
   ["spel-test-planner"
    "spel-test-generator"
    "spel-test-healer"
+   "spel-spec-skeptic"
    "spel-explorer"
    "spel-automator"
    "spel-interactive"
    "spel-presenter"
-   "spel-visual-qa"])
+   "spel-visual-qa"
+   "spel-bug-hunter"
+   "spel-bug-skeptic"
+   "spel-bug-referee"])
 
 (defn- transform-agent-references
   "Replaces @agent-name references in template content with the
@@ -545,9 +593,12 @@
   (println "  --no-tests        Scaffold only the SKILL (API reference) — no test agents, specs, or seed test.")
   (println "                    Use this when spel is for interactive development, not E2E testing.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
-  (println "                    Values: test, explorer, automator, interactive, presenter, visual-qa")
-  (println "                    Groups: automation (explorer+automator+interactive), visual (presenter+visual-qa)")
-  (println "                    Example: --only test,automation")
+  (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
+  (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee")
+  (println "                    Groups: automation (explorer+automator+interactive),")
+  (println "                            visual (presenter+visual-qa),")
+  (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee)")
+  (println "                    Example: --only test,bugfind")
   (println "                    SKILL.md and core refs are always included")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
   (println "  --specs-dir DIR   Test plans directory (default: test-e2e/specs)")

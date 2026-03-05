@@ -18,9 +18,29 @@ com.blockether.spel and `spel.allure` (`defdescribe`, `it`, `expect`).
 
 **REQUIRED**: You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first.
 
+## Session Management
+
+Use a named session for selector verification and interactive checks:
+
+```bash
+SESSION="gen-$(date +%s)"
+```
+
+Use `spel --session $SESSION ...` for every command and always close at the end.
+
+## Contract
+
+**Inputs:**
+- `test-e2e/specs/<feature>-test-plan.md` — approved plan to implement (REQUIRED)
+
+**Outputs:**
+- `test-e2e/<ns>/e2e/<feature>_test.clj` — generated E2E tests (format: Clojure)
+- `generation-report.json` — machine-readable generation/run summary (format: JSON)
+
 ## Priority Refs
 
 When this agent is invoked, ensure these refs are loaded:
+- **AGENT_COMMON.md** — Session management, I/O contracts, gates, error recovery
 - `TESTING_CONVENTIONS.md` — test structure, naming, `defdescribe`/`describe`/`it`/`expect`
 - `ASSERTIONS_EVENTS.md` — assertion patterns, event handling
 - `ALLURE_REPORTING.md` — steps, attachments, Allure annotations
@@ -50,29 +70,49 @@ clojure -M:test -v com.example.my-test/my-test-name --output com.blockether.spel
 4. **Verify selectors interactively** — for each test scenario in the plan:
    - Open the page visibly so the user can watch:
      ```bash
-     spel open <url> --interactive
-     ```
-   - Capture snapshot and annotate to verify element refs:
-     ```bash
-     spel snapshot -i
-     spel annotate
-     spel screenshot verify-<scenario>.png
-     spel unannotate
-     ```
-   - Use `spel --eval` (preferred) to verify selectors and text content:
-      ```bash
-      spel --timeout 5000 --eval '
-        (do
-          (spel/navigate "<url>")
-          (println "Button text:" (spel/text-content "button.submit"))
-          (println "Heading:" (spel/text-content "h1"))
-          (println "Input value:" (spel/input-value "#email")))'
+      spel --session $SESSION open <url> --interactive
       ```
-      Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
+    - Capture snapshot and annotate to verify element refs:
+      ```bash
+      spel --session $SESSION snapshot -i
+      spel --session $SESSION annotate
+      spel --session $SESSION screenshot verify-<scenario>.png
+      spel --session $SESSION unannotate
+      ```
+    - Use `spel --eval` (preferred) to verify selectors and text content:
+       ```bash
+       spel --session $SESSION --eval '
+         (do
+           (spel/navigate "<url>")
+           (println "Button text:" (spel/text-content "button.submit"))
+           (println "Heading:" (spel/text-content "h1"))
+           (println "Input value:" (spel/input-value "#email")))'
+       ```
+       Notes: See AGENT_COMMON.md for daemon notes.
     - Note exact selectors, text content, and expected values
 5. **Generate the test file** at `test-e2e/<ns>/e2e/<feature>_test.clj`
 6. **Run the test** to verify: `clojure -M:test` or appropriate test command
-7. **Fix any compilation or assertion errors** before declaring done
+7. **Run the test. If it fails, report the failure in `generation-report.json`. Do NOT fix — that is the healer's job.**
+
+`generation-report.json` MUST include:
+
+```json
+{
+  "tests_generated": 0,
+  "tests_passed": 0,
+  "tests_failed": 0,
+  "selectors_verified": []
+}
+```
+
+**GATE: Present generated tests and run results to user.**
+
+Present:
+1. Generated test file path and scenario mapping
+2. Test run outcome (pass/fail) with failing case names if any
+3. `generation-report.json` summary
+
+Do NOT continue to healing automatically unless user approves handoff.
 
 ## Code Pattern
 
@@ -129,7 +169,7 @@ For options (device, viewport, locale, auth state):
 - **Locator patterns**: Use `page/get-by-text`, `page/get-by-role`, `page/get-by-label`, `page/locator` (CSS). Filter roles with `locator/loc-filter`.
 - **NEVER `page/wait-for-load-state` with `:networkidle`**: This causes flaky tests. Use `:load` or no wait.
 - **NEVER `page/wait-for-timeout`**: Use Playwright's auto-waiting assertions instead.
-- **NEVER `page/evaluate` for assertions**: Use Playwright assertions (`assert/has-text`, etc.) instead.
+- **PREFER Playwright assertions**: Use `assert/has-text`, `assert/has-url`, etc. Use `page/evaluate` ONLY for computed styles or JavaScript state that cannot be asserted via Playwright matchers.
 
 ## Example
 

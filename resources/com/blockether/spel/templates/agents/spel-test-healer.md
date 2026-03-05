@@ -18,9 +18,30 @@ E2E tests using spel (`defdescribe`, `it`, `expect` from `spel.allure`).
 
 **REQUIRED**: You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first.
 
+## Session Management
+
+Use a named session for all interactive diagnostics:
+
+```bash
+SESSION="heal-$(date +%s)"
+```
+
+Use `spel --session $SESSION ...` for every command and always close at the end.
+
+## Contract
+
+**Inputs:**
+- Failing test files in `test-e2e/` (REQUIRED)
+- Specs in `test-e2e/specs/` (REQUIRED)
+
+**Outputs:**
+- Fixed test files under `test-e2e/` (format: Clojure)
+- `healing-report.json` (format: JSON)
+
 ## Priority Refs
 
 When this agent is invoked, ensure these refs are loaded:
+- **AGENT_COMMON.md** — Session management, I/O contracts, gates, error recovery
 - `TESTING_CONVENTIONS.md` — test structure to understand what's being healed
 - `ASSERTIONS_EVENTS.md` — correct assertion patterns to fix broken assertions
 - `COMMON_PROBLEMS.md` — known issues and their solutions
@@ -44,32 +65,33 @@ When a test fails, use Allure traces to diagnose:
    ```
 
 2. **Analyze Failures**: For each failing test:
-   - Read the error output carefully
-   - **Reference the original spec** in `test-e2e/specs/` (see `test-e2e/specs/README.md` for conventions) to understand expected behavior vs actual
-   - Identify the type of failure: selector mismatch, assertion failure, timeout, state issue
-   - Check if it's a test bug or an application change
+    - Read the error output carefully
+    - **Reference the original spec** in `test-e2e/specs/` (see `test-e2e/specs/README.md` for conventions) to understand expected behavior vs actual
+    - Identify the type of failure: selector mismatch, assertion failure, timeout, state issue
+    - Check if it's a test bug or an application change
+    - If you cannot determine whether a failure is a test bug or an intentional app change, ask the user
 
 3. **Investigate with spel CLI**: Open the page interactively so the user can see the current state
    ```bash
-   spel open <url> --interactive
-   spel snapshot -i
-   spel annotate
-   spel screenshot debug-annotated.png
-   spel unannotate
+    spel --session $SESSION open <url> --interactive
+    spel --session $SESSION snapshot -i
+    spel --session $SESSION annotate
+    spel --session $SESSION screenshot debug-annotated.png
+    spel --session $SESSION unannotate
    ```
 
 4. **Investigate with inline scripts** (preferred): Use `spel --eval` to reproduce the exact failure point
-    ```bash
-    spel --timeout 5000 --eval '
-      (do
-        (spel/navigate "<url>")
-        (spel/click (spel/get-by-text "Login"))
-        (println "Title:" (spel/title))
-        (println "URL:" (spel/url))
-        (let [snap (spel/capture-snapshot)]
-          (println (:tree snap))))'
-    ```
-   Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
+     ```bash
+     spel --session $SESSION --eval '
+       (do
+         (spel/navigate "<url>")
+         (spel/click (spel/get-by-text "Login"))
+         (println "Title:" (spel/title))
+         (println "URL:" (spel/url))
+         (let [snap (spel/capture-snapshot)]
+           (println (:tree snap))))'
+     ```
+   Notes: See AGENT_COMMON.md for daemon notes.
 
 5. **Root Cause Analysis**: Determine the underlying cause:
    - **Selector changed**: UI element moved/renamed → update locator
@@ -79,9 +101,19 @@ When a test fails, use Allure traces to diagnose:
    - **API change**: spel API changed → update function calls
 
 6. **Fix the Code**: Edit test files with minimal changes
-   - Update selectors to match current application state
-   - Fix assertions and expected values
-   - For dynamic data, use regex patterns or `assert/contains-text`
+    - Update selectors to match current application state
+    - Fix assertions and expected values
+    - For dynamic data, use regex patterns or `assert/contains-text`
+    - Confidence rule: if confidence is < 70% that a fix is correct, do not guess; present the issue and evidence to the user
+
+**GATE: After each fix batch, present changes to user. Show what was wrong, what changed, and why.**
+
+Present:
+1. The failing tests in the current batch
+2. Diffs for each changed file
+3. Root-cause reasoning and why the fix is safe
+
+Proceed to next batch only after user acknowledgment.
 
 7. **Verify**: Re-run the specific test after each fix
    ```bash
@@ -89,6 +121,23 @@ When a test fails, use Allure traces to diagnose:
    ```
 
 8. **Iterate**: Repeat until all tests pass
+9. **Regression check**: After all fixes, run the FULL suite to verify no regressions
+
+`healing-report.json` MUST include:
+
+```json
+{
+  "tests_healed": 0,
+  "changes": [
+    {
+      "file": "test-e2e/example/e2e/feature_test.clj",
+      "original": "old assertion/selector",
+      "fixed": "new assertion/selector",
+      "reason": "why this change is correct"
+    }
+  ]
+}
+```
 
 ## Key Principles
 
@@ -99,5 +148,5 @@ When a test fails, use Allure traces to diagnose:
 - NEVER use `Thread/sleep` as a permanent fix
 - NEVER use `page/wait-for-load-state` with `:networkidle` — it causes flaky tests
 - NEVER suppress errors
-- Do not ask user questions — do the most reasonable thing to pass the test
+- Ask the user if you cannot determine whether a failure is a test bug or an intentional app change
 - Document your findings as code comments

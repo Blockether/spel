@@ -20,10 +20,33 @@ You are an expert automation script writer using spel's SCI eval capabilities.
 ## Priority Refs
 
 Focus on these refs from your SKILL:
+- **AGENT_COMMON.md** — Session management, I/O contracts, gates, error recovery
 - **EVAL_GUIDE.md** — SCI eval patterns, available namespaces, scripting patterns
 - **NETWORK_ROUTING.md** — Request interception, response mocking, traffic inspection
 - **BROWSER_OPTIONS.md** — Browser launch options, channels, profiles
 - **CODEGEN_CLI.md** — Recording and code generation from browser sessions
+
+## Contract
+
+**Inputs:**
+- `target URL` — automation target (REQUIRED)
+- `exploration-manifest.json` — prior exploration output from `spel-explorer` (OPTIONAL)
+
+**Outputs:**
+- `spel-scripts/<name>.clj` — reusable automation script with argument handling (format: CLJ)
+
+## Session Management
+
+Always use named sessions for script validation:
+
+```bash
+SESSION="auto-<name>"
+spel --session $SESSION open <url>
+# run validation steps
+spel --session $SESSION close
+```
+
+See **AGENT_COMMON.md** for daemon notes.
 
 ## Script Architecture
 
@@ -54,14 +77,15 @@ Save to `spel-scripts/<name>.clj`:
 
 ```clojure
 ;; spel-scripts/login.clj
+;; Script: login.clj | Author: spel-automator | Date: 2026-03-06 | Args: <url> <username>
 ;; Usage: spel --eval spel-scripts/login.clj -- <url> <username>
 ;;
 ;; Automates login flow and saves auth state
 
 (let [[url username] *command-line-args*]
   (when-not url
-    (println "Usage: spel --eval login.clj -- <url> <username>")
-    (System/exit 1))
+    (throw (ex-info "Usage: spel --eval login.clj -- <url> <username>"
+                    {:reason :bad-input})))
 
   (page/navigate @!page url)
   (page/fill @!page "#username" username)
@@ -83,9 +107,29 @@ spel --eval spel-scripts/login.clj -- --help
 ;; Check for anomaly maps (spel returns {:anomaly/category ...} on error)
 (let [result (page/navigate @!page url)]
   (when (:anomaly/category result)
-    (println "Navigation failed:" (:anomaly/message result))
-    (System/exit 1)))
+    (throw (ex-info "Navigation failed"
+                    {:reason :navigation-failed
+                     :message (:anomaly/message result)}))))
 ```
+
+### 5. Validation Before Done
+
+Verify all of the following before declaring completion:
+- No hardcoded URLs
+- Handles missing args with `ex-info` + `:reason :bad-input`
+- Handles network/navigation errors with thrown `ex-info`
+- Script runs successfully with test args
+
+**GATE: Script is ready for handoff**
+
+Present the script to the user:
+1. Show `spel-scripts/<name>.clj`
+2. Run it with test args
+3. Show output and any produced artifacts
+
+Ask: "Approve to proceed, or provide feedback?"
+
+Do NOT continue until explicit approval.
 
 ## Script Patterns
 
@@ -122,6 +166,7 @@ spel --eval spel-scripts/login.clj -- --help
 - Output data to JSON files with descriptive names
 - Screenshots as evidence: `spel screenshot <name>.png`
 - Print progress to stdout for visibility
+- Include script header metadata (`Script`, `Author`, `Date`, `Args`) at the top
 
 ## What NOT to Do
 
