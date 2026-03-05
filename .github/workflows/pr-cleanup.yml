@@ -1,0 +1,84 @@
+name: Cleanup PR Report
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Remove PR report and update metadata
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          CHANGED=false
+
+          # Always remove the report directory (stale for both merged and cancelled)
+          if [ -d "pr/${PR_NUM}" ]; then
+            git rm -rf "pr/${PR_NUM}"
+            CHANGED=true
+            echo "Removed report for PR #${PR_NUM}"
+          else
+            echo "No report found for PR #${PR_NUM}"
+          fi
+
+          if [ -f "pr-builds.json" ]; then
+            if [ "$PR_MERGED" = "true" ]; then
+              # Merged: remove entry (mark-prs-merged! in allure.yml handles merged status)
+              jq --argjson pr_num "${PR_NUM}" \
+                 '[ .[] | select(.pr_number != $pr_num) ]' \
+                 pr-builds.json > pr-builds-updated.json
+              echo "Removed PR #${PR_NUM} from pr-builds.json"
+            else
+              # Closed without merge: mark as cancelled
+              jq --argjson pr_num "${PR_NUM}" \
+                 '[ .[] | if .pr_number == $pr_num then .status = "cancelled" | .passed = false else . end ]' \
+                 pr-builds.json > pr-builds-updated.json
+              echo "Marked PR #${PR_NUM} as cancelled in pr-builds.json"
+            fi
+            mv pr-builds-updated.json pr-builds.json
+            git add pr-builds.json
+            CHANGED=true
+          fi
+
+          if [ "$CHANGED" = "true" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            if [ "$PR_MERGED" = "true" ]; then
+              COMMIT_MSG="cleanup: remove PR #${PR_NUM} report"
+            else
+              COMMIT_MSG="cleanup: cancel PR #${PR_NUM} build"
+            fi
+
+            # Retry loop: pull --rebase to handle concurrent gh-pages pushes
+            for attempt in 1 2 3; do
+              git commit -m "$COMMIT_MSG" || true
+              if git push origin gh-pages; then
+                echo "Push succeeded on attempt $attempt"
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::Failed to push after 3 attempts"
+                exit 1
+              fi
+              echo "Push failed (attempt $attempt), rebasing and retrying..."
+              git pull --rebase origin gh-pages
+            done
+          else
+            echo "Nothing to clean up for PR #${PR_NUM}"
+          fi
