@@ -1736,6 +1736,30 @@
                ["--interactive" "--autoclose" "--session" "dev" "--eval" "(+ 1 2)"])]
         (expect (true? (:interactive? g)))
         (expect (true? (:autoclose? g)))
+        (expect (= "dev" (:session g))))))
+
+  (describe "--browser flag"
+    (it "defaults to SPEL_BROWSER env when no CLI override"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--eval" "(+ 1 2)"])]
+        (expect (= (System/getenv "SPEL_BROWSER") (:browser g)))))
+
+    (it "parses --browser <type>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--browser" "firefox" "--eval" "(+ 1 2)"])]
+        (expect (= "firefox" (:browser g)))))
+
+    (it "parses --browser=<type>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--browser=webkit" "--eval" "(+ 1 2)"])]
+        (expect (= "webkit" (:browser g)))))
+
+    (it "strips --browser from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--browser" "firefox" "--eval" "(+ 1 2)"])]
+        (expect (= ["--eval" "(+ 1 2)"] (:command-args g)))))
+
+    (it "combines --browser with --autoclose and --session"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--browser" "firefox" "--autoclose" "--session" "dev" "--eval" "(+ 1 2)"])]
+        (expect (= "firefox" (:browser g)))
+        (expect (true? (:autoclose? g)))
         (expect (= "dev" (:session g)))))))
 
 ;; =============================================================================
@@ -1807,3 +1831,35 @@
 
     (it "help text mentions overlap"
       (expect (.contains ^String (get sut/command-help "stitch") "overlap")))))
+
+(defdescribe snapshot-styles-flag-test
+  "Tests for snapshot styles flag parsing"
+
+  (describe "snapshot styles options"
+    (it "snapshot -S sets styles true"
+      (let [c (cmd ["snapshot" "-S"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (true? (:styles c)))))
+
+    (it "snapshot --styles sets styles true"
+      (let [c (cmd ["snapshot" "--styles"])]
+        (expect (true? (:styles c)))))
+
+    (it "snapshot -S --minimal sets styles and minimal detail"
+      (let [c (cmd ["snapshot" "-S" "--minimal"])]
+        (expect (true? (:styles c)))
+        (expect (= "minimal" (:styles_detail c)))))
+
+    (it "snapshot -S --max sets max detail"
+      (let [c (cmd ["snapshot" "-S" "--max"])]
+        (expect (true? (:styles c)))
+        (expect (= "max" (:styles_detail c)))))
+
+    (it "snapshot without -S has no styles key"
+      (let [c (cmd ["snapshot"])]
+        (expect (not (:styles c)))))
+
+    (it "snapshot -S -s body sets styles and selector"
+      (let [c (cmd ["snapshot" "-S" "-s" "body"])]
+        (expect (true? (:styles c)))
+        (expect (= "body" (:selector c)))))))
