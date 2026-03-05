@@ -12,7 +12,7 @@ Parameters:
 
 ## Step 1: Plan & Explore (SPEC FIRST)
 
-The planner opens the browser **interactively** (visible to the user), explores the application using snapshots and annotations, and produces a **spec** (test plan).
+The planner (@spel-test-planner) opens the browser **interactively** (visible to the user), explores the application using snapshots and annotations, and produces a **spec** (test plan).
 
 Call @spel-test-planner with:
 
@@ -29,7 +29,7 @@ Call @spel-test-planner with:
 
 For each test case from the spec (1.1, 1.2, ...), one after another (NOT in parallel), call @spel-test-generator with:
 
-The generator opens the browser **interactively** to verify selectors from the spec against the live app before writing test code.
+The generator (@spel-test-generator) opens the browser **interactively** to verify selectors from the spec against the live app before writing test code.
 
 <generate>
   <test-suite><!-- Verbatim name of the test group without ordinal, e.g. "Login Flow" --></test-suite>
@@ -43,6 +43,12 @@ The generator opens the browser **interactively** to verify selectors from the s
 
 Call @spel-test-healer with:
 
-The healer opens the browser **interactively** to investigate failures visually.
+The healer (@spel-test-healer) opens the browser **interactively** to investigate failures visually.
 
 <heal>Run all E2E tests and fix the failing ones one after another.</heal>
+
+## Notes
+
+- Test style varies by `--flavour` flag: `lazytest` (default) or `clojure-test`
+- Use `spel snapshot -S --json` alongside functional tests to capture visual state for regression detection
+- GATE concept: Each step requires human review before proceeding to the next (spec review, selector verification, failure investigation)
