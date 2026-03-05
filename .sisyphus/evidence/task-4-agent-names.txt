@@ -1,0 +1,18 @@
+133:                     "spel-test-planner"]
+138:                     "spel-test-generator"]
+143:                      "spel-test-healer"]
+148:                      "spel-explorer"]
+153:                      "spel-automator"]
+158:                      "spel-interactive"]
+163:                      "spel-presenter"]
+168:                      "spel-visual-qa"]
+298:(def ^:private agent-ref-names
+300:  ["spel-test-planner"
+301:   "spel-test-generator"
+302:   "spel-test-healer"
+303:   "spel-explorer"
+304:   "spel-automator"
+305:   "spel-interactive"
+306:   "spel-presenter"
+307:   "spel-visual-qa"])
+317:      agent-ref-names)))

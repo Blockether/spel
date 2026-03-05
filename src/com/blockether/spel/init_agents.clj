@@ -61,27 +61,33 @@
   "Supported test framework flavours."
   #{"lazytest" "clojure-test"})
 
-(def ^:private ref-files
-  "Reference documentation files included with the skill.
-   Each entry is a filename under skills/spel/refs/ in the template resources."
-  ["ALLURE_REPORTING.md"
-   "API_TESTING.md"
-   "ASSERTIONS_EVENTS.md"
-   "BROWSER_OPTIONS.md"
-   "CI_WORKFLOWS.md"
-   "CODEGEN_CLI.md"
-   "COMMON_PROBLEMS.md"
-   "CONSTANTS.md"
-   "EVAL_GUIDE.md"
-   "FRAMES_INPUT.md"
-   "FULL_API.md"
-   "NAVIGATION_WAIT.md"
-   "NETWORK_ROUTING.md"
-   "PAGE_LOCATORS.md"
-   "PDF_STITCH_VIDEO.md"
-   "PROFILES_AGENTS.md"
-   "SELECTORS_SNAPSHOTS.md"
-   "SNAPSHOT_TESTING.md"])
+(def ^:private subagent-ref-map
+  "Maps subagent group keywords to their relevant ref file names.
+   :core refs are ALWAYS included regardless of agent selection."
+  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"]
+   :test ["TESTING_CONVENTIONS.md" "ASSERTIONS_EVENTS.md" "API_TESTING.md"
+          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
+   :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
+              "NAVIGATION_WAIT.md"]
+   :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
+               "CODEGEN_CLI.md"]
+   :interactive ["PROFILES_AGENTS.md" "BROWSER_OPTIONS.md" "EVAL_GUIDE.md"]
+   :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
+               "SLIDE_PATTERNS.md"]
+   :visual-qa ["SELECTORS_SNAPSHOTS.md" "SNAPSHOT_TESTING.md"
+               "ASSERTIONS_EVENTS.md"]})
+
+(def ^:private subagent-groups
+  "Maps --only group keywords to sets of subagent keywords.
+   Used to resolve which agents and refs to scaffold."
+  {:test #{:test}
+   :explorer #{:explorer}
+   :automator #{:automator}
+   :interactive #{:interactive}
+   :presenter #{:presenter}
+   :visual-qa #{:visual-qa}
+   :automation #{:explorer :automator :interactive}
+   :visual #{:presenter :visual-qa}})
 
 (defn- files-to-create
   "Returns file specs based on loop target, flavour, and whether tests are included.
@@ -95,6 +101,14 @@
                              "agents/spel-test-generator-ct.md"
                              "agents/spel-test-generator.md")
         testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
+        selected-subagent-keys (reduce into #{} (vals subagent-groups))
+        ordered-subagent-keys (filter #(and (not= :core %)
+                                            (contains? selected-subagent-keys %))
+                                   (keys subagent-ref-map))
+        selected-ref-files (->> (concat (:core subagent-ref-map)
+                                     (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
+                             distinct
+                             vec)
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
                             "API reference skill"
@@ -111,7 +125,7 @@
                                (str "ref: " (str/replace filename ".md" ""))
                                "+"
                                nil])
-                        ref-files))
+                         selected-ref-files))
         test-files [["agents/spel-test-planner.md"
                      (str agent-dir "/spel-test-planner" agent-ext)
                      "test planner agent"
@@ -122,16 +136,51 @@
                      "test generator agent"
                      "+"
                      "spel-test-generator"]
-                    ["agents/spel-test-healer.md"
-                     (str agent-dir "/spel-test-healer" agent-ext)
-                     "test healer agent"
-                     "+"
-                     "spel-test-healer"]
-                    ["prompts/spel-test-workflow.md"
-                     (str prompt-dir "/spel-test-workflow.md")
-                     "coverage workflow"
-                     "+"
-                     nil]]]
+                     ["agents/spel-test-healer.md"
+                      (str agent-dir "/spel-test-healer" agent-ext)
+                      "test healer agent"
+                      "+"
+                      "spel-test-healer"]
+                     ["agents/spel-explorer.md"
+                      (str agent-dir "/spel-explorer" agent-ext)
+                      "explorer agent"
+                      "+"
+                      "spel-explorer"]
+                     ["agents/spel-automator.md"
+                      (str agent-dir "/spel-automator" agent-ext)
+                      "automator agent"
+                      "+"
+                      "spel-automator"]
+                     ["agents/spel-interactive.md"
+                      (str agent-dir "/spel-interactive" agent-ext)
+                      "interactive agent"
+                      "+"
+                      "spel-interactive"]
+                     ["agents/spel-presenter.md"
+                      (str agent-dir "/spel-presenter" agent-ext)
+                      "presenter agent"
+                      "+"
+                      "spel-presenter"]
+                     ["agents/spel-visual-qa.md"
+                      (str agent-dir "/spel-visual-qa" agent-ext)
+                      "visual qa agent"
+                      "+"
+                      "spel-visual-qa"]
+                     ["prompts/spel-test-workflow.md"
+                      (str prompt-dir "/spel-test-workflow.md")
+                      "coverage workflow"
+                      "+"
+                      nil]
+                     ["prompts/spel-visual-workflow.md"
+                      (str prompt-dir "/spel-visual-workflow.md")
+                      "visual workflow"
+                      "+"
+                      nil]
+                     ["prompts/spel-automation-workflow.md"
+                      (str prompt-dir "/spel-automation-workflow.md")
+                      "automation workflow"
+                      "+"
+                      nil]]]
     (if no-tests
       skill-files
       (into test-files skill-files))))
@@ -248,7 +297,14 @@
 
 (def ^:private agent-ref-names
   "Agent names that may be referenced in templates via @name syntax."
-  ["spel-test-planner" "spel-test-generator" "spel-test-healer"])
+  ["spel-test-planner"
+   "spel-test-generator"
+   "spel-test-healer"
+   "spel-explorer"
+   "spel-automator"
+   "spel-interactive"
+   "spel-presenter"
+   "spel-visual-qa"])
 
 (defn- transform-agent-references
   "Replaces @agent-name references in template content with the
