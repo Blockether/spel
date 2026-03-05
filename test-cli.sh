@@ -1270,16 +1270,16 @@ nav "https://example.com"
 # --- Style tiers: verify property counts per tier ---
 
 OUT=$("$SPEL" --json snapshot -S --minimal 2>&1)
-assert_jq "snapshot -S --minimal → 12 style props" "$OUT" \
-  '.refs | to_entries[0].value.styles | keys | length == 12'
+assert_jq "snapshot -S --minimal → 16 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 16'
 
 OUT=$("$SPEL" --json snapshot -S 2>&1)
-assert_jq "snapshot -S (base) → 24 style props" "$OUT" \
-  '.refs | to_entries[0].value.styles | keys | length == 24'
+assert_jq "snapshot -S (base) → 31 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 31'
 
 OUT=$("$SPEL" --json snapshot -S --max 2>&1)
-assert_jq "snapshot -S --max → 36 style props" "$OUT" \
-  '.refs | to_entries[0].value.styles | keys | length == 36'
+assert_jq "snapshot -S --max → 44 style props" "$OUT" \
+  '.refs | to_entries[0].value.styles | keys | length == 44'
 
 # --- Style keys are kebab-case CSS ---
 
@@ -1353,6 +1353,27 @@ assert_contains "--eval args first call → includes first" "$OUT" 'first'
 
 OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' 2>&1)
 assert_contains "--eval args do not persist across calls" "$OUT" 'nil'
+
+section "Snapshot Position Props (39)"
+
+nav "https://example.com"
+
+OUT=$("$SPEL" --json eval 'document.body.innerHTML = `<div id="pos" style="position:absolute;top:10px;left:20px;right:30px;bottom:40px">test</div>`' 2>&1)
+assert_jq "positioned element setup via eval → no error" "$OUT" 'has("error") | not'
+
+OUT=$("$SPEL" --json snapshot -S --minimal 2>&1)
+assert_jq "snapshot -S --minimal positioned element → has top key" "$OUT" \
+  '[.refs | to_entries[] | select((.value.styles // {}) | has("top"))] | length > 0'
+assert_jq "snapshot -S --minimal positioned element → has left key" "$OUT" \
+  '[.refs | to_entries[] | select((.value.styles // {}) | has("left"))] | length > 0'
+assert_jq "snapshot -S --minimal positioned element → has right key" "$OUT" \
+  '[.refs | to_entries[] | select((.value.styles // {}) | has("right"))] | length > 0'
+assert_jq "snapshot -S --minimal positioned element → has bottom key" "$OUT" \
+  '[.refs | to_entries[] | select((.value.styles // {}) | has("bottom"))] | length > 0'
+
+OUT=$("$SPEL" --json snapshot -S 2>&1)
+assert_jq "snapshot -S (base) positioned element → has top key" "$OUT" \
+  '[.refs | to_entries[] | select((.value.styles // {}) | has("top"))] | length > 0'
 
 # SUMMARY
 # =============================================================================

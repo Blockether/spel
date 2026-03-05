@@ -157,12 +157,12 @@ _test_full() {
     return 1
   fi
 
-  # Sanity: CLI bash should run ~179 assertions
+  # Sanity: CLI bash should run ~270 assertions
   local cli_count
   cli_count=$(echo "$output" | grep -oP 'Total: \K\d+' | tail -1 || true)
-  if [ -n "$cli_count" ] && [ "$cli_count" -lt 150 ]; then
+  if [ -n "$cli_count" ] && [ "$cli_count" -lt 200 ]; then
     echo ""
-    echo "WARNING: Only $cli_count CLI assertions (expected ~179). Possible subset run."
+    echo "WARNING: Only $cli_count CLI assertions (expected ~270). Possible subset run."
     return 1
   fi
 }
