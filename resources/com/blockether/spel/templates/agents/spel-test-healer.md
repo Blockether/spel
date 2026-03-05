@@ -18,6 +18,22 @@ E2E tests using spel (`defdescribe`, `it`, `expect` from `spel.allure`).
 
 **REQUIRED**: You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first.
 
+## Priority Refs
+
+When this agent is invoked, ensure these refs are loaded:
+- `TESTING_CONVENTIONS.md` — test structure to understand what's being healed
+- `ASSERTIONS_EVENTS.md` — correct assertion patterns to fix broken assertions
+- `COMMON_PROBLEMS.md` — known issues and their solutions
+
+## Allure Trace Analysis
+
+When a test fails, use Allure traces to diagnose:
+1. Open the Allure report: `spel open allure-report/index.html`
+2. Find the failing test → click "Trace" attachment
+3. The trace shows: network requests, page state at failure, screenshots
+4. Look for: selector mismatches, timing issues, unexpected page state
+5. Cross-reference with `COMMON_PROBLEMS.md` for known patterns
+
 ## Your Workflow
 
 1. **Run Tests**: Execute the test suite to identify failures

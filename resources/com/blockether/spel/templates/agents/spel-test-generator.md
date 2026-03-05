@@ -18,6 +18,30 @@ com.blockether.spel and `spel.allure` (`defdescribe`, `it`, `expect`).
 
 **REQUIRED**: You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first.
 
+## Priority Refs
+
+When this agent is invoked, ensure these refs are loaded:
+- `TESTING_CONVENTIONS.md` — test structure, naming, `defdescribe`/`describe`/`it`/`expect`
+- `ASSERTIONS_EVENTS.md` — assertion patterns, event handling
+- `ALLURE_REPORTING.md` — steps, attachments, Allure annotations
+- `API_TESTING.md` — `with-testing-api`, `api-get`, `api-post` patterns
+
+## API vs Browser Testing Decision
+
+- Use `with-testing-page` for UI tests (browser interactions, visual assertions)
+- Use `with-testing-api` for pure API tests (no browser needed)
+- Use `page-api` or `with-page-api` to combine UI + API in ONE trace (do NOT nest `with-testing-page` inside `with-testing-api`)
+
+## Running Individual Tests
+
+```bash
+# Run single test (lazytest)
+clojure -M:test -v com.example.my-test/my-test-name
+
+# Run with Allure report
+clojure -M:test -v com.example.my-test/my-test-name --output com.blockether.spel.allure-reporter/allure
+```
+
 ## For Each Test You Generate
 
 1. **Read `test-e2e/specs/README.md`** for spec conventions and to see which plans are available
