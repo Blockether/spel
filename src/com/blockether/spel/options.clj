@@ -1028,7 +1028,22 @@
     go))
 
 (defn ->drag-to-options
-  "Converts a map to Locator$DragToOptions."
+  "Converts a map to Locator$DragToOptions.
+   
+   Params:
+   `opts` - Map with optional keys:
+     :force           - Boolean. Bypass actionability checks.
+     :timeout         - Double. Maximum time in ms.
+     :trial           - Boolean. Perform actionability checks only.
+     :no-wait-after   - Boolean. Deprecated, has no effect.
+     :steps           - Long. Number of intermediate mousemove events (default 1).
+                        Higher values produce smoother drags. Critical for DnD Kit
+                        and other libraries that need intermediate pointer events.
+     :source-position - Map with :x :y. Position relative to source element.
+     :target-position - Map with :x :y. Position relative to target element.
+   
+   Returns:
+   Locator$DragToOptions instance."
   ^Locator$DragToOptions [opts]
   (let [^Locator$DragToOptions d (Locator$DragToOptions.)]
     (when (contains? opts :force)
@@ -1039,6 +1054,8 @@
       (.setTrial d (boolean (:trial opts))))
     (when (contains? opts :no-wait-after)
       (.setNoWaitAfter d (boolean (:no-wait-after opts))))
+    (when-let [v (:steps opts)]
+      (.setSteps d (int v)))
     (when-let [v (:source-position opts)]
       (.setSourcePosition d (double (:x v)) (double (:y v))))
     (when-let [v (:target-position opts)]

@@ -6,7 +6,7 @@
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
    [com.blockether.spel.allure :refer [defdescribe describe expect it before-each]])
   (:import
-   [com.microsoft.playwright Locator FrameLocator]))
+   [com.microsoft.playwright Locator FrameLocator Page]))
 
 ;; Test HTML content for locator tests
 (def ^:private test-html
@@ -26,7 +26,14 @@
          <a href='#link'>Link text</a>
        </div>
      </body>
-   </html>")
+    </html>")
+
+(def ^:private drag-test-html
+  "<html><body>
+     <div id='source' draggable='true' style='width:50px;height:50px;background:red;position:absolute;left:10px;top:10px'>Drag</div>
+     <div id='target' style='width:100px;height:100px;background:blue;position:absolute;left:300px;top:10px'>Drop</div>
+     <div id='hidden-el' style='display:none'>Hidden</div>
+   </body></html>")
 
 ;; =============================================================================
 ;; Locator Actions
@@ -83,6 +90,40 @@
       (let [input (page/locator *page* "#text-input")]
         (sut/clear input)
         (expect (= "" (sut/input-value input)))))))
+
+(defdescribe locator-drag-test
+  "Tests for locator drag methods (drag-to, drag-by)"
+
+  (describe "drag-to"
+    {:context [with-playwright with-browser with-page]}
+    (before-each
+      (page/set-content! *page* drag-test-html))
+
+    (it "drag-to basic (2-arg) returns nil"
+      (expect (nil? (sut/drag-to (page/locator *page* "#source")
+                      (page/locator *page* "#target")))))
+
+    (it "drag-to with opts {:steps 5} returns nil"
+      (expect (nil? (sut/drag-to (page/locator *page* "#source")
+                      (page/locator *page* "#target")
+                      {:steps 5})))))
+
+  (describe "drag-by"
+    {:context [with-playwright with-browser with-page]}
+    (before-each
+      (page/set-content! *page* drag-test-html))
+
+    (it "drag-by basic returns nil"
+      (expect (nil? (sut/drag-by ^Page *page* (page/locator *page* "#source") 200 0))))
+
+    (it "drag-by with {:steps 10} returns nil"
+      (expect (nil? (sut/drag-by ^Page *page* (page/locator *page* "#source") 200 0 {:steps 10}))))
+
+    (it "drag-by throws when bounding box cannot be resolved"
+      (let [threw? (try (sut/drag-by ^Page *page* (page/locator *page* "#hidden-el") 200 0)
+                        false
+                        (catch Exception _ true))]
+        (expect threw?)))))
 
 ;; =============================================================================
 ;; Locator Content

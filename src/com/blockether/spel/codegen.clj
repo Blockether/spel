@@ -25,7 +25,6 @@
 
    Any unrecognized action, unsupported signal, or unimplemented feature
    causes an IMMEDIATE hard error with details about what failed."
-  (:refer-clojure :exclude [format])
   (:require
    [charred.api :as json]
    [clojure.java.io :as io]

@@ -113,7 +113,7 @@
                 ;; Copy 2-byte offset
                 (= tag 2)
                 (let [length (long (inc (bit-shift-right (bit-and tag-byte 0xFC) 2)))
-                      offset (long (snappy-read-uint16-le in))
+                      offset (snappy-read-uint16-le in)
                       buf (.toByteArray out)
                       src-start (- (long (alength buf)) offset)]
                   (when (zero? offset)
@@ -124,7 +124,7 @@
                 ;; Copy 4-byte offset
                 (= tag 3)
                 (let [length (long (inc (bit-shift-right (bit-and tag-byte 0xFC) 2)))
-                      offset (long (snappy-read-uint32-le in))
+                      offset (snappy-read-uint32-le in)
                       buf (.toByteArray out)
                       src-start (- (long (alength buf)) offset)]
                   (when (zero? offset)
@@ -211,7 +211,7 @@
             in-record block-acc start-offset results)
 
           :else
-          (let [length (long (read-uint16-le file-data (+ pos 4)))
+          (let [length (read-uint16-le file-data (+ pos 4))
                 block-type (long (bit-and (long (aget file-data (int (+ pos 6)))) 0xFF))
                 data-start (long (+ pos (long LOG_HEADER_SIZE)))
                 data-end (long (+ data-start length))]
@@ -252,8 +252,8 @@
   "Parses batch data into individual key-value records."
   [^bytes batch ^long batch-offset ^String origin-file]
   (when (>= (alength batch) 12)
-    (let [seq-num (long (read-uint64-le batch 0))
-          count-val (long (read-uint32-le batch 8))]
+    (let [seq-num (read-uint64-le batch 0)
+          count-val (read-uint32-le batch 8)]
       (loop [i (long 0), pos (long 12), results (transient [])]
         (if (or (>= i count-val) (>= pos (long (alength batch))))
           (persistent! results)
@@ -350,7 +350,7 @@
    Returns vec of [key-bytes value-bytes entry-offset]."
   [^bytes block-data]
   (let [block-len (long (alength block-data))
-        restart-cnt (long (read-uint32-le block-data (- block-len 4)))
+        restart-cnt (read-uint32-le block-data (- block-len 4))
         restart-off (long (- block-len (* (inc restart-cnt) 4)))]
     (loop [pos (long 0), prev-key (byte-array 0), results (transient [])]
       (if (>= pos restart-off)

@@ -347,11 +347,37 @@
      ["drag - Drag an element to another element"
       ""
       "Usage:"
-      "  spel drag <source> <target>"
+      "  spel drag <source> <target> [flags]"
+      ""
+      "Flags:"
+      "  --steps N          Intermediate mousemove events (default 1)."
+      "                     Higher values produce smoother drags."
+      "  --force            Bypass actionability checks."
+      "  --timeout N        Maximum time in ms."
       ""
       "Examples:"
       "  spel drag @ref @ref2"
-      "  spel drag \"#item\" \"#dropzone\""])
+      "  spel drag \"#item\" \"#dropzone\""
+      "  spel drag @ref @ref2 --steps 10"
+      "  spel drag @ref @ref2 --force"])
+
+   "drag-by"
+   (str/join \newline
+     ["drag-by - Drag an element by pixel offset"
+      ""
+      "Drags from the element's center by (dx, dy) pixels using a mouse"
+      "event sequence: move -> mousedown -> mousemove(+dx,+dy) -> mouseup."
+      ""
+      "Usage:"
+      "  spel drag-by <selector> <dx> <dy> [flags]"
+      ""
+      "Flags:"
+      "  --steps N          Intermediate mousemove events (default 1)."
+      "                     Higher values produce smoother drags."
+      ""
+      "Examples:"
+      "  spel drag-by @ref 200 0"
+      "  spel drag-by \"#card\" -100 50 --steps 10"])
 
    "upload"
    (str/join \newline
@@ -1163,6 +1189,7 @@
      "  scroll                  Scroll page"
      "  scrollintoview          Scroll element into view"
      "  drag                    Drag and drop"
+     "  drag-by                 Drag by pixel offset"
      "  upload                  Upload files"
      "  download                 Download file (click + save)"
      ""
@@ -1619,7 +1646,7 @@
                              in-idx    (let [v    (vec cmd-args)
                                              idx1 (long (.indexOf ^java.util.List v "--in"))]
                                          (when (>= idx1 0)
-                                           (nth cmd-args (inc (long idx1)) nil)))
+                                           (nth cmd-args (inc idx1) nil)))
                              ;; Positional args: direction [amount] [@selector]
                              pos-args  (remove #(or (str/starts-with? % "-")
                                                   (= % (str in-idx))) cmd-args)
@@ -1654,9 +1681,37 @@
             {:action "scrollintoview" :selector (first cmd-args)}
 
           ;; Drag & Upload
-            "drag"     {:action "drag"
-                        :source (first cmd-args)
-                        :target (second cmd-args)}
+            "drag"     (let [positional (remove #(str/starts-with? % "-") cmd-args)
+                             v          (vec cmd-args)]
+                         (cond-> {:action "drag"
+                                  :source (first positional)
+                                  :target (second positional)}
+                           (some #{"--force"} cmd-args)
+                           (assoc :force true)
+                           (some #{"--steps"} cmd-args)
+                           (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
+                                           (when (>= idx 0)
+                                             (try (Integer/parseInt (nth cmd-args (inc idx)))
+                                                  (catch Exception _ nil)))))
+                           (some #{"--timeout"} cmd-args)
+                           (assoc :timeout (let [idx (long (.indexOf ^java.util.List v "--timeout"))]
+                                             (when (>= idx 0)
+                                               (try (Double/parseDouble (nth cmd-args (inc idx)))
+                                                    (catch Exception _ nil)))))))
+
+            "drag-by"  (let [positional (remove #(str/starts-with? % "-") cmd-args)
+                             v          (vec cmd-args)]
+                         (cond-> {:action    "drag-by"
+                                  :selector  (first positional)
+                                  :dx        (try (Double/parseDouble (second positional))
+                                                  (catch Exception _ 0))
+                                  :dy        (try (Double/parseDouble (nth positional 2))
+                                                  (catch Exception _ 0))}
+                           (some #{"--steps"} cmd-args)
+                           (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
+                                           (when (>= idx 0)
+                                             (try (Integer/parseInt (nth cmd-args (inc idx)))
+                                                  (catch Exception _ nil)))))))
 
             "upload"   {:action "upload"
                         :selector (first cmd-args)

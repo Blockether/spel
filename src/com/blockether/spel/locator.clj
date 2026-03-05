@@ -5,10 +5,11 @@
    They auto-wait and auto-retry, making them the preferred API."
   (:require
    [com.blockether.spel.core :refer [safe]]
+   [com.blockether.spel.input :as input]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Locator ElementHandle JSHandle FrameLocator
-    Locator$FilterOptions]
+    Locator$FilterOptions Page]
    [com.microsoft.playwright.options AriaRole]))
 
 ;; =============================================================================
@@ -276,11 +277,20 @@
    Params:
    `loc`    - Locator instance (source).
    `target` - Locator instance (target).
+   `opts`   - Map, optional. Drag options:
+              :force           - Boolean. Bypass actionability checks.
+              :timeout         - Double. Maximum time in ms.
+              :trial           - Boolean. Perform actionability checks only.
+              :steps           - Long. Intermediate mousemove events (default 1).
+              :source-position - Map {:x :y}. Offset within source element.
+              :target-position - Map {:x :y}. Offset within target element.
    
    Returns:
    nil or anomaly map."
-  [^Locator loc ^Locator target]
-  (safe (.dragTo loc target)))
+  ([^Locator loc ^Locator target]
+   (safe (.dragTo loc target)))
+  ([^Locator loc ^Locator target drag-opts]
+   (safe (.dragTo loc target (opts/->drag-to-options drag-opts)))))
 
 ;; =============================================================================
 ;; Locator State
@@ -422,6 +432,38 @@
      :y      (.-y bb)
      :width  (.-width bb)
      :height (.-height bb)}))
+
+(defn drag-by
+  "Drags an element by a pixel offset using mouse events.
+
+   Resolves the locator's bounding box center, then performs a mouse
+   drag sequence: move → mousedown → mousemove(+dx,+dy) → mouseup.
+   
+   Params:
+   `page` - Page instance (needed for mouse access).
+   `loc`  - Locator instance (element to drag).
+   `dx`   - Number. Horizontal pixel offset.
+   `dy`   - Number. Vertical pixel offset.
+   `opts` - Map, optional. {:steps n} — intermediate mousemove events
+            (default 1). Higher values produce smoother drags, which is
+            critical for libraries like DnD Kit that need intermediate
+            pointer events to register drag intent.
+   
+   Returns:
+   nil or anomaly map.
+   
+   Throws:
+   ex-info if the locator's bounding box cannot be resolved."
+  ([^Page page ^Locator loc dx dy]
+   (drag-by page loc dx dy nil))
+  ([^Page page ^Locator loc dx dy opts]
+   (let [bb (bounding-box loc)]
+     (when-not bb
+       (throw (ex-info "Cannot resolve bounding box for drag-by"
+                {:selector (str loc) :dx dx :dy dy})))
+     (let [cx (+ (:x bb) (/ (:width bb) 2.0))
+           cy (+ (:y bb) (/ (:height bb) 2.0))]
+       (input/mouse-drag (.mouse page) cx cy dx dy opts)))))
 
 (defn count-elements
   "Returns the number of elements matching the locator.

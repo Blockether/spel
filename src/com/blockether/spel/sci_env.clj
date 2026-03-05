@@ -338,7 +338,22 @@
        (locator/scroll (sci-$ sel) direction opts)
        (page/scroll (require-page!) direction opts)))))
 (defn sci-dispatch-event   [sel type] (throw-if-anomaly (locator/dispatch-event (sci-$ sel) type)))
-(defn sci-drag-to          [sel target-sel] (throw-if-anomaly (locator/drag-to (sci-$ sel) (sci-$ target-sel))))
+(defn sci-drag-to
+  "Drags an element to another element.
+   Resolves both selectors to locators via the current page."
+  ([sel target-sel]
+   (throw-if-anomaly (locator/drag-to (sci-$ sel) (sci-$ target-sel))))
+  ([sel target-sel opts]
+   (throw-if-anomaly (locator/drag-to (sci-$ sel) (sci-$ target-sel) opts))))
+
+(defn sci-drag-by
+  "Drags an element by pixel offset using mouse events.
+   Resolves selector to locator, gets bounding box center, then
+   performs: move → mousedown → mousemove(+dx,+dy) → mouseup."
+  ([sel dx dy]
+   (throw-if-anomaly (locator/drag-by (require-page!) (sci-$ sel) dx dy)))
+  ([sel dx dy opts]
+   (throw-if-anomaly (locator/drag-by (require-page!) (sci-$ sel) dx dy opts))))
 (defn sci-highlight        [sel] (locator/highlight (sci-$ sel)))
 (defn sci-locator-screenshot
   ([sel]      (throw-if-anomaly (locator/locator-screenshot (sci-$ sel))))
@@ -1207,6 +1222,7 @@
                   ['scroll           sci-scroll]
                   ['dispatch-event   sci-dispatch-event]
                   ['drag-to          sci-drag-to]
+                  ['drag-by          sci-drag-by]
                   ['highlight        sci-highlight]
                   ['locator-screenshot sci-locator-screenshot]
                   ;; Content & State
@@ -1422,6 +1438,7 @@
                      ['mouse-down      input/mouse-down]
                      ['mouse-up        input/mouse-up]
                      ['mouse-wheel     input/mouse-wheel]
+                     ['mouse-drag      input/mouse-drag]
                      ['touchscreen-tap input/touchscreen-tap]])
 
         ;; =================================================================
@@ -1529,6 +1546,7 @@
                    ['scroll          locator/scroll]
                    ['dispatch-event locator/dispatch-event]
                    ['drag-to        locator/drag-to]
+                   ['drag-by        locator/drag-by]
                    ['text-content   locator/text-content]
                    ['inner-text     locator/inner-text]
                    ['inner-html     locator/inner-html]
@@ -1855,6 +1873,7 @@
                            ['scroll          locator/scroll]
                            ['dispatch-event locator/dispatch-event]
                            ['drag-to        locator/drag-to]
+                           ['drag-by        locator/drag-by]
                            ['text-content   locator/text-content]
                            ['inner-text     locator/inner-text]
                            ['inner-html     locator/inner-html]

@@ -141,6 +141,39 @@
   [^Mouse mouse]
   (safe (.up mouse)))
 
+(defn mouse-drag
+  "Drags from (x,y) to (x+dx, y+dy) using a mouse event sequence.
+
+   Performs: move to (x,y) → mousedown → move to (x+dx, y+dy) → mouseup.
+   
+   Params:
+   `mouse` - Mouse instance.
+   `x`     - Double. Starting X coordinate.
+   `y`     - Double. Starting Y coordinate.
+   `dx`    - Double. Horizontal pixel offset.
+   `dy`    - Double. Vertical pixel offset.
+   `opts`  - Map, optional. {:steps n} — number of intermediate
+             mousemove events for the drag motion (default 1).
+             Higher values produce smoother drags.
+   
+   Returns:
+   nil or anomaly map."
+  ([^Mouse mouse x y dx dy]
+   (mouse-drag mouse x y dx dy nil))
+  ([^Mouse mouse x y dx dy opts]
+   (let [x  (double x)
+         y  (double y)
+         tx (+ x (double dx))
+         ty (+ y (double dy))]
+     (safe
+       (do
+         (.move mouse x y)
+         (.down mouse)
+         (if-let [steps (:steps opts)]
+           (.move mouse tx ty (opts/->mouse-move-options {:steps steps}))
+           (.move mouse tx ty))
+         (.up mouse))))))
+
 (defn mouse-wheel
   "Dispatches a wheel event.
    

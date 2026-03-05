@@ -1286,6 +1286,26 @@ assert_jq_contains "snapshot after device → tree has device" "$OUT" '.snapshot
 OUT=$("$SPEL" --help 2>&1)
 assert_contains "help → mentions --browser" "$OUT" "--browser"
 
+section "Drag and Drop (37)"
+
+OUT=$("$SPEL" drag --help 2>&1)
+assert_contains "drag --help → usage" "$OUT" "drag"
+
+OUT=$("$SPEL" drag-by --help 2>&1)
+assert_contains "drag-by --help → usage" "$OUT" "drag-by"
+
+OUT=$("$SPEL" --json drag "@$REF1" "@$REF2" 2>&1)
+assert_jq "drag @ref → success" "$OUT" 'has("error") | not'
+
+OUT=$("$SPEL" --json drag "@$REF1" "@$REF2" --steps 5 2>&1)
+assert_jq "drag --steps → success" "$OUT" 'has("error") | not'
+
+OUT=$("$SPEL" --json drag-by "@$REF1" 100 0 2>&1)
+assert_jq "drag-by @ref → success" "$OUT" 'has("error") | not'
+
+OUT=$("$SPEL" --json drag-by "@$REF1" 50 50 --steps 10 2>&1)
+assert_jq "drag-by --steps → success" "$OUT" 'has("error") | not'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

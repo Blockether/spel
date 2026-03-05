@@ -507,6 +507,30 @@
       (let [r (cmd "scrollintoview" {"selector" "#scroll-anchor"})]
         (expect (= "#scroll-anchor" (:scrolled_into_view r)))))))
 
+(defdescribe drag-integration-test
+  "Integration tests for drag and drag-by"
+
+  (describe "drag element to element"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+    (it "drags source to target"
+      (nav! "/test-page")
+      (let [r (cmd "drag" {"source" "button" "target" "input"})]
+        (expect (map? (:dragged r)))
+        (expect (contains? r :snapshot))))
+    (it "drag with steps option"
+      (nav! "/test-page")
+      (let [r (cmd "drag" {"source" "button" "target" "input" "steps" 5})]
+        (expect (map? (:dragged r)))))
+    (it "drag-by with pixel offset"
+      (nav! "/test-page")
+      (let [r (cmd "drag-by" {"selector" "button" "dx" 100 "dy" 0})]
+        (expect (map? (:dragged_by r)))
+        (expect (contains? r :snapshot))))
+    (it "drag-by with steps"
+      (nav! "/test-page")
+      (let [r (cmd "drag-by" {"selector" "button" "dx" 50 "dy" 50 "steps" 10})]
+        (expect (map? (:dragged_by r)))))))
+
 ;; =============================================================================
 ;; 15. KeyDown / KeyUp
 ;; =============================================================================
@@ -1829,6 +1853,16 @@
       (let [_ (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
             r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
         (expect (str/includes? (:result r) "/test-page"))))
+
+    (it "spel/drag-to drags element"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(spel/drag-to \"button\" \"input\")"})]
+        (expect (= "nil" (:result r)))))
+
+    (it "spel/drag-by drags by offset"
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [r (cmd "sci_eval" {"code" "(spel/drag-by \"button\" 100 0)"})]
+        (expect (= "nil" (:result r)))))
 
     ;; --- File I/O in SCI ---
 

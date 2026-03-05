@@ -1160,11 +1160,30 @@
   (let [tree (snapshot-after-action!)]
     {:scrolled_into_view selector :snapshot tree}))
 
-(defmethod handle-cmd "drag" [_ {:strs [source target]}]
+(defmethod handle-cmd "drag" [_ {:strs [source target force steps timeout
+                                        source-position target-position]}]
   (ensure-page-loaded!)
-  (locator/drag-to (resolve-selector source) (resolve-selector target))
-  (let [tree (snapshot-after-action!)]
-    {:dragged {:from source :to target} :snapshot tree}))
+  (let [src-loc    (resolve-selector source)
+        tgt-loc    (resolve-selector target)
+        opts       (cond-> {}
+                     (some? force)           (assoc :force (boolean force))
+                     (some? steps)           (assoc :steps (long steps))
+                     (some? timeout)         (assoc :timeout (double timeout))
+                     (some? source-position) (assoc :source-position source-position)
+                     (some? target-position) (assoc :target-position target-position))]
+    (if (seq opts)
+      (unwrap-anomaly! (locator/drag-to src-loc tgt-loc opts))
+      (unwrap-anomaly! (locator/drag-to src-loc tgt-loc)))
+    (let [tree (snapshot-after-action!)]
+      {:dragged {:from source :to target} :snapshot tree})))
+
+(defmethod handle-cmd "drag-by" [_ {:strs [selector dx dy steps]}]
+  (ensure-page-loaded!)
+  (let [loc  (resolve-selector selector)
+        opts (when steps {:steps (long steps)})]
+    (unwrap-anomaly! (locator/drag-by (pg) loc dx dy opts))
+    (let [tree (snapshot-after-action!)]
+      {:dragged_by {:selector selector :dx dx :dy dy} :snapshot tree})))
 
 (defmethod handle-cmd "upload" [_ {:strs [selector files]}]
   (ensure-page-loaded!)
