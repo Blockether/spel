@@ -128,7 +128,10 @@
       "  -F, --flat           Flat output (no nesting, all elements at same level)"
       "  -d, --depth N        Limit tree depth to N levels"
       "  -s, --selector SEL   Scope snapshot to CSS selector"
-      "  -a, --all            Include all iframes in snapshot"])
+      "  -a, --all            Include all iframes in snapshot"
+      "  -S, --styles         Include computed CSS styles per element"
+      "      --minimal        Styles: 12 core properties (with -S)"
+      "      --max            Styles: 36 properties (with -S, default: 24)"])
 
    "click"
    (str/join \newline
@@ -1306,6 +1309,8 @@
                        (assoc :stealth false)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
+                       (System/getenv "SPEL_BROWSER")
+                       (assoc :browser (System/getenv "SPEL_BROWSER"))
                        (System/getenv "SPEL_CHANNEL")
                        (assoc :channel (System/getenv "SPEL_CHANNEL"))
                        (System/getenv "SPEL_ARGS")
@@ -1351,6 +1356,12 @@
 
                 (str/starts-with? arg "--profile=")
                 (recur (rest args) (assoc flags :profile (subs arg 10)) remaining)
+
+                (= "--browser" arg)
+                (recur (drop 2 args) (assoc flags :browser (second args)) remaining)
+
+                (str/starts-with? arg "--browser=")
+                (recur (rest args) (assoc flags :browser (subs arg 10)) remaining)
 
                 (= "--channel" arg)
                 (recur (drop 2 args) (assoc flags :channel (second args)) remaining)
@@ -1527,6 +1538,12 @@
                                                 (nth cmd-args (inc idx) nil))))
                            (or (snap-flags "-a") (snap-flags "--all"))
                            (assoc :all true)
+                           (or (snap-flags "-S") (snap-flags "--styles"))
+                           (assoc :styles true)
+                           (snap-flags "--minimal")
+                           (assoc :styles_detail "minimal")
+                           (snap-flags "--max")
+                           (assoc :styles_detail "max")
                            (snap-flags "--no-network")
                            (assoc :no_network true)
                            (snap-flags "--no-console")
@@ -2199,7 +2216,9 @@
                     (.get (.command info)))
         args      (cond-> ["daemon" "--session" session]
                     (not (:headless opts true))
-                    (conj "--headed"))
+                    (conj "--headed")
+                    (:browser opts)
+                    (into ["--browser" (:browser opts)]))
         pb        (if (and exec-path
                         (or (str/ends-with? exec-path "spel")
                           (str/ends-with? exec-path "spel.exe")))

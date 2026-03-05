@@ -514,10 +514,15 @@
                         (println (str "spel: [Mode 3] Standard launch"
                                    (when (get flags "cdp") (str " via CDP: " (get flags "cdp")))
                                    (when (get flags "channel") (str ", channel: " (get flags "channel"))))))
+              browser-type (get flags "browser" "chromium")
+              launch-fn   (case browser-type
+                            "firefox" core/launch-firefox
+                            "webkit"  core/launch-webkit
+                            core/launch-chromium)
               browser (if (get flags "cdp")
                         (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String (get flags "cdp"))
                         (check-anomaly!
-                          (core/launch-chromium pw launch-opts)
+                          (launch-fn pw launch-opts)
                           "Failed to launch browser"))
               context (check-anomaly!
                         (if (seq ctx-opts)
@@ -755,7 +760,8 @@
               (:type info)              (assoc :type (:type info))
               (some? (:checked info))   (assoc :checked (:checked info))
               (:level info)             (assoc :level (:level info))
-              (:value info)             (assoc :value (:value info)))]))
+              (:value info)             (assoc :value (:value info))
+              (:styles info)            (assoc :styles (:styles info)))]))
     refs))
 
 (defmethod handle-cmd "snapshot" [_ params]
@@ -763,17 +769,25 @@
   (ensure-page-loaded!)
   (let [sel            (get params "selector")
         all?           (get params "all")
+        styles?        (get params "styles")
+        styles-detail  (get params "styles_detail")
         no-network?    (get params "no_network")
         no-console?    (get params "no_console")
+        device         (:device @!state)
         snap           (if all?
                          (snapshot/capture-full-snapshot (pg))
                          (snapshot/capture-snapshot (pg) (cond-> {}
-                                                           sel (assoc :scope sel))))
+                                                           sel           (assoc :scope sel)
+                                                           styles?       (assoc :styles true)
+                                                           styles-detail (assoc :styles-detail styles-detail)
+                                                           device        (assoc :device device))))
         _              (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
         tree           (filter-snapshot-tree (:tree snap) params)
         structured     (build-structured-refs (:refs snap))]
     (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
              :refs structured :pages @!pages}
+      (:viewport snap)            (assoc :viewport (:viewport snap))
+      (:device snap)              (assoc :device (:device snap))
       (page-description)          (assoc :description (page-description))
       no-network?                 (dissoc :network)
       no-console?                 (dissoc :console)
@@ -1274,16 +1288,21 @@
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
   (let [preset (devices/resolve-device-by-name device)]
     (if preset
-      (let [current-url (try (page/url (pg)) (catch Exception _ nil))]
-        ;; Save in-flight trace before destroying context
+      (let [current-url  (try (page/url (pg)) (catch Exception _ nil))
+            browser-type (get-in @!state [:launch-flags "browser"] "chromium")
+            ctx-opts     (if (= "firefox" browser-type)
+                           (dissoc preset :is-mobile)
+                           preset)]
         (save-inflight-trace!)
-        ;; Close current page and context, recreate with device settings
         (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-        (let [new-ctx (core/new-context (:browser @!state) preset)
-              new-pg  (core/new-page-from-context new-ctx)]
-          (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-          ;; Re-register console, error, and request listeners on new page
+        (let [new-ctx (check-anomaly!
+                        (core/new-context (:browser @!state) ctx-opts)
+                        "Failed to create device context")
+              new-pg  (check-anomaly!
+                        (core/new-page-from-context new-ctx)
+                        "Failed to create page for device")]
+          (swap! !state assoc :context new-ctx :page new-pg :tracing? false :device device)
           (reset! !console-messages [])
           (page/on-console new-pg (fn [msg]
                                     (swap! !console-messages conj
@@ -1314,11 +1333,14 @@
     (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (let [new-ctx (core/new-context (:browser @!state)
-                    {:http-credentials {:username username :password password}})
-          new-pg  (core/new-page-from-context new-ctx)]
+    (let [new-ctx (check-anomaly!
+                    (core/new-context (:browser @!state)
+                      {:http-credentials {:username username :password password}})
+                    "Failed to create context with credentials")
+          new-pg  (check-anomaly!
+                    (core/new-page-from-context new-ctx)
+                    "Failed to create page with credentials")]
       (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-      ;; Re-register console, error, and request listeners on new page
       (reset! !console-messages [])
       (page/on-console new-pg (fn [msg]
                                 (swap! !console-messages conj
@@ -1679,7 +1701,8 @@
     (reset! sci-env/!pw (:pw st))
     (reset! sci-env/!browser (:browser st))
     (reset! sci-env/!context (:context st))
-    (reset! sci-env/!page (:page st))))
+    (reset! sci-env/!page (:page st))
+    (reset! sci-env/!device (:device st))))
 
 (defn- sync-sci-to-state!
   "After SCI eval, syncs SCI atoms back to daemon state in case user code
@@ -1954,14 +1977,18 @@
    Params:
    `opts` - Map:
      :session  - String (default \"default\")
-     :headless - Boolean (default true)"
+     :headless - Boolean (default true)
+     :browser  - String (optional, e.g. \"firefox\", \"webkit\")"
   [opts]
   (let [session  (get opts :session "default")
         headless (get opts :headless true)
+        browser  (get opts :browser)
         sock-path (socket-path session)
         pid-path  (pid-file-path session)]
-    ;; Store session config
+    ;; Store session config + initial launch flags (browser type from CLI args)
     (swap! !state assoc :headless headless :session session)
+    (when browser
+      (swap! !state assoc-in [:launch-flags "browser"] browser))
 
     ;; Clean up stale socket
     (cleanup! session)

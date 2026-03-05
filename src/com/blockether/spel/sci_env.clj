@@ -69,6 +69,7 @@
 (defonce !browser (atom nil))
 (defonce !context (atom nil))
 (defonce !page    (atom nil))
+(defonce !device  (atom nil))
 
 ;; When true, stop! is a no-op — the daemon owns the browser lifecycle.
 (defonce !daemon-mode? (atom false))
@@ -984,33 +985,41 @@
 ;; =============================================================================
 
 (defn- enrich-snapshot
-  "Adds :url, :title, :description to a snapshot map."
+  "Adds :url, :title, :description, :device to a snapshot map."
   [snap ^com.microsoft.playwright.Page pg]
   (let [desc (try
                (let [d (page/evaluate pg
                          "document.querySelector('meta[name=description]')?.content || ''")]
                  (when-not (str/blank? d) d))
-               (catch Exception _ nil))]
+               (catch Exception _ nil))
+        dev  @!device]
     (cond-> (assoc snap :url (page/url pg) :title (page/title pg))
-      desc (assoc :description desc))))
+      desc (assoc :description desc)
+      dev  (assoc :device dev))))
 (defn sci-snapshot
   ([]
-   (let [pg (require-page!)]
-     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg)) pg)))
+   (let [pg        (require-page!)
+         dev       @!device
+         snap-opts (cond-> {} dev (assoc :device dev))]
+     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)))
   ([page-or-opts]
    (if (map? page-or-opts)
-     (let [pg       (require-page!)
-           flat?    (:flat page-or-opts)
-           snap-opts (dissoc page-or-opts :flat)
-           snap     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)]
+     (let [pg        (require-page!)
+           dev       @!device
+           flat?     (:flat page-or-opts)
+           snap-opts (cond-> (dissoc page-or-opts :flat)
+                       (and dev (not (:device page-or-opts))) (assoc :device dev))
+           snap      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)]
        (if flat?
          (update snap :tree snapshot/flatten-tree)
          snap))
      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page-or-opts)) page-or-opts)))
   ([page opts]
-   (let [flat?    (:flat opts)
-         snap-opts (dissoc opts :flat)
-         snap     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page snap-opts)) page)]
+   (let [dev       @!device
+         flat?     (:flat opts)
+         snap-opts (cond-> (dissoc opts :flat)
+                     (and dev (not (:device opts))) (assoc :device dev))
+         snap      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page snap-opts)) page)]
      (if flat?
        (update snap :tree snapshot/flatten-tree)
        snap))))

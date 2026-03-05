@@ -79,6 +79,9 @@
   (println "  snapshot -i               Interactive elements only")
   (println "  snapshot -i -c -d 5       Compact, depth-limited")
   (println "  snapshot -i -C            Interactive + cursor elements")
+  (println "  snapshot -S               Include computed CSS styles")
+  (println "  snapshot -S --minimal     Styles: 12 essential properties")
+  (println "  snapshot -S --max         Styles: all 36 tracked properties")
   (println "  snapshot -s \"#main\"       Scoped to selector")
   (println "  screenshot [path]         Take screenshot (-f full page)")
   (println "  stitch <imgs...>          Stitch screenshots vertically (-o, --overlap)")
@@ -205,6 +208,7 @@
   (println "  --json                    JSON output (for agents)")
   (println "  --load-state <path>       Load state (cookies/localStorage JSON, alias: --storage-state)")
   (println "  --profile <path>          Chrome user data directory (persistent profile)")
+  (println "  --browser <engine>        Browser engine: chromium, firefox, webkit")
   (println "  --channel <name>          Browser channel (e.g. \"chrome\", \"msedge\")")
   (println "  --executable-path <path>  Custom browser executable")
   (println "  --user-agent <ua>         Custom user agent string")
@@ -371,9 +375,10 @@
   "Parses daemon-specific arguments from argv.
 
    Supports:
-     --session <name>  Session name (default \"default\")
-     --headed          Run browser in headed mode (internal, set by --interactive)
-     --headless        Run browser headless (default)"
+     --session <name>   Session name (default \"default\")
+     --headed           Run browser in headed mode (internal, set by --interactive)
+     --headless         Run browser headless (default)
+     --browser <type>   Browser engine: chromium, firefox, webkit (default: chromium)"
   [args]
   (loop [remaining args
          opts {:session "default" :headless true}]
@@ -393,6 +398,12 @@
           (= "--headless" arg)
           (recur (rest remaining) (assoc opts :headless true))
 
+          (= "--browser" arg)
+          (recur (drop 2 remaining) (assoc opts :browser (second remaining)))
+
+          (str/starts-with? arg "--browser=")
+          (recur (rest remaining) (assoc opts :browser (subs arg 10)))
+
           :else
           (recur (rest remaining) opts))))))
 
@@ -403,13 +414,13 @@
 (defn- parse-global-flags
   "Pre-parses global flags from args.
    Returns {:timeout-ms long?, :debug? bool, :json? bool, :autoclose? bool,
-            :interactive? bool, :session str?, :command-args vec}.
+            :interactive? bool, :session str?, :browser str?, :command-args vec}.
    :command-args has global flags stripped for dispatch (finding the command).
    Original args are preserved for modes that do their own parsing (CLI daemon)."
   [args]
   (loop [remaining args
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :browser (System/getenv "SPEL_BROWSER")}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -442,6 +453,18 @@
           ;; --interactive (headed browser for --eval mode)
           (= "--interactive" arg)
           (recur (rest remaining) cmd-args (assoc opts :interactive? true))
+
+          ;; --browser=<type>
+          (and (string? arg) (str/starts-with? arg "--browser="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :browser (subs arg 10)))
+
+          ;; --browser <type>
+          (= "--browser" arg)
+          (let [val (second remaining)]
+            (if val
+              (recur (drop 2 remaining) cmd-args (assoc opts :browser val))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
 
           ;; --session=<name>
           (and (string? arg) (str/starts-with? arg "--session="))
@@ -490,18 +513,27 @@
         ;; fast if something truly hangs — not block forever.
         action-timeout (or (:timeout-ms global) 30000)
         eval-timeout   (max 120000 (* 4 (long action-timeout)))
+        ;; Build _flags for daemon (same pattern as CLI mode in cli.clj).
+        ;; The daemon uses these to configure browser type, etc.
+        eval-flags   (cond-> {}
+                       (:browser global) (assoc "browser" (:browser global)))
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)
       ;; --interactive launches headed (visible) browser for eval mode
-      (cli/ensure-daemon! session {:headless (not (:interactive? global))})
+      ;; --browser passes browser type (chromium/firefox/webkit) to daemon
+      (cli/ensure-daemon! session (cond-> {:headless (not (:interactive? global))}
+                                    (:browser global) (assoc :browser (:browser global))))
       ;; Set timeout on daemon side if provided
       (when (:timeout-ms global)
         (sci-env/set-default-timeout! (:timeout-ms global)))
       ;; Load state if --load-state specified
       (when-let [state-path (:load-state global)]
         ;; Bootstrap browser first (sci_eval triggers ensure-browser!)
-        (cli/send-command! session {"action" "sci_eval" "code" "nil"} boot-timeout)
+        (cli/send-command! session
+          (cond-> {"action" "sci_eval" "code" "nil"}
+            (seq eval-flags) (assoc "_flags" eval-flags))
+          boot-timeout)
         ;; Load state into context (replaces context with saved cookies/storage)
         (let [resp (cli/send-command! session
                      {"action" "state_load" "path" state-path}
@@ -512,8 +544,10 @@
                          (or (get-in resp [:data :error]) (:error resp))))))))
       ;; Send eval command to daemon — no transport timeout.
       ;; Playwright action timeouts are the correct control mechanism.
+      ;; Include _flags so daemon knows browser type on first command.
       (let [response     (cli/send-command! session
-                           {"action" "sci_eval" "code" code}
+                           (cond-> {"action" "sci_eval" "code" code}
+                             (seq eval-flags) (assoc "_flags" eval-flags))
                            eval-timeout)
             stdout-str   (get-in response [:data :stdout])
             stderr-str   (get-in response [:data :stderr])
@@ -890,7 +924,8 @@
               :else
               (do (driver/ensure-driver!)
                   (stitch/stitch-vertical-overlap inputs output
-                    {:overlap-px (or overlap-px 0)})
+                    (cond-> {:overlap-px (or overlap-px 0)}
+                      (:browser global) (assoc :browser-type (:browser global))))
                   (println output))))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
@@ -908,11 +943,12 @@
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
           (let [opts (parse-daemon-args (rest cmd-args))
-                ;; parse-global-flags may have consumed --session before it reached
-                ;; cmd-args; prefer the global value so daemon gets the right session.
-                opts (if-let [s (:session global)]
-                       (assoc opts :session s)
-                       opts)]
+                ;; parse-global-flags may have consumed --session/--browser before
+                ;; they reached cmd-args; prefer global values for the daemon.
+                opts (cond-> opts
+                       (:session global) (assoc :session (:session global))
+                       (and (:browser global) (not (:browser opts)))
+                       (assoc :browser (:browser global)))]
             (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
