@@ -49,18 +49,28 @@
     (throw (ex-info (str "Failed to create Playwright: " (:anomaly/message pw))
              (select-keys pw [:anomaly/category :anomaly/message])))))
 
+(defn- resolve-launch-fn
+  "Returns the browser launch function based on browser type string.
+   Reads SPEL_BROWSER env var as fallback. Defaults to chromium."
+  [browser-type]
+  (case (or browser-type (System/getenv "SPEL_BROWSER") "chromium")
+    "firefox" core/launch-firefox
+    "webkit"  core/launch-webkit
+    core/launch-chromium))
+
 (defn stitch-vertical
   "Stitch multiple images vertically into one PNG using Playwright.
    Returns the output path."
   [paths ^String out-path]
   (when (empty? paths)
     (throw (IllegalArgumentException. "stitch-vertical requires at least one image path")))
-  (let [max-w (long (apply max (map png-width paths)))
-        b64s  (mapv file->base64 paths)
-        html  (build-html b64s {})]
+  (let [max-w    (long (apply max (map png-width paths)))
+        b64s     (mapv file->base64 paths)
+        html     (build-html b64s {})
+        launch-fn (resolve-launch-fn nil)]
     (core/with-playwright [pw]
       (ensure-playwright! pw)
-      (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+      (core/with-browser [browser (launch-fn pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
           (page/set-content! pg html)
@@ -71,15 +81,16 @@
 (defn stitch-vertical-overlap
   "Stitch images vertically, overlapping by `overlap-px` pixels.
    Uses negative margin to overlap subsequent images."
-  [paths out-path {:keys [overlap-px] :or {overlap-px 0}}]
+  [paths out-path {:keys [overlap-px browser-type] :or {overlap-px 0}}]
   (when (empty? paths)
     (throw (IllegalArgumentException. "stitch-vertical-overlap requires at least one image path")))
-  (let [max-w (long (apply max (map png-width paths)))
-        b64s  (mapv file->base64 paths)
-        html  (build-html b64s {:overlap-px (or overlap-px 0)})]
+  (let [max-w    (long (apply max (map png-width paths)))
+        b64s     (mapv file->base64 paths)
+        html     (build-html b64s {:overlap-px (or overlap-px 0)})
+        launch-fn (resolve-launch-fn browser-type)]
     (core/with-playwright [pw]
       (ensure-playwright! pw)
-      (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+      (core/with-browser [browser (launch-fn pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
           (page/set-content! pg html)
