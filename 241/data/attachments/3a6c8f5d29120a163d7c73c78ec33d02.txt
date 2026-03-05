@@ -1,4 +1,0 @@
-HTTP 200 OK
-content-length: 59
-content-type: application/json
-date: Tue, 24 Feb 2026 23:56:59 GMT

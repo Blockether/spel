@@ -1,5 +1,0 @@
-← 200 OK
-  http://localhost:39599/echo?user=alice&action=view&limit=50
-  Content-Type: application/json
-  Content-Length: 73 bytes
-  Body: {"method":"GET","path":"/echo","query":"user=alice&action=view&limit=50"}

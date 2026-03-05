@@ -1,8 +1,0 @@
-{
-  "method": "PUT",
-  "path": "/echo",
-  "body": {
-    "name": "Alice Updated",
-    "email": "alice2@example.com"
-  }
-}

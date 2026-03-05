@@ -1,7 +1,0 @@
-{
-  "method": "PATCH",
-  "path": "/echo",
-  "body": {
-    "email": "alice3@example.com"
-  }
-}

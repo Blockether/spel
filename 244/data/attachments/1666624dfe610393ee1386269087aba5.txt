@@ -1,4 +1,0 @@
-HTTP 200 OK
-content-length: 1488
-content-type: text/html; charset=UTF-8
-date: Wed, 25 Feb 2026 02:21:35 GMT

@@ -1,7 +1,0 @@
-Loading example.com...
-Page loaded successfully
-Page title: "Example Domain"
-Current URL: https://example.com/
-H1 text: "Example Domain"
-H1 visible? true
-Paragraph text: This domain is for use in documentation examples without nee ...

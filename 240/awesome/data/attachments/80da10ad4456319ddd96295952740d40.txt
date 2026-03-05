@@ -1,5 +1,0 @@
-← 200 OK
-  http://localhost:45397/echo
-  Content-Type: application/json
-  Content-Length: 509 bytes
-  Body: {"method":"POST","path":"/echo","body":{"order":{"id":"ORD-2024-001","created":"2024-06-15T10:30:00Z","customer":{"name"…

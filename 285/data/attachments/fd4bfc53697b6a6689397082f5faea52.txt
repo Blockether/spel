@@ -1,3 +1,0 @@
-After click URL: https://www.iana.org/help/example-domains
-After back URL: https://example.com/
-After forward URL: https://www.iana.org/help/example-domains

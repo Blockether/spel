@@ -1,2 +1,0 @@
-{:on-request  "Injects Authorization header"
- :on-response "Logs method + status"}

@@ -1,9 +1,0 @@
-{
-  "method": "PUT",
-  "path": "/echo",
-  "body": {
-    "name": "Updated Resource",
-    "version": 2,
-    "active": true
-  }
-}

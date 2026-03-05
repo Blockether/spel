@@ -1,9 +1,0 @@
-{
-  "method": "POST",
-  "path": "/echo",
-  "body": {
-    "name": "Bob",
-    "email": "bob@example.com",
-    "role": "admin"
-  }
-}

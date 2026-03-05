@@ -1,2 +1,0 @@
-Merged 1 files from 1 directories into /tmp/merge-clean-test14201937125505695229/merged/
-  1 test results

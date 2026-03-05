@@ -1,5 +1,0 @@
-{
-  "method": "GET",
-  "path": "/echo",
-  "query": "user=alice&role=admin&page=1&limit=25"
-}
