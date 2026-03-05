@@ -541,7 +541,7 @@
    alive between invocations. Use --autoclose to shut the daemon after eval.
    When --load-state is set, loads browser storage state (cookies/localStorage)
    from a JSON file before evaluating the code."
-  [code global]
+  [code eval-args global]
   (driver/ensure-driver!)
   (let [session   (or (:session global) "default")
         ;; Bootstrap timeout: 30s for single-action setup commands (state_load, nil eval).
@@ -586,8 +586,9 @@
       ;; Send eval command to daemon — no transport timeout.
       ;; Playwright action timeouts are the correct control mechanism.
       ;; Include _flags so daemon knows browser type on first command.
-      (let [response     (cli/send-command! session
+       (let [response     (cli/send-command! session
                            (cond-> {"action" "sci_eval" "code" code}
+                             (some? eval-args) (assoc "args" eval-args)
                              (seq eval-flags) (assoc "_flags" eval-flags))
                            eval-timeout)
             stdout-str   (get-in response [:data :stdout])
@@ -648,6 +649,20 @@
             (cli/send-command! session {"action" "close"} 5000)
             (catch Exception _)))
         (System/exit @exit-code)))))
+
+(defn- split-eval-tail-args
+  "Splits `--eval` trailing args into command args and script args.
+
+   Returns {:command-args [...], :script-args nil|[...]} where script-args
+   contains everything after `--` (if present)."
+  [args]
+  (let [argv (vec args)
+        sep-idx (.indexOf ^java.util.List argv "--")]
+    (if (neg? sep-idx)
+      {:command-args argv
+       :script-args nil}
+      {:command-args (subvec argv 0 sep-idx)
+       :script-args  (subvec argv (inc sep-idx))})))
 
 ;; =============================================================================
 ;; merge-reports helpers
@@ -985,23 +1000,25 @@
       ;;   spel --eval '(+ 1 2)'
       ;;   spel --eval script.clj
       (= "--eval" first-arg)
-      (let [code-or-file (second cmd-args)]
+      (let [{:keys [command-args script-args]} (split-eval-tail-args (rest cmd-args))
+            code-or-file (first command-args)]
         (if code-or-file
           (let [code (if (and (str/ends-with? code-or-file ".clj")
-                           (.exists (java.io.File. ^String code-or-file)))
+                            (.exists (java.io.File. ^String code-or-file)))
                        (slurp (java.io.File. ^String code-or-file))
                        code-or-file)]
-            (run-eval! code global))
+            (run-eval! code script-args global))
           (do (eprintln "Error: --eval requires a code argument or .clj file path")
               (System/exit 1))))
 
       (and (string? first-arg) (str/starts-with? first-arg "--eval="))
-      (let [code-or-file (subs first-arg 7)
+      (let [{:keys [script-args]} (split-eval-tail-args (rest cmd-args))
+            code-or-file (subs first-arg 7)
             code (if (and (str/ends-with? code-or-file ".clj")
-                       (.exists (java.io.File. ^String code-or-file)))
+                        (.exists (java.io.File. ^String code-or-file)))
                    (slurp (java.io.File. ^String code-or-file))
                    code-or-file)]
-        (run-eval! code global))
+        (run-eval! code script-args global))
 
       ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
       :else

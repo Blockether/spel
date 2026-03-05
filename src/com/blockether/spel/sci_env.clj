@@ -89,6 +89,10 @@
 ;; Set via --timeout flag in --eval mode. nil = Playwright default (30s).
 (defonce !default-timeout (atom nil))
 
+;; Bound per sci_eval call from daemon when --eval receives CLI args after `--`.
+(def sci-command-line-args-var
+  (sci/new-dynamic-var '*command-line-args* nil))
+
 (defn set-default-timeout!
   "Sets the default Playwright action timeout (ms) for new pages.
    Called from --eval mode when --timeout flag is provided."
@@ -2080,8 +2084,10 @@
                     'stitch                              stitch-map
                     'com.blockether.spel.stitch          stitch-map
                      ;; Google Search
-                    'search                              search-map
-                    'com.blockether.spel.search          search-map}
+                     'search                              search-map
+                     'com.blockether.spel.search          search-map
+                     ;; Dynamic vars exposed to eval scripts
+                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        :bindings   {'slurp     slurp
                     'spit      spit
                     'iteration iteration

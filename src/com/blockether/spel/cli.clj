@@ -2136,7 +2136,12 @@
   ([^String session command-map]
    (send-command! session command-map 30000))
   ([^String session command-map timeout-ms]
-   (let [sock-path (daemon/socket-path session)
+   (let [command-map (cond-> command-map
+                       (and (contains? command-map :args)
+                         (some? (:args command-map))
+                         (not (contains? command-map "args")))
+                       (assoc "args" (:args command-map)))
+         sock-path (daemon/socket-path session)
          addr      (UnixDomainSocketAddress/of (.toString sock-path))
          channel   (SocketChannel/open StandardProtocolFamily/UNIX)]
      (try

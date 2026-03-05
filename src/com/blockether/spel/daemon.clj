@@ -12,6 +12,7 @@
   (:require
    [charred.api :as json]
    [clojure.string :as str]
+   [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.chrome-cookies :as chrome-cookies]
@@ -1734,7 +1735,9 @@
 (defmethod handle-cmd "sci_eval" [_ params]
   (ensure-browser!)
   (sync-state-to-sci!)
-  (let [code (get params "code")]
+  (let [code (get params "code")
+        args-vec (when-let [args (get params "args")]
+                   (mapv str args))]
     (when-not code
       (throw (ex-info "sci_eval requires a 'code' parameter" {})))
     (let [ctx (or @!sci-ctx
@@ -1751,9 +1754,10 @@
       (try
         (let [result (binding [*out* stdout-writer
                                *err* stderr-writer]
-                       (let [r (sci-env/eval-string ctx code)]
-                         (sync-sci-to-state!)
-                         r))
+                        (sci/binding [sci-env/sci-command-line-args-var args-vec]
+                          (let [r (sci-env/eval-string ctx code)]
+                            (sync-sci-to-state!)
+                            r)))
               captured-stdout (str stdout-writer)
               captured-stderr (str stderr-writer)
               ;; Collect NEW console messages and page errors from this eval

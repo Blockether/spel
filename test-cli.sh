@@ -1309,6 +1309,21 @@ assert_jq "drag-by @ref → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json drag-by "@$REF1" 50 50 --steps 10 2>&1)
 assert_jq "drag-by --steps → success" "$OUT" 'has("error") | not'
 
+section "Args Support (38)"
+
+OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' -- foo bar 2>&1)
+assert_contains "--eval args separator → includes foo" "$OUT" 'foo'
+assert_contains "--eval args separator → includes bar" "$OUT" 'bar'
+
+OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' 2>&1)
+assert_contains "--eval without args → nil" "$OUT" 'nil'
+
+OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' -- first 2>&1)
+assert_contains "--eval args first call → includes first" "$OUT" 'first'
+
+OUT=$("$SPEL" --eval '(pr-str *command-line-args*)' 2>&1)
+assert_contains "--eval args do not persist across calls" "$OUT" 'nil'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

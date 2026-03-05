@@ -1493,6 +1493,20 @@
       (let [r (cmd "sci_eval" {"code" "my-val"})]
         (expect (= "42" (:result r)))))
 
+    (it "binds *command-line-args* to nil when no args"
+      (let [r (cmd "sci_eval" {"code" "*command-line-args*"})]
+        (expect (= "nil" (:result r)))))
+
+    (it "binds *command-line-args* to args vector"
+      (let [r (cmd "sci_eval" {"code" "*command-line-args*"
+                                "args" ["foo" "bar"]})]
+        (expect (= "[\"foo\" \"bar\"]" (:result r)))))
+
+    (it "command-line args reset between calls"
+      (cmd "sci_eval" {"code" "*command-line-args*" "args" ["first"]})
+      (let [r (cmd "sci_eval" {"code" "*command-line-args*"})]
+        (expect (= "nil" (:result r)))))
+
     ;; --- page/ namespace (raw Page-arg functions) ---
 
     (it "page/navigate and page/title with explicit page arg"
