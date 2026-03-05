@@ -38,6 +38,12 @@ Versioning:
 API Policy:
 - Pre-1.0: break old callers freely, no shims, no deprecation periods
 
+Feature Development Order (Library → SCI → CLI):
+- ALWAYS implement new functionality in the **library layer first** (e.g. `page.clj`, `input.clj`, `locator.clj`) as pure Clojure fns wrapping Playwright Java
+- Then expose in **SCI** (`sci_env.clj`) — wrap library fns with session-atom convenience (implicit `@!page`, `@!context`) so `--eval` users get an interactive, stateful API
+- Then wire into **CLI/Daemon** (`daemon.clj` command dispatch + `cli.clj` arg parsing) as JSON commands over the Unix socket
+- The library layer is the **source of truth** — SCI and CLI must REUSE library fns, never reimplement logic
+- SCI wrappers add interactivity (implicit state, REPL-friendly return values); CLI adds discoverability (help text, flags, JSON output)
 
 Screenshots:
 - ALWAYS show screenshots to the user when making visual/UI changes
