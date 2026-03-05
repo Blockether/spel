@@ -47,3 +47,6 @@ resources/com/blockether/spel/templates/skills/spel/refs/FULL_API.md
 
 # Claude Code scaffolding — never commit
 .claude/
+
+# verify.sh output — never commit
+.verification/

@@ -85,55 +85,28 @@ clojure -M:test -n <ns>                  # e.g. com.blockether.spel.core-test
 clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ```
 
-## Verification Checklist
-Run these in order. On ANY failure -> fix -> restart from step 1.
+## Verification
 
-### Shortcut: Allure report-only changes
-When changes ONLY affect Allure report rendering (e.g. `inject-markdown-renderer!`, `inject-video-modal!`,
-CSS/JS injection in `allure_reporter.clj`) and do NOT touch library API, CLI, or SCI env:
+All verification logic lives in `./verify.sh`. Run it instead of a manual checklist.
 
-1. `make format` — auto-format
-2. `make lint` — diagnostics clean
-3. `make test-allure` — runs tests + generates report in one step. Confirms tests pass AND report generates.
+```bash
+./verify.sh              # Full verification (default) — format, lint, graal, gen-docs, build, test, secrets
+./verify.sh --allure     # Allure-only — format, lint, test-allure (for report rendering changes)
+./verify.sh --quick      # Format + lint only (no build/test)
+```
 
-Skip `validate-safe-graal`, `install-local`, `gen-docs`, `test-cli` — those are irrelevant for report-only changes.
+Each step writes logs to `.verification/<step>.log` and exit codes to `.verification/<step>.code`.
+On failure the script stops, shows the last 20 lines of the failing step's log, and tells you where to look.
 
-### Full checklist (API, CLI, or SCI changes)
-
-1. `make format` — auto-format source (must run BEFORE tests — format changes must be tested)
-2. `make lint` — clojure-lsp diagnostics clean
-3. `make validate-safe-graal` — no reflection/boxed-math warnings (must run before native compile)
-4. `make gen-docs` — regenerate refs/FULL_API.md
-5. `make install-local` — builds `./target/spel` -> `~/.local/bin/spel`: exit 0
-6. `spel version && spel --help` — responds correctly
-7. `make test` — full suite: 0 failures. This runs TWO things:
-   - `clojure -M:test` — Lazytest: **~1268 test cases** (if significantly fewer, you ran a subset — investigate)
-   - `./test-cli.sh` — CLI bash regression: **~179 assertions** across 24 sections (requires binary from step 5)
-   - Both summary lines MUST appear — report exact numbers from `Ran N test cases` and `Total: N`
-8. `make init-agents ARGS="--ns com.blockether.spel --force"` — if templates/source changed
-9. `git diff --check` — no conflict markers, no trailing whitespace
-10. Pre-push: `git diff origin/main..HEAD | grep -iE "(sk_|lin_api_|nvapi-|AIzaSy|ghp_|password\s*=\s*\S{8})"` — must return nothing
-11. After push: verify GitHub Actions CI is green before declaring done
+The script auto-detects regeneration triggers (templates, `sci_env.clj`, `gen_docs.clj`) and skips
+`gen-docs` / `init-agents` when nothing relevant changed.
 
 ### Test count sanity check
-The full `make test` runs **two test suites** (as of 2026-02-23):
-- `clojure -M:test` — **~1268 lazytest cases**
-- `./test-cli.sh` — **~179 bash assertions** (requires `./target/spel` binary)
+`verify.sh --full` validates that the full test suite ran enough cases:
+- Lazytest: **~1268 cases** (fails if <1000)
+- CLI bash: **~179 assertions** (fails if <150)
 
-CI also runs a separate clojure.test suite (23 tests, 63 assertions) via the Allure Report workflow.
-CI runs `test-cli.sh` on Linux and macOS after native image build (not on Windows — bash script).
-
-If you see significantly fewer lazytest cases (e.g. <1000), something is wrong:
-- You may be running a single namespace (`-n`) instead of the full suite
-- A test file may have a compile error causing it to be silently skipped
-- Always report the exact `Ran N test cases` line from test output
-
-## Regeneration Triggers
-
-ANY of these changed → MUST run steps 4-8:
-- Templates in `resources/com/blockether/spel/templates/`
-- `src/com/blockether/spel/sci_env.clj`
-- `src/com/blockether/spel/gen_docs.clj`
+After push: verify GitHub Actions CI is green before declaring done.
 
 ## Key References
 
