@@ -218,7 +218,7 @@
                                 (str/starts-with? url "ws://127.0.0.1:"))))
                   (catch clojure.lang.ExceptionInfo e
                     ;; If no Chrome is running, we get a descriptive error
-                    (expect (str/includes? (.getMessage e) "No running Chrome"))
+                    (expect (str/includes? (.getMessage e) "No running browser"))
                     (expect (contains? (ex-data e) :probed-ports))))))
 
   (describe "parse-devtools-active-port"

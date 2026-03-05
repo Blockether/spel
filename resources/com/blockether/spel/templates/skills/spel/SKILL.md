@@ -28,8 +28,8 @@ If the installed version does not match **{{version}}**:
 |---------|---------|
 | `spel --help` | CLI help |
 | `spel open <url>` | Open URL (stealth mode is ON by default) |
-| `spel --auto-connect open <url>` | Auto-discover running Chrome and open URL via CDP |
-| `spel --cdp http://127.0.0.1:9222 open <url>` | Connect to Chrome via explicit CDP endpoint |
+| `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge and open URL via CDP |
+| `spel --cdp http://127.0.0.1:9222 open <url>` | Connect to Chrome/Edge via explicit CDP endpoint |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
 | `spel --load-state auth.json open <url>` | Open with browser state JSON (cookies/localStorage) |

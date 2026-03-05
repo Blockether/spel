@@ -122,41 +122,45 @@
     (catch Exception _ nil)))
 
 (defn discover-cdp-endpoint
-  "Auto-discovers a running Chrome's CDP endpoint.
-   Checks DevToolsActivePort files first (Chrome data dirs + ms-playwright cache),
-   then probes common ports (9222, 9229).
+  "Auto-discovers a running Chromium-based browser's CDP endpoint.
+   Checks DevToolsActivePort files first (Chrome, Edge, Chromium data dirs +
+   ms-playwright cache), then probes common ports (9222, 9229).
    Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
 
-   Chrome 136+ ignores --remote-debugging-port without --user-data-dir.
-   Chrome 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
+   Chrome/Edge 136+ ignores --remote-debugging-port without --user-data-dir.
+   Chrome/Edge 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
   []
   (let [home    (System/getProperty "user.home")
         os-name (str/lower-case (System/getProperty "os.name"))
         mac?    (str/includes? os-name "mac")
-        ;; Standard Chrome data directories
-        chrome-candidates
+        ;; Standard browser data directories (Chrome, Edge, Chromium)
+        browser-candidates
         (if mac?
           [(str home "/Library/Application Support/Google/Chrome/DevToolsActivePort")
            (str home "/Library/Application Support/Google/Chrome Canary/DevToolsActivePort")
+           (str home "/Library/Application Support/Microsoft Edge/DevToolsActivePort")
+           (str home "/Library/Application Support/Microsoft Edge Canary/DevToolsActivePort")
            (str home "/Library/Application Support/Chromium/DevToolsActivePort")]
           [(str home "/.config/google-chrome/DevToolsActivePort")
+           (str home "/.config/microsoft-edge/DevToolsActivePort")
            (str home "/.config/chromium/DevToolsActivePort")
-           (str home "/.config/google-chrome-unstable/DevToolsActivePort")])
+           (str home "/.config/google-chrome-unstable/DevToolsActivePort")
+           (str home "/.config/microsoft-edge-dev/DevToolsActivePort")])
         ;; ms-playwright cache (chrome-devtools-mcp, agent-browser, etc.)
         pw-cache (if mac?
                    (str home "/Library/Caches/ms-playwright")
                    (str home "/.cache/ms-playwright"))
-        ;; Try Chrome data dirs first, then ms-playwright subdirs
-        dt-info  (or (some parse-devtools-active-port chrome-candidates)
-                   (scan-playwright-devtools pw-cache))]
+        ;; Try browser data dirs first, then ms-playwright subdirs
+        dt-info  (or (some parse-devtools-active-port browser-candidates)
+                     (scan-playwright-devtools pw-cache))]
     (if dt-info
       ;; DevToolsActivePort found — try HTTP probe first, fall back to direct WebSocket
       (let [port    (:port dt-info)
             ws-path (:ws-path dt-info)]
         (if (probe-http-cdp port 2000)
-          ;; Pre-M144 Chrome: HTTP endpoint works
+          ;; Pre-M144: HTTP endpoint works
           (str "http://127.0.0.1:" port)
-          ;; Chrome M144+: WebSocket-only server (chrome://inspect remote debugging)
+          ;; M144+: WebSocket-only server (chrome://inspect remote debugging)
           ;; HTTP endpoints return 404, must connect via WebSocket directly.
           (if ws-path
             (str "ws://127.0.0.1:" port ws-path)
@@ -165,18 +169,23 @@
       (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
         (if found
           (str "http://127.0.0.1:" found)
-          (throw (ex-info (str "No running Chrome with remote debugging found.\n\n"
-                            "Chrome 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
-                            "Option 1 — Launch Chrome with debug port:\n"
-                            "  " (if mac?
-                                   "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
-                                   "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
-                            "\n\n"
-                            "Option 2 — Enable in running Chrome (M144+):\n"
-                            "  Open chrome://inspect/#remote-debugging and toggle it on.\n")
-                   {:chrome-candidates chrome-candidates
-                    :pw-cache          pw-cache
-                    :probed-ports      [9222 9229]})))))))
+          (throw (ex-info (str "No running browser with remote debugging found.\n\n"
+                               "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
+                               "Option 1 — Launch browser with debug port:\n"
+                               "  " (if mac?
+                                         "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
+                                         "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
+                               "\n"
+                               "  " (if mac?
+                                         "open -na \"Microsoft Edge\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run"
+                                         "microsoft-edge --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run")
+                               "\n\n"
+                               "Option 2 — Enable in running browser (M144+):\n"
+                               "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
+                               "  (Works in both Chrome and Edge)\n")
+                   {:browser-candidates browser-candidates
+                    :pw-cache           pw-cache
+                    :probed-ports       [9222 9229]})))))))
 
 ;; =============================================================================
 ;; State

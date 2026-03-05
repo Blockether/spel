@@ -122,22 +122,26 @@ All modes support stealth (on by default), `--channel`, and `--interactive`.
 
 ## CDP Auto-Connect
 
-Connect to a running Chrome instance via Chrome DevTools Protocol (CDP). This lets spel control your actual Chrome with its real login sessions, cookies, and tabs.
+Connect to a running Chrome or Edge instance via Chrome DevTools Protocol (CDP). This lets spel control your actual browser with its real login sessions, cookies, and tabs.
 
-### Setup (Chrome 136+ Security Change)
+### Setup (Chrome/Edge 136+ Security Change)
 
-**Chrome 136+ (April 2025) intentionally ignores `--remote-debugging-port` when targeting the default user data directory.** This is a security change, not a bug.
+**Chrome/Edge 136+ (April 2025) intentionally ignores `--remote-debugging-port` when targeting the default user data directory.** This is a security change, not a bug.
 
 Two ways to enable CDP:
 
-#### Option 1: Launch Chrome with debug port + custom user-data-dir
+#### Option 1: Launch browser with debug port + custom user-data-dir
 
 ```bash
 # macOS
 open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+# or Edge:
+open -na "Microsoft Edge" --args --remote-debugging-port=9222 --user-data-dir="$HOME/edge-debug" --no-first-run
 
 # Linux
 google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+# or Edge:
+microsoft-edge --remote-debugging-port=9222 --user-data-dir="$HOME/edge-debug" --no-first-run
 ```
 
 Then connect:
@@ -147,11 +151,11 @@ spel --auto-connect open https://example.com
 spel --cdp http://127.0.0.1:9222 open https://example.com
 ```
 
-#### Option 2: Enable in running Chrome (M144+)
+#### Option 2: Enable in running browser (M144+)
 
-1. Open `chrome://inspect/#remote-debugging` in Chrome
+1. Open `chrome://inspect/#remote-debugging` in Chrome or `edge://inspect/#remote-debugging` in Edge
 2. Toggle remote debugging ON
-3. Chrome creates a `DevToolsActivePort` file automatically
+3. Browser creates a `DevToolsActivePort` file automatically
 
 Then connect:
 ```bash
@@ -160,12 +164,12 @@ spel --auto-connect open https://example.com
 
 ### How Auto-Connect Discovery Works
 
-1. Checks `DevToolsActivePort` files in Chrome data directories:
-   - macOS: `~/Library/Application Support/Google/Chrome/`, `Chrome Canary/`, `Chromium/`
-   - Linux: `~/.config/google-chrome/`, `chromium/`, `google-chrome-unstable/`
+1. Checks `DevToolsActivePort` files in browser data directories:
+   - macOS: `~/Library/Application Support/Google/Chrome/`, `Chrome Canary/`, `Microsoft Edge/`, `Microsoft Edge Canary/`, `Chromium/`
+   - Linux: `~/.config/google-chrome/`, `microsoft-edge/`, `chromium/`, `google-chrome-unstable/`, `microsoft-edge-dev/`
 2. Checks `ms-playwright` cache dirs (finds Chrome launched by `chrome-devtools-mcp` etc.)
 3. Probes common ports: 9222, 9229 via HTTP `GET /json/version`
-4. For Chrome 144+ WebSocket-only mode: falls back to direct WebSocket connection
+4. For Chrome/Edge 144+ WebSocket-only mode: falls back to direct WebSocket connection
 
 ### Flag Persistence
 
@@ -187,9 +191,9 @@ spel click @eXXXX                                # still connected
 ### Limitations
 
 - CDP is **Chromium-only**. Firefox and WebKit don't support it.
-- Chrome must be launched with `--user-data-dir` pointing to a **non-default** directory (Chrome 136+ security requirement).
-- If Chrome is already running, you cannot add `--remote-debugging-port` retroactively — use `chrome://inspect/#remote-debugging` instead (M144+).
-- The `--user-data-dir` Chrome instance has a fresh profile unless you point it to an existing one.
+- Chrome/Edge must be launched with `--user-data-dir` pointing to a **non-default** directory (136+ security requirement).
+- If the browser is already running, you cannot add `--remote-debugging-port` retroactively — use `chrome://inspect/#remote-debugging` (or `edge://inspect/#remote-debugging`) instead (M144+).
+- The `--user-data-dir` browser instance has a fresh profile unless you point it to an existing one.
 ---
 
 ## Stealth Mode
