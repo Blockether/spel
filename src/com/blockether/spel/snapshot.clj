@@ -33,6 +33,8 @@
 
   let counter = 0;
   const refs = {};
+  const _withStyles = typeof __STYLES__ === 'boolean' ? __STYLES__ : false;
+  const _styleDetail = typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base';
 
   const identityCounts = {};
 
@@ -246,6 +248,83 @@
     return attrs;
   }
 
+  // --- Computed Styles: three-tier system (opt-in via __STYLES__) ---
+  var STYLE_MINIMAL = ['display','position','backgroundColor','color','fontSize','fontWeight',
+    'padding','margin','width','height','borderRadius','border'];
+  var STYLE_BASE = STYLE_MINIMAL.concat(['fontFamily','lineHeight','textAlign','boxShadow',
+    'opacity','overflow','textDecoration','cursor','flexDirection','justifyContent','alignItems','gap']);
+  var STYLE_MAX = STYLE_BASE.concat(['zIndex','textTransform','letterSpacing','whiteSpace',
+    'textOverflow','maxWidth','maxHeight','minWidth','minHeight','backgroundImage','pointerEvents','outline']);
+
+  function toKebab(s) { return s.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); }); }
+
+  function isDefaultStyle(k, v) {
+    switch(k) {
+      case 'display': return v==='block'||v==='inline';
+      case 'position': return v==='static';
+      case 'backgroundColor': return v==='rgba(0, 0, 0, 0)'||v==='transparent';
+      case 'color': return false;
+      case 'fontSize': return false;
+      case 'fontWeight': return v==='400';
+      case 'padding': case 'margin': case 'borderRadius': return v==='0px';
+      case 'width': case 'height': return v==='auto';
+      case 'border': return v==='none'||v.startsWith('0px');
+      case 'fontFamily': return false;
+      case 'lineHeight': return v==='normal';
+      case 'textAlign': return v==='start'||v==='left';
+      case 'boxShadow': return v==='none';
+      case 'opacity': return v==='1';
+      case 'overflow': return v==='visible';
+      case 'textDecoration': return v==='none'||v.startsWith('none');
+      case 'cursor': return v==='auto'||v==='default';
+      case 'flexDirection': return v==='row';
+      case 'justifyContent': return v==='normal'||v==='flex-start';
+      case 'alignItems': return v==='normal'||v==='stretch';
+      case 'gap': return v==='normal'||v==='0px';
+      case 'zIndex': return v==='auto';
+      case 'textTransform': return v==='none';
+      case 'letterSpacing': return v==='normal';
+      case 'whiteSpace': return v==='normal';
+      case 'textOverflow': return v==='clip';
+      case 'maxWidth': case 'maxHeight': return v==='none';
+      case 'minWidth': case 'minHeight': return v==='0px';
+      case 'backgroundImage': return v==='none';
+      case 'pointerEvents': return v==='auto';
+      case 'outline': return v==='none'||v.startsWith('0px');
+      default: return false;
+    }
+  }
+
+  function compactVal(k, v) {
+    if (v.startsWith('rgb')) {
+      var m = v.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\s*\\)/);
+      if (m && !(m[4]&&parseFloat(m[4])<1)) {
+        var h = '#'+((1<<24)|(parseInt(m[1])<<16)|(parseInt(m[2])<<8)|parseInt(m[3])).toString(16).slice(1);
+        if (h.length===7&&h[1]===h[2]&&h[3]===h[4]&&h[5]===h[6]) return '#'+h[1]+h[3]+h[5];
+        return h;
+      }
+    }
+    if (k==='fontFamily') return v.split(',')[0].replace(/'/g,'').replace(/\"/g,'').trim();
+    return v;
+  }
+
+  function extractStyles(el) {
+    if (!_withStyles) return null;
+    try {
+      var keys = _styleDetail === 'minimal' ? STYLE_MINIMAL : _styleDetail === 'max' ? STYLE_MAX : STYLE_BASE;
+      var s = getComputedStyle(el);
+      var compact = {}, full = {}, has = false;
+      for (var i=0; i<keys.length; i++) {
+        var k = keys[i], v = s[k];
+        if (!v) continue;
+        var kk = toKebab(k);
+        full[kk] = v;
+        if (!isDefaultStyle(k, v)) { compact[kk] = compactVal(k, v); has = true; }
+      }
+      return {compact: has ? compact : null, full: full};
+    } catch(e) { return null; }
+  }
+
   function walk(el) {
     if (!el || el.nodeType !== 1) return null;
     if (!isVisible(el)) return null;
@@ -331,6 +410,7 @@
     // Assign ref — interactive elements, meaningful roles with content,
     // text-bearing leaves, mixed content elements, and CSS-rendered images
     let ref = null;
+    let _elStyles = null;
     if (isInteractive || (hasMeaningfulRole && hasContent) || isTextLeaf || isMixedContent || hasCSSImage) {
       const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
       ref = stableRef(el, effectiveRole, name);
@@ -357,6 +437,8 @@
           effectiveRole === 'spinbutton' || effectiveRole === 'combobox'))
         refs[ref].value = el.value.substring(0, 200);
       if (children.length > 0 && leafText) refs[ref].mixed = true;
+      _elStyles = extractStyles(el);
+      if (_elStyles && _elStyles.full) refs[ref].styles = _elStyles.full;
     }
 
     const nodeHref = getHref(el);
@@ -367,6 +449,7 @@
       attrs: attrs,
       text: leafText,
       href: nodeHref,
+      styles: _elStyles ? _elStyles.compact : null,
       children: children
     };
   }
@@ -405,20 +488,31 @@
     s))
 
 (defn- capture-js
-  "Returns the capture-snapshot JS with an optional scope selector injected.
+  "Returns the capture-snapshot JS with optional flags injected.
 
-   When `scope-selector` is non-nil, the JS walks from the element matching
+   When `:scope` is provided, the JS walks from the element matching
    that CSS selector instead of document.body. If the selector matches nothing,
    the JS returns an empty result.
 
-   Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
-  [scope-selector]
-  (if scope-selector
-    (let [css-sel (resolve-scope scope-selector)]
-      (str/replace js-capture-snapshot
-        "typeof __SCOPE__ === 'string' ? __SCOPE__ : null"
-        (str "'" (escape-js-string css-sel) "'")))
-    js-capture-snapshot))
+    When `:styles` is true, each ref'd element includes computed CSS styles
+    in kebab-case CSS property names.  The `:styles-detail` option selects
+    the tier: 'minimal' (12 props), 'base' (24, default), or 'max' (36).
+
+    Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
+  [opts]
+  (let [scope-selector (:scope opts)
+        with-styles    (:styles opts)
+        styles-detail  (or (:styles-detail opts) "base")]
+    (cond-> js-capture-snapshot
+      scope-selector
+      (str/replace "typeof __SCOPE__ === 'string' ? __SCOPE__ : null"
+        (str "'" (escape-js-string (resolve-scope scope-selector)) "'"))
+      with-styles
+      (str/replace "typeof __STYLES__ === 'boolean' ? __STYLES__ : false"
+        "true")
+      with-styles
+      (str/replace "typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base'"
+        (str "'" styles-detail "'")))))
 
 (defn- format-attrs
   "Formats ARIA attributes into a string like '[level=2] [checked]'."
@@ -431,17 +525,38 @@
                (str "[" (name k) "=" v "]")))
         attrs))))
 
+(def ^:private style-display-order
+  "Display order for CSS style keys in tree output.
+   Layout → box → visual → typography → text → border → misc."
+  ["display" "position" "flex-direction" "justify-content" "align-items" "gap"
+   "width" "height" "max-width" "max-height" "min-width" "min-height"
+   "padding" "margin" "overflow"
+   "background-color" "background-image" "color" "opacity"
+   "font-size" "font-weight" "font-family" "line-height" "text-align"
+   "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
+   "border" "border-radius" "box-shadow" "outline"
+   "z-index" "cursor" "pointer-events"])
+
+(defn- format-styles
+  "Formats compact styles map into inline {k:v;k:v} string."
+  [styles]
+  (let [ordered (keep (fn [k] (when-let [v (get styles k)] (str k ":" v)))
+                  style-display-order)]
+    (when (seq ordered)
+      (str "{" (str/join ";" ordered) "}"))))
+
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
-  [{:strs [role name ref attrs text href]} depth]
+  [{:strs [role name ref attrs text href styles]} depth]
   (let [depth (long depth)
         indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
-                 (seq name)  (conj (str "\"" name "\""))
-                 ref         (conj (str "[@" ref "]"))
-                 (seq href)  (conj (str "[url=" href "]"))
-                 (seq attrs) (conj (format-attrs attrs))
-                 text        (conj (str ": " text)))]
+                 (seq name)    (conj (str "\"" name "\""))
+                 ref           (conj (str "[@" ref "]"))
+                 (seq href)    (conj (str "[url=" href "]"))
+                 (seq attrs)   (conj (format-attrs attrs))
+                 (seq styles)  (conj (format-styles styles))
+                 text          (conj (str ": " text)))]
     (str indent (str/join " " parts))))
 
 (defn- render-tree
@@ -496,14 +611,20 @@
   ([^Page page]
    (capture-snapshot page {}))
   ([^Page page opts]
-   (let [scope    (:scope opts)
-         js       (capture-js scope)
+   (let [js       (capture-js opts)
          result   (page/evaluate page js)
          raw-tree (get result "tree")
          raw-refs (get result "refs")
-         counter  (get result "counter")]
+         counter  (get result "counter")
+         vp       (page/viewport-size page)]
      {:tree    (when raw-tree
-                 (str/join "\n" (render-tree raw-tree 0)))
+                 (let [lines  (render-tree raw-tree 0)
+                       dev    (:device opts)
+                       parts  (cond-> []
+                                vp  (conj (str "viewport: " (:width vp) "x" (:height vp)))
+                                dev (conj (str "device: " dev)))
+                       header (when (seq parts) (str "[" (str/join ", " parts) "]"))]
+                   (str/join "\n" (if header (into [header] lines) lines))))
       :refs    (into {}
                  (map (fn [[ref-id info]]
                         [ref-id
@@ -519,10 +640,13 @@
                            (get info "type")    (assoc :type (get info "type"))
                            (get info "level")   (assoc :level (get info "level"))
                            (some? (get info "checked")) (assoc :checked (get info "checked"))
-                           (get info "value")   (assoc :value (get info "value")))]))
+                           (get info "value")   (assoc :value (get info "value"))
+                           (get info "styles")  (assoc :styles (into {} (get info "styles"))))]))
 
                  raw-refs)
-      :counter (or counter 0)})))
+      :counter  (or counter 0)
+      :viewport vp
+      :device   (:device opts)})))
 
 (defn capture-snapshot-for-frame
   "Captures an accessibility snapshot for a specific frame.
@@ -574,10 +698,11 @@
                            (cond-> [(:tree main-snap)]
                              (seq iframe-snaps)
                              (into (keep :tree iframe-snaps))))]
-        {:tree    all-trees
-         :refs    all-refs
-         :counter (+ (long (:counter main-snap))
-                    (long (reduce + 0 (map :counter iframe-snaps))))}))))
+        {:tree     all-trees
+         :refs     all-refs
+         :counter  (+ (long (:counter main-snap))
+                     (long (reduce + 0 (map :counter iframe-snaps))))
+         :viewport (:viewport main-snap)}))))
 
 (defn resolve-ref
   "Resolves a ref ID to a Playwright Locator.
