@@ -1,0 +1,4 @@
+304 /root/.local/share/opencode/worktree/0f5014e3651592faf1bb593d0d536259147d1883/witty-tiger/resources/com/blockether/spel/templates/skills/spel/refs/VISUAL_QA_GUIDE.md
+Workflows for catching visual regressions: layout shifts, style changes, and pixel-level differences. This guide covers the full cycle from baseline capture through diff analysis and reporting.
+Capture baselines on a known-good state (main branch, after design review, etc.).
+spel snapshot -S --minimal --json > baselines/home-minimal.json
