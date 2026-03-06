@@ -1,0 +1,25 @@
+## GET /status/400 → 400 Bad Request
+
+### Request Headers
+```
+GET /status/400
+```
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Fri, 06 Mar 2026 18:49:55 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 400
+}
+```
+
+### cURL
+```bash
+curl '/status/400'
+```
