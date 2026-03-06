@@ -10,7 +10,7 @@
 | Category | Count | Notes |
 |----------|-------|-------|
 | **Full CLI parity** | ~105 | spel daemon command ↔ agent-browser command |
-| **SCI/Library only** | ~15 | Available via `--eval` or Clojure library, no CLI command needed |
+| **SCI/Library only** | ~15 | Available via `eval-sci` or Clojure library, no CLI command needed |
 | **Truly missing** | ~23 | Not in spel at any level |
 | **Pareto-optimal** | **3** | Worth implementing (clear the 20/80 bar) |
 | **Not worth it** | 20 | Too niche, already covered by alternatives, or wrong fit |
@@ -50,7 +50,7 @@ These were listed as missing in the initial analysis. They all exist in spel's l
 | `setvalue` | `(page/evaluate page "..." val)` — one-liner | Library + SCI |
 | `responsebody` | `page/wait-for-response` + `.text()` | Library |
 
-**These should NOT be promoted to CLI commands** — they're already accessible via `spel --eval`
+**These should NOT be promoted to CLI commands** — they're already accessible via `spel eval-sci`
 and the Clojure library. Adding thin CLI wrappers for each would bloat the daemon without
 meaningful benefit to the primary CLI workflow.
 

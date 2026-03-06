@@ -14,7 +14,7 @@
      spel fill @ref \"search text\" # Fill input by ref
      spel screenshot shot.png         # Take screenshot
      spel close                       # Close browser
-     spel --eval '(+ 1 2)'            # Evaluate and exit
+     spel eval-sci '(+ 1 2)'            # Evaluate and exit
      spel install                     # Install Playwright browsers
      spel --help                      # Show help"
   (:require
@@ -549,7 +549,7 @@
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
 (defn- run-eval!
-  "Runs --eval mode via daemon: sends code for evaluation, browser persists.
+  "Runs eval-sci mode via daemon: sends code for evaluation, browser persists.
    The daemon lazily starts a browser on first Playwright call and keeps it
    alive between invocations. Use --autoclose to shut the daemon after eval.
    When --load-state is set, loads browser storage state (cookies/localStorage)
@@ -676,7 +676,7 @@
         (System/exit @exit-code)))))
 
 (defn- split-eval-tail-args
-  "Splits `--eval` trailing args into command args and script args.
+  "Splits `eval-sci` trailing args into command args and script args.
 
    Returns {:command-args [...], :script-args nil|[...]} where script-args
    contains everything after `--` (if present)."
@@ -761,20 +761,20 @@
   "Main entry point for the native-image binary.
 
    Dispatches to the appropriate mode based on the first argument:
-   - '--eval'  → evaluate expression and exit
+   - 'eval-sci'  → evaluate expression and exit
    - 'install' → install Playwright browsers
    - 'version' → print version
    - '--help'  → print help
    - anything else → CLI command
 
    Global flags (--timeout, --debug, --json) are parsed first and
-   apply across all modes. For --eval mode, --timeout sets Playwright's
+   apply across all modes. For eval-sci mode, --timeout sets Playwright's
    default action timeout. For CLI mode, flags pass through to cli.clj."
   [& args]
   (let [global    (parse-global-flags args)
         cmd-args  (:command-args global)
         first-arg (first cmd-args)
-        ;; Set Playwright action timeout — sci-start! picks it up in --eval mode
+        ;; Set Playwright action timeout — sci-start! picks it up in eval-sci mode
         _         (when (:timeout-ms global) (sci-env/set-default-timeout! (:timeout-ms global)))]
     (cond
       ;; Subcommands — dispatch BEFORE global --help so each tool handles its own --help

@@ -1,7 +1,7 @@
 (ns com.blockether.spel.constants
   "Clojure vars wrapping Playwright enum values as flat, documented names.
 
-   Eliminates the need for Java enum interop in --eval mode.
+   Eliminates the need for Java enum interop in eval-sci mode.
    Flat naming: `constants/<category>-<value>`.
 
    Usage:

@@ -13,7 +13,7 @@
 
 Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. Since the last comparison (Feb 2026), agent-browser has grown from ~30 commands to ~143 — adding diff engine, auth vault, profiler, screencast, and more. spel has grown from ~90 to ~120+ CLI commands (plus ~460 SCI functions and full Clojure library), fixing all P0 bugs and adding extension loading, download command, flat snapshots, link URLs in snapshots, structured refs in JSON, and Edge/Chrome profile support.
 
-spel wins on speed, programmability, testing/CI infrastructure, and total API coverage (most agent-browser features already exist in spel's library/SCI layer). agent-browser leads in diff tooling, auth vault, and mobile. The apparent CLI command count gap (~120 vs ~143) is misleading — spel covers ~120/143 features when you count its library and `--eval` scripting layer.
+spel wins on speed, programmability, testing/CI infrastructure, and total API coverage (most agent-browser features already exist in spel's library/SCI layer). agent-browser leads in diff tooling, auth vault, and mobile. The apparent CLI command count gap (~120 vs ~143) is misleading — spel covers ~120/143 features when you count its library and `eval-sci` scripting layer.
 
 ---
 
@@ -25,7 +25,7 @@ spel wins on speed, programmability, testing/CI infrastructure, and total API co
 | Binary size | 71 MB (self-contained) | 4.4 MB node_modules (requires Node.js) |
 | CLI commands | ~120+ | ~143 |
 | Architecture | Long-running daemon (IPC) | Process-per-command |
-| Programmability | Full Clojure scripting (`--eval`) | JS `eval` only |
+| Programmability | Full Clojure scripting (`eval-sci`) | JS `eval` only |
 | Testing framework | Built-in (Allure, assertions, codegen) | None |
 | CI tooling | `ci-assemble`, `merge-reports`, `init-agents` | None |
 | Diff engine | ❌ | ✅ (snapshot diff, pixel diff, URL diff) |
@@ -175,7 +175,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 ### Commands agent-browser has that spel doesn't (at CLI level)
 
-> **Important**: Many items below exist in spel's Clojure library and SCI (`--eval`) layer but lack a dedicated CLI daemon command. They are accessible via `spel --eval '(page/set-content! "...")` etc. Items marked ⚡ exist in library/SCI.
+> **Important**: Many items below exist in spel's Clojure library and SCI (`eval-sci`) layer but lack a dedicated CLI daemon command. They are accessible via `spel eval-sci '(page/set-content! "...")` etc. Items marked ⚡ exist in library/SCI.
 
 | Category | Commands | CLI-only? | Why it matters |
 |---|---|---|---|
@@ -220,7 +220,7 @@ open, click, dblclick, type, fill, press, keydown/keyup, hover, focus, check/unc
 ### spel: Full Clojure Scripting
 
 ```clojure
-;; Run as: spel --eval script.clj
+;; Run as: spel eval-sci script.clj
 (spel/navigate "https://example.org")
 (let [snapshot (spel/capture-snapshot {:interactive? true})
       title    (:title snapshot)
@@ -496,7 +496,7 @@ Every command spawns a new Node.js process that connects to an existing browser 
 | **Error messages** | Tie | Both now propagate Playwright errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The only genuine gaps are diff tooling (snapshot/pixel/URL comparison), computed styles, and clipboard CLI. agent-browser's CLI command count is slightly higher (~143 vs ~120), but spel's library layer covers most of those "missing" commands — accessible via `--eval` or Clojure code.
+**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The only genuine gaps are diff tooling (snapshot/pixel/URL comparison), computed styles, and clipboard CLI. agent-browser's CLI command count is slightly higher (~143 vs ~120), but spel's library layer covers most of those "missing" commands — accessible via `eval-sci` or Clojure code.
 
 The competitive landscape is now: **spel = testing platform + speed + full Playwright API coverage. agent-browser = simpler CLI surface + diff tooling + auth vault.** The "breadth gap" that appeared when agent-browser grew to 143 commands is largely illusory — most of those features already exist in spel's library, just not as standalone CLI commands.
 

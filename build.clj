@@ -134,7 +134,7 @@
    to produce markdown tables that replace {{library-api}}, {{sci-api}}, and
    {{cli-commands}} placeholders in the template.
 
-   Also generates the help registry EDN for `spel/help` in --eval mode.
+   Also generates the help registry EDN for `spel/help` in eval-sci mode.
 
    Usage: clojure -T:build gen-docs"
   [_]

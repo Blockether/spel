@@ -2003,7 +2003,7 @@
 (defdescribe codegen-sci-eval-round-trip-test
   "Ultimate compatibility test: codegen generates Clojure, SCI evaluates it.
    Verifies that ALL codegen output formats produce valid code and that
-   the :script format runs correctly in SCI --eval mode."
+   the :script format runs correctly in SCI eval-sci mode."
 
   (describe "codegen format generation"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}

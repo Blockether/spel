@@ -1661,7 +1661,7 @@
         (expect (= ["--port" "8080" "trace.zip"] (:cli-args c)))))))
 
 ;; =============================================================================
-;; Native parse-global-flags (--autoclose, --session for --eval mode)
+;; Native parse-global-flags (--autoclose, --session for eval-sci mode)
 ;; =============================================================================
 
 (defdescribe native-global-flags-test

@@ -5,7 +5,7 @@
    - `from-markdown-table` : markdown string → vector of maps
    - `to-markdown-table`   : vector of maps → markdown string
 
-   Useful in --eval scripts for processing tabular data from web pages,
+   Useful in eval-sci scripts for processing tabular data from web pages,
    API responses, or LLM output."
   (:require
    [clojure.string :as str]))

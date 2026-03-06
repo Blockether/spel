@@ -2152,7 +2152,7 @@
    `timeout-ms` controls how long to wait for a response:
    - positive long: wait up to that many milliseconds (default 30000)
    - nil: block indefinitely until the daemon responds or throws.
-     Use nil for --eval mode where each Playwright action has its own
+     Use nil for eval-sci mode where each Playwright action has its own
      timeout — the transport layer should not race against it."
   ([^String session command-map]
    (send-command! session command-map 30000))

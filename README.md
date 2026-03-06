@@ -28,7 +28,7 @@
 <table>
 <tr>
 <td width="25%" align="center"><b>Accessibility Snapshots</b></td>
-<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;--eval</b></td>
+<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;eval-sci</b></td>
 <td width="25%" align="center"><b>Visual Annotations</b></td>
 <td width="25%" align="center"><b>Agent Scaffolding</b></td>
 </tr>
@@ -47,8 +47,8 @@ Playwright's Java API is imperative and verbose — option builders, checked exc
 spel wraps Playwright Java with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation. It does everything a modern agentic workflow needs — in one tool.
 
 - **Swiss Army Knife for agents**: Browser automation, API testing, test reporting, agentic search and verification, accessibility snapshots, inline code execution, and test generation — all in a single native binary. No stitching tools together.
-- **Agentic by design**: Accessibility snapshots with numbered refs let AI agents see the page as a structured document, not raw HTML. Persistent daemon, `--eval` scripting, and zero brittle CSS selectors — agents reason and act in a loop without restarting.
-- **Inline Clojure execution**: Run arbitrary Clojure expressions in the browser context via `--eval` — mix business logic with automation, call any GraalVM-bound function, compose scripts on the fly. No other browser tool lets an agent write and execute real code mid-session.
+- **Agentic by design**: Accessibility snapshots with numbered refs let AI agents see the page as a structured document, not raw HTML. Persistent daemon, `eval-sci` scripting, and zero brittle CSS selectors — agents reason and act in a loop without restarting.
+- **Inline Clojure execution**: Run arbitrary Clojure expressions in the browser context via `eval-sci` — mix business logic with automation, call any GraalVM-bound function, compose scripts on the fly. No other browser tool lets an agent write and execute real code mid-session.
 - **Record, then generate**: Capture any browser session to JSONL and auto-generate idiomatic Clojure tests or reusable scripts. Record once, replay forever.
 - **Allure reports with network inspection**: Full Allure reporting with embedded Playwright traces, network request/response visualization (method, status, headers, JSON body), and visual diffs. Debug failures from the report, not from logs.
 - **API testing built in**: Intercept, assert, and inspect HTTP traffic in the same tool as your browser tests — no separate client needed.
@@ -352,7 +352,7 @@ See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.
 
 ### Native CLI
 
-spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `--eval` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
+spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `eval-sci` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
 
 ## Agent Scaffolding
 

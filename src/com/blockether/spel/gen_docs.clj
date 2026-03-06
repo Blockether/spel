@@ -3,7 +3,7 @@
 
    Three categories of API docs:
    1. Library API — public vars from all spel namespaces
-   2. SCI eval API — functions available in `spel --eval` mode
+   2. SCI eval API — functions available in `spel eval-sci` mode
    3. CLI commands — commands available via the `spel` binary
 
    Usage:
@@ -390,7 +390,7 @@
                                    (catch ClassNotFoundException _ nil))))
                          vec))]
     (if (seq enum-entries)
-      (str "### Enums — Java types available in `--eval` mode\n\n"
+      (str "### Enums — Java types available in `eval-sci` mode\n\n"
         "All Playwright Java enums from `com.microsoft.playwright.options` are "
         "registered as SCI classes. Use them directly by `EnumName/VALUE` — no import needed.\n\n"
         "| Enum | Values | Used For |\n"
@@ -399,7 +399,7 @@
           (for [{:keys [name values desc]} enum-entries]
             (str "| `" name "` | " (escape-md values) " | " (escape-md desc) " |")))
         "\n\n"
-        "**Usage in `--eval` mode:**\n\n"
+        "**Usage in `eval-sci` mode:**\n\n"
         "```clojure\n"
         ";; Enums are available directly — no import required\n"
         "(spel/get-by-role AriaRole/BUTTON)\n"
@@ -424,9 +424,9 @@
   (let [registrations (parse-sci-registrations)
         src (slurp (io/resource "com/blockether/spel/sci_env.clj"))
         enums-md (generate-sci-enums)]
-    (str "## SCI Eval API Reference (`spel --eval`)\n\n"
+    (str "## SCI Eval API Reference (`spel eval-sci`)\n\n"
       "Auto-generated from SCI namespace registrations. "
-      "All functions are available in `spel --eval` mode without JVM startup.\n\n"
+      "All functions are available in `spel eval-sci` mode without JVM startup.\n\n"
       enums-md
       (str/join "\n"
         (for [[ns-name description] sci-namespaces

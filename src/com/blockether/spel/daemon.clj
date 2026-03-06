@@ -1869,7 +1869,7 @@
                 (let [c (sci-env/create-sci-ctx)]
                   (reset! !sci-ctx c)
                   c))
-          ;; Capture stdout and stderr during evaluation so println/prn work in --eval mode
+          ;; Capture stdout and stderr during evaluation so println/prn work in eval-sci mode
           stdout-writer (java.io.StringWriter.)
           stderr-writer (java.io.StringWriter.)
           ;; Snapshot console/error state before eval to detect new messages
