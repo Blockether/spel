@@ -149,3 +149,17 @@ Before delivering, verify (from PRESENTER_SKILL.md):
 - If preview open fails: report unreachable file/path, verify output path, regenerate HTML, retry once with a new `pres-<name>-<timestamp>` session.
 - If Mermaid validation fails: isolate failing diagram block, repair syntax, re-render before taking screenshot.
 - If screenshot fails: capture snapshot evidence and report blocker; do not claim completion without preview proof.
+
+### Position Annotations in Snapshot Refs
+
+Each ref'd element in the snapshot tree includes screen position data as `[pos:X,Y W×H]` — pixel coordinates (X,Y from top-left) and dimensions (width×height). Use this for:
+- **Layout verification** — check element positions, alignment, spacing
+- **Overlap detection** — identify elements that overlap or are cut off
+- **Viewport fit** — verify elements are within the visible viewport
+- **Spatial reasoning** — understand page layout without screenshots
+
+Example snapshot output:
+```
+button "Submit" @e2yrjz [pos:150,200 120×40]
+input "Email" @e3kqmn [pos:100,100 300×30]
+```

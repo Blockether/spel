@@ -537,6 +537,7 @@
     let _elStyles = null;
     let _listeners = null;
     let _pointer = false;
+    let _bbox = null;
     if (isInteractive || (hasMeaningfulRole && hasContent) || isTextLeaf || isMixedContent || hasCSSImage) {
       const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
       ref = stableRef(el, effectiveRole, name);
@@ -555,6 +556,7 @@
         width: Math.round(rect.width),
         height: Math.round(rect.height)
       };
+      _bbox = {x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height)};
       if (href) refs[ref].url = href;
       if (inputType) refs[ref].type = inputType;
       if (level) refs[ref].level = level;
@@ -582,6 +584,7 @@
       styles: _elStyles ? _elStyles.compact : null,
       listeners: _listeners,
       pointer: _pointer,
+      bbox: _bbox,
       children: children
     };
   }
@@ -680,7 +683,7 @@
 
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
-  [{:strs [role name ref attrs text href styles listeners pointer]} depth]
+  [{:strs [role name ref attrs text href styles listeners pointer bbox]} depth]
   (let [depth (long depth)
         indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
@@ -690,6 +693,7 @@
                  (seq attrs)     (conj (format-attrs attrs))
                  (seq listeners) (conj (str "[on:" (str/join "," listeners) "]"))
                  pointer         (conj "[clickable]")
+                 bbox            (conj (str "[pos:" (get bbox "x") "," (get bbox "y") " " (get bbox "w") "×" (get bbox "h") "]"))
                  (seq styles)    (conj (format-styles styles))
                  text            (conj (str ": " text)))]
     (str indent (str/join " " parts))))

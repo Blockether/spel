@@ -93,6 +93,22 @@ spel --session $SESSION snapshot -i
 spel --session $SESSION snapshot -S --json > <page>-snapshot.json
 ```
 
+
+### Position Annotations in Snapshot Refs
+
+Each ref'd element in the snapshot tree includes screen position data as `[pos:X,Y W×H]` — pixel coordinates (X,Y from top-left) and dimensions (width×height). Use this for:
+- **Layout verification** — check element positions, alignment, spacing
+- **Overlap detection** — identify elements that overlap or are cut off
+- **Viewport fit** — verify elements are within the visible viewport
+- **Spatial reasoning** — understand page layout without screenshots
+
+Example snapshot output:
+```
+button "Submit" @e2yrjz [pos:150,200 120×40]
+input "Email" @e3kqmn [pos:100,100 300×30]
+```
+
+
 ### 2. Annotate and Screenshot
 ```bash
 # Annotate interactive elements

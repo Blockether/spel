@@ -137,25 +137,25 @@ The `:tree` string is a YAML-like indented tree. Real example from a news site:
 
 ```
 - banner:
-  - heading "Onet" [@e2yrjz] [level=1]
+  - heading "Onet" [@e2yrjz] [level=1] [pos:20,10 200×40]
   - navigation "Main":
-    - link "News" [@e9mter]
-    - link "Sport" [@e6t2x4]
-    - link "Business" [@e0k8qp]
+    - link "News" [@e9mter] [pos:50,60 80×20]
+    - link "Sport" [@e6t2x4] [pos:140,60 80×20]
+    - link "Business" [@e0k8qp] [pos:230,60 100×20]
   - search:
-    - searchbox "Search Onet" [@ea3kf5]
-    - button "Search" [@e1x9hz]
+    - searchbox "Search Onet" [@ea3kf5] [pos:400,15 200×30]
+    - button "Search" [@e1x9hz] [pos:610,15 60×30]
 - main:
-  - heading "Top Stories" [@e3pq7r] [level=2]
+  - heading "Top Stories" [@e3pq7r] [level=2] [pos:20,100 300×35]
   - article:
-    - link "Breaking: Major Event" [@e5dw2c]
+    - link "Breaking: Major Event" [@e5dw2c] [pos:20,150 400×24]
     - paragraph "Details about the event..."
 - contentinfo:
-  - link "Privacy Policy" [@e7vnw3]
-  - link "Terms of Service" [@e8jy4n]
+  - link "Privacy Policy" [@e7vnw3] [pos:20,500 100×18]
+  - link "Terms of Service" [@e8jy4n] [pos:140,500 120×18]
 ```
 
-Each `[@eN]` tag marks an interactive or meaningful element. Structural roles (banner, main, navigation) appear without refs. Attributes like `[level=1]` show ARIA properties.
+Each `[@eN]` tag marks an interactive or meaningful element. Structural roles (banner, main, navigation) appear without refs. Attributes like `[level=1]` show ARIA properties. The `[pos:X,Y W×H]` annotation shows the element's screen position (X,Y coordinates) and dimensions (width×height in pixels).
 
 ### Ref Maps
 

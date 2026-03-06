@@ -45,7 +45,7 @@ If the installed version does not match **{{version}}**:
 | `spel search "query" --news` | Google news search |
 | `spel search "query" --limit 5` | Show only first 5 results |
 | `spel search "query" --open 1` | Navigate to result #1 |
-| `spel snapshot -i` | Accessibility snapshot (interactive elements only) |
+| `spel snapshot -i` | Accessibility snapshot (interactive elements only, includes `[pos:X,Y W×H]` screen coordinates) |
 | `spel snapshot -i -c` | Compact interactive snapshot (removes bare role lines) |
 | `spel click @eXXXXX` | Click element by snapshot ref |
 | `spel fill @eXXXXX "text"` | Fill input by snapshot ref |
