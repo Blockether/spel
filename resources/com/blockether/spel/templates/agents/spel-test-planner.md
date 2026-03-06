@@ -113,6 +113,45 @@ spel --timeout 5000 --eval '
 - Use `spel open <url> --interactive` before `--eval` if the user wants to watch
 - Thoroughly explore all interactive elements, forms, navigation paths, and functionality
 
+### Cookie Consent & First-Visit Popups
+
+EU/GDPR sites show cookie banners on first visit. **Handle these before exploration begins:**
+
+```bash
+# After opening, snapshot to detect cookie consent
+spel snapshot -i
+# Look for consent buttons: "Accept all", "Akceptuję", "Zgadzam się"
+# Click the consent button by its snapshot ref
+spel click @eXXXXX
+# If a postal code / location popup appears next:
+spel snapshot -i
+spel fill @eXXXXX "31-564"
+spel click @eXXXXX
+# Confirm clean page state
+spel snapshot -i
+```
+
+With `--eval`:
+```bash
+spel --timeout 10000 --eval '
+(do
+  ;; Handle cookie consent if present
+  (let [snap (spel/capture-snapshot)]
+    (when (str/includes? (:tree snap) "cookie")
+      (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
+           (catch Exception _ nil))
+      (spel/wait-for-load)))
+  ;; Handle postal code / location popup if present
+  (let [snap (spel/capture-snapshot)]
+    (when (str/includes? (:tree snap) "dialog")
+      (try
+        (spel/fill (spel/get-by-role role/textbox) "31-564")
+        (spel/click (spel/get-by-role role/button {:name "Confirm"}))
+        (catch Exception _ nil)))))'
+```
+
+**Include cookie/popup handling as Step 0 in every test plan for EU sites.**
+
 ### Step 4: Show the Exploration Script
 
 After exploring, **output the full script** you used so the user can reproduce your exploration:

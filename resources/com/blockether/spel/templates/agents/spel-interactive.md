@@ -79,6 +79,20 @@ spel --session interactive-auth --eval '
   (println "Logged in as:" data))'
 ```
 
+### Pattern: Verify Before Continuing
+```bash
+# 3. ALWAYS snapshot and verify before continuing automation
+spel --session interactive-auth snapshot -i
+
+# Annotate to visually confirm the page state
+spel --session interactive-auth annotate
+spel --session interactive-auth screenshot post-login-state.png
+spel --session interactive-auth unannotate
+
+# Now continue automation with verified refs
+spel --session interactive-auth click @eXXXXX
+```
+
 ### Pattern: Export Auth State
 ```bash
 # After user logs in, export the auth state for reuse
@@ -93,6 +107,31 @@ spel --load-state auth-state.json open https://app.example.com/dashboard
 ```bash
 # Capture the authenticated state as evidence
 spel --session interactive-auth screenshot authenticated-state.png
+```
+
+## Cookie Consent & Popups
+
+EU sites show cookie consent on first visit — handle it first:
+```bash
+# EU sites show cookie consent on first visit — handle it first
+spel --session interactive-auth snapshot -i
+# Look for cookie consent buttons: "Accept all", "Akceptuję", "Zgadzam się", etc.
+# Click the accept button using its snapshot ref
+spel --session interactive-auth click @eXXXXX
+```
+
+## Modal/Popup Handling
+
+E-commerce sites often show popups (postal code, newsletter, promo):
+```bash
+# E-commerce sites often show popups (postal code, newsletter, promo)
+# ALWAYS snapshot first to detect overlays
+spel --session interactive-auth snapshot -i
+# If a modal is detected (dialog role or overlay element):
+# 1. Interact with the modal (fill fields, click buttons)
+# 2. Snapshot again to verify it's dismissed
+# 3. Then proceed with main page automation
+spel --session interactive-auth snapshot -i
 ```
 
 ## Session Management
@@ -115,3 +154,4 @@ spel --session interactive-<name> close
 - Do NOT store credentials in scripts
 - Do NOT use the default session (always use `--session interactive-<name>`)
 - Do NOT close the session while the user is still interacting
+- Do NOT interact with any element without first running `snapshot -i` to verify its ref

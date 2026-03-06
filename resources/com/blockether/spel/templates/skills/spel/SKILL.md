@@ -39,13 +39,27 @@ If the installed version does not match **{{version}}**:
 | `spel init-agents --help` | Agent scaffolding help |
 | `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
 | `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
-| `spel init-agents --loop=vscode` | Scaffold E2E agents for VS Code / Copilot |
+| `spel init-agents --loop=claude` | ~~`--loop=vscode` is DEPRECATED — exits with error~~ |
 | `spel search "query"` | Google search (table output) |
 | `spel search "query" --json` | Google search (JSON output) |
 | `spel search "query" --images` | Google image search |
 | `spel search "query" --news` | Google news search |
 | `spel search "query" --limit 5` | Show only first 5 results |
 | `spel search "query" --open 1` | Navigate to result #1 |
+| `spel snapshot -i` | Accessibility snapshot (interactive elements only) |
+| `spel snapshot -i -c` | Compact interactive snapshot (removes bare role lines) |
+| `spel click @eXXXXX` | Click element by snapshot ref |
+| `spel fill @eXXXXX "text"` | Fill input by snapshot ref |
+| `spel screenshot name.png` | Take screenshot |
+| `spel annotate` | Inject visual overlays on elements |
+| `spel unannotate` | Remove visual overlays |
+| `spel wait --text "..."` | Wait for text to appear |
+| `spel wait --load load` | Wait for page load |
+| `spel close` | Close browser session |
+| `spel codegen record -o rec.jsonl <url>` | Record browser session |
+| `spel stitch img1.png img2.png -o out.png` | Stitch screenshots vertically |
+| `spel state save [path]` | Save current browser state |
+| `spel state load [path]` | Restore saved browser state |
 
 ## Google Search
 

@@ -116,6 +116,110 @@ spel --eval spel-scripts/login.clj -- --help
   (page/wait-for-url @!page "**/success**"))
 ```
 
+### Snapshot-First Interaction (Preferred)
+```clojure
+;; spel-scripts/snapshot-interact.clj
+;; PREFERRED: Use snapshot refs instead of hardcoded CSS selectors
+(let [snap (spel/capture-snapshot)]
+  (println (:tree snap))
+  ;; Find elements by role/name from the snapshot tree
+  ;; Then interact using semantic locators
+  (spel/click (spel/get-by-role role/button {:name "Submit"}))
+  ;; Or use snapshot refs directly
+  (spel/click "@e2yrjz"))
+```
+
+### Cookie Consent Handling
+```clojure
+;; spel-scripts/dismiss-cookies.clj
+;; EU/GDPR sites always show cookie consent — dismiss first
+(let [snap (spel/capture-snapshot)]
+  ;; Look for common consent patterns in the snapshot tree
+  ;; Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
+  ;; English: "Accept all", "Accept cookies", "I agree"
+  ;; German: "Alle akzeptieren", "Zustimmen"
+  (when-let [btn (try (spel/get-by-role role/button {:name "Accept all"})
+                      (catch Exception _ nil))]
+    (when (spel/visible? btn)
+      (spel/click btn)
+      (spel/wait-for-load))))
+```
+
+### Modal/Popup Dismissal
+```clojure
+;; After page load, check for overlay modals
+(let [snap (spel/capture-snapshot)]
+  ;; Check for dialog role in snapshot tree
+  (when (str/includes? (:tree snap) "dialog")
+    ;; Find close button inside dialog
+    (let [close (try (spel/get-by-role role/button {:name "Close"})
+                     (catch Exception _ nil))]
+      (when (and close (spel/visible? close))
+        (spel/click close)
+        (Thread/sleep 500)))))
+```
+
+### E-Commerce: Add Products to Cart
+```clojure
+;; spel-scripts/add-to-cart.clj
+;; Usage: spel --eval spel-scripts/add-to-cart.clj -- <url> <search-term> <count>
+(let [[url search-term count-str] *command-line-args*
+      count (Integer/parseInt (or count-str "1"))]
+  (spel/goto url)
+  (spel/wait-for-load)
+
+  ;; 1. Dismiss cookie consent if present
+  (let [snap (spel/capture-snapshot)]
+    (when (str/includes? (:tree snap) "cookie")
+      (spel/click (spel/get-by-role role/button {:name "Accept all"}))))
+
+  ;; 2. Search for product
+  (let [snap (spel/capture-snapshot)]
+    (spel/fill (spel/get-by-role role/searchbox) search-term)
+    (spel/press "Enter")
+    (spel/wait-for-load))
+
+  ;; 3. Add N products to cart
+  (dotimes [i count]
+    (let [snap (spel/capture-snapshot)
+          ;; Find all "Add to cart" buttons
+          add-btns (locator/all (spel/get-by-role role/button {:name "Add to cart"}))]
+      (when (> (clojure.core/count add-btns) i)
+        (locator/click (nth add-btns i))
+        (Thread/sleep 1000)  ;; wait for cart animation
+        (println (str "Added product " (inc i) " of " count)))))
+
+  ;; 4. Verify cart
+  (let [snap (spel/capture-snapshot)]
+    (println "Cart state:")
+    (println (:tree snap))))
+```
+
+### Dynamic Content: Wait for Lazy Loading
+```clojure
+;; Wait for products to load (common in SPAs)
+(spel/goto url)
+(spel/wait-for-load)
+;; Wait for at least one product card to appear
+(spel/wait-for ".product-card" {:timeout 10000})
+;; Or wait for specific text
+(spel/wait-for (spel/get-by-text "results") {:state "visible" :timeout 10000})
+;; Then snapshot and interact
+(let [snap (spel/capture-snapshot)]
+  (println (:tree snap)))
+```
+
+### Postal Code / Location Entry
+```clojure
+;; Common pattern: e-commerce sites ask for delivery location first
+(let [snap (spel/capture-snapshot)]
+  ;; Check if postal code popup is present
+  (when (str/includes? (:tree snap) "postal")
+    (let [input (spel/get-by-role role/textbox)]
+      (spel/fill input "31-564")
+      (spel/click (spel/get-by-role role/button {:name "Confirm"})))))
+```
+
 ## Output Conventions
 
 - Scripts saved to `spel-scripts/` directory
