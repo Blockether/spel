@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.13] - 2026-03-06
+
+### Changed
+- fix(templates): allow all bash commands for subagent-only agents
+- test(snapshot): add 6 Playwright integration tests for [pos:X,Y W×H] tree output
+- feat(snapshot): add [pos:X,Y W×H] screen position to tree output
+- feat(visual-diff): add semantic region enrichment with accessibility snapshot labels
+- release: update version files for v0.5.12, bump to next dev version
+
+
 ## [v0.5.12] - 2026-03-06
 
 ### Changed
@@ -555,7 +565,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.12...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.13...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -575,3 +585,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.10]: https://github.com/Blockether/spel/releases/tag/v0.5.10
 [v0.5.11]: https://github.com/Blockether/spel/releases/tag/v0.5.11
 [v0.5.12]: https://github.com/Blockether/spel/releases/tag/v0.5.12
+[v0.5.13]: https://github.com/Blockether/spel/releases/tag/v0.5.13
