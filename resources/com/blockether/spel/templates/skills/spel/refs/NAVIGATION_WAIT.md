@@ -1,12 +1,12 @@
-# Navigation and Wait Patterns
+# Page navigation and wait patterns
 
-How to navigate pages and wait for things to happen. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
+How to go to pages and wait for things to happen. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
 
-## Navigation
+## Going to pages
 
 ### `spel/navigate` (eval) / `page/navigate` (library)
 
-Navigate to a URL and optionally control when the navigation is considered "done."
+Go to a URL and optionally control when the load is considered done.
 
 ```clojure
 ;; Basic navigation (waits for "load" event by default)
@@ -23,7 +23,7 @@ The `:wait-until` option controls what "loaded" means:
 
 | Value | Fires when | Best for |
 |-------|-----------|----------|
-| `:commit` | Response headers received | Fastest — **navigation only** (`{:wait-until :commit}`), not valid for `wait-for-load-state` |
+| `:commit` | Response headers received | Fastest — navigation only (`{:wait-until :commit}`), not valid for `wait-for-load-state` |
 | `:domcontentloaded` | HTML parsed, deferred scripts done | Server-rendered pages |
 | `:load` (default) | All resources loaded (images, stylesheets) | Traditional multi-page sites |
 | `:networkidle` | No network requests for 500ms | SPAs, JS-heavy pages |
@@ -35,7 +35,7 @@ Library equivalent:
 (page/navigate pg "https://example.org" {:wait-until :networkidle :timeout 30000})
 ```
 
-### History Navigation
+### History navigation
 
 ```clojure
 ;; eval-sci                          ;; Library equivalent
@@ -44,21 +44,21 @@ Library equivalent:
 (spel/reload)                         ;; (page/reload pg)
 ```
 
-## Wait Strategies
+## Wait strategies
 
 Playwright is event-driven. Don't guess when something is ready. Wait for it.
 
-### The Wait Hierarchy
+### The wait hierarchy
 
 Use the most specific wait available. Work down this list only when the previous option doesn't fit:
 
-1. **`wait-for-load-state`** with the right state (page-level readiness)
-2. **`wait-for-selector`** on a specific element (DOM-level readiness)
-3. **`wait-for-url`** for route changes (SPA navigation)
-4. **`wait-for-function`** for custom JS conditions (app-level readiness)
-5. **`spel/wait-for-timeout`** as absolute last resort (time-based, fragile)
+1. `wait-for-load-state` with the right state (page-level readiness)
+2. `wait-for-selector` on a specific element (DOM-level readiness)
+3. `wait-for-url` for route changes (SPA navigation)
+4. `wait-for-function` for custom JS conditions (app-level readiness)
+5. `spel/wait-for-timeout` as absolute last resort (time-based, fragile)
 
-### 1. `spel/wait-for-load-state`
+### `spel/wait-for-load-state`
 
 Waits for the page to reach a load state. Call this after `spel/navigate` when you need a stricter readiness check than the default.
 
@@ -81,7 +81,7 @@ Library equivalent:
 (page/wait-for-load-state pg :networkidle)       ;; keyword form works too
 ```
 
-### 2. `spel/wait-for-selector` (Element Waiting)
+### `spel/wait-for-selector` (element waiting)
 
 Waits for a specific element to reach a condition. This is the workhorse for most automation tasks.
 
@@ -102,7 +102,7 @@ Waits for a specific element to reach a condition. This is the workhorse for mos
 (spel/wait-for-selector ".modal-overlay" {:state "detached"})
 ```
 
-**States:**
+States:
 
 | State | Meaning |
 |-------|---------|
@@ -118,7 +118,7 @@ Library equivalent:
 (page/wait-for-selector pg ".results" {:state :visible :timeout 5000})
 ```
 
-### 3. `spel/wait-for-url`
+### `spel/wait-for-url`
 
 Waits for the page URL to match a pattern. Essential for SPA navigation where clicking a link changes the route without a full page load.
 
@@ -136,9 +136,9 @@ Library equivalent:
 (page/wait-for-url pg "**/dashboard")
 ```
 
-### 4. `spel/wait-for-function`
+### `spel/wait-for-function`
 
-Waits for a JavaScript expression to return a truthy value. Your escape hatch for app-specific readiness checks that can't be expressed as element visibility or URL changes.
+Waits for a JavaScript expression to return a truthy value. Use this when you can't express readiness as element visibility or a URL change.
 
 ```clojure
 ;; Wait for a specific DOM element
@@ -156,9 +156,9 @@ Waits for a JavaScript expression to return a truthy value. Your escape hatch fo
 
 Library: `(page/wait-for-function pg "() => window.appReady === true")`
 
-### 5. `spel/wait-for-timeout` (Last Resort)
+### `spel/wait-for-timeout` (last resort)
 
-Pauses execution for a fixed number of milliseconds. **This is almost always the wrong choice.** Fixed delays make tests slow and flaky: too short on slow machines, wastefully long on fast ones.
+Pauses execution for a fixed number of milliseconds. This is almost always the wrong choice. Fixed delays make tests slow and flaky: too short on slow machines, wastefully long on fast ones.
 
 ```clojure
 ;; Don't do this unless you truly have no other option
@@ -169,9 +169,9 @@ The only acceptable use: waiting for a CSS animation or transition that has no o
 
 Library: `(page/wait-for-timeout pg 1000)` ... same caveat.
 
-### 6. `sleep` / `Thread/sleep` (Non-Browser Only)
+### `sleep` / `Thread/sleep` (non-browser only)
 
-Plain JVM thread sleep. **Does NOT interact with the browser event loop.** Available as a global binding `(sleep ms)`, as `(spel/sleep ms)`, or as raw `(Thread/sleep (long ms))`.
+Plain JVM thread sleep. Does NOT interact with the browser event loop. Available as a global binding `(sleep ms)`, as `(spel/sleep ms)`, or as raw `(Thread/sleep (long ms))`.
 
 ```clojure
 ;; WRONG — never use sleep for browser synchronization:
@@ -183,13 +183,13 @@ Plain JVM thread sleep. **Does NOT interact with the browser event loop.** Avail
 (spel/click ".button")
 ```
 
-The **only** valid use of `sleep` is for non-browser delays: waiting for an external file to appear on disk, throttling requests to a non-browser API, polling a process. If you're touching a browser page, use a page wait — always.
+The only valid use of `sleep` is for non-browser delays: waiting for an external file to appear on disk, throttling requests to a non-browser API, polling a process. If you're touching a browser page, use a page wait.
 
-## Common Patterns
+## Common patterns
 
-### SPA Navigation (Click → Wait → Verify)
+### SPA navigation (click → wait → verify)
 
-Single-page apps don't trigger full page loads. After clicking a navigation link, wait for the URL to change and the new content to appear.
+Single-page apps don't trigger full page loads. After clicking a link, wait for the URL to change and the new content to appear.
 
 ```clojure
 (spel/navigate "https://myapp.com")
@@ -200,9 +200,9 @@ Single-page apps don't trigger full page loads. After clicking a navigation link
 (println (spel/text-content ".dashboard-title"))
 ```
 
-The pattern: **interact → wait for URL → wait for element → proceed.**
+The pattern: interact → wait for URL → wait for element → proceed.
 
-### Content Loading (Navigate → Wait for Element → Extract)
+### Content loading (open page → wait for element → extract)
 
 Pages that load data asynchronously after the initial render.
 
@@ -214,7 +214,7 @@ Pages that load data asynchronously after the initial render.
   (println "Top story:" title))
 ```
 
-### SPA with API Data (Navigate → Network Idle → JS Check)
+### SPA with API data (open page → network idle → JS check)
 
 For apps that fetch data from APIs after mounting:
 
@@ -225,7 +225,7 @@ For apps that fetch data from APIs after mounting:
 (println "Users:" (spel/all-text-contents "tr.user-row td.name"))
 ```
 
-### Waiting for Popups, Downloads, and File Choosers
+### Waiting for popups, downloads, and file choosers
 
 All three follow the same pattern: pass an action callback that triggers the event. The return value is the captured object (Page, Download, or FileChooser).
 
@@ -265,12 +265,12 @@ Library equivalents:
   (page/download-save-as! dl "/tmp/downloaded.pdf"))
 ```
 
-## Library Quick Reference
+## Library quick reference
 
 | Eval (`spel/`) | Library (`page/`) | Purpose |
 |---|---|---|
-| `(spel/navigate url)` | `(page/navigate pg url)` | Navigate to URL |
-| `(spel/navigate url opts)` | `(page/navigate pg url opts)` | Navigate with options |
+| `(spel/navigate url)` | `(page/navigate pg url)` | Go to URL |
+| `(spel/navigate url opts)` | `(page/navigate pg url opts)` | Go to URL with options |
 | `(spel/wait-for-load-state)` | `(page/wait-for-load-state pg)` | Wait for load state |
 | `(spel/wait-for-load-state state)` | `(page/wait-for-load-state pg state)` | Wait for specific state |
 | `(spel/wait-for-selector sel)` | `(page/wait-for-selector pg sel)` | Wait for element |

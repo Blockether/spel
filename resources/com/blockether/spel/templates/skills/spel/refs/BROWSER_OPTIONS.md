@@ -1,8 +1,8 @@
-# Browser Options, Page Utilities & Advanced Locator Actions
+# Browser options, page utilities & advanced locator actions
 
 Detailed reference for browser launch options, context options, device/viewport presets, page utilities, and advanced locator operations.
 
-## Browser Launch Options
+## Browser launch options
 
 ```clojure
 ;; Basic headless (default)
@@ -39,7 +39,7 @@ Detailed reference for browser launch options, context options, device/viewport 
 (core/launch-webkit pw {:headless true})
 ```
 
-### Launch Option Reference
+### Launch option reference
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -55,7 +55,7 @@ Detailed reference for browser launch options, context options, device/viewport 
 | `:timeout` | number | Max ms to wait for browser launch |
 | `:chromium-sandbox` | boolean | Enable Chromium sandbox |
 
-## Browser Context Options
+## Browser context options
 
 ```clojure
 ;; Custom viewport
@@ -117,7 +117,7 @@ Detailed reference for browser launch options, context options, device/viewport 
 (core/context-set-default-navigation-timeout! ctx 60000)
 ```
 
-## Standalone Testing Page
+## Standalone testing page
 
 For quick tests, scripts, and standalone test cases, `with-testing-page` creates the entire Playwright stack (pw → browser → context → page) in one shot — no nesting required:
 
@@ -157,7 +157,7 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
   (page/navigate pg "https://example.org"))
 ```
 
-### `with-testing-page` Options
+### `with-testing-page` options
 
 | Option | Values | Default |
 |--------|--------|---------|
@@ -178,29 +178,29 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 
 When the Allure reporter is active (either Lazytest or clojure.test), tracing (screenshots + DOM snapshots + network) and HAR recording are enabled automatically — zero configuration. Trace and HAR files are attached directly to the Allure test result.
 
-### Device Presets
+### Device presets
 
 | Keyword | Viewport | Mobile |
 |---------|----------|--------|
-| `:iphone-se` | 375×667 | ✓ |
-| `:iphone-12` | 390×844 | ✓ |
-| `:iphone-14` | 390×844 | ✓ |
-| `:iphone-14-pro` | 393×852 | ✓ |
-| `:iphone-15` | 393×852 | ✓ |
-| `:iphone-15-pro` | 393×852 | ✓ |
-| `:ipad` | 810×1080 | ✓ |
-| `:ipad-mini` | 768×1024 | ✓ |
-| `:ipad-pro-11` | 834×1194 | ✓ |
-| `:ipad-pro` | 1024×1366 | ✓ |
-| `:pixel-5` | 393×851 | ✓ |
-| `:pixel-7` | 412×915 | ✓ |
-| `:galaxy-s24` | 360×780 | ✓ |
-| `:galaxy-s9` | 360×740 | ✓ |
-| `:desktop-chrome` | 1280×720 | ✗ |
-| `:desktop-firefox` | 1280×720 | ✗ |
-| `:desktop-safari` | 1280×720 | ✗ |
+| `:iphone-se` | 375×667 | yes |
+| `:iphone-12` | 390×844 | yes |
+| `:iphone-14` | 390×844 | yes |
+| `:iphone-14-pro` | 393×852 | yes |
+| `:iphone-15` | 393×852 | yes |
+| `:iphone-15-pro` | 393×852 | yes |
+| `:ipad` | 810×1080 | yes |
+| `:ipad-mini` | 768×1024 | yes |
+| `:ipad-pro-11` | 834×1194 | yes |
+| `:ipad-pro` | 1024×1366 | yes |
+| `:pixel-5` | 393×851 | yes |
+| `:pixel-7` | 412×915 | yes |
+| `:galaxy-s24` | 360×780 | yes |
+| `:galaxy-s9` | 360×740 | yes |
+| `:desktop-chrome` | 1280×720 | no |
+| `:desktop-firefox` | 1280×720 | no |
+| `:desktop-safari` | 1280×720 | no |
 
-### Viewport Presets
+### Viewport presets
 
 | Keyword | Size |
 |---------|------|
@@ -212,9 +212,9 @@ When the Allure reporter is active (either Lazytest or clojure.test), tracing (s
 | `:desktop-hd` | 1920×1080 |
 | `:desktop-4k` | 3840×2160 |
 
-## Resource Lifecycle Macros
+## Resource lifecycle macros
 
-**Always use macros for cleanup.** They nest naturally:
+Always use macros for cleanup. They nest naturally:
 
 ```clojure
 (core/with-playwright [pw]
@@ -233,7 +233,7 @@ When the Allure reporter is active (either Lazytest or clojure.test), tracing (s
 | `with-context` | BrowserContext |
 | `with-page` | Page instance |
 
-## Error Handling
+## Error handling
 
 Uses `com.blockether.anomaly` instead of throwing exceptions:
 
@@ -252,7 +252,7 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 | `PlaywrightException` | `:cognitect.anomalies/fault` | `:playwright.error/playwright` |
 | Generic `Exception` | `:cognitect.anomalies/fault` | `:playwright.error/unknown` |
 
-## Page Utilities
+## Page utilities
 
 ```clojure
 ;; Set HTML content directly (useful for tests)
@@ -289,7 +289,7 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 (page/bring-to-front pg)
 ```
 
-## Page Utilities (page namespace)
+## Page utilities (page namespace)
 
 Functions from the `page` namespace for handling dialogs, downloads, console messages, clock manipulation, workers, file choosers, and web errors.
 ```clojure
@@ -369,7 +369,7 @@ Functions from the `page` namespace for handling dialogs, downloads, console mes
   ))
 ```
 
-## Advanced Locator Actions
+## Advanced locator actions
 
 ```clojure
 ;; Drag and drop
@@ -411,11 +411,11 @@ Functions from the `page` namespace for handling dialogs, downloads, console mes
 (locator/hover (page/locator pg ".tooltip-trigger"))
 ```
 
-## Device Emulation in `eval-sci` Mode
+## Device emulation in `eval-sci` mode
 
 There are multiple approaches to device emulation depending on what you need:
 
-### Approach 1: Viewport Only (`spel/set-viewport-size!`)
+### Approach 1: viewport only (`spel/set-viewport-size!`)
 Sets width and height but NOT device pixel ratio, user agent, or touch support.
 ```clojure
 ;; Daemon mode: just set viewport and go
@@ -424,7 +424,7 @@ Sets width and height but NOT device pixel ratio, user agent, or touch support.
 (spel/screenshot {:path "/tmp/iphone14.png"})
 ```
 
-### Approach 2: Full Device Preset (CLI daemon `set device`)
+### Approach 2: full device preset (CLI daemon `set device`)
 Sets viewport + DPR + user agent + touch. Requires the daemon running.
 ```bash
 # From shell (daemon must be running via spel start)
@@ -432,7 +432,7 @@ spel set device "iPhone 14"
 spel screenshot /tmp/iphone14.png
 ```
 
-### Approach 3: Restart with Device (library only)
+### Approach 3: restart with device (library only)
 ```clojure
 ;; In library code (NOT eval-sci), use :device option
 (core/with-testing-page {:device :iphone-14} [pg]
@@ -443,6 +443,6 @@ spel screenshot /tmp/iphone14.png
 
 | Approach | Viewport | DPR | User Agent | Touch | Available in |
 |---|---|---|---|---|---|
-| `spel/set-viewport-size!` | ✅ | ❌ | ❌ | ❌ | `eval-sci` |
-| `spel set device "Name"` | ✅ | ✅ | ✅ | ✅ | CLI daemon |
-| `{:device :name}` option | ✅ | ✅ | ✅ | ✅ | Library only |
+| `spel/set-viewport-size!` | yes | no | no | no | `eval-sci` |
+| `spel set device "Name"` | yes | yes | yes | yes | CLI daemon |
+| `{:device :name}` option | yes | yes | yes | yes | Library only |

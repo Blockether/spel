@@ -1,27 +1,27 @@
-# Adversarial Bug-Finding Guide
+# Adversarial bug-finding guide
 
 The adversarial bug-finding pipeline uses three competing agents with opposing incentives to produce a verified bug list with minimal false positives. Based on the Hunter/Skeptic/Referee methodology.
 
 ---
 
-## Why Adversarial?
+## Why adversarial?
 
 Single-pass bug reviews have two failure modes:
-1. **Over-reporting** — Aggressive finders report noise. Engineering time wasted on false positives.
-2. **Under-reporting** — Conservative finders miss real bugs. Defects ship.
+1. Over-reporting — Aggressive finders report noise. Engineering time wasted on false positives.
+2. Under-reporting — Conservative finders miss real bugs. Defects ship.
 
 The adversarial approach solves both:
-- The **Hunter** is incentivized to over-report (missing a bug scores 0)
-- The **Skeptic** is incentivized to challenge aggressively but carefully (wrong dismissals cost 2x)
-- The **Referee** is incentivized to be precise (every wrong judgment costs a point)
+- The Hunter is incentivized to over-report (missing a bug scores 0)
+- The Skeptic is incentivized to challenge aggressively but carefully (wrong dismissals cost 2x)
+- The Referee is incentivized to be precise (every wrong judgment costs a point)
 
 Competing incentives break the echo chamber of self-validation.
 
 ---
 
-## Scoring System
+## Scoring system
 
-### Hunter Scoring
+### Hunter scoring
 
 | Points | Severity | Examples |
 |--------|----------|---------|
@@ -29,35 +29,35 @@ Competing incentives break the echo chamber of self-validation.
 | +5 | Medium | Functional issue, broken interaction, a11y gap, UX confusion, perf degradation, layout shift |
 | +10 | Critical | Security vulnerability, data loss risk, crash, complete UX failure, a11y blocker |
 
-**Objective:** Maximize total score. Report anything that *could* be a bug. False positives are acceptable — missing real bugs is not.
+Objective: maximize total score. Report anything that *could* be a bug. False positives are acceptable — missing real bugs is not.
 
-### Skeptic Scoring
+### Skeptic scoring
 
 | Action | Points |
 |--------|--------|
 | Successfully disprove a bug | +[bug's original score] |
 | Wrongly dismiss a real bug | -2x [bug's original score] |
 
-**Objective:** Maximize score. Only DISPROVE when expected value is positive (confidence > 66%).
+Objective: maximize score. Only DISPROVE when expected value is positive (confidence > 66%).
 
-**Risk calculation:**
+Risk calculation:
 ```
 Expected value = (confidence × bug_score) + ((1 - confidence) × -2 × bug_score)
 DISPROVE only when expected value > 0
 ```
 
-### Referee Scoring
+### Referee scoring
 
 | Action | Points |
 |--------|--------|
 | Correct judgment | +1 |
 | Incorrect judgment | -1 |
 
-**Objective:** Be precise. Evidence over rhetoric. Reproduction over theory.
+Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 
 ---
 
-## Bug Categories
+## Bug categories
 
 | Category | Code | What to Check |
 |----------|------|--------------|
@@ -70,9 +70,9 @@ DISPROVE only when expected value > 0
 
 ---
 
-## JSON Report Schemas
+## JSON report schemas
 
-### Hunter Report (`hunter-report.json`)
+### Hunter report (`hunter-report.json`)
 
 ```json
 {
@@ -109,7 +109,7 @@ DISPROVE only when expected value > 0
 }
 ```
 
-### Skeptic Review (`skeptic-review.json`)
+### Skeptic review (`skeptic-review.json`)
 
 ```json
 {
@@ -138,7 +138,7 @@ DISPROVE only when expected value > 0
 }
 ```
 
-### Referee Verdict (`referee-verdict.json`)
+### Referee verdict (`referee-verdict.json`)
 
 ```json
 {
@@ -188,23 +188,23 @@ DISPROVE only when expected value > 0
 
 ---
 
-## Pipeline Flow
+## Pipeline flow
 
 ```
-Step 0 (Optional): @spel-explorer + @spel-visual-qa
+Phase 0 (optional): @spel-explorer + @spel-visual-qa
   Exploration data + visual regression report
   ↓
-Step 1: @spel-bug-hunter
+Phase 1: @spel-bug-hunter
   Reads exploration data (if available)
   Technical audit + Design audit (UX Architect lens)
   → bugfind-reports/hunter-report.json
   ↓ GATE: User reviews findings
-Step 2: @spel-bug-skeptic
+Phase 2: @spel-bug-skeptic
   Reads hunter-report.json
   Independent verification in separate browser session
   → bugfind-reports/skeptic-review.json
   ↓ GATE: User reviews challenges
-Step 3: @spel-bug-referee
+Phase 3: @spel-bug-referee
   Reads both reports
   Independent verification of disputed bugs in third session
   → bugfind-reports/referee-verdict.json (final deliverable)
@@ -212,7 +212,7 @@ Step 3: @spel-bug-referee
 
 ---
 
-## Directory Convention
+## Directory convention
 
 ```
 bugfind-reports/
@@ -233,39 +233,39 @@ bugfind-reports/
 
 ---
 
-## UX Architect Lens (Hunter Phase 2)
+## UX architect lens (Hunter Phase 2)
 
 The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy. For every page:
 
 | Dimension | Questions |
 |-----------|-----------|
-| **Visual Hierarchy** | Eye lands where it should? Most important element most prominent? Scannable in 2 seconds? |
-| **Spacing & Rhythm** | Whitespace consistent and intentional? Vertical rhythm harmonious? |
-| **Typography** | Clear hierarchy in type sizes? Too many weights competing? Calm or chaotic? |
-| **Color** | Used with restraint and purpose? Guides attention? Sufficient contrast? |
-| **Alignment & Grid** | Elements on consistent grid? Anything off by 1-2px? |
-| **Component Consistency** | Similar elements identical across screens? Interactive elements obvious? States accounted for? |
-| **Density** | Anything removable without losing meaning? Every element earning its place? |
-| **Responsiveness** | Works at mobile/tablet/desktop? Touch targets sized for thumbs? |
+| Visual hierarchy | Eye lands where it should? Most important element most prominent? Scannable in 2 seconds? |
+| Spacing & rhythm | Whitespace consistent and intentional? Vertical rhythm harmonious? |
+| Typography | Clear hierarchy in type sizes? Too many weights competing? Calm or chaotic? |
+| Color | Used with restraint and purpose? Guides attention? Sufficient contrast? |
+| Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
+| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? |
+| Density | Anything removable without losing meaning? Every element earning its place? |
+| Responsiveness | Works at mobile/tablet/desktop? Touch targets sized for thumbs? |
 
-**The Jobs Filter:**
+The Jobs Filter:
 - "Would a user need to be told this exists?" → UX confusion bug
 - "Can this be removed without losing meaning?" → Density bug
 - "Does this feel inevitable?" → Design inconsistency bug
 
 ---
 
-## Evidence Best Practices
+## Evidence guidelines
 
-1. **Every bug needs at least one piece of evidence.** No exceptions.
-2. **Screenshots > descriptions.** A screenshot showing the bug beats a paragraph explaining it.
-3. **Annotated screenshots are strongest evidence.** `spel annotate` + `spel screenshot` shows exactly which element is affected.
-4. **Snapshot JSON provides structural proof.** Style values, ARIA attributes, element hierarchy — all machine-verifiable.
-5. **Independent capture is mandatory for Skeptic and Referee.** They must capture their OWN evidence in their OWN session. Re-using Hunter's evidence defeats the adversarial purpose.
+1. Every bug needs at least one piece of evidence. No exceptions.
+2. Screenshots beat descriptions. A screenshot showing the bug beats a paragraph explaining it.
+3. Annotated screenshots are the strongest evidence. `spel annotate` + `spel screenshot` shows exactly which element is affected.
+4. Snapshot JSON provides structural proof. Style values, ARIA attributes, element hierarchy — all machine-verifiable.
+5. Independent capture is mandatory for Skeptic and Referee. They must capture their OWN evidence in their OWN session. Re-using Hunter's evidence defeats the adversarial purpose.
 
 ---
 
-## See Also
+## See also
 
 - [AGENT_COMMON.md](AGENT_COMMON.md) — Session management, I/O contracts, gates, error recovery
 - [VISUAL_QA_GUIDE.md](VISUAL_QA_GUIDE.md) — Baseline capture, structural diff, regression thresholds

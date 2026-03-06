@@ -1,4 +1,4 @@
-# eval-sci Mode Guide
+# eval-sci mode guide
 spel's `eval-sci` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Just pass code directly:
 
 ```bash
@@ -17,7 +17,7 @@ Or pipe from stdin:
 echo '(spel/navigate "https://example.org") (println (spel/title))' | spel eval-sci --stdin
 ```
 
-> **Daemon mode is default.** When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
+> Daemon mode is default. When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
 
 ## Discovering the API: `spel/help`
 
@@ -57,7 +57,7 @@ echo '(spel/navigate "https://example.org") (println (spel/title))' | spel eval-
 ;; => spel/click  [sel] [sel opts]  Clicks an element.
 ```
 
-**Rule of thumb**: run `(spel/help "keyword")` before writing any code that uses a function you haven't verified.
+Rule of thumb: run `(spel/help "keyword")` before writing any code that uses a function you haven't verified.
 
 ## Viewing Source: `spel/source`
 
@@ -73,15 +73,15 @@ When `spel/help` shows you a function exists but you need to understand what it 
 (spel/source "screenshot")
 ```
 
-## Session Lifecycle
+## Session lifecycle
 
-> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser. Just call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `eval-sci` calls, so you don't need to re-navigate to the same URL.
+> Daemon mode (default): When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser. Just call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `eval-sci` calls, so you don't need to re-navigate to the same URL.
 >
-> `spel/start!` and `spel/stop!` are only needed for **standalone scripts** that run without a daemon.
+> `spel/start!` and `spel/stop!` are only needed for standalone scripts that run without a daemon.
 
 In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts written for standalone `eval-sci` work unchanged — but calling it is unnecessary and wasteful.
 
-### Standalone Scripts (no daemon)
+### Standalone scripts (no daemon)
 
 `spel/start!` creates the full Playwright stack: Playwright instance, browser, context, and page. Only use this when running `spel eval-sci` without a daemon.
 
@@ -113,7 +113,7 @@ In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts wr
 | `:timezone-id` | string | nil | Timezone (e.g. `"America/New_York"`) |
 | `:timeout` | number | 30000 | Default timeout for all actions (ms) |
 
-### Stopping and Restarting
+### Stopping and restarting
 
 ```clojure
 (spel/stop!)     ;; closes browser, cleans up all resources, returns :stopped
@@ -122,7 +122,7 @@ In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts wr
 (spel/restart! {:browser :firefox :headless false})  ;; restart with new options
 ```
 
-### Tab Management
+### Tab management
 
 ```clojure
 (spel/tabs)          ;; list all open tabs: [{:index 0 :url "..." :title "..." :active true}]
@@ -132,11 +132,11 @@ In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts wr
 
 Each tab is a separate Page. `spel/new-tab!` creates a new page in the current context and makes it the active page for all subsequent `spel/` calls.
 
-## Available Namespaces
+## Available namespaces
 
 Every namespace below is pre-registered. No `require` or `import` needed.
 
-### Browser Automation
+### Browser automation
 
 | Namespace | Functions | Purpose |
 |-----------|-----------|---------|
@@ -150,7 +150,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `loc/` | 39 | Raw Locator operations with explicit Locator arg. Click, fill, hover, check, get attributes, evaluate JS on elements. |
 | `assert/` | 31 | Playwright assertion functions. `assert-that`, `has-text`, `is-visible`, `has-url`, `loc-not`, `page-not`. Takes assertion objects. |
 | `core/` | 29 fn + 4 macros | Browser lifecycle. `with-testing-page` (recommended), `with-testing-api`, plus low-level `with-playwright`, `with-browser`, `with-context`, `with-page`. |
-| `page/` | 42 | Raw Page operations with explicit page arg. Same functions as the library's `com.blockether.spel.page` namespace. |
+| `page/` | 42 | Raw Page operations with explicit page arg. Same functions as in the library's `com.blockether.spel.page` namespace. |
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
 | `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
 | `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
@@ -158,7 +158,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `device/` | 20 | Device preset maps. `device/iphone-14`, `device/pixel-7`, `device/desktop-chrome`, plus `device-presets` and `viewport-presets` helper maps. |
 
 
-### When to Use Which Namespace
+### When to use which namespace
 
 For most `eval-sci` scripts, `spel/` is all you need. It wraps the implicit page and handles locator resolution from strings, refs, and Locator objects.
 
@@ -168,9 +168,9 @@ Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
 - Network interception and response mocking
 - Multi-frame navigation
 
-### Constants & Device Presets
+### Constants & device presets
 
-Playwright enum values are passed as **keywords** in option maps. The options layer converts them to Java enums automatically. The `constants/` namespace provides named vars as an alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
+Playwright enum values are passed as keywords in option maps. The options layer converts them to Java enums automatically. The `constants/` namespace provides named vars as an alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
 
 ```clojure
 ;; Keywords (recommended)
@@ -198,18 +198,18 @@ Playwright enum values are passed as **keywords** in option maps. The options la
 
 See [CONSTANTS.md](CONSTANTS.md) for the complete keyword reference.
 
-## Clojure Standard Library
+## Clojure standard library
 These Clojure namespaces are available without any `require`:
 | Namespace | Notes |
 |-----------|-------|
 | `clojure.core` | Full standard library: `map`, `filter`, `reduce`, `let`, `fn`, `atom`, `swap!`, `deref`, `assert`, etc. |
-| `clojure.string` | `split`, `join`, `replace`, `trim`, `lower-case`, `upper-case`, `includes?`, `starts-with?`, `blank?`. **Also available as `str/`** — e.g. `(str/upper-case "hello")` |
+| `clojure.string` | `split`, `join`, `replace`, `trim`, `lower-case`, `upper-case`, `includes?`, `starts-with?`, `blank?`. Also available as `str/` — e.g. `(str/upper-case "hello")` |
 | `clojure.set` | `union`, `intersection`, `difference`, `rename-keys` |
 | `clojure.walk` | `postwalk`, `prewalk`, `keywordize-keys`, `stringify-keys` |
 | `clojure.edn` | `read-string` for safe EDN parsing |
 | `clojure.repl` | `doc`, `source`, `dir` |
 | `clojure.template` | `do-template`, `apply-template` |
-| `pprint/` | Pretty-printing via [fipp](https://github.com/brandonbloom/fipp) (GraalVM-safe). `pprint`, `print-table`. **Also available as `clojure.pprint/`** — e.g. `(pprint/pprint data)` |
+| `pprint/` | Pretty-printing via [fipp](https://github.com/brandonbloom/fipp) (GraalVM-safe). `pprint`, `print-table`. Also available as `clojure.pprint/` — e.g. `(pprint/pprint data)` |
 | `json/` | JSON via [charred](https://github.com/cnuernber/charred): `json/read-json`, `json/write-json-str`. E.g. `(json/write-json-str {:a 1})` → `"{\"a\":1}"` |
 | `*json-encoder*` | Dynamic var bound to `json/write-json-str`. Used internally for JSON encoding; rebind to customize serialization. |
 
@@ -252,9 +252,9 @@ These Clojure namespaces are available without any `require`:
 
 Available `io/` functions: `file`, `reader`, `writer`, `input-stream`, `output-stream`, `copy`, `as-file`, `as-url`, `resource`, `make-parents`, `delete-file`.
 
-## Java Interop
+## Java interop
 
-### Playwright Classes
+### Playwright classes
 
 All core Playwright Java classes are registered and support full method interop:
 
@@ -268,8 +268,8 @@ All core Playwright Java classes are registered and support full method interop:
   (.content pg))        ;; same as (spel/content)
 ```
 
-### Playwright Enums
-**Prefer the `role/` namespace** for AriaRole constants — idiomatic Clojure, no Java interop needed:
+### Playwright enums
+Prefer the `role/` namespace for AriaRole constants — idiomatic Clojure, no Java interop needed:
 ```clojure
 role/button              ;; preferred
 role/heading
@@ -290,7 +290,7 @@ The `role/` namespace has 82 constants: `role/button`, `role/link`, `role/headin
 
 Other enum classes (Java interop only): `ColorScheme`, `ForcedColors`, `HarContentPolicy`, `HarMode`, `HarNotFound`, `LoadState`, `Media`, `MouseButton`, `ReducedMotion`, `ScreenshotType`, `ServiceWorkerPolicy`, `WaitForSelectorState`, `WaitUntilState`.
 
-### Java Utility Classes
+### Java utility classes
 
 ```clojure
 ;; java.io.File
@@ -319,19 +319,19 @@ Other enum classes (Java interop only): `ColorScheme`, `ForcedColors`, `HarConte
 (System/currentTimeMillis)  ;; => 1740000000000
 ```
 
-## What's NOT Available
+## What's NOT available
 
 The SCI sandbox has boundaries. These will fail:
 
-- **`require`, `use`, `import`**: All namespaces are pre-registered. You can't load new ones.
-- **Arbitrary Java class construction**: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered. Registered JDK classes: `File`, `Base64`, `Files`, `Paths`, `Path`, `LinkOption`, `FileAttribute`, `Thread`, `System`.
-- **Macro definitions**: `defmacro` is not available. Use functions instead.
-- **Loading external libraries**: No Clojure deps, no Maven artifacts. Everything you need is already in the sandbox.
-- **STM and concurrency**: `ref`/`dosync`/`future`/`agent` are not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
+- `require`, `use`, `import`: All namespaces are pre-registered. You can't load new ones.
+- Arbitrary Java class construction: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered. Registered JDK classes: `File`, `Base64`, `Files`, `Paths`, `Path`, `LinkOption`, `FileAttribute`, `Thread`, `System`.
+- Macro definitions: `defmacro` is not available. Use functions instead.
+- Loading external libraries: No Clojure deps, no Maven artifacts. Everything you need is already in the sandbox.
+- STM and concurrency: `ref`/`dosync`/`future`/`agent` are not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
 
 If you need something that isn't available, write a `.clj` library file and use the library API (JVM mode) instead of `eval-sci`.
 
-## Complete Example: Multi-Step Eval Script
+## Complete example: multi-step eval script
 
 This script demonstrates a realistic workflow: start a session, explore a page, capture data, annotate, and write results to disk.
 
@@ -387,7 +387,7 @@ Run it:
 spel eval-sci explore.clj
 ```
 
-## CLI Flags for `eval-sci`
+## CLI flags for `eval-sci`
 
 | Flag | Purpose |
 |------|---------|
@@ -403,25 +403,25 @@ spel eval-sci explore.clj
 
 ## Tips
 
-**Console output is captured automatically.** Browser `console.log`, `console.warn`, and `console.error` messages print to stderr after your eval result. Check stderr if something fails silently in the browser.
+Console output is captured automatically. Browser `console.log`, `console.warn`, and `console.error` messages print to stderr after your eval result. Check stderr if something fails silently in the browser.
 
-**Daemon mode is the default.** When a daemon is running, `eval-sci` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `eval-sci` calls, so avoid redundant navigations to the same URL.
+Daemon mode is the default. When a daemon is running, `eval-sci` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `eval-sci` calls, so avoid redundant navigations to the same URL.
 
-**Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
+Prefer `spel/` over raw namespaces. The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 
-**Use `spel/wait-for-load-state :networkidle` for SPAs.** Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
+Use `spel/wait-for-load-state :networkidle` for SPAs. Single Page Applications render client-side after the initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
 
-**Never use `spel/wait-for-timeout` or `sleep` for synchronization.** Fixed-time delays are a flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. The only acceptable use of a fixed delay is waiting for a CSS animation with no observable state change.
+NEVER use `spel/wait-for-timeout` or `sleep` for synchronization. Fixed-time delays are a flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. The only acceptable use of a fixed delay is waiting for a CSS animation with no observable state change.
 
-**`sleep` vs `spel/wait-for-timeout` vs page waits:**
+`sleep` vs `spel/wait-for-timeout` vs page waits:
 
 | Function | Needs browser? | What it does | When to use |
 |---|---|---|---|
-| `spel/wait-for-selector` | Yes | Waits until element appears/disappears | **PREFERRED** — event-driven, not flaky |
-| `spel/wait-for-url` | Yes | Waits until URL matches | **PREFERRED** — for navigation |
-| `spel/wait-for-load-state` | Yes | Waits for load/networkidle | **PREFERRED** — for page loads |
-| `spel/wait-for-function` | Yes | Waits until JS expression is truthy | **PREFERRED** — for dynamic content |
+| `spel/wait-for-selector` | Yes | Waits until element appears/disappears | preferred — event-driven, not flaky |
+| `spel/wait-for-url` | Yes | Waits until URL matches | preferred — for navigation |
+| `spel/wait-for-load-state` | Yes | Waits for load/networkidle | preferred — for page loads |
+| `spel/wait-for-function` | Yes | Waits until JS expression is truthy | preferred, for content that loads asynchronously |
 | `spel/wait-for-timeout` | Yes | Playwright-managed fixed delay | Last resort for browser timing |
-| `sleep` / `(Thread/sleep (long ms))` | **No** | Plain JVM thread sleep | **Only** for non-browser delays (file I/O timing, external process waits) |
+| `sleep` / `(Thread/sleep (long ms))` | no | Plain JVM thread sleep | only for non-browser delays (file I/O timing, external process waits) |
 
-**Rule of thumb:** If you're interacting with a browser, use a page wait. Always. `sleep` exists for the rare case where you need a delay outside the browser context (e.g., waiting for an external file to appear, polling a non-browser resource).
+Rule of thumb: If you're interacting with a browser, use a page wait. Always. `sleep` exists for the rare case where you need a delay outside the browser context (e.g., waiting for an external file to appear, polling a non-browser resource).

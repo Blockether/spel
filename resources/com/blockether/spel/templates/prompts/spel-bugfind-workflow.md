@@ -2,34 +2,34 @@
 description: Adversarial bug-finding workflow — Hunt, Challenge, Judge using three competing agents
 ---
 
-# Adversarial Bug-Finding Workflow
+# Adversarial bug-finding workflow
 
-Orchestrates a three-agent adversarial pipeline to find, challenge, and verify bugs in a live web application. See BUGFIND_GUIDE.md for methodology, scoring, and JSON schemas.
+Orchestrates a three-agent adversarial pipeline to find, challenge, and verify bugs in a live web application. See `BUGFIND_GUIDE.md` for methodology, scoring, and JSON schemas.
 
 ## Parameters
 
-- **Target URL**: The URL to audit
-- **Scope** (optional): Specific pages, flows, or areas to focus on. Defaults to full-site audit.
-- **Bug categories** (optional): Defaults to all: functional, visual, accessibility, ux, performance, api.
-- **Baseline dir** (optional): Directory with baseline snapshots for visual regression. If absent, no baseline comparison.
+- Target URL: the URL to audit
+- Scope (optional): specific pages, flows, or areas to focus on. Defaults to full-site audit.
+- Bug categories (optional): defaults to all: functional, visual, accessibility, ux, performance, api.
+- Baseline dir (optional): directory with baseline snapshots for visual regression. If absent, no baseline comparison.
 
-## Pipeline Overview
+## Pipeline overview
 
-Three agents with **competing scoring incentives**:
+Three agents with competing scoring incentives:
 
 | Agent | Incentive | Output |
 |-------|-----------|--------|
-| **Hunter** | +1/+5/+10 per bug found | `bugfind-reports/hunter-report.json` |
-| **Skeptic** | +score per disproval, -2x for wrong dismissal | `bugfind-reports/skeptic-review.json` |
-| **Referee** | +1 correct, -1 incorrect judgment | `bugfind-reports/referee-verdict.json` |
+| Hunter | +1/+5/+10 per bug found | `bugfind-reports/hunter-report.json` |
+| Skeptic | +score per disproval, -2x for wrong dismissal | `bugfind-reports/skeptic-review.json` |
+| Referee | +1 correct, -1 incorrect judgment | `bugfind-reports/referee-verdict.json` |
 
-## Step 0 (Optional): Pre-Exploration
+## Pre-exploration (optional)
 
 > Skip if you want the Hunter to do its own exploration.
 
 If @spel-explorer and @spel-visual-qa are scaffolded, invoke them first for higher-quality input data:
 
-### 0a. Explore
+### Explore
 
 ```xml
 <explore>
@@ -40,7 +40,7 @@ If @spel-explorer and @spel-visual-qa are scaffolded, invoke them first for high
 
 Produces: `exploration-manifest.json`, page snapshots, screenshots.
 
-### 0b. Visual Regression (if baselines exist)
+### Visual regression (if baselines exist)
 
 ```xml
 <visual-qa>
@@ -52,11 +52,7 @@ Produces: `exploration-manifest.json`, page snapshots, screenshots.
 
 Produces: `diff-report.json`, current vs baseline comparison.
 
-## Step 1: Hunt
-
-> **Agent**: @spel-bug-hunter
-
-Invoke @spel-bug-hunter with:
+## Hunt
 
 ```xml
 <hunt>
@@ -67,20 +63,9 @@ Invoke @spel-bug-hunter with:
 </hunt>
 ```
 
-The Hunter will:
-1. Read exploration data if available (from Step 0)
-2. **Technical Audit** — Console errors, network failures, broken interactions, form validation, accessibility, responsive layouts
-3. **Design Audit** — Visual hierarchy, spacing, typography, color, alignment, component consistency (UX Architect lens)
-4. Capture evidence for every finding
-5. Produce `bugfind-reports/hunter-report.json`
+GATE: Review the Hunter's report. It should contain specific bugs with evidence, not vague observations. If weak, send back with feedback.
 
-**GATE**: Review the Hunter's report. It should contain specific bugs with evidence, not vague observations. If weak, send back with feedback.
-
-## Step 2: Challenge
-
-> **Agent**: @spel-bug-skeptic
-
-Invoke @spel-bug-skeptic with:
+## Challenge
 
 ```xml
 <challenge>
@@ -89,21 +74,9 @@ Invoke @spel-bug-skeptic with:
 </challenge>
 ```
 
-The Skeptic will:
-1. Read every bug from the Hunter's report
-2. Open pages in a **separate browser session**
-3. Attempt to reproduce and disprove each bug
-4. Calculate risk before each DISPROVE decision (only disprove when confidence > 66%)
-5. Capture independent counter-evidence
-6. Produce `bugfind-reports/skeptic-review.json`
+GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-evidence and the Skeptic didn't rubber-stamp everything as ACCEPT.
 
-**GATE**: Review the Skeptic's challenges. Ensure disproved bugs have counter-evidence and the Skeptic didn't rubber-stamp everything as ACCEPT.
-
-## Step 3: Judge
-
-> **Agent**: @spel-bug-referee
-
-Invoke @spel-bug-referee with:
+## Judge
 
 ```xml
 <judge>
@@ -113,20 +86,13 @@ Invoke @spel-bug-referee with:
 </judge>
 ```
 
-The Referee will:
-1. Auto-confirm undisputed bugs (Skeptic accepted them)
-2. Independently investigate every disputed bug in a **third browser session**
-3. Deliver REAL BUG / NOT A BUG verdicts with confidence levels
-4. May adjust severity levels
-5. Produce `bugfind-reports/referee-verdict.json` with the **verified bug list**
-
-## Final Deliverable
+## Final deliverable
 
 `bugfind-reports/referee-verdict.json` → `verified_bug_list` ordered by severity.
 
 ## Notes
 
-- **Session isolation is critical** — each agent uses its own named session. Shared sessions contaminate evidence.
-- **All three steps are required** for full adversarial value. Running only the Hunter produces an unfiltered list.
-- **Step 0 is optional** — the Hunter can explore on its own, but specialist agents produce higher-quality input.
-- **Responsive testing** — The Hunter captures at mobile (375x812), tablet (768x1024), and desktop (1440x900).
+- Session isolation is critical: each agent uses its own named session. Shared sessions contaminate evidence.
+- All three steps are required for full adversarial value. Running only the Hunter produces an unfiltered list.
+- Pre-exploration is optional: the Hunter can explore on its own, but specialist agents produce higher-quality input.
+- Responsive testing: the Hunter captures at mobile (375x812), tablet (768x1024), and desktop (1440x900).

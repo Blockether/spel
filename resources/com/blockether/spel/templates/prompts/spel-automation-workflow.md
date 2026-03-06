@@ -1,21 +1,21 @@
 ---
-description: Automation workflow — explore, script, and interact with browser sessions
+description: Automation workflow: explore, script, and interact with browser sessions
 ---
 
-# Automation Workflow
+# Automation workflow
 
 Orchestrates browser exploration, script creation, and interactive sessions using spel subagents.
 
 ## Parameters
 
-- **Task**: The automation goal (explore a site, write a script, interactive session)
-- **Target URL**: The URL to automate
-- **Script output** (optional): Path for generated `.clj` scripts (default: `spel-scripts/`)
-- **Args** (optional): Arguments to pass to eval scripts via `--`
+- Task: the automation goal (explore a site, write a script, interactive session)
+- Target URL: the URL to automate
+- Script output (optional): path for generated `.clj` scripts (default: `spel-scripts/`)
+- Args (optional): arguments to pass to eval scripts via `--`
 
-## Pipeline Overview
+## Pipeline overview
 
-Three agents in a progressive pipeline. Each step is independently useful — run only what you need.
+Three agents in a progressive pipeline. Run only what you need.
 
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
@@ -23,11 +23,7 @@ Three agents in a progressive pipeline. Each step is independently useful — ru
 | 2. Automate | @spel-automator | `spel-scripts/<name>.clj` | Exploration data (optional) |
 | 3. Interact | @spel-interactive | `auth-state.json`, authenticated screenshots | Target URL |
 
-## Step 1: Explore
-
-> **Agent**: @spel-explorer
-
-Invoke @spel-explorer with:
+## Explore
 
 ```xml
 <explore>
@@ -36,20 +32,9 @@ Invoke @spel-explorer with:
 </explore>
 ```
 
-The explorer agent will:
-1. Open the URL and capture accessibility snapshot
-2. Annotate and screenshot key elements
-3. Extract structured data to JSON if needed
-4. Identify selectors for automation
-5. Produce `exploration-manifest.json` with artifact index
+GATE: Review exploration artifacts, pages explored, selectors found, navigation coverage. Do NOT proceed until reviewed.
 
-**GATE**: Review exploration artifacts — pages explored, selectors found, navigation coverage. Do NOT proceed until reviewed.
-
-## Step 2: Automate
-
-> **Agent**: @spel-automator
-
-Invoke @spel-automator with:
+## Automate
 
 ```xml
 <automate>
@@ -60,21 +45,11 @@ Invoke @spel-automator with:
 </automate>
 ```
 
-The automator will:
-1. Read `exploration-manifest.json` if available (from Step 1)
-2. Write `.clj` eval scripts using selectors from exploration
-3. Use `*command-line-args*` for parameterized scripts
-4. Test: `spel eval-sci script.clj -- {{args}}`
-5. Save scripts to the specified output directory
+GATE: Review generated script, verify it runs with test args, handles errors, and produces expected output. Do NOT proceed until approved.
 
-**GATE**: Review generated script — verify it runs with test args, handles errors, and produces expected output. Do NOT proceed until approved.
+## Interactive refinement (optional)
 
-## Step 3: Interactive Refinement (Optional)
-
-> **Agent**: @spel-interactive
-> Only needed when human-in-the-loop is required (2FA, CAPTCHA, SSO).
-
-Invoke @spel-interactive with:
+Only needed when human-in-the-loop is required (2FA, CAPTCHA, SSO).
 
 ```xml
 <interact>
@@ -84,35 +59,30 @@ Invoke @spel-interactive with:
 </interact>
 ```
 
-The interactive agent will:
-1. Ask user for browser channel and profile preferences
-2. Open headed browser for user action
-3. Export `auth-state.json` for reuse by other sessions
-4. Continue automation from authenticated state
-
-**GATE**: Confirm authenticated state — verify `auth-state.json` was exported and screenshot shows expected page. Do NOT proceed until confirmed.
+GATE: Confirm authenticated state, verify `auth-state.json` was exported and screenshot shows expected page. Do NOT proceed until confirmed.
 
 ## Composition
 
-- **With bugfind workflow**: Run Step 1 (Explore) before the bug-finding pipeline — the Hunter reads `exploration-manifest.json` for prioritized coverage.
-- **With test workflow**: Exploration data helps the test planner identify selectors and flows.
-- **With visual workflow**: Explorer snapshots provide baseline material for visual-qa.
+- With bugfind workflow: run the explore step before the bug-finding pipeline. The Hunter reads `exploration-manifest.json` for prioritized coverage.
+- With test workflow: exploration data helps the test planner identify selectors and flows.
+- With visual workflow: explorer snapshots provide baseline material for visual-qa.
 
-## Session Isolation
+## Session isolation
 
-Each agent uses its own named session (see AGENT_COMMON.md):
+Each agent uses its own named session:
+
 - Explorer: `exp-<name>`
 - Automator: `auto-<name>`
 - Interactive: `iact-<name>`
 
 Sessions never overlap. Each agent closes its session on completion or error.
 
-## Usage Patterns
+## Usage patterns
 
-- **Data exploration only**: Run Step 1 alone
-- **Full automation script creation**: Run Steps 1 + 2
-- **Auth-gated automation**: Run Step 3 first for auth, then Steps 1 + 2 with `--load-state auth-state.json`
-- **Quick script without exploration**: Run Step 2 alone (automator explores minimally on its own)
+- Data exploration only: run the explore step alone
+- Full automation script creation: run explore + automate
+- Auth-gated automation: run interactive first, then explore + automate with `--load-state auth-state.json`
+- Quick script without exploration: run automate alone (automator explores minimally on its own)
 
 ## Notes
 

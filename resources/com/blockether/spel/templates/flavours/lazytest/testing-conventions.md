@@ -1,13 +1,13 @@
-## Testing Conventions
+## Testing conventions
 
-- Framework: **`spel.allure`** (`defdescribe`, `describe`, `it`, `expect`) — NOT `lazytest.core`
-- Page setup: **`core/with-testing-page`** — all-in-one macro (playwright + browser + context + page)
-- API testing: **`core/with-testing-api`** — all-in-one macro for API request contexts
-- Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `eval-sci` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
-- Integration tests: Live against `example.org`
+- Framework: `spel.allure` (`defdescribe`, `describe`, `it`, `expect`). NOT `lazytest.core`.
+- Page setup: `core/with-testing-page` wraps playwright + browser + context + page in one macro.
+- API testing: `core/with-testing-api` does the same for API request contexts.
+- Assertions: exact string matching. NEVER substring unless explicitly `contains-text`.
+- Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles work in `eval-sci` mode too via the `role/` namespace. See the Enums table in SCI Eval API Reference below.
+- Integration tests: live against `example.org`
 
-### Running Tests (Lazytest CLI)
+### Running tests (Lazytest CLI)
 
 ```bash
 # Run entire test suite
@@ -40,11 +40,11 @@ clojure -M:test --watch
 clojure -M:test -d test/com/blockether/spel
 ```
 
-**IMPORTANT**: The `-v`/`--var` flag requires **fully-qualified symbols** (`namespace/var-name`), not bare var names. Using a bare name will throw `IllegalArgumentException: no conversion to symbol`.
+NOTE: The `-v`/`--var` flag needs fully-qualified symbols (`namespace/var-name`), not bare var names. A bare name throws `IllegalArgumentException: no conversion to symbol`.
 
 ### with-testing-page
 
-All-in-one macro that creates the full Playwright stack (playwright → browser → context → page), binds the page, runs body, and tears everything down automatically. When Allure is active, tracing and HAR are enabled automatically.
+Creates the full Playwright stack (playwright, browser, context, page), binds the page, runs the body, then tears everything down. Tracing and HAR are enabled when Allure is active.
 
 ```clojure
 ;; Basic usage
@@ -72,14 +72,14 @@ All-in-one macro that creates the full Playwright stack (playwright → browser 
 
 ### with-testing-api
 
-All-in-one macro for API testing. Creates playwright → browser → context → API request context with automatic tracing.
+Creates playwright, browser, context, and API request context. Tracing is on by default.
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]
   (api/get ctx "/users"))
 ```
 
-### Test Example
+### Test example
 
 ```clojure
 (ns my-app.test

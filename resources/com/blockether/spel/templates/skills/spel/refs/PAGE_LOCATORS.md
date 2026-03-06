@@ -1,4 +1,4 @@
-# Page Locators & Composable Patterns
+# Page locators & composable patterns
 
 How to find elements, chain locators, build reusable page modules, and write clean test code with spel.
 
@@ -62,7 +62,7 @@ Every locator strategy returns a Playwright `Locator` that auto-waits and auto-r
 snapshot ref (@ prefix required)
 ```
 
-### Library vs SCI Equivalents
+### Library vs SCI equivalents
 
 | Strategy | Library | SCI/Eval |
 |---|---|---|
@@ -145,7 +145,7 @@ Pick specific elements from a multi-match locator:
 (locator/all (page/locator pg "li"))              ;; vec of individual Locators
 ```
 
-## Page Object Pattern
+## Page object pattern
 
 Wrap locator creation in plain functions. Each function takes `pg` and returns a `Locator`.
 
@@ -238,7 +238,7 @@ For larger apps, one namespace per page or component. Shared components get thei
   (nav/navigate-to! pg "Settings"))
 ```
 
-### Composing Locators Across Modules
+### Composing locators across modules
 
 The key insight: locator functions return `Locator` objects. You can pass them to any `locator/*` function or use them as `:has` / `:has-not` filters.
 
@@ -251,11 +251,11 @@ The key insight: locator functions return `Locator` objects. You can pass them t
       (locator/click)))
 ```
 
-## Snapshot Ref Traversal
+## Snapshot ref traversal
 
 Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive elements. These refs work as selectors.
 
-### The Pattern: Snapshot, Pick, Act
+### The pattern: snapshot, pick, act
 
 ```clojure
 ;; SCI/eval mode
@@ -413,9 +413,9 @@ Build rich HTML or PDF reports from test results using typed entry maps.
   {:title "Dashboard Audit" :path "/tmp/audit.pdf"})
 ```
 
-## Best Practices
+## Tips
 
-**Prefer semantic selectors.** Role, label, and text locators match how users see the page. They survive CSS refactors.
+Prefer semantic selectors. Role, label, and text locators match how users see the page. They survive CSS refactors.
 
 ```clojure
 ;; Good: resilient to markup changes
@@ -426,11 +426,11 @@ Build rich HTML or PDF reports from test results using typed entry maps.
 (page/locator pg "button.btn-primary.submit-form")
 ```
 
-**Use test IDs as a fallback.** When there's no good role or label, add `data-testid` to the markup and use `get-by-test-id`.
+Use test IDs as a fallback. When there's no good role or label, add `data-testid` to the markup and use `get-by-test-id`.
 
-**Keep locators DRY.** Define them once in page object functions. Don't repeat selectors across tests.
+Keep locators DRY. Define them once in page object functions. Don't repeat selectors across tests.
 
-**Don't over-chain.** If a locator expression gets hard to read, break it into named bindings:
+Don't over-chain. If a locator expression gets hard to read, break it into named bindings:
 
 ```clojure
 ;; Hard to follow
@@ -449,13 +449,13 @@ Build rich HTML or PDF reports from test results using typed entry maps.
   (locator/click btn))
 ```
 
-**Locators are lazy.** Creating a locator doesn't touch the DOM. The lookup happens when you call an action (`click`, `fill`, `text-content`) or assertion. This means you can safely define locators at the top of a test before the page loads.
+Locators are lazy. Creating a locator doesn't touch the DOM. The lookup happens when you call an action (`click`, `fill`, `text-content`) or assertion. This means you can safely define locators at the top of a test before the page loads.
 
-**Iterate with `all`.** To loop over matching elements, use `locator/all` to get a vector of individual `Locator` instances:
+Iterate with `all`. To loop over matching elements, use `locator/all` to get a vector of individual `Locator` instances:
 
 ```clojure
 (doseq [item (locator/all (page/locator pg ".todo-item"))]
   (println (locator/text-content item)))
 ```
 
-**Snapshot refs for exploration, selectors for tests.** Snapshot refs (`@e2yrjz`) are great for interactive exploration in `eval-sci` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.
+Snapshot refs for exploration, selectors for tests. Snapshot refs (`@e2yrjz`) are great for interactive exploration in `eval-sci` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.

@@ -1,4 +1,4 @@
-# Selectors, Snapshots, and Annotations
+# Selectors, snapshots, and annotations
 
 How to find elements, read the page structure, and produce visual overlays. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
 
@@ -6,9 +6,9 @@ How to find elements, read the page structure, and produce visual overlays. Cove
 
 Every `spel/` function that takes a `sel` argument is polymorphic. It accepts:
 
-1. **CSS selector string** like `"#id"`, `".class"`, `"button"`
-2. **Snapshot ref string** like `"@e2yrjz"` (from `spel/capture-snapshot`, `@` prefix required)
-3. **Locator object** (pass-through, no resolution needed)
+1. CSS selector string like `"#id"`, `".class"`, `"button"`
+2. Snapshot ref string like `"@e2yrjz"` (from `spel/capture-snapshot`, `@` prefix required)
+3. Locator object (pass-through, no resolution needed)
 
 So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every other `sel`-accepting function work the same way regardless of how you specify the target.
 
@@ -62,7 +62,7 @@ So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every ot
 
 Common roles: `role/button`, `role/link`, `role/heading`, `role/textbox`, `role/checkbox`, `role/radio`, `role/combobox`, `role/navigation`, `role/dialog`, `role/tab`, `role/tabpanel`, `role/list`, `role/listitem`, `role/img`, `role/table`, `role/row`, `role/cell`.
 
-### Snapshot Ref Selectors
+### Snapshot ref selectors
 
 After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID like `@e2yrjz`, `@e9mter`, etc. Use these directly:
 
@@ -99,7 +99,7 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 (spel/nth "li" 2)              ;; third match (0-indexed)
 ```
 
-### Filtering Within a Locator
+### Filtering within a locator
 
 ```clojure
 (spel/loc-locator ".card" "h2")                    ;; sub-selector
@@ -111,7 +111,7 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 (spel/loc-filter ".card" {:has (spel/get-by-text "Buy now")})
 ```
 
-**Rule of thumb**: if your selector might match multiple elements, make it more specific, use `spel/first`, or use a semantic locator (role + name).
+Rule of thumb: if your selector might match multiple elements, make it more specific, use `spel/first`, or use a semantic locator (role + name).
 
 ## Accessibility Snapshots
 
@@ -168,7 +168,7 @@ Each ref in `:refs` contains:
 
 The `:bbox` gives pixel coordinates relative to the page, useful for annotation placement.
 
-### Scoped and Full Snapshots
+### Scoped and full snapshots
 
 ```clojure
 ;; Scope to a subtree (CSS selector or ref)
@@ -179,14 +179,14 @@ The `:bbox` gives pixel coordinates relative to the page, useful for annotation 
 (spel/capture-full-snapshot)
 ```
 
-### Resolving and Clearing Refs
+### Resolving and clearing refs
 
 ```clojure
 (spel/resolve-ref "@e2yrjz")       ;; => Playwright Locator
 (spel/clear-refs!)             ;; remove data-pw-ref attributes from DOM
 ```
 
-If you've navigated to a new page since the last snapshot, refs are stale. Take a fresh snapshot.
+If you've moved to a new page since the last snapshot, refs are stale. Take a fresh snapshot.
 
 ## Annotations
 
@@ -214,7 +214,7 @@ Options:
   {:show-badges false :show-dimensions false :show-boxes false})
 ```
 
-### Manual Overlay Control
+### Manual overlay control
 
 Keep overlays visible for headed mode debugging or multiple screenshots:
 
@@ -237,7 +237,7 @@ Highlight specific elements before interacting with them. Visually distinct from
 
 Markers use `data-spel-action-marker` and don't interfere with annotation overlays. You can have both active at once.
 
-### Playwright's Built-in Highlight
+### Playwright's built-in highlight
 
 ```clojure
 (spel/highlight "@e6t2x4")          ;; Playwright's native highlight (brief flash)
@@ -286,9 +286,9 @@ Library equivalent:
   "- navigation \"Main\":\n  - link \"Home\"\n  - link \"About\"")
 ```
 
-## Complete Workflow Example
+## Complete workflow example
 
-Navigate, understand the page, annotate, interact, verify:
+Open the page, understand its structure, annotate, interact, verify:
 
 ```clojure
 (spel/navigate "https://news.ycombinator.com")

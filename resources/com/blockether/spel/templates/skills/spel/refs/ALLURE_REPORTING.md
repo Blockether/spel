@@ -1,4 +1,4 @@
-# Allure Test Reporting
+# Allure test reporting
 
 Allure test reporting provides rich HTML reports with embedded Playwright traces, step hierarchies, labels, attachments, and build history tracking.
 
@@ -140,7 +140,7 @@ Add arbitrary attachments to test results:
 
 The built-in Allure reporter handles JSON results, HTML generation, embedded trace viewer, and build history.
 
-### Running Tests with Allure
+### Running tests with Allure
 
 ```bash
 # Allure reporter only
@@ -163,7 +163,7 @@ clojure -M:test --output nested \
 | `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history |
 | `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
 
-### Version in Build Listings
+### Version in build listings
 
 When `lazytest.allure.version` is set (or `SPEL_VERSION` is on the classpath), each build in Allure history is tagged with the version. The report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. The version also appears in `environment.properties` as `project.version` and `spel.version`.
 
@@ -186,13 +186,13 @@ The report MUST be served via HTTP (not `file://`) because the embedded Playwrig
 npx http-server allure-report -o -p 9999
 ```
 
-## Trace Viewer Integration
+## Trace viewer integration
 
 When using `with-testing-page` (recommended) or low-level fixtures (`with-page` / `with-traced-page`) with Allure reporter active, Playwright tracing is automatically enabled.
 
 ### What's Captured
 
-Tracing captures comprehensive test execution data:
+Tracing captures full test execution data:
 
 - Screenshots captured on every action
 - DOM snapshots included
@@ -200,13 +200,13 @@ Tracing captures comprehensive test execution data:
 - Sources captured
 - HAR file generated
 
-### Auto-Attach to Test Results
+### Auto-attach to test results
 
 Trace and HAR files are automatically attached to test results with MIME type `application/vnd.allure.playwright-trace`. They are viewable directly in the Allure report via an embedded local trace viewer — no external service dependency.
 
 `with-testing-page` auto-attaches traces for both the Lazytest reporter and the clojure.test reporter — no additional configuration needed.
 
-### Source Mapping in Trace Viewer
+### Source mapping in trace viewer
 
 All step macros (`step`, `ui-step`, `api-step`, `describe`, `it`, `expect`) automatically capture source file and line number at macro expansion time. They pass this information to `Tracing.group()` via `GroupOptions.setLocation()`. This means clicking a step in the Trace Viewer **Source** tab shows the actual test code where the step was written, not allure.clj macro internals.
 
@@ -219,11 +219,11 @@ Source path resolution uses the `PLAYWRIGHT_JAVA_SRC` environment variable (auto
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
-## JUnit XML Reporter
+## JUnit XML reporter
 
 Produces JUnit XML output compatible with GitHub Actions, Jenkins, GitLab CI, and any CI system that consumes JUnit XML.
 
-### Running Tests with JUnit
+### Running tests with JUnit
 
 ```bash
 # JUnit reporter only
@@ -251,7 +251,7 @@ LAZYTEST_JUNIT_OUTPUT=reports/results.xml clojure -M:test \
   --output nested --output com.blockether.spel.junit-reporter/junit
 ```
 
-### JUnit XML Features
+### JUnit XML features
 
 The JUnit reporter generates fully compliant Apache Ant JUnit schema XML:
 

@@ -6,13 +6,13 @@ license: Apache-2.0
 compatibility: opencode
 ---
 
-# spel - Clojure Playwright Wrapper
+# spel - Clojure Playwright wrapper
 
 `com.blockether.spel` wraps Playwright Java 1.58.0 with idiomatic Clojure.
 
-## Version Check
+## Version check
 
-This skill was generated for spel **{{version}}**. Before proceeding, verify compatibility:
+This skill was generated for spel **{{version}}**. Verify compatibility:
 
 ```bash
 spel version
@@ -22,11 +22,11 @@ If the installed version does not match **{{version}}**:
 1. Show warning: **"spel skill is outdated (skill: {{version}}, installed: <actual version>)."**
 2. Propose reinitialization: **"Run `spel init-agents` to reinitialize the skill for the installed version."**
 
-## Quick Reference
+## Quick reference
 
-## Getting Started — Use the Orchestrator
+## Getting started: use the orchestrator
 
-**Don't call specialist agents directly.** Use `@spel-orchestrator` — it analyzes your request and routes to the right pipeline automatically.
+**NEVER call specialist agents directly.** Use `@spel-orchestrator` — it analyzes your request and routes to the right pipeline automatically.
 
 ```
 @spel-orchestrator test the login page
@@ -35,11 +35,11 @@ If the installed version does not match **{{version}}**:
 ```
 
 The orchestrator routes to:
-- **@spel-test-orchestrator** — E2E test writing (plan → challenge → generate → heal)
-- **@spel-qa-orchestrator** — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML report)
-- **@spel-auto-orchestrator** — Browser automation (auth → explore → script → document)
+- `@spel-test-orchestrator` — E2E test writing (plan → challenge → generate → heal)
+- `@spel-qa-orchestrator` — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML report)
+- `@spel-auto-orchestrator` — Browser automation (auth → explore → script → document)
 
-You can also call specialist agents directly if you know exactly what you need — but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
+You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
 
 
 | Command | Purpose |
@@ -59,8 +59,8 @@ You can also call specialist agents directly if you know exactly what you need �
 | `spel init-agents --loop=claude` | ~~`--loop=vscode` is DEPRECATED — exits with error~~ |
 | `spel search "query"` | Google search (table output) |
 | `spel search "query" --json` | Google search (JSON output) |
-| `spel search "query" --images` | Google image search |
-| `spel search "query" --news` | Google news search |
+| `spel search "cats" --images` | Google image search |
+| `spel search "world news" --news` | Google news search |
 | `spel search "query" --limit 5` | Show only first 5 results |
 | `spel search "query" --open 1` | Navigate to result #1 |
 | `spel snapshot -i` | Accessibility snapshot (interactive elements only, includes `[pos:X,Y W×H]` screen coordinates) |
@@ -78,7 +78,7 @@ You can also call specialist agents directly if you know exactly what you need �
 | `spel state save [path]` | Save current browser state |
 | `spel state load [path]` | Restore saved browser state |
 
-## Google Search
+## Google search
 
 Search Google from the CLI, SCI `eval-sci` mode, or Clojure library — no API key required. Uses Playwright with stealth mode.
 
@@ -114,7 +114,7 @@ spel search "query" --no-stealth                      # disable stealth mode
 | `--time-range RANGE` | Time: day, week, month, year |
 | `--no-stealth` | Disable stealth mode |
 
-### SCI `eval-sci` Mode
+### SCI `eval-sci` mode
 
 ```clojure
 ;; Basic search (returns Clojure map)
@@ -175,14 +175,12 @@ spel search "query" --no-stealth                      # disable stealth mode
 (search/next-page! page)
 ```
 
-## ⚠️ SCI Eval vs Library — Key Differences
+## ⚠️ SCI eval vs library: key differences
 
-In `eval-sci` mode, function names **match the library**. The only difference is **implicit vs explicit arguments**:
+In `eval-sci` mode, function names match the library. The only difference is implicit vs explicit arguments:
 
-- **Library (JVM)**: functions take explicit `page`/`locator` arguments.
-- **SCI (`eval-sci`)**: same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
-
-Example:
+- Library (JVM): functions take explicit `page`/`locator` arguments.
+- SCI (`eval-sci`): same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
 
 ```clojure
 ;; Library
@@ -198,11 +196,10 @@ Example:
 
 When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or `spel/stop!` needed.
 
-## SCI Sandbox Capabilities
+## SCI sandbox capabilities
 
-The SCI eval environment (`eval-sci` mode) runs in a sandbox with registered namespaces and classes.
+### Available in SCI
 
-### ✅ Available in SCI
 - All `spel/`, `snapshot/`, `annotate/`, `stitch/`, `search/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
 - `clojure.core`, `clojure.string`, `clojure.set`, `clojure.walk`, `clojure.edn`, `clojure.repl`, `clojure.template`
 - `clojure.java.io` (aliased as `io`): `io/file`, `io/reader`, `io/writer`, `io/input-stream`, `io/output-stream`, `io/copy`, `io/as-file`, `io/as-url`, `io/resource`, `io/make-parents`, `io/delete-file`
@@ -216,7 +213,8 @@ The SCI eval environment (`eval-sci` mode) runs in a sandbox with registered nam
 - `search/` namespace for Google Search (web, images, news, pagination, `iteration`-based lazy pages)
 - `iteration` binding — `clojure.core/iteration` for lazy pagination
 
-### ❌ NOT Available in SCI
+### NOT available in SCI
+
 - Arbitrary Java class construction — only registered classes work
 - `require`, `use`, `import` — namespaces are pre-registered, cannot load new ones
 
@@ -224,36 +222,34 @@ The SCI eval environment (`eval-sci` mode) runs in a sandbox with registered nam
 
 | Rule | Details |
 |------|---------|
-| **Assertions** | Exact string matching — NEVER substring unless explicitly `contains-text` |
-| **Roles** | Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`) |
-| **Fixtures** | Use `:context` hooks from `test-fixtures`, NEVER nest manually inside `it`/`deftest` blocks |
-| **Default fixture** | Always use `with-traced-page` — enables tracing/HAR on every run for debugging |
-| **Error handling** | All errors return anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
-| **Lifecycle** | Use `with-*` macros (`with-playwright`, `with-browser`, `with-page`) — resources auto-cleaned |
-| **Screenshots** | After visual/UI changes, ALWAYS take and display a screenshot as proof |
+| Assertions | Exact string matching — NEVER substring unless explicitly `contains-text` |
+| Roles | Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`) |
+| Fixtures | Use `:context` hooks from `test-fixtures`, NEVER nest manually inside `it`/`deftest` blocks |
+| Default fixture | Always use `with-traced-page` — enables tracing/HAR on every run for debugging |
+| Error handling | All errors return anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
+| Lifecycle | Use `with-*` macros (`with-playwright`, `with-browser`, `with-page`) — resources auto-cleaned |
+| Screenshots | After visual/UI changes, ALWAYS take and display a screenshot as proof |
 
-## Reference Documentation
+## Reference documentation
 
-Detailed documentation is split into topic-specific reference files:
-
-### Core API & Patterns
+### Core API & patterns
 | Ref | Topic |
 |-----|-------|
-| `refs/FULL_API.md` | **Complete API tables** — auto-generated library API, SCI eval API, CLI commands |
+| `refs/FULL_API.md` | Complete API tables — auto-generated library API, SCI eval API, CLI commands |
 | `refs/PAGE_LOCATORS.md` | Page locators, selectors, get-by-* methods |
 | `refs/NAVIGATION_WAIT.md` | Navigation, waiting, load states |
 | `refs/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
 | `refs/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
 | `refs/CONSTANTS.md` | Constants, enums, AriaRole values |
 
-### Browser & Network
+### Browser & network
 | Ref | Topic |
 |-----|-------|
 | `refs/BROWSER_OPTIONS.md` | Browser launch/context options, presets, lifecycle macros, device emulation |
 | `refs/NETWORK_ROUTING.md` | Page routing, request/response inspection, WebSocket |
 | `refs/FRAMES_INPUT.md` | Frame navigation, keyboard/mouse/touchscreen input |
 
-### Testing & Assertions
+### Testing & assertions
 | Ref | Topic |
 |-----|-------|
 | `refs/TESTING_CONVENTIONS.md` | Test framework conventions, fixtures, running tests (flavour-specific) |
@@ -267,19 +263,19 @@ Detailed documentation is split into topic-specific reference files:
 | `refs/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
 | `refs/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
 
-### QA / Exploratory Testing
+### QA / exploratory testing
 | Ref | Topic |
 |-----|-------|
 | `refs/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
 | `refs/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
-| `refs/qa-report.html` | **QA report HTML template** — final deliverable from the QA pipeline |
+| `refs/qa-report.html` | QA report HTML template — final deliverable from the QA pipeline |
 
-### CLI & Tools
+### CLI & tools
 | Ref | Topic |
 |-----|-------|
 | `refs/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
 | `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `refs/PROFILES_AGENTS.md` | Browser profiles, **stealth mode**, **CDP auto-connect**, storage state, agent scaffolding |
+| `refs/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect, storage state, agent scaffolding |
 
 ### Troubleshooting
 | Ref | Topic |

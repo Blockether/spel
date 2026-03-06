@@ -1,14 +1,10 @@
-# Common Problems and Troubleshooting
+# Common problems and troubleshooting
 
 Real-world issues you'll hit when using spel, with tested fixes.
 
 ## 1. "Session already running"
 
-**Problem:** `(spel/start!)` throws an error saying a session is already active.
-
-**Cause:** A previous `spel/start!` call wasn't cleaned up. The daemon is still holding the browser open.
-
-**Fix:**
+`(spel/start!)` throws an error saying a session is already active. A previous `spel/start!` call wasn't cleaned up, so the daemon is still holding the browser open.
 
 ```clojure
 (spel/stop!)
@@ -24,13 +20,11 @@ pkill -f "chrome-headless-shell"
 
 Then `(spel/start!)` again.
 
-## 2. CAPTCHA / Bot Detection
+## 2. CAPTCHA / bot detection
 
-**Problem:** Sites like Allegro.pl, Cloudflare-protected pages, or banking sites show CAPTCHA challenges or block access entirely.
+Sites like Allegro.pl, Cloudflare-protected pages, or banking sites show CAPTCHA challenges or block access entirely. Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
 
-**Cause:** Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
-
-**Fix:** Stealth mode is ON by default in the CLI, so this should work out of the box. For stubborn sites, try headed mode or combine with real Chrome cookies:
+Stealth mode is ON by default in the CLI, so this should work out of the box. For stubborn sites, try headed mode or combine with real Chrome cookies:
 
 ```bash
 # Default: stealth is already on
@@ -61,15 +55,11 @@ spel --no-stealth open https://protected-site.com
         (page/navigate pg "https://protected-site.com")))))
 ```
 
-See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patches are applied.
+See `refs/PROFILES_AGENTS.md` for full details on what stealth patches are applied.
 
-## 3. `assert-url` Fails with Partial URLs
+## 3. `assert-url` fails with partial URLs
 
-**Problem:** `(spel/assert-url "example.org/page")` fails even though the URL contains that string.
-
-**Cause:** `spel/assert-url` wraps Playwright's `has-url` which does exact string matching by default, but also accepts `java.util.regex.Pattern` for flexible matching.
-
-**Fix:**
+`(spel/assert-url "example.org/page")` fails even though the URL contains that string. `spel/assert-url` wraps Playwright's `has-url`, which does exact string matching by default but also accepts `java.util.regex.Pattern` for flexible matching.
 
 ```clojure
 ;; Exact match (uses implicit page)
@@ -82,13 +72,11 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 (spel/assert-url #".*/page.*")
 ```
 
-## 4. Snapshot Ref Not Found / Stale Refs
+## 4. Snapshot ref not found / stale refs
 
-**Problem:** `(spel/click "@e6t2x4")` throws "element not found" or clicks the wrong thing.
+`(spel/click "@e6t2x4")` throws "element not found" or clicks the wrong thing. Refs from `(spel/capture-snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
 
-**Cause:** Refs from `(spel/capture-snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
-
-**Fix:** Always re-snapshot after DOM changes:
+Always re-snapshot after DOM changes:
 
 ```clojure
 ;; Wrong: refs from an old snapshot
@@ -103,13 +91,9 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 (spel/click "@ea3kf5")        ;; works correctly
 ```
 
-## 5. TimeoutError on Navigation
+## 5. TimeoutError on navigation
 
-**Problem:** `(spel/navigate "https://slow-site.com")` throws `TimeoutError` after 30 seconds.
-
-**Cause:** Default timeout is 30s. Heavy pages with lots of resources or slow APIs can exceed this.
-
-**Fix:**
+`(spel/navigate "https://slow-site.com")` throws `TimeoutError` after 30 seconds. The default timeout is 30s, and heavy pages with lots of resources or slow APIs can exceed this.
 
 ```clojure
 ;; Increase the navigation timeout
@@ -124,13 +108,9 @@ See `refs/PROFILES_AGENTS.md` → **Stealth Mode** for full details on what patc
 
 Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load` (default) < `:networkidle`.
 
-## 6. PDF Generation Fails or Produces Empty File
+## 6. PDF generation fails or produces empty file
 
-**Problem:** `(spel/pdf "output.pdf")` throws an error or creates a 0-byte file.
-
-**Cause:** PDF only works in Chromium headless mode. Firefox, WebKit, and headed Chromium don't support it.
-
-**Fix:**
+`(spel/pdf "output.pdf")` throws an error or creates a 0-byte file. PDF only works in Chromium headless mode. Firefox, WebKit, and headed Chromium don't support it.
 
 ```clojure
 ;; Ensure headless Chromium (the default)
@@ -141,11 +121,9 @@ Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load`
 
 If you started with `{:headless false}`, restart with `(spel/stop!)` then `(spel/start! {:headless true})`.
 
-## 7. Snapshot Functions in Eval
+## 7. Snapshot functions in eval
 
-**Problem:** Unsure which snapshot function to use in `eval-sci` mode.
-
-**Fix:** Use the **same names as the library**, but with implicit page:
+Not sure which snapshot function to use in `eval-sci` mode? Use the same names as the library, but with implicit page:
 
 ```clojure
 ;; Eval-mode (implicit page)
@@ -159,13 +137,9 @@ If you started with `{:headless false}`, restart with `(spel/stop!)` then `(spel
 
 When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 
-## 8. Elements Not Interactable
+## 8. Elements not interactable
 
-**Problem:** `(spel/click "button.submit")` throws "element is not visible" or "element is outside the viewport".
-
-**Cause:** The element might be behind a modal/overlay, below the fold, hidden by CSS, or covered by another element (z-index).
-
-**Fix:**
+`(spel/click "button.submit")` throws "element is not visible" or "element is outside the viewport". The element might be behind a modal/overlay, below the fold, hidden by CSS, or covered by another element (z-index).
 
 ```clojure
 ;; Scroll into view first
@@ -180,13 +154,9 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 (spel/capture-snapshot)  ;; look for overlays, modals, banners in the tree
 ```
 
-## 9. File I/O in Eval Mode
+## 9. File I/O in eval mode
 
-**Problem:** `(require '[clojure.java.io :as io])` throws an error.
-
-**Cause:** `require` doesn't work in the SCI sandbox. All namespaces are pre-registered. `clojure.java.io` is already available as `io`.
-
-**Fix:**
+`(require '[clojure.java.io :as io])` throws an error. `require` doesn't work in the SCI sandbox. All namespaces are pre-registered, and `clojure.java.io` is already available as `io`.
 
 ```clojure
 ;; Reading and writing files
@@ -200,13 +170,11 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 ;; DON'T require anything. io is already available.
 ```
 
-## 10. Cookie Consent / GDPR Popups
+## 10. Cookie consent / GDPR popups
 
-**Problem:** EU sites show a consent modal that blocks all interaction with the page.
+EU sites show a consent modal that blocks all interaction with the page. The modal sits on top of everything with a high z-index.
 
-**Cause:** GDPR compliance. The modal sits on top of everything with a high z-index.
-
-**Fix:** Dismiss the consent dialog before doing anything else:
+Dismiss the consent dialog before doing anything else:
 
 ```clojure
 (spel/navigate "https://some-eu-site.com")
@@ -222,13 +190,9 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 
 For repeat visits, use a persistent browser session so consent is remembered.
 
-## 11. Stale Browser / "Target closed"
+## 11. Stale browser / "Target closed"
 
-**Problem:** Any command throws "Target closed" or "Browser has been closed".
-
-**Cause:** The browser process crashed, was killed externally, or the system ran out of memory.
-
-**Fix:**
+Any command throws "Target closed" or "Browser has been closed". The browser process crashed, was killed externally, or the system ran out of memory.
 
 ```clojure
 (spel/stop!)
@@ -247,11 +211,11 @@ Then `(spel/start!)` again.
 
 ---
 
-## Debug Workflow
+## Debug workflow
 
 When something isn't working and you're not sure why, follow these steps.
 
-### Step 1: Check page state
+### Check page state
 
 ```clojure
 (spel/info)
@@ -260,7 +224,7 @@ When something isn't working and you're not sure why, follow these steps.
 
 If `:closed?` is `true`, the browser died. Run `(spel/stop!)` then `(spel/start!)`.
 
-### Step 2: Take a snapshot
+### Take a snapshot
 
 ```clojure
 (spel/capture-snapshot)
@@ -268,7 +232,7 @@ If `:closed?` is `true`, the browser died. Run `(spel/stop!)` then `(spel/start!
 
 Shows the accessibility tree with numbered refs. You'll see what elements exist, their roles, and whether the page rendered at all.
 
-### Step 3: Verify function signatures
+### Verify function signatures
 
 ```clojure
 (spel/help "navigate")     ;; check args and description
@@ -276,7 +240,7 @@ Shows the accessibility tree with numbered refs. You'll see what elements exist,
 (spel/help "snapshot")   ;; find all snapshot-related functions
 ```
 
-### Step 4: Take an annotated screenshot
+### Take an annotated screenshot
 
 ```clojure
 (let [snap (spel/capture-snapshot)]
@@ -285,7 +249,7 @@ Shows the accessibility tree with numbered refs. You'll see what elements exist,
 
 Produces a screenshot with numbered overlay badges on each interactive element. Compare with the snapshot tree.
 
-### Step 5: Check for browser console errors
+### Check for browser console errors
 
 ```clojure
 ;; Register listeners early, before navigation
@@ -295,7 +259,7 @@ Produces a screenshot with numbered overlay badges on each interactive element. 
 
 Console messages are also auto-captured in `eval-sci` mode and printed to stderr after evaluation. Check stderr if your script produces unexpected results.
 
-### Step 6: Inspect network activity
+### Inspect network activity
 
 From the CLI:
 
@@ -307,11 +271,11 @@ spel network requests --type fetch  # show API calls
 
 ---
 
-## 12. Daemon Hangs / Unresponsive Browser
+## 12. Daemon hangs / unresponsive browser
 
-**Problem:** spel command appears to hang, doesn't return, or the browser seems frozen.
+spel command appears to hang, doesn't return, or the browser seems frozen.
 
-**Common causes:**
+Common causes:
 - Stale daemon from a previous session still running
 - Browser crashed but daemon process didn't exit
 - Persistent context lock (another process holds the profile directory)
@@ -330,7 +294,7 @@ tail -50 /tmp/spel-default.log
 ps aux | grep -E "chrome|chromium|msedge|spel" | grep -v grep
 ```
 
-### Fix: Kill and restart
+### Kill and restart
 
 ```bash
 # Graceful: close your session
@@ -351,7 +315,7 @@ ps aux | grep -E "spel|chrome|msedge" | grep -v grep
 spel open https://example.com
 ```
 
-### Fix: Profile directory locked
+### Profile directory locked
 
 If using `--profile` and getting hangs, the profile dir may be locked by another process:
 
@@ -369,7 +333,7 @@ spel --profile /tmp/fresh-profile open https://example.com
 
 ### Prevention
 
-- **Always close sessions** when done: `spel close` or `spel --session <name> close`
-- **Use named sessions** in automation: `spel --session agent-$(date +%s) open <url>` — avoids collision with default session
-- **Don't share profiles** between concurrent processes — Chromium locks the directory
-- **Check `spel session list`** before starting if you suspect a stale daemon
+- Always close sessions when done: `spel close` or `spel --session <name> close`
+- Use named sessions in automation: `spel --session agent-$(date +%s) open <url>` to avoid collision with default session
+- Don't share profiles between concurrent processes, since Chromium locks the directory
+- Check `spel session list` before starting if you suspect a stale daemon

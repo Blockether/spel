@@ -1,4 +1,4 @@
-# Snapshot Testing and Visual Auditing
+# Snapshot testing and visual auditing
 
 Structural testing with accessibility snapshots, ARIA assertions, ref-based interaction, and visual audit workflows. Covers `eval-sci` (implicit page) and library (explicit `page` arg) modes.
 
@@ -55,7 +55,7 @@ After a snapshot, resolve refs to Locators for interaction:
 (snapshot/clear-refs! pg)               ;; library
 ```
 
-## ARIA Snapshot Assertions
+## ARIA snapshot assertions
 
 Assert the structural shape of a DOM subtree. Checks roles, names, and nesting against a YAML-like string. Not pixel comparison.
 
@@ -93,9 +93,9 @@ Two-space indentation for nesting. Colon means "has children." Roles without nam
 
 Failures produce a clear diff of expected vs. actual structure.
 
-**Tests structure, not appearance.** Verifies role hierarchy, accessible names, ARIA attributes, nesting. Does not test layout, colors, fonts, or pixel positions.
+Tests structure, not appearance. Verifies role hierarchy, accessible names, ARIA attributes, nesting. Does not test layout, colors, fonts, or pixel positions.
 
-## Visual Testing Workflow
+## Visual testing workflow
 
 spel has no built-in pixel-diff. Visual testing uses annotated screenshots and audit reports for manual or external comparison.
 
@@ -152,7 +152,7 @@ Build multi-page audit reports from typed entries. Renders HTML, converts to PDF
 
 Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/report->html entries opts)`.
 
-## Snapshot Testing in Tests
+## Snapshot testing in tests
 
 ### Lazytest
 
@@ -190,7 +190,7 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
                    - link \"More information...\"")))))) 
 ```
 
-### Explore Then Lock Down
+### Explore then lock down
 
 Use snapshots during development to discover structure, then write ARIA assertions to lock it:
 
@@ -208,9 +208,9 @@ Use snapshots during development to discover structure, then write ARIA assertio
            - button \"Sign in\""))))
 ```
 
-## Ref Traversal Patterns
+## Ref traversal patterns
 
-### Find by Role/Name in Refs
+### Find by role/name in refs
 
 ```clojure
 (it "has a submit button"
@@ -226,7 +226,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
       (expect (locator/is-visible? (snapshot/resolve-ref page submit-ref))))))
 ```
 
-### Multi-Step Workflow with Audit Trail
+### Multi-step workflow with audit trail
 
 ```clojure
 ;; eval-sci
@@ -234,14 +234,14 @@ Use snapshots during development to discover structure, then write ARIA assertio
 (spel/wait-for-load-state)
 
 (def snap1 (spel/capture-snapshot))
-(spel/save-audit-screenshot! "Step 1: Checkout loaded" "/tmp/s1.png" {:refs (:refs snap1)})
+(spel/save-audit-screenshot! "Checkout loaded" "/tmp/s1.png" {:refs (:refs snap1)})
 
 (spel/fill "@e6t2x4" "123 Main St")
 (spel/fill "@e0k8qp" "Springfield")
-(spel/save-audit-screenshot! "Step 2: Shipping filled" "/tmp/s2.png")
+(spel/save-audit-screenshot! "Shipping filled" "/tmp/s2.png")
 
 (spel/inject-action-markers! "@e5dw2c")
-(spel/save-audit-screenshot! "Step 3: About to continue" "/tmp/s3.png")
+(spel/save-audit-screenshot! "About to continue" "/tmp/s3.png")
 (spel/remove-action-markers!)
 (spel/click "@e5dw2c")
 (spel/wait-for-load-state)
@@ -270,7 +270,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 | Report PDF | `(spel/report->pdf entries opts)` | `(annotate/report->pdf pg entries opts)` |
 | Report HTML | `(spel/report->html entries opts)` | `(annotate/report->html entries opts)` |
 
-### Library Assertion Pattern
+### Library assertion pattern
 
 Wrap a Locator or Page with `assert-that`, call assertion functions. Returns `nil` on success, anomaly map on failure.
 

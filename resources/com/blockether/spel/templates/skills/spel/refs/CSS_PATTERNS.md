@@ -1,11 +1,11 @@
-<!-- Adapted from visual-explainer (MIT License, github.com/nicobailon/visual-explainer) -->
-# CSS Patterns for Diagrams
 
-Reusable patterns for layout, connectors, theming, and visual effects in self-contained HTML diagrams.
+# CSS patterns for diagrams
 
-## Theme Setup
+Copy-paste CSS for HTML diagrams. Uses custom properties for automatic light/dark theming.
 
-Always define both light and dark palettes via custom properties.
+## Theme setup
+
+Light and dark palettes — copy the whole block.
 
 ```css
 :root {
@@ -49,7 +49,9 @@ Always define both light and dark palettes via custom properties.
 }
 ```
 
-## Background Atmosphere
+## Background atmosphere
+
+Radial glow or dot grid behind the focal area.
 
 ```css
 /* Radial glow behind focal area */
@@ -66,9 +68,9 @@ body {
 }
 ```
 
-## Card Components
+## Card components
 
-**IMPORTANT: Never use `.node` as a CSS class name.** Mermaid.js uses `.node` internally. Use `.ve-card` instead.
+**NEVER use `.node` as a class name.** Mermaid.js owns it. Use `.ve-card` instead.
 
 ```css
 .ve-card {
@@ -120,7 +122,9 @@ body {
 }
 ```
 
-## Code Blocks
+## Code blocks
+
+Monospace code display with optional scroll and file header.
 
 ```css
 .code-block {
@@ -172,9 +176,9 @@ body {
 }
 ```
 
-## Mermaid Containers
+## Mermaid containers
 
-Always center Mermaid diagrams. Add zoom controls to every `.mermaid-wrap`.
+Centered diagrams with zoom controls on every `.mermaid-wrap`.
 
 ```css
 .mermaid-wrap {
@@ -227,7 +231,7 @@ Always center Mermaid diagrams. Add zoom controls to every `.mermaid-wrap`.
 }
 ```
 
-Zoom controls HTML:
+HTML for zoom controls:
 ```html
 <div class="mermaid-wrap">
   <div class="zoom-controls">
@@ -241,7 +245,9 @@ Zoom controls HTML:
 </div>
 ```
 
-## Grid Layouts
+## Grid layouts
+
+Three layouts: 2-column architecture, auto-fit card grid, horizontal pipeline.
 
 ```css
 /* Architecture (2-column with sidebar) */
@@ -279,7 +285,9 @@ Zoom controls HTML:
 }
 ```
 
-## Data Tables
+## Data tables
+
+Sticky header, striped rows, hover highlight.
 
 ```css
 .table-wrap {
@@ -326,7 +334,7 @@ Zoom controls HTML:
 .data-table tbody tr:last-child td { border-bottom: none; }
 ```
 
-### Status Indicators
+### Status indicators
 
 ```css
 .status {
@@ -348,6 +356,8 @@ Zoom controls HTML:
 ```
 
 ## Animations
+
+Fade-up on load, hover lift, reduced-motion override.
 
 ```css
 @keyframes fadeUp {
@@ -377,7 +387,9 @@ Zoom controls HTML:
 }
 ```
 
-## KPI / Metric Cards
+## KPI / metric cards
+
+Big number with monospace label.
 
 ```css
 .kpi-row {
@@ -413,7 +425,9 @@ Zoom controls HTML:
 }
 ```
 
-## Overflow Protection
+## Overflow protection
+
+Stops grid/flex children from overflowing; handles long text.
 
 ```css
 /* Every grid/flex child must be able to shrink */
@@ -434,7 +448,9 @@ li::before {
 }
 ```
 
-## Collapsible Sections
+## Collapsible sections
+
+`<details>` with animated arrow and body padding.
 
 ```css
 details.collapsible {
@@ -476,7 +492,9 @@ details.collapsible .collapsible__body {
 }
 ```
 
-## Responsive Breakpoint
+## Responsive breakpoint
+
+Stacks arch-grid and hides pipeline arrows on narrow screens.
 
 ```css
 @media (max-width: 768px) {
@@ -487,9 +505,9 @@ details.collapsible .collapsible__body {
 }
 ```
 
-## Capturing Results with SPEL
+## Capturing results
 
-After creating an HTML file, capture it as evidence:
+Open and screenshot the HTML file:
 
 ```bash
 # Preview in browser

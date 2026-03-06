@@ -1,21 +1,17 @@
-# Agent Common Patterns
+# Agent common patterns
 
 Shared conventions for all spel subagents. Every agent MUST follow these patterns.
 
 ---
 
-## Session Management
+## Session management
 
-**Every agent MUST use a named session.** Never use the default session — it may belong to the user or another agent.
+**NEVER use the default session.** It may belong to the user or another agent. Always use a named session.
 
 ```bash
-# Generate a unique session name for this task
 SESSION="<agent-short-name>-$(date +%s)"
 
-# Open with session
 spel --session $SESSION open <url> --interactive
-
-# All subsequent commands use the same session
 spel --session $SESSION snapshot -i
 spel --session $SESSION screenshot evidence.png
 spel --session $SESSION eval-sci '(spel/title)'
@@ -24,7 +20,7 @@ spel --session $SESSION eval-sci '(spel/title)'
 spel --session $SESSION close
 ```
 
-**Agent short names:**
+Agent short names:
 - planner → `plan`, generator → `gen`, healer → `heal`
 - explorer → `exp`, automator → `auto`, interactive → `iact`
 - presenter → `pres`, visual-qa → `vqa`
@@ -33,27 +29,23 @@ spel --session $SESSION close
 
 ---
 
-## Input/Output Contracts
+## Input/output contracts
 
-Every agent declares what it reads and what it produces. This enables composition — agents can consume each other's output.
+Every agent declares what it reads and what it produces, enabling composition.
 
-### Contract Format
-
-Each agent's template includes a section:
+### Contract format
 
 ```markdown
 ## Contract
 
-**Inputs:**
+Inputs:
 - `<path>` — description (REQUIRED/OPTIONAL)
 
-**Outputs:**
+Outputs:
 - `<path>` — description (format: JSON/PNG/MD)
 ```
 
-### JSON Output Convention
-
-Machine-readable outputs use JSON with these common fields:
+### JSON output convention
 
 ```json
 {
@@ -74,16 +66,16 @@ Machine-readable outputs use JSON with these common fields:
 
 ## Gates
 
-A GATE is a mandatory pause point where the agent presents results to the user and waits for approval before proceeding.
+A GATE is a mandatory pause where the agent presents results to the user and waits for approval before proceeding.
 
 ### When to GATE
 
-- **After producing a plan/spec** — User must review before execution
-- **After making changes** — User must verify before the next agent consumes the output
-- **After finding issues** — User must acknowledge before fixes are applied
-- **Before destructive actions** — User must confirm before overwriting baselines, deleting files, etc.
+- After producing a plan/spec: user must review before execution
+- After making changes: user must verify before the next agent consumes the output
+- After finding issues: user must acknowledge before fixes are applied
+- Before destructive actions: user must confirm before overwriting baselines, deleting files, etc.
 
-### GATE Format
+### GATE format
 
 ```markdown
 **GATE: [What was produced]**
@@ -96,20 +88,18 @@ Present the [output] to the user:
 Do NOT continue to the next phase until the user explicitly approves.
 ```
 
-### Embedded vs Workflow Gates
+### Embedded vs workflow gates
 
-- **Embedded GATE** — Inside the agent template itself. The agent pauses when invoked standalone.
-- **Workflow GATE** — In the workflow prompt. The orchestrator pauses between agent invocations.
+- Embedded GATE: inside the agent template itself. The agent pauses when invoked standalone.
+- Workflow GATE: in the workflow prompt. The orchestrator pauses between agent invocations.
 
-**Both are needed.** Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
+Both are needed. Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
 
 ---
 
-## Error Recovery
+## Error recovery
 
-Every agent must handle common failure modes gracefully.
-
-### Common Failures
+### Common failures
 
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
@@ -120,10 +110,9 @@ Every agent must handle common failure modes gracefully.
 | JavaScript errors | Console errors in snapshot | Capture and report. Continue unless the page is non-functional. |
 | Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |
 
-### Recovery Pattern
+### Recovery pattern
 
 ```bash
-# Try the primary approach
 spel --session $SESSION open <url> --interactive
 if [ $? -ne 0 ]; then
   echo "ERROR: Could not open <url>. Is the application running?"
@@ -144,11 +133,9 @@ In `eval-sci` mode, errors throw automatically. Wrap risky operations:
 
 ---
 
-## Evidence Capture
+## Evidence capture
 
-All evidence follows consistent naming and organization.
-
-### Directory Convention
+### Directory convention
 
 ```
 <output-dir>/
@@ -160,17 +147,15 @@ All evidence follows consistent naming and organization.
     <element>-detail.png   # Close-up of specific element
 ```
 
-### Capture Checklist
+### Capture checklist
 
 For every page/state you examine:
 
-1. **Snapshot** — `spel --session $SESSION snapshot -S --json > evidence/<page>-snapshot.json`
-2. **Screenshot** — `spel --session $SESSION screenshot evidence/<page>-screenshot.png`
-3. **Annotate** — `spel --session $SESSION annotate` → `spel --session $SESSION screenshot evidence/<page>-annotated.png` → `spel --session $SESSION unannotate`
+1. Snapshot: `spel --session $SESSION snapshot -S --json > evidence/<page>-snapshot.json`
+2. Screenshot: `spel --session $SESSION screenshot evidence/<page>-screenshot.png`
+3. Annotate: `spel --session $SESSION annotate` then `spel --session $SESSION screenshot evidence/<page>-annotated.png` then `spel --session $SESSION unannotate`
 
-### Responsive Evidence
-
-When responsiveness matters, capture at standard breakpoints:
+### Responsive evidence
 
 ```bash
 for viewport in "375 812 mobile" "768 1024 tablet" "1440 900 desktop"; do
@@ -182,88 +167,109 @@ done
 
 ---
 
-## Daemon Notes (Do NOT duplicate in agent templates)
+## Daemon notes (do NOT duplicate in agent templates)
 
-These apply to ALL agents — reference this doc instead of copy-pasting:
+These apply to ALL agents. Reference this doc instead of copy-pasting:
 
-- `spel/start!` and `spel/stop!` are **NOT needed** — the daemon manages browser lifecycle
+- `spel/start!` and `spel/stop!` are NOT needed. The daemon manages browser lifecycle.
 - Use `--timeout <ms>` to fail fast on bad selectors (default is 30s, which is too long for exploration)
 - Use `--interactive` when the user should see the browser window
-- Errors throw automatically in `eval-sci` mode — no need for explicit error checking unless you want custom recovery
+- Errors throw automatically in `eval-sci` mode. No need for explicit error checking unless you want custom recovery.
 - Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch
-- ALWAYS `spel --session $SESSION close` when done — never leave sessions open
+- ALWAYS `spel --session $SESSION close` when done. Never leave sessions open.
 
 ---
 
-## Video Recording
+## Video recording
 
-Record browser sessions for evidence and CI artifacts. Video provides indisputable proof of bugs and helps stakeholders who can't reproduce locally.
+Record browser sessions for evidence and CI artifacts.
 
-### Recording a Session
-
-Use `--record-video` when opening a browser:
-
-```bash
-# CLI: open with video recording
-spel --session $SESSION open <url> --interactive --record-video
-
-# The video is saved when the session closes
-spel --session $SESSION close
-# Video saved to: videos/<session-name>.webm
-```
-
-In `eval-sci` mode:
+### Recording a session with action log
 
 ```clojure
-;; Start recording
-(spel/start-video "videos/")
+;; Start video + clear action log
+(spel/start-video-recording {:video-size {:width 1920 :height 1080}})
+(spel/clear-action-log!)
 
-;; ... perform actions ...
+;; Perform actions with natural pacing
+(spel/navigate "https://example.org")
+(spel/human-pause)    ;; 300-700ms random pause
 
-;; Stop and save
-(spel/stop-video)  ;; => "videos/session-1234.webm"
+(spel/smooth-scroll 300)
+(spel/human-pause)
+
+(spel/click "@e123")
+(spel/human-pause 500 1000)
+
+;; Export SRT before finishing video
+(spit "/tmp/session.srt" (spel/export-srt))
+(spel/finish-video-recording {:save-as "/tmp/session.webm"})
 ```
 
-### SRT Transcript (Subtitles)
+Or via CLI:
 
-Generate an SRT transcript of agent actions for video overlay. Each action becomes a subtitle entry synced to the video timeline:
+```bash
+spel --session $SESSION open <url> --interactive --record-video
+spel --session $SESSION click @e123
+spel --session $SESSION fill @e456 "hello"
+
+# Export SRT and action log
+spel --session $SESSION action-log --srt -o session.srt
+spel --session $SESSION action-log --json -o session.json
+
+# Close (finalizes video)
+spel --session $SESSION close
+```
+
+### SRT transcript (automatic)
+
+The action log generates SRT subtitles automatically:
 
 ```
 1
-00:00:01,000 --> 00:00:03,500
-[Hunter] Navigating to https://example.com/login
+00:00:00,000 --> 00:00:02,000
+navigate https://example.org
 
 2
-00:00:03,500 --> 00:00:06,200
-[Hunter] Taking snapshot — found 12 interactive elements
+00:00:02,000 --> 00:00:03,500
+click @e123
 
 3
-00:00:06,200 --> 00:00:09,000
-[Hunter] ISSUE-001: Submit button not keyboard-accessible
+00:00:03,500 --> 00:00:05,000
+fill @e456 "search text"
 ```
 
-Agents should log actions with timestamps (use `(System/currentTimeMillis)`) and generate SRT format after the session.
+The JSON export includes full context (URL, title, snapshot tree) for each action.
 
-### Video in QA Reports
+### FFmpeg post-processing (optional)
+
+```bash
+# Burn in subtitles
+ffmpeg -i session.webm -vf "subtitles=session.srt" output.mp4
+
+# Remove idle frames
+ffmpeg -i session.webm -vf "mpdecimate,setpts=N/30/TB" -r 30 trimmed.mp4
+```
+
+See `refs/PDF_STITCH_VIDEO.md` for the complete FFmpeg reference.
+
+### Video in QA reports
 
 The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `refs/qa-report.html` for the template structure.
 
 ---
 
-## Black-Box Testing Rule
+## Black-box testing rule
 
-**Never read application source code.** Bug-finding agents (Hunter, Skeptic, Referee) are black-box testers. They test what users see and experience — UI, behavior, accessibility, network responses.
+**NEVER read application source code.** Bug-finding agents (Hunter, Skeptic, Referee) are black-box testers. They test what users see and experience: UI, behavior, accessibility, network responses.
 
-Reading source code introduces bias:
-- You start testing what you know is there, not what users encounter
-- You miss bugs in the gap between intent and implementation
-- You skip exploratory paths a real user would try
+Reading source code introduces bias: you test what you know is there, miss bugs in the gap between intent and implementation, and skip exploratory paths a real user would try.
 
-If you need to understand behavior, observe it through the browser. Use snapshots, screenshots, console output, and network logs — never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
+To understand behavior, observe it through the browser. Use snapshots, screenshots, console output, and network logs. Never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
 
 ---
 
-## See Also
+## See also
 
 - [FULL_API.md](FULL_API.md) — Complete spel CLI and library API
 - [EVAL_GUIDE.md](EVAL_GUIDE.md) — SCI eval scripting patterns

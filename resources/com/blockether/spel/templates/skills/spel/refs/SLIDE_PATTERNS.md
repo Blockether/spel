@@ -1,22 +1,22 @@
 <!-- Adapted from visual-explainer (MIT License, github.com/nicobailon/visual-explainer) -->
-# Slide Deck Patterns
+# Slide deck patterns
 
 CSS patterns, JS engine, slide type layouts, transitions, and navigation chrome for self-contained HTML slide presentations.
 
-**When to use slides:** Only when the user explicitly requests them. Never auto-select slide format.
+When to use slides: only when the user explicitly requests them. Never auto-select slide format.
 
 ## Planning a Deck
 
 Before writing any HTML, follow this process:
 
-1. **Inventory the source** — enumerate every section, subsection, table row, decision, specification. Count them.
-2. **Map source to slides** — every item must appear somewhere. If a section has 6 decisions, all 6 need slides.
-3. **Choose layouts** — pick a slide type for each planned slide. Vary across the sequence.
-4. **Verify before writing** — scan the inventory. Is anything unmapped?
+1. Inventory the source: enumerate every section, subsection, table row, decision, specification. Count them.
+2. Map source to slides: every item must appear somewhere. If a section has 6 decisions, all 6 need slides.
+3. Choose layouts: pick a slide type for each planned slide. Vary across the sequence.
+4. Verify before writing: scan the inventory. Is anything unmapped?
 
-**The test:** After generating the deck, a reader who has never seen the source should be able to reconstruct every major point from the slides alone.
+The test: after generating the deck, a reader who has never seen the source should be able to reconstruct every major point from the slides alone.
 
-## Slide Engine Base
+## Slide engine base
 
 ```html
 <body>
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 ```
 
-## Slide Type Layouts
+## Slide type layouts
 
 ### Title Slide
 ```html
@@ -402,7 +402,7 @@ Consecutive slides must vary their spatial approach:
 - Edge-aligned: content pushed to bottom or top
 - Split: two distinct panels filling the viewport
 
-## Capturing Slides with SPEL
+## Capturing slides with spel
 
 After creating a slide deck, capture individual slides as evidence:
 

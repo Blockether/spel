@@ -175,9 +175,9 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
     (core/api-get ctx "/me")))
 ```
 
-## Tracing: Shared vs Separate Playwright Stacks
+## Tracing: shared vs separate Playwright stacks
 
-> **IMPORTANT:** `with-testing-page` and `with-testing-api` each create their own complete
+> **NOTE:** `with-testing-page` and `with-testing-api` each create their own complete
 > Playwright stack (Playwright → Browser → Context). Nesting one inside the other does NOT
 > share a trace — you get two independent Playwright instances, two browsers, two traces.
 
@@ -199,7 +199,7 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
     (core/api-get ctx "/me")))
 ```
 
-**When to use which:**
+When to use which:
 
 | Pattern | Playwright instances | Traces | Use case |
 |---------|---------------------|--------|----------|
@@ -207,7 +207,7 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
 | `with-testing-api` alone | 1 | 1 | API-only testing (no browser) |
 | `with-testing-page` + `page-api` | 1 | 1 | Combined UI + API, same domain |
 | `with-testing-page` + `with-page-api` | 1 | 1 | Combined UI + API, different base-url |
-| `with-testing-page` nesting `with-testing-api` | **2** | **2** | **Don't do this** — use `page-api`/`with-page-api` instead |
+| `with-testing-page` nesting `with-testing-api` | 2 | 2 | Don't do this — use `page-api`/`with-page-api` instead |
 
 ## API Test Fixtures
 

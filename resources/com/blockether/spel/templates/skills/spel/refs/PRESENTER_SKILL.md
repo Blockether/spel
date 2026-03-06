@@ -8,18 +8,18 @@ Generate self-contained HTML files for technical diagrams, visualizations, and d
 ### 1. Think (5 seconds)
 Before writing HTML, commit to a direction.
 
-**Who is looking?** Developer understanding a system? PM seeing the big picture? This shapes information density.
+Who is looking? Developer understanding a system? PM seeing the big picture? This shapes information density.
 
-**What type of content?** Architecture, flowchart, sequence, data flow, schema/ER, state machine, mind map, class diagram, C4 architecture, data table, timeline, dashboard, or slide deck.
+What type of content? Architecture, flowchart, sequence, data flow, schema/ER, state machine, mind map, class diagram, C4 architecture, data table, timeline, dashboard, or slide deck.
 
-**What aesthetic?** Pick one and commit:
+What aesthetic? Pick one and commit:
 - Blueprint (technical drawing feel, deep slate/blue palette, monospace labels)
 - Editorial (serif headlines, generous whitespace, muted earth tones)
 - Paper/ink (warm cream background, terracotta/sage accents)
 - Monochrome terminal (green/amber on near-black)
 - IDE-inspired (commit to a real named scheme: Dracula, Nord, Catppuccin, Solarized, Gruvbox)
 
-**Forbidden aesthetics:**
+Forbidden aesthetics:
 - Neon dashboard (cyan + magenta + purple on dark) — always produces AI slop
 - Gradient mesh (pink/purple/cyan blobs)
 - Inter font + violet/indigo accents + gradient text
@@ -43,45 +43,45 @@ Choose rendering approach:
 | Dashboard | CSS Grid + Chart.js |
 | Slide deck | Scroll-snap slides (see SLIDE_PATTERNS.md) |
 
-**Mermaid theming:** Always use `theme: 'base'` with custom `themeVariables`. Never use built-in themes — they ignore variable overrides.
+Mermaid theming: always use `theme: 'base'` with custom `themeVariables`. Never use built-in themes — they ignore variable overrides.
 
-**Mermaid containers:** Always center with `display: flex; justify-content: center;`. Add zoom controls (+/−/reset/expand) to every `.mermaid-wrap`.
+Mermaid containers: always center with `display: flex; justify-content: center;`. Add zoom controls (+/−/reset/expand) to every `.mermaid-wrap`.
 
 ### 3. Style
-- **Typography:** Pick a distinctive font pairing from LIBRARIES.md. Forbidden as `--font-body`: Inter, Roboto, Arial, Helvetica, system-ui alone.
-- **Color:** Use CSS custom properties. Define `--bg`, `--surface`, `--border`, `--text`, `--text-dim`, and 3-5 accent colors. Forbidden accents: `#8b5cf6` `#7c3aed` (indigo/violet), `#d946ef` (fuchsia), cyan-magenta-pink combination.
-- **Surfaces:** Build depth through subtle lightness shifts (2-4% between levels). Borders: low-opacity rgba.
-- **Animation:** Staggered fade-ins on load. Respect `prefers-reduced-motion`. Forbidden: animated glowing box-shadows, pulsing effects on static content.
+- Typography: pick a distinctive font pairing from LIBRARIES.md. Forbidden as `--font-body`: Inter, Roboto, Arial, Helvetica, system-ui alone.
+- Color: use CSS custom properties. Define `--bg`, `--surface`, `--border`, `--text`, `--text-dim`, and 3-5 accent colors. Forbidden accents: `#8b5cf6` `#7c3aed` (indigo/violet), `#d946ef` (fuchsia), cyan-magenta-pink combination.
+- Surfaces: build depth through subtle lightness shifts (2-4% between levels). Borders: low-opacity rgba.
+- Animation: staggered fade-ins on load. Respect `prefers-reduced-motion`. Forbidden: animated glowing box-shadows, pulsing effects on static content.
 
 ### 4. Deliver
-**Output location:** Write to `./spel-visual/` by default. Use descriptive filenames: `architecture.html`, `pipeline-flow.html`.
+Output location: write to `./spel-visual/` by default. Use descriptive filenames: `architecture.html`, `pipeline-flow.html`.
 
-**Preview in browser:**
+Preview in browser:
 ```bash
 spel open ./spel-visual/filename.html
 ```
 
-**Capture as evidence:**
+Capture as evidence:
 ```bash
 spel screenshot ./spel-visual/filename.png
 ```
 
-**Tell the user** the file path so they can re-open or share it.
+Tell the user the file path so they can re-open or share it.
 
 ## Diagram Types
 
-### Architecture / System Diagrams
-- **Simple topology (< 10 elements):** Mermaid `graph TD`
-- **Text-heavy (< 15 elements):** CSS Grid cards with colored borders and monospace labels
-- **Complex (15+ elements):** Hybrid — simple Mermaid overview (5-8 nodes) + CSS Grid cards for details
+### Architecture / system diagrams
+- Simple topology (< 10 elements): Mermaid `graph TD`
+- Text-heavy (< 15 elements): CSS Grid cards with colored borders and monospace labels
+- Complex (15+ elements): hybrid — simple Mermaid overview (5-8 nodes) + CSS Grid cards for details
 
 ### Flowcharts / Pipelines
 Use Mermaid. Prefer `graph TD` (top-down) over `graph LR` (left-to-right) for complex diagrams.
 
-### Data Tables / Comparisons
+### Data tables / comparisons
 Use real `<table>` elements. Wrap in scrollable container. Sticky `<thead>`. Alternating row backgrounds.
 
-### Slide Deck Mode
+### Slide deck mode
 Opt-in only — when user explicitly requests slides. See SLIDE_PATTERNS.md for the full slide engine.
 
 ## File Structure
@@ -105,11 +105,11 @@ Every diagram is a single self-contained `.html` file. No external assets except
 ```
 
 ## Quality Checks
-- **Squint test:** Blur your eyes. Can you still perceive hierarchy?
-- **Swap test:** Would replacing fonts/colors with a generic dark theme make this indistinguishable from a template?
-- **Both themes:** Toggle OS between light and dark. Both should look intentional.
-- **No overflow:** Resize browser. No content should clip. Every grid/flex child needs `min-width: 0`.
-- **Mermaid zoom controls:** Every `.mermaid-wrap` must have zoom controls and click-to-expand.
+- Squint test: blur your eyes. Can you still perceive hierarchy?
+- Swap test: would replacing fonts/colors with a generic dark theme make this indistinguishable from a template?
+- Both themes: toggle OS between light and dark. Both should look intentional.
+- No overflow: resize browser. No content should clip. Every grid/flex child needs `min-width: 0`.
+- Mermaid zoom controls: every `.mermaid-wrap` must have zoom controls and click-to-expand.
 
 ## Anti-Patterns (AI Slop)
 - Inter/Roboto as primary font

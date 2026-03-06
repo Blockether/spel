@@ -1,6 +1,12 @@
-# Frames & Input Devices
+# Frames and input devices
 
-## Frame Navigation
+Working with iframes and low-level input (keyboard, mouse, touch).
+
+## Frame navigation
+
+Use `FrameLocator` when you know the iframe selector upfront. For dynamic frames, grab the frame object from `page/frames` and use frame-specific locator methods.
+
+## Frame navigation
 
 ```clojure
 ;; Via FrameLocator (preferred)
@@ -41,7 +47,9 @@
   (frame/fl-nth fl 0))
 ```
 
-## Input Devices
+## Input devices
+
+Low-level keyboard, mouse, and touch events. Most interactions should go through `spel/click`, `spel/fill`, etc. Use these only when you need precise control over timing or event sequences.
 
 ```clojure
 (require '[com.blockether.spel.input :as input])
