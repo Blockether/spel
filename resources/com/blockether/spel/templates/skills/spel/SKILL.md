@@ -24,6 +24,24 @@ If the installed version does not match **{{version}}**:
 
 ## Quick Reference
 
+## Getting Started — Use the Orchestrator
+
+**Don't call specialist agents directly.** Use `@spel-orchestrator` — it analyzes your request and routes to the right pipeline automatically.
+
+```
+@spel-orchestrator test the login page
+@spel-orchestrator find bugs on https://example.com
+@spel-orchestrator automate the checkout flow
+```
+
+The orchestrator routes to:
+- **@spel-test-orchestrator** — E2E test writing (plan → challenge → generate → heal)
+- **@spel-qa-orchestrator** — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML report)
+- **@spel-auto-orchestrator** — Browser automation (auth → explore → script → document)
+
+You can also call specialist agents directly if you know exactly what you need — but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
+
+
 | Command | Purpose |
 |---------|---------|
 | `spel --help` | CLI help |
@@ -248,6 +266,13 @@ Detailed documentation is split into topic-specific reference files:
 |-----|-------|
 | `refs/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
 | `refs/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
+
+### QA / Exploratory Testing
+| Ref | Topic |
+|-----|-------|
+| `refs/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
+| `refs/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
+| `refs/qa-report.html` | **QA report HTML template** — final deliverable from the QA pipeline |
 
 ### CLI & Tools
 | Ref | Topic |

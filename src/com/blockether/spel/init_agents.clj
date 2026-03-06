@@ -84,10 +84,10 @@
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
    :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md"]
+                 "BUGFIND_GUIDE.md" "qa-report.html"]
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
-   :qa-orchestrator ["AGENT_COMMON.md"]
+   :qa-orchestrator ["AGENT_COMMON.md" "qa-report.html"]
    :auto-orchestrator ["AGENT_COMMON.md"]})
 
 (def ^:private subagent-groups
@@ -174,7 +174,7 @@
                       (mapv (fn [filename]
                               [(str "skills/spel/refs/" filename)
                                (str skill-dir "/refs/" filename)
-                               (str "ref: " (str/replace filename ".md" ""))
+                               (str "ref: " (str/replace filename #"\.[^.]+$" ""))
                                "+"
                                nil])
                         selected-ref-files))

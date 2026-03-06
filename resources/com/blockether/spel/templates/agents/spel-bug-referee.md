@@ -46,6 +46,7 @@ Focus on these refs from your SKILL:
 
 **Outputs:**
 - `bugfind-reports/referee-verdict.json` — Final verdict report with `verified_bug_list` (JSON)
+- `bugfind-reports/qa-report.html` — Human-readable HTML report (rendered from `refs/qa-report.html` template)
 
 ## Session Management
 
@@ -87,6 +88,27 @@ Write `bugfind-reports/referee-verdict.json` using BUGFIND_GUIDE schema, includi
 - `verified_bug_list` grouped by severity (`critical`, `medium`, `low`)
 
 `verified_bug_list` is the final deliverable.
+
+### HTML Report Generation
+
+After writing `referee-verdict.json`, render a human-readable HTML report:
+
+1. Read the `refs/qa-report.html` template from your SKILL refs
+2. Replace all `{PLACEHOLDER}` markers with data from the verdict:
+   - `{APP_NAME}`, `{APP_URL}`, `{DATE}`, `{SCOPE}`, `{SESSION_ID}`
+   - `{CRITICAL_COUNT}`, `{HIGH_COUNT}`, `{MEDIUM_COUNT}`, `{LOW_COUNT}`, `{TOTAL_COUNT}`
+   - `{VERDICT_SUMMARY}` — one-sentence summary
+   - `{PAGES_AUDITED}`, `{CATEGORIES_CHECKED}`, `{VIEWPORTS_TESTED}`
+   - `{PIPELINE_AGENTS}` — comma-separated list of agents that ran
+3. For each verified bug, duplicate the FINDING TEMPLATE block (in HTML comments) and fill in:
+   - `{ISSUE_ID}`, `{SEVERITY}`, `{CATEGORY}`, `{PAGE_URL}`
+   - `{AUDIENCE_TAGS}`, `{AGENT_PROVENANCE}`
+   - `{STEPS_TO_REPRODUCE}`, `{EVIDENCE_SCREENSHOTS}`, `{AGENT_NARRATIVE}`
+   - `{CONSOLE_OUTPUT}`, `{CONFIDENCE}`, `{IMPACT}`
+4. For disputed bugs, fill the DISPUTED BUG template blocks
+5. Write to `bugfind-reports/qa-report.html`
+
+The HTML report is the **primary deliverable** for stakeholders. The JSON is for machine consumption.
 
 **GATE: Final verdict**
 

@@ -195,6 +195,74 @@ These apply to ALL agents — reference this doc instead of copy-pasting:
 
 ---
 
+## Video Recording
+
+Record browser sessions for evidence and CI artifacts. Video provides indisputable proof of bugs and helps stakeholders who can't reproduce locally.
+
+### Recording a Session
+
+Use `--record-video` when opening a browser:
+
+```bash
+# CLI: open with video recording
+spel --session $SESSION open <url> --interactive --record-video
+
+# The video is saved when the session closes
+spel --session $SESSION close
+# Video saved to: videos/<session-name>.webm
+```
+
+In `eval-sci` mode:
+
+```clojure
+;; Start recording
+(spel/start-video "videos/")
+
+;; ... perform actions ...
+
+;; Stop and save
+(spel/stop-video)  ;; => "videos/session-1234.webm"
+```
+
+### SRT Transcript (Subtitles)
+
+Generate an SRT transcript of agent actions for video overlay. Each action becomes a subtitle entry synced to the video timeline:
+
+```
+1
+00:00:01,000 --> 00:00:03,500
+[Hunter] Navigating to https://example.com/login
+
+2
+00:00:03,500 --> 00:00:06,200
+[Hunter] Taking snapshot — found 12 interactive elements
+
+3
+00:00:06,200 --> 00:00:09,000
+[Hunter] ISSUE-001: Submit button not keyboard-accessible
+```
+
+Agents should log actions with timestamps (use `(System/currentTimeMillis)`) and generate SRT format after the session.
+
+### Video in QA Reports
+
+The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `refs/qa-report.html` for the template structure.
+
+---
+
+## Black-Box Testing Rule
+
+**Never read application source code.** Bug-finding agents (Hunter, Skeptic, Referee) are black-box testers. They test what users see and experience — UI, behavior, accessibility, network responses.
+
+Reading source code introduces bias:
+- You start testing what you know is there, not what users encounter
+- You miss bugs in the gap between intent and implementation
+- You skip exploratory paths a real user would try
+
+If you need to understand behavior, observe it through the browser. Use snapshots, screenshots, console output, and network logs — never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
+
+---
+
 ## See Also
 
 - [FULL_API.md](FULL_API.md) — Complete spel CLI and library API
