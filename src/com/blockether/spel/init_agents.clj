@@ -84,7 +84,11 @@
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
    :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md"]})
+                 "BUGFIND_GUIDE.md"]
+   :orchestrator ["AGENT_COMMON.md"]
+   :test-orchestrator ["AGENT_COMMON.md"]
+   :qa-orchestrator ["AGENT_COMMON.md"]
+   :auto-orchestrator ["AGENT_COMMON.md"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
@@ -99,6 +103,10 @@
    :bug-hunter #{:bug-hunter}
    :bug-skeptic #{:bug-skeptic}
    :bug-referee #{:bug-referee}
+   :orchestrator #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator}
+   :test-orchestrator #{:test-orchestrator}
+   :qa-orchestrator #{:qa-orchestrator}
+   :auto-orchestrator #{:auto-orchestrator}
    :automation #{:explorer :automator :interactive}
    :visual #{:presenter :visual-qa}
    :bugfind #{:bug-hunter :bug-skeptic :bug-referee}})
@@ -116,7 +124,11 @@
    "spel-visual-qa" :visual-qa
    "spel-bug-hunter" :bug-hunter
    "spel-bug-skeptic" :bug-skeptic
-   "spel-bug-referee" :bug-referee})
+   "spel-bug-referee" :bug-referee
+   "spel-orchestrator" :orchestrator
+   "spel-test-orchestrator" :test-orchestrator
+   "spel-qa-orchestrator" :qa-orchestrator
+   "spel-auto-orchestrator" :auto-orchestrator})
 
 (def ^:private workflow-required-agents
   "Maps workflow prompt resource paths to the set of subagent keywords they require.
@@ -245,7 +257,27 @@
                          (str prompt-dir "/spel-bugfind-workflow.md")
                          "bugfind workflow"
                          "+"
-                         nil]]
+                         nil]
+                        ["agents/spel-orchestrator.md"
+                         (str agent-dir "/spel-orchestrator" agent-ext)
+                         "orchestrator agent"
+                         "+"
+                         "spel-orchestrator"]
+                        ["agents/spel-test-orchestrator.md"
+                         (str agent-dir "/spel-test-orchestrator" agent-ext)
+                         "test orchestrator agent"
+                         "+"
+                         "spel-test-orchestrator"]
+                        ["agents/spel-qa-orchestrator.md"
+                         (str agent-dir "/spel-qa-orchestrator" agent-ext)
+                         "qa orchestrator agent"
+                         "+"
+                         "spel-qa-orchestrator"]
+                        ["agents/spel-auto-orchestrator.md"
+                         (str agent-dir "/spel-auto-orchestrator" agent-ext)
+                         "auto orchestrator agent"
+                         "+"
+                         "spel-auto-orchestrator"]]
         test-files (if resolved-only
                      (filterv (fn [[resource-path _ _ _ agent-name]]
                                 (if agent-name
@@ -382,7 +414,11 @@
    "spel-visual-qa"
    "spel-bug-hunter"
    "spel-bug-skeptic"
-   "spel-bug-referee"])
+   "spel-bug-referee"
+   "spel-orchestrator"
+   "spel-test-orchestrator"
+   "spel-qa-orchestrator"
+   "spel-auto-orchestrator"])
 
 (defn- transform-agent-references
   "Replaces @agent-name references in template content with the
@@ -594,10 +630,12 @@
   (println "                    Use this when spel is for interactive development, not E2E testing.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
-  (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee")
+  (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
+  (println "                            orchestrator, test-orchestrator, qa-orchestrator, auto-orchestrator")
   (println "                    Groups: automation (explorer+automator+interactive),")
   (println "                            visual (presenter+visual-qa),")
-  (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee)")
+  (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
+  (println "                            orchestrator (all 4 orchestrators)")
   (println "                    Example: --only test,bugfind")
   (println "                    SKILL.md and core refs are always included")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
@@ -647,8 +685,8 @@
       (println "     spel eval-sci '(page/navigate \"https://example.org\")'"))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
-        (println "Done! Use @spel-test-planner to start planning tests.")
-        (println "Done! Use the spel-test-planner agent to start planning tests."))
+        (println "Done! Use @spel-orchestrator to get started, or @spel-test-planner to plan tests directly.")
+        (println "Done! Use the spel-orchestrator agent to get started, or spel-test-planner to plan tests directly."))
       (println "")
       (println "Next steps:")
       (println "")

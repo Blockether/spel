@@ -359,12 +359,13 @@ spel compiles to a native binary via GraalVM - no JVM startup, instant execution
 Point your AI agent at spel and let it write your E2E tests.
 
 ```bash
-spel init-agents                              # all 12 agents (default)
+spel init-agents                              # all 17 agents + 4 orchestrators (default)
 spel init-agents --loop=claude                # Claude Code
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
 spel init-agents --only=visual                # visual QA agents only
 spel init-agents --only=bugfind              # adversarial bug-finding agents only
+spel init-agents --only=orchestrator          # all 4 orchestrator agents only
 spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec reviewer
 spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
@@ -374,7 +375,7 @@ spel init-agents --no-tests                   # SKILL only (interactive dev)
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
-| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `spec-skeptic` |
+| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `spec-skeptic` |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
@@ -382,6 +383,29 @@ spel init-agents --no-tests                   # SKILL only (interactive dev)
 | `--force` | — | Overwrite existing files |
 | `--test-dir DIR` | `test-e2e` | E2E test output directory |
 | `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
+
+### Orchestrator Agents
+
+Orchestrators are smart entry points that route your request to the right specialist pipeline:
+
+| Agent | Purpose |
+|-------|---------|
+| `@spel-orchestrator` | **Meta-orchestrator** — analyzes your request and routes to the right pipeline |
+| `@spel-test-orchestrator` | Drives the full test pipeline: plan → [challenge] → generate → heal |
+| `@spel-qa-orchestrator` | Coordinates QA: [explore] → [visual-diff] → hunt → challenge → judge |
+| `@spel-auto-orchestrator` | Coordinates automation: [auth] → explore → [script] → [document] |
+
+Just say `@spel-orchestrator test the login page` and it handles the rest.
+
+### Subagent Groups
+
+| Group | Agents | Use for |
+|-------|--------|---------|
+| `test` | planner, generator, healer | E2E test writing |
+| `automation` | explorer, automator, interactive | Browser automation |
+| `visual` | presenter, visual-qa | Visual content + QA |
+| `bugfind` | bug-hunter, bug-skeptic, bug-referee | Adversarial bug finding |
+| `orchestrator` | orchestrator, test-orch, qa-orch, auto-orch | Smart routing |
 
 ## Video Recording
 
