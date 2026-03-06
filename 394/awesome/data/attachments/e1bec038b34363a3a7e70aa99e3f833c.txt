@@ -1,1 +1,0 @@
-{:status 200, :status-text "OK", :url "http://localhost:38907/echo?user=alice&action=view", :ok? true, :headers {"date" "Thu, 05 Mar 2026 17:43:09 GMT", "content-type" "application/json", "content-length" "64"}, :body "{\"method\":\"GET\",\"path\":\"/echo\",\"query\":\"user=alice&action=view\"}"}
