@@ -62,7 +62,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 | Category | Code | What to Check |
 |----------|------|--------------|
 | Functional | `functional` | Broken interactions, form validation, dead links, JS errors, wrong redirects, state corruption |
-| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues |
+| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues, duplicate elements (2x logo/heading/nav), text overflow, visual inequality between similar elements |
 | Accessibility | `accessibility` | Missing ARIA labels, keyboard nav, contrast ratios, screen reader flow, focus management |
 | UX | `ux` | Confusing flows, unclear CTAs, inconsistent terminology, poor error messages, hierarchy failures |
 | Performance | `performance` | Slow loads, large assets, excessive requests, render-blocking resources, layout thrashing |
@@ -245,13 +245,15 @@ The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy
 | Color | Used with restraint and purpose? Guides attention? Sufficient contrast? |
 | Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
 | Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? |
-| Density | Anything removable without losing meaning? Every element earning its place? |
+| Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? |
 | Responsiveness | Works at mobile/tablet/desktop? Touch targets sized for thumbs? |
 
 The Jobs Filter:
 - "Would a user need to be told this exists?" → UX confusion bug
 - "Can this be removed without losing meaning?" → Density bug
 - "Does this feel inevitable?" → Design inconsistency bug
+- "Are there duplicate elements that shouldn't be repeated?" → Duplication bug
+- "Does text fit its container or does it overflow/truncate?" → Content overflow bug
 
 ---
 

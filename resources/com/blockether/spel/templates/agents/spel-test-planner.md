@@ -85,11 +85,24 @@ spel --session $SESSION click @eXXXXX
 spel --session $SESSION fill @eXXXXX "value"
 ```
 
-After navigation, refs become stale — always re-capture.
+After navigation, refs become stale. Re-capture:
+
+```bash
+spel --session $SESSION click @eXXXXX
+# Page changed — re-snapshot
+spel --session $SESSION snapshot -i
+# Use NEW refs from fresh snapshot
+spel --session $SESSION click @eYYYYY
+```
 
 ### Position annotations in snapshot refs
 
-Each ref includes `[pos:X,Y W×H]` (pixel coordinates from top-left, width×height). Use for layout verification, overlap detection, viewport fit, and spatial reasoning.
+Each ref includes `[pos:X,Y W×H]` (pixel coordinates from top-left, width×height). Use for:
+- Layout verification: check element positions, alignment, spacing
+- Overlap detection: find elements that overlap or are cut off
+- Viewport fit: verify elements are within the visible viewport
+- Spatial reasoning: understand page layout without screenshots
+- Duplicate detection: spot repeated logos, headings, or navigation blocks
 
 ```
 button "Submit" @e2yrjz [pos:150,200 120×40]

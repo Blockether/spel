@@ -113,7 +113,9 @@ Inspect and capture evidence for:
 - Form validation and error-state behavior
 - Accessibility blockers (labels, keyboard, focus, semantics)
 - Responsive layout breakage (mobile/tablet/desktop)
-
+- Duplicate elements (same logo, heading, or nav block appearing twice)
+- Content overflow (text spilling out of containers, truncated labels)
+- Visual inequality (similar elements at different sizes, weights, or spacing)
 ### Viewport fit checks
 
 For every page audited, verify layout at multiple viewports:
@@ -126,7 +128,7 @@ spel --session $SESSION eval-sci '(let [sw (spel/evaluate "document.documentElem
 # Use spel eval-sci with viewport resize or open with device emulation
 ```
 
-Horizontal overflow, overlapping elements, and truncated text at non-desktop sizes are visual bugs.
+Horizontal overflow, overlapping elements, truncated text, and duplicate content blocks at non-desktop sizes are visual bugs.
 
 For each candidate bug:
 1. Reproduce reliably
@@ -142,7 +144,10 @@ Audit the same flows/pages for:
 - Typography hierarchy
 - Color restraint and contrast
 - Grid consistency
-- Component consistency/states
+- Component consistency/states (same component should look identical everywhere)
+- Duplicate content (same logo, heading, or section appearing more than once)
+- Text overflow (labels or body text spilling outside their containers)
+- Visual symmetry (paired elements should match in size, weight, and spacing)
 - Density (remove-without-loss test)
 - Responsiveness and touch ergonomics
 

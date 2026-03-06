@@ -119,6 +119,9 @@ When reviewing a structural diff:
 - Missing elements: a ref present in baseline is absent in current (element removed or hidden)
 - New elements: refs in current that weren't in baseline (new content or revealed elements)
 - Display changes: `display: flex` became `display: block`
+- Duplicate elements: multiple refs with the same role+name (e.g., two `img "Logo"` or two `heading "Site Title"`)
+- Content overflow: elements with dimensions larger than their parent container
+- Visual inequality: similar elements (e.g., two cards, two nav items) with different sizes or positions
 
 ### Tier selection for regression
 

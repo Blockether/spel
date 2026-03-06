@@ -28,9 +28,11 @@ Load the `spel` skill before any action.
 
 Each ref'd element includes screen position data as `[pos:X,Y W×H]`: pixel coordinates (X,Y from top-left) and dimensions (width×height). Use for:
 - Layout verification: check element positions, alignment, spacing
-- Overlap detection: identify elements that overlap or are cut off
+- Overlap detection: find elements that overlap or are cut off
 - Viewport fit: verify elements are within the visible viewport
 - Spatial reasoning: understand page layout without screenshots
+- Duplicate detection: spot repeated logos, headings, or navigation blocks
+- Visual symmetry: paired elements should match in size and position
 
 ```
 button "Submit" @e2yrjz [pos:150,200 120×40]
