@@ -125,6 +125,29 @@ Before creating a new spec, check what already exists:
 3. **Identify gaps** — determine which features still need coverage
 4. **Avoid duplicates** — if a spec exists for this feature, update it instead of creating a new one
 
+### Step 0.5: Build QA Inventory
+
+Before exploring, build a **coverage matrix** to ensure systematic coverage. This prevents blind spots.
+
+```markdown
+## QA Inventory
+
+| Area | Type | Priority | Covered? |
+|------|------|----------|----------|
+| Login form | Functional | P0 | [ ] |
+| Login form validation | Functional | P0 | [ ] |
+| Login page layout | Visual | P1 | [ ] |
+| Login error states | Functional | P0 | [ ] |
+| Mobile responsive login | Visual | P1 | [ ] |
+| ... | ... | ... | ... |
+```
+
+Categories:
+- **Functional** — user flows, form submissions, navigation, API interactions
+- **Visual** — layout, responsive behavior, viewport fit, visual regressions
+- **Edge case** — error states, empty states, boundary values, concurrent actions
+
+Update the inventory as you explore. Include it in the final spec so the generator knows the full scope.
 ### Step 1: Open the Browser Interactively
 
 **Always start with `--interactive` so the user can see the browser window.**
@@ -154,6 +177,19 @@ spel --session $SESSION unannotate
 ```
 
 **Always do this cycle for every page you explore.** The annotated screenshots are your primary evidence — they show the user exactly what you see.
+
+### Mandatory Exploratory Pass
+
+After structured exploration, spend **30–90 seconds on unscripted exploration**:
+
+1. Click around without a plan — try unexpected paths
+2. Submit forms with empty/invalid data
+3. Use browser back/forward buttons
+4. Try rapid-clicking interactive elements
+5. Resize the viewport to mobile/tablet sizes
+6. Look for elements that overflow or overlap
+
+Document anything unexpected. These discoveries often reveal the most important edge cases.
 
 ### Step 3: Deep Exploration with `spel eval-sci`
 
@@ -348,6 +384,18 @@ Run this checklist before presenting final output:
 - [ ] Expected text for assertions is exact (no implicit substring matching)
 - [ ] Snapshot refs are included to prove selectors were verified against the live app
 - [ ] `test-e2e/specs/<feature>-test-plan.json` exists and matches the markdown plan
+- [ ] QA Inventory is included with all areas marked as covered
+- [ ] Visual QA scenarios are separate from functional scenarios
+- [ ] Exploratory pass completed — unexpected findings documented
+
+### Negative Confirmation
+
+Before presenting the spec, ask yourself:
+- **"What would embarrass this spec?"** — Is there an obvious user flow I missed?
+- **"What would a QA engineer reject?"** — Are assertions specific enough? Are edge cases covered?
+- **"What breaks if the app changes?"** — Are selectors resilient? Would a CSS refactor break tests?
+
+If any answer reveals a gap, fix it before presenting.
 
 ## Error Recovery
 

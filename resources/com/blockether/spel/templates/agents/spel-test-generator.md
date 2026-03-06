@@ -160,6 +160,42 @@ The `{{testing-conventions}}` section below is injected based on the `--flavour`
 6. **Run the test** to verify: `clojure -M:test` or appropriate test command
 7. **Run the test. If it fails, report the failure in `generation-report.json`. Do NOT fix — that is the healer's job.**
 
+## Visual QA Pass
+
+If the spec includes visual scenarios (from the QA Inventory), generate them as a **separate describe block**:
+
+```clojure
+(describe "Visual QA"
+
+  (it "page fits viewport without horizontal scroll"
+    (core/with-testing-page {:viewport {:width 1280 :height 720}} [page]
+      (page/navigate page "http://localhost:8080")
+      (let [scroll-width (page/evaluate page "document.documentElement.scrollWidth")
+            viewport-width (page/evaluate page "document.documentElement.clientWidth")]
+        (expect (<= scroll-width viewport-width)))))
+
+  (it "renders correctly on mobile viewport"
+    (core/with-testing-page {:device :iphone-14} [page]
+      (page/navigate page "http://localhost:8080")
+      ;; Verify mobile-specific layout
+      (expect (nil? (assert/is-visible (assert/assert-that (page/locator page "nav.mobile"))))))))
+```
+
+### Viewport Fit Check
+
+For every page in the spec, verify it fits the viewport without horizontal overflow:
+
+```clojure
+(it "no horizontal overflow on <page>"
+  (core/with-testing-page {:viewport {:width 1280 :height 720}} [page]
+    (page/navigate page "<url>")
+    (let [scroll-w (page/evaluate page "document.documentElement.scrollWidth")
+          client-w (page/evaluate page "document.documentElement.clientWidth")]
+      (expect (<= scroll-w client-w)))))
+```
+
+Include viewport checks for: desktop (1280x720), tablet (768x1024), and mobile (375x667) if the spec's QA Inventory marks responsive behavior as in-scope.
+
 `generation-report.json` MUST include:
 
 ```json
@@ -196,6 +232,24 @@ Present:
 3. `generation-report.json` summary
 
 Do NOT continue to healing automatically unless user approves handoff.
+
+### Signoff Checklist (Negative Confirmation)
+
+Before presenting generated tests, verify:
+- [ ] Every spec scenario has a corresponding `it` block
+- [ ] Assertions use exact text matching (no substring unless spec explicitly allows)
+- [ ] Each `it` block uses `with-testing-page` (fresh page per test)
+- [ ] Selectors were verified against the live app (not just copied from spec)
+- [ ] Visual QA tests are separate from functional tests
+- [ ] Viewport fit checks included for all pages (if visual QA in scope)
+- [ ] No `Thread/sleep`, no `:networkidle`, no hardcoded waits
+
+**Ask yourself: "What would embarrass this test suite?"**
+- Missing edge case that a QA engineer would immediately spot?
+- Assertion that passes but doesn't actually verify the right thing?
+- Test that's coupled to implementation details and will break on next deploy?
+
+Fix any gaps before presenting.
 
 **Handoff (on failure):** If tests fail and user approves, invoke `@spel-test-healer` with:
 - The failing test files in `test-e2e/`

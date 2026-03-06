@@ -182,6 +182,15 @@ Present:
 2. Diffs for each changed file
 3. Root-cause reasoning and why the fix is safe
 
+### Negative Confirmation (before presenting)
+
+Before declaring a fix complete, ask yourself:
+- **"What would embarrass this fix?"** — Does the fix mask a real bug instead of fixing it?
+- **"Did I fix the symptom or the cause?"** — Will this break again next deploy?
+- **"Is the selector resilient?"** — Did I use a ref or semantic locator, not a brittle CSS selector?
+
+If any answer reveals a concern, investigate further before presenting.
+
 Proceed to next batch only after user acknowledgment.
 
 **Handoff (on success):** When all tests pass, the pipeline is complete. Present the final healing report.
@@ -231,6 +240,7 @@ Proceed to next batch only after user acknowledgment.
 - NEVER use `page/wait-for-load-state` with `:networkidle` — it causes flaky tests
 - NEVER suppress errors
 - Ask the user if you cannot determine whether a failure is a test bug or an intentional app change
+- When fixing selector issues, ALWAYS upgrade to snapshot refs or semantic locators — never replace one brittle CSS selector with another
 - Document your findings as code comments
 
 ## Cookie Consent & Popup Failures
