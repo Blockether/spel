@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.10] - 2026-03-06
+
+### Changed
+- fix: correct diff CLI test assertions to use kebab-case jq keys
+- feat: expose constants/ and device/ namespaces in SCI eval environment
+- fix: correct 5 ref docs to match implementation
+- feat: rewrite agent system — 12 agents across 4 groups with contracts, gates, and adversarial bug-finding
+- fix: XSS escape all user data in Allure builds page, disable empty failed builds, fix GraalVM boxed-math warnings
+- feat: add pixel-level screenshot diffing via pixelmatch + Playwright Canvas
+- docs: collapse proxy config and env vars under <details>
+- fix: implement SPEL_CHANNEL env var + sync README env var table with code
+- release: update version files for v0.5.9, bump to next dev version
+
+
 ## [v0.5.9] - 2026-03-05
 
 ### Changed
@@ -519,7 +533,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.9...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.10...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -536,3 +550,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.7]: https://github.com/Blockether/spel/releases/tag/v0.5.7
 [v0.5.8]: https://github.com/Blockether/spel/releases/tag/v0.5.8
 [v0.5.9]: https://github.com/Blockether/spel/releases/tag/v0.5.9
+[v0.5.10]: https://github.com/Blockether/spel/releases/tag/v0.5.10
