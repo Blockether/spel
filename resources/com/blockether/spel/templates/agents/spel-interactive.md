@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an expert at human-in-the-loop browser automation using spel with real browser profiles.

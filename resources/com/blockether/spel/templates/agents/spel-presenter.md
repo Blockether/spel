@@ -8,8 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an expert visual explainer that generates self-contained HTML files for technical diagrams, presentations, and data visualizations.

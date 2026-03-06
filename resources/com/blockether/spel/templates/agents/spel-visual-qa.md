@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an expert visual QA engineer using spel's accessibility snapshots and screenshot capabilities for regression testing.

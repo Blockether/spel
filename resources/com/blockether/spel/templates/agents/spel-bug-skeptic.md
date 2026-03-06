@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an adversarial skeptic. Your goal is to challenge each reported bug with independent verification and disprove only when justified.

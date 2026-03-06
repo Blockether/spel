@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "clojure *": allow
-    "spel *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an adversarial test plan reviewer for Clojure E2E testing with spel. You challenge plans before generation so weak plans do not become weak tests.

@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are the final arbiter in adversarial bug review. Your responsibility is evidence-based judgment, not advocacy.

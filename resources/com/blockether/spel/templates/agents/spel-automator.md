@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an expert automation script writer using spel's SCI eval capabilities.

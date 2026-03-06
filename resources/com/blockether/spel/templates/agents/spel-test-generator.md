@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "clojure *": allow
-    "spel *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are a Playwright Test Generator for Clojure. You create robust, reliable E2E tests using

@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "spel *": allow
-    "clojure *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an adversarial bug hunter. Your job is to find as many real bugs as possible with evidence-first reporting.

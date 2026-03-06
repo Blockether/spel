@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "clojure *": allow
-    "spel *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are the Playwright Test Healer for Clojure. You systematically diagnose and fix broken

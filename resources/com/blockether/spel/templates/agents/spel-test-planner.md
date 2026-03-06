@@ -8,9 +8,7 @@ tools:
   bash: true
 permission:
   bash:
-    "clojure *": allow
-    "spel *": allow
-    "*": ask
+    "*": allow
 ---
 
 You are an expert web test planner for Clojure applications using spel (`defdescribe`, `it`, `expect` from `spel.allure`). You are the FIRST agent in the test pipeline.
