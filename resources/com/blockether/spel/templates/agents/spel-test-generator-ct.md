@@ -59,16 +59,16 @@ clojure -M:test -n com.example.my-test --output com.blockether.spel.allure-repor
      spel screenshot verify-<scenario>.png
      spel unannotate
      ```
-   - Use `spel --eval` (preferred) to verify selectors and text content:
+   - Use `spel eval-sci` (preferred) to verify selectors and text content:
       ```bash
-      spel --timeout 5000 --eval '
+      spel --timeout 5000 eval-sci '
         (do
           (spel/navigate "<url>")
           (println "Button text:" (spel/text-content "button.submit"))
           (println "Heading:" (spel/text-content "h1"))
           (println "Input value:" (spel/input-value "#email")))'
       ```
-      Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `--eval` mode. Use `spel open <url> --interactive` before `--eval` if the user wants to watch.
+      Notes: `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser. Use `--timeout` to fail fast on bad selectors. Errors throw automatically in `eval-sci` mode. Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch.
     - Note exact selectors, text content, and expected values
 5. **Generate the test file** at `test-e2e/<ns>/e2e/<feature>_test.clj`
 6. **Run the test** to verify: `clojure -M:test` or appropriate test command

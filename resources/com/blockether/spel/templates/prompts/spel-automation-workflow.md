@@ -64,7 +64,7 @@ The automator will:
 1. Read `exploration-manifest.json` if available (from Step 1)
 2. Write `.clj` eval scripts using selectors from exploration
 3. Use `*command-line-args*` for parameterized scripts
-4. Test: `spel --eval script.clj -- {{args}}`
+4. Test: `spel eval-sci script.clj -- {{args}}`
 5. Save scripts to the specified output directory
 
 **GATE**: Review generated script — verify it runs with test args, handles errors, and produces expected output. Do NOT proceed until approved.
@@ -116,6 +116,6 @@ Sessions never overlap. Each agent closes its session on completion or error.
 
 ## Notes
 
-- Scripts accept args via `--` separator: `spel --eval script.clj -- arg1 arg2`
+- Scripts accept args via `--` separator: `spel eval-sci script.clj -- arg1 arg2`
 - Every step has a GATE — human review before proceeding
 - Each agent produces machine-readable output for downstream composition

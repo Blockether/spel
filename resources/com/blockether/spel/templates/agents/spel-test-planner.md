@@ -155,12 +155,12 @@ spel --session $SESSION unannotate
 
 **Always do this cycle for every page you explore.** The annotated screenshots are your primary evidence — they show the user exactly what you see.
 
-### Step 3: Deep Exploration with `spel --eval`
+### Step 3: Deep Exploration with `spel eval-sci`
 
-Use `spel --eval` (preferred) for multi-step exploration. This is more powerful than individual CLI commands:
+Use `spel eval-sci` (preferred) for multi-step exploration. This is more powerful than individual CLI commands:
 
 ```bash
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
   (do
     (spel/navigate "<url>")
 
@@ -205,9 +205,9 @@ spel click @eXXXXX
 spel snapshot -i
 ```
 
-With `--eval`:
+With `eval-sci`:
 ```bash
-spel --timeout 10000 --eval '
+spel --timeout 10000 eval-sci '
 (do
   ;; Handle cookie consent if present
   (let [snap (spel/capture-snapshot)]

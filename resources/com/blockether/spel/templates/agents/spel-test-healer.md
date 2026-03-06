@@ -147,9 +147,9 @@ When a test fails, use Allure traces to diagnose:
    # If refs match → the issue is in assertion logic, not selectors
    ```
 
-4. **Investigate with inline scripts** (preferred): Use `spel --eval` to reproduce the exact failure point
+4. **Investigate with inline scripts** (preferred): Use `spel eval-sci` to reproduce the exact failure point
      ```bash
-     spel --session $SESSION --eval '
+     spel --session $SESSION eval-sci '
        (do
          (spel/navigate "<url>")
          (spel/click (spel/get-by-text "Login"))

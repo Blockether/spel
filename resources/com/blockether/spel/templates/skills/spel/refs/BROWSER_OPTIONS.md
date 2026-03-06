@@ -411,7 +411,7 @@ Functions from the `page` namespace for handling dialogs, downloads, console mes
 (locator/hover (page/locator pg ".tooltip-trigger"))
 ```
 
-## Device Emulation in `--eval` Mode
+## Device Emulation in `eval-sci` Mode
 
 There are multiple approaches to device emulation depending on what you need:
 
@@ -434,7 +434,7 @@ spel screenshot /tmp/iphone14.png
 
 ### Approach 3: Restart with Device (library only)
 ```clojure
-;; In library code (NOT --eval), use :device option
+;; In library code (NOT eval-sci), use :device option
 (core/with-testing-page {:device :iphone-14} [pg]
   (page/navigate pg "https://example.org"))
 ```
@@ -443,6 +443,6 @@ spel screenshot /tmp/iphone14.png
 
 | Approach | Viewport | DPR | User Agent | Touch | Available in |
 |---|---|---|---|---|---|
-| `spel/set-viewport-size!` | ✅ | ❌ | ❌ | ❌ | `--eval` |
+| `spel/set-viewport-size!` | ✅ | ❌ | ❌ | ❌ | `eval-sci` |
 | `spel set device "Name"` | ✅ | ✅ | ✅ | ✅ | CLI daemon |
 | `{:device :name}` option | ✅ | ✅ | ✅ | ✅ | Library only |

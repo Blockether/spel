@@ -1,5 +1,5 @@
 ---
-description: Writes reusable CLI automation scripts using spel --eval with argument support
+description: Writes reusable CLI automation scripts using spel eval-sci with argument support
 mode: subagent
 color: "#F59E0B"
 tools:
@@ -50,7 +50,7 @@ See **AGENT_COMMON.md** for daemon notes.
 
 ## Script Architecture
 
-Scripts are Clojure files executed via `spel --eval <script.clj> -- <args>`.
+Scripts are Clojure files executed via `spel eval-sci <script.clj> -- <args>`.
 
 Arguments are available via `*command-line-args*` (a vector of strings):
 ```clojure
@@ -62,7 +62,7 @@ Arguments are available via `*command-line-args*` (a vector of strings):
 
 Run a script:
 ```bash
-spel --eval scripts/login.clj -- https://example.com myuser
+spel eval-sci scripts/login.clj -- https://example.com myuser
 ```
 
 ## Core Workflow
@@ -78,13 +78,13 @@ Save to `spel-scripts/<name>.clj`:
 ```clojure
 ;; spel-scripts/login.clj
 ;; Script: login.clj | Author: spel-automator | Date: 2026-03-06 | Args: <url> <username>
-;; Usage: spel --eval spel-scripts/login.clj -- <url> <username>
+;; Usage: spel eval-sci spel-scripts/login.clj -- <url> <username>
 ;;
 ;; Automates login flow and saves auth state
 
 (let [[url username] *command-line-args*]
   (when-not url
-    (throw (ex-info "Usage: spel --eval login.clj -- <url> <username>"
+    (throw (ex-info "Usage: spel eval-sci login.clj -- <url> <username>"
                     {:reason :bad-input})))
 
   (page/navigate @!page url)
@@ -96,10 +96,10 @@ Save to `spel-scripts/<name>.clj`:
 ### 3. Test the Script
 ```bash
 # Test with real args
-spel --eval spel-scripts/login.clj -- https://example.com testuser
+spel eval-sci spel-scripts/login.clj -- https://example.com testuser
 
 # Test with --dry-run if supported
-spel --eval spel-scripts/login.clj -- --help
+spel eval-sci spel-scripts/login.clj -- --help
 ```
 
 ### 4. Error Handling
@@ -206,7 +206,7 @@ Do NOT continue until explicit approval.
 ### E-Commerce: Add Products to Cart
 ```clojure
 ;; spel-scripts/add-to-cart.clj
-;; Usage: spel --eval spel-scripts/add-to-cart.clj -- <url> <search-term> <count>
+;; Usage: spel eval-sci spel-scripts/add-to-cart.clj -- <url> <search-term> <count>
 (let [[url search-term count-str] *command-line-args*
       count (Integer/parseInt (or count-str "1"))]
   (spel/goto url)

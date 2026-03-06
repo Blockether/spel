@@ -81,7 +81,7 @@ In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 
 Wraps Playwright CLI commands via the `spel` native binary.
 
-> **Prefer `--eval` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel --eval '<clojure-code>'` or `spel --eval script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel --eval --stdin`.
+> **Prefer `eval-sci` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel eval-sci '<clojure-code>'` or `spel eval-sci script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel eval-sci --stdin`.
 
 > **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
 
@@ -264,7 +264,7 @@ spel stitch s1.png s2.png -o full-page.png
 spel stitch s1.png s2.png s3.png --overlap 50 -o full.png
 ```
 
-Also available in SCI `--eval` mode:
+Also available in SCI `eval-sci` mode:
 
 ```clojure
 ;; Stitch images programmatically
@@ -369,8 +369,8 @@ Global flags apply to all commands and modes:
 | `--session <name>` | `default` | Named browser session (isolates state between sessions) |
 | `--json` | off | JSON output format (for agent/machine consumption) |
 | `--debug` | off | Debug output |
-| `--autoclose` | off | Close daemon after `--eval` completes |
-| `--interactive` | off | Headed (visible) browser for `--eval` mode |
+| `--autoclose` | off | Close daemon after `eval-sci` completes |
+| `--interactive` | off | Headed (visible) browser for `eval-sci` mode |
 | `--load-state <path>` | - | Load browser state (cookies/localStorage JSON, alias: `--storage-state`) |
 | `--profile <path>` | - | Chrome user data directory (persistent profile) |
 | `--executable-path <path>` | - | Custom browser executable |
@@ -460,7 +460,7 @@ clojure -M -e "
 
 ---
 
-## API Discovery in `--eval` Mode
+## API Discovery in `eval-sci` Mode
 
 Use `spel/help` and `spel/source` to explore the eval API at runtime:
 
@@ -473,7 +473,7 @@ Use `spel/help` and `spel/source` to explore the eval API at runtime:
 | `(spel/source "spel/click")` | Show the SCI wrapper source code and which library function it delegates to |
 | `(spel/source "goto")` | Search by bare name — shows source if unique match, lists candidates if multiple |
 
-These are **canonical** way to discover and understand the eval API. Prefer `spel/help` over reading this SKILL file when working in `--eval` mode.
+These are **canonical** way to discover and understand the eval API. Prefer `spel/help` over reading this SKILL file when working in `eval-sci` mode.
 
 ---
 

@@ -33,7 +33,7 @@ If the installed version does not match **{{version}}**:
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
 | `spel --load-state auth.json open <url>` | Open with browser state JSON (cookies/localStorage) |
-| `spel --load-state auth.json --eval 'script.clj'` | Run script with pre-loaded auth state |
+| `spel --load-state auth.json eval-sci 'script.clj'` | Run script with pre-loaded auth state |
 | `spel codegen --help` | Codegen CLI help |
 | `spel init-agents --help` | Agent scaffolding help |
 | `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
@@ -62,7 +62,7 @@ If the installed version does not match **{{version}}**:
 
 ## Google Search
 
-Search Google from the CLI, SCI `--eval` mode, or Clojure library — no API key required. Uses Playwright with stealth mode.
+Search Google from the CLI, SCI `eval-sci` mode, or Clojure library — no API key required. Uses Playwright with stealth mode.
 
 ### CLI
 
@@ -96,7 +96,7 @@ spel search "query" --no-stealth                      # disable stealth mode
 | `--time-range RANGE` | Time: day, week, month, year |
 | `--no-stealth` | Disable stealth mode |
 
-### SCI `--eval` Mode
+### SCI `eval-sci` Mode
 
 ```clojure
 ;; Basic search (returns Clojure map)
@@ -159,10 +159,10 @@ spel search "query" --no-stealth                      # disable stealth mode
 
 ## ⚠️ SCI Eval vs Library — Key Differences
 
-In `--eval` mode, function names **match the library**. The only difference is **implicit vs explicit arguments**:
+In `eval-sci` mode, function names **match the library**. The only difference is **implicit vs explicit arguments**:
 
 - **Library (JVM)**: functions take explicit `page`/`locator` arguments.
-- **SCI (`--eval`)**: same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
+- **SCI (`eval-sci`)**: same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
 
 Example:
 
@@ -172,17 +172,17 @@ Example:
 (page/locator pg "#login")
 (locator/click (page/locator pg "#login"))
 
-;; SCI --eval (implicit page)
+;; SCI eval-sci (implicit page)
 (spel/navigate url)
 (spel/locator "#login")
 (spel/click "#login")
 ```
 
-When a daemon is running, `--eval` reuses its browser — no `spel/start!` or `spel/stop!` needed.
+When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or `spel/stop!` needed.
 
 ## SCI Sandbox Capabilities
 
-The SCI eval environment (`--eval` mode) runs in a sandbox with registered namespaces and classes.
+The SCI eval environment (`eval-sci` mode) runs in a sandbox with registered namespaces and classes.
 
 ### ✅ Available in SCI
 - All `spel/`, `snapshot/`, `annotate/`, `stitch/`, `search/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
@@ -225,7 +225,7 @@ Detailed documentation is split into topic-specific reference files:
 | `refs/PAGE_LOCATORS.md` | Page locators, selectors, get-by-* methods |
 | `refs/NAVIGATION_WAIT.md` | Navigation, waiting, load states |
 | `refs/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
-| `refs/EVAL_GUIDE.md` | SCI eval mode guide, `--eval` patterns |
+| `refs/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
 | `refs/CONSTANTS.md` | Constants, enums, AriaRole values |
 
 ### Browser & Network

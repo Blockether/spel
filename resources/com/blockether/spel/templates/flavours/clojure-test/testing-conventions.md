@@ -4,7 +4,7 @@
 - Page setup: **`core/with-testing-page`** — all-in-one macro (playwright + browser + context + page)
 - API testing: **`core/with-testing-api`** — all-in-one macro for API request contexts
 - Assertions: **Exact string matching** (NEVER substring unless explicitly `contains-text`)
-- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `--eval` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
+- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `eval-sci` mode via the `role/` namespace — see the Enums table in SCI Eval API Reference below
 - Integration tests: Live against `example.org`
 
 ### Running Tests (clojure.test)

@@ -61,7 +61,7 @@ spel screenshot baselines/home-baseline.png
 For full-page screenshots (captures content below the fold):
 
 ```bash
-spel --eval '(spel/screenshot {:path "baselines/home-full-baseline.png" :full-page true})'
+spel eval-sci '(spel/screenshot {:path "baselines/home-full-baseline.png" :full-page true})'
 ```
 
 ### Naming Convention
@@ -180,7 +180,7 @@ npx looks-same baseline.png current.png --tolerance 2
 Disable CSS animations before capturing baselines and current screenshots to avoid false positives:
 
 ```bash
-spel --eval '(spel/add-style-tag {:content "*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }"})'
+spel eval-sci '(spel/add-style-tag {:content "*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }"})'
 spel screenshot current.png
 ```
 
@@ -259,7 +259,7 @@ Capture annotated screenshots to show context around changed elements:
 
 ```bash
 # Annotated screenshot with ref overlays (shows which elements changed)
-spel --eval '
+spel eval-sci '
   (def snap (spel/capture-snapshot))
   (spel/save-annotated-screenshot! (:refs snap) "report/current-annotated.png")'
 ```
@@ -280,12 +280,12 @@ For formal sign-off, generate a PDF report combining screenshots and observation
 | Structural baseline (BASE) | `spel snapshot -S --json > baselines/<page>-base.json` |
 | Structural baseline (MAX) | `spel snapshot -S --max --json > baselines/<page>-max.json` |
 | Screenshot baseline | `spel screenshot baselines/<page>-baseline.png` |
-| Full-page screenshot | `spel --eval '(spel/screenshot {:path "..." :full-page true})'` |
+| Full-page screenshot | `spel eval-sci '(spel/screenshot {:path "..." :full-page true})'` |
 | Capture current (structural) | `spel snapshot -S --json > current.json` |
 | Capture current (pixel) | `spel screenshot current.png` |
 | Pixel diff (ImageMagick) | `compare -metric AE baseline.png current.png diff.png` |
-| Disable animations | `spel --eval '(spel/add-style-tag {:content "* { animation-duration: 0s !important; }"})' ` |
-| Annotated screenshot | `spel --eval '(spel/save-annotated-screenshot! (:refs (spel/capture-snapshot)) "out.png")'` |
+| Disable animations | `spel eval-sci '(spel/add-style-tag {:content "* { animation-duration: 0s !important; }"})' ` |
+| Annotated screenshot | `spel eval-sci '(spel/save-annotated-screenshot! (:refs (spel/capture-snapshot)) "out.png")'` |
 
 ### Style Tiers at a Glance
 

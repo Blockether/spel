@@ -143,7 +143,7 @@ If you started with `{:headless false}`, restart with `(spel/stop!)` then `(spel
 
 ## 7. Snapshot Functions in Eval
 
-**Problem:** Unsure which snapshot function to use in `--eval` mode.
+**Problem:** Unsure which snapshot function to use in `eval-sci` mode.
 
 **Fix:** Use the **same names as the library**, but with implicit page:
 
@@ -293,7 +293,7 @@ Produces a screenshot with numbered overlay badges on each interactive element. 
 (spel/on-page-error (fn [err] (println "[page-error]" err)))
 ```
 
-Console messages are also auto-captured in `--eval` mode and printed to stderr after evaluation. Check stderr if your script produces unexpected results.
+Console messages are also auto-captured in `eval-sci` mode and printed to stderr after evaluation. Check stderr if your script produces unexpected results.
 
 ### Step 6: Inspect network activity
 

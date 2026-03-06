@@ -18,7 +18,7 @@ spel --session $SESSION open <url> --interactive
 # All subsequent commands use the same session
 spel --session $SESSION snapshot -i
 spel --session $SESSION screenshot evidence.png
-spel --session $SESSION --eval '(spel/title)'
+spel --session $SESSION eval-sci '(spel/title)'
 
 # ALWAYS close on completion or error
 spel --session $SESSION close
@@ -132,7 +132,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-In `--eval` mode, errors throw automatically. Wrap risky operations:
+In `eval-sci` mode, errors throw automatically. Wrap risky operations:
 
 ```clojure
 (try
@@ -175,7 +175,7 @@ When responsiveness matters, capture at standard breakpoints:
 ```bash
 for viewport in "375 812 mobile" "768 1024 tablet" "1440 900 desktop"; do
   set -- $viewport
-  spel --session $SESSION --eval "(spel/viewport-size $1 $2)"
+  spel --session $SESSION eval-sci "(spel/viewport-size $1 $2)"
   spel --session $SESSION screenshot "evidence/<page>-$3.png"
 done
 ```
@@ -189,8 +189,8 @@ These apply to ALL agents — reference this doc instead of copy-pasting:
 - `spel/start!` and `spel/stop!` are **NOT needed** — the daemon manages browser lifecycle
 - Use `--timeout <ms>` to fail fast on bad selectors (default is 30s, which is too long for exploration)
 - Use `--interactive` when the user should see the browser window
-- Errors throw automatically in `--eval` mode — no need for explicit error checking unless you want custom recovery
-- Use `spel open <url> --interactive` before `--eval` if the user wants to watch
+- Errors throw automatically in `eval-sci` mode — no need for explicit error checking unless you want custom recovery
+- Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch
 - ALWAYS `spel --session $SESSION close` when done — never leave sessions open
 
 ---

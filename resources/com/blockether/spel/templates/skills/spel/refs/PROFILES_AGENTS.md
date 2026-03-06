@@ -6,13 +6,13 @@ Persistent profiles keep login sessions, cookies, and localStorage across runs. 
 
 The profile path points to a directory. Chromium creates it automatically if it doesn't exist. Everything the browser stores (cookies, localStorage, IndexedDB, service workers) lives there.
 
-### `--eval` / CLI Daemon Mode
+### `eval-sci` / CLI Daemon Mode
 
 Use the CLI `--profile` flag to launch with a persistent profile:
 
 ```bash
 # First run: log in via script (--interactive opens visible browser)
-spel --profile /tmp/my-chrome-profile --interactive --eval '
+spel --profile /tmp/my-chrome-profile --interactive eval-sci '
 (spel/navigate "https://myapp.com/login")
 (spel/fill "#email" "me@example.org")
 (spel/fill "#password" "secret123")
@@ -23,7 +23,7 @@ spel --profile /tmp/my-chrome-profile --interactive --eval '
 
 ```bash
 # Second run: session is already there
-spel --profile /tmp/my-chrome-profile --eval '
+spel --profile /tmp/my-chrome-profile eval-sci '
 (spel/navigate "https://myapp.com/dashboard")
 (spel/wait-for-load-state)
 (println "Title:" (spel/title))'
@@ -198,14 +198,14 @@ spel click @eXXXX                                # still connected
 
 ## Stealth Mode
 
-Stealth mode is **ON by default** for all CLI and `--eval` commands. Anti-detection patches hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). Use `--no-stealth` to disable.
+Stealth mode is **ON by default** for all CLI and `eval-sci` commands. Anti-detection patches hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). Use `--no-stealth` to disable.
 
 ### CLI
 
 ```bash
 # Stealth is automatic — no flag needed
 spel open https://example.org
-spel --eval 'script.clj'
+spel eval-sci 'script.clj'
 spel --profile /path/to/profile open https://protected-site.com
 
 # Combine with other flags
@@ -309,17 +309,17 @@ spel set device "iPhone 14"
 spel screenshot /tmp/iphone14.png
 ```
 
-### Approach 3: Library / `--eval` Options
+### Approach 3: Library / `eval-sci` Options
 Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch, and mobile flag.
 
 ```clojure
 ;; Daemon: use CLI to set device on existing session
 ;; $ spel set device "iPhone 14"
-;; Then --eval just navigates:
+;; Then eval-sci just navigates:
 (spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 
-;; Standalone --eval (no daemon): start! with device option
+;; Standalone eval-sci (no daemon): start! with device option
 (spel/start! {:device :iphone-14})
 (spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
@@ -334,9 +334,9 @@ Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch,
 
 | Approach | Viewport | DPR | User Agent | Touch | Available in |
 |---|---|---|---|---|---|
-| `spel/set-viewport-size!` | yes | no | no | no | `--eval` |
+| `spel/set-viewport-size!` | yes | no | no | no | `eval-sci` |
 | `spel set device "Name"` | yes | yes | yes | yes | CLI daemon |
-| `{:device :name}` option | yes | yes | yes | yes | `--eval` + library |
+| `{:device :name}` option | yes | yes | yes | yes | `eval-sci` + library |
 
 ### Device Presets
 
@@ -351,7 +351,7 @@ Desktop: `:desktop-chrome` (1280x720), `:desktop-firefox` (1280x720), `:desktop-
 Use `:viewport` instead of `:device` when you just want dimensions without mobile emulation:
 
 ```clojure
-;; Standalone --eval (no daemon)
+;; Standalone eval-sci (no daemon)
 (spel/start! {:viewport :desktop-hd})
 
 ;; Library
@@ -369,7 +369,7 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 ;; Daemon: start with a specific browser via CLI
 ;; $ spel start --browser firefox
 
-;; Standalone --eval (no daemon): start! configures the browser
+;; Standalone eval-sci (no daemon): start! configures the browser
 (spel/start! {:browser :chromium})   ;; default
 (spel/start! {:browser :firefox})
 (spel/start! {:browser :webkit})
@@ -380,10 +380,10 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 
 ;; Headed mode (visible browser window)
 ;; Daemon: spel open URL (already headed)
-;; Standalone --eval:
+;; Standalone eval-sci:
 (spel/start! {:headless false})
 (spel/start! {:headless false :slow-mo 500})  ;; slow down for debugging
-;; CLI equivalent: spel --eval --interactive '...'
+;; CLI equivalent: spel eval-sci --interactive '...'
 
 ;; Library headed mode
 (core/with-testing-page {:headless false :slow-mo 300} [pg]
@@ -415,7 +415,7 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 
 ;; Load in a later session
 ;; Daemon: spel start --load-state /tmp/auth-state.json
-;; Standalone --eval:
+;; Standalone eval-sci:
 (spel/start! {:storage-state "/tmp/auth-state.json"})
 (spel/navigate "https://myapp.com/dashboard")
 ;; already authenticated
@@ -473,7 +473,7 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | File | Purpose |
 |------|---------|
-| `agents/spel-test-planner` | Explores the app with `spel` CLI and `--eval`. Catalogs pages/flows. Writes test plans to `specs/`. |
+| `agents/spel-test-planner` | Explores the app with `spel` CLI and `eval-sci`. Catalogs pages/flows. Writes test plans to `specs/`. |
 | `agents/spel-test-generator` | Reads plans from `specs/`. Generates Clojure test files. Verifies selectors before committing. |
 | `agents/spel-test-healer` | Runs failing tests, investigates with `spel` CLI, diagnoses root causes, applies targeted fixes. |
 | `prompts/spel-test-workflow` | Orchestrator prompt: plan, generate, heal cycle. |
@@ -486,7 +486,7 @@ With `--no-tests`, only the SKILL file is generated. Useful for interactive deve
 ### How the Agents Work Together
 1. **Planner** opens the target app with `spel`, takes snapshots, explores navigation flows, and writes markdown test plans.
 2. **Generator** reads those plans, writes Clojure test files, and runs them to confirm they pass.
-3. **Healer** picks up failures, investigates with `spel snapshot` and `--eval`, identifies why the test broke, and patches the code.
+3. **Healer** picks up failures, investigates with `spel snapshot` and `eval-sci`, identifies why the test broke, and patches the code.
 
 The `spel-test-workflow` prompt chains all three: plan first, generate second, heal until green.
 

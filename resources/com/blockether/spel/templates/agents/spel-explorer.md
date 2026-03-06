@@ -1,5 +1,5 @@
 ---
-description: Explores web pages using spel --eval, captures data to JSON, takes screenshots and accessibility snapshots
+description: Explores web pages using spel eval-sci, captures data to JSON, takes screenshots and accessibility snapshots
 mode: subagent
 color: "#3B82F6"
 tools:
@@ -105,25 +105,25 @@ spel --session $SESSION screenshot <page>-screenshot.png
 spel --session $SESSION unannotate
 ```
 
-### 3. Data Extraction with --eval
+### 3. Data Extraction with eval-sci
 ```bash
 # Extract text content (preferred: use spel/ namespace)
-spel --session $SESSION --eval '(spel/text "h1")'
+spel --session $SESSION eval-sci '(spel/text "h1")'
 
 # Extract table data to JSON
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (let [rows (locator/all (spel/locator "table tr"))
       data (mapv (fn [row] (spel/text row)) rows)]
   (spit "table-data.json" (json/write-str data)))'
 
 # Capture already-completed network requests (not only future routes)
-spel --session $SESSION --eval '(net/requests)'
+spel --session $SESSION eval-sci '(net/requests)'
 
 # Extract all links
-spel --session $SESSION --eval '(mapv (fn [link] (spel/attr link "href")) (locator/all (spel/locator "a[href]")))'
+spel --session $SESSION eval-sci '(mapv (fn [link] (spel/attr link "href")) (locator/all (spel/locator "a[href]")))'
 
 # Extract using snapshot refs (most reliable)
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (let [snap (spel/capture-snapshot)]
   ;; Print the tree to understand page structure
   (println (:tree snap))
@@ -134,7 +134,7 @@ spel --session $SESSION --eval '
 ### 4. JSON Endpoint Inspection
 ```bash
 # Intercept API responses
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (net/route @!context "**/*.json" (fn [route]
   (let [resp (net/fetch route)]
     (spit "api-response.json" (slurp (:body resp)))
@@ -143,7 +143,7 @@ spel --session $SESSION --eval '
 
 ### 5. Build Exploration Manifest
 ```bash
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (let [manifest {:agent "spel-explorer"
                 :session "exp-<name>"
                 :pages_explored ["..."]
@@ -198,12 +198,12 @@ spel --session $SESSION click @eXXXXX
 spel --session $SESSION snapshot -i
 ```
 
-## Multi-Step Exploration with --eval
+## Multi-Step Exploration with eval-sci
 
 For exploring e-commerce sites, SPAs, or multi-page flows:
 
 ```bash
-spel --session $SESSION --timeout 10000 --eval '
+spel --session $SESSION --timeout 10000 eval-sci '
 (do
   ;; Navigate and wait for content
   (spel/goto "https://example.com")

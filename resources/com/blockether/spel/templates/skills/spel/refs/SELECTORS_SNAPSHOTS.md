@@ -1,6 +1,6 @@
 # Selectors, Snapshots, and Annotations
 
-How to find elements, read the page structure, and produce visual overlays. Covers both `--eval` mode (implicit page) and library mode (explicit `page` arg).
+How to find elements, read the page structure, and produce visual overlays. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
 
 ## Selectors
 
@@ -310,7 +310,7 @@ Navigate, understand the page, annotate, interact, verify:
 
 ## Quick Reference
 
-| Task | `--eval` | Library |
+| Task | `eval-sci` | Library |
 |------|----------|---------|
 | CSS locator | `(spel/locator "sel")` | `(page/locator pg "sel")` |
 | All matches | `(locator/all (spel/locator "sel"))` | `(locator/all (page/locator pg "sel"))` |

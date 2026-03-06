@@ -1,13 +1,13 @@
 # Snapshot Testing and Visual Auditing
 
-Structural testing with accessibility snapshots, ARIA assertions, ref-based interaction, and visual audit workflows. Covers `--eval` (implicit page) and library (explicit `page` arg) modes.
+Structural testing with accessibility snapshots, ARIA assertions, ref-based interaction, and visual audit workflows. Covers `eval-sci` (implicit page) and library (explicit `page` arg) modes.
 
 ## Accessibility Snapshots
 
 A snapshot captures the page as a screen reader sees it: roles, names, attributes. Every interactive element gets a numbered ref (`@e2yrjz`, `@e9mter`, ...) usable as a selector (the `@` prefix is required).
 
 ```clojure
-;; --eval
+;; eval-sci
 (def snap (spel/capture-snapshot))
 ;; => {:tree "- heading \"Welcome\" [@e2yrjz]\n- link \"Login\" [@e9mter]"
 ;;     :refs {"e2yrjz" {:role "heading" :name "Welcome" :tag "h1"
@@ -37,7 +37,7 @@ Scoped and full snapshots:
 After a snapshot, resolve refs to Locators for interaction:
 
 ```clojure
-;; --eval — @ prefix required for refs
+;; eval-sci — @ prefix required for refs
 (spel/click "@e6t2x4")
 (spel/text-content "@ea3kf5")
 (spel/fill "@e5dw2c" "hello@example.org")
@@ -51,7 +51,7 @@ After a snapshot, resolve refs to Locators for interaction:
 ;; => {:x 20 :y 10 :width 200 :height 40}
 
 ;; Clear stale refs after navigation
-(spel/clear-refs!)                      ;; --eval
+(spel/clear-refs!)                      ;; eval-sci
 (snapshot/clear-refs! pg)               ;; library
 ```
 
@@ -73,7 +73,7 @@ Two-space indentation for nesting. Colon means "has children." Roles without nam
 ### Asserting
 
 ```clojure
-;; --eval — takes a selector + expected ARIA string
+;; eval-sci — takes a selector + expected ARIA string
 (spel/assert-matches-aria-snapshot "nav"
   "- navigation \"Main\":
      - link \"Home\"
@@ -124,7 +124,7 @@ spel has no built-in pixel-diff. Visual testing uses annotated screenshots and a
 Build multi-page audit reports from typed entries. Renders HTML, converts to PDF via Chromium.
 
 ```clojure
-;; --eval
+;; eval-sci
 (spel/report->pdf
   [{:type :section :text "Login Audit" :level 1}
    {:type :meta :fields [["URL" (spel/url)] ["Date" (str (java.time.LocalDate/now))]]}
@@ -229,7 +229,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 ### Multi-Step Workflow with Audit Trail
 
 ```clojure
-;; --eval
+;; eval-sci
 (spel/navigate "https://example.org/checkout")
 (spel/wait-for-load-state)
 
@@ -254,7 +254,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ## Quick Reference
 
-| Task | `--eval` | Library |
+| Task | `eval-sci` | Library |
 |------|----------|---------|
 | Snapshot | `(spel/capture-snapshot)` | `(snapshot/capture-snapshot pg)` |
 | Scoped | `(spel/capture-snapshot {:scope "sel"})` | `(snapshot/capture-snapshot pg {:scope "sel"})` |

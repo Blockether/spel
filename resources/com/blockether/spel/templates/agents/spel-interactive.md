@@ -98,7 +98,7 @@ echo "Please log in manually in the browser window. Press Enter when done."
 read
 
 # 3. Continue automation from authenticated state
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (page/navigate @!page "https://app.example.com/dashboard")
 (let [data (page/text-content @!page ".user-info")]
   (println "Logged in as:" data))'
@@ -121,7 +121,7 @@ spel --session $SESSION click @eXXXXX
 ### Pattern: Export Auth State
 ```bash
 # After user logs in, export the auth state for reuse
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (context/storage-state @!context "auth-state.json")'
 
 # Future sessions can reuse this state
@@ -134,7 +134,7 @@ spel --session $SESSION screenshot authenticated-<name>.png
 ### Secondary Pattern: Continue Automation After User Action
 ```bash
 # Continue automation from authenticated state
-spel --session $SESSION --eval '
+spel --session $SESSION eval-sci '
 (page/navigate @!page "https://app.example.com/dashboard")
 (let [data (page/text-content @!page ".user-info")]
   (println "Logged in as:" data))'
@@ -174,7 +174,7 @@ SESSION="iact-<name>"
 spel --session $SESSION open <url>
 
 # Continue in same session
-spel --session $SESSION --eval '...'
+spel --session $SESSION eval-sci '...'
 
 # Close when done
 spel --session $SESSION close

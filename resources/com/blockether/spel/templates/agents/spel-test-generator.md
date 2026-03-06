@@ -145,9 +145,9 @@ The `{{testing-conventions}}` section below is injected based on the `--flavour`
       spel --session $SESSION screenshot verify-<scenario>.png
       spel --session $SESSION unannotate
       ```
-    - Use `spel --eval` (preferred) to verify selectors and text content:
+    - Use `spel eval-sci` (preferred) to verify selectors and text content:
        ```bash
-       spel --session $SESSION --eval '
+       spel --session $SESSION eval-sci '
          (do
            (spel/navigate "<url>")
            (println "Button text:" (spel/text-content "button.submit"))

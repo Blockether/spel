@@ -1,6 +1,6 @@
 # Navigation and Wait Patterns
 
-How to navigate pages and wait for things to happen. Covers both `--eval` mode (implicit page) and library mode (explicit `page` arg).
+How to navigate pages and wait for things to happen. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
 
 ## Navigation
 
@@ -38,7 +38,7 @@ Library equivalent:
 ### History Navigation
 
 ```clojure
-;; --eval                          ;; Library equivalent
+;; eval-sci                          ;; Library equivalent
 (spel/go-back)                        ;; (page/go-back pg)
 (spel/go-forward)                     ;; (page/go-forward pg)
 (spel/reload)                         ;; (page/reload pg)

@@ -9,7 +9,7 @@ PDF output works **only in Chromium headless mode**. Firefox and WebKit don't su
 ### Basic Usage
 
 ```clojure
-;; --eval (daemon running): save current page as PDF
+;; eval-sci (daemon running): save current page as PDF
 (spel/navigate "https://en.wikipedia.org/wiki/Clojure")
 (spel/wait-for-load-state)
 (spel/pdf {:path "/tmp/doc.pdf"})
@@ -110,7 +110,7 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 ### Complete Example: Screenshots to PDF Report
 
 ```clojure
-;; --eval: capture pages and build a PDF report
+;; eval-sci: capture pages and build a PDF report
 ;; Daemon mode: omit start!/stop! — daemon owns the browser
 (spel/navigate "https://example.org")
 (spel/wait-for-load-state)
@@ -150,7 +150,7 @@ This is the same pattern used by Slidev, Marp, and reveal.js.
 .slide:last-child { page-break-after: avoid; break-after: avoid; }
 ```
 
-### Generating from --eval
+### Generating from eval-sci
 
 ```clojure
 (spel/set-content! (str "<style>" css "</style>" slides-html))
@@ -212,7 +212,7 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
 ### Complete Scrolling-Stitch Workflow
 
 ```clojure
-;; --eval: scroll-capture a tall page (daemon manages the browser)
+;; eval-sci: scroll-capture a tall page (daemon manages the browser)
 (spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load-state)
 
@@ -297,7 +297,7 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 ### Complete Recording Workflow
 
 ```clojure
-;; --eval: record a login flow (daemon manages the browser)
+;; eval-sci: record a login flow (daemon manages the browser)
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.org/login")
@@ -356,7 +356,7 @@ For higher quality, use API-based TTS (Google Cloud TTS, Amazon Polly, ElevenLab
 
 ```bash
 #!/bin/bash
-spel --eval '
+spel eval-sci '
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.org")
 (spel/wait-for-load-state)

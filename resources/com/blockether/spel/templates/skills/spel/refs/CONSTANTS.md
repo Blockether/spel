@@ -1,6 +1,6 @@
 # Constants, Enums, and Device Presets
 
-Quick reference for all typed constants in spel's `--eval` sandbox and library code.
+Quick reference for all typed constants in spel's `eval-sci` sandbox and library code.
 
 | Namespace | What it holds | Count |
 |-----------|---------------|-------|
@@ -26,12 +26,12 @@ spel functions accept keywords for all Playwright enum values. The options layer
 | Forced colors | `:active`, `:none` | `emulate-media!` opts |
 | Reduced motion | `:reduce`, `:no-preference` | `emulate-media!` opts |
 
-In `--eval` mode, string forms also work for load states and selector states (e.g. `"networkidle"`, `"hidden"`).
+In `eval-sci` mode, string forms also work for load states and selector states (e.g. `"networkidle"`, `"hidden"`).
 
 ### Usage Examples
 
 ```clojure
-;; --eval mode (keywords)
+;; eval-sci mode (keywords)
 (spel/wait-for-load-state :networkidle)
 (spel/navigate "https://example.org" {:wait-until :commit})
 (spel/emulate-media! {:color-scheme :dark})
@@ -52,7 +52,7 @@ In `--eval` mode, string forms also work for load states and selector states (e.
 AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 
 ```clojure
-(spel/get-by-role role/button {:name "Submit"})                    ;; --eval
+(spel/get-by-role role/button {:name "Submit"})                    ;; eval-sci
 (page/get-by-role pg role/button {:name "Submit"})                ;; library
 (page/get-by-role pg role/heading {:level 1})                     ;; with options
 ```
@@ -102,7 +102,7 @@ AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 
 Device presets are used via the `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, and user agent.
 
-The `device/` namespace is available in `--eval` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. You can also use the `:device` keyword in option maps.
+The `device/` namespace is available in `eval-sci` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. You can also use the `:device` keyword in option maps.
 
 ### All Device Presets
 
@@ -149,7 +149,7 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 ### Using Devices
 
 ```clojure
-;; Standalone --eval (no daemon)
+;; Standalone eval-sci (no daemon)
 (spel/start! {:device :iphone-14})
 
 ;; Library
@@ -179,7 +179,7 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 
 ## Java Enum Interop
 
-All Playwright enum classes are registered in `--eval`. Direct interop works too:
+All Playwright enum classes are registered in `eval-sci`. Direct interop works too:
 
 ```clojure
 LoadState/NETWORKIDLE    WaitUntilState/COMMIT    ColorScheme/DARK

@@ -123,7 +123,7 @@ spel --session $SESSION snapshot -S --json > current/<page>-current.json
 spel --session $SESSION screenshot current/<page>-current.png
 
 # 3. Compare snapshots structurally
-spel --eval '
+spel eval-sci '
 (let [baseline (json/read-str (slurp "baselines/<page>-baseline.json") :key-fn keyword)
       current (json/read-str (slurp "current/<page>-current.json") :key-fn keyword)
       [additions removals _] (clojure.data/diff baseline current)

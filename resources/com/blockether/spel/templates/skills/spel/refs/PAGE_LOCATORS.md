@@ -458,4 +458,4 @@ Build rich HTML or PDF reports from test results using typed entry maps.
   (println (locator/text-content item)))
 ```
 
-**Snapshot refs for exploration, selectors for tests.** Snapshot refs (`@e2yrjz`) are great for interactive exploration in `--eval` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.
+**Snapshot refs for exploration, selectors for tests.** Snapshot refs (`@e2yrjz`) are great for interactive exploration in `eval-sci` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.

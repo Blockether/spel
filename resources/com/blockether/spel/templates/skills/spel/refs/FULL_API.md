@@ -639,11 +639,11 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 ---
 
-## SCI Eval API Reference (`spel --eval`)
+## SCI Eval API Reference (`spel eval-sci`)
 
-Auto-generated from SCI namespace registrations. All functions are available in `spel --eval` mode without JVM startup.
+Auto-generated from SCI namespace registrations. All functions are available in `spel eval-sci` mode without JVM startup.
 
-### Enums — Java types available in `--eval` mode
+### Enums — Java types available in `eval-sci` mode
 
 All Playwright Java enums from `com.microsoft.playwright.options` are registered as SCI classes. Use them directly by `EnumName/VALUE` — no import needed.
 
@@ -666,7 +666,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `WaitForSelectorState` | `ATTACHED`, `DETACHED`, `VISIBLE`, `HIDDEN` | `page/wait-for-selector` options `:state` |
 | `WaitUntilState` | `LOAD`, `DOMCONTENTLOADED`, `NETWORKIDLE`, `COMMIT` | Navigation options `:wait-until` |
 
-**Usage in `--eval` mode:**
+**Usage in `eval-sci` mode:**
 
 ```clojure
 ;; Enums are available directly — no import required

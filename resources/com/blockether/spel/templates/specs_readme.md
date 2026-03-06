@@ -34,12 +34,12 @@ spel unannotate
 
 **Repeat this cycle for every page you explore.** Annotated screenshots are your primary evidence — they show the user exactly what you see.
 
-## Creating a Spec: Scripted Exploration with --eval
+## Creating a Spec: Scripted Exploration with eval-sci
 
-Use `spel --eval` for multi-step exploration in a single command:
+Use `spel eval-sci` for multi-step exploration in a single command:
 
 ```bash
-spel --timeout 5000 --eval '
+spel --timeout 5000 eval-sci '
   (do
     (spel/navigate "<url>")
 
@@ -65,8 +65,8 @@ spel --timeout 5000 --eval '
 **Notes:**
 - `spel/start!` and `spel/stop!` are NOT needed — the daemon manages the browser
 - Use `--timeout` to fail fast on bad selectors
-- Errors throw automatically in `--eval` mode
-- Use `spel open <url> --interactive` before `--eval` if the user wants to watch
+- Errors throw automatically in `eval-sci` mode
+- Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch
 
 ## Confirming What Exists vs What Doesn't
 

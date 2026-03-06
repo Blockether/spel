@@ -1,23 +1,23 @@
-# --eval Mode Guide
-spel's `--eval` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Just pass code directly:
+# eval-sci Mode Guide
+spel's `eval-sci` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Just pass code directly:
 
 ```bash
-spel --eval '(spel/navigate "https://example.org") (println (spel/title))'
+spel eval-sci '(spel/navigate "https://example.org") (println (spel/title))'
 ```
 
 Or run a file:
 
 ```bash
-spel --eval script.clj
+spel eval-sci script.clj
 ```
 
 Or pipe from stdin:
 
 ```bash
-echo '(spel/navigate "https://example.org") (println (spel/title))' | spel --eval --stdin
+echo '(spel/navigate "https://example.org") (println (spel/title))' | spel eval-sci --stdin
 ```
 
-> **Daemon mode is default.** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
+> **Daemon mode is default.** When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
 
 ## Discovering the API: `spel/help`
 
@@ -75,15 +75,15 @@ When `spel/help` shows you a function exists but you need to understand what it 
 
 ## Session Lifecycle
 
-> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `--eval` reuses the existing browser. Just call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `--eval` calls, so you don't need to re-navigate to the same URL.
+> **Daemon mode (default):** When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser. Just call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. The daemon persists state between `eval-sci` calls, so you don't need to re-navigate to the same URL.
 >
 > `spel/start!` and `spel/stop!` are only needed for **standalone scripts** that run without a daemon.
 
-In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts written for standalone `--eval` work unchanged — but calling it is unnecessary and wasteful.
+In daemon mode, `spel/start!` is a no-op if a page already exists, so scripts written for standalone `eval-sci` work unchanged — but calling it is unnecessary and wasteful.
 
 ### Standalone Scripts (no daemon)
 
-`spel/start!` creates the full Playwright stack: Playwright instance, browser, context, and page. Only use this when running `spel --eval` without a daemon.
+`spel/start!` creates the full Playwright stack: Playwright instance, browser, context, and page. Only use this when running `spel eval-sci` without a daemon.
 
 ```clojure
 ;; Defaults: headless Chromium, standard viewport
@@ -140,7 +140,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 
 | Namespace | Functions | Purpose |
 |-----------|-----------|---------|
-| `spel/` | ~143 | Simplified API with implicit page. Covers navigation, clicks, fills, screenshots, assertions, snapshots, annotations, and more. This is the primary namespace for `--eval` scripts. |
+| `spel/` | ~143 | Simplified API with implicit page. Covers navigation, clicks, fills, screenshots, assertions, snapshots, annotations, and more. This is the primary namespace for `eval-sci` scripts. |
 | `snapshot/` | 5 | Accessibility snapshot capture and ref resolution. `capture`, `capture-full`, `clear-refs!`, `ref-bounding-box`, `resolve-ref`. |
 | `annotate/` | 8 | Screenshot annotations and reports. `annotated-screenshot`, `save!`, `mark!`, `unmark!`, `audit-screenshot`, `save-audit!`, `report->html`, `report->pdf`. |
 | `stitch/` | 3 | Vertical image stitching. `stitch-vertical`, `stitch-vertical-overlap`, `read-image`. |
@@ -160,7 +160,7 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 
 ### When to Use Which Namespace
 
-For most `--eval` scripts, `spel/` is all you need. It wraps the implicit page and handles locator resolution from strings, refs, and Locator objects.
+For most `eval-sci` scripts, `spel/` is all you need. It wraps the implicit page and handles locator resolution from strings, refs, and Locator objects.
 
 Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
 - Explicit control over which page, frame, or locator you're operating on
@@ -329,14 +329,14 @@ The SCI sandbox has boundaries. These will fail:
 - **Loading external libraries**: No Clojure deps, no Maven artifacts. Everything you need is already in the sandbox.
 - **STM and concurrency**: `ref`/`dosync`/`future`/`agent` are not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
 
-If you need something that isn't available, write a `.clj` library file and use the library API (JVM mode) instead of `--eval`.
+If you need something that isn't available, write a `.clj` library file and use the library API (JVM mode) instead of `eval-sci`.
 
 ## Complete Example: Multi-Step Eval Script
 
 This script demonstrates a realistic workflow: start a session, explore a page, capture data, annotate, and write results to disk.
 
 ```clojure
-;; Save as explore.clj, run with: spel --eval explore.clj
+;; Save as explore.clj, run with: spel eval-sci explore.clj
 
 ;; 1. Start a headless browser session
 (spel/start! {:viewport {:width 1280 :height 800}})
@@ -384,18 +384,18 @@ This script demonstrates a realistic workflow: start a session, explore a page, 
 Run it:
 
 ```bash
-spel --eval explore.clj
+spel eval-sci explore.clj
 ```
 
-## CLI Flags for `--eval`
+## CLI Flags for `eval-sci`
 
 | Flag | Purpose |
 |------|---------|
-| `--eval '<code>'` | Evaluate inline Clojure expression |
-| `--eval file.clj` | Evaluate a Clojure file |
-| `--eval --stdin` | Read code from stdin (pipe-friendly) |
-| `--eval --interactive` | Use a visible (headed) browser |
-| `--eval --load-state FILE` | Load auth/storage state before evaluation |
+| `eval-sci '<code>'` | Evaluate inline Clojure expression |
+| `eval-sci file.clj` | Evaluate a Clojure file |
+| `eval-sci --stdin` | Read code from stdin (pipe-friendly) |
+| `eval-sci --interactive` | Use a visible (headed) browser |
+| `eval-sci --load-state FILE` | Load auth/storage state before evaluation |
 | `--autoclose` | Close the daemon after eval completes |
 | `--timeout <ms>` | Set default action timeout |
 | `--session <name>` | Use a named browser session |
@@ -405,7 +405,7 @@ spel --eval explore.clj
 
 **Console output is captured automatically.** Browser `console.log`, `console.warn`, and `console.error` messages print to stderr after your eval result. Check stderr if something fails silently in the browser.
 
-**Daemon mode is the default.** When a daemon is running, `--eval` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `--eval` calls, so avoid redundant navigations to the same URL.
+**Daemon mode is the default.** When a daemon is running, `eval-sci` reuses its browser — don't call `spel/start!` or `spel/stop!`. The daemon persists page state between `eval-sci` calls, so avoid redundant navigations to the same URL.
 
 **Prefer `spel/` over raw namespaces.** The `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Raw namespaces like `loc/` and `page/` require you to manage objects yourself.
 
