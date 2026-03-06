@@ -58,6 +58,51 @@ When this agent is invoked, ensure these refs are loaded:
 - `ALLURE_REPORTING.md` — steps, attachments, Allure annotations
 - `API_TESTING.md` — `with-testing-api`, `api-get`, `api-post` patterns
 
+## Selector Strategy: Snapshot Refs First
+
+**ALWAYS capture a snapshot before any interaction.** This gives you the page's accessibility tree with deterministic refs (`@eXXXXX`).
+
+### Why Refs Over CSS Selectors
+
+Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
+- **Deterministic** — same element = same ref across snapshots (until navigation)
+- **Semantic** — derived from accessibility roles/names, not CSS classes
+- **Resilient** — survive CSS refactors, class renaming, layout changes
+- **Universal** — work with ALL spel functions: click, fill, text, assert
+
+CSS selectors (`.btn-primary`, `#submit`) are:
+- **Brittle** — break when developers rename classes or restructure DOM
+- **Implementation-dependent** — tied to HTML structure, not user-visible behavior
+
+### Selector Priority (highest to lowest)
+
+1. **Snapshot refs** (`@e2yrjz`) — deterministic, resilient, semantic
+2. **Semantic locators** (role + name, label, text) — stable, user-visible
+3. **Test IDs** (`data-testid`) — stable but requires dev cooperation
+4. **CSS selectors** — LAST RESORT, always fragile
+
+### Snapshot-First Workflow
+
+Before ANY interaction:
+```bash
+# 1. Capture snapshot to see what's on the page
+spel --session $SESSION snapshot -i
+
+# 2. Read the snapshot output — understand ALL interactive elements
+# 3. Use refs from the snapshot for interactions
+spel --session $SESSION click @eXXXXX
+spel --session $SESSION fill @eXXXXX "value"
+```
+
+**After navigation**, refs become stale. Always re-capture:
+```bash
+spel --session $SESSION click @eXXXXX
+# Page changed? Re-snapshot!
+spel --session $SESSION snapshot -i
+# Now use NEW refs from fresh snapshot
+spel --session $SESSION click @eYYYYY
+```
+
 ## API vs Browser Testing Decision
 
 - Use `with-testing-page` for UI tests (browser interactions, visual assertions)
@@ -73,6 +118,15 @@ clojure -M:test -v com.example.my-test/my-test-name
 # Run with Allure report
 clojure -M:test -v com.example.my-test/my-test-name --output com.blockether.spel.allure-reporter/allure
 ```
+
+## Flavor Awareness
+
+The `{{testing-conventions}}` section below is injected based on the `--flavour` flag used during `spel init-agents`.
+
+- **Lazytest** (`--flavour lazytest`): Uses `defdescribe`, `describe`, `it`, `expect` from `spel.allure`
+- **Clojure-test** (`--flavour clojure-test`): Uses `deftest`, `testing`, `is` from `clojure.test`
+
+**ALWAYS check the seed test** at `test-e2e/<ns>/e2e/seed_test.clj` to confirm which flavour is in use. Match the seed test's framework exactly.
 
 ## For Each Test You Generate
 
@@ -110,10 +164,27 @@ clojure -M:test -v com.example.my-test/my-test-name --output com.blockether.spel
 
 ```json
 {
+  "agent": "spel-test-generator",
+  "feature": "<feature>",
+  "spec_path": "test-e2e/specs/<feature>-test-plan.md",
+  "flavour": "lazytest | clojure-test",
   "tests_generated": 0,
   "tests_passed": 0,
   "tests_failed": 0,
-  "selectors_verified": []
+  "selectors_verified": true,
+  "ref_bindings": {
+    "login-test/submits-form": {
+      "submit_btn": "@e2yrjz",
+      "email_input": "@ea3kf5"
+    }
+  },
+  "failures": [
+    {
+      "test": "login-test/invalid-email",
+      "error": "Expected 'Invalid email' but got 'Please enter email'",
+      "snapshot_evidence": "evidence/login-error-snapshot.json"
+    }
+  ]
 }
 ```
 
@@ -172,6 +243,41 @@ For options (device, viewport, locale, auth state):
   (core/with-testing-page {:device :iphone-14} [page]
     (page/navigate page "http://localhost:8080")
     (expect (locator/is-visible? (page/locator page "nav.mobile")))))
+```
+
+## Ref Binding Convention
+
+Bind snapshot refs to descriptive names at the start of each test. This makes tests readable and refs reviewable:
+
+```clojure
+(it "submits login form"
+  (core/with-testing-page [page]
+    (page/navigate page "http://localhost:8080/login")
+
+    ;; Capture snapshot — understand the page BEFORE interacting
+    (let [snap (snapshot/capture-snapshot page)
+          ;; Bind refs to descriptive names
+          email-input (snapshot/resolve-ref page "ea3kf5")
+          password-input (snapshot/resolve-ref page "e1x9hz")
+          submit-btn (snapshot/resolve-ref page "e2yrjz")]
+
+      ;; Use named refs — readable and deterministic
+      (locator/fill email-input "test@example.org")
+      (locator/fill password-input "secret123")
+      (locator/click submit-btn)
+
+      (expect (nil? (assert/has-url (assert/assert-that page) #".*\/dashboard"))))))
+```
+
+**Why this pattern:**
+- Refs are captured fresh each test run (no stale selectors)
+- Descriptive names (`submit-btn`) make tests self-documenting
+- Easy to update: change the ref string, not the logic
+- The snapshot itself serves as documentation of page structure
+
+**Add these requires** when using refs in tests:
+```clojure
+[com.blockether.spel.snapshot :as snapshot]
 ```
 
 

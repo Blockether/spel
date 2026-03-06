@@ -56,6 +56,51 @@ Focus on these refs from your SKILL:
 - **ASSERTIONS_EVENTS.md** — Available matchers and event expectations
 - **SNAPSHOT_TESTING.md** — When and how to use accessibility snapshots in tests
 
+## Selector Strategy: Snapshot Refs First
+
+**ALWAYS capture a snapshot before any interaction.** This gives you the page's accessibility tree with deterministic refs (`@eXXXXX`).
+
+### Why Refs Over CSS Selectors
+
+Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
+- **Deterministic** — same element = same ref across snapshots (until navigation)
+- **Semantic** — derived from accessibility roles/names, not CSS classes
+- **Resilient** — survive CSS refactors, class renaming, layout changes
+- **Universal** — work with ALL spel functions: click, fill, text, assert
+
+CSS selectors (`.btn-primary`, `#submit`) are:
+- **Brittle** — break when developers rename classes or restructure DOM
+- **Implementation-dependent** — tied to HTML structure, not user-visible behavior
+
+### Selector Priority (highest to lowest)
+
+1. **Snapshot refs** (`@e2yrjz`) — deterministic, resilient, semantic
+2. **Semantic locators** (role + name, label, text) — stable, user-visible
+3. **Test IDs** (`data-testid`) — stable but requires dev cooperation
+4. **CSS selectors** — LAST RESORT, always fragile
+
+### Snapshot-First Workflow
+
+Before ANY interaction:
+```bash
+# 1. Capture snapshot to see what's on the page
+spel --session $SESSION snapshot -i
+
+# 2. Read the snapshot output — understand ALL interactive elements
+# 3. Use refs from the snapshot for interactions
+spel --session $SESSION click @eXXXXX
+spel --session $SESSION fill @eXXXXX "value"
+```
+
+**After navigation**, refs become stale. Always re-capture:
+```bash
+spel --session $SESSION click @eXXXXX
+# Page changed? Re-snapshot!
+spel --session $SESSION snapshot -i
+# Now use NEW refs from fresh snapshot
+spel --session $SESSION click @eYYYYY
+```
+
 ## Test Entry Point Selection
 
 - Use `with-testing-page` for browser UI tests (navigates, clicks, snapshots)
@@ -213,6 +258,31 @@ spel --session $SESSION close
 3. Structure each scenario with exact selectors, text, and expected outcomes
 4. **Write the spec to `test-e2e/specs/<feature>-test-plan.md`**
 5. **Write the sidecar to `test-e2e/specs/<feature>-test-plan.json`**
+
+Use this schema for the JSON sidecar artifact (required for generator/healer gates):
+
+```json
+{
+  "agent": "spel-test-planner",
+  "feature": "<feature>",
+  "target_url": "<url>",
+  "explored_on": "<date>",
+  "flavour": "lazytest | clojure-test",
+  "seed_test": "test-e2e/<ns>/e2e/seed_test.clj",
+  "scenarios": [
+    {
+      "id": "1.1",
+      "name": "Navigate to homepage",
+      "steps": ["Navigate to <url>", "Click Submit button"],
+      "expected": ["URL changes to /dashboard"],
+      "refs": {
+        "submit_btn": {"ref": "@e2yrjz", "role": "button", "name": "Submit"},
+        "email_input": {"ref": "@ea3kf5", "role": "textbox", "name": "Email"}
+      }
+    }
+  ]
+}
+```
 
 **GATE: Present the spec to the user. Do NOT mark as complete until user approves.**
 

@@ -58,6 +58,51 @@ When this agent is invoked, ensure these refs are loaded:
 - `ASSERTIONS_EVENTS.md` — correct assertion patterns to fix broken assertions
 - `COMMON_PROBLEMS.md` — known issues and their solutions
 
+## Selector Strategy: Snapshot Refs First
+
+**ALWAYS capture a snapshot before any interaction.** This gives you the page's accessibility tree with deterministic refs (`@eXXXXX`).
+
+### Why Refs Over CSS Selectors
+
+Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
+- **Deterministic** — same element = same ref across snapshots (until navigation)
+- **Semantic** — derived from accessibility roles/names, not CSS classes
+- **Resilient** — survive CSS refactors, class renaming, layout changes
+- **Universal** — work with ALL spel functions: click, fill, text, assert
+
+CSS selectors (`.btn-primary`, `#submit`) are:
+- **Brittle** — break when developers rename classes or restructure DOM
+- **Implementation-dependent** — tied to HTML structure, not user-visible behavior
+
+### Selector Priority (highest to lowest)
+
+1. **Snapshot refs** (`@e2yrjz`) — deterministic, resilient, semantic
+2. **Semantic locators** (role + name, label, text) — stable, user-visible
+3. **Test IDs** (`data-testid`) — stable but requires dev cooperation
+4. **CSS selectors** — LAST RESORT, always fragile
+
+### Snapshot-First Workflow
+
+Before ANY interaction:
+```bash
+# 1. Capture snapshot to see what's on the page
+spel --session $SESSION snapshot -i
+
+# 2. Read the snapshot output — understand ALL interactive elements
+# 3. Use refs from the snapshot for interactions
+spel --session $SESSION click @eXXXXX
+spel --session $SESSION fill @eXXXXX "value"
+```
+
+**After navigation**, refs become stale. Always re-capture:
+```bash
+spel --session $SESSION click @eXXXXX
+# Page changed? Re-snapshot!
+spel --session $SESSION snapshot -i
+# Now use NEW refs from fresh snapshot
+spel --session $SESSION click @eYYYYY
+```
+
 ## Allure Trace Analysis
 
 When a test fails, use Allure traces to diagnose:
@@ -90,6 +135,16 @@ When a test fails, use Allure traces to diagnose:
     spel --session $SESSION annotate
     spel --session $SESSION screenshot debug-annotated.png
     spel --session $SESSION unannotate
+   ```
+
+   When investigating failures, **always re-capture a snapshot** to see the CURRENT page state:
+
+   ```bash
+   spel --session $SESSION open <url> --interactive
+   spel --session $SESSION snapshot -i
+   # Compare current refs with the refs in the failing test
+   # If refs differ → the page changed, update the test's ref bindings
+   # If refs match → the issue is in assertion logic, not selectors
    ```
 
 4. **Investigate with inline scripts** (preferred): Use `spel --eval` to reproduce the exact failure point
@@ -147,13 +202,20 @@ Proceed to next batch only after user acknowledgment.
 
 ```json
 {
+  "agent": "spel-test-healer",
+  "feature": "<feature>",
+  "spec_path": "test-e2e/specs/<feature>-test-plan.md",
+  "flavour": "lazytest | clojure-test",
   "tests_healed": 0,
   "changes": [
     {
-      "file": "test-e2e/example/e2e/feature_test.clj",
-      "original": "old assertion/selector",
-      "fixed": "new assertion/selector",
-      "reason": "why this change is correct"
+      "test": "login-test/invalid-email",
+      "file": "test-e2e/app/e2e/login_test.clj",
+      "root_cause": "selector_changed",
+      "old_selector": ".btn-primary",
+      "new_selector": "@e5dw2c",
+      "verified_via_snapshot": true,
+      "reason": "Button class renamed in CSS refactor; ref is stable"
     }
   ]
 }
