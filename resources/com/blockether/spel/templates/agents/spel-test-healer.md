@@ -99,6 +99,8 @@ When a test fails, use Allure traces to diagnose:
    - **Timing issue**: Race condition → the test may need restructuring
    - **State dependency**: Test assumes data that doesn't exist → update seed/setup
    - **API change**: spel API changed → update function calls
+   - **Cookie/popup changed**: Cookie consent or popup UI changed → update the setup step
+   - **Location-gated content**: Postal code or delivery area popup blocks interaction → add setup step
 
 6. **Fix the Code**: Edit test files with minimal changes
     - Update selectors to match current application state
@@ -150,3 +152,40 @@ Proceed to next batch only after user acknowledgment.
 - NEVER suppress errors
 - Ask the user if you cannot determine whether a failure is a test bug or an intentional app change
 - Document your findings as code comments
+
+## Cookie Consent & Popup Failures
+
+A common failure cause on EU/GDPR sites: cookie consent or first-visit popups block element interaction.
+
+**Symptoms:**
+- Test fails with "element not found" or "element not visible"
+- Test worked before but fails after clearing browser state
+- Failure occurs on the very first interaction (click/fill) of the test
+
+**Diagnosis:**
+```bash
+spel open <url> --interactive
+spel snapshot -i
+# Check if cookie consent or location popup overlays the page
+# If dialog or banner role appears at the top of the snapshot tree — that's the blocker
+```
+
+**Fix pattern:**
+Add a setup step to dismiss consent/popups before the main test flow:
+```clojure
+;; In the test's setup or at the start of the test body:
+(let [snap (snapshot/capture-snapshot page)]
+  (when (str/includes? (:tree snap) "cookie")
+    (try (locator/click (page/get-by-role page role/button {:name "Accept all"}))
+         (catch Exception _ nil))))
+```
+
+If the site requires a postal code:
+```clojure
+(let [snap (snapshot/capture-snapshot page)]
+  (when (str/includes? (:tree snap) "dialog")
+    (try
+      (locator/fill (page/get-by-role page role/textbox) "31-564")
+      (locator/click (page/get-by-role page role/button {:name "Confirm"}))
+      (catch Exception _ nil))))
+```

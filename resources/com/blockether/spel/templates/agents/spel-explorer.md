@@ -107,20 +107,28 @@ spel --session $SESSION unannotate
 
 ### 3. Data Extraction with --eval
 ```bash
-# Extract text content
-spel --session $SESSION --eval '(page/text-content @!page "h1")'
+# Extract text content (preferred: use spel/ namespace)
+spel --session $SESSION --eval '(spel/text "h1")'
 
 # Extract table data to JSON
 spel --session $SESSION --eval '
-(let [rows (page/query-all @!page "table tr")
-      data (mapv #(page/text-content % "td") rows)]
-  (spit "<page>-data.json" (json/write-str data)))'
+(let [rows (locator/all (spel/locator "table tr"))
+      data (mapv (fn [row] (spel/text row)) rows)]
+  (spit "table-data.json" (json/write-str data)))'
 
 # Capture already-completed network requests (not only future routes)
 spel --session $SESSION --eval '(net/requests)'
 
 # Extract all links
-spel --session $SESSION --eval '(mapv #(attr/get-attribute % "href") (page/query-all @!page "a[href]"))'
+spel --session $SESSION --eval '(mapv (fn [link] (spel/attr link "href")) (locator/all (spel/locator "a[href]")))'
+
+# Extract using snapshot refs (most reliable)
+spel --session $SESSION --eval '
+(let [snap (spel/capture-snapshot)]
+  ;; Print the tree to understand page structure
+  (println (:tree snap))
+  ;; Access specific elements via refs
+  (println (spel/text "@e2yrjz")))'
 ```
 
 ### 4. JSON Endpoint Inspection
@@ -164,6 +172,59 @@ Do NOT continue until explicit approval.
 - If auth is required, report that interactive authentication may be needed and suggest `spel-interactive`.
 - If network failures occur, record failed requests separately from successful data extraction.
 
+## Cookie Consent & First-Visit Popups
+
+EU/GDPR sites show cookie consent on first visit. **Always handle this before data extraction.**
+
+```bash
+# 1. Snapshot to detect cookie consent
+spel --session $SESSION snapshot -i
+
+# 2. Look for consent buttons in the snapshot output
+# Common labels:
+#   English: "Accept all", "Accept cookies", "I agree"
+#   Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
+#   German: "Alle akzeptieren"
+
+# 3. Click the consent button by its snapshot ref
+spel --session $SESSION click @eXXXXX
+
+# 4. If a postal code / location popup appears next:
+spel --session $SESSION snapshot -i
+spel --session $SESSION fill @eXXXXX "31-564"
+spel --session $SESSION click @eXXXXX
+
+# 5. Snapshot again to confirm clean page state
+spel --session $SESSION snapshot -i
+```
+
+## Multi-Step Exploration with --eval
+
+For exploring e-commerce sites, SPAs, or multi-page flows:
+
+```bash
+spel --session $SESSION --timeout 10000 --eval '
+(do
+  ;; Navigate and wait for content
+  (spel/goto "https://example.com")
+  (spel/wait-for-load)
+
+  ;; Handle cookie consent if present
+  (let [snap (spel/capture-snapshot)]
+    (when (str/includes? (:tree snap) "cookie")
+      (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
+           (catch Exception _ nil))
+      (spel/wait-for-load)))
+
+  ;; Explore the clean page
+  (let [snap (spel/capture-snapshot)]
+    (println (:tree snap))
+    (println "---")
+    (println "Links:" (spel/all-text-contents "a"))
+    (println "Buttons:" (spel/all-text-contents "button"))
+    (println "Inputs:" (spel/count-of "input"))))'
+```
+
 ## Data Output Conventions
 
 - Save extracted data to JSON files: `<page-name>-data.json`
@@ -177,3 +238,5 @@ Do NOT continue until explicit approval.
 - Do NOT write test assertions (that's spel-test-generator's domain)
 - Do NOT write reusable automation scripts (that's spel-automator's domain)
 - Do NOT modify application code
+- Do NOT interact with elements without first running `snapshot -i` to verify refs
+- Do NOT skip cookie consent handling — it blocks access to the actual page content
