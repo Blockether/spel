@@ -154,6 +154,8 @@ Every namespace below is pre-registered. No `require` or `import` needed.
 | `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
 | `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
 | `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
+| `constants/` | 25 | Playwright enum values as named Clojure vars. `load-state-networkidle`, `wait-until-commit`, `color-scheme-dark`, `mouse-button-right`, etc. |
+| `device/` | 20 | Device preset maps. `device/iphone-14`, `device/pixel-7`, `device/desktop-chrome`, plus `device-presets` and `viewport-presets` helper maps. |
 
 
 ### When to Use Which Namespace
@@ -168,7 +170,7 @@ Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
 
 ### Constants & Device Presets
 
-Playwright enum values are passed as **keywords** in option maps. The options layer converts them to Java enums automatically. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
+Playwright enum values are passed as **keywords** in option maps. The options layer converts them to Java enums automatically. The `constants/` namespace provides named vars as an alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
 
 ```clojure
 ;; Keywords (recommended)
@@ -177,11 +179,18 @@ Playwright enum values are passed as **keywords** in option maps. The options la
 (spel/emulate-media! {:color-scheme :dark})
 (spel/click "#el" {:button :right})
 
+;; constants/ namespace (named vars)
+(spel/wait-for-load-state constants/load-state-networkidle)
+(spel/navigate "https://example.org" {:wait-until constants/wait-until-commit})
+
 ;; Java enum interop (also works)
 (spel/wait-for-load-state LoadState/NETWORKIDLE)
 
 ;; Device presets via start! (keyword in opts map)
 (spel/start! {:device :iphone-14})
+
+;; Device presets via device/ namespace
+(spel/start! {:device device/iphone-14})
 
 ;; Dynamic JSON encoder (pre-bound to json/write-json-str)
 (*json-encoder* {:a 1 :b [2 3]})  ;; => "{\"a\":1,\"b\":[2,3]}"

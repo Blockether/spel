@@ -4,9 +4,11 @@ Quick reference for all typed constants in spel's `--eval` sandbox and library c
 
 | Namespace | What it holds | Count |
 |-----------|---------------|-------|
+| `constants/` | Playwright enum values as flat Clojure vars | 25 |
 | `role/` | AriaRole constants for role-based selectors | 82 |
+| `device/` | Device preset maps (viewport, UA, scale, touch) | 18 + helpers |
 
-> **Keyword shorthand** is the primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. Java enum interop (e.g. `LoadState/NETWORKIDLE`) is also available.
+> **Keyword shorthand** is the primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. The `constants/` namespace provides named vars as an alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
 
 ## Keyword Constants (Primary API)
 
@@ -100,7 +102,7 @@ AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 
 Device presets are used via the `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, and user agent.
 
-> **Note**: Device presets are used as keywords in option maps (`:iphone-14`, `:pixel-7`). They are available in library mode and `--eval` with `spel/start!`. There is no `device/` namespace in `--eval` mode.
+The `device/` namespace is available in `--eval` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. You can also use the `:device` keyword in option maps.
 
 ### All Device Presets
 

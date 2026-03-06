@@ -40,6 +40,8 @@
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.roles :as roles]
+   [com.blockether.spel.constants :as constants]
+   [com.blockether.spel.devices :as devices]
    [com.blockether.spel.search :as search]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.stitch :as stitch]
@@ -883,7 +885,9 @@
    "net"      "Network request/response/route"
    "loc"      "Raw locator operations"
    "assert"   "Assertion functions"
-   "core"     "Lifecycle and browser management"})
+   "core"      "Lifecycle and browser management"
+   "constants" "Playwright enum values as named vars"
+   "device"    "Device and viewport presets"})
 
 (defn- pad-right [s n]
   (let [s (str s)
@@ -2023,6 +2027,48 @@
                      ['treeitem         roles/treeitem]])
 
         ;; =================================================================
+        ;; constants/ — Playwright enum constants as flat Clojure vars
+        ;; =================================================================
+        constants-ns  (sci/create-ns 'constants nil)
+        constants-map (make-ns-map constants-ns
+                        [['load-state-load              constants/load-state-load]
+                         ['load-state-domcontentloaded  constants/load-state-domcontentloaded]
+                         ['load-state-networkidle       constants/load-state-networkidle]
+                         ['wait-until-load              constants/wait-until-load]
+                         ['wait-until-domcontentloaded  constants/wait-until-domcontentloaded]
+                         ['wait-until-networkidle       constants/wait-until-networkidle]
+                         ['wait-until-commit            constants/wait-until-commit]
+                         ['color-scheme-dark            constants/color-scheme-dark]
+                         ['color-scheme-light           constants/color-scheme-light]
+                         ['color-scheme-no-preference   constants/color-scheme-no-preference]
+                         ['mouse-button-left            constants/mouse-button-left]
+                         ['mouse-button-right           constants/mouse-button-right]
+                         ['mouse-button-middle          constants/mouse-button-middle]
+                         ['screenshot-type-png          constants/screenshot-type-png]
+                         ['screenshot-type-jpeg         constants/screenshot-type-jpeg]
+                         ['forced-colors-active         constants/forced-colors-active]
+                         ['forced-colors-none           constants/forced-colors-none]
+                         ['reduced-motion-reduce        constants/reduced-motion-reduce]
+                         ['reduced-motion-no-preference constants/reduced-motion-no-preference]
+                         ['media-screen                 constants/media-screen]
+                         ['media-print                  constants/media-print]
+                         ['selector-state-attached      constants/selector-state-attached]
+                         ['selector-state-detached      constants/selector-state-detached]
+                         ['selector-state-visible       constants/selector-state-visible]
+                         ['selector-state-hidden        constants/selector-state-hidden]])
+
+        ;; =================================================================
+        ;; device/ — Device and viewport presets
+        ;; =================================================================
+        device-ns  (sci/create-ns 'device nil)
+        device-map (make-ns-map device-ns
+                     (into
+                       (mapv (fn [[k v]] [(symbol (name k)) v])
+                         devices/device-presets)
+                       [['viewport-presets  devices/viewport-presets]
+                        ['device-presets    devices/device-presets]]))
+
+        ;; =================================================================
         ;; markdown/ — Markdown table parsing and generation
         ;; =================================================================
         md-ns  (sci/create-ns 'markdown nil)
@@ -2087,6 +2133,8 @@
                     'assert   assert-ns-map
                     'core     core-map
                     'role     roles-map
+                    'constants constants-map
+                    'device   device-map
                     ;; Raw namespaces for codegen script compat
                     'page     page-raw-map
                     'locator  locator-raw-map
@@ -2096,6 +2144,8 @@
                     'com.blockether.spel.locator    locator-raw-map
                     'com.blockether.spel.assertions assert-ns-map
                     'com.blockether.spel.roles      roles-map
+                    'com.blockether.spel.constants  constants-map
+                    'com.blockether.spel.devices    device-map
                      ;; Utility namespaces
                     'markdown                            md-map
                     'com.blockether.spel.markdown        md-map

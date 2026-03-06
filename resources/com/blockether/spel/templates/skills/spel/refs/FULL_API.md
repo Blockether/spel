@@ -676,6 +676,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/clipboard-copy` | [text] | Writes text to the browser clipboard. |
 | `spel/clipboard-paste` | [] | Pastes clipboard contents into the currently focused element. |
 | `spel/clipboard-read` | [] | Reads text from the browser clipboard. |
+| `spel/compare-screenshot-files` | [baseline-path current-path] \| [baseline-path current-path opts] | Compare two PNG files pixel-by-pixel. See compare-screenshots for details. |
+| `spel/compare-screenshots` | [baseline-bytes current-bytes] \| [baseline-bytes current-bytes opts] | Compare two PNG screenshots pixel-by-pixel using pixelmatch. |
 | `spel/content` | [] | Returns the full HTML content of the page. |
 | `spel/context` | [] | Returns the current BrowserContext instance. |
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
@@ -1137,8 +1139,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `snapshot -i -c -d 5` | Compact, depth-limited |
 | `snapshot -i -C` | Interactive + cursor elements |
 | `snapshot -S` | Include computed CSS styles |
-| `snapshot -S --minimal` | Styles: 12 essential properties |
-| `snapshot -S --max` | Styles: all 36 tracked properties |
+| `snapshot -S --minimal` | Styles: 16 essential properties |
+| `snapshot -S --max` | Styles: all 44 tracked properties |
 | `snapshot -s \"#main\"` | Scoped to selector |
 | `screenshot [path]` | Take screenshot (-f full page) |
 | `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
@@ -1256,8 +1258,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `eval <js>` | Run JavaScript |
-| `eval <js> -b` | Run JavaScript, base64-encode result |
+| `eval-js <js>` | Run JavaScript |
+| `eval-js <js> -b` | Run JavaScript, base64-encode result |
 | `connect <url>` | Connect to browser via CDP |
 | `trace start / trace stop` | Record trace |
 | `console / console clear` | View/clear console (auto-captured) |
@@ -1302,7 +1304,6 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
 | `--browser <engine>` | Browser engine: chromium, firefox, webkit |
-| `--channel <name>` | Browser channel (e.g. \"chrome\", \"msedge\") |
 | `--executable-path <path>` | Custom browser executable |
 | `--user-agent <ua>` | Custom user agent string |
 | `--proxy <url>` | Proxy server URL |
@@ -1310,6 +1311,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--headers <json>` | HTTP headers |
 | `--args <args>` | Browser args (comma-separated) |
 | `--cdp <url>` | Connect via CDP endpoint |
+| `--auto-connect` | Auto-discover running Chrome/Edge CDP endpoint |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
 | `--no-stealth` | Disable stealth mode (stealth is ON by default) |
@@ -1321,7 +1323,6 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `state export [opts]` | Export Chrome cookies + localStorage to Playwright state JSON (--help) |
 | `search <query> [opts]` | Google search from the CLI (--help for details) |
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
@@ -1340,7 +1341,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `--eval '<code>'` | Evaluate Clojure expression |
-| `--eval <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
-| `--eval --interactive` | Evaluate with visible browser (headed mode) |
-| `--eval --load-state F` | Load auth/state before evaluation (alias: --storage-state) |
+| `eval-sci '<code>'` | Evaluate Clojure expression |
+| `eval-sci <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
+| `eval-sci --interactive` | Evaluate with visible browser (headed mode) |
+| `eval-sci --load-state F` | Load auth/state before evaluation (alias: --storage-state) |
