@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.12] - 2026-03-06
+
+### Changed
+- feat(templates): integrate QA methodology into bugfind agent templates
+- feat(templates): integrate OpenAI QA methodology into test agent templates
+- fix(docs): replace deprecated --eval with eval-sci in source code, README, and docs
+- fix(templates): replace deprecated --eval with eval-sci across all 27 template files
+- feat(templates): add snapshot-first refs, flavor awareness, and JSON gate artifacts to test agents
+- feat(templates): wire test agent pipeline with inter-agent handoffs and contracts
+- fix(test-cli): use portable mktemp for macOS compatibility
+- fix(docs): add missing search, role, and allure namespaces to generated API docs
+- feat(templates): add cookie consent, snapshot-first interaction, and e-commerce patterns to agent templates
+- release: update version files for v0.5.11, bump to next dev version
+
+
 ## [v0.5.11] - 2026-03-06
 
 ### Changed
@@ -540,7 +555,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.11...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.12...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -559,3 +574,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.9]: https://github.com/Blockether/spel/releases/tag/v0.5.9
 [v0.5.10]: https://github.com/Blockether/spel/releases/tag/v0.5.10
 [v0.5.11]: https://github.com/Blockether/spel/releases/tag/v0.5.11
+[v0.5.12]: https://github.com/Blockether/spel/releases/tag/v0.5.12
