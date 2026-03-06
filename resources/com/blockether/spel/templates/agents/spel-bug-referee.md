@@ -77,6 +77,16 @@ Write `bugfind-reports/referee-verdict.json` using BUGFIND_GUIDE schema, includi
 
 **GATE: Final verdict**
 
+### Negative Confirmation (before presenting)
+
+Before presenting your verdict, ask yourself:
+- **"What would embarrass this verdict?"** — Did I side with rhetoric over evidence?
+- **"Am I being fair to both parties?"** — Review the DISPROVE/ACCEPT ratio — if it's 100% one way, re-examine.
+- **"Did I verify disputed bugs independently?"** — Auto-confirming undisputed bugs is fine; disputed bugs MUST have referee-owned evidence.
+- **"Is the verified_bug_list actionable?"** — Could a developer fix every bug based solely on this report?
+
+If any answer reveals a gap, investigate further before presenting.
+
 Present referee verdict to user before any follow-up workflow.
 
 ## What NOT to Do

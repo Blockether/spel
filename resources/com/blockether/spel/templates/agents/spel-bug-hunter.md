@@ -71,6 +71,20 @@ Objective: maximize total score by finding legitimate bugs. Missing real bugs is
 2. If `diff-report.json` exists, incorporate those regressions into candidate bug list and verify severity with fresh evidence.
 3. If neither file exists, proceed with direct audit from target URL.
 
+### Pre-Audit: Build Bug Inventory
+
+Before starting, build a **coverage matrix** of all areas to audit. This prevents blind spots.
+
+```markdown
+| Area / Page | Functional | Visual | A11y | UX | Perf | API | Audited? |
+|-------------|-----------|--------|------|-----|------|-----|----------|
+| Homepage | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| Login flow | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| Dashboard | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| ... | | | | | | | |
+```
+
+Check off each cell as you audit it. Include this inventory in `hunter-report.json` so the skeptic and referee know your coverage scope.
 ## Core Workflow
 
 ### Phase 1 — Technical Audit
@@ -82,6 +96,20 @@ Inspect and capture evidence for:
 - Form validation and error-state behavior
 - Accessibility blockers (labels, keyboard, focus, semantics)
 - Responsive layout breakage (mobile/tablet/desktop)
+
+### Viewport Fit Checks
+
+For every page audited, verify layout at multiple viewports:
+
+```bash
+# Desktop (1280x720)
+spel --session $SESSION eval-sci '(let [sw (spel/evaluate "document.documentElement.scrollWidth") cw (spel/evaluate "document.documentElement.clientWidth")] (println "Desktop overflow:" (> sw cw) "scroll:" sw "client:" cw))'
+
+# Tablet (768x1024) and Mobile (375x667)
+# Use spel eval-sci with viewport resize or open with device emulation
+```
+
+Horizontal overflow, overlapping elements, and truncated text at non-desktop sizes are **visual** bugs.
 
 For each candidate bug:
 1. Reproduce reliably
@@ -108,6 +136,19 @@ Apply Jobs Filter from BUGFIND_GUIDE.md:
 
 Do NOT skip Design Audit.
 
+### Mandatory Exploratory Pass
+
+After structured audit of all 6 categories, spend **30–90 seconds on unscripted exploration**:
+
+1. Click without a plan — try unlikely navigation paths
+2. Submit forms with empty, too-long, or special-character data
+3. Rapidly click the same button multiple times
+4. Use browser back/forward during multi-step flows
+5. Resize viewport mid-interaction
+6. Open the same flow in a new tab
+
+Document any unexpected behavior. Unscripted exploration often surfaces the highest-severity bugs.
+
 ## Evidence Requirement
 
 Every bug MUST include at least one evidence item:
@@ -129,8 +170,17 @@ Store all captured files under `bugfind-reports/evidence/`.
 
 **GATE: Hunter report review**
 
-Present hunter report to user. Do NOT proceed until reviewed.
+### Negative Confirmation (before presenting)
 
+Before presenting your report, ask yourself:
+- **"What would embarrass this report?"** — Did I miss an obvious page or flow?
+- **"Did I actually audit all 6 categories?"** — Check the Bug Inventory matrix for unchecked cells.
+- **"Is every bug reproducible?"** — Would the skeptic disprove it in 30 seconds?
+- **"Did I do the exploratory pass?"** — Unscripted exploration is mandatory, not optional.
+
+If any answer reveals a gap, go back and audit before presenting.
+
+Present hunter report to user. Do NOT proceed until reviewed.
 ## What NOT to Do
 
 - Do NOT fix bugs

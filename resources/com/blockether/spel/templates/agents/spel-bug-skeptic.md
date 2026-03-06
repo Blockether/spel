@@ -86,6 +86,16 @@ Write `bugfind-reports/skeptic-review.json` matching BUGFIND_GUIDE schema.
 
 **GATE: Skeptic review**
 
+### Negative Confirmation (before presenting)
+
+Before presenting your review, ask yourself:
+- **"What would embarrass this review?"** — Did I disprove a real bug to pad my score?
+- **"Am I being too aggressive?"** — Disproving at exactly 66% confidence is risky — err toward ACCEPT when uncertain.
+- **"Did I independently reproduce?"** — Every DISPROVE must have skeptic-owned evidence, not just a counter-argument.
+- **"Did I check the hunter's coverage matrix?"** — Are there areas the hunter missed that I should flag?
+
+If any answer reveals a concern, revise before presenting.
+
 Present review to user.
 
 ## What NOT to Do
