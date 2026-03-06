@@ -15,7 +15,7 @@
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
-    [com.blockether.spel.core :as core]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
@@ -446,7 +446,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                              (catch Exception _ {})))
+                                                                 (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -749,6 +749,8 @@
               (some? (:checked info))   (assoc :checked (:checked info))
               (:level info)             (assoc :level (:level info))
               (:value info)             (assoc :value (:value info))
+              (:id info)                (assoc :id (:id info))
+              (:classes info)           (assoc :classes (:classes info))
               (:styles info)            (assoc :styles (:styles info)))]))
     refs))
 
@@ -759,6 +761,7 @@
         all?           (get params "all")
         styles?        (get params "styles")
         styles-detail  (get params "styles_detail")
+        selectors?     (get params "selectors")
         no-network?    (get params "no_network")
         no-console?    (get params "no_console")
         device         (:device @!state)
@@ -768,6 +771,7 @@
                                                            sel           (assoc :scope sel)
                                                            styles?       (assoc :styles true)
                                                            styles-detail (assoc :styles-detail styles-detail)
+                                                           selectors?    (assoc :selectors true)
                                                            device        (assoc :device device))))
         _              (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
         tree           (filter-snapshot-tree (:tree snap) params)
@@ -908,7 +912,7 @@
             (Path/of ^String path-str (into-array String []))
             ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-        {:path path-str :size (alength ss-bytes)})
+          {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
@@ -988,15 +992,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1007,11 +1011,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -1223,13 +1227,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "click" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "fill" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -1380,7 +1384,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -1456,12 +1460,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -1583,7 +1587,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -1741,10 +1745,10 @@
       (try
         (let [result (binding [*out* stdout-writer
                                *err* stderr-writer]
-                        (sci/binding [sci-env/sci-command-line-args-var args-vec]
-                          (let [r (sci-env/eval-string ctx code)]
-                            (sync-sci-to-state!)
-                            r)))
+                       (sci/binding [sci-env/sci-command-line-args-var args-vec]
+                         (let [r (sci-env/eval-string ctx code)]
+                           (sync-sci-to-state!)
+                           r)))
               captured-stdout (str stdout-writer)
               captured-stderr (str stderr-writer)
               ;; Collect NEW console messages and page errors from this eval

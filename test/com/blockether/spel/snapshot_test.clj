@@ -853,9 +853,9 @@
             tree (:tree snap)
             ;; Find the ref for the input
             inp-ref (some (fn [[ref-id data]]
-                           (when (= "textbox" (:role data))
-                             ref-id))
-                         (:refs snap))]
+                            (when (= "textbox" (:role data))
+                              ref-id))
+                      (:refs snap))]
         (expect (some? inp-ref))
         (expect (seq (:listeners (get (:refs snap) inp-ref))))
         ;; At least focus, blur, change should be detected
@@ -872,9 +872,9 @@
         "<button onclick='alert(1)'>Alert</button>")
       (let [snap (sut/capture-snapshot *page*)
             btn-ref (some (fn [[ref-id data]]
-                           (when (= "button" (:role data))
-                             ref-id))
-                         (:refs snap))]
+                            (when (= "button" (:role data))
+                              ref-id))
+                      (:refs snap))]
         (expect (some? btn-ref))
         (expect (vector? (:listeners (get (:refs snap) btn-ref))))
         (expect (some #(= "click" %) (:listeners (get (:refs snap) btn-ref)))))))
@@ -887,9 +887,9 @@
         "<h1>No Events</h1>")
       (let [snap (sut/capture-snapshot *page*)
             h1-ref (some (fn [[ref-id data]]
-                          (when (= "heading" (:role data))
-                            ref-id))
-                        (:refs snap))]
+                           (when (= "heading" (:role data))
+                             ref-id))
+                     (:refs snap))]
         (expect (some? h1-ref))
         (expect (nil? (:listeners (get (:refs snap) h1-ref))))))))
 
@@ -924,10 +924,10 @@
       (let [snap (sut/capture-snapshot *page*)
             ;; The inner span should NOT have :pointer true
             inner-ref (some (fn [[ref-id data]]
-                             (when (and (= "span" (:tag data))
-                                        (= "Inside Button" (:name data)))
-                               ref-id))
-                           (:refs snap))]
+                              (when (and (= "span" (:tag data))
+                                      (= "Inside Button" (:name data)))
+                                ref-id))
+                        (:refs snap))]
         ;; Inner span may or may not have a ref, but if it does, it should NOT have :pointer
         (when inner-ref
           (expect (not (:pointer (get (:refs snap) inner-ref))))))))
@@ -975,9 +975,9 @@
         "<article><div>First Block</div><div>Second Block</div></article>")
       (let [snap (sut/capture-snapshot *page*)
             article-ref (some (fn [[ref-id data]]
-                               (when (= "article" (:role data))
-                                 ref-id))
-                             (:refs snap))
+                                (when (= "article" (:role data))
+                                  ref-id))
+                          (:refs snap))
             article-name (:name (get (:refs snap) article-ref))]
         (expect (some? article-ref))
         ;; innerText should produce space-separated text, not concatenated
@@ -1005,11 +1005,106 @@
         (str "<article><p>" (apply str (repeat 100 "x")) "</p></article>"))
       (let [snap (sut/capture-snapshot *page*)
             article-ref (some (fn [[ref-id data]]
-                               (when (= "article" (:role data))
-                                 ref-id))
-                             (:refs snap))
+                                (when (= "article" (:role data))
+                                  ref-id))
+                          (:refs snap))
             article-name (:name (get (:refs snap) article-ref))]
         (expect (some? article-ref))
         (when article-name
           (expect (<= (count article-name) 84)) ;; 80 chars + "..." + some margin
           (expect (str/ends-with? article-name "...")))))))
+
+;; =============================================================================
+;; Integration Tests — CSS Selectors (--selectors flag)
+;; =============================================================================
+
+(defdescribe snapshot-selectors-test
+  "Integration tests for capture-snapshot with :selectors opt.
+
+   Tests that element IDs and CSS classes are included in both the tree
+   text and the refs map when :selectors true is passed."
+
+  (describe "selectors opt includes id and classes in refs"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "refs include :id for elements with id attribute"
+      (page/set-content! *page*
+        "<button id='main-cta'>Click Me</button>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})
+            btn-ref (some (fn [[_ info]] (when (= "button" (:role info)) info))
+                      (:refs snap))]
+        (expect (some? btn-ref))
+        (expect (= "main-cta" (:id btn-ref)))))
+
+    (it "refs include :classes for elements with class attribute"
+      (page/set-content! *page*
+        "<button class='btn btn-primary large'>Styled</button>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})
+            btn-ref (some (fn [[_ info]] (when (= "button" (:role info)) info))
+                      (:refs snap))]
+        (expect (some? btn-ref))
+        (expect (= "btn btn-primary large" (:classes btn-ref)))))
+
+    (it "refs include both :id and :classes when both present"
+      (page/set-content! *page*
+        "<a id='home-link' class='nav-link active' href='/'>Home</a>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})
+            link-ref (some (fn [[_ info]] (when (= "link" (:role info)) info))
+                       (:refs snap))]
+        (expect (some? link-ref))
+        (expect (= "home-link" (:id link-ref)))
+        (expect (= "nav-link active" (:classes link-ref)))))
+
+    (it "refs omit :id and :classes when element has neither"
+      (page/set-content! *page*
+        "<button>Plain</button>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})
+            btn-ref (some (fn [[_ info]] (when (= "button" (:role info)) info))
+                      (:refs snap))]
+        (expect (some? btn-ref))
+        (expect (nil? (:id btn-ref)))
+        (expect (nil? (:classes btn-ref))))))
+
+  (describe "selectors opt off by default"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "refs do NOT include :id or :classes without :selectors opt"
+      (page/set-content! *page*
+        "<button id='test-btn' class='btn primary'>No Selectors</button>")
+      (let [snap (sut/capture-snapshot *page*)
+            btn-ref (some (fn [[_ info]] (when (= "button" (:role info)) info))
+                      (:refs snap))]
+        (expect (some? btn-ref))
+        (expect (nil? (:id btn-ref)))
+        (expect (nil? (:classes btn-ref))))))
+
+  (describe "tree text annotations with selectors"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "tree shows [#id] annotation for elements with id"
+      (page/set-content! *page*
+        "<button id='submit-btn'>Submit</button>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})]
+        (expect (str/includes? (:tree snap) "[#submit-btn]"))))
+
+    (it "tree shows [.class1.class2] annotation for elements with classes"
+      (page/set-content! *page*
+        "<button class='btn primary'>Styled</button>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})]
+        (expect (str/includes? (:tree snap) "[.btn.primary]"))))
+
+    (it "tree shows both [#id] and [.classes] when both present"
+      (page/set-content! *page*
+        "<a id='nav-home' class='link active' href='/'>Home</a>")
+      (let [snap (sut/capture-snapshot *page* {:selectors true})
+            tree (:tree snap)]
+        (expect (str/includes? tree "[#nav-home]"))
+        (expect (str/includes? tree "[.link.active]"))))
+
+    (it "tree does NOT show [#] or [.] annotations without :selectors opt"
+      (page/set-content! *page*
+        "<button id='my-btn' class='btn'>No Selectors</button>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)]
+        (expect (not (str/includes? tree "[#my-btn]")))
+        (expect (not (str/includes? tree "[.btn]")))))))

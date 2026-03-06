@@ -204,19 +204,19 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-      (reset! !browser nil) (reset! !pw nil)
-      :stopped)
+        (reset! !browser nil) (reset! !pw nil)
+        :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-          (catch Exception e
-            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+             (catch Exception e
+               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-          (catch Exception e
-            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+             (catch Exception e
+               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -2085,10 +2085,10 @@
                     'stitch                              stitch-map
                     'com.blockether.spel.stitch          stitch-map
                      ;; Google Search
-                     'search                              search-map
-                     'com.blockether.spel.search          search-map
+                    'search                              search-map
+                    'com.blockether.spel.search          search-map
                      ;; Dynamic vars exposed to eval scripts
-                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
+                    'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        :bindings   {'slurp     slurp
                     'spit      spit
                     'iteration iteration

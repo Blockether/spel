@@ -1499,7 +1499,7 @@
 
     (it "binds *command-line-args* to args vector"
       (let [r (cmd "sci_eval" {"code" "*command-line-args*"
-                                "args" ["foo" "bar"]})]
+                               "args" ["foo" "bar"]})]
         (expect (= "[\"foo\" \"bar\"]" (:result r)))))
 
     (it "command-line args reset between calls"

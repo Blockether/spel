@@ -35,6 +35,7 @@
   const refs = {};
   const _withStyles = typeof __STYLES__ === 'boolean' ? __STYLES__ : false;
   const _styleDetail = typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base';
+  const _withSelectors = typeof __SELECTORS__ === 'boolean' ? __SELECTORS__ : false;
 
   const identityCounts = {};
 
@@ -563,6 +564,11 @@
           effectiveRole === 'spinbutton' || effectiveRole === 'combobox'))
         refs[ref].value = el.value.substring(0, 200);
       if (children.length > 0 && leafText) refs[ref].mixed = true;
+      if (_withSelectors) {
+        if (el.id) refs[ref].id = el.id;
+        const cls = (el.className && typeof el.className === 'string') ? el.className.trim() : '';
+        if (cls) refs[ref].classes = cls;
+      }
       _elStyles = extractStyles(el);
       if (_elStyles && _elStyles.full) refs[ref].styles = _elStyles.full;
       // Detect event listeners and pointer cursor
@@ -572,6 +578,8 @@
     }
 
     const nodeHref = getHref(el);
+    const nodeId = (_withSelectors && el.id) ? el.id : null;
+    const nodeClasses = (_withSelectors && el.className && typeof el.className === 'string' && el.className.trim()) ? el.className.trim() : null;
     return {
       role: role || tag,
       name: name,
@@ -579,6 +587,8 @@
       attrs: attrs,
       text: leafText,
       href: nodeHref,
+      id: nodeId,
+      classes: nodeClasses,
       styles: _elStyles ? _elStyles.compact : null,
       listeners: _listeners,
       pointer: _pointer,
@@ -632,9 +642,10 @@
 
     Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
   [opts]
-  (let [scope-selector (:scope opts)
-        with-styles    (:styles opts)
-        styles-detail  (or (:styles-detail opts) "base")]
+  (let [scope-selector  (:scope opts)
+        with-styles     (:styles opts)
+        styles-detail   (or (:styles-detail opts) "base")
+        with-selectors  (:selectors opts)]
     (cond-> js-capture-snapshot
       scope-selector
       (str/replace "typeof __SCOPE__ === 'string' ? __SCOPE__ : null"
@@ -644,7 +655,10 @@
         "true")
       with-styles
       (str/replace "typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base'"
-        (str "'" styles-detail "'")))))
+        (str "'" styles-detail "'"))
+      with-selectors
+      (str/replace "typeof __SELECTORS__ === 'boolean' ? __SELECTORS__ : false"
+        "true"))))
 
 (defn- format-attrs
   "Formats ARIA attributes into a string like '[level=2] [checked]'."
@@ -661,13 +675,13 @@
   "Display order for CSS style keys in tree output.
    Layout → box → visual → typography → text → border → misc."
   ["display" "position" "top" "left" "right" "bottom" "flex-direction" "justify-content" "align-items" "gap"
-    "width" "height" "max-width" "max-height" "min-width" "min-height"
-    "padding" "margin" "overflow"
-    "background-color" "background-image" "color" "opacity" "visibility" "transform"
-    "float" "clear"
-    "font-size" "font-weight" "font-family" "line-height" "text-align"
-    "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
-    "border" "border-radius" "box-shadow" "outline"
+   "width" "height" "max-width" "max-height" "min-width" "min-height"
+   "padding" "margin" "overflow"
+   "background-color" "background-image" "color" "opacity" "visibility" "transform"
+   "float" "clear"
+   "font-size" "font-weight" "font-family" "line-height" "text-align"
+   "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
+   "border" "border-radius" "box-shadow" "outline"
    "z-index" "cursor" "pointer-events"])
 
 (defn- format-styles
@@ -680,12 +694,14 @@
 
 (defn- format-node
   "Formats a single tree node into a YAML-like line."
-  [{:strs [role name ref attrs text href styles listeners pointer]} depth]
+  [{:strs [role name ref attrs text href id classes styles listeners pointer]} depth]
   (let [depth (long depth)
         indent (apply str (repeat (* 2 depth) \space))
         parts  (cond-> [(str "- " role)]
                  (seq name)      (conj (str "\"" name "\""))
                  ref             (conj (str "[@" ref "]"))
+                 (seq id)        (conj (str "[#" id "]"))
+                 (seq classes)   (conj (str "[." (str/replace classes " " ".") "]"))
                  (seq href)      (conj (str "[url=" href "]"))
                  (seq attrs)     (conj (format-attrs attrs))
                  (seq listeners) (conj (str "[on:" (str/join "," listeners) "]"))
@@ -776,6 +792,8 @@
                            (get info "level")   (assoc :level (get info "level"))
                            (some? (get info "checked")) (assoc :checked (get info "checked"))
                            (get info "value")   (assoc :value (get info "value"))
+                           (get info "id")      (assoc :id (get info "id"))
+                           (get info "classes") (assoc :classes (get info "classes"))
                            (get info "listeners") (assoc :listeners (vec (get info "listeners")))
                            (get info "pointer")  (assoc :pointer true)
                            (get info "styles")  (assoc :styles (into {} (get info "styles"))))]))
