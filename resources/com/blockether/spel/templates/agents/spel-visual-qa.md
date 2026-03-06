@@ -31,8 +31,11 @@ Each ref'd element includes screen position data as `[pos:X,Y W×H]`: pixel coor
 - Overlap detection: find elements that overlap or are cut off
 - Viewport fit: verify elements are within the visible viewport
 - Spatial reasoning: understand page layout without screenshots
-- Duplicate detection: spot repeated logos, headings, or navigation blocks
+- Duplicate detection: spot repeated logos, headings, navigation blocks, or identical message text
 - Visual symmetry: paired elements should match in size and position
+- Clipped content: find meaningful elements partially hidden by overflow, off-screen position, or overlapping layers
+- Broken layout: detect misaligned grid columns, collapsed flex rows, orphaned floats
+- Visual coherence: repeated UI patterns (list rows, cards, table rows) should keep badges, icons, and metadata in the same position regardless of content length
 
 ```
 button "Submit" @e2yrjz [pos:150,200 120×40]

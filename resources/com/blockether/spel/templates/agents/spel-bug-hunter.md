@@ -114,8 +114,13 @@ Inspect and capture evidence for:
 - Accessibility blockers (labels, keyboard, focus, semantics)
 - Responsive layout breakage (mobile/tablet/desktop)
 - Duplicate elements (same logo, heading, or nav block appearing twice)
+- Duplicate messages (identical text content rendered in multiple locations)
 - Content overflow (text spilling out of containers, truncated labels)
+- Text truncation (ellipsis or clipped text where full content should be visible)
 - Visual inequality (similar elements at different sizes, weights, or spacing)
+- Partially visible elements (meaningful content cut off by overflow:hidden, off-screen positioning, or overlapping layers)
+- Broken layout (misaligned grid columns, collapsed flexbox, orphaned floating elements)
+- Visual incoherence (repeated UI patterns with inconsistent internal layout — badges, icons, or metadata jumping position based on content length)
 ### Viewport fit checks
 
 For every page audited, verify layout at multiple viewports:
@@ -144,10 +149,12 @@ Audit the same flows/pages for:
 - Typography hierarchy
 - Color restraint and contrast
 - Grid consistency
-- Component consistency/states (same component should look identical everywhere)
-- Duplicate content (same logo, heading, or section appearing more than once)
-- Text overflow (labels or body text spilling outside their containers)
+- Component consistency/states (same component should look identical everywhere; repeated list/card patterns must keep badges, icons, and metadata in the same position regardless of content length)
+- Duplicate content (same logo, heading, section, or message text appearing more than once)
+- Text overflow (labels or body text spilling outside their containers, or truncated with ellipsis where it shouldn't be)
 - Visual symmetry (paired elements should match in size, weight, and spacing)
+- Clipped or hidden content (elements partially off-screen, behind overlays, or cut by overflow:hidden that contain meaningful information)
+- Broken grid/flex layout (misaligned columns, collapsed rows, orphaned floats)
 - Density (remove-without-loss test)
 - Responsiveness and touch ergonomics
 
@@ -186,6 +193,7 @@ No evidence = do not report as a bug.
 Write `bugfind-reports/hunter-report.json` using BUGFIND_GUIDE schema, including:
 - `agent`, `timestamp`, `target_url`, `pages_audited`, `total_score`
 - `bugs[]` with `id`, `category`, `location`, `description`, `impact`, `points`, `evidence`, `steps_to_reproduce`
+- `visual_checks` object — mark each visual anomaly type as `true` (checked, no issue) or `false` (issue found). Add a `notes` field explaining any `false` entries.
 - `artifacts[]` index
 
 Store all captured files under `bugfind-reports/evidence/`.
@@ -196,7 +204,7 @@ Store all captured files under `bugfind-reports/evidence/`.
 
 Before presenting your report, ask yourself:
 - "What would embarrass this report?" — Did I miss an obvious page or flow?
-- "Did I actually audit all 6 categories?" — Check the Bug Inventory matrix for unchecked cells.
+- "Did I actually audit all 6 categories?" — Check the Bug Inventory matrix for unchecked cells. Check `visual_checks` — every field must be explicitly `true` or `false`.
 - "Is every bug reproducible?" — Would the skeptic disprove it in 30 seconds?
 - "Did I do the exploratory pass?" — Unscripted exploration is mandatory, not optional.
 

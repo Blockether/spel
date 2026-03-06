@@ -62,7 +62,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 | Category | Code | What to Check |
 |----------|------|--------------|
 | Functional | `functional` | Broken interactions, form validation, dead links, JS errors, wrong redirects, state corruption |
-| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues, duplicate elements (2x logo/heading/nav), text overflow, visual inequality between similar elements |
+| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues, duplicate elements (2x logo/heading/nav), duplicate messages (same text in multiple places), text overflow and truncation (ellipsis, clipped labels), visual inequality between similar elements, visual incoherence (repeated patterns with inconsistent internal layout — e.g. badges that jump position based on content length), partially visible elements (clipped by overflow or off-screen), broken grid/flex layout (misaligned columns, collapsed rows) |
 | Accessibility | `accessibility` | Missing ARIA labels, keyboard nav, contrast ratios, screen reader flow, focus management |
 | UX | `ux` | Confusing flows, unclear CTAs, inconsistent terminology, poor error messages, hierarchy failures |
 | Performance | `performance` | Slow loads, large assets, excessive requests, render-blocking resources, layout thrashing |
@@ -102,6 +102,17 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
       ]
     }
   ],
+  "visual_checks": {
+    "duplicate_elements": true,
+    "duplicate_messages": true,
+    "text_overflow": true,
+    "text_truncation": true,
+    "visual_inequality": true,
+    "visual_coherence": false,
+    "partially_visible": true,
+    "broken_layout": true,
+    "notes": "visual_coherence: badge placement in task list is inconsistent — badges shift horizontally based on title length instead of staying right-aligned"
+  },
   "artifacts": [
     {"type": "screenshot", "path": "evidence/page-screenshot.png"},
     {"type": "snapshot", "path": "evidence/page-snapshot.json"}
@@ -244,16 +255,19 @@ The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy
 | Typography | Clear hierarchy in type sizes? Too many weights competing? Calm or chaotic? |
 | Color | Used with restraint and purpose? Guides attention? Sufficient contrast? |
 | Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
-| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? |
-| Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? |
+| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? Repeated list/card patterns maintain consistent internal layout (badges, icons, metadata in the same position regardless of content length)? |
+| Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? Same message text appearing in multiple places? |
 | Responsiveness | Works at mobile/tablet/desktop? Touch targets sized for thumbs? |
 
 The Jobs Filter:
 - "Would a user need to be told this exists?" → UX confusion bug
 - "Can this be removed without losing meaning?" → Density bug
-- "Does this feel inevitable?" → Design inconsistency bug
-- "Are there duplicate elements that shouldn't be repeated?" → Duplication bug
+- "Does this feel inevitable?" → Design inconsistency bug / Visual coherence bug
+- "Are there duplicate elements or repeated messages that shouldn't appear twice?" → Duplication bug
 - "Does text fit its container or does it overflow/truncate?" → Content overflow bug
+- "Is any meaningful content clipped, off-screen, or hidden behind an overlay?" → Visibility bug
+- "Are grid columns aligned and flex rows intact?" → Layout bug
+- "Do repeated UI patterns keep their internal layout consistent regardless of content?" → Visual coherence bug
 
 ---
 

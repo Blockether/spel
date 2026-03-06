@@ -120,8 +120,14 @@ When reviewing a structural diff:
 - New elements: refs in current that weren't in baseline (new content or revealed elements)
 - Display changes: `display: flex` became `display: block`
 - Duplicate elements: multiple refs with the same role+name (e.g., two `img "Logo"` or two `heading "Site Title"`)
+- Duplicate messages: identical text content appearing in more than one place on the page
 - Content overflow: elements with dimensions larger than their parent container
+- Text truncation: labels or body text cut off with ellipsis where full text should be visible
 - Visual inequality: similar elements (e.g., two cards, two nav items) with different sizes or positions
+- Partially visible elements: meaningful content clipped by overflow:hidden, positioned off-screen, or obscured by overlapping layers
+- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned from their container
+- Visual incoherence: repeated UI patterns (list rows, cards, table rows) with inconsistent internal layout — e.g. status badges that shift position based on content length instead of staying in a fixed column
+- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned from their container
 
 ### Tier selection for regression
 
