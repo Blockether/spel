@@ -432,8 +432,56 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 ### `allure` — Allure test reporting
 
-_Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:1:1)._
-
+| Function | Args | Description |
+|----------|------|-------------|
+| _(macro)_ `after` | [& body] | Re-export of `lazytest.core/after`. |
+| _(macro)_ `after-each` | [& body] | Re-export of `lazytest.core/after-each`. |
+| _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
+| _(macro)_ `around` | [[f] & body] | Re-export of `lazytest.core/around`. |
+| `attach` | [att-name content content-type] | Attach string content to the test report. |
+| `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
+| `attach-file` | [att-name source-path content-type] | Attach a file from disk to the test report. |
+| `attach-http-markdown!` | [resp request-meta] | Attach HTTP request/response details as a Markdown document. |
+| `attach-network-markdown!` | [resp] | Attach HTTP request/response details as Markdown for a browser network Response. |
+| _(macro)_ `before` | [& body] | Re-export of `lazytest.core/before`. |
+| _(macro)_ `before-each` | [& body] | Re-export of `lazytest.core/before-each`. |
+| `causes-with-msg?` | [c re f] | Re-export of `lazytest.core/causes-with-msg?`. |
+| `causes?` | [c f] | Re-export of `lazytest.core/causes?`. |
+| _(macro)_ `context` | [doc & children] \| [doc attr-map? & children] | Alias for `describe` — includes automatic Allure step nesting. |
+| _(macro)_ `defdescribe` | [test-name & children] \| [test-name doc? attr-map? & children] | Re-export of `lazytest.core/defdescribe`. |
+| _(macro)_ `describe` | [doc & children] \| [doc attr-map? & children] | Like `lazytest.core/describe` with automatic Allure step nesting. |
+| `description` | [text] | Set the test description (markdown supported). |
+| `epic` | [value] | Set the epic label for this test. |
+| _(macro)_ `expect` | [expr] \| [expr msg] | Drop-in replacement for `lazytest.core/expect` that automatically |
+| _(macro)_ `expect-it` | [doc expr] \| [doc attr-map? expr] | Like `lazytest.core/expect-it` with stepped expectations. |
+| `feature` | [value] | Set the feature label for this test. |
+| `flush-network-steps!` | [] | Create allure steps from buffered network responses. Call after the |
+| `install-network-capture!` | [pg] | Register a page on-response listener that buffers responses for later |
+| `issue` | [name url] | Add an issue link. |
+| _(macro)_ `it` | [doc & body] \| [doc attr-map? & body] | Like `lazytest.core/it` with automatic Allure step wrapping. |
+| `link` | [name url] | Add a link to the test report. |
+| `make-context` | [] | Create a fresh context map for a test case. Called by the reporter. |
+| `ok?` | [f] | Re-export of `lazytest.core/ok?`. |
+| `owner` | [value] | Set the test owner. |
+| `parameter` | [name value] | Add a parameter to the test or current step. |
+| `render-http-markdown` | [{:keys [method url status status-text request-headers request-body response-headers response-body content-type]}] | Render an HTTP request/response exchange as a Markdown document. |
+| `reporter-active?` | [] | Returns true when the Allure reporter is active (i.e. we're |
+| `screenshot` | [pg att-name] | Take a Playwright screenshot and attach it to the report. |
+| `set-ns-context!` | [contexts] | Re-export of `lazytest.core/set-ns-context!`. |
+| `set-reporter-active!` | [active?] | Called by the Allure reporter at begin/end of test run. |
+| `severity` | [level] | Set the severity label. Level should be one of: |
+| _(macro)_ `should` | [expr] \| [expr msg] | Like `lazytest.core/should` with stepped expectations. |
+| _(macro)_ `specify` | [doc & body] \| [doc attr-map? & body] | Alias for `it` — includes automatic Allure step wrapping. |
+| _(macro)_ `step` | [step-name] \| [step-name & args] | Add a step to the test report. |
+| `step*` | [step-name] \| [step-name f] \| [step-name f loc-map] | Internal function backing the `step` macro. Prefer the macro. |
+| `step**` | [step-name f loc-map opts] | Unified step runner. Wraps `step*` with optional screenshot and HTTP |
+| `story` | [value] | Set the story label for this test. |
+| `tag` | [value] | Add a tag label. |
+| `throws-with-msg?` | [c re f] | Re-export of `lazytest.core/throws-with-msg?`. |
+| `throws?` | [c f] | Re-export of `lazytest.core/throws?`. |
+| `tms` | [name url] | Add a test management system link. |
+| _(macro)_ `ui-step` | [step-name & body] | Execute a UI step with automatic before/after screenshots. |
+| `visual-diff` | [pg arg2 arg3] \| [pg arg2 arg3 opts] | Compare current page screenshot against baseline bytes using pixelmatch. |
 
 ### `snapshot` — Accessibility snapshots
 
@@ -567,6 +615,26 @@ _Failed to load: Syntax error macroexpanding at (com/blockether/spel/allure.clj:
 | `->wait-for-request-options` | [opts] | Converts a map to Page$WaitForRequestOptions. |
 | `->wait-for-response-options` | [opts] | Converts a map to Page$WaitForResponseOptions. |
 | `->wait-for-selector-options` | [opts] | Converts a map to Page$WaitForSelectorOptions. |
+
+
+### `search` — Google search automation
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `-main` | [& args] | CLI entry point for the search tool command. |
+| `extract-image-results` | [page] | Extracts image search results from the current Google Images page. |
+| `extract-news-results` | [page] | Extracts news search results from the current Google News results page. |
+| `extract-people-also-ask` | [page] | Extracts 'People also ask' questions from the results page. |
+| `extract-related-searches` | [page] | Extracts related search suggestions from the bottom of the results page. |
+| `extract-result-stats` | [page] | Extracts the result statistics text (e.g. 'About 1,234 results'). |
+| `extract-web-results` | [page] | Extracts web search results from the current Google results page. |
+| `go-to-page!` | [page query page-num] \| [page query page-num opts] | Navigates directly to a specific page of search results using URL parameters. |
+| `has-next-page?` | [page] | Returns true if there is a next page of results. |
+| `next-page!` | [page] | Navigates to the next page of results and waits for them to load. |
+| `search!` | [page query] \| [page query opts] | Navigates to Google Search and returns structured results. |
+| `search-and-collect!` | [page query] \| [page query opts] | Searches Google and collects results across multiple pages. |
+| `search-pages` | [page query] \| [page query opts] | Returns a lazy sequence of search result pages using clojure.core/iteration. |
+| `search-url` | [query] \| [query opts] | Builds a Google Search URL from a query string and options. |
 
 
 ---
@@ -1099,6 +1167,111 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `core/retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
 | `core/run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
 | `core/run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
+
+### `search/` — Google Search automation (web, images, news, pagination)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `search/extract-image-results` | [] | Extracts image search results from the current Google Images page. |
+| `search/extract-news-results` | [] | Extracts news search results from the current Google News results page. |
+| `search/extract-people-also-ask` | [] | Extracts 'People also ask' questions from the results page. |
+| `search/extract-related-searches` | [] | Extracts related search suggestions from the bottom of the results page. |
+| `search/extract-result-stats` | [] | Extracts the result statistics text (e.g. 'About 1,234 results'). |
+| `search/extract-web-results` | [] | Extracts web search results from the current Google results page. |
+| `search/go-to-page!` | [query page-num] \| [query page-num opts] | Navigates directly to a specific page of search results using URL parameters. |
+| `search/has-next-page?` | [] | Returns true if there is a next page of results. |
+| `search/next-page!` | [] | Navigates to the next page of results and waits for them to load. |
+| `search/search!` | [query] \| [query opts] | Navigates to Google Search and returns structured results. |
+| `search/search-and-collect!` | [query] \| [query opts] | Searches Google and collects results across multiple pages. |
+| `search/search-pages` | [query] \| [query opts] | Returns a lazy sequence of search result pages using clojure.core/iteration. |
+| `search/search-url` | [query] \| [query opts] | Builds a Google Search URL from a query string and options. |
+
+### `role/` — AriaRole convenience constants (role/button, role/link, etc.)
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `role/alert` |  |  |
+| `role/alertdialog` |  |  |
+| `role/application` |  |  |
+| `role/article` |  |  |
+| `role/banner` |  |  |
+| `role/blockquote` |  |  |
+| `role/button` |  |  |
+| `role/caption` |  |  |
+| `role/cell` |  |  |
+| `role/checkbox` |  |  |
+| `role/code` |  |  |
+| `role/columnheader` |  |  |
+| `role/combobox` |  |  |
+| `role/complementary` |  |  |
+| `role/contentinfo` |  |  |
+| `role/definition` |  |  |
+| `role/deletion` |  |  |
+| `role/dialog` |  |  |
+| `role/directory` |  |  |
+| `role/document` |  |  |
+| `role/emphasis` |  |  |
+| `role/feed` |  |  |
+| `role/figure` |  |  |
+| `role/form` |  |  |
+| `role/generic` |  |  |
+| `role/grid` |  |  |
+| `role/gridcell` |  |  |
+| `role/group` |  |  |
+| `role/heading` |  |  |
+| `role/img` |  |  |
+| `role/insertion` |  |  |
+| `role/link` |  |  |
+| `role/list` |  |  |
+| `role/listbox` |  |  |
+| `role/listitem` |  |  |
+| `role/log` |  |  |
+| `role/main` |  |  |
+| `role/marquee` |  |  |
+| `role/math` |  |  |
+| `role/menu` |  |  |
+| `role/menubar` |  |  |
+| `role/menuitem` |  |  |
+| `role/menuitemcheckbox` |  |  |
+| `role/menuitemradio` |  |  |
+| `role/meter` |  |  |
+| `role/navigation` |  |  |
+| `role/none` |  |  |
+| `role/note` |  |  |
+| `role/option` |  |  |
+| `role/paragraph` |  |  |
+| `role/presentation` |  |  |
+| `role/progressbar` |  |  |
+| `role/radio` |  |  |
+| `role/radiogroup` |  |  |
+| `role/region` |  |  |
+| `role/row` |  |  |
+| `role/rowgroup` |  |  |
+| `role/rowheader` |  |  |
+| `role/scrollbar` |  |  |
+| `role/search` |  |  |
+| `role/searchbox` |  |  |
+| `role/separator` |  |  |
+| `role/slider` |  |  |
+| `role/spinbutton` |  |  |
+| `role/status` |  |  |
+| `role/strong` |  |  |
+| `role/subscript` |  |  |
+| `role/superscript` |  |  |
+| `role/switch` |  |  |
+| `role/tab` |  |  |
+| `role/table` |  |  |
+| `role/tablist` |  |  |
+| `role/tabpanel` |  |  |
+| `role/term` |  |  |
+| `role/textbox` |  |  |
+| `role/time` |  |  |
+| `role/timer` |  |  |
+| `role/toolbar` |  |  |
+| `role/tooltip` |  |  |
+| `role/tree` |  |  |
+| `role/treegrid` |  |  |
+| `role/treeitem` |  |  |
 
 ---
 

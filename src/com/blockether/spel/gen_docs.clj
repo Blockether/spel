@@ -32,7 +32,9 @@
    ['com.blockether.spel.annotate   "annotate"   "Page annotation overlays"]
    ['com.blockether.spel.codegen    "codegen"    "JSONL to Clojure transformer"]
    ['com.blockether.spel.options    "options"    "Java option builders (80+)"]
-   ['com.blockether.spel.data       "data"       "Datafy protocols"]])
+   ['com.blockether.spel.data       "data"       "Datafy protocols"]
+   ['com.blockether.spel.search    "search"    "Google search automation"]
+   ['com.blockether.spel.roles     "roles"     "AriaRole convenience constants"]])
 
 (defn- first-doc-line
   "Extracts the first non-blank line from a docstring."
@@ -114,7 +116,9 @@
    ["net"      "Network request/response/route (explicit object arg)"]
    ["loc"      "Raw locator operations (explicit Locator arg)"]
    ["assert"   "Assertion functions (explicit assertion object arg)"]
-   ["core"     "Browser lifecycle utilities and resource management"]])
+   ["core"     "Browser lifecycle utilities and resource management"]
+   ["search"   "Google Search automation (web, images, news, pagination)"]
+   ["role"     "AriaRole convenience constants (role/button, role/link, etc.)"]])
 
 (def ^:private alias->full-ns
   "Maps require aliases used in sci_env.clj to full namespace names."
@@ -127,7 +131,9 @@
    "page"     "com.blockether.spel.page"
    "snapshot" "com.blockether.spel.snapshot"
    "annotate" "com.blockether.spel.annotate"
-   "allure"   "com.blockether.spel.allure"})
+   "allure"   "com.blockether.spel.allure"
+   "search"   "com.blockether.spel.search"
+   "roles"    "com.blockether.spel.roles"})
 
 (defn- resolve-qualified-fn
   "Resolves an alias-qualified function name (e.g. 'page/navigate') to its var."
