@@ -9,7 +9,7 @@
    [com.blockether.spel.snapshot :as sut]
    [com.blockether.spel.test-fixtures :refer [*page* with-playwright
                                               with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Unit Tests — ref-bounding-box
@@ -1013,3 +1013,312 @@
         (when article-name
           (expect (<= (count article-name) 84)) ;; 80 chars + "..." + some margin
           (expect (str/ends-with? article-name "...")))))))
+
+;; =============================================================================
+;; Integration Tests — [pos:X,Y W×H] screen position in tree output
+;; =============================================================================
+
+(defdescribe snapshot-position-test
+  "Integration tests for [pos:X,Y W×H] screen position annotations in tree output.
+
+   Uses controlled HTML with known absolute positions and fixed dimensions to verify
+   that the accessibility tree includes accurate bounding rect coordinates for every
+   ref'd element. Real Playwright rendering — no mocks."
+
+  (describe "basic position annotations present in tree"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "every ref'd element has [pos:] annotation in tree output"
+      (page/set-viewport-size! *page* 800 600)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>body{margin:0;font-family:sans-serif;}</style></head>
+         <body>
+           <h1>Page Title</h1>
+           <button>Click Me</button>
+           <a href='/about'>About Us</a>
+         </body></html>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)
+            ref-lines (filter #(str/includes? % "[@e") (str/split-lines tree))]
+        (expect (pos? (count ref-lines)))
+        (doseq [line ref-lines]
+          (expect (some? (re-find #"\[pos:\d+,\d+ \d+×\d+\]" line))))
+        (allure/attach "tree-with-positions" tree "text/plain"))))
+
+  (describe "position values match element bounding boxes"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "absolute-positioned element has correct coordinates in tree"
+      (page/set-viewport-size! *page* 800 600)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>
+           body { margin: 0; }
+           .box { position: absolute; top: 100px; left: 200px; width: 150px; height: 50px;
+                  background: #3b82f6; }
+         </style></head>
+         <body>
+           <button class='box'>Positioned Button</button>
+         </body></html>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)
+            refs (:refs snap)
+            btn-entry (first (filter (fn [[_ v]] (= "Positioned Button" (:name v))) refs))
+            btn-bbox (:bbox (val btn-entry))
+            btn-line (first (filter #(str/includes? % "Positioned Button") (str/split-lines tree)))]
+        (expect (some? btn-line))
+        (expect (some? (re-find #"\[pos:" btn-line)))
+        (expect (= 200 (:x btn-bbox)))
+        (expect (= 100 (:y btn-bbox)))
+        (expect (= 150 (:width btn-bbox)))
+        (expect (= 50 (:height btn-bbox)))
+        (expect (str/includes? btn-line "[pos:200,100 150×50]"))
+        (allure/attach "absolute-position-tree" tree "text/plain")
+        (allure/attach "absolute-position-refs" (pr-str refs) "text/plain"))))
+
+  (describe "complex layout with multiple positioned elements"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "header, nav links, and content all have distinct positions"
+      (page/set-viewport-size! *page* 1024 768)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>
+           * { margin: 0; padding: 0; box-sizing: border-box; }
+           .header { width: 100%; height: 60px; background: #1e293b; display: flex;
+                     align-items: center; padding: 0 20px; }
+           .header h1 { color: white; font-size: 20px; }
+           .nav { display: flex; gap: 0; background: #f1f5f9; height: 40px; }
+           .nav a { display: inline-flex; align-items: center; padding: 0 16px;
+                    color: #1e40af; text-decoration: none; font-size: 14px; height: 40px; }
+           .main { padding: 20px; }
+           .main h2 { font-size: 24px; margin-bottom: 12px; }
+           .main p { font-size: 16px; color: #475569; }
+           .sidebar { position: absolute; top: 100px; right: 0; width: 200px;
+                      height: 300px; background: #fef3c7; padding: 16px; }
+           .sidebar button { display: block; width: 100%; padding: 8px;
+                             margin-bottom: 8px; background: #f59e0b; border: none;
+                             border-radius: 4px; cursor: pointer; font-size: 14px; }
+         </style></head>
+         <body>
+           <div class='header'><h1>Dashboard</h1></div>
+           <nav class='nav'>
+             <a href='/home'>Home</a>
+             <a href='/reports'>Reports</a>
+             <a href='/settings'>Settings</a>
+           </nav>
+           <div class='main'>
+             <h2>Overview</h2>
+             <p>Welcome to your dashboard. Here you can manage your projects.</p>
+           </div>
+           <div class='sidebar'>
+             <button>New Project</button>
+             <button>Import Data</button>
+             <button>Export CSV</button>
+           </div>
+         </body></html>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)
+            refs (:refs snap)
+            lines (str/split-lines tree)
+            ref-lines (filter #(re-find #"\[@e" %) lines)
+            parse-pos (fn [line]
+                        (when-let [m (re-find #"\[pos:(\d+),(\d+) (\d+)×(\d+)\]" line)]
+                          {:x (parse-long (nth m 1)) :y (parse-long (nth m 2))
+                           :w (parse-long (nth m 3)) :h (parse-long (nth m 4))}))
+            header-line (first (filter #(str/includes? % "Dashboard") ref-lines))
+            home-line (first (filter #(str/includes? % "Home") ref-lines))
+            reports-line (first (filter #(str/includes? % "Reports") ref-lines))
+            settings-line (first (filter #(str/includes? % "Settings") ref-lines))
+            overview-line (first (filter #(str/includes? % "Overview") ref-lines))
+            new-proj-line (first (filter #(str/includes? % "New Project") ref-lines))
+            export-line (first (filter #(str/includes? % "Export CSV") ref-lines))
+            header-pos (parse-pos header-line)
+            home-pos (parse-pos home-line)
+            reports-pos (parse-pos reports-line)
+            settings-pos (parse-pos settings-line)
+            overview-pos (parse-pos overview-line)
+            new-proj-pos (parse-pos new-proj-line)
+            export-pos (parse-pos export-line)]
+        ;; All ref'd lines have position annotations
+        (expect (pos? (count ref-lines)))
+        (doseq [line ref-lines]
+          (expect (some? (re-find #"\[pos:\d+,\d+ \d+×\d+\]" line))))
+        ;; Header at top
+        (expect (some? header-pos))
+        (expect (< (:y header-pos) 60))
+        ;; Nav below header, horizontally sequential
+        (expect (some? home-pos))
+        (expect (>= (:y home-pos) 60))
+        (expect (some? reports-pos))
+        (expect (> (:x reports-pos) (:x home-pos)))
+        (expect (some? settings-pos))
+        (expect (> (:x settings-pos) (:x reports-pos)))
+        ;; Overview below nav
+        (expect (some? overview-pos))
+        (expect (> (:y overview-pos) (:y home-pos)))
+        ;; Sidebar on right
+        (expect (some? new-proj-pos))
+        (expect (> (:x new-proj-pos) 700))
+        ;; Export below New Project
+        (expect (some? export-pos))
+        (expect (> (:y export-pos) (:y new-proj-pos)))
+        (allure/attach "complex-layout-tree" tree "text/plain")
+        (allure/attach "complex-layout-refs" (pr-str refs) "text/plain"))))
+
+  (describe "position updates after DOM mutation"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "position changes when element is moved"
+      (page/set-viewport-size! *page* 800 600)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>
+           body { margin: 0; }
+           #movable { position: absolute; top: 50px; left: 50px; width: 120px; height: 40px; }
+         </style></head>
+         <body>
+           <button id='movable'>Move Me</button>
+         </body></html>")
+      (let [snap1 (sut/capture-snapshot *page*)
+            tree1 (:tree snap1)
+            btn-line1 (first (filter #(str/includes? % "Move Me") (str/split-lines tree1)))
+            pos1-match (re-find #"\[pos:(\d+),(\d+)" btn-line1)
+            x1 (parse-long (nth pos1-match 1))
+            y1 (parse-long (nth pos1-match 2))]
+        (page/evaluate *page*
+          "document.getElementById('movable').style.top = '300px';
+           document.getElementById('movable').style.left = '400px';")
+        (sut/clear-refs! *page*)
+        (let [snap2 (sut/capture-snapshot *page*)
+              tree2 (:tree snap2)
+              btn-line2 (first (filter #(str/includes? % "Move Me") (str/split-lines tree2)))
+              pos2-match (re-find #"\[pos:(\d+),(\d+)" btn-line2)
+              x2 (parse-long (nth pos2-match 1))
+              y2 (parse-long (nth pos2-match 2))]
+          (expect (= 50 x1))
+          (expect (= 50 y1))
+          (expect (= 400 x2))
+          (expect (= 300 y2))
+          (allure/attach "before-move" tree1 "text/plain")
+          (allure/attach "after-move" tree2 "text/plain")))))
+
+  (describe "position with viewport changes"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "elements reflow to new positions when viewport shrinks"
+      (page/set-viewport-size! *page* 1200 800)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>
+           body { margin: 0; }
+           .grid { display: flex; flex-wrap: wrap; }
+           .card { width: 300px; height: 100px; margin: 10px; background: #e2e8f0;
+                   display: flex; align-items: center; justify-content: center; }
+           .card button { padding: 8px 16px; background: #3b82f6; color: white;
+                          border: none; border-radius: 4px; font-size: 14px; }
+         </style></head>
+         <body>
+           <div class='grid'>
+             <div class='card'><button>Card One</button></div>
+             <div class='card'><button>Card Two</button></div>
+             <div class='card'><button>Card Three</button></div>
+           </div>
+         </body></html>")
+      (let [snap-wide (sut/capture-snapshot *page*)
+            tree-wide (:tree snap-wide)
+            wide-lines (filter #(re-find #"Card (One|Two|Three)" %) (str/split-lines tree-wide))
+            parse-y (fn [line]
+                      (when-let [m (re-find #"\[pos:\d+,(\d+)" line)]
+                        (parse-long (second m))))
+            wide-ys (map parse-y wide-lines)]
+        (expect (= 3 (count wide-lines)))
+        ;; In 1200px viewport, all 3 cards fit on one row (same Y)
+        (expect (apply = wide-ys))
+        ;; Shrink viewport so cards must wrap
+        (page/set-viewport-size! *page* 400 800)
+        (sut/clear-refs! *page*)
+        (let [snap-narrow (sut/capture-snapshot *page*)
+              tree-narrow (:tree snap-narrow)
+              narrow-lines (filter #(re-find #"Card (One|Two|Three)" %) (str/split-lines tree-narrow))
+              narrow-ys (map parse-y narrow-lines)]
+          (expect (= 3 (count narrow-lines)))
+          ;; Cards should now be stacked vertically
+          (expect (apply < narrow-ys))
+          (allure/attach "wide-tree" tree-wide "text/plain")
+          (allure/attach "narrow-tree" tree-narrow "text/plain")))))
+
+  (describe "position accuracy for form elements"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "form inputs and buttons have correct relative positions via refs"
+      (page/set-viewport-size! *page* 800 600)
+      (page/set-content! *page*
+        "<!DOCTYPE html>
+         <html><head><style>
+           * { box-sizing: border-box; }
+           body { margin: 0; padding: 20px; font-family: sans-serif; }
+           .form-group { margin-bottom: 20px; }
+           label { display: block; font-size: 14px; margin-bottom: 4px; color: #374151; }
+           input { width: 300px; height: 36px; padding: 0 8px; border: 1px solid #d1d5db;
+                   border-radius: 4px; font-size: 14px; }
+           button { padding: 10px 20px; background: #10b981; color: white; border: none;
+                    border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+         </style></head>
+         <body>
+           <h2>Registration Form</h2>
+           <form>
+             <div class='form-group'>
+               <label for='email'>Email Address</label>
+               <input id='email' type='email' placeholder='you@example.com'/>
+             </div>
+             <div class='form-group'>
+               <label for='pw'>Password</label>
+               <input id='pw' type='password' placeholder='Enter password'/>
+             </div>
+             <button type='submit'>Create Account</button>
+           </form>
+         </body></html>")
+      (let [snap (sut/capture-snapshot *page*)
+            tree (:tree snap)
+            refs (:refs snap)
+            find-ref (fn [role name-substr]
+                       (first (keep (fn [[_ v]]
+                                      (when (and (= role (:role v))
+                                              (or (nil? name-substr)
+                                                (and (:name v) (str/includes? (:name v) name-substr))))
+                                        v))
+                                refs)))
+            heading (find-ref "heading" "Registration")
+            email-input (find-ref "textbox" "Email")
+            pw-input (find-ref "textbox" "Password")
+            submit-btn (find-ref "button" "Create Account")]
+        ;; All form elements found in refs with bboxes
+        (expect (some? heading))
+        (expect (some? (:bbox heading)))
+        (expect (some? email-input))
+        (expect (some? (:bbox email-input)))
+        (expect (some? pw-input))
+        (expect (some? (:bbox pw-input)))
+        (expect (some? submit-btn))
+        (expect (some? (:bbox submit-btn)))
+        ;; Vertical ordering: heading > email > password > button
+        (expect (< (:y (:bbox heading)) (:y (:bbox email-input))))
+        (expect (< (:y (:bbox email-input)) (:y (:bbox pw-input))))
+        (expect (< (:y (:bbox pw-input)) (:y (:bbox submit-btn))))
+        ;; Inputs left-aligned
+        (expect (< (abs (- (:x (:bbox email-input)) (:x (:bbox pw-input)))) 5))
+        ;; Input widths = 300px, heights = 36px (box-sizing: border-box)
+        (expect (= 300 (:width (:bbox email-input))))
+        (expect (= 300 (:width (:bbox pw-input))))
+        (expect (= 36 (:height (:bbox email-input))))
+        (expect (= 36 (:height (:bbox pw-input))))
+        ;; Tree has [pos:] for all refs
+        (let [ref-lines (filter #(re-find #"\[@e" %) (str/split-lines tree))]
+          (doseq [line ref-lines]
+            (expect (some? (re-find #"\[pos:\d+,\d+ \d+×\d+\]" line)))))
+        (allure/attach "form-layout-tree" tree "text/plain")
+        (allure/attach "form-positions"
+          (pr-str {:heading (:bbox heading) :email (:bbox email-input)
+                   :password (:bbox pw-input) :submit (:bbox submit-btn)}) "text/plain")))))

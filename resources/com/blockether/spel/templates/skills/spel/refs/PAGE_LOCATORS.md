@@ -266,8 +266,8 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
 (let [snap (spel/capture-snapshot)]
   (println (:tree snap)))
 ;; Output includes lines like:
-;;   [e1] heading "Example Domain"
-;;   [e2] link "More information..."
+;;   - heading "Example Domain" [@e1] [pos:20,50 400×40]
+;;   - link "More information..." [@e2] [pos:20,100 200×20]
 
 ;; 2. Click by ref
 (spel/click "@e9mter")

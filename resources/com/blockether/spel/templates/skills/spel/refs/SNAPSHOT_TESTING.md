@@ -9,7 +9,7 @@ A snapshot captures the page as a screen reader sees it: roles, names, attribute
 ```clojure
 ;; eval-sci
 (def snap (spel/capture-snapshot))
-;; => {:tree "- heading \"Welcome\" [@e2yrjz]\n- link \"Login\" [@e9mter]"
+;; => {:tree "- heading \"Welcome\" [@e2yrjz] [pos:20,10 200×40]\n- link \"Login\" [@e9mter] [pos:20,60 80×24]"
 ;;     :refs {"e2yrjz" {:role "heading" :name "Welcome" :tag "h1"
 ;;                  :bbox {:x 20 :y 10 :width 200 :height 40}} ...}
 ;;     :counter 12}

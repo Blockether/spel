@@ -263,6 +263,8 @@ spel eval-sci '
   (def snap (spel/capture-snapshot))
   (spel/save-annotated-screenshot! (:refs snap) "report/current-annotated.png")'
 ```
+;; The :tree includes [pos:X,Y W×H] screen coordinates for each ref'd element.
+;; Use position data for layout verification and element overlap detection.
 
 Side-by-side comparison: place `baseline.png` and `current.png` next to each other in your report. The diff image from ImageMagick highlights changed pixels in red.
 
