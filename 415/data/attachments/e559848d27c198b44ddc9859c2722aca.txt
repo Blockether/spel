@@ -1,0 +1,13 @@
+[viewport: 800x600]
+- body
+  - div "My Application" [@e6j10q]
+  - navigation [@e82cip]
+    - link "Home" [@e192zc] [url=/home] [clickable]
+    - link "About" [@e82zj1] [url=/about] [clickable]
+    - link "Contact" [@e9adhz] [url=/contact] [clickable]
+  - div
+    - heading "Welcome to Your Dashboard" [@e9du97] [level=1]
+    - paragraph "Build amazing applications with our powerful tools and intuitive interface.
+       Get started today and see the difference." [@e469v9]
+    - button "Sign Up Now" [@e1guz8] [clickable]
+  - div "© 2026 My Application. All rights reserved." [@e7axzm]
