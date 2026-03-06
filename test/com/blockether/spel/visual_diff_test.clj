@@ -2,6 +2,9 @@
   "Tests for pixel-level screenshot comparison (pixelmatch via Playwright Canvas)."
   (:require
    [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
+   [com.blockether.spel.core :as core]
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.visual-diff :as sut])
   (:import
    [java.awt Color Graphics2D]
@@ -55,6 +58,63 @@
   (doseq [p paths]
     (let [f (File. ^String p)]
       (when (.exists f) (.delete f)))))
+
+(def ^:private html-baseline
+  "<!DOCTYPE html>
+<html><head><style>
+  body { margin: 0; font-family: sans-serif; background: white; }
+  .header { background: #2563eb; color: white; padding: 20px; font-size: 24px; }
+  .nav { display: flex; gap: 16px; padding: 12px 20px; background: #f1f5f9; }
+  .nav a { color: #1e40af; text-decoration: none; font-size: 16px; }
+  .content { padding: 40px 20px; }
+  .content h1 { font-size: 32px; margin-bottom: 16px; }
+  .content p { font-size: 16px; color: #334155; line-height: 1.6; max-width: 600px; }
+  .cta { margin-top: 24px; }
+  .cta button { background: #2563eb; color: white; border: none; padding: 12px 24px;
+                font-size: 16px; border-radius: 6px; cursor: pointer; }
+  .footer { position: fixed; bottom: 0; width: 100%; background: #1e293b;
+            color: #94a3b8; padding: 12px 20px; font-size: 14px; }
+</style></head><body>
+  <div class='header'>My Application</div>
+  <nav class='nav'>
+    <a href='/home'>Home</a>
+    <a href='/about'>About</a>
+    <a href='/contact'>Contact</a>
+  </nav>
+  <div class='content'>
+    <h1>Welcome to Our Platform</h1>
+    <p>Build amazing applications with our powerful tools and intuitive interface.
+       Get started today and see the difference.</p>
+    <div class='cta'>
+      <button>Get Started</button>
+    </div>
+  </div>
+  <div class='footer'>© 2026 My Application. All rights reserved.</div>
+</body></html>")
+
+(def ^:private html-text-changed
+  "Same page but button text and heading changed."
+  (.replace (.replace ^String html-baseline
+              "Get Started" "Sign Up Now")
+    "Welcome to Our Platform" "Welcome to Your Dashboard"))
+
+(def ^:private html-element-added
+  "Same page but with a banner added between nav and content."
+  (.replace ^String html-baseline
+    "<div class='content'>"
+    "<div style='background:#fef3c7;padding:12px 20px;font-size:14px;color:#92400e;border-bottom:1px solid #fcd34d;'>🔔 New feature: Dark mode is now available! <a href='/settings'>Enable it</a></div><div class='content'>"))
+
+(def ^:private html-style-changed
+  "Same page but header background color changed."
+  (.replace ^String html-baseline
+    "background: #2563eb" "background: #dc2626"))
+
+(def ^:private html-multiple-changes
+  "Multiple changes: heading text, button text, AND header color."
+  (-> html-baseline
+    (.replace "Get Started" "Launch App")
+    (.replace "Welcome to Our Platform" "Dashboard Ready")
+    (.replace "background: #2563eb" "background: #059669")))
 
 ;; =============================================================================
 ;; Tests
@@ -160,6 +220,38 @@
         (allure/attach-bytes "large-red" large "image/png")
         (allure/attach-bytes "dimension-diff" (:diff-image result) "image/png")))))
 
+(defdescribe region-detection-test
+  "Connected-component region extraction from visual diffs"
+  (describe "identical images"
+    (it "returns empty regions"
+      (let [img (create-solid-png 64 64 Color/BLACK)
+            result (sut/compare-screenshots img img)]
+        (expect (true? (:matched result)))
+        (expect (= [] (:regions result))))))
+
+  (describe "different images"
+    (it "returns regions with expected structure and valid labels"
+      (let [baseline (create-solid-png 120 80 Color/WHITE)
+            current (create-half-and-half-png 120 80 Color/WHITE Color/BLACK)
+            result (sut/compare-screenshots baseline current)
+            regions (:regions result)
+            valid-labels #{"added" "removed" "content-change"}]
+        (expect (false? (:matched result)))
+        (expect (vector? regions))
+        (expect (pos? (count regions)))
+        (doseq [region regions]
+          (expect (integer? (:id region)))
+          (expect (contains? valid-labels (:label region)))
+          (expect (integer? (:pixels region)))
+          (expect (map? (:bounding-box region)))
+          (expect (integer? (get-in region [:bounding-box :x])))
+          (expect (integer? (get-in region [:bounding-box :y])))
+          (expect (integer? (get-in region [:bounding-box :width])))
+          (expect (integer? (get-in region [:bounding-box :height]))))
+        (allure/attach-bytes "region-baseline" baseline "image/png")
+        (allure/attach-bytes "region-current" current "image/png")
+        (allure/attach-bytes "region-diff" (:diff-image result) "image/png")))))
+
 (defdescribe compare-files-test
   "File-based comparison"
   (describe "file convenience function"
@@ -208,3 +300,213 @@
         (allure/attach-bytes "threshold-img-2" img2 "image/png")
         (allure/attach-bytes "threshold-strict-diff" (:diff-image strict) "image/png")
         (allure/attach-bytes "threshold-loose-diff" (:diff-image loose) "image/png")))))
+
+;; =============================================================================
+;; Semantic Region Enrichment — Pure Function Tests
+;; =============================================================================
+
+(defdescribe enrich-regions-test
+  "Bbox overlap matching for semantic region labels"
+
+  (describe "empty inputs"
+    (it "returns regions unchanged when refs are empty"
+      (let [regions [{:id 1 :label "content-change" :pixels 100
+                      :bounding-box {:x 10 :y 10 :width 50 :height 30}}]
+            result (sut/enrich-regions regions {})]
+        (expect (= regions result))))
+
+    (it "returns empty vector when regions are empty"
+      (let [result (sut/enrich-regions [] {"e1" {:role "button" :name "Click" :bbox {:x 0 :y 0 :width 100 :height 50}}})]
+        (expect (= [] result)))))
+
+  (describe "single region matching single element"
+    (it "enriches region with overlapping element"
+      (let [regions [{:id 1 :label "content-change" :pixels 100
+                      :bounding-box {:x 10 :y 10 :width 80 :height 30}}]
+            refs {"eabcde" {:role "button" :name "Submit"
+                            :bbox {:x 10 :y 10 :width 80 :height 30}}}
+            result (sut/enrich-regions regions refs)
+            r (first result)]
+        (expect (= "eabcde" (get-in r [:element :ref])))
+        (expect (= "button" (get-in r [:element :role])))
+        (expect (= "Submit" (get-in r [:element :name])))
+        (expect (= 1.0 (get-in r [:element :overlap])))
+        (expect (string? (:semantic-label r)))
+        (expect (pos? (count (:elements r)))))))
+
+  (describe "region overlapping multiple elements"
+    (it "selects smallest element as primary"
+      (let [regions [{:id 1 :label "content-change" :pixels 200
+                      :bounding-box {:x 0 :y 0 :width 200 :height 50}}]
+            refs {"ebig00" {:role "navigation" :name "Main Nav"
+                            :bbox {:x 0 :y 0 :width 400 :height 60}}
+                  "esmall" {:role "link" :name "Home"
+                            :bbox {:x 10 :y 10 :width 60 :height 30}}}
+            result (sut/enrich-regions regions refs)
+            r (first result)]
+        (expect (= "esmall" (get-in r [:element :ref])))
+        (expect (= "link" (get-in r [:element :role])))
+        (expect (= 2 (count (:elements r)))))))
+
+  (describe "no overlap"
+    (it "does not enrich region with non-overlapping elements"
+      (let [regions [{:id 1 :label "content-change" :pixels 50
+                      :bounding-box {:x 0 :y 0 :width 20 :height 20}}]
+            refs {"efar00" {:role "button" :name "Far Away"
+                            :bbox {:x 500 :y 500 :width 40 :height 40}}}
+            result (sut/enrich-regions regions refs)
+            r (first result)]
+        (expect (nil? (:element r)))
+        (expect (nil? (:elements r)))
+        (expect (nil? (:semantic-label r)))))))
+
+;; =============================================================================
+;; Semantic Region Enrichment — REAL Playwright Integration Tests
+;; =============================================================================
+
+(defdescribe semantic-diff-integration-test
+  "Real screenshot diff with Playwright — verifies semantic enrichment
+   against actual HTML pages with known visual changes."
+
+  (describe "text change detection"
+    (it "identifies button and heading text changes with element labels"
+      (core/with-playwright [pw]
+        (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+          (core/with-page [pg1 (core/new-page browser)]
+            (page/set-viewport-size! pg1 800 600)
+            (page/set-content! pg1 html-baseline)
+            (page/wait-for-load-state pg1 :load)
+            (let [baseline-bytes (page/screenshot pg1)
+                  baseline-snap (snapshot/capture-snapshot pg1)]
+              (page/set-content! pg1 html-text-changed)
+              (page/wait-for-load-state pg1 :load)
+              (let [current-bytes (page/screenshot pg1)
+                    current-snap (snapshot/capture-snapshot pg1)
+                    result (sut/compare-screenshots baseline-bytes current-bytes
+                             :current-refs (:refs current-snap)
+                             :baseline-refs (:refs baseline-snap))
+                    regions (:regions result)
+                    enriched (filter :element regions)]
+                (expect (false? (:matched result)))
+                (expect (pos? (count regions)))
+                (expect (pos? (count enriched)))
+                (doseq [r enriched]
+                  (expect (string? (get-in r [:element :ref])))
+                  (expect (string? (get-in r [:element :role])))
+                  (expect (number? (get-in r [:element :overlap])))
+                  (expect (string? (:semantic-label r))))
+                (allure/attach-bytes "text-change-baseline" baseline-bytes "image/png")
+                (allure/attach-bytes "text-change-current" current-bytes "image/png")
+                (allure/attach-bytes "text-change-diff" (:diff-image result) "image/png")
+                (allure/attach "text-change-regions"
+                  (pr-str (mapv #(dissoc % :diff-image) regions)) "text/plain"))))))))
+
+  (describe "element addition detection"
+    (it "detects new banner with semantic label"
+      (core/with-playwright [pw]
+        (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+          (core/with-page [pg1 (core/new-page browser)]
+            (page/set-viewport-size! pg1 800 600)
+            (page/set-content! pg1 html-baseline)
+            (page/wait-for-load-state pg1 :load)
+            (let [baseline-bytes (page/screenshot pg1)
+                  baseline-snap (snapshot/capture-snapshot pg1)]
+              (page/set-content! pg1 html-element-added)
+              (page/wait-for-load-state pg1 :load)
+              (let [current-bytes (page/screenshot pg1)
+                    current-snap (snapshot/capture-snapshot pg1)
+                    result (sut/compare-screenshots baseline-bytes current-bytes
+                             :current-refs (:refs current-snap)
+                             :baseline-refs (:refs baseline-snap))
+                    regions (:regions result)]
+                (expect (false? (:matched result)))
+                (expect (pos? (count regions)))
+                (expect (pos? (:diff-count result)))
+                (allure/attach-bytes "addition-baseline" baseline-bytes "image/png")
+                (allure/attach-bytes "addition-current" current-bytes "image/png")
+                (allure/attach-bytes "addition-diff" (:diff-image result) "image/png")
+                (allure/attach "addition-regions"
+                  (pr-str (mapv #(dissoc % :diff-image) regions)) "text/plain"))))))))
+
+  (describe "style change detection"
+    (it "detects header color change"
+      (core/with-playwright [pw]
+        (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+          (core/with-page [pg1 (core/new-page browser)]
+            (page/set-viewport-size! pg1 800 600)
+            (page/set-content! pg1 html-baseline)
+            (page/wait-for-load-state pg1 :load)
+            (let [baseline-bytes (page/screenshot pg1)]
+              (page/set-content! pg1 html-style-changed)
+              (page/wait-for-load-state pg1 :load)
+              (let [current-bytes (page/screenshot pg1)
+                    current-snap (snapshot/capture-snapshot pg1)
+                    result (sut/compare-screenshots baseline-bytes current-bytes
+                             :current-refs (:refs current-snap))
+                    regions (:regions result)
+                    enriched (filter :element regions)]
+                (expect (false? (:matched result)))
+                (expect (pos? (count regions)))
+                (expect (pos? (count enriched)))
+                (allure/attach-bytes "style-baseline" baseline-bytes "image/png")
+                (allure/attach-bytes "style-current" current-bytes "image/png")
+                (allure/attach-bytes "style-diff" (:diff-image result) "image/png")
+                (allure/attach "style-regions"
+                  (pr-str (mapv #(dissoc % :diff-image) regions)) "text/plain"))))))))
+
+  (describe "multiple changes detection"
+    (it "detects heading, button, and header changes as separate enriched regions"
+      (core/with-playwright [pw]
+        (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+          (core/with-page [pg1 (core/new-page browser)]
+            (page/set-viewport-size! pg1 800 600)
+            (page/set-content! pg1 html-baseline)
+            (page/wait-for-load-state pg1 :load)
+            (let [baseline-bytes (page/screenshot pg1)
+                  baseline-snap (snapshot/capture-snapshot pg1)]
+              (page/set-content! pg1 html-multiple-changes)
+              (page/wait-for-load-state pg1 :load)
+              (let [current-bytes (page/screenshot pg1)
+                    current-snap (snapshot/capture-snapshot pg1)
+                    result (sut/compare-screenshots baseline-bytes current-bytes
+                             :current-refs (:refs current-snap)
+                             :baseline-refs (:refs baseline-snap))
+                    regions (:regions result)
+                    enriched (filter :element regions)
+                    roles (set (map #(get-in % [:element :role]) enriched))]
+                (expect (false? (:matched result)))
+                (expect (>= (count regions) 2))
+                (expect (pos? (count enriched)))
+                (allure/attach-bytes "multi-baseline" baseline-bytes "image/png")
+                (allure/attach-bytes "multi-current" current-bytes "image/png")
+                (allure/attach-bytes "multi-diff" (:diff-image result) "image/png")
+                (allure/attach "multi-regions"
+                  (pr-str (mapv #(dissoc % :diff-image) regions)) "text/plain")
+                (allure/attach "multi-roles" (pr-str roles) "text/plain"))))))))
+
+  (describe "compare-pages convenience"
+    (it "produces enriched regions from two live pages"
+      (core/with-playwright [pw]
+        (core/with-browser [browser (core/launch-chromium pw {:headless true})]
+          (core/with-page [pg1 (core/new-page browser)]
+            (core/with-page [pg2 (core/new-page browser)]
+              (page/set-viewport-size! pg1 800 600)
+              (page/set-viewport-size! pg2 800 600)
+              (page/set-content! pg1 html-baseline)
+              (page/set-content! pg2 html-text-changed)
+              (page/wait-for-load-state pg1 :load)
+              (page/wait-for-load-state pg2 :load)
+              (let [result (sut/compare-pages pg1 pg2)]
+                (expect (false? (:matched result)))
+                (expect (string? (:baseline-snapshot result)))
+                (expect (string? (:current-snapshot result)))
+                (expect (pos? (count (:regions result))))
+                (let [enriched (filter :element (:regions result))]
+                  (expect (pos? (count enriched)))
+                  (doseq [r enriched]
+                    (expect (string? (:semantic-label r)))))
+                (allure/attach-bytes "pages-diff" (:diff-image result) "image/png")
+                (allure/attach "pages-baseline-snap" (:baseline-snapshot result) "text/plain")
+                (allure/attach "pages-current-snap" (:current-snapshot result) "text/plain")
+                (allure/attach "pages-regions"
+                  (pr-str (mapv #(dissoc % :diff-image) (:regions result))) "text/plain")))))))))

@@ -455,6 +455,15 @@
    (apply visual-diff/compare-screenshot-files baseline-path current-path
      (mapcat identity opts))))
 
+(defn sci-compare-pages
+  "Compare two live pages: screenshot + snapshot + diff with semantic enrichment.
+   Returns enriched regions with element labels."
+  ([baseline-page current-page]
+   (visual-diff/compare-pages baseline-page current-page))
+  ([baseline-page current-page opts]
+   (apply visual-diff/compare-pages baseline-page current-page
+     (mapcat identity opts))))
+
 (defn sci-pdf
   ([] (throw-if-anomaly (page/pdf (require-page!))))
   ([path-or-opts]
@@ -1290,6 +1299,7 @@
                   ['screenshot    sci-screenshot]
                   ['compare-screenshots sci-compare-screenshots]
                   ['compare-screenshot-files sci-compare-screenshot-files]
+                  ['compare-pages sci-compare-pages]
                   ['pdf           sci-pdf]
                   ;; Waiting
                   ['wait-for-selector   sci-wait-for]

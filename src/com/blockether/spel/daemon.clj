@@ -1231,9 +1231,11 @@
   (let [baseline-bytes (java.nio.file.Files/readAllBytes
                          (java.nio.file.Path/of ^String baseline (into-array String [])))
         current-bytes  (page/screenshot (pg))
+        current-snap   (snapshot/capture-snapshot (pg))
         threshold-val  (if threshold (Double/parseDouble (str threshold)) 0.1)
         result         (visual-diff/compare-screenshots baseline-bytes current-bytes
-                         :threshold threshold-val)
+                         :threshold threshold-val
+                         :current-refs (:refs current-snap))
         diff-path      (or path
                          (str (System/getProperty "java.io.tmpdir")
                            java.io.File/separator
@@ -1251,6 +1253,15 @@
        :width               (:width raw)
        :height              (:height raw)
        :diff_path           (:diff-path raw)
+       :regions             (mapv (fn [r]
+                                    (cond-> {:id (:id r)
+                                             :label (:label r)
+                                             :pixels (:pixels r)
+                                             :bounding_box (:bounding-box r)}
+                                      (:element r) (assoc :element (:element r))
+                                      (:elements r) (assoc :elements (:elements r))
+                                      (:semantic-label r) (assoc :semantic_label (:semantic-label r))))
+                              (:regions result))
        :baseline_dimensions (:baseline-dimensions raw)
        :current_dimensions  (:current-dimensions raw)
        :dimension_mismatch  (:dimension-mismatch raw)})))

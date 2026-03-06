@@ -7,7 +7,8 @@
    https://github.com/mapbox/pixelmatch"
   (:require
    [com.blockether.spel.core :as core]
-   [com.blockether.spel.page :as page])
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot])
   (:import
    [java.nio.file Files Path]
    [java.util Base64]))
@@ -145,6 +146,200 @@ function drawGrayPixel(img, i, alpha, output) {
     output[i] = img[i]; output[i+1] = img[i+1]; output[i+2] = img[i+2]; output[i+3] = img[i+3];
 }")
 
+(def ^:private js-detect-regions
+  "function detectRegions(diffData, img1, img2, w, h, opts) {
+    opts = opts || {};
+    var denoise = opts.denoise === undefined ? 25 : opts.denoise;
+    var dilate = opts.dilate === undefined ? 3 : opts.dilate;
+    var mergeDistance = opts.mergeDistance === undefined ? 50 : opts.mergeDistance;
+    var len = w * h;
+
+    function isGray(r, g, b) {
+        return Math.abs(r - g) <= 5 && Math.abs(g - b) <= 5 && Math.abs(r - b) <= 5;
+    }
+
+    var mask = new Uint8Array(len);
+    for (var i = 0; i < len; i++) {
+        var p = i * 4;
+        var r = diffData[p], g = diffData[p + 1], b = diffData[p + 2], a = diffData[p + 3];
+        if (a > 0 && !isGray(r, g, b)) mask[i] = 1;
+    }
+
+    if (dilate > 0) {
+        var expanded = new Uint8Array(len);
+        for (var y = 0; y < h; y++) {
+            for (var x = 0; x < w; x++) {
+                if (mask[y * w + x] !== 1) continue;
+                var minX = Math.max(0, x - dilate);
+                var maxX = Math.min(w - 1, x + dilate);
+                var minY = Math.max(0, y - dilate);
+                var maxY = Math.min(h - 1, y + dilate);
+                for (var yy = minY; yy <= maxY; yy++) {
+                    for (var xx = minX; xx <= maxX; xx++) {
+                        expanded[yy * w + xx] = 1;
+                    }
+                }
+            }
+        }
+        mask = expanded;
+    }
+
+    var visited = new Uint8Array(len);
+    var components = [];
+    var stack = [];
+
+    for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+            var start = y * w + x;
+            if (mask[start] !== 1 || visited[start] === 1) continue;
+
+            var minX = x, minY = y, maxX = x, maxY = y, pixels = 0;
+            stack.push(start);
+            visited[start] = 1;
+
+            while (stack.length > 0) {
+                var idx = stack.pop();
+                var cx = idx % w;
+                var cy = (idx / w) | 0;
+                pixels++;
+
+                if (cx < minX) minX = cx;
+                if (cy < minY) minY = cy;
+                if (cx > maxX) maxX = cx;
+                if (cy > maxY) maxY = cy;
+
+                var left = idx - 1;
+                var right = idx + 1;
+                var up = idx - w;
+                var down = idx + w;
+
+                if (cx > 0 && mask[left] === 1 && visited[left] === 0) {
+                    visited[left] = 1;
+                    stack.push(left);
+                }
+                if (cx < w - 1 && mask[right] === 1 && visited[right] === 0) {
+                    visited[right] = 1;
+                    stack.push(right);
+                }
+                if (cy > 0 && mask[up] === 1 && visited[up] === 0) {
+                    visited[up] = 1;
+                    stack.push(up);
+                }
+                if (cy < h - 1 && mask[down] === 1 && visited[down] === 0) {
+                    visited[down] = 1;
+                    stack.push(down);
+                }
+            }
+
+            if (pixels >= denoise) {
+                components.push({
+                    pixels: pixels,
+                    bounding_box: {
+                        x: minX,
+                        y: minY,
+                        width: maxX - minX + 1,
+                        height: maxY - minY + 1
+                    }
+                });
+            }
+        }
+    }
+
+    function boxesClose(a, b, distance) {
+        var aMinX = a.bounding_box.x;
+        var aMinY = a.bounding_box.y;
+        var aMaxX = a.bounding_box.x + a.bounding_box.width - 1;
+        var aMaxY = a.bounding_box.y + a.bounding_box.height - 1;
+        var bMinX = b.bounding_box.x;
+        var bMinY = b.bounding_box.y;
+        var bMaxX = b.bounding_box.x + b.bounding_box.width - 1;
+        var bMaxY = b.bounding_box.y + b.bounding_box.height - 1;
+
+        var dx = 0;
+        if (aMaxX < bMinX) dx = bMinX - aMaxX;
+        else if (bMaxX < aMinX) dx = aMinX - bMaxX;
+        var dy = 0;
+        if (aMaxY < bMinY) dy = bMinY - aMaxY;
+        else if (bMaxY < aMinY) dy = aMinY - bMaxY;
+        return dx <= distance && dy <= distance;
+    }
+
+    function mergeBoxes(a, b) {
+        var minX = Math.min(a.bounding_box.x, b.bounding_box.x);
+        var minY = Math.min(a.bounding_box.y, b.bounding_box.y);
+        var maxX = Math.max(a.bounding_box.x + a.bounding_box.width - 1, b.bounding_box.x + b.bounding_box.width - 1);
+        var maxY = Math.max(a.bounding_box.y + a.bounding_box.height - 1, b.bounding_box.y + b.bounding_box.height - 1);
+        return {
+            pixels: a.pixels + b.pixels,
+            bounding_box: {
+                x: minX,
+                y: minY,
+                width: maxX - minX + 1,
+                height: maxY - minY + 1
+            }
+        };
+    }
+
+    var merged = true;
+    while (merged) {
+        merged = false;
+        for (var i = 0; i < components.length; i++) {
+            for (var j = i + 1; j < components.length; j++) {
+                if (boxesClose(components[i], components[j], mergeDistance)) {
+                    components[i] = mergeBoxes(components[i], components[j]);
+                    components.splice(j, 1);
+                    merged = true;
+                    break;
+                }
+            }
+            if (merged) break;
+        }
+    }
+
+    function classifyRegion(region) {
+        var bb = region.bounding_box;
+        var startX = bb.x;
+        var startY = bb.y;
+        var endX = bb.x + bb.width;
+        var endY = bb.y + bb.height;
+        var added = 0;
+        var removed = 0;
+        var sampled = 0;
+
+        for (var y = startY; y < endY; y++) {
+            for (var x = startX; x < endX; x++) {
+                var idx = y * w + x;
+                if (mask[idx] !== 1) continue;
+                sampled++;
+                var p = idx * 4;
+                var a1 = img1[p + 3];
+                var a2 = img2[p + 3];
+                if (a1 <= 10 && a2 > 10) added++;
+                else if (a2 <= 10 && a1 > 10) removed++;
+            }
+        }
+
+        if (sampled === 0) return 'content-change';
+        if ((added / sampled) > 0.5) return 'added';
+        if ((removed / sampled) > 0.5) return 'removed';
+        return 'content-change';
+    }
+
+    components.sort(function(a, b) { return b.pixels - a.pixels; });
+
+    var regions = [];
+    for (var i = 0; i < components.length; i++) {
+        var c = components[i];
+        regions.push({
+            id: i + 1,
+            label: classifyRegion(c),
+            pixels: c.pixels,
+            bounding_box: c.bounding_box
+        });
+    }
+    return regions;
+}")
+
 (defn- bytes->base64 [^bytes png-bytes]
   (.encodeToString (Base64/getEncoder) png-bytes))
 
@@ -181,7 +376,74 @@ function drawGrayPixel(img, i, alpha, output) {
     "webkit" core/launch-webkit
     core/launch-chromium))
 
-(defn- build-diff-html [b64-baseline b64-current {:keys [threshold include-aa alpha]}]
+(defn- bbox-overlap-area
+  "Returns the intersection area of two bounding boxes, or 0 if no overlap."
+  ^long [region-bbox element-bbox]
+  (let [x1 (Math/max (long (:x region-bbox)) (long (:x element-bbox)))
+        y1 (Math/max (long (:y region-bbox)) (long (:y element-bbox)))
+        x2 (Math/min (+ (long (:x region-bbox)) (long (:width region-bbox)))
+             (+ (long (:x element-bbox)) (long (:width element-bbox))))
+        y2 (Math/min (+ (long (:y region-bbox)) (long (:height region-bbox)))
+             (+ (long (:y element-bbox)) (long (:height element-bbox))))]
+    (if (and (> x2 x1) (> y2 y1))
+      (* (- x2 x1) (- y2 y1))
+      0)))
+
+(defn- element-area ^long [bbox]
+  (* (long (:width bbox)) (long (:height bbox))))
+
+(defn- enrich-region
+  "Enriches a single diff region with snapshot element information.
+   Finds all snapshot elements whose bounding boxes overlap with the region,
+   filters by minimum overlap threshold, and selects the best match
+   (smallest element with >50% of its area covered)."
+  [region refs]
+  (let [region-bbox (:bounding-box region)
+        candidates
+        (->> refs
+          (keep (fn [[ref-id {:keys [bbox role name] :as _info}]]
+                  (when (and bbox (pos? (element-area bbox)))
+                    (let [overlap (bbox-overlap-area region-bbox bbox)
+                          el-area (element-area bbox)
+                          overlap-ratio (/ (double overlap) (double el-area))]
+                      (when (> overlap-ratio 0.1)
+                        {:ref ref-id
+                         :role role
+                         :name name
+                         :overlap (Double/parseDouble (format "%.2f" overlap-ratio))
+                         :area el-area})))))
+          (sort-by :area)
+          vec)
+        primary (or (first (filter #(> (double (:overlap %)) 0.5) candidates))
+                  (first candidates))
+        semantic-label (when primary
+                         (str (:role primary)
+                           (when (seq (:name primary))
+                             (str " '" (:name primary) "'"))
+                           " — " (:label region)))]
+    (cond-> region
+      (seq candidates) (assoc :elements (mapv #(dissoc % :area) candidates))
+      primary          (assoc :element (dissoc primary :area))
+      semantic-label   (assoc :semantic-label semantic-label))))
+
+(defn enrich-regions
+  "Enriches diff regions with semantic labels from accessibility snapshot refs.
+
+   `regions` - vector of diff regions from compare-screenshots
+   `refs` - snapshot refs map from capture-snapshot (:refs key)
+            Format: {e2yrjz {:role button :name Submit :bbox {:x :y :width :height}} ...}
+
+   Returns the regions vector with additional keys on each region:
+     :element        - best matching element {:ref :role :name :overlap}
+     :elements       - all overlapping elements sorted by specificity
+     :semantic-label - human-readable label like button 'Submit' — content-change"
+  [regions refs]
+  (if (or (empty? regions) (empty? refs))
+    regions
+    (mapv #(enrich-region % refs) regions)))
+
+(defn- build-diff-html [b64-baseline b64-current {:keys [threshold include-aa alpha denoise dilate merge-distance]
+                                                  :or {denoise 25 dilate 3 merge-distance 50}}]
   (str "<!DOCTYPE html><html><head><style>"
     "* { margin: 0; padding: 0; }"
     "body { overflow: hidden; }"
@@ -190,6 +452,7 @@ function drawGrayPixel(img, i, alpha, output) {
     "<canvas id=\"diff\"></canvas>"
     "<script>"
     js-pixelmatch
+    js-detect-regions
     "(function() {"
     "  var img1 = new Image();"
     "  var img2 = new Image();"
@@ -219,8 +482,16 @@ function drawGrayPixel(img, i, alpha, output) {
     (double alpha)
     "});"
     "    diffCtx.putImageData(diffData, 0, 0);"
+    "    var regions = detectRegions(diffData.data, data1.data, data2.data, w, h, {denoise: "
+    (long denoise)
+    ", dilate: "
+    (long dilate)
+    ", mergeDistance: "
+    (long merge-distance)
+    "});"
     "    window.__spel_diff_result = {"
     "      diffCount: diffCount,"
+    "      regions: regions,"
     "      totalPixels: w * h,"
     "      width: w,"
     "      height: h,"
@@ -251,11 +522,17 @@ function drawGrayPixel(img, i, alpha, output) {
 
    `baseline` and `current` are PNG byte arrays (as returned by page/screenshot).
 
-   Options:
-     :threshold   — matching threshold 0.0-1.0 (default 0.1, lower = stricter)
-     :include-aa  — count anti-aliased pixels as diff (default false)
-     :alpha       — red overlay opacity on changed pixels (default 0.5)
-     :diff-path   — optional path to save the diff image PNG
+    Options:
+      :threshold   — matching threshold 0.0-1.0 (default 0.1, lower = stricter)
+      :include-aa  — count anti-aliased pixels as diff (default false)
+      :alpha       — red overlay opacity on changed pixels (default 0.5)
+      :denoise     — minimum connected-component pixels to keep (default 25)
+      :dilate      — dilation radius in pixels before component labeling (default 3)
+      :merge-distance — merge nearby region boxes within this many pixels (default 50)
+      :diff-path   — optional path to save the diff image PNG
+      :baseline-refs — snapshot refs map for baseline state (optional, from capture-snapshot :refs)
+      :current-refs  — snapshot refs map for current state (optional, from capture-snapshot :refs)
+                       When provided, regions are enriched with semantic element labels.
 
    Returns:
      {:matched         true/false
@@ -264,12 +541,17 @@ function drawGrayPixel(img, i, alpha, output) {
       :diff-percent    percentage of different pixels (2 decimal places)
       :width           comparison width
       :height          comparison height
+      :regions         [{:id n :label \"added|removed|content-change\" :pixels n
+                         :bounding-box {:x n :y n :width n :height n}
+                         :element {:ref s :role s :name s :overlap n}
+                         :elements [{:ref s :role s :name s :overlap n}]
+                         :semantic-label s} ...]
       :diff-image      diff PNG as byte[]
       :baseline-dimensions {:width w :height h}
       :current-dimensions  {:width w :height h}
       :dimension-mismatch  true/false}"
-  [^bytes baseline ^bytes current & {:keys [threshold include-aa alpha diff-path]
-                                     :or {threshold 0.1 include-aa false alpha 0.5}}]
+  [^bytes baseline ^bytes current & {:keys [threshold include-aa alpha denoise dilate merge-distance diff-path baseline-refs current-refs]
+                                     :or {threshold 0.1 include-aa false alpha 0.5 denoise 25 dilate 3 merge-distance 50}}]
   (let [baseline-dims (png-dimensions baseline)
         current-dims (png-dimensions current)
         baseline-b64 (bytes->base64 baseline)
@@ -278,7 +560,10 @@ function drawGrayPixel(img, i, alpha, output) {
         max-h (long (Math/max (long (:height baseline-dims)) (long (:height current-dims))))
         html (build-diff-html baseline-b64 current-b64 {:threshold threshold
                                                         :include-aa include-aa
-                                                        :alpha alpha})
+                                                        :alpha alpha
+                                                        :denoise denoise
+                                                        :dilate dilate
+                                                        :merge-distance merge-distance})
         launch-fn (resolve-launch-fn nil)
         result+diff
         (core/with-playwright [pw]
@@ -297,6 +582,19 @@ function drawGrayPixel(img, i, alpha, output) {
         total-pixels (long (or (:totalPixels result) (get result "totalPixels") (* max-w max-h)))
         width (long (or (:width result) (get result "width") max-w))
         height (long (or (:height result) (get result "height") max-h))
+        regions (mapv (fn [r]
+                        (let [bbox (or (:bounding_box r)
+                                     (:bounding-box r)
+                                     (get r "bounding_box")
+                                     (get r "bounding-box"))]
+                          {:id (long (or (:id r) (get r "id") 0))
+                           :label (or (:label r) (get r "label") "content-change")
+                           :pixels (long (or (:pixels r) (get r "pixels") 0))
+                           :bounding-box {:x (long (or (:x bbox) (get bbox "x") 0))
+                                          :y (long (or (:y bbox) (get bbox "y") 0))
+                                          :width (long (or (:width bbox) (get bbox "width") 0))
+                                          :height (long (or (:height bbox) (get bbox "height") 0))}}))
+                  (or (:regions result) (get result "regions") []))
         diff-percent (if (pos? total-pixels)
                        (Double/parseDouble (format "%.2f" (* 100.0 (/ (double diff-count) (double total-pixels)))))
                        0.0)
@@ -318,10 +616,39 @@ function drawGrayPixel(img, i, alpha, output) {
      :diff-percent diff-percent
      :width width
      :height height
+     :regions (if (or baseline-refs current-refs)
+                (enrich-regions regions (or current-refs baseline-refs))
+                regions)
      :diff-image diff-bytes
      :baseline-dimensions baseline-dims
      :current-dimensions current-dims
      :dimension-mismatch dimension-mismatch}))
+
+(defn compare-pages
+  "Screenshot + snapshot + diff in one call. Takes two live Playwright pages,
+   captures screenshots and accessibility snapshots from both, then runs
+   pixel diff with semantic region enrichment.
+
+   This is the highest-level diff function — produces fully enriched regions
+   with element labels like \"button 'Submit' — content-change\".
+
+   Options: same as compare-screenshots (threshold, include-aa, etc.)
+
+   Returns: same as compare-screenshots, with enriched regions, plus:
+     :baseline-snapshot  - accessibility tree of baseline page
+     :current-snapshot   - accessibility tree of current page"
+  [baseline-page current-page & {:as opts}]
+  (let [baseline-bytes (page/screenshot baseline-page)
+        current-bytes  (page/screenshot current-page)
+        baseline-snap  (snapshot/capture-snapshot baseline-page)
+        current-snap   (snapshot/capture-snapshot current-page)
+        result         (apply compare-screenshots baseline-bytes current-bytes
+                         :baseline-refs (:refs baseline-snap)
+                         :current-refs (:refs current-snap)
+                         (mapcat identity (dissoc opts :baseline-refs :current-refs)))]
+    (assoc result
+      :baseline-snapshot (:tree baseline-snap)
+      :current-snapshot (:tree current-snap))))
 
 (defn compare-screenshot-files
   "Compare two PNG screenshot files. See compare-screenshots for options."
