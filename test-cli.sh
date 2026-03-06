@@ -1250,7 +1250,7 @@ assert_jq "diff snapshot same → 0 changed" "$OUT" '.changed == 0'
 assert_jq "diff snapshot same → 0 added" "$OUT" '.added == 0'
 
 # Diff screenshot (same page = matched)
-BASELINE_SS=$(mktemp --suffix=.png)
+BASELINE_SS=$(mktemp).png
 TEMP_FILES+=("$BASELINE_SS")
 "$SPEL" screenshot "$BASELINE_SS" >/dev/null 2>&1
 OUT=$("$SPEL" --json diff screenshot --baseline "$BASELINE_SS" 2>&1)
