@@ -90,8 +90,8 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
       "impact": "Medium",
       "points": 5,
       "evidence": {
-        "screenshots": ["evidence/bug-001-screenshot.png"],
-        "snapshot_ref": "e3",
+        "screenshots": ["evidence/bug-001-annotated.png"],
+        "snapshot_refs": ["@e3"],
         "console_output": null,
         "network_log": null
       },
@@ -111,13 +111,32 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
     "visual_coherence": false,
     "partially_visible": true,
     "broken_layout": true,
-    "notes": "visual_coherence: badge placement in task list is inconsistent — badges shift horizontally based on title length instead of staying right-aligned"
+    "notes": "visual_coherence: badge placement in task list rows is inconsistent — badges shift horizontally based on title length instead of staying right-aligned. Refs @e4kqmn, @e7xrtw, @e9bnnq marked on evidence/visual-coherence-badges.png."
   },
   "artifacts": [
-    {"type": "screenshot", "path": "evidence/page-screenshot.png"},
+    {"type": "annotated-screenshot", "path": "evidence/page-annotated.png"},
+    {"type": "annotated-screenshot", "path": "evidence/bug-001-annotated.png"},
+    {"type": "annotated-screenshot", "path": "evidence/visual-coherence-badges.png"},
     {"type": "snapshot", "path": "evidence/page-snapshot.json"}
   ]
 }
+```
+
+**`visual_checks` rules:**
+- `true` = checked, no issue found.
+- `false` = issue found. The `notes` field MUST include: (a) the snapshot ref(s) `@eXXXX` of the affected elements, and (b) a path to an annotated screenshot where those refs are highlighted with action markers. No refs + no screenshot = flip to `true` or file a bug in `bugs[]` with proper evidence instead.
+- Every screenshot/snapshot referenced in `notes` must exist in `bugfind-reports/evidence/` and appear in `artifacts[]`.
+
+**Evidence capture for visual_checks:**
+```clojure
+;; When a visual check fails, capture proof:
+(def snap (spel/capture-snapshot))
+(spel/inject-action-markers! "@e4kqmn" "@e7xrtw" "@e9bnnq")
+(spel/save-audit-screenshot!
+  "VISUAL CHECK: visual_coherence — badge position inconsistent across rows"
+  "bugfind-reports/evidence/visual-coherence-badges.png"
+  {:refs (:refs snap)})
+(spel/remove-action-markers!)
 ```
 
 ### Skeptic review (`skeptic-review.json`)
@@ -274,10 +293,11 @@ The Jobs Filter:
 ## Evidence guidelines
 
 1. Every bug needs at least one piece of evidence. No exceptions.
-2. Screenshots beat descriptions. A screenshot showing the bug beats a paragraph explaining it.
-3. Annotated screenshots are the strongest evidence. `spel annotate` + `spel screenshot` shows exactly which element is affected.
-4. Snapshot JSON provides structural proof. Style values, ARIA attributes, element hierarchy — all machine-verifiable.
-5. Independent capture is mandatory for Skeptic and Referee. They must capture their OWN evidence in their OWN session. Re-using Hunter's evidence defeats the adversarial purpose.
+2. Annotated screenshots with action markers are the gold standard. Mark affected refs with `spel/inject-action-markers!`, then capture with `spel/save-audit-screenshot!` (includes caption + ref overlays + highlighted elements in one image).
+3. Every annotated screenshot must show: (a) the ref labels so the reviewer can cross-reference with the snapshot, and (b) the action markers highlighting exactly which elements are affected.
+4. Snapshot JSON provides structural proof. Style values, ARIA attributes, element hierarchy — all machine-verifiable. Always capture alongside screenshots.
+5. For non-visual bugs, console output or network logs are acceptable, but pair with a screenshot when the bug has any visible effect.
+6. Independent capture is mandatory for Skeptic and Referee. They must capture their OWN evidence in their OWN session. Reusing Hunter's evidence defeats the adversarial purpose.
 
 ---
 

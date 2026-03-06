@@ -180,11 +180,22 @@ Document any unexpected behavior. Unscripted exploration often surfaces the high
 
 ## Evidence requirement
 
-Every bug MUST include at least one evidence item:
-- Screenshot, or
-- Snapshot reference, or
-- Console output, or
-- Network log
+Every bug MUST include:
+1. **Annotated screenshot** — use `spel/inject-action-markers!` on the affected refs, then `spel/save-audit-screenshot!` with a caption describing the bug. The screenshot must show both the ref labels and the highlighted problem elements.
+2. **Snapshot ref(s)** — the `@eXXXX` ref(s) of the affected element(s).
+
+For non-visual bugs (console errors, network failures), a console log or network log is acceptable instead of a screenshot, but an annotated screenshot is still preferred when the bug has a visible effect.
+
+```clojure
+;; Evidence capture workflow for each bug:
+(def snap (spel/capture-snapshot))
+(spel/inject-action-markers! "@e4kqmn" "@e7xrtw")  ;; mark the affected refs
+(spel/save-audit-screenshot!
+  "BUG-003: badges shift position based on title length"
+  "bugfind-reports/evidence/bug-003-coherence.png"
+  {:refs (:refs snap)})
+(spel/remove-action-markers!)
+```
 
 No evidence = do not report as a bug.
 
@@ -205,8 +216,10 @@ Store all captured files under `bugfind-reports/evidence/`.
 Before presenting your report, ask yourself:
 - "What would embarrass this report?" — Did I miss an obvious page or flow?
 - "Did I actually audit all 6 categories?" — Check the Bug Inventory matrix for unchecked cells. Check `visual_checks` — every field must be explicitly `true` or `false`.
+- "Does every bug and every `false` visual_check have evidence?" — At minimum a snapshot ref (`@eXXXX`) or screenshot path. No evidence = delete the bug or flip the check to `true`.
 - "Is every bug reproducible?" — Would the skeptic disprove it in 30 seconds?
 - "Did I do the exploratory pass?" — Unscripted exploration is mandatory, not optional.
+- "Are my artifacts complete?" — Every screenshot and snapshot referenced in `evidence` or `visual_checks.notes` must exist in `bugfind-reports/evidence/` and appear in the `artifacts[]` index.
 
 If any answer reveals a gap, go back and audit before presenting.
 
