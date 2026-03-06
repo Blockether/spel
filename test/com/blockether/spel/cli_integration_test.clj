@@ -2483,7 +2483,7 @@
       (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (string? (:current r)))
-        (expect (pos? (:total-lines r)))))))
+        (expect (pos? (:total_lines r)))))))
 
 (defdescribe diff-screenshot-integration-test
   "Integration tests for diff_screenshot daemon handler"
@@ -2500,9 +2500,9 @@
             r             (cmd "diff_screenshot" {"baseline" baseline-path
                                                   "path" out-path})]
         (expect (true? (:matched r)))
-        (expect (= 0 (:diff-count r)))
-        (expect (= out-path (:diff-path r)))
-        (expect (.exists (io/file (:diff-path r))))))
+        (expect (= 0 (:diff_count r)))
+        (expect (= out-path (:diff_path r)))
+        (expect (.exists (io/file (:diff_path r))))))
 
     (it "detects visual diff after page mutation"
       (nav! "/test-page")
@@ -2512,8 +2512,8 @@
             _             (cmd "evaluate" {"script" "document.querySelector('h1').textContent = 'Changed visual diff'"})
             r             (cmd "diff_screenshot" {"baseline" baseline-path})]
         (expect (false? (:matched r)))
-        (expect (pos? (:diff-count r)))
-        (expect (.exists (io/file (:diff-path r))))))))
+        (expect (pos? (:diff_count r)))
+        (expect (.exists (io/file (:diff_path r))))))))
 
 ;; =============================================================================
 ;; Snapshot viewport/device/styles-detail

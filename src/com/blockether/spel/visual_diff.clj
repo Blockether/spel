@@ -20,7 +20,7 @@
 function pixelmatch(img1, img2, output, width, height, options) {
     if (!options) options = {};
     var threshold = options.threshold === undefined ? 0.1 : options.threshold;
-    var alpha = options.alpha === undefined ? 0.1 : options.alpha;
+    var alpha = options.alpha === undefined ? 0.5 : options.alpha;
     var includeAA = options.includeAA || false;
     var diffColor = options.diffColor || [255, 0, 0];
     var diffColorAlt = options.diffColorAlt || diffColor;
@@ -55,11 +55,11 @@ function pixelmatch(img1, img2, output, width, height, options) {
             if (Math.abs(delta) > maxDelta) {
                 var isExcludedAA = !includeAA && (antialiased(img1, x, y, width, height, a32, b32) || antialiased(img2, x, y, width, height, b32, a32));
                 if (isExcludedAA) {
-                    if (output && !diffMask) drawPixel(output, pos, aaR, aaG, aaB);
+                    if (output && !diffMask) drawDiffPixel(img2, pos, aaR, aaG, aaB, alpha, output);
                 } else {
                     if (output) {
-                        if (delta < 0) drawPixel(output, pos, altR, altG, altB);
-                        else drawPixel(output, pos, diffR, diffG, diffB);
+                        if (delta < 0) drawDiffPixel(img2, pos, altR, altG, altB, alpha, output);
+                        else drawDiffPixel(img2, pos, diffR, diffG, diffB, alpha, output);
                     }
                     diff++;
                 }
@@ -134,13 +134,15 @@ function colorDelta(img1, img2, k, m, yOnly) {
     return y > 0 ? -delta : delta;
 }
 
-function drawPixel(output, pos, r, g, b) {
-    output[pos] = r; output[pos+1] = g; output[pos+2] = b; output[pos+3] = 255;
+function drawDiffPixel(img2, pos, r, g, b, alpha, output) {
+    output[pos] = Math.round(img2[pos] * (1 - alpha) + r * alpha);
+    output[pos+1] = Math.round(img2[pos+1] * (1 - alpha) + g * alpha);
+    output[pos+2] = Math.round(img2[pos+2] * (1 - alpha) + b * alpha);
+    output[pos+3] = 255;
 }
 
 function drawGrayPixel(img, i, alpha, output) {
-    var val = 255 + (img[i] * 0.29889531 + img[i+1] * 0.58662247 + img[i+2] * 0.11448223 - 255) * alpha * img[i+3] / 255;
-    drawPixel(output, i, val, val, val);
+    output[i] = img[i]; output[i+1] = img[i+1]; output[i+2] = img[i+2]; output[i+3] = img[i+3];
 }")
 
 (defn- bytes->base64 [^bytes png-bytes]
@@ -252,7 +254,7 @@ function drawGrayPixel(img, i, alpha, output) {
    Options:
      :threshold   — matching threshold 0.0-1.0 (default 0.1, lower = stricter)
      :include-aa  — count anti-aliased pixels as diff (default false)
-     :alpha       — opacity of original image in diff (default 0.1)
+     :alpha       — red overlay opacity on changed pixels (default 0.5)
      :diff-path   — optional path to save the diff image PNG
 
    Returns:
@@ -267,7 +269,7 @@ function drawGrayPixel(img, i, alpha, output) {
       :current-dimensions  {:width w :height h}
       :dimension-mismatch  true/false}"
   [^bytes baseline ^bytes current & {:keys [threshold include-aa alpha diff-path]
-                                     :or {threshold 0.1 include-aa false alpha 0.1}}]
+                                     :or {threshold 0.1 include-aa false alpha 0.5}}]
   (let [baseline-dims (png-dimensions baseline)
         current-dims (png-dimensions current)
         baseline-b64 (bytes->base64 baseline)

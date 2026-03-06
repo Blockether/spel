@@ -1222,7 +1222,7 @@
         diffs        (snapshot/diff-snapshots (str/trim baseline) (str/trim current-snap))]
     (assoc diffs
       :current current-snap
-      :total-lines (max (count (str/split-lines baseline))
+      :total_lines (max (count (str/split-lines baseline))
                      (count (str/split-lines current-snap))))))
 
 (defmethod handle-cmd "diff_screenshot" [_ {:strs [baseline path threshold]}]
@@ -1242,8 +1242,18 @@
       (java.nio.file.Path/of ^String diff-path (into-array String []))
       ^bytes (:diff-image result)
       ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-    (-> (dissoc result :diff-image)
-      (assoc :diff-path diff-path))))
+    (let [raw (-> (dissoc result :diff-image)
+                (assoc :diff-path diff-path))]
+      {:matched             (:matched raw)
+       :diff_count          (:diff-count raw)
+       :total_pixels        (:total-pixels raw)
+       :diff_percent        (:diff-percent raw)
+       :width               (:width raw)
+       :height              (:height raw)
+       :diff_path           (:diff-path raw)
+       :baseline_dimensions (:baseline-dimensions raw)
+       :current_dimensions  (:current-dimensions raw)
+       :dimension_mismatch  (:dimension-mismatch raw)})))
 
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1955,10 +1965,16 @@
   "Processes a single JSON command string. Returns a JSON response string."
   [^String line]
   (try
-    (let [cmd    (json/read-json line)
-          action (get cmd "action")
-          flags  (get cmd "_flags")
-          params (dissoc cmd "action" "_flags")]
+    (let [raw-cmd (json/read-json line)
+          cmd     (if (map? raw-cmd)
+                    (reduce-kv (fn [m k v]
+                                 (assoc m (if (keyword? k) (name k) k) v))
+                      {}
+                      raw-cmd)
+                    raw-cmd)
+          action  (get cmd "action")
+          flags   (get cmd "_flags")
+          params  (dissoc cmd "action" "_flags")]
       ;; Store launch flags if present (used by ensure-browser!)
       ;; Persist to disk so CLI can recover them on daemon restart.
       (when (seq flags)

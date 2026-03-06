@@ -1256,9 +1256,9 @@ TEMP_FILES+=("$BASELINE_SS")
 OUT=$("$SPEL" --json diff screenshot --baseline "$BASELINE_SS" 2>&1)
 assert_jq "diff screenshot → has matched" "$OUT" '.matched != null'
 assert_jq "diff screenshot same → matched true" "$OUT" '.matched == true'
-assert_jq "diff screenshot → has diff-percent" "$OUT" '."diff-percent" != null'
-assert_jq "diff screenshot → has diff-path" "$OUT" '."diff-path" != null'
-assert_jq "diff screenshot → has total-pixels" "$OUT" '."total-pixels" > 0'
+assert_jq "diff screenshot → has diff_percent" "$OUT" '.diff_percent != null'
+assert_jq "diff screenshot → has diff_path" "$OUT" '.diff_path != null'
+assert_jq "diff screenshot → has total_pixels" "$OUT" '.total_pixels > 0'
 
 # =============================================================================
 # SNAPSHOT STYLES, VIEWPORT & DEVICE (36)
