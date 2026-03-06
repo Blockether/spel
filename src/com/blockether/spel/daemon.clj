@@ -14,6 +14,7 @@
    [clojure.string :as str]
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.action-log :as action-log]
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.devices :as devices]
@@ -38,6 +39,7 @@
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
+(declare pg)
 
 (defn- warn
   "Logs a warning to stderr. Used in cleanup paths where we must continue
@@ -263,6 +265,51 @@
 (defonce ^:private !page-counter (atom 0))
 
 (defonce ^:private !session-entry-count (atom 0))
+
+;; Action Log — user-facing browser commands tracked for SRT export.
+;; Atoms live in sci-env (alongside !page, !context, etc.) to avoid circular deps.
+
+(def ^:private trackable-actions
+  "Set of user-facing browser commands that should be recorded in the action log."
+  #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
+    "select" "dblclick" "focus" "clear" "screenshot" "scroll"
+    "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
+
+(defn- track-action!
+  "Records a user-facing command in the action log with timestamp and page context.
+   Called from process-command after successful handle-cmd for trackable actions.
+   Captures: action, target, args, page URL, page title, and the post-action
+   snapshot tree (when the handler returns one)."
+  [^String action params result]
+  (let [now (System/currentTimeMillis)
+        idx (swap! sci-env/!action-counter inc)
+        ;; Set start time on first action
+        _   (compare-and-set! sci-env/!action-log-start 0 now)
+        ;; ISO timestamp for human-readable JSON export
+        iso (str (java.time.Instant/ofEpochMilli now))
+        ;; Extract target: prefer ref/selector from params
+        target (or (get params "ref")
+                 (get params "selector")
+                 (get params "text")  ;; for click-by-text style
+                 nil)
+        ;; Build args map (exclude bulky/redundant keys)
+        args   (not-empty (dissoc params "ref" "selector" "text"
+                            "raw-input" "action"))
+        ;; Grab page context (safe — page may not exist yet for navigate)
+        url    (try (page/url (pg)) (catch Exception _ nil))
+        title  (try (page/title (pg)) (catch Exception _ nil))
+        ;; Extract snapshot from result if the handler returned one
+        snap   (when (map? result) (:snapshot result))
+        entry  (cond-> {:idx       idx
+                        :timestamp now
+                        :time      iso
+                        :action    action
+                        :target    target
+                        :args      args
+                        :url       url
+                        :title     title}
+                 snap (assoc :snapshot snap))]
+    (swap! sci-env/!action-log conj entry)))
 
 (defn- truncate-keys
   "Returns a map with at most n top-level keys, values not expanded."
@@ -1972,6 +2019,29 @@
               "\"allDeclaredMethods\": true}")
             "A class may need reflection registration in reflect-config.json with \"unsafeAllocated\": true"))))))
 
+;; =============================================================================
+;; Action Log Commands
+;; =============================================================================
+
+(defmethod handle-cmd "action_log" [_ _params]
+  {:entries @sci-env/!action-log
+   :count   (count @sci-env/!action-log)
+   :start   @sci-env/!action-log-start})
+
+(defmethod handle-cmd "action_log_srt" [_ params]
+  (let [opts (cond-> {}
+               (get params "min-duration-ms")
+               (assoc :min-duration-ms (long (get params "min-duration-ms")))
+               (get params "max-duration-ms")
+               (assoc :max-duration-ms (long (get params "max-duration-ms"))))]
+    {:srt (action-log/actions->srt @sci-env/!action-log opts)}))
+
+(defmethod handle-cmd "action_log_clear" [_ _params]
+  (reset! sci-env/!action-log [])
+  (reset! sci-env/!action-counter 0)
+  (reset! sci-env/!action-log-start 0)
+  {:cleared true})
+
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
   [^String line]
@@ -2009,7 +2079,11 @@
                   error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")]
               (json/write-json-str (error-response error-msg)))
             :else
-            (json/write-json-str {:success true :data result})))
+            (do
+              ;; Track user-facing actions for SRT export
+              (when (trackable-actions action)
+                (track-action! action params result))
+              (json/write-json-str {:success true :data result}))))
         (catch Throwable e
           (let [hint (reflection-error-hint e)
                 msg  (or hint (.getMessage e))

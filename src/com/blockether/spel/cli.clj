@@ -1098,6 +1098,38 @@
       "  -h, --host <host>       Host to serve trace on (opens in browser tab)"
       "  -p, --port <port>       Port to serve trace on (0 = any free port)"])
 
+   "action-log"
+   (str/join \newline
+     ["action-log - View or export the daemon's action log"
+      ""
+      "The action log records all user-facing browser commands (click, navigate,"
+      "fill, etc.) with timestamps. Use it to generate SRT subtitles for video"
+      "recordings or to review what happened during a session."
+      ""
+      "Usage:"
+      "  spel action-log              Show action log as JSON"
+      "  spel action-log --srt        Export as SRT subtitle format"
+      "  spel action-log --clear      Clear the action log"
+      "  spel action-log --srt -o f   Export SRT to file"
+      ""
+      "Flags:"
+      "  --srt           Output in SRT subtitle format"
+      "  --clear         Clear the action log"
+      "  -o, --output    Write output to file instead of stdout"
+      "  --json          Force JSON output (default)"
+      ""
+      "Examples:"
+      "  spel action-log"
+      "  spel action-log --srt"
+      "  spel action-log --srt -o session.srt"
+      "  spel action-log --clear"
+      ""
+      "SRT subtitles can be used with video recordings:"
+      "  1. Record video:  spel eval-sci '(spel/start-video-recording)'"
+      "  2. Do actions:    spel click @e123, spel fill @e456 \"text\""
+      "  3. Export SRT:    spel action-log --srt -o session.srt"
+      "  4. Burn in:       ffmpeg -i video.webm -vf subtitles=session.srt out.mp4"])
+
    "styles"
    (str/join \newline
      ["styles - Get computed CSS styles for an element"
@@ -2031,6 +2063,27 @@
                              ("clear" "--clear") {:action "console_clear"}
                              {:action "console_get"})))
 
+          ;; Action Log
+            "action-log" (let [args-set  (set cmd-args)
+                               srt?     (args-set "--srt")
+                               clear?   (args-set "--clear")
+                               ;; Parse -o / --output flag value
+                               args-v   (vec cmd-args)
+                               out-idx  (long (max (long (.indexOf ^java.util.List args-v "-o"))
+                                                (long (.indexOf ^java.util.List args-v "--output"))))
+                               out-path (when (>= out-idx 0) (nth args-v (inc out-idx) nil))]
+                           (cond
+                             clear?
+                             {:action "action_log_clear"}
+
+                             srt?
+                             (cond-> {:action "action_log_srt"}
+                               out-path (assoc :_output_file out-path))
+
+                             :else
+                             (cond-> {:action "action_log"}
+                               out-path (assoc :_output_file out-path))))
+
             "errors"   (case (first cmd-args)
                          "clear" {:action "errors_clear"}
                          "--clear" {:action "errors_get" :clear true}
@@ -2507,6 +2560,10 @@
             (println (str (:name c) "=" (:value c)
                        " (domain=" (:domain c) " path=" (:path c) ")")))
 
+          ;; SRT subtitle output (raw text, not formatted)
+          (:srt data)
+          (println (:srt data))
+
           ;; Console messages
           (:messages data)
           (doseq [m (:messages data)]
@@ -2676,6 +2733,9 @@
                         (assoc :script stdin-script)
                         (dissoc :stdin)))
                     command)
+          ;; Extract output-file directive (CLI-side, not sent to daemon)
+          output-file (:_output_file command)
+          command     (dissoc command :_output_file)
           ;; Send command with global flags for daemon to use
           flag-keys (dissoc flags :session :headless :json)
           cmd-with-flags (if (seq flag-keys)
@@ -2702,8 +2762,17 @@
                              (recur (inc retries)))
                          :else res)))]
       (if response
-        (do (print-result response (:json flags))
-            (System/exit (if (:success response) 0 1)))
+        (if (and output-file (:success response))
+          ;; Write to file: SRT as raw text, JSON for action_log
+          (let [data (:data response)
+                content (if (:srt data)
+                          (:srt data)
+                          (json/write-json-str data :escape-slash false))]
+            (spit output-file content)
+            (println (str "Written to: " output-file))
+            (System/exit 0))
+          (do (print-result response (:json flags))
+              (System/exit (if (:success response) 0 1))))
         (do (binding [*out* *err*]
               (println "Error: Could not connect to daemon"))
             (System/exit 1))))))

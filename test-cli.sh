@@ -1047,6 +1047,11 @@ assert_contains "search --help mentions json" "$OUT" "json"
 assert_contains "search --help mentions stealth" "$OUT" "stealth"
 assert_contains "search --help mentions debug" "$OUT" "debug"
 
+OUT=$("$SPEL" action-log --help 2>&1)
+assert_contains "action-log --help mentions SRT" "$OUT" "SRT"
+assert_contains "action-log --help mentions clear" "$OUT" "clear"
+assert_contains "action-log --help mentions ffmpeg" "$OUT" "ffmpeg"
+
 # =============================================================================
 # CODEGEN + EVAL COMPATIBILITY (31)
 # Ultimate Clojure↔SCI compatibility test:

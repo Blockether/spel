@@ -31,6 +31,7 @@
    [sci.core :as sci]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
+   [com.blockether.spel.action-log :as action-log]
    [com.blockether.spel.markdown :as markdown]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
@@ -85,6 +86,13 @@
 (defonce !context (atom nil))
 (defonce !page    (atom nil))
 (defonce !device  (atom nil))
+
+;; Action Log — tracks user-facing browser commands with timestamps for SRT export.
+;; Owned here (alongside other session atoms) so daemon.clj can write and sci fns can read
+;; without circular dependency.
+(defonce !action-log       (atom []))
+(defonce !action-counter   (atom 0))
+(defonce !action-log-start (atom 0))
 
 ;; When true, stop! is a no-op — the daemon owns the browser lifecycle.
 (defonce !daemon-mode? (atom false))
@@ -846,6 +854,65 @@
   (core/video-path (require-page!)))
 
 ;; =============================================================================
+;; Action Log + Smooth Video Helpers
+;; =============================================================================
+
+(defn sci-action-log
+  "Returns the current action log entries.
+   Each entry is a map with :idx, :timestamp, :action, :target, :args."
+  []
+  @!action-log)
+
+(defn sci-export-srt
+  "Exports the current action log as an SRT subtitle string.
+   Options:
+     :min-duration-ms  Minimum cue duration (default: 1000)
+     :max-duration-ms  Maximum cue duration (default: 5000)"
+  ([] (sci-export-srt {}))
+  ([opts]
+   (action-log/actions->srt @!action-log opts)))
+
+(defn sci-clear-action-log!
+  "Clears the action log, resetting the counter and start time."
+  []
+  (reset! !action-log [])
+  (reset! !action-counter 0)
+  (reset! !action-log-start 0)
+  {:cleared true})
+
+(defn sci-smooth-scroll
+  "Smooth-scrolls the page to the given Y position (or by a delta).
+   Uses CSS smooth scroll behavior for natural-looking video recordings.
+
+   Usage:
+     (spel/smooth-scroll 500)        ;; scroll to Y=500
+     (spel/smooth-scroll {:top 500})  ;; same
+     (spel/smooth-scroll {:delta-y 300}) ;; scroll down by 300px"
+  [y-or-opts]
+  (let [pg (require-page!)
+        js (if (map? y-or-opts)
+             (if-let [dy (:delta-y y-or-opts)]
+               (str "window.scrollBy({top: " dy ", behavior: 'smooth'})")
+               (str "window.scrollTo({top: " (or (:top y-or-opts) 0) ", behavior: 'smooth'})"))
+             (str "window.scrollTo({top: " y-or-opts ", behavior: 'smooth'})"))]
+    (page/evaluate pg js)
+    ;; Wait for smooth scroll to complete (CSS scroll takes ~400-600ms)
+    (Thread/sleep 600)
+    nil))
+
+(defn sci-human-pause
+  "Pauses for a random duration between min-ms and max-ms (default: 300-700ms).
+   Simulates natural human pacing for smoother video recordings.
+
+   Usage:
+     (spel/human-pause)          ;; 300-700ms
+     (spel/human-pause 500 1000) ;; 500-1000ms"
+  ([] (sci-human-pause 300 700))
+  ([min-ms max-ms]
+   (let [duration (+ (long min-ms) (long (rand-int (- (long max-ms) (long min-ms)))))]
+     (Thread/sleep duration)
+     {:paused-ms duration})))
+
 ;; Network
 ;; =============================================================================
 
@@ -1412,6 +1479,12 @@
                   ['start-video-recording  sci-start-video-recording]
                   ['finish-video-recording sci-finish-video-recording]
                   ['video-path             sci-video-path]
+                  ;; Action Log + Smooth Helpers
+                  ['action-log             sci-action-log]
+                  ['export-srt             sci-export-srt]
+                  ['clear-action-log!      sci-clear-action-log!]
+                  ['smooth-scroll          sci-smooth-scroll]
+                  ['human-pause            sci-human-pause]
                   ;; Network
                   ['last-response  sci-last-response]
                    ;; Info & Help

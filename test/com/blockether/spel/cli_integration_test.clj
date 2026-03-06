@@ -9,10 +9,12 @@
    5. Cleans up properly between test groups"
   (:require
    [clojure.string :as str]
+   [charred.api :as json]
    [clojure.java.io :as io]
    [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-fixtures :as tf
     :refer [*pw* *browser*
@@ -68,6 +70,10 @@
       ;; Reset page tracking atoms
       (reset! (deref #'daemon/!pages) [])
       (reset! (deref #'daemon/!page-counter) 0)
+      ;; Reset action log atoms
+      (reset! (deref #'com.blockether.spel.sci-env/!action-log) [])
+      (reset! (deref #'com.blockether.spel.sci-env/!action-counter) 0)
+      (reset! (deref #'com.blockether.spel.sci-env/!action-log-start) 0)
       (page/on-console pg (fn [msg]
                             (swap! console-a conj
                               {:type (.type ^ConsoleMessage msg)
@@ -2599,3 +2605,87 @@
         (let [r (cmd "snapshot" {})]
           (expect (= "iPhone 14" (:device r)))
           (expect (str/includes? (:snapshot r) "device: iPhone 14")))))))
+
+(defn- pcmd
+  "Calls process-command (which tracks actions). Returns parsed response data."
+  [action params]
+  (let [cmd-json (json/write-json-str (assoc params "action" action))
+        resp-str (#'daemon/process-command cmd-json)
+        resp     (json/read-json resp-str)]
+    (if (get resp "success")
+      (get resp "data")
+      (throw (ex-info (str "Command failed: " (get resp "error")) resp)))))
+
+;; =============================================================================
+;; Action Log Integration Tests
+;; =============================================================================
+
+(defdescribe action-log-integration-test
+  "Integration tests for action log tracking and SRT export"
+
+  (describe "action tracking"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "tracks navigate actions with URL and title"
+      ;; Use pcmd to go through process-command (which triggers tracking)
+      (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      (let [r (cmd "action_log" {})]
+        (expect (= 1 (:count r)))
+        (expect (= 1 (count (:entries r))))
+        (let [entry (first (:entries r))]
+          (expect (= "navigate" (:action entry)))
+          (expect (some? (:timestamp entry)))
+          (expect (some? (:time entry)))
+          (expect (some? (:url entry)))
+          (expect (string? (:url entry))))))
+
+    (it "tracks click actions with snapshot"
+      (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      ;; Clear the navigate entry
+      (cmd "action_log_clear" {})
+      (pcmd "click" {"selector" "a"})
+      (let [r (cmd "action_log" {})]
+        (expect (= 1 (:count r)))
+        (let [entry (first (:entries r))]
+          (expect (= "click" (:action entry)))
+          (expect (some? (:url entry)))
+          ;; Click result includes snapshot, so the entry should too
+          (expect (some? (:snapshot entry))))))
+
+    (it "does not track read-only commands"
+      (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      (cmd "action_log_clear" {})
+      ;; snapshot and url are read-only — should NOT be tracked
+      (pcmd "snapshot" {})
+      (pcmd "url" {})
+      (let [r (cmd "action_log" {})]
+        (expect (= 0 (:count r))))))
+
+  (describe "action_log_srt export"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns valid SRT format"
+      (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      ;; Do a couple actions
+      (pcmd "click" {"selector" "a"})
+      (let [r (cmd "action_log_srt" {})]
+        (expect (string? (:srt r)))
+        ;; Should have cue numbers
+        (expect (str/includes? (:srt r) "1\n"))
+        ;; Should have time markers with correct format
+        (expect (re-find #"\d{2}:\d{2}:\d{2},\d{3} --> " (:srt r)))
+        ;; Should include navigate and click descriptions
+        (expect (str/includes? (:srt r) "navigate")))))
+
+  (describe "action_log_clear"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "clears all entries"
+      (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      (let [before (cmd "action_log" {})]
+        (expect (pos? (:count before))))
+      (cmd "action_log_clear" {})
+      (let [after (cmd "action_log" {})]
+        (expect (= 0 (:count after)))
+        (expect (empty? (:entries after)))))))
+
