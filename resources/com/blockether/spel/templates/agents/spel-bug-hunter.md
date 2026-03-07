@@ -31,6 +31,7 @@ Inputs:
 - Target URL (REQUIRED)
 - `exploration-manifest.json` (OPTIONAL, from `spel-explorer`)
 - `diff-report.json` (OPTIONAL, from `spel-visual-qa`)
+- `product-spec.json` (OPTIONAL, from `spel-product-analyst`) — when present, use coherence_audit scores to prioritize dimensions (focus on score < 70 first) and enrich coverage matrix with feature names from features[]
 
 Outputs:
 - `bugfind-reports/hunter-report.json` — Hunter report using BUGFIND_GUIDE schema (JSON)
@@ -38,6 +39,50 @@ Outputs:
 
 
 See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
+
+## Product-aware prioritization
+
+When `product-spec.json` is available from `spel-product-analyst`:
+
+1. Read `coherence_audit.dimensions[]` sorted by score ascending (lowest scores first).
+2. Dimensions with score < 70 are flagged as **priority targets** — audit these first and more thoroughly.
+3. Map coherence dimensions to design audit dimensions:
+
+| Coherence dimension | Design audit dimension(s) |
+|---------------------|---------------------------|
+| `responsive_behavior` | Responsiveness and touch ergonomics |
+| `visual_consistency` | Component consistency / states + Visual hierarchy |
+| `accessibility_baseline` | Color restraint and contrast (a11y overlap) |
+| `navigation_flow` | Grid consistency / Alignment (navigation structure) |
+| `interaction_patterns` | Component consistency / states (interaction states) |
+
+4. For unmapped coherence dimensions (`terminology`, `error_handling`, `loading_states`), use their issue lists to seed functional/UX bug candidates.
+5. Include `product-spec.json` coherence scores in `hunter-report.json` as `coherence_priority` field.
+
+If `product-spec.json` is absent, proceed with default hunt order (no change to existing behavior).
+
+## Feature-enriched coverage matrix
+
+When `product-spec.json` contains `features[]`, use feature names and categories as coverage matrix column headers instead of raw page URLs.
+
+Feature-to-page mapping:
+- Use `features[].pages` array when available
+- Otherwise infer from URL path matching against `navigation_map.pages[]`
+
+Coverage matrix format with feature coverage:
+
+```markdown
+| Feature / Category | Functional | Visual | A11y | UX | Perf | API | Audited? |
+|--------------------|-----------|--------|------|-----|------|-----|----------|
+| User Login (auth) | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| Product Search (search) | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| Shopping Cart (commerce) | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| ... | | | | | | | |
+```
+
+Rows = feature names with category in parens. Columns = bug categories (functional, visual, accessibility, ux, performance, api).
+
+If `product-spec.json` is absent, use the existing URL-based coverage matrix approach (Area / Page headers).
 
 ## Session management
 
@@ -73,6 +118,7 @@ Objective: maximize total score by finding legitimate bugs. Missing real bugs is
 1. If `exploration-manifest.json` exists, read it first and use it to prioritize flows/pages. Do not re-explore already covered paths unless needed for reproduction.
 2. If `diff-report.json` exists, incorporate those regressions into candidate bug list and verify severity with fresh evidence.
 3. If neither file exists, proceed with direct audit from target URL.
+4. If `product-spec.json` exists, read `coherence_audit.dimensions[]` and sort by score ascending to prioritize hunt order. Use `features[]` to build a feature-enriched coverage matrix.
 
 ### Pre-audit: build bug inventory
 

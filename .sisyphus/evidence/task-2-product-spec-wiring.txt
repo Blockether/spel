@@ -1,0 +1,23 @@
+Task 2: Wire product-spec.json into bug-hunter
+================================================
+
+File modified: resources/com/blockether/spel/templates/agents/spel-bug-hunter.md
+
+Changes made:
+1. Added product-spec.json as 4th OPTIONAL input in Contract Inputs section
+2. Added "## Product-aware prioritization" section after Contract
+3. Added "## Feature-enriched coverage matrix" section after prioritization
+4. Added composition rule 4 for product-spec.json consumption
+
+Verification results:
+- product-spec.json count: 7 (requirement: >= 4) ✓
+- OPTIONAL + product-spec grep: MATCH ✓
+- coherence_audit grep: MATCH ✓
+- feature.*coverage grep: MATCH ✓
+- score < 70 grep: MATCH ✓
+
+No existing behavior was altered:
+- 6 bug categories unchanged (functional, visual, accessibility, ux, performance, api)
+- Adversarial pipeline (hunter → skeptic → referee) untouched
+- product-spec.json remains OPTIONAL — fallback to default behavior when absent
+- BUGFIND_GUIDE.md not modified
