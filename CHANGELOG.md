@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.15] - 2026-03-07
+
+### Changed
+- fix(templates): change orchestrator mode from 'agent' to 'all' and add visual checks + viewport sections to QA report
+- feat(templates): enforce multi-viewport testing with structured evidence
+- fix(templates): require annotated screenshots with action markers as bug evidence
+- feat(templates): add visual_checks schema and visual coherence detection
+- fix(templates): restore re-snapshot examples and add visual anomaly detection
+- style(templates): humanize all 43 agent/skill markdown files
+- feat(action-log): add daemon-level action tracking with SRT export
+- feat(templates): add QA report HTML template and integrate dogfood workflow
+- release: update version files for v0.5.14, bump to next dev version
+
+
 ## [v0.5.14] - 2026-03-06
 
 ### Changed
@@ -572,7 +586,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.14...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.15...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -594,3 +608,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.12]: https://github.com/Blockether/spel/releases/tag/v0.5.12
 [v0.5.13]: https://github.com/Blockether/spel/releases/tag/v0.5.13
 [v0.5.14]: https://github.com/Blockether/spel/releases/tag/v0.5.14
+[v0.5.15]: https://github.com/Blockether/spel/releases/tag/v0.5.15
