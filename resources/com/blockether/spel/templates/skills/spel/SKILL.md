@@ -36,7 +36,7 @@ If the installed version does not match **{{version}}**:
 
 The orchestrator routes to:
 - `@spel-test-orchestrator` — E2E test writing (plan → challenge → generate → heal)
-- `@spel-qa-orchestrator` — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML report)
+- `@spel-qa-orchestrator` — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML + Markdown reports)
 - `@spel-auto-orchestrator` — Browser automation (auth → explore → script → document)
 
 You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
@@ -269,6 +269,7 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 | `refs/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
 | `refs/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
 | `refs/spel-report.html` | Unified report HTML template — QA + product discovery |
+| `refs/spel-report.md` | Unified report Markdown template — LLM-friendly QA + product discovery handoff |
 | `refs/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
 
 ### CLI & tools

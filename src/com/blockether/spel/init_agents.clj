@@ -84,13 +84,13 @@
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
    :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md" "spel-report.html"]
+                 "BUGFIND_GUIDE.md" "spel-report.html" "spel-report.md"]
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
-   :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html"]
+   :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html" "spel-report.md"]
    :auto-orchestrator ["AGENT_COMMON.md"]
    :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
-                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html"]})
+                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html" "spel-report.md"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
@@ -149,7 +149,7 @@
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for agent templates that need frontmatter transformation.
    resolved-only: nil for all agents, or a set of resolved subagent keywords to filter by."
-  [loop-target flavour resolved-only]
+  [loop-target flavour resolved-only learnings?]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
         ct? (= "clojure-test" flavour)
         generator-template (if ct?
@@ -166,6 +166,13 @@
                                   (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
                              distinct
                              vec)
+        learnings-files (if learnings?
+                          [["learnings.md"
+                            "LEARNINGS.md"
+                            "meta learnings report"
+                            "+"
+                            nil]]
+                          [])
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
                             "API reference skill"
@@ -302,7 +309,7 @@
                                     true)))
                        all-test-files)
                      all-test-files)]
-    (into skill-files test-files)))
+    (into (into learnings-files skill-files) test-files)))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.
@@ -496,6 +503,62 @@
         "claude"   (transform-for-claude content agent-name skill-dir)
         content))))
 
+(defn- orchestrator-agent?
+  "Returns true when the scaffolded template is an orchestrator agent."
+  [agent-name]
+  (and (string? agent-name)
+    (str/includes? agent-name "orchestrator")))
+
+(defn- append-learnings-contract
+  "Appends opt-in learnings instructions to generated agent templates."
+  [content agent-name]
+  (let [base-contract (str
+                        "\n\n## Meta Learnings (enabled via --learnings)\n"
+                        "For every run, append your scoped learnings to `LEARNINGS.md` at repository root.\n"
+                        "Do not overwrite other agent sections. Always append under this header:\n\n"
+                        "```markdown\n"
+                        "## Agent: " agent-name "\n"
+                        "### What worked\n"
+                        "- ...\n"
+                        "### What went wrong\n"
+                        "- ...\n"
+                        "### Confusions (skills/instructions/tooling)\n"
+                        "- ...\n"
+                        "### Beneficial patterns\n"
+                        "- ...\n"
+                        "### Exact Reproductions\n"
+                        "#### ISSUE-<id>\n"
+                        "- Context: <page/feature/state>\n"
+                        "- Preconditions: <required setup>\n"
+                        "- Steps:\n"
+                        "  1. ...\n"
+                        "  2. ...\n"
+                        "- Expected: ...\n"
+                        "- Actual: ...\n"
+                        "- Evidence: <screenshot path / log / ref>\n"
+                        "### Root Cause and Corrective Action\n"
+                        "- Root cause hypothesis: ...\n"
+                        "- Correction proposal (prompt/skill/template): ...\n"
+                        "- Expected effect of correction: ...\n"
+                        "### Instruction Confusions (quote exact text)\n"
+                        "- Confusing instruction: \"...\"\n"
+                        "- Why confusing: ...\n"
+                        "- Proposed rewrite: \"...\"\n"
+                        "```\n")
+        orchestrator-contract (str
+                                "\n"
+                                "### Orchestrator Synthesis (required)\n"
+                                "You must maintain these top-level sections in `LEARNINGS.md`:\n"
+                                "- `## High-Level Issues (cross-agent synthesis)`\n"
+                                "- `## Agent-Scoped Learnings`\n"
+                                "For every high-level issue, include exact reproduction with Context, Preconditions, Steps, Expected, Actual, and Evidence.\n"
+                                "Cross-check subagent findings for duplicates, contradictions, and confidence before finalizing.\n"
+                                "You must include `## Corrective Backlog` with prompt/skill/template fixes prioritized by impact and confidence.\n")]
+    (str content
+      base-contract
+      (when (orchestrator-agent? agent-name)
+        orchestrator-contract))))
+
 ;; =============================================================================
 ;; CLI Argument Parsing
 ;; =============================================================================
@@ -512,12 +575,13 @@
 
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS"
+   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS, --learnings"
   [args]
   (loop [remaining args
          opts {:dry-run false
                :force false
                :no-tests false
+               :learnings false
                :flavour "lazytest"
                :ns nil
                :loop "opencode"
@@ -535,6 +599,9 @@
 
           (= "--no-tests" arg)
           (recur (rest remaining) (assoc opts :no-tests true))
+
+          (= "--learnings" arg)
+          (recur (rest remaining) (assoc opts :learnings true))
 
           (= "--only" arg)
           (recur (drop 2 remaining)
@@ -615,7 +682,9 @@
       (let [content (-> (read-template resource-path)
                       (process-template ns-name flavour)
                       (transform-agent-references loop-target)
-                      (transform-agent-template loop-target agent-name))
+                      (transform-agent-template loop-target agent-name)
+                      (cond-> (and (:learnings opts) agent-name)
+                        (append-learnings-contract agent-name)))
             written? (write-file! output-path content dry-run)]
         (if dry-run
           {:created false :skipped false :dry-run true :reason "(dry-run)"}
@@ -645,6 +714,7 @@
   (println "  spel init-agents --ns my-app --test-dir test/e2e --specs-dir test-e2e/specs")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
+  (println "  spel init-agents --ns my-app --learnings")
   (println "  spel init-agents --ns my-app --dry-run")
   (println "  spel init-agents --ns my-app --force")
   (println "")
@@ -657,6 +727,8 @@
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
   (println "  --no-tests        Skip seed test and specs directory — scaffold agents + SKILL only.")
   (println "                    Use this when you don't need a starter test file.")
+  (println "  --learnings       Scaffold LEARNINGS.md and inject mandatory per-agent learnings contracts.")
+  (println "                    Agents append scoped learnings; orchestrators synthesize high-level issues with exact reproductions.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
@@ -696,7 +768,7 @@
 
 (defn- print-footer
   "Prints the completion message and next steps for the user."
-  [loop-target test-dir no-tests flavour]
+  [loop-target test-dir no-tests flavour learnings?]
   (println "")
   (if no-tests
     (do
@@ -715,7 +787,11 @@
       (println "")
       (println "  3. Use spel for browser automation:")
       (println "     spel open https://example.org")
-      (println "     spel eval-sci '(page/navigate \"https://example.org\")')"))
+      (println "     spel eval-sci '(page/navigate \"https://example.org\")')")
+      (when learnings?
+        (println "")
+        (println "  4. Capture meta learnings in LEARNINGS.md")
+        (println "     Every agent now appends scoped learnings; orchestrators must synthesize high-level issues.")))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
         (println "Done! Use @spel-orchestrator to get started, or @spel-test-planner to plan tests directly.")
@@ -745,7 +821,11 @@
       (println "")
       (println "  4. Update the seed test URL in")
       (println (str "     " test-dir "/<ns>/e2e/seed_test.clj"))
-      (println "     to point to your development server."))))
+      (println "     to point to your development server.")
+      (when learnings?
+        (println "")
+        (println "  5. Capture meta learnings in LEARNINGS.md")
+        (println "     Every agent now appends scoped learnings; orchestrators must synthesize high-level issues.")))))
 
 ;; =============================================================================
 ;; Main Entry Point
@@ -791,6 +871,7 @@
       :else
       (let [loop-target (:loop opts)
             no-tests (:no-tests opts)
+            learnings? (:learnings opts)
             flavour (:flavour opts)
             only-set (:only opts)
             resolved-only (when only-set
@@ -805,7 +886,7 @@
         (print-banner loop-target no-tests)
 
         ;; Scaffold files (agents + skill; --only filters which agents)
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour resolved-only)]
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour resolved-only learnings?)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 
@@ -822,4 +903,4 @@
                 seed-result (scaffold-file (seed-template-resource flavour) seed-path "seed test" "+" opts ns-name loop-target nil)]
             (print-result "+" seed-path "seed test" seed-result)))
 
-        (print-footer loop-target test-dir no-tests flavour)))))
+        (print-footer loop-target test-dir no-tests flavour learnings?)))))

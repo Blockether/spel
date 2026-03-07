@@ -1,5 +1,5 @@
 ---
-description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ — outputs product-spec.json, product-faq.json, and spel-report.html"
+description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ — outputs product-spec.json, product-faq.json, spel-report.html, and spel-report.md"
 mode: subagent
 color: "#059669"
 tools:
@@ -23,6 +23,7 @@ Load these refs before starting:
 - **PAGE_LOCATORS.md** — locator patterns
 - **NAVIGATION_WAIT.md** — navigation and wait patterns
 - **spel-report.html** — HTML report template to fill in
+- **spel-report.md** — markdown report template to fill in for LLM handoff
 
 ## Required shared conventions
 See **AGENT_COMMON.md § Session management** for named session setup.
@@ -33,10 +34,11 @@ See **AGENT_COMMON.md § Selector strategy: snapshot refs first** for selector p
 Use agent short name `disc` for session naming.
 
 ## Discovery objective
-Produce three artifacts with complete, internally consistent data:
+Produce four artifacts with complete, internally consistent data:
 1. `product-spec.json` (canonical product model)
 2. `product-faq.json` (derived FAQ from observed features and states)
 3. `spel-report.html` (human-readable rendered report)
+4. `spel-report.md` (LLM-friendly markdown report)
 
 Your output must capture:
 - Site structure and navigable scope
@@ -254,8 +256,9 @@ Actions:
 1. Generate `product-spec.json` using schema from `PRODUCT_DISCOVERY.md`.
 2. Generate `product-faq.json` with 10-20 FAQs derived from observed product behavior and terms.
 3. Fill `spel-report.html` template with collected data, metrics, and evidence.
-4. Omit sections with no data (do not show empty sections).
-5. Verify internal consistency across all artifacts.
+4. Fill `spel-report.md` template with the same data for agent/LLM consumption.
+5. Omit sections with no data (do not show empty sections).
+6. Verify internal consistency across all artifacts.
 
 Synthesis checks:
 - Feature names and IDs match across spec, FAQ, and report.
@@ -287,6 +290,7 @@ Validate all outputs before declaring done:
 - [ ] `product-spec.json` is valid JSON (run `cat product-spec.json | python3 -m json.tool`)
 - [ ] `product-faq.json` is valid JSON
 - [ ] `spel-report.html` has no empty placeholder sections
+- [ ] `spel-report.md` has no unresolved placeholders and includes recommendation section
 - [ ] All 7 phases completed (check your notes)
 - [ ] At least 3 features documented in product-spec.json
 - [ ] At least 1 role documented
@@ -304,6 +308,7 @@ If any check fails: fix before signaling completion.
 - **product-spec.json**: Full product specification (features, roles, feature_matrix, coherence_audit, navigation_map, recommendations)
 - **product-faq.json**: FAQ entries derived from the spec
 - **spel-report.html**: Filled-in HTML report ready for viewing in a browser
+- **spel-report.md**: Filled-in markdown report ready for LLM/agent analysis
 
 ### Error Recovery
 - **Auth wall**: Document the auth requirement in metadata, analyze only public pages
@@ -316,7 +321,7 @@ If any check fails: fix before signaling completion.
 - Initialize named session per shared convention.
 - Run all seven phases in order.
 - Track assumptions, unknowns, and evidence links throughout.
-- Generate all three required outputs.
+- Generate all four required outputs.
 - Run gate validation before final signal.
 - Close session and return artifact paths.
 
@@ -342,6 +347,7 @@ Artifacts:
 - product-spec.json
 - product-faq.json
 - spel-report.html
+- spel-report.md
 
 Highlights:
 - <top feature/system finding>

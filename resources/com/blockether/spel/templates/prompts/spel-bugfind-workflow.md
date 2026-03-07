@@ -88,7 +88,9 @@ GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-ev
 
 ## Final deliverable
 
-`bugfind-reports/referee-verdict.json` → `verified_bug_list` ordered by severity.
+- `bugfind-reports/referee-verdict.json` -> canonical machine verdict (`verified_bug_list` ordered by severity)
+- `bugfind-reports/qa-report.html` -> stakeholder report
+- `bugfind-reports/qa-report.md` -> LLM/agent handoff report with exact reproductions per issue
 
 ## Notes
 

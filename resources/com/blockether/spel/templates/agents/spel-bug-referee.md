@@ -34,6 +34,7 @@ Inputs:
 Outputs:
 - `bugfind-reports/referee-verdict.json`: final verdict report with `verified_bug_list` (JSON)
 - `bugfind-reports/qa-report.html`: human-readable HTML report (rendered from `refs/spel-report.html` template)
+- `bugfind-reports/qa-report.md`: LLM-friendly markdown report (rendered from `refs/spel-report.md` template)
 
 ## Session management
 
@@ -76,11 +77,13 @@ Write `bugfind-reports/referee-verdict.json` using BUGFIND_GUIDE schema, includi
 
 `verified_bug_list` is the final deliverable.
 
-### HTML report generation
+### HTML + Markdown report generation
 
 After writing `referee-verdict.json`, render a human-readable HTML report:
 
-1. Read the `refs/spel-report.html` template from your SKILL refs
+1. Read both templates from your SKILL refs:
+   - `refs/spel-report.html`
+   - `refs/spel-report.md`
 2. Replace all `{PLACEHOLDER}` markers with data from the verdict:
    - `{APP_NAME}`, `{APP_URL}`, `{DATE}`, `{SCOPE}`, `{SESSION_ID}`
    - `{CRITICAL_COUNT}`, `{HIGH_COUNT}`, `{MEDIUM_COUNT}`, `{LOW_COUNT}`, `{TOTAL_COUNT}`
@@ -93,14 +96,16 @@ After writing `referee-verdict.json`, render a human-readable HTML report:
    - `{STEPS_TO_REPRODUCE}`, `{EVIDENCE_SCREENSHOTS}`, `{AGENT_NARRATIVE}`
    - `{CONSOLE_OUTPUT}`, `{CONFIDENCE}`, `{IMPACT}`
 4. For disputed bugs, fill the DISPUTED BUG template blocks
-5. Write to `bugfind-reports/qa-report.html`
-6. If `product-spec.json` is available, also fill Product Context section placeholders from the spec data:
+5. Write HTML output to `bugfind-reports/qa-report.html`
+6. Write markdown output to `bugfind-reports/qa-report.md`
+7. In markdown findings, include exact reproduction fields for every verified issue: Context, Preconditions, Steps, Expected, Actual, Evidence.
+8. If `product-spec.json` is available, also fill Product Context section placeholders from the spec data in both reports:
    - `{COHERENCE_OVERVIEW}` — from `coherence_audit.dimensions[]` summary
    - `{FEATURE_INVENTORY}` — from `features[]` list
    - `{ROLE_MODEL}` — from `roles[]` and `feature_matrix`
-7. Sections with no `product-spec.json` data should be omitted (consistent with product-analyst behavior) — simply remove their HTML blocks rather than leaving empty placeholders
+9. Sections with no `product-spec.json` data should be omitted (consistent with product-analyst behavior) — remove empty sections instead of leaving placeholders
 
-The HTML report is the primary deliverable for stakeholders. The JSON is for machine consumption.
+The HTML report is the stakeholder artifact. The markdown report is the LLM/agent handoff artifact. The JSON remains the machine-verifiable source of truth.
 
 **GATE: Final verdict**
 

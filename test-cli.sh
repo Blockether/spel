@@ -990,6 +990,7 @@ assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
 
 OUT=$("$SPEL" init-agents --help 2>&1)
 assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
+assert_contains "init-agents --help mentions --learnings" "$OUT" "--learnings"
 
 OUT=$("$SPEL" init-agents --loop=vscode 2>&1 || true)
 assert_contains "init-agents --loop=vscode shows deprecation error" "$OUT" "removed"
@@ -1020,6 +1021,36 @@ if grep -q '^description: "Analyzes a web product' "$CLAUDE_DISC_FILE" && ! grep
   pass "claude description does not double-quote"
 else
   fail "claude description does not double-quote" "Expected clean quoted description in Claude frontmatter"
+fi
+
+LEARN_TMP=$(mktemp -d)
+TEMP_FILES+=("$LEARN_TMP")
+OUT=$(cd "$LEARN_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --learnings --force 2>&1)
+assert_contains "init-agents --learnings scaffolds LEARNINGS.md" "$OUT" "LEARNINGS.md"
+
+LEARNINGS_FILE="$LEARN_TMP/LEARNINGS.md"
+LEARN_ORCH_FILE="$LEARN_TMP/.opencode/agents/spel-orchestrator.md"
+LEARN_HUNTER_FILE="$LEARN_TMP/.opencode/agents/spel-bug-hunter.md"
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^# LEARNINGS$' "$LEARNINGS_FILE" && grep -q '^## High-Level Issues (cross-agent synthesis)$' "$LEARNINGS_FILE" && grep -q '^## Corrective Backlog$' "$LEARNINGS_FILE"; then
+  pass "--learnings creates LEARNINGS schema"
+else
+  fail "--learnings creates LEARNINGS schema" "Expected LEARNINGS.md with high-level issues section"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^## Meta Learnings (enabled via --learnings)$' "$LEARN_HUNTER_FILE" && grep -q '^### Exact Reproductions$' "$LEARN_HUNTER_FILE" && grep -q '^### Root Cause and Corrective Action$' "$LEARN_HUNTER_FILE"; then
+  pass "specialist agent gets scoped learnings contract"
+else
+  fail "specialist agent gets scoped learnings contract" "Expected scoped learnings + exact reproductions in specialist agent"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^### Orchestrator Synthesis (required)$' "$LEARN_ORCH_FILE" && grep -q '## High-Level Issues (cross-agent synthesis)' "$LEARN_ORCH_FILE"; then
+  pass "orchestrator gets synthesis learnings contract"
+else
+  fail "orchestrator gets synthesis learnings contract" "Expected orchestrator synthesis contract with high-level issues guidance"
 fi
 
 # --only test --dry-run: includes test agents, excludes others
@@ -1499,6 +1530,7 @@ assert_contains "discovery force creates product-analyst" "$OUT" "spel-product-a
 
 # 4. created file contains expected content
 assert_contains "product-analyst file references PRODUCT_DISCOVERY" "$(cat "$DISC_AGENT_FILE" 2>/dev/null)" "PRODUCT_DISCOVERY"
+assert_contains "product-analyst file references spel-report.md" "$(cat "$DISC_AGENT_FILE" 2>/dev/null)" "spel-report.md"
 
 # 5. help shows discovery group
 OUT=$("$SPEL" init-agents --help 2>&1)
@@ -1515,10 +1547,12 @@ section "Unified Report Template (43)"
 # 1. bugfind group scaffolds spel-report.html
 OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
 assert_contains "bugfind scaffolds spel-report.html" "$OUT" "spel-report.html"
+assert_contains "bugfind scaffolds spel-report.md" "$OUT" "spel-report.md"
 
 # 2. discovery group scaffolds spel-report.html
 OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
 assert_contains "discovery scaffolds spel-report.html" "$OUT" "spel-report.html"
+assert_contains "discovery scaffolds spel-report.md" "$OUT" "spel-report.md"
 
 # 3. old qa-report.html NOT scaffolded for bugfind
 OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
@@ -1543,6 +1577,7 @@ REFEREE_FILE=".opencode/agents/spel-bug-referee.md"
 TEMP_FILES+=("$REFEREE_FILE")
 OUT=$("$SPEL" init-agents --only bugfind --ns test-app --force 2>&1)
 assert_contains "bug-referee references spel-report" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.html"
+assert_contains "bug-referee references spel-report markdown" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.md"
 
 # SUMMARY
 # =============================================================================
