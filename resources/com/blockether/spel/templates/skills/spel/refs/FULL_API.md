@@ -691,6 +691,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 
 | Function | Args | Description |
 |----------|------|-------------|
+| `spel/action-log` | [] | Returns the current action log entries. |
 | `spel/add-script-tag` | [opts] | Adds a script tag to the page. |
 | `spel/add-style-tag` | [opts] | Adds a style tag to the page. |
 | `spel/all-inner-texts` | [sel] | Returns all inner texts for matching elements. |
@@ -739,11 +740,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
 | `spel/clear` | [sel] | Clears input field content. |
+| `spel/clear-action-log!` | [] | Clears the action log, resetting the counter and start time. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `spel/click` | [sel] \| [sel opts] | Clicks an element. |
 | `spel/clipboard-copy` | [text] | Writes text to the browser clipboard. |
 | `spel/clipboard-paste` | [] | Pastes clipboard contents into the currently focused element. |
 | `spel/clipboard-read` | [] | Reads text from the browser clipboard. |
+| `spel/compare-pages` | [baseline-page current-page] \| [baseline-page current-page opts] | Compare two live pages: screenshot + snapshot + diff with semantic enrichment. |
 | `spel/compare-screenshot-files` | [baseline-path current-path] \| [baseline-path current-path opts] | Compare two PNG files pixel-by-pixel. See compare-screenshots for details. |
 | `spel/compare-screenshots` | [baseline-bytes current-bytes] \| [baseline-bytes current-bytes opts] | Compare two PNG screenshots pixel-by-pixel using pixelmatch. |
 | `spel/content` | [] | Returns the full HTML content of the page. |
@@ -771,6 +774,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/evaluate-all` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
 | `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
 | `spel/evaluate-locator` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on the element found by this locator. |
+| `spel/export-srt` | [] \| [opts] | Exports the current action log as an SRT subtitle string. |
 | `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
 | `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
 | `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
@@ -796,6 +800,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/hidden?` | [sel] | Returns whether the element is hidden. |
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
+| `spel/human-pause` | [] \| [min-ms max-ms] | Pauses for a random duration between min-ms and max-ms (default: 300-700ms). |
 | `spel/info` | [] | Returns a map with current page :url, :title, :viewport, and :closed? state. |
 | `spel/inject-action-markers!` | [& refs] | Highlights specific snapshot refs with prominent pre-action markers (e.g. "@e2yrjz"). |
 | `spel/inject-overlays!` | [refs] \| [refs opts] | Injects annotation overlays into the current page for visible elements. |
@@ -854,6 +859,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
 | `spel/sleep` | [ms] | Plain JVM thread sleep (ms). Does NOT interact with browser event loop. |
+| `spel/smooth-scroll` | [y-or-opts] | Smooth-scrolls the page to the given Y position (or by a delta). |
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
