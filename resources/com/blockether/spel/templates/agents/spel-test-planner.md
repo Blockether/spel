@@ -53,61 +53,7 @@ Outputs (consumed by @spel-test-generator):
 - ASSERTIONS_EVENTS.md: available matchers and event expectations
 - SNAPSHOT_TESTING.md: when and how to use accessibility snapshots in tests
 
-## Selector strategy: snapshot refs first
-
-ALWAYS capture a snapshot before any interaction.
-
-### Why refs over CSS selectors
-
-Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
-
-- Deterministic: same element = same ref across snapshots (until navigation)
-- Semantic: derived from accessibility roles/names, not CSS classes
-- Resilient: survive CSS refactors, class renaming, layout changes
-- Universal: work with ALL spel functions: click, fill, text, assert
-
-CSS selectors (`.btn-primary`, `#submit`) are brittle and implementation-dependent.
-
-### Selector priority (highest to lowest)
-
-1. Snapshot refs (`@e2yrjz`): deterministic, resilient, semantic
-2. Semantic locators (role + name, label, text): stable, user-visible
-3. Test IDs (`data-testid`): stable but requires dev cooperation
-4. CSS selectors: LAST RESORT, always fragile
-
-### Snapshot-first workflow
-
-Before ANY interaction:
-
-```bash
-spel --session $SESSION snapshot -i
-spel --session $SESSION click @eXXXXX
-spel --session $SESSION fill @eXXXXX "value"
-```
-
-After navigation, refs become stale. Re-capture:
-
-```bash
-spel --session $SESSION click @eXXXXX
-# Page changed — re-snapshot
-spel --session $SESSION snapshot -i
-# Use NEW refs from fresh snapshot
-spel --session $SESSION click @eYYYYY
-```
-
-### Position annotations in snapshot refs
-
-Each ref includes `[pos:X,Y W×H]` (pixel coordinates from top-left, width×height). Use for:
-- Layout verification: check element positions, alignment, spacing
-- Overlap detection: find elements that overlap or are cut off
-- Viewport fit: verify elements are within the visible viewport
-- Spatial reasoning: understand page layout without screenshots
-- Duplicate detection: spot repeated logos, headings, or navigation blocks
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Selector strategy: snapshot refs first** for selector priority and workflow.
 
 ## Test entry point selection
 
@@ -170,18 +116,7 @@ spel --session $SESSION unannotate
 
 Do this cycle for every page you explore.
 
-### Mandatory exploratory pass
-
-After structured exploration, spend 30-90 seconds on unscripted exploration:
-
-1. Click around without a plan — try unexpected paths
-2. Submit forms with empty/invalid data
-3. Use browser back/forward buttons
-4. Try rapid-clicking interactive elements
-5. Resize the viewport to mobile/tablet sizes
-6. Look for elements that overflow or overlap
-
-Document anything unexpected.
+See **AGENT_COMMON.md § Mandatory exploratory pass** for the 6-step unscripted exploration protocol.
 
 ### Deep exploration with `spel eval-sci`
 
@@ -203,35 +138,7 @@ spel --session $SESSION eval-sci '
 
 See AGENT_COMMON.md for daemon notes.
 
-### Cookie consent and first-visit popups
-
-Handle before exploration begins:
-
-```bash
-spel snapshot -i
-# Look for: "Accept all", "Akceptuję", "Zgadzam się"
-spel click @eXXXXX
-```
-
-With `eval-sci`:
-
-```bash
-spel --timeout 10000 eval-sci '
-(do
-  (let [snap (spel/capture-snapshot)]
-    (when (str/includes? (:tree snap) "cookie")
-      (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
-           (catch Exception _ nil))
-      (spel/wait-for-load)))
-  (let [snap (spel/capture-snapshot)]
-    (when (str/includes? (:tree snap) "dialog")
-      (try
-        (spel/fill (spel/get-by-role role/textbox) "31-564")
-        (spel/click (spel/get-by-role role/button {:name "Confirm"}))
-        (catch Exception _ nil)))))'
-```
-
-Include cookie/popup handling as Step 0 in every test plan for EU sites.
+See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eval-sci cookie handling.
 
 ### Show the exploration script
 

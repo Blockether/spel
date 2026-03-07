@@ -57,14 +57,9 @@ clojure -M:test -n com.example.my-test --output com.blockether.spel.allure-repor
      spel unannotate
      ```
 
-### Position annotations in snapshot refs
+See **AGENT_COMMON.md § Selector strategy: snapshot refs first** for selector priority and workflow.
 
-Each ref includes `[pos:X,Y W×H]`. Use for layout verification, overlap detection, viewport fit, and spatial reasoning.
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
    - Use `spel eval-sci` (preferred) to verify selectors and text content:
       ```bash

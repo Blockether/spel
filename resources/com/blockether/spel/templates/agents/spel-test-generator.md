@@ -55,56 +55,9 @@ Outputs (consumed by @spel-test-healer on failure):
 - `ALLURE_REPORTING.md`: steps, attachments, Allure annotations
 - `API_TESTING.md`: `with-testing-api`, `api-get`, `api-post` patterns
 
-## Selector strategy: snapshot refs first
+See **AGENT_COMMON.md § Selector strategy: snapshot refs first** for selector priority and workflow.
 
-ALWAYS capture a snapshot before any interaction.
-
-Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag):
-- Deterministic: same element = same ref across snapshots (until navigation)
-- Semantic: derived from accessibility roles/names, not CSS classes
-- Resilient: survive CSS refactors, class renaming, layout changes
-- Universal: work with ALL spel functions: click, fill, text, assert
-
-CSS selectors are brittle and implementation-dependent.
-
-### Selector priority (highest to lowest)
-
-1. Snapshot refs (`@e2yrjz`): deterministic, resilient, semantic
-2. Semantic locators (role + name, label, text): stable, user-visible
-3. Test IDs (`data-testid`): stable but requires dev cooperation
-4. CSS selectors: LAST RESORT, always fragile
-
-### Snapshot-first workflow
-
-```bash
-spel --session $SESSION snapshot -i
-spel --session $SESSION click @eXXXXX
-spel --session $SESSION fill @eXXXXX "value"
-```
-
-After navigation, refs become stale. Re-capture:
-
-```bash
-spel --session $SESSION click @eXXXXX
-# Page changed — re-snapshot
-spel --session $SESSION snapshot -i
-# Use NEW refs from fresh snapshot
-spel --session $SESSION click @eYYYYY
-```
-
-### Position annotations in snapshot refs
-
-Each ref includes `[pos:X,Y W×H]`. Use for:
-- Layout verification: check element positions, alignment, spacing
-- Overlap detection: find elements that overlap or are cut off
-- Viewport fit: verify elements are within the visible viewport
-- Spatial reasoning: understand page layout without screenshots
-- Duplicate detection: spot repeated logos, headings, or navigation blocks
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
 ## API vs browser testing decision
 
