@@ -240,6 +240,13 @@ Audit output requirements:
 - Average score and weakest dimensions summarized.
 - Top three improvements prioritized by user impact.
 
+**Viewport testing for `responsive_behavior`**: Before scoring this dimension, capture accessibility snapshots and screenshots at 3 viewports using `spel set-viewport-size`:
+- Desktop: 1280×720
+- Tablet: 768×1024
+- Mobile: 390×844
+
+See AGENT_COMMON.md § Mandatory viewport audit for the shared methodology. Score `responsive_behavior` based on observed differences across all 3 viewports, not a single-viewport assumption.
+
 ## Phase 7: SYNTHESIZE
 Goal: produce final machine-readable and human-readable outputs.
 
