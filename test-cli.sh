@@ -1418,6 +1418,43 @@ section "Auto-Connect (41)"
 OUT=$("$SPEL" --help 2>&1)
 assert_contains "help mentions auto-connect" "$OUT" "auto-connect"
 
+# =============================================================================
+# DISCOVERY GROUP SCAFFOLDING (42)
+# =============================================================================
+section "Discovery group scaffolding (42)"
+
+# 1. dry-run exits 0 and lists product-analyst
+OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
+assert_contains "discovery dry-run lists product-analyst" "$OUT" "spel-product-analyst"
+
+# 2. product-analyst NOT in test group
+OUT=$("$SPEL" init-agents --only test --ns test-app --dry-run 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "product-analyst"; then
+  fail "product-analyst not in test group"
+else
+  pass "product-analyst not in test group"
+fi
+
+# 3. force-create the agent file
+DISC_AGENT_FILE=".opencode/agents/spel-product-analyst.md"
+TEMP_FILES+=("$DISC_AGENT_FILE")
+OUT=$("$SPEL" init-agents --only discovery --ns test-app --force 2>&1)
+assert_contains "discovery force creates product-analyst" "$OUT" "spel-product-analyst"
+
+# 4. created file contains expected content
+assert_contains "product-analyst file references PRODUCT_DISCOVERY" "$(cat "$DISC_AGENT_FILE" 2>/dev/null)" "PRODUCT_DISCOVERY"
+
+# 5. help shows discovery group
+OUT=$("$SPEL" init-agents --help 2>&1)
+assert_contains "init-agents --help shows discovery group" "$OUT" "discovery"
+
+# 6. discovery workflow prompt is scaffolded
+DISC_WORKFLOW_FILE=".opencode/prompts/spel-discovery-workflow.md"
+TEMP_FILES+=("$DISC_WORKFLOW_FILE")
+OUT=$("$SPEL" init-agents --only discovery --ns test-app --force 2>&1)
+assert_contains "discovery scaffolds discovery workflow prompt" "$OUT" "spel-discovery-workflow"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
