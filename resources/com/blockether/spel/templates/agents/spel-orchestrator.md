@@ -1,6 +1,6 @@
 ---
 description: Smart entry point. Analyzes your request and routes to the right spel pipeline (test, QA, automation).
-mode: agent
+mode: all
 color: "#F59E0B"
 tools:
   write: false

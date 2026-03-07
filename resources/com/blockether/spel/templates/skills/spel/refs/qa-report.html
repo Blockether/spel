@@ -218,6 +218,33 @@ figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25r
   body { font-size: 11px; }
 }
 
+/* Visual checks grid */
+.checks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+.check-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--mc-border); border-radius: 0.375rem; background: var(--mc-bg-secondary); }
+.check-icon { font-size: 1.25rem; flex-shrink: 0; line-height: 1; margin-top: 1px; }
+.check-pass .check-icon { color: var(--mc-accent-green); }
+.check-fail .check-icon { color: var(--mc-accent-red); }
+.check-body { flex: 1; min-width: 0; }
+.check-name { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+.check-desc { font-size: 11px; color: var(--mc-text-secondary); }
+.check-evidence { margin-top: 0.5rem; }
+.check-evidence img { max-width: 100%; border: 1px solid var(--mc-border); border-radius: 0.25rem; }
+.check-refs { font-size: 11px; color: var(--mc-accent); margin-top: 0.25rem; }
+
+/* Viewport audit grid */
+.viewport-page { margin-bottom: 1.5rem; }
+.viewport-page-title { font-size: 13px; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+.viewport-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.viewport-card { border: 1px solid var(--mc-border); border-radius: 0.5rem; overflow: hidden; background: var(--mc-bg-secondary); }
+.viewport-card-header { padding: 0.5rem 0.75rem; background: var(--mc-bg-tertiary); border-bottom: 1px solid var(--mc-border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+.viewport-label { font-weight: 600; }
+.viewport-size { color: var(--mc-text-secondary); }
+.viewport-card img { width: 100%; display: block; }
+.viewport-meta { padding: 0.5rem 0.75rem; font-size: 11px; display: flex; gap: 1rem; }
+.viewport-overflow-ok { color: var(--mc-accent-green); }
+.viewport-overflow-bad { color: var(--mc-accent-red); font-weight: 600; }
+.viewport-bugs { color: var(--mc-accent-red); }
+
 /* Responsive */
 @media (max-width: 768px) {
   .container { padding: 1rem; }
@@ -225,6 +252,8 @@ figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25r
   .finding-url { margin-left: 0; width: 100%; }
   .metrics { flex-direction: column; gap: 0.5rem; }
   .nav { gap: 0.75rem; }
+  .viewport-grid { grid-template-columns: 1fr; }
+  .checks-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -234,6 +263,8 @@ figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25r
 <nav class="nav">
   <span class="nav-brand">spel QA Pipeline</span>
   <a href="#summary">Summary</a>
+  <a href="#visual-checks">Visual Checks</a>
+  <a href="#viewports">Viewports</a>
   <a href="#heatmap">Heatmap</a>
   <a href="#timeline">Timeline</a>
   <a href="#findings">Findings</a>
@@ -297,7 +328,165 @@ figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25r
   </div>
 </section>
 
-<!-- ===== SECTION 3: SEVERITY HEATMAP ===== -->
+<!-- ===== SECTION 3: VISUAL CHECKS ===== -->
+<section id="visual-checks" class="section">
+  <h2>Visual Checks</h2>
+  <div class="checks-grid">
+    <!-- SAMPLE VISUAL CHECK — PASS -->
+    <div class="check-item check-pass">
+      <span class="check-icon">&#10003;</span>
+      <div class="check-body">
+        <div class="check-name">Duplicate Elements</div>
+        <div class="check-desc">No duplicate logos, headings, or nav blocks found</div>
+      </div>
+    </div>
+    <!-- SAMPLE VISUAL CHECK — FAIL (with evidence) -->
+    <div class="check-item check-fail">
+      <span class="check-icon">&#10007;</span>
+      <div class="check-body">
+        <div class="check-name">Visual Coherence</div>
+        <div class="check-desc">Badge placement in task list rows is inconsistent — badges shift horizontally based on title length</div>
+        <div class="check-refs">Refs: @e4kqmn, @e7xrtw, @e9bnnq</div>
+        <div class="check-evidence">
+          <img src="evidence/visual-coherence-badges.png" alt="Annotated screenshot showing inconsistent badge placement">
+        </div>
+      </div>
+    </div>
+    <!-- END SAMPLES -->
+    <!-- {VISUAL_CHECKS} -->
+  </div>
+</section>
+
+<!--
+=== VISUAL CHECK TEMPLATES ===
+Pass (no issue):
+
+<div class="check-item check-pass">
+  <span class="check-icon">&#10003;</span>
+  <div class="check-body">
+    <div class="check-name">{CHECK_NAME}</div>
+    <div class="check-desc">No issues found</div>
+  </div>
+</div>
+
+Fail (with evidence):
+
+<div class="check-item check-fail">
+  <span class="check-icon">&#10007;</span>
+  <div class="check-body">
+    <div class="check-name">{CHECK_NAME}</div>
+    <div class="check-desc">{CHECK_DESCRIPTION}</div>
+    <div class="check-refs">Refs: {SNAPSHOT_REFS}</div>
+    <div class="check-evidence">
+      <img src="{CHECK_SCREENSHOT}" alt="{CHECK_ALT}">
+    </div>
+  </div>
+</div>
+
+Check names: Duplicate Elements, Duplicate Messages, Text Overflow, Text Truncation, Visual Inequality, Visual Coherence, Partially Visible, Broken Layout
+=== END VISUAL CHECK TEMPLATES ===
+-->
+
+<!-- ===== SECTION 4: VIEWPORT AUDIT ===== -->
+<section id="viewports" class="section">
+  <h2>Viewport Audit</h2>
+
+  <!-- SAMPLE VIEWPORT PAGE -->
+  <div class="viewport-page">
+    <div class="viewport-page-title">
+      <span>/homepage</span>
+    </div>
+    <div class="viewport-grid">
+      <div class="viewport-card">
+        <div class="viewport-card-header">
+          <span class="viewport-label">Desktop</span>
+          <span class="viewport-size">1280×720</span>
+        </div>
+        <img src="evidence/homepage-desktop.png" alt="Homepage at desktop viewport">
+        <div class="viewport-meta">
+          <span class="viewport-overflow-ok">&#10003; No overflow</span>
+          <span>0 bugs</span>
+        </div>
+      </div>
+      <div class="viewport-card">
+        <div class="viewport-card-header">
+          <span class="viewport-label">Tablet</span>
+          <span class="viewport-size">768×1024</span>
+        </div>
+        <img src="evidence/homepage-tablet.png" alt="Homepage at tablet viewport">
+        <div class="viewport-meta">
+          <span class="viewport-overflow-ok">&#10003; No overflow</span>
+          <span class="viewport-bugs">1 bug</span>
+        </div>
+      </div>
+      <div class="viewport-card">
+        <div class="viewport-card-header">
+          <span class="viewport-label">Mobile</span>
+          <span class="viewport-size">375×667</span>
+        </div>
+        <img src="evidence/homepage-mobile.png" alt="Homepage at mobile viewport">
+        <div class="viewport-meta">
+          <span class="viewport-overflow-bad">&#10007; Overflow</span>
+          <span class="viewport-bugs">2 bugs</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- END SAMPLE -->
+  <!-- {VIEWPORT_PAGES} -->
+</section>
+
+<!--
+=== VIEWPORT PAGE TEMPLATE ===
+Copy this block for each audited page:
+
+<div class="viewport-page">
+  <div class="viewport-page-title">
+    <span>{VP_PAGE_NAME}</span>
+  </div>
+  <div class="viewport-grid">
+    <div class="viewport-card">
+      <div class="viewport-card-header">
+        <span class="viewport-label">Desktop</span>
+        <span class="viewport-size">1280×720</span>
+      </div>
+      <img src="{VP_DESKTOP_SCREENSHOT}" alt="{VP_PAGE_NAME} at desktop">
+      <div class="viewport-meta">
+        <span class="viewport-overflow-{VP_DESKTOP_OVERFLOW_CLASS}">{VP_DESKTOP_OVERFLOW_ICON} {VP_DESKTOP_OVERFLOW_TEXT}</span>
+        <span class="{VP_DESKTOP_BUGS_CLASS}">{VP_DESKTOP_BUGS_COUNT} bugs</span>
+      </div>
+    </div>
+    <div class="viewport-card">
+      <div class="viewport-card-header">
+        <span class="viewport-label">Tablet</span>
+        <span class="viewport-size">768×1024</span>
+      </div>
+      <img src="{VP_TABLET_SCREENSHOT}" alt="{VP_PAGE_NAME} at tablet">
+      <div class="viewport-meta">
+        <span class="viewport-overflow-{VP_TABLET_OVERFLOW_CLASS}">{VP_TABLET_OVERFLOW_ICON} {VP_TABLET_OVERFLOW_TEXT}</span>
+        <span class="{VP_TABLET_BUGS_CLASS}">{VP_TABLET_BUGS_COUNT} bugs</span>
+      </div>
+    </div>
+    <div class="viewport-card">
+      <div class="viewport-card-header">
+        <span class="viewport-label">Mobile</span>
+        <span class="viewport-size">375×667</span>
+      </div>
+      <img src="{VP_MOBILE_SCREENSHOT}" alt="{VP_PAGE_NAME} at mobile">
+      <div class="viewport-meta">
+        <span class="viewport-overflow-{VP_MOBILE_OVERFLOW_CLASS}">{VP_MOBILE_OVERFLOW_ICON} {VP_MOBILE_OVERFLOW_TEXT}</span>
+        <span class="{VP_MOBILE_BUGS_CLASS}">{VP_MOBILE_BUGS_COUNT} bugs</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+Overflow classes: ok (green check &#10003;), bad (red X &#10007;)
+Bug count class: use viewport-bugs when count > 0, omit class when 0
+=== END VIEWPORT PAGE TEMPLATE ===
+-->
+
+<!-- ===== SECTION 5: SEVERITY HEATMAP ===== -->
 <section id="heatmap" class="section">
   <h2>Severity Heatmap</h2>
   <div class="card" style="overflow-x: auto">
