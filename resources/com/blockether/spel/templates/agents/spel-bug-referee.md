@@ -15,14 +15,7 @@ You are the final arbiter in adversarial bug review. Your job is evidence-based 
 
 **REQUIRED**: Load the `spel` skill before any action.
 
-### Position annotations in snapshot refs
-
-Each ref includes `[pos:X,Y W×H]`. Use for layout verification, overlap detection, viewport fit, and spatial reasoning.
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
 ## Priority refs
 

@@ -37,20 +37,7 @@ Outputs:
 - `bugfind-reports/evidence/` — Supporting screenshots, snapshots, and logs
 
 
-### Position annotations in snapshot refs
-
-Each ref'd element in the snapshot tree includes screen position data as `[pos:X,Y W×H]` — pixel coordinates (X,Y from top-left) and dimensions (width×height). Use this for:
-- Layout verification: check element positions, spacing
-- Overlap detection: identify elements that overlap or are cut off
-- Viewport fit: verify elements are within the visible viewport
-- Spatial reasoning: understand page layout without screenshots
-
-Example snapshot output:
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
-
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
 ## Session management
 
@@ -121,27 +108,7 @@ Inspect and capture evidence for:
 - Partially visible elements (meaningful content cut off by overflow:hidden, off-screen positioning, or overlapping layers)
 - Broken layout (misaligned grid columns, collapsed flexbox, orphaned floating elements)
 - Visual incoherence (repeated UI patterns with inconsistent internal layout — badges, icons, or metadata jumping position based on content length)
-### Mandatory viewport audit
-
-You MUST test every audited page at all three viewports. No exceptions.
-
-| Viewport | Size | How to set |
-|----------|------|------------|
-| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
-| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
-| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
-
-At each viewport, capture:
-1. Annotated screenshot: `(spel/save-audit-screenshot! "<page> @ <viewport>" "bugfind-reports/evidence/<page>-<viewport>.png" {:refs (:refs snap)})`
-2. Snapshot JSON: `spel snapshot -S --json > bugfind-reports/evidence/<page>-<viewport>.json`
-3. Overflow check:
-
-```clojure
-;; Run at each viewport — true means horizontal overflow exists
-(let [sw (spel/evaluate "document.documentElement.scrollWidth")
-      cw (spel/evaluate "document.documentElement.clientWidth")]
-  (println "Overflow:" (> sw cw) "scroll:" sw "client:" cw))
-```
+See **AGENT_COMMON.md § Mandatory viewport audit** for the viewport table and overflow check.
 
 What to look for at non-desktop viewports:
 - Horizontal overflow (scrollbar appears, content wider than screen)
@@ -182,18 +149,7 @@ Apply Jobs Filter from BUGFIND_GUIDE.md:
 
 Do NOT skip Design Audit.
 
-### Mandatory exploratory pass
-
-After structured audit of all 6 categories, spend 30-90 seconds on unscripted exploration:
-
-1. Click without a plan — try unlikely navigation paths
-2. Submit forms with empty, too-long, or special-character data
-3. Rapidly click the same button multiple times
-4. Use browser back/forward during multi-step flows
-5. Resize viewport mid-interaction
-6. Open the same flow in a new tab
-
-Document any unexpected behavior. Unscripted exploration often surfaces the highest-severity bugs.
+See **AGENT_COMMON.md § Mandatory exploratory pass** for the 6-step unscripted exploration protocol.
 
 ## Evidence requirement
 
