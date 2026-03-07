@@ -1020,6 +1020,29 @@ assert_contains "init-agents --only invalid shows error" "$OUT" "Unknown --only"
 OUT=$("$SPEL" init-agents --help 2>&1)
 assert_contains "init-agents --help mentions --only" "$OUT" "--only"
 
+# --no-tests --dry-run: includes ALL agents but no seed test or specs
+OUT=$("$SPEL" init-agents --no-tests --dry-run 2>&1)
+assert_contains "--no-tests includes orchestrator" "$OUT" "spel-orchestrator"
+assert_contains "--no-tests includes test-planner" "$OUT" "spel-test-planner"
+assert_contains "--no-tests includes explorer" "$OUT" "spel-explorer"
+assert_contains "--no-tests includes SKILL" "$OUT" "SKILL.md"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "seed_test.clj"; then
+  fail "--no-tests excludes seed test file"
+else
+  pass "--no-tests excludes seed test file"
+fi
+
+# --no-tests + --only: both flags work together
+OUT=$("$SPEL" init-agents --no-tests --only bugfind --dry-run 2>&1)
+assert_contains "--no-tests --only bugfind includes bug-hunter" "$OUT" "spel-bug-hunter"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "spel-test-planner"; then
+  fail "--no-tests --only bugfind excludes test-planner"
+else
+  pass "--no-tests --only bugfind excludes test-planner"
+fi
+
 OUT=$("$SPEL" ci-assemble --help 2>&1)
 assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"
 

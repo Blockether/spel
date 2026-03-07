@@ -181,13 +181,13 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (all 12 agents by default — use `--only` to scaffold a subset, or `--no-tests` for automation-only):
+Scaffold agent skills (all 18 agents by default — use `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
 
 ```bash
 # Full scaffolding with all 12 agents (default)
 spel init-agents
 
-# Automation only — SKILL reference only, no test scaffolding
+# All agents, no seed test or specs directory
 spel init-agents --no-tests
 
 # Scaffold only specific groups
@@ -370,7 +370,7 @@ spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec r
 spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --only=discovery             # product discovery agents only
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
-spel init-agents --no-tests                   # SKILL only (interactive dev)
+spel init-agents --no-tests                   # all agents, skip seed test + specs
 ```
 
 | Flag | Default | Purpose |
@@ -379,7 +379,7 @@ spel init-agents --no-tests                   # SKILL only (interactive dev)
 | `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `spec-skeptic` |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
-| `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
+| `--no-tests` | — | Skip seed test and specs directory — scaffold agents + SKILL only |
 | `--dry-run` | — | Preview files without writing |
 | `--force` | — | Overwrite existing files |
 | `--test-dir DIR` | `test-e2e` | E2E test output directory |

@@ -83,14 +83,14 @@
                 "PAGE_LOCATORS.md"]
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
-  :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                "BUGFIND_GUIDE.md" "spel-report.html"]
+   :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
+                 "BUGFIND_GUIDE.md" "spel-report.html"]
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
-  :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html"]
+   :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html"]
    :auto-orchestrator ["AGENT_COMMON.md"]
-  :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
-                    "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html"]})
+   :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
+                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
@@ -145,12 +145,11 @@
    "prompts/spel-discovery-workflow.md" #{:product-analyst}})
 
 (defn- files-to-create
-  "Returns file specs based on loop target, flavour, --only filter, and whether tests are included.
+  "Returns file specs based on loop target, flavour, --only filter.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for agent templates that need frontmatter transformation.
-   When no-tests is true, only the SKILL file is generated (no test agents/prompts).
    resolved-only: nil for all agents, or a set of resolved subagent keywords to filter by."
-  [loop-target no-tests flavour resolved-only]
+  [loop-target flavour resolved-only]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
         ct? (= "clojure-test" flavour)
         generator-template (if ct?
@@ -303,9 +302,7 @@
                                     true)))
                        all-test-files)
                      all-test-files)]
-    (if no-tests
-      skill-files
-      (into test-files skill-files))))
+    (into skill-files test-files)))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.
@@ -618,7 +615,7 @@
   [loop-target no-tests]
   (let [desc (:desc (get loop-targets loop-target))]
     (if no-tests
-      (println (str "Initializing Playwright skill for " desc " (interactive development, no test agents)..."))
+      (println (str "Initializing Playwright agents for " desc " (no seed test)..."))
       (println (str "Initializing Playwright E2E testing agents for " desc "...")))
     (println "")))
 
@@ -643,8 +640,8 @@
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
   (println "                    lazytest: defdescribe/it/expect from spel.allure, :context fixtures")
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
-  (println "  --no-tests        Scaffold only the SKILL (API reference) — no test agents, specs, or seed test.")
-  (println "                    Use this when spel is for interactive development, not E2E testing.")
+  (println "  --no-tests        Skip seed test and specs directory — scaffold agents + SKILL only.")
+  (println "                    Use this when you don't need a starter test file.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
@@ -667,7 +664,7 @@
   (println "  opencode          .opencode/agents/, .opencode/prompts/, .opencode/skills/")
   (println "  claude            .claude/agents/, .claude/prompts/, .claude/docs/")
   (println "")
-  (println "Also generates (all targets, unless --no-tests):")
+  (println "Also generates (skipped by --no-tests):")
   (println "  test-e2e/specs/                — Test plans directory (with README)")
   (println "  test-e2e/<ns>/e2e/seed_test.clj — Seed test (path derived from --ns)"))
 
@@ -688,7 +685,9 @@
   (println "")
   (if no-tests
     (do
-      (println "Done! Skill installed for interactive development.")
+      (if (= "opencode" loop-target)
+        (println "Done! Use @spel-orchestrator to get started, or any scaffolded agent directly.")
+        (println "Done! Use the spel-orchestrator agent to get started, or any scaffolded agent directly."))
       (println "")
       (println "Next steps:")
       (println "")
@@ -701,7 +700,7 @@
       (println "")
       (println "  3. Use spel for browser automation:")
       (println "     spel open https://example.org")
-      (println "     spel eval-sci '(page/navigate \"https://example.org\")'"))
+      (println "     spel eval-sci '(page/navigate \"https://example.org\")')"))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
         (println "Done! Use @spel-orchestrator to get started, or @spel-test-planner to plan tests directly.")
@@ -779,10 +778,7 @@
             no-tests (:no-tests opts)
             flavour (:flavour opts)
             only-set (:only opts)
-            _ (when (and no-tests only-set (contains? only-set :test))
-                (binding [*out* *err*]
-                  (println "Warning: --no-tests overrides --only test")))
-            resolved-only (when (and only-set (not no-tests))
+            resolved-only (when only-set
                             (reduce into #{} (map #(get subagent-groups %) only-set)))
             ns-name (or (:ns opts)
                       (do (println "Warning: No --ns provided, deriving from directory name.")
@@ -793,8 +789,8 @@
             specs-dir (:specs-dir opts)]
         (print-banner loop-target no-tests)
 
-        ;; Scaffold files (skill only when --no-tests, full set otherwise)
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target no-tests flavour resolved-only)]
+        ;; Scaffold files (agents + skill; --only filters which agents)
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour resolved-only)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 
