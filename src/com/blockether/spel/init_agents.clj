@@ -877,9 +877,10 @@
             resolved-only (when only-set
                             (reduce into #{} (map #(get subagent-groups %) only-set)))
             ns-name (or (:ns opts)
-                      (do (println "Warning: No --ns provided, deriving from directory name.")
-                          (println "         Tip: use --ns my-app to set namespace explicitly.")
-                          (println "")
+                      (do (when-not no-tests
+                            (println "Warning: No --ns provided, deriving from directory name.")
+                            (println "         Tip: use --ns my-app to set namespace explicitly.")
+                            (println ""))
                           (derive-namespace)))
             test-dir (:test-dir opts)
             specs-dir (:specs-dir opts)]
