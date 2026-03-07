@@ -1,0 +1,19 @@
+Task 8 verification
+
+grep -c 'qa-report.html' src/com/blockether/spel/init_agents.clj
+0
+
+grep -c 'product-report.html' src/com/blockether/spel/init_agents.clj
+0
+
+grep -c 'spel-report.html' src/com/blockether/spel/init_agents.clj
+3
+
+ls resources/com/blockether/spel/templates/skills/spel/refs/qa-report.html
+ls: cannot access 'resources/com/blockether/spel/templates/skills/spel/refs/qa-report.html': No such file or directory
+
+ls resources/com/blockether/spel/templates/skills/spel/refs/product-report.html
+ls: cannot access 'resources/com/blockether/spel/templates/skills/spel/refs/product-report.html': No such file or directory
+
+ls resources/com/blockether/spel/templates/skills/spel/refs/spel-report.html
+resources/com/blockether/spel/templates/skills/spel/refs/spel-report.html

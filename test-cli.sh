@@ -1455,6 +1455,40 @@ TEMP_FILES+=("$DISC_WORKFLOW_FILE")
 OUT=$("$SPEL" init-agents --only discovery --ns test-app --force 2>&1)
 assert_contains "discovery scaffolds discovery workflow prompt" "$OUT" "spel-discovery-workflow"
 
+section "Unified Report Template (43)"
+
+# 1. bugfind group scaffolds spel-report.html
+OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
+assert_contains "bugfind scaffolds spel-report.html" "$OUT" "spel-report.html"
+
+# 2. discovery group scaffolds spel-report.html
+OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
+assert_contains "discovery scaffolds spel-report.html" "$OUT" "spel-report.html"
+
+# 3. old qa-report.html NOT scaffolded for bugfind
+OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "qa-report.html"; then
+  fail "old qa-report.html should not be scaffolded"
+else
+  pass "old qa-report.html not scaffolded"
+fi
+
+# 4. old product-report.html NOT scaffolded for discovery
+OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | grep -q "product-report.html"; then
+  fail "old product-report.html should not be scaffolded"
+else
+  pass "old product-report.html not scaffolded"
+fi
+
+# 5. force-created bug-referee file references spel-report.html
+REFEREE_FILE=".opencode/agents/spel-bug-referee.md"
+TEMP_FILES+=("$REFEREE_FILE")
+OUT=$("$SPEL" init-agents --only bugfind --ns test-app --force 2>&1)
+assert_contains "bug-referee references spel-report" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.html"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

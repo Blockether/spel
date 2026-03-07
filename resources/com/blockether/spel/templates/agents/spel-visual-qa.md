@@ -32,6 +32,7 @@ See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated r
 Inputs:
 - Target URL to audit (REQUIRED)
 - `baselines/` directory with prior snapshot/screenshot artifacts (OPTIONAL)
+- `product-spec.json` (OPTIONAL, from `spel-product-analyst`) — when present, auto-populate page list from `navigation_map.pages[]` (URL, title, type). Gracefully degrade to manual page specification if absent.
 
 Outputs:
 - `current/<page>-current.json`: current accessibility snapshot with styles (JSON)
@@ -57,6 +58,22 @@ This agent's outputs are valid upstream input for `spel-bug-hunter`.
   ]
 }
 ```
+
+## Auto-discovery from product-spec.json
+
+When `product-spec.json` is present in the working directory:
+
+1. Read `navigation_map.pages[]` from the product spec
+2. Filter to pages with `status: "ok"` only (skip `"failed"` or `"redirect"` pages)
+3. Use the filtered page list as the baseline targets for visual regression testing
+4. Extract `url`, `title`, and `type` from each page object
+
+If `product-spec.json` is absent or malformed (JSON parse error):
+- Gracefully degrade to manual page specification
+- Proceed with the standard workflow without auto-discovery
+- Never require product-spec.json — it is always optional
+
+This enables seamless integration with `spel-product-analyst` output, automating page inventory for baseline capture and regression testing.
 
 ## Session management
 
@@ -188,14 +205,6 @@ GATE: Visual diff report
 
 Present diff report with evidence from all 3 viewports. Do NOT update baselines until user confirms changes are intentional.
 
-Severity thresholds:
-- Structural changes (`additions`/`removals`) = critical
-- Position deltas `> 5px` = medium
-- Sub-pixel deltas (`< 1px`) = ignore as rendering noise
-
-GATE: Visual diff report
-
-Present diff report. Do NOT update baselines until user confirms changes are intentional.
 
 ## Baseline management
 
@@ -220,7 +229,6 @@ current/
 
 Naming: `<page-name>` should be descriptive: `homepage`, `checkout-flow`, `user-profile`.
 
-Naming: `<page-name>` should be descriptive: `homepage`, `checkout-flow`, `user-profile`.
 
 ## Regression thresholds
 

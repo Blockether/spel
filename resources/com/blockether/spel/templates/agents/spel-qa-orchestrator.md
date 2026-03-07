@@ -198,7 +198,7 @@ Invoke @spel-bug-referee:
 
 GATE: Review `bugfind-reports/referee-verdict.json`, the final verified bug list.
 
-The Referee also generates `bugfind-reports/qa-report.html` using the `refs/qa-report.html` template.
+The Referee also generates `bugfind-reports/qa-report.html` using the `refs/spel-report.html` template.
 
 ### Video recording (optional)
 

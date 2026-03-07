@@ -1,0 +1,29 @@
+Task 2: Coherence-to-Design Audit Dimension Mapping
+====================================================
+
+Coherence dimensions (from PRODUCT_DISCOVERY.md) mapped to design audit dimensions (from BUGFIND_GUIDE.md):
+
+| Coherence dimension       | Design audit dimension(s)                              |
+|---------------------------|--------------------------------------------------------|
+| responsive_behavior       | Responsiveness and touch ergonomics                    |
+| visual_consistency        | Component consistency / states + Visual hierarchy      |
+| accessibility_baseline    | Color restraint and contrast (a11y overlap)            |
+| navigation_flow           | Grid consistency / Alignment (navigation structure)    |
+| interaction_patterns      | Component consistency / states (interaction states)    |
+
+Unmapped coherence dimensions (used to seed functional/UX bug candidates):
+- terminology
+- error_handling
+- loading_states
+
+Priority logic:
+- Read coherence_audit.dimensions[] sorted by score ascending
+- Dimensions with score < 70 are flagged as priority targets
+- These map to design audit dimensions which get audited first and more thoroughly
+- When product-spec.json is absent, default hunt order is unchanged
+
+Feature-enriched coverage matrix:
+- When features[] exists, feature names + categories become row headers
+- Replaces raw page URL rows with semantic feature names
+- Feature-to-page mapping via features[].pages or URL path inference
+- When product-spec.json absent, existing Area/Page coverage matrix used

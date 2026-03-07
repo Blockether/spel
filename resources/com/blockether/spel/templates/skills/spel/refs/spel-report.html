@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Product Discovery Report — {PRODUCT_NAME}</title>
+  <title>spel Report — {APP_NAME}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -46,10 +46,7 @@
     p { margin-bottom: 0.75rem; }
 
     /* Layout with sidebar */
-    .layout {
-      display: flex;
-      min-height: 100vh;
-    }
+    .layout { display: flex; min-height: 100vh; }
 
     /* Sidebar */
     .sidebar {
@@ -78,12 +75,8 @@
       padding-bottom: 1rem;
       border-bottom: 1px solid var(--mc-border);
     }
-    .sidebar-nav {
-      list-style: none;
-    }
-    .sidebar-nav li {
-      margin-bottom: 0.25rem;
-    }
+    .sidebar-nav { list-style: none; }
+    .sidebar-nav li { margin-bottom: 0.25rem; }
     .sidebar-nav a {
       display: block;
       padding: 0.5rem 0.75rem;
@@ -152,9 +145,7 @@
       padding-bottom: 1.5rem;
       border-bottom: 1px solid var(--mc-border);
     }
-    .section:last-child {
-      border-bottom: none;
-    }
+    .section:last-child { border-bottom: none; }
 
     /* Cards */
     .card {
@@ -186,6 +177,11 @@
     .summary-card-warning { border-top-color: var(--mc-accent-yellow); }
     .summary-card-danger { border-top-color: var(--mc-accent-red); }
     .summary-card-neutral { border-top-color: var(--mc-text); }
+    .summary-card-critical { border-top-color: var(--mc-accent-red); }
+    .summary-card-high { border-top-color: var(--mc-accent-yellow); }
+    .summary-card-medium { border-top-color: var(--mc-accent); }
+    .summary-card-low { border-top-color: var(--mc-accent-green); }
+    .summary-card-total { border-top-color: var(--mc-text); }
     .summary-count {
       font-size: 2rem;
       font-weight: 700;
@@ -243,129 +239,46 @@
     .tag-category { color: var(--mc-text-secondary); border-color: var(--mc-border); background: var(--mc-bg-tertiary); }
 
     /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-    th {
-      text-align: left;
-      padding: 0.5rem 0.75rem;
-      color: var(--mc-accent);
-      font-weight: 600;
-      border-bottom: 2px solid var(--mc-border);
-    }
-    td {
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid var(--mc-border);
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 0.5rem 0.75rem; color: var(--mc-accent); font-weight: 600; border-bottom: 2px solid var(--mc-border); }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--mc-border); }
     tr:nth-child(even) td { background: var(--mc-bg-tertiary); }
-    tr.summary-row td {
-      font-weight: 700;
-      background: var(--mc-bg-secondary);
-      border-top: 2px solid var(--mc-border);
-    }
+    tr.summary-row td { font-weight: 700; background: var(--mc-bg-secondary); border-top: 2px solid var(--mc-border); }
 
     /* Feature matrix specific */
-    .matrix-cell {
-      text-align: center;
-    }
+    .matrix-cell { text-align: center; }
     .matrix-check { color: var(--mc-accent-green); font-weight: 700; }
     .matrix-cross { color: var(--mc-accent-red); font-weight: 700; }
     .matrix-partial { color: var(--mc-accent-yellow); font-weight: 700; }
 
     /* Progress bars */
-    .score-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-    .score-label {
-      min-width: 120px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .score-track {
-      flex: 1;
-      height: 8px;
-      background: var(--mc-bg-tertiary);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .score-fill {
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s ease;
-    }
+    .score-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .score-label { min-width: 120px; font-size: 12px; font-weight: 500; }
+    .score-track { flex: 1; height: 8px; background: var(--mc-bg-tertiary); border-radius: 4px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
     .score-fill-high { background: var(--mc-accent-green); }
     .score-fill-medium { background: var(--mc-accent); }
     .score-fill-low { background: var(--mc-accent-red); }
-    .score-value {
-      min-width: 40px;
-      text-align: right;
-      font-size: 12px;
-      font-weight: 600;
-    }
+    .score-value { min-width: 40px; text-align: right; font-size: 12px; font-weight: 600; }
 
     /* Coherence dimension cards */
-    .dimension-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1rem;
-    }
+    .dimension-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
     .dimension-card {
       background: var(--mc-bg-secondary);
       border: 1px solid var(--mc-border);
       border-radius: 0.5rem;
       padding: 1rem;
     }
-    .dimension-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--mc-border);
-    }
-    .dimension-name {
-      font-weight: 600;
-      font-size: 13px;
-    }
-    .dimension-score {
-      font-weight: 700;
-      font-size: 14px;
-    }
-    .dimension-issues {
-      list-style: none;
-      font-size: 11px;
-      margin-bottom: 0.5rem;
-    }
-    .dimension-issues li {
-      padding: 0.25rem 0;
-      padding-left: 1rem;
-      position: relative;
-      color: var(--mc-text-secondary);
-    }
-    .dimension-issues li::before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: var(--mc-accent-red);
-    }
-    .dimension-refs {
-      font-size: 10px;
-      color: var(--mc-accent);
-      padding-top: 0.5rem;
-      border-top: 1px solid var(--mc-border);
-    }
+    .dimension-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--mc-border); }
+    .dimension-name { font-weight: 600; font-size: 13px; }
+    .dimension-score { font-weight: 700; font-size: 14px; }
+    .dimension-issues { list-style: none; font-size: 11px; margin-bottom: 0.5rem; }
+    .dimension-issues li { padding: 0.25rem 0; padding-left: 1rem; position: relative; color: var(--mc-text-secondary); }
+    .dimension-issues li::before { content: "•"; position: absolute; left: 0; color: var(--mc-accent-red); }
+    .dimension-refs { font-size: 10px; color: var(--mc-accent); padding-top: 0.5rem; border-top: 1px solid var(--mc-border); }
 
     /* Role cards */
-    .role-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
-    }
+    .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
     .role-card {
       background: var(--mc-bg-secondary);
       border: 1px solid var(--mc-border);
@@ -373,86 +286,26 @@
       padding: 1rem;
       border-left: 4px solid var(--mc-accent);
     }
-    .role-name {
-      font-weight: 700;
-      font-size: 14px;
-      margin-bottom: 0.5rem;
-      font-family: 'Atkinson Hyperlegible', Georgia, serif;
-    }
-    .role-description {
-      font-size: 12px;
-      color: var(--mc-text-secondary);
-      margin-bottom: 0.5rem;
-    }
-    .role-tasks {
-      list-style: none;
-      font-size: 11px;
-    }
-    .role-tasks li {
-      padding: 0.25rem 0;
-      padding-left: 1rem;
-      position: relative;
-    }
-    .role-tasks li::before {
-      content: "→";
-      position: absolute;
-      left: 0;
-      color: var(--mc-accent);
-    }
+    .role-name { font-weight: 700; font-size: 14px; margin-bottom: 0.5rem; font-family: 'Atkinson Hyperlegible', Georgia, serif; }
+    .role-description { font-size: 12px; color: var(--mc-text-secondary); margin-bottom: 0.5rem; }
+    .role-tasks { list-style: none; font-size: 11px; }
+    .role-tasks li { padding: 0.25rem 0; padding-left: 1rem; position: relative; }
+    .role-tasks li::before { content: "→"; position: absolute; left: 0; color: var(--mc-accent); }
 
     /* FAQ */
-    .faq-item {
-      margin-bottom: 1rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--mc-border);
-    }
-    .faq-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-    .faq-question {
-      font-weight: 700;
-      font-size: 13px;
-      margin-bottom: 0.5rem;
-      font-family: 'Atkinson Hyperlegible', Georgia, serif;
-      color: var(--mc-text);
-    }
-    .faq-answer {
-      font-size: 12px;
-      color: var(--mc-text-secondary);
-      padding-left: 1rem;
-      border-left: 3px solid var(--mc-accent);
-    }
+    .faq-item { margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--mc-border); }
+    .faq-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .faq-question { font-weight: 700; font-size: 13px; margin-bottom: 0.5rem; font-family: 'Atkinson Hyperlegible', Georgia, serif; color: var(--mc-text); }
+    .faq-answer { font-size: 12px; color: var(--mc-text-secondary); padding-left: 1rem; border-left: 3px solid var(--mc-accent); }
 
     /* Navigation map */
-    .nav-tree {
-      list-style: none;
-      padding-left: 0;
-    }
-    .nav-tree ul {
-      list-style: none;
-      padding-left: 1.5rem;
-      margin-top: 0.5rem;
-    }
-    .nav-tree li {
-      padding: 0.25rem 0;
-    }
-    .nav-page {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 12px;
-    }
-    .nav-page a {
-      color: var(--mc-text);
-    }
-    .nav-page a:hover {
-      color: var(--mc-accent);
-    }
-    .nav-icon {
-      color: var(--mc-text-secondary);
-      font-size: 10px;
-    }
+    .nav-tree { list-style: none; padding-left: 0; }
+    .nav-tree ul { list-style: none; padding-left: 1.5rem; margin-top: 0.5rem; }
+    .nav-tree li { padding: 0.25rem 0; }
+    .nav-page { display: flex; align-items: center; gap: 0.5rem; font-size: 12px; }
+    .nav-page a { color: var(--mc-text); }
+    .nav-page a:hover { color: var(--mc-accent); }
+    .nav-icon { color: var(--mc-text-secondary); font-size: 10px; }
 
     /* Recommendations */
     .recommendation {
@@ -478,18 +331,94 @@
     .rec-priority-high { background: var(--mc-accent-red); }
     .rec-priority-medium { background: var(--mc-accent); }
     .rec-priority-low { background: var(--mc-accent-green); }
-    .rec-body {
-      flex: 1;
-    }
-    .rec-title {
-      font-weight: 600;
-      font-size: 13px;
-      margin-bottom: 0.25rem;
-    }
-    .rec-desc {
-      font-size: 12px;
-      color: var(--mc-text-secondary);
-    }
+    .rec-body { flex: 1; }
+    .rec-title { font-weight: 600; font-size: 13px; margin-bottom: 0.25rem; }
+    .rec-desc { font-size: 12px; color: var(--mc-text-secondary); }
+
+    /* Visual checks grid */
+    .checks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+    .check-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--mc-border); border-radius: 0.375rem; background: var(--mc-bg-secondary); }
+    .check-icon { font-size: 1.25rem; flex-shrink: 0; line-height: 1; margin-top: 1px; }
+    .check-pass .check-icon { color: var(--mc-accent-green); }
+    .check-fail .check-icon { color: var(--mc-accent-red); }
+    .check-body { flex: 1; min-width: 0; }
+    .check-name { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+    .check-desc { font-size: 11px; color: var(--mc-text-secondary); }
+    .check-evidence { margin-top: 0.5rem; }
+    .check-evidence img { max-width: 100%; border: 1px solid var(--mc-border); border-radius: 0.25rem; }
+    .check-refs { font-size: 11px; color: var(--mc-accent); margin-top: 0.25rem; }
+
+    /* Viewport audit grid */
+    .viewport-page { margin-bottom: 1.5rem; }
+    .viewport-page-title { font-size: 13px; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .viewport-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    .viewport-card { border: 1px solid var(--mc-border); border-radius: 0.5rem; overflow: hidden; background: var(--mc-bg-secondary); }
+    .viewport-card-header { padding: 0.5rem 0.75rem; background: var(--mc-bg-tertiary); border-bottom: 1px solid var(--mc-border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+    .viewport-label { font-weight: 600; }
+    .viewport-size { color: var(--mc-text-secondary); }
+    .viewport-card img { width: 100%; display: block; }
+    .viewport-meta { padding: 0.5rem 0.75rem; font-size: 11px; display: flex; gap: 1rem; }
+    .viewport-overflow-ok { color: var(--mc-accent-green); }
+    .viewport-overflow-bad { color: var(--mc-accent-red); font-weight: 600; }
+    .viewport-bugs { color: var(--mc-accent-red); }
+
+    /* Heatmap dots */
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+    .dot-critical { background: var(--mc-accent-red); }
+    .dot-high { background: var(--mc-accent-yellow); }
+    .dot-medium { background: var(--mc-accent); }
+    .dot-low { background: var(--mc-accent-green); }
+    .dot-none { background: var(--mc-border); }
+
+    /* Timeline */
+    .timeline { max-height: 300px; overflow-y: auto; }
+    .timeline-entry { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--mc-border); display: flex; gap: 0.75rem; align-items: flex-start; }
+    .timeline-entry.issue { background: rgba(200, 50, 50, 0.08); }
+    .timeline-ts { color: var(--mc-accent); font-weight: 500; white-space: nowrap; min-width: 90px; }
+    .timeline-desc { flex: 1; }
+    .issue-tag { display: inline-block; background: var(--mc-accent-red); color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; margin-right: 4px; }
+
+    /* Findings */
+    .finding { margin-bottom: 1.5rem; }
+    .finding-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--mc-border); }
+    .finding-id { color: var(--mc-accent); font-weight: 700; font-size: 14px; }
+    .finding-url { color: var(--mc-text-secondary); font-size: 11px; margin-left: auto; }
+    .finding-provenance { font-size: 11px; color: var(--mc-text-secondary); margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: var(--mc-bg-tertiary); border-radius: 0.375rem; }
+    .finding-tags { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+
+    /* Steps */
+    .steps { margin: 0.75rem 0; padding-left: 1.5rem; }
+    .steps li { margin-bottom: 0.25rem; }
+
+    /* Agent narrative */
+    .agent-block { border-left: 3px solid var(--mc-accent); padding: 0.75rem 1rem; margin: 0.75rem 0; background: var(--mc-bg-secondary); }
+    .agent-label { font-size: 11px; font-weight: 600; color: var(--mc-accent); text-transform: uppercase; margin-bottom: 0.25rem; }
+
+    /* Evidence figure */
+    figure { margin: 0.75rem 0; }
+    figure img { max-width: 100%; border: 1px solid var(--mc-border); border-radius: 0.375rem; display: block; }
+    figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25rem; }
+
+    /* Console output */
+    .console { background: var(--mc-bg-tertiary); padding: 0.75rem; border-radius: 0.375rem; overflow-x: auto; font-size: 12px; white-space: pre-wrap; margin: 0.75rem 0; }
+    .console .error { color: var(--mc-accent-red); }
+
+    /* Confidence */
+    .confidence { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 12px; }
+    .conf-bar { display: inline-block; width: 60px; height: 6px; background: var(--mc-border); border-radius: 3px; overflow: hidden; }
+    .conf-fill { display: block; height: 100%; border-radius: 3px; }
+    .conf-high .conf-fill { width: 100%; background: var(--mc-accent-green); }
+    .conf-medium .conf-fill { width: 66%; background: var(--mc-accent); }
+    .conf-low .conf-fill { width: 33%; background: var(--mc-accent-red); }
+
+    /* Disputed bugs */
+    .dispute-flow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 12px; margin: 0.5rem 0; }
+    .dispute-arrow { color: var(--mc-text-secondary); }
+    .verdict-confirmed { color: var(--mc-accent-green); font-weight: 700; }
+    .verdict-dismissed { color: var(--mc-accent-red); font-weight: 700; }
+
+    /* Pipeline info */
+    .pipeline-info { font-size: 12px; color: var(--mc-text-secondary); padding: 0.5rem 0.75rem; background: var(--mc-bg-tertiary); border-radius: 0.375rem; margin-top: 0.5rem; }
 
     /* Appendix */
     .appendix-section {
@@ -527,18 +456,10 @@
     /* Animations */
     @media (prefers-reduced-motion: no-preference) {
       @keyframes fadeInUp {
-        from {
-          opacity: 0;
-          transform: translateY(16px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
       }
-      .section {
-        animation: fadeInUp 0.4s ease both;
-      }
+      .section { animation: fadeInUp 0.4s ease both; }
       .section:nth-child(1) { animation-delay: 0s; }
       .section:nth-child(2) { animation-delay: 0.05s; }
       .section:nth-child(3) { animation-delay: 0.1s; }
@@ -549,44 +470,28 @@
       .section:nth-child(8) { animation-delay: 0.35s; }
       .section:nth-child(9) { animation-delay: 0.4s; }
       .section:nth-child(10) { animation-delay: 0.45s; }
+      .section:nth-child(11) { animation-delay: 0.5s; }
+      .section:nth-child(12) { animation-delay: 0.55s; }
+      .section:nth-child(13) { animation-delay: 0.6s; }
+      .section:nth-child(14) { animation-delay: 0.65s; }
+      .section:nth-child(15) { animation-delay: 0.7s; }
+      .section:nth-child(16) { animation-delay: 0.75s; }
     }
 
     /* Print styles */
     @media print {
-      .sidebar {
-        display: none;
-      }
-      .main-content {
-        width: 100%;
-        max-width: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      .layout {
-        display: block;
-      }
-      .section {
-        animation: none;
-        break-inside: avoid;
-      }
-      .card {
-        box-shadow: none;
-        break-inside: avoid;
-      }
-      body {
-        font-size: 11px;
-        background: #fff;
-      }
-      a {
-        color: var(--mc-text);
-      }
+      .sidebar { display: none; }
+      .main-content { width: 100%; max-width: 100%; margin: 0; padding: 0; }
+      .layout { display: block; }
+      .section { animation: none; break-inside: avoid; }
+      .card { box-shadow: none; break-inside: avoid; }
+      body { font-size: 11px; background: #fff; }
+      a { color: var(--mc-text); }
     }
 
     /* Responsive */
     @media (max-width: 768px) {
-      .layout {
-        flex-direction: column;
-      }
+      .layout { flex-direction: column; }
       .sidebar {
         position: relative;
         top: 0;
@@ -596,35 +501,17 @@
         border-right: none;
         border-bottom: 1px solid var(--mc-border);
       }
-      .sidebar-nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.25rem;
-      }
-      .sidebar-nav li {
-        margin-bottom: 0;
-      }
-      .sidebar-nav a {
-        padding: 0.375rem 0.5rem;
-        font-size: 11px;
-      }
-      .main-content {
-        max-width: 100%;
-        padding: 1rem;
-      }
-      .summary-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      .metrics {
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-      .dimension-grid {
-        grid-template-columns: 1fr;
-      }
-      .role-grid {
-        grid-template-columns: 1fr;
-      }
+      .sidebar-nav { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+      .sidebar-nav li { margin-bottom: 0; }
+      .sidebar-nav a { padding: 0.375rem 0.5rem; font-size: 11px; }
+      .main-content { max-width: 100%; padding: 1rem; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .metrics { flex-direction: column; gap: 0.5rem; }
+      .dimension-grid { grid-template-columns: 1fr; }
+      .role-grid { grid-template-columns: 1fr; }
+      .viewport-grid { grid-template-columns: 1fr; }
+      .checks-grid { grid-template-columns: 1fr; }
+      .finding-url { margin-left: 0; width: 100%; }
     }
 
     /* Footer */
@@ -636,6 +523,7 @@
       color: var(--mc-text-secondary);
       font-size: 12px;
     }
+    .footer-pipeline { max-width: 600px; margin: 0 auto 1rem; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -643,13 +531,14 @@
 <div class="layout">
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
-    <div class="sidebar-brand">spel Discovery</div>
+    <div class="sidebar-brand">spel Report</div>
     <div class="sidebar-product">
-      <strong>{PRODUCT_NAME}</strong><br>
-      {PRODUCT_URL}
+      <strong>{APP_NAME}</strong><br>
+      {APP_URL}
     </div>
     <ul class="sidebar-nav">
       <li><a href="#executive-summary">Executive Summary</a></li>
+      <!-- PRODUCER: spel-product-analyst -->
       <li><a href="#product-overview">Product Overview</a></li>
       <li><a href="#feature-inventory">Feature Inventory</a></li>
       <li><a href="#user-roles">User Roles</a></li>
@@ -657,12 +546,21 @@
       <li><a href="#coherence-audit">Coherence Audit</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="#navigation-map">Navigation Map</a></li>
+      <!-- PRODUCER: spel-bug-referee -->
+      <li><a href="#visual-checks">Visual Checks</a></li>
+      <li><a href="#viewports">Viewport Audit</a></li>
+      <li><a href="#heatmap">Heatmap</a></li>
+      <li><a href="#timeline">Timeline</a></li>
+      <li><a href="#findings">Findings</a></li>
+      <li><a href="#disputed">Disputed</a></li>
+      <li><a href="#coverage">Coverage</a></li>
+      <!-- PRODUCER: spel-product-analyst -->
       <li><a href="#recommendations">Recommendations</a></li>
       <li><a href="#appendix">Appendix</a></li>
     </ul>
     <div class="sidebar-footer">
       Generated {DATE}<br>
-      spel Product Discovery Pipeline
+      spel Unified Report
     </div>
   </aside>
 
@@ -671,15 +569,15 @@
 
     <!-- ===== SECTION 1: REPORT HEADER ===== -->
     <header class="report-header">
-      <h1 class="report-title">Product Discovery Report</h1>
+      <h1 class="report-title">spel Report — {APP_NAME}</h1>
       <div class="report-meta">
-        <span><strong>Product:</strong> {PRODUCT_NAME}</span>
-        <span><strong>URL:</strong> <a href="{PRODUCT_URL}">{PRODUCT_URL}</a></span>
+        <span><strong>URL:</strong> <a href="{APP_URL}">{APP_URL}</a></span>
         <span><strong>Date:</strong> {DATE}</span>
+        <span><strong>Scope:</strong> {SCOPE}</span>
         <span><strong>Session:</strong> {SESSION_ID}</span>
       </div>
-      <div class="report-description">
-        {PRODUCT_DESCRIPTION}
+      <div class="pipeline-info">
+        <strong>Pipeline:</strong> {PIPELINE_AGENTS}
       </div>
     </header>
 
@@ -703,20 +601,43 @@
           <div class="summary-count">{COHERENCE_SCORE}</div>
           <div class="summary-label">Coherence</div>
         </div>
+        <div class="summary-card summary-card-critical">
+          <div class="summary-count" style="color: var(--mc-accent-red)">{CRITICAL_COUNT}</div>
+          <div class="summary-label">Critical</div>
+        </div>
+        <div class="summary-card summary-card-high">
+          <div class="summary-count" style="color: var(--mc-accent-yellow)">{HIGH_COUNT}</div>
+          <div class="summary-label">High</div>
+        </div>
+        <div class="summary-card summary-card-medium">
+          <div class="summary-count" style="color: var(--mc-accent)">{MEDIUM_COUNT}</div>
+          <div class="summary-label">Medium</div>
+        </div>
+        <div class="summary-card summary-card-low">
+          <div class="summary-count" style="color: var(--mc-accent-green)">{LOW_COUNT}</div>
+          <div class="summary-label">Low</div>
+        </div>
+        <div class="summary-card summary-card-total">
+          <div class="summary-count">{TOTAL_COUNT}</div>
+          <div class="summary-label">Total Issues</div>
+        </div>
       </div>
       <div class="card">
         <p><strong>Verdict:</strong> {VERDICT_SUMMARY}</p>
         <div class="metrics">
-          <span>Pages crawled: <span class="metric-value">{PAGES_CRAWLED}</span></span>
-          <span>Interactions: <span class="metric-value">{INTERACTIONS}</span></span>
-          <span>Screenshots: <span class="metric-value">{SCREENSHOTS}</span></span>
+          <span>Pages audited: <span class="metric-value">{PAGES_AUDITED}</span></span>
+          <span>Categories: <span class="metric-value">{CATEGORIES_CHECKED}</span></span>
+          <span>Viewports: <span class="metric-value">{VIEWPORTS_TESTED}</span></span>
         </div>
         <div class="metrics">
           <span>Agents succeeded: <span class="metric-value">{AGENTS_SUCCEEDED}</span></span>
           <span>Agents failed: <span class="metric-value">{AGENTS_FAILED}</span></span>
+          <span>Agents skipped: <span class="metric-value">{AGENTS_SKIPPED}</span></span>
         </div>
       </div>
     </section>
+
+    <!-- PRODUCER: spel-product-analyst — sections: Product Overview, Feature Inventory, User Roles, Feature Matrix, Coherence Audit, FAQ, Navigation Map, Recommendations, Appendix -->
 
     <!-- ===== SECTION 3: PRODUCT OVERVIEW ===== -->
     <section id="product-overview" class="section">
@@ -727,11 +648,11 @@
           <tbody>
             <tr>
               <td><strong>Product Name</strong></td>
-              <td>{PRODUCT_NAME}</td>
+              <td>{APP_NAME}</td>
             </tr>
             <tr>
               <td><strong>URL</strong></td>
-              <td><a href="{PRODUCT_URL}">{PRODUCT_URL}</a></td>
+              <td><a href="{APP_URL}">{APP_URL}</a></td>
             </tr>
             <tr>
               <td><strong>Category</strong></td>
@@ -807,18 +728,6 @@
       </div>
     </section>
 
-    <!--
-    === FEATURE ROW TEMPLATE ===
-    <tr>
-      <td>{FEATURE_ID}</td>
-      <td>{FEATURE_NAME}</td>
-      <td><span class="tag tag-category">{FEATURE_CATEGORY}</span></td>
-      <td>{FEATURE_LOCATION}</td>
-      <td><span class="tag tag-qa">{FEATURE_STATUS}</span></td>
-    </tr>
-    === END FEATURE ROW TEMPLATE ===
-    -->
-
     <!-- ===== SECTION 5: USER ROLES ===== -->
     <section id="user-roles" class="section">
       <h2>User Roles</h2>
@@ -864,20 +773,6 @@
         <!-- {ROLE_CARDS} -->
       </div>
     </section>
-
-    <!--
-    === ROLE CARD TEMPLATE ===
-    <div class="role-card">
-      <div class="role-name">{ROLE_NAME}</div>
-      <div class="role-description">{ROLE_DESCRIPTION}</div>
-      <ul class="role-tasks">
-        {ROLE_TASKS}
-      </ul>
-    </div>
-
-    Task format: <li>{TODO_ITEM}</li>
-    === END ROLE CARD TEMPLATE ===
-    -->
 
     <!-- ===== SECTION 6: FEATURE MATRIX ===== -->
     <section id="feature-matrix" class="section">
@@ -941,20 +836,6 @@
       </div>
     </section>
 
-    <!--
-    === MATRIX ROW TEMPLATE ===
-    <tr>
-      <td><strong>{ROLE_NAME}</strong></td>
-      <td class="matrix-cell"><span class="matrix-{ACCESS_1}">{ICON_1}</span></td>
-      <td class="matrix-cell"><span class="matrix-{ACCESS_2}">{ICON_2}</span></td>
-      ...
-    </tr>
-
-    Access values: check, cross, partial
-    Icons: ✓ (check), ✗ (cross), ◐ (partial)
-    === END MATRIX ROW TEMPLATE ===
-    -->
-
     <!-- ===== SECTION 7: COHERENCE AUDIT ===== -->
     <section id="coherence-audit" class="section">
       <h2>Coherence Audit</h2>
@@ -997,7 +878,7 @@
 
         <div class="dimension-card">
           <div class="dimension-header">
-            <span class="dimension-name">Navigation Clarity</span>
+            <span class="dimension-name">Navigation Flow</span>
             <span class="dimension-score" style="color: var(--mc-accent)">74</span>
           </div>
           <div class="score-bar">
@@ -1015,7 +896,7 @@
 
         <div class="dimension-card">
           <div class="dimension-header">
-            <span class="dimension-name">Content Structure</span>
+            <span class="dimension-name">Terminology</span>
             <span class="dimension-score" style="color: var(--mc-accent-green)">88</span>
           </div>
           <div class="score-bar">
@@ -1032,7 +913,7 @@
 
         <div class="dimension-card">
           <div class="dimension-header">
-            <span class="dimension-name">Responsiveness</span>
+            <span class="dimension-name">responsive_behavior</span>
             <span class="dimension-score" style="color: var(--mc-accent-red)">58</span>
           </div>
           <div class="score-bar">
@@ -1051,7 +932,7 @@
 
         <div class="dimension-card">
           <div class="dimension-header">
-            <span class="dimension-name">Accessibility</span>
+            <span class="dimension-name">Accessibility Baseline</span>
             <span class="dimension-score" style="color: var(--mc-accent)">71</span>
           </div>
           <div class="score-bar">
@@ -1069,7 +950,7 @@
 
         <div class="dimension-card">
           <div class="dimension-header">
-            <span class="dimension-name">Performance</span>
+            <span class="dimension-name">Loading States</span>
             <span class="dimension-score" style="color: var(--mc-accent-green)">82</span>
           </div>
           <div class="score-bar">
@@ -1107,32 +988,6 @@
       </div>
     </section>
 
-    <!--
-    === DIMENSION CARD TEMPLATE ===
-    <div class="dimension-card">
-      <div class="dimension-header">
-        <span class="dimension-name">{DIMENSION_NAME}</span>
-        <span class="dimension-score" style="color: var(--mc-accent-{SCORE_COLOR})">{DIMENSION_SCORE}</span>
-      </div>
-      <div class="score-bar">
-        <div class="score-track">
-          <div class="score-fill score-fill-{FILL_CLASS}" style="width: {DIMENSION_SCORE}%"></div>
-        </div>
-        <span class="score-value">{DIMENSION_SCORE}%</span>
-      </div>
-      <ul class="dimension-issues">
-        {ISSUE_LIST}
-      </ul>
-      <div class="dimension-refs">Refs: {ELEMENT_REFS}</div>
-    </div>
-
-    Score color values: green (80+), accent (60-79), red (<60)
-    Fill class values: high (80+), medium (60-79), low (<60)
-    Issue format: <li>{ISSUE_TEXT}</li>
-    === END DIMENSION CARD TEMPLATE ===
-    -->
-
-    <!-- OPTIONAL: Omit this entire section if no FAQ data available -->
     <!-- ===== SECTION 8: FAQ ===== -->
     <section id="faq" class="section">
       <h2>FAQ</h2>
@@ -1162,16 +1017,6 @@
       </div>
     </section>
 
-    <!--
-    === FAQ ITEM TEMPLATE ===
-    <div class="faq-item">
-      <div class="faq-question">{QUESTION}</div>
-      <div class="faq-answer">{ANSWER}</div>
-    </div>
-    === END FAQ ITEM TEMPLATE ===
-    -->
-
-    <!-- OPTIONAL: Omit this entire section if no navigation map data available -->
     <!-- ===== SECTION 9: NAVIGATION MAP ===== -->
     <section id="navigation-map" class="section">
       <h2>Navigation Map</h2>
@@ -1249,23 +1094,255 @@
       </div>
     </section>
 
-    <!--
-    === NAV TREE TEMPLATE ===
-    <li>
-      <div class="nav-page">
-        <span class="nav-icon">{ICON}</span>
-        <a href="{PAGE_URL}">{PAGE_NAME}</a>
+    <!-- PRODUCER: spel-bug-referee — sections: Visual Checks, Viewport Comparison, Heatmap, Timeline, Findings, Disputed Findings, Coverage Matrix -->
+
+    <!-- ===== SECTION 10: VISUAL CHECKS ===== -->
+    <section id="visual-checks" class="section">
+      <h2>Visual Checks</h2>
+      <div class="checks-grid">
+        <!-- SAMPLE VISUAL CHECK — PASS -->
+        <div class="check-item check-pass">
+          <span class="check-icon">&#10003;</span>
+          <div class="check-body">
+            <div class="check-name">Duplicate Elements</div>
+            <div class="check-desc">No duplicate logos, headings, or nav blocks found</div>
+          </div>
+        </div>
+        <!-- SAMPLE VISUAL CHECK — FAIL (with evidence) -->
+        <div class="check-item check-fail">
+          <span class="check-icon">&#10007;</span>
+          <div class="check-body">
+            <div class="check-name">Visual Coherence</div>
+            <div class="check-desc">Badge placement in task list rows is inconsistent — badges shift horizontally based on title length</div>
+            <div class="check-refs">Refs: @e4kqmn, @e7xrtw, @e9bnnq</div>
+            <div class="check-evidence">
+              <img src="evidence/visual-coherence-badges.png" alt="Annotated screenshot showing inconsistent badge placement">
+            </div>
+          </div>
+        </div>
+        <!-- END SAMPLES -->
+        <!-- {VISUAL_CHECKS} -->
       </div>
-      {CHILD_PAGES}
-    </li>
+    </section>
 
-    Icons: ◈ (top-level), ◦ (nested)
-    Child format: <ul>{CHILD_ITEMS}</ul>
-    === END NAV TREE TEMPLATE ===
-    -->
+    <!-- ===== SECTION 11: VIEWPORT AUDIT ===== -->
+    <section id="viewports" class="section">
+      <h2>Viewport Audit</h2>
 
-    <!-- OPTIONAL: Omit this entire section if no recommendations data available -->
-    <!-- ===== SECTION 10: RECOMMENDATIONS ===== -->
+      <!-- SAMPLE VIEWPORT PAGE -->
+      <div class="viewport-page">
+        <div class="viewport-page-title">
+          <span>/homepage</span>
+        </div>
+        <div class="viewport-grid">
+          <div class="viewport-card">
+            <div class="viewport-card-header">
+              <span class="viewport-label">Desktop</span>
+              <span class="viewport-size">1280×720</span>
+            </div>
+            <img src="evidence/homepage-desktop.png" alt="Homepage at desktop viewport">
+            <div class="viewport-meta">
+              <span class="viewport-overflow-ok">&#10003; No overflow</span>
+              <span>0 bugs</span>
+            </div>
+          </div>
+          <div class="viewport-card">
+            <div class="viewport-card-header">
+              <span class="viewport-label">Tablet</span>
+              <span class="viewport-size">768×1024</span>
+            </div>
+            <img src="evidence/homepage-tablet.png" alt="Homepage at tablet viewport">
+            <div class="viewport-meta">
+              <span class="viewport-overflow-ok">&#10003; No overflow</span>
+              <span class="viewport-bugs">1 bug</span>
+            </div>
+          </div>
+          <div class="viewport-card">
+            <div class="viewport-card-header">
+              <span class="viewport-label">Mobile</span>
+              <span class="viewport-size">375×667</span>
+            </div>
+            <img src="evidence/homepage-mobile.png" alt="Homepage at mobile viewport">
+            <div class="viewport-meta">
+              <span class="viewport-overflow-bad">&#10007; Overflow</span>
+              <span class="viewport-bugs">2 bugs</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- END SAMPLE -->
+      <!-- {VIEWPORT_PAGES} -->
+    </section>
+
+    <!-- ===== SECTION 12: SEVERITY HEATMAP ===== -->
+    <section id="heatmap" class="section">
+      <h2>Severity Heatmap</h2>
+      <div class="card" style="overflow-x: auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Page / Feature</th>
+              <th>Functional</th>
+              <th>Visual</th>
+              <th>A11y</th>
+              <th>UX</th>
+              <th>Perf</th>
+              <th>API</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- SAMPLE HEATMAP ROW (remove and replace with generated rows) -->
+            <tr>
+              <td>/login</td>
+              <td><span class="dot dot-critical"></span> 1</td>
+              <td><span class="dot dot-none"></span> 0</td>
+              <td><span class="dot dot-medium"></span> 1</td>
+              <td><span class="dot dot-low"></span> 1</td>
+              <td><span class="dot dot-none"></span> 0</td>
+              <td><span class="dot dot-none"></span> 0</td>
+            </tr>
+            <!-- END SAMPLE -->
+            <!-- {HEATMAP_ROWS} -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 13: ACTIVITY TIMELINE ===== -->
+    <section id="timeline" class="section">
+      <h2>Activity Timeline</h2>
+      <div class="card">
+        <div class="timeline">
+          <!-- SAMPLE TRANSCRIPT ENTRY (remove and replace with generated entries) -->
+          <div class="timeline-entry">
+            <span class="timeline-ts">00:00:01</span>
+            <span class="timeline-desc">[Hunter] Navigating to {APP_URL}</span>
+          </div>
+          <div class="timeline-entry">
+            <span class="timeline-ts">00:00:04</span>
+            <span class="timeline-desc">[Hunter] Taking snapshot — found 24 interactive elements</span>
+          </div>
+          <div class="timeline-entry issue">
+            <span class="timeline-ts">00:00:12</span>
+            <span class="timeline-desc"><span class="issue-tag">ISSUE-001</span> Submit button not keyboard-accessible</span>
+          </div>
+          <!-- END SAMPLE -->
+          <!-- {TIMELINE_ENTRIES} -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 14: FINDINGS ===== -->
+    <section id="findings" class="section">
+      <h2>Findings</h2>
+
+      <!-- SAMPLE FINDING (remove and replace with generated findings) -->
+      <div class="card finding">
+        <div class="finding-header">
+          <span class="finding-id">ISSUE-001</span>
+          <span class="pill pill-critical">Critical</span>
+          <span class="tag tag-category">accessibility</span>
+          <span class="finding-url">/login</span>
+        </div>
+        <div class="finding-tags">
+          <span class="tag tag-dev">DEV</span>
+          <span class="tag tag-qa">QA</span>
+        </div>
+        <div class="finding-provenance">
+          Found by: <strong>Hunter</strong> &middot; Challenged by: <strong>Skeptic</strong> &middot; Verdict: <strong>Referee CONFIRMED</strong>
+        </div>
+        <h3>Submit button not keyboard-accessible</h3>
+        <p style="margin-bottom: 0.75rem">The login form's submit button cannot be reached via Tab key navigation. Users relying on keyboard-only input cannot submit the form.</p>
+        <h3>Steps to Reproduce</h3>
+        <ol class="steps">
+          <li>Navigate to /login</li>
+          <li>Click the email input field</li>
+          <li>Press Tab to move through form elements</li>
+          <li>Observe: focus skips the Submit button entirely</li>
+        </ol>
+        <figure>
+          <img src="evidence/login-focus-order.png" alt="Screenshot showing focus order skipping Submit button">
+          <figcaption>Focus indicator jumps from password field to footer link, skipping Submit</figcaption>
+        </figure>
+        <div class="agent-block">
+          <div class="agent-label">Agent Analysis</div>
+          <p>The submit button uses a &lt;div&gt; with an onclick handler instead of a native &lt;button&gt; element. It has no tabindex attribute and no role="button" ARIA role, making it invisible to keyboard navigation and screen readers.</p>
+        </div>
+        <pre class="console"><span class="error">[a11y] Element div.submit-btn is not focusable — missing tabindex or native interactive element</span></pre>
+        <div style="display: flex; gap: 1.5rem; margin-top: 0.75rem; font-size: 12px">
+          <span class="confidence conf-high">Confidence: <span class="conf-bar"><span class="conf-fill"></span></span> High</span>
+          <span><strong>Impact:</strong> Blocks keyboard-only and screen reader users from logging in</span>
+        </div>
+      </div>
+      <!-- END SAMPLE -->
+      <!-- {FINDINGS} -->
+    </section>
+
+    <!-- ===== SECTION 15: DISPUTED BUGS ===== -->
+    <section id="disputed" class="section">
+      <h2>Disputed Bugs</h2>
+
+      <!-- SAMPLE DISPUTED BUG (remove and replace with generated entries) -->
+      <div class="card" style="margin-bottom: 1rem">
+        <div class="finding-header">
+          <span class="finding-id">ISSUE-002</span>
+          <span class="pill pill-medium">Medium</span>
+          <span class="tag tag-category">visual</span>
+        </div>
+        <p style="margin-bottom: 0.5rem"><strong>Button text truncated on mobile viewport</strong></p>
+        <div class="dispute-flow">
+          <span><strong>Hunter:</strong> Button text clips at 375px width</span>
+          <span class="dispute-arrow">&rarr;</span>
+          <span><strong>Skeptic:</strong> Text wraps correctly — tested on iPhone 14 emulation</span>
+          <span class="dispute-arrow">&rarr;</span>
+          <span class="verdict-dismissed">&#10007; DISMISSED</span>
+        </div>
+        <div class="finding-provenance" style="margin-top: 0.5rem">
+          Referee note: Skeptic provided counter-evidence at exact viewport. Hunter's screenshot was at 320px, not 375px. Bug is device-specific edge case, downgraded from Medium to Low risk.
+        </div>
+      </div>
+      <!-- END SAMPLE -->
+      <!-- {DISPUTED_BUGS} -->
+    </section>
+
+    <!-- ===== SECTION 16: COVERAGE REPORT ===== -->
+    <section id="coverage" class="section">
+      <h2>Coverage Report</h2>
+      <div class="card" style="overflow-x: auto">
+        <table>
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Pages Visited</th>
+              <th>Elements Tested</th>
+              <th>Console Errors</th>
+              <th>Screenshots</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- SAMPLE COVERAGE ROW (remove and replace with generated rows) -->
+            <tr>
+              <td>/login</td>
+              <td>1</td>
+              <td>24</td>
+              <td>0</td>
+              <td>3</td>
+            </tr>
+            <!-- END SAMPLE -->
+            <!-- {COVERAGE_ROWS} -->
+            <tr class="summary-row">
+              <td><strong>Total</strong></td>
+              <td>{TOTAL_PAGES_VISITED}</td>
+              <td>{TOTAL_ELEMENTS_TESTED}</td>
+              <td>{TOTAL_CONSOLE_ERRORS}</td>
+              <td>{TOTAL_SCREENSHOTS}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 17: RECOMMENDATIONS ===== -->
     <section id="recommendations" class="section">
       <h2>Recommendations</h2>
       <p style="margin-bottom: 1rem;">Actionable items to improve the product.</p>
@@ -1324,21 +1401,7 @@
       <!-- {RECOMMENDATIONS} -->
     </section>
 
-    <!--
-    === RECOMMENDATION TEMPLATE ===
-    <div class="recommendation">
-      <div class="rec-priority rec-priority-{PRIORITY}">{PRIORITY_NUMBER}</div>
-      <div class="rec-body">
-        <div class="rec-title">{REC_TITLE}</div>
-        <div class="rec-desc">{REC_DESCRIPTION}</div>
-      </div>
-    </div>
-
-    Priority values: high, medium, low
-    === END RECOMMENDATION TEMPLATE ===
-    -->
-
-    <!-- ===== SECTION 11: APPENDIX ===== -->
+    <!-- ===== SECTION 18: APPENDIX ===== -->
     <section id="appendix" class="section">
       <h2>Appendix</h2>
       <p style="margin-bottom: 1rem;">Raw data and methodology notes.</p>
@@ -1347,7 +1410,7 @@
         <h4>Discovery Methodology</h4>
         <div class="appendix-content">This product discovery was performed using automated browser exploration with the following approach:
 
-1. Initial page load and snapshot at {PRODUCT_URL}
+1. Initial page load and snapshot at {APP_URL}
 2. Recursive link discovery within same origin
 3. Interactive element enumeration per page
 4. Feature identification through DOM analysis
@@ -1361,19 +1424,14 @@ Elements analyzed: {ELEMENTS_ANALYZED}</div>
       </div>
 
       <div class="appendix-section">
-        <h4>Raw Feature Data</h4>
-        <div class="appendix-content">{RAW_FEATURE_DATA_JSON}</div>
-      </div>
-
-      <div class="appendix-section">
         <h4>Coherence Scoring Criteria</h4>
         <div class="appendix-content">Visual Consistency (85): Color palette, typography, spacing uniformity
 Interaction Patterns (92): Consistent hover/focus states, button styles
-Navigation Clarity (74): Menu depth, breadcrumb presence, URL structure
-Content Structure (88): Heading hierarchy, list formatting, whitespace
-Responsiveness (58): Mobile layout, touch targets, overflow handling
-Accessibility (71): Alt text, focus indicators, ARIA labels
-Performance (82): Load time, bundle size, lazy loading
+Navigation Flow (74): Menu depth, breadcrumb presence, URL structure
+Terminology (88): Heading hierarchy, list formatting, whitespace
+responsive_behavior (58): Mobile layout, touch targets, overflow handling
+Accessibility Baseline (71): Alt text, focus indicators, ARIA labels
+Loading States (82): Load time, bundle size, lazy loading
 Error Handling (65): Error message clarity, recovery options, validation
 
 Overall coherence: {OVERALL_COHERENCE_SCORE}</div>
@@ -1396,10 +1454,17 @@ Network requests: {NETWORK_REQUESTS}</div>
 
     <!-- ===== FOOTER ===== -->
     <footer class="report-footer">
-      <p>
-        <strong>Product Discovery Pipeline</strong> — Automated product analysis by spel<br>
-        Generated {DATE} • Session {SESSION_ID}
-      </p>
+      <div class="footer-pipeline">
+        <strong>Unified Report Pipeline</strong><br>
+        Product discovery by spel-product-analyst. QA by spel-bug-referee.
+        Only findings with evidence survive the adversarial pipeline.
+      </div>
+      <div class="metrics" style="justify-content: center; margin-bottom: 0.75rem">
+        <span>Hunter score: <span class="metric-value">{HUNTER_SCORE}</span></span>
+        <span>Verified bugs: <span class="metric-value">{VERIFIED_COUNT}</span> / {REPORTED_COUNT}</span>
+        <span>Disputed: <span class="metric-value">{DISPUTED_COUNT}</span></span>
+      </div>
+      <p>Generated by spel &bull; {DATE}</p>
     </footer>
 
   </main>

@@ -83,14 +83,14 @@
                 "PAGE_LOCATORS.md"]
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
-   :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md" "qa-report.html"]
+  :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
+                "BUGFIND_GUIDE.md" "spel-report.html"]
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
-   :qa-orchestrator ["AGENT_COMMON.md" "qa-report.html"]
+  :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html"]
    :auto-orchestrator ["AGENT_COMMON.md"]
-   :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
-                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "product-report.html"]})
+  :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
+                    "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
