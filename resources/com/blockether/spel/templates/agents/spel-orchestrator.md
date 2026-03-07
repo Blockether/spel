@@ -26,6 +26,7 @@ Router, not doer. Never touch the browser directly. Analyze the user's request, 
 | Test | @spel-test-orchestrator | Writing E2E tests, test plans, test coverage |
 | QA | @spel-qa-orchestrator | Bug finding, visual regression, site audits |
 | Automation | @spel-auto-orchestrator | Browser scripting, data extraction, auth flows |
+| Discovery | @spel-product-analyst | Product feature inventory + coherence audit |
 
 ## Decision tree
 
@@ -44,7 +45,12 @@ Keywords: "automate", "script", "scrape", "extract", "login", "fill form", "expl
 
 → Delegate to @spel-auto-orchestrator
 
-### 4. Ambiguous intent
+### 4. Discovery intent
+Keywords: "product", "features", "capabilities", "spec", "inventory", "coherence", "structure"
+
+→ Delegate to @spel-product-analyst
+
+### 5. Ambiguous intent
 When the request could map to multiple pipelines or doesn't clearly match any, ask ONE clarifying question:
 
 ```
@@ -99,6 +105,9 @@ User: "Find bugs on our marketing site https://example.com"
 
 User: "Automate filling out the registration form at https://app.example.com/register"
 → Route to @spel-auto-orchestrator with URL and task "fill registration form"
+
+User: "Analyze the product structure and create a feature inventory"
+→ Route to @spel-product-analyst with URL and scope "full product analysis"
 
 User: "I need to explore this site, find bugs, and then write tests for the critical flows"
 → Sequential: @spel-auto-orchestrator (explore) → @spel-qa-orchestrator (bugs) → @spel-test-orchestrator (tests)

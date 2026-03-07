@@ -30,6 +30,21 @@ Coordinator, not doer. Never touch the browser directly. Analyze scope, decide w
 | @spel-bug-skeptic | Challenges bug reports adversarially | YES |
 | @spel-bug-referee | Final verdict on disputed bugs | YES |
 
+| @spel-product-analyst | Product analysis (optional) | Optional (if product context needed) |
+## Optional: Product Analysis (before QA)
+
+If `product-spec.json` exists in the project, use it to inform QA scope:
+- Load `product-spec.json` to understand feature inventory and coherence audit scores
+- Focus QA effort on features with low coherence scores
+- Use role definitions to test role-gated features
+
+If `product-spec.json` does NOT exist and you need product context:
+- Optionally invoke `@spel-product-analyst` first (adds 10-30 minutes)
+- Or proceed with QA without product context
+
+**Error recovery**: If `@spel-product-analyst` fails or times out, proceed with QA without product context. Do not block QA on product analysis.
+
+
 ## Pipeline (full)
 
 ```

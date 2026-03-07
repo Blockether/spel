@@ -35,6 +35,15 @@ You're a coordinator, not a doer. You NEVER write test code directly. You invoke
 | @spel-test-generator | Generates test code from spec | YES |
 | @spel-test-healer | Runs tests and fixes failures | YES |
 
+## Optional: Feature-Aware Test Planning
+
+If `product-spec.json` is available (from `@spel-product-analyst`), pass it to `@spel-test-planner`:
+- Test planner can use feature inventory to generate more targeted, feature-aware test plans
+- Coherence audit scores highlight areas needing more test coverage
+- Role definitions help generate role-specific test scenarios
+
+This step is optional — test planning works without product context.
+
 ## Execution flow
 
 ### Analyze request

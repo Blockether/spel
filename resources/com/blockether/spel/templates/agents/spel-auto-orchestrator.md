@@ -37,6 +37,15 @@ Coordinator, not doer. Never touch the browser directly. Analyze the task, decid
 
 Stages in `[ ]` are optional, included based on task analysis.
 
+## Optional: Product Analysis
+
+If you need to understand product structure before scripting automation:
+- Invoke `@spel-product-analyst` first to get `product-spec.json`
+- Use feature inventory to identify automation targets
+- Use role definitions to script role-specific automation flows
+
+This step is optional — automation works without product context.
+
 ## Execution flow
 
 ### Analyze task

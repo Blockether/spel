@@ -140,3 +140,14 @@ Screenshots:
 2. User reviews and approves the spec (GATE: do not proceed without approval)
 3. Generator reads specs and creates test code using `spel.allure` (`defdescribe`, `it`, `expect`). It checks selectors against the live app.
 4. Healer reads specs when diagnosing failures to understand what the test was supposed to do.
+
+## product-spec.json
+
+Produced by `@spel-product-analyst`. Contains structured product feature inventory, user role mapping, coherence audit, and navigation map.
+
+Use it to:
+- Inform test planning with feature inventory
+- Focus QA on low-coherence areas
+- Generate role-specific automation scripts
+
+See `PRODUCT_DISCOVERY.md` for the full schema.
