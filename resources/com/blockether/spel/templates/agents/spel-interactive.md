@@ -138,33 +138,9 @@ spel --session $SESSION eval-sci '
   (println "Logged in as:" data))'
 ```
 
-## Cookie consent and popups
+See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eval-sci cookie handling.
 
-EU sites show cookie consent on first visit — handle before doing anything else:
-
-```bash
-spel --session interactive-auth snapshot -i
-# Look for: "Accept all", "Akceptuję", "Zgadzam się", etc.
-spel --session interactive-auth click @eXXXXX
-```
-
-E-commerce sites often show popups (postal code, newsletter, promo):
-
-```bash
-# ALWAYS snapshot first to detect overlays
-spel --session interactive-auth snapshot -i
-# If a modal is detected: interact with it, snapshot again to verify dismissed, then proceed
-spel --session interactive-auth snapshot -i
-```
-
-### Position annotations in snapshot refs
-
-Each ref includes `[pos:X,Y W×H]`. Use for layout verification, overlap detection, viewport fit, and spatial reasoning.
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
 ## Session management
 

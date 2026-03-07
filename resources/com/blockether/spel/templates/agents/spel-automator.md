@@ -132,19 +132,7 @@ GATE: show the user the script, run it with test args, show the output. Get appr
   (spel/click "@e2yrjz"))
 ```
 
-### Dismissing cookie consent
-```clojure
-;; EU/GDPR sites always show cookie consent — dismiss first
-(let [snap (spel/capture-snapshot)]
-  ;; Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
-  ;; English: "Accept all", "Accept cookies", "I agree"
-  ;; German: "Alle akzeptieren", "Zustimmen"
-  (when-let [btn (try (spel/get-by-role role/button {:name "Accept all"})
-                      (catch Exception _ nil))]
-    (when (spel/visible? btn)
-      (spel/click btn)
-      (spel/wait-for-load))))
-```
+See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eval-sci cookie handling.
 
 ### Modal/popup dismissal
 ```clojure

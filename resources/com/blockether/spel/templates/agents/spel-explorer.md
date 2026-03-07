@@ -84,14 +84,7 @@ spel --session $SESSION snapshot -i
 spel --session $SESSION snapshot -S --json > <page>-snapshot.json
 ```
 
-### Position annotations in snapshot refs
-
-Each ref includes `[pos:X,Y W×H]`. Use for layout verification, overlap detection, viewport fit, and spatial reasoning.
-
-```
-button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
-```
+See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
 ### 2. Annotate and screenshot
 ```bash
@@ -162,30 +155,7 @@ Ask: "Approve to proceed, or provide feedback?" Do NOT continue until explicit a
 - If auth is required, report that interactive authentication may be needed and suggest `spel-interactive`.
 - If network failures occur, record failed requests separately from successful data extraction.
 
-## Cookie consent and first-visit popups
-
-EU/GDPR sites show cookie consent on first visit — handle before data extraction:
-
-```bash
-# 1. Snapshot to detect cookie consent
-spel --session $SESSION snapshot -i
-
-# 2. Look for consent buttons:
-#   English: "Accept all", "Accept cookies", "I agree"
-#   Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
-#   German: "Alle akzeptieren"
-
-# 3. Click the consent button by its snapshot ref
-spel --session $SESSION click @eXXXXX
-
-# 4. If a postal code / location popup appears next:
-spel --session $SESSION snapshot -i
-spel --session $SESSION fill @eXXXXX "31-564"
-spel --session $SESSION click @eXXXXX
-
-# 5. Snapshot again to confirm clean page state
-spel --session $SESSION snapshot -i
-```
+See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eval-sci cookie handling.
 
 ## Multi-step exploration with eval-sci
 
