@@ -26,6 +26,7 @@ Agent short names:
 - presenter → `pres`, visual-qa → `vqa`
 - bug-hunter → `hunt`, bug-skeptic → `skep`, bug-referee → `ref`
 - spec-skeptic → `sskep`
+- product-analyst → `disc`
 
 ---
 
@@ -164,6 +165,152 @@ for viewport in "375 812 mobile" "768 1024 tablet" "1440 900 desktop"; do
   spel --session $SESSION screenshot "evidence/<page>-$3.png"
 done
 ```
+
+---
+
+## Position annotations in snapshot refs
+
+Each ref'd element includes screen position data as `[pos:X,Y W×H]`: pixel coordinates (X,Y from top-left) and dimensions (width×height). Use for:
+- Layout verification: check element positions, alignment, spacing
+- Overlap detection: find elements that overlap or are cut off
+- Viewport fit: verify elements are within the visible viewport
+- Spatial reasoning: understand page layout without screenshots
+- Duplicate detection: spot repeated logos, headings, navigation blocks, or identical message text
+- Visual symmetry: paired elements should match in size and position
+- Clipped content: find meaningful elements partially hidden by overflow, off-screen position, or overlapping layers
+- Broken layout: detect misaligned grid columns, collapsed flex rows, orphaned floats
+- Visual coherence: repeated UI patterns (list rows, cards, table rows) should keep badges, icons, and metadata in the same position regardless of content length
+
+```
+button "Submit" @e2yrjz [pos:150,200 120×40]
+input "Email" @e3kqmn [pos:100,100 300×30]
+```
+
+---
+
+## Selector strategy: snapshot refs first
+
+ALWAYS capture a snapshot before any interaction.
+
+### Why refs over CSS selectors
+
+Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
+
+- Deterministic: same element = same ref across snapshots (until navigation)
+- Semantic: derived from accessibility roles/names, not CSS classes
+- Resilient: survive CSS refactors, class renaming, layout changes
+- Universal: work with ALL spel functions: click, fill, text, assert
+
+CSS selectors (`.btn-primary`, `#submit`) are brittle and implementation-dependent.
+
+### Selector priority (highest to lowest)
+
+1. Snapshot refs (`@e2yrjz`): deterministic, resilient, semantic
+2. Semantic locators (role + name, label, text): stable, user-visible
+3. Test IDs (`data-testid`): stable but requires dev cooperation
+4. CSS selectors: LAST RESORT, always fragile
+
+### Snapshot-first workflow
+
+Before ANY interaction:
+
+```bash
+spel --session $SESSION snapshot -i
+spel --session $SESSION click @eXXXXX
+spel --session $SESSION fill @eXXXXX "value"
+```
+
+After navigation, refs become stale. Re-capture:
+
+```bash
+spel --session $SESSION click @eXXXXX
+# Page changed — re-snapshot
+spel --session $SESSION snapshot -i
+# Use NEW refs from fresh snapshot
+spel --session $SESSION click @eYYYYY
+```
+
+---
+
+## Cookie consent and first-visit popups
+
+EU/GDPR sites show cookie consent on first visit — handle before data extraction:
+
+```bash
+# 1. Snapshot to detect cookie consent
+spel --session $SESSION snapshot -i
+
+# 2. Look for consent buttons:
+#   English: "Accept all", "Accept cookies", "I agree"
+#   Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
+#   German: "Alle akzeptieren"
+
+# 3. Click the consent button by its snapshot ref
+spel --session $SESSION click @eXXXXX
+
+# 4. If a postal code / location popup appears next:
+spel --session $SESSION snapshot -i
+spel --session $SESSION fill @eXXXXX "31-564"
+spel --session $SESSION click @eXXXXX
+
+# 5. Snapshot again to confirm clean page state
+spel --session $SESSION snapshot -i
+```
+
+```bash
+spel --session $SESSION --timeout 10000 eval-sci '
+(do
+  (spel/goto "https://example.com")
+  (spel/wait-for-load)
+
+  ;; Handle cookie consent if present
+  (let [snap (spel/capture-snapshot)]
+    (when (str/includes? (:tree snap) "cookie")
+      (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
+           (catch Exception _ nil))
+      (spel/wait-for-load))))'
+```
+
+> In library test code (not SCI/CLI), use `page/get-by-role page role/button` form instead of `spel/get-by-role role/button`.
+
+---
+
+## Mandatory viewport audit
+
+You MUST test every audited page at all three viewports. No exceptions.
+
+| Viewport | Size | How to set |
+|----------|------|------------|
+| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
+| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
+| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
+
+At each viewport, capture:
+1. Annotated screenshot: `(spel/save-audit-screenshot! "<page> @ <viewport>" "bugfind-reports/evidence/<page>-<viewport>.png" {:refs (:refs snap)})`
+2. Snapshot JSON: `spel snapshot -S --json > bugfind-reports/evidence/<page>-<viewport>.json`
+3. Overflow check:
+
+```clojure
+;; Run at each viewport — true means horizontal overflow exists
+(let [sw (spel/evaluate "document.documentElement.scrollWidth")
+      cw (spel/evaluate "document.documentElement.clientWidth")]
+  (println "Overflow:" (> sw cw) "scroll:" sw "client:" cw))
+```
+
+---
+
+## Mandatory exploratory pass
+
+After structured audit of all 6 categories, spend 30-90 seconds on unscripted exploration:
+
+1. Click without a plan — try unlikely navigation paths
+2. Submit forms with empty, too-long, or special-character data
+3. Rapidly click the same button multiple times
+4. Use browser back/forward during multi-step flows
+5. Resize viewport mid-interaction
+6. Open the same flow in a new tab
+
+Document any unexpected behavior. Unscripted exploration often surfaces the highest-severity bugs.
 
 ---
 
