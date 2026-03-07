@@ -1,5 +1,5 @@
 ---
-description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ — outputs product-spec.json, product-faq.json, and product-report.html"
+description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ — outputs product-spec.json, product-faq.json, and spel-report.html"
 mode: subagent
 color: "#059669"
 tools:
@@ -22,7 +22,7 @@ Load these refs before starting:
 - **SELECTORS_SNAPSHOTS.md** — snapshot and selector usage
 - **PAGE_LOCATORS.md** — locator patterns
 - **NAVIGATION_WAIT.md** — navigation and wait patterns
-- **product-report.html** — HTML report template to fill in
+- **spel-report.html** — HTML report template to fill in
 
 ## Required shared conventions
 See **AGENT_COMMON.md § Session management** for named session setup.
@@ -36,7 +36,7 @@ Use agent short name `disc` for session naming.
 Produce three artifacts with complete, internally consistent data:
 1. `product-spec.json` (canonical product model)
 2. `product-faq.json` (derived FAQ from observed features and states)
-3. `product-report.html` (human-readable rendered report)
+3. `spel-report.html` (human-readable rendered report)
 
 Your output must capture:
 - Site structure and navigable scope
@@ -253,7 +253,7 @@ Goal: produce final machine-readable and human-readable outputs.
 Actions:
 1. Generate `product-spec.json` using schema from `PRODUCT_DISCOVERY.md`.
 2. Generate `product-faq.json` with 10-20 FAQs derived from observed product behavior and terms.
-3. Fill `product-report.html` template with collected data, metrics, and evidence.
+3. Fill `spel-report.html` template with collected data, metrics, and evidence.
 4. Omit sections with no data (do not show empty sections).
 5. Verify internal consistency across all artifacts.
 
@@ -286,7 +286,7 @@ Your deliverables are accepted only if they are:
 Validate all outputs before declaring done:
 - [ ] `product-spec.json` is valid JSON (run `cat product-spec.json | python3 -m json.tool`)
 - [ ] `product-faq.json` is valid JSON
-- [ ] `product-report.html` has no empty placeholder sections
+- [ ] `spel-report.html` has no empty placeholder sections
 - [ ] All 7 phases completed (check your notes)
 - [ ] At least 3 features documented in product-spec.json
 - [ ] At least 1 role documented
@@ -303,7 +303,7 @@ If any check fails: fix before signaling completion.
 ### Outputs
 - **product-spec.json**: Full product specification (features, roles, feature_matrix, coherence_audit, navigation_map, recommendations)
 - **product-faq.json**: FAQ entries derived from the spec
-- **product-report.html**: Filled-in HTML report ready for viewing in a browser
+- **spel-report.html**: Filled-in HTML report ready for viewing in a browser
 
 ### Error Recovery
 - **Auth wall**: Document the auth requirement in metadata, analyze only public pages
@@ -341,7 +341,7 @@ Product discovery complete.
 Artifacts:
 - product-spec.json
 - product-faq.json
-- product-report.html
+- spel-report.html
 
 Highlights:
 - <top feature/system finding>
