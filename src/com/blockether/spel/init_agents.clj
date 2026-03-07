@@ -67,15 +67,15 @@
   {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"
           "AGENT_COMMON.md"]
    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
-          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md"]
+          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md" "CI_WORKFLOWS.md"]
    :spec-skeptic ["ASSERTIONS_EVENTS.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
-              "NAVIGATION_WAIT.md"]
+              "NAVIGATION_WAIT.md" "FRAMES_INPUT.md"]
    :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
-               "CODEGEN_CLI.md"]
-   :interactive ["PROFILES_AGENTS.md" "BROWSER_OPTIONS.md" "EVAL_GUIDE.md"]
+               "CODEGEN_CLI.md" "FRAMES_INPUT.md" "PDF_STITCH_VIDEO.md"]
+   :interactive ["PROFILES_AGENTS.md" "BROWSER_OPTIONS.md" "EVAL_GUIDE.md" "FRAMES_INPUT.md"]
    :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
-               "SLIDE_PATTERNS.md"]
+               "SLIDE_PATTERNS.md" "PDF_STITCH_VIDEO.md"]
    :visual-qa ["SELECTORS_SNAPSHOTS.md" "SNAPSHOT_TESTING.md"
                "ASSERTIONS_EVENTS.md" "VISUAL_QA_GUIDE.md"]
    :bug-hunter ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
