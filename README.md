@@ -359,7 +359,7 @@ spel compiles to a native binary via GraalVM - no JVM startup, instant execution
 Point your AI agent at spel and let it write your E2E tests.
 
 ```bash
-spel init-agents                              # all 17 agents + 4 orchestrators (default)
+spel init-agents                              # all 18 agents + 4 orchestrators (default)
 spel init-agents --loop=claude                # Claude Code
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
@@ -368,6 +368,7 @@ spel init-agents --only=bugfind              # adversarial bug-finding agents on
 spel init-agents --only=orchestrator          # all 4 orchestrator agents only
 spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec reviewer
 spel init-agents --only=test,visual           # combine groups with commas
+spel init-agents --only=discovery             # product discovery agents only
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
 spel init-agents --no-tests                   # SKILL only (interactive dev)
 ```
@@ -375,7 +376,7 @@ spel init-agents --no-tests                   # SKILL only (interactive dev)
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
-| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `spec-skeptic` |
+| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `spec-skeptic` |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | — | Scaffold only the SKILL (API reference) — no test agents |
@@ -406,6 +407,7 @@ Just say `@spel-orchestrator test the login page` and it handles the rest.
 | `visual` | presenter, visual-qa | Visual content + QA |
 | `bugfind` | bug-hunter, bug-skeptic, bug-referee | Adversarial bug finding |
 | `orchestrator` | orchestrator, test-orch, qa-orch, auto-orch | Smart routing |
+| `discovery` | product-analyst | Product feature inventory + coherence audit |
 
 ## Video Recording
 
