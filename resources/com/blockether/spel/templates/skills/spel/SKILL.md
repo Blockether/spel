@@ -40,6 +40,7 @@ The orchestrator routes to:
 - `@spel-auto-orchestrator` — Browser automation (auth → explore → script → document)
 
 You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
+Artifact-first rule: if you ask for JSON/report files, the orchestrator must treat those exact paths as required outputs, stop at gates, and keep `orchestration/*-pipeline.json` handoff manifests up to date.
 
 
 | Command | Purpose |

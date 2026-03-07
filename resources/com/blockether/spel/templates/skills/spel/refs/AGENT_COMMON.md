@@ -63,6 +63,39 @@ Outputs:
 }
 ```
 
+### Artifact verification
+
+If an output file is part of your contract, it is not optional in practice.
+
+Before you announce completion or open a GATE:
+- Verify every promised file exists and is non-empty
+- Verify JSON outputs parse and match the expected shape
+- Verify every referenced evidence path exists on disk
+- If the user explicitly asked for JSON, treat those JSON paths as hard requirements
+
+Missing artifact = incomplete stage. Do not summarize it as done. Go back and produce/fix the file first.
+
+### Pipeline handoff manifests
+
+Orchestrated runs must leave a machine-readable handoff file in `orchestration/`:
+
+```json
+{
+  "pipeline": "automation|qa|test|discovery",
+  "stage": "explore|hunt|generate|complete",
+  "status": "awaiting_user_approval|complete|blocked",
+  "required_artifacts": ["..."],
+  "missing_artifacts": [],
+  "artifacts": [
+    {"kind": "report", "path": "bugfind-reports/hunter-report.json"}
+  ],
+  "next_step": "challenge",
+  "open_questions": []
+}
+```
+
+Update this file after every stage transition. The next pipeline consumes it as context.
+
 ---
 
 ## Gates
@@ -95,6 +128,16 @@ Do NOT continue to the next phase until the user explicitly approves.
 - Workflow GATE: in the workflow prompt. The orchestrator pauses between agent invocations.
 
 Both are needed. Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
+
+### Valid gate checklist
+
+A GATE is valid only when all of the following are true:
+- Required artifacts for the stage exist
+- Missing artifact list is empty
+- The user sees the exact file paths that were produced
+- The next step is explicitly blocked pending approval
+
+If any required artifact is missing, do not ask for approval yet. Fix the stage first.
 
 ---
 

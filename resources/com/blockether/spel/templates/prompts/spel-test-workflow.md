@@ -6,6 +6,8 @@ description: Full E2E test coverage workflow - plans, challenges, generates, and
 
 Orchestrates up to four agents in a pipeline to plan, challenge, generate, and heal E2E tests.
 
+The orchestrator must maintain `orchestration/test-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
+
 ## Parameters
 
 - Task: the feature or area to test
@@ -27,6 +29,9 @@ Orchestrates up to four agents in a pipeline to plan, challenge, generate, and h
 ```
 
 **GATE**: The planner must present the full spec to the user. Do NOT proceed until the spec is reviewed and approved. The spec file at `test-e2e/specs/<feature>-test-plan.md` is the source of truth for all subsequent steps.
+Required artifacts before this gate:
+- `test-e2e/specs/<feature>-test-plan.md`
+- `test-e2e/specs/<feature>-test-plan.json`
 
 ## Challenge the spec (optional)
 
@@ -47,6 +52,8 @@ The Spec Skeptic will:
 4. Produce `test-e2e/specs/<feature>-spec-review.json`
 
 **GATE**: Review the Spec Skeptic's challenges. The planner may revise the spec based on feedback. Once finalized, proceed to generation.
+Required artifact before this gate:
+- `test-e2e/specs/<feature>-spec-review.json`
 
 ## Generate
 
@@ -65,6 +72,8 @@ For each test case from the spec (1.1, 1.2, ...), one after another (NOT in para
 ```
 
 **GATE**: Review generated tests and run results before proceeding to healing.
+Required artifact before this gate:
+- `generation-report.json`
 
 ## Heal
 
@@ -75,6 +84,9 @@ For each test case from the spec (1.1, 1.2, ...), one after another (NOT in para
 ```
 
 **GATE**: Review healing report — what was broken, what changed, and why.
+Required artifacts before this gate:
+- `healing-report.json`
+- `orchestration/test-pipeline.json`
 
 ## Notes
 
@@ -83,3 +95,4 @@ For each test case from the spec (1.1, 1.2, ...), one after another (NOT in para
 - The spec skeptic step is optional but recommended for critical flows
 - Every step has a GATE — human review before proceeding
 - Each agent uses its own named session for browser isolation
+- Missing artifacts fail closed: if a promised JSON file is absent, the step is incomplete

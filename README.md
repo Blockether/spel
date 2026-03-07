@@ -380,6 +380,7 @@ spel init-agents --no-tests                   # all agents, skip seed test + spe
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | — | Skip seed test and specs directory — scaffold agents + SKILL only |
+| `--learnings` | — | Inject learnings contracts; agents create/update `LEARNINGS.md` lazily on first write |
 | `--dry-run` | — | Preview files without writing |
 | `--force` | — | Overwrite existing files |
 | `--test-dir DIR` | `test-e2e` | E2E test output directory |
@@ -397,6 +398,8 @@ Orchestrators are smart entry points that route your request to the right specia
 | `@spel-auto-orchestrator` | Coordinates automation: [auth] → explore → [script] → [document] |
 
 Just say `@spel-orchestrator test the login page` and it handles the rest.
+
+Orchestrators are artifact-first: they should stop at explicit user-review gates and leave machine-readable handoff manifests in `orchestration/*.json` between pipeline stages.
 
 ### Subagent Groups
 

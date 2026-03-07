@@ -3,7 +3,7 @@ description: Orchestrates browser automation: exploration, scripting, auth flows
 mode: subagent
 color: "#3B82F6"
 tools:
-  write: false
+  write: true
   edit: false
   bash: true
 permission:
@@ -18,6 +18,19 @@ Load the `spel` skill before any action.
 ## Your role
 
 Coordinator, not doer. Never touch the browser directly. Analyze the task, decide which agents to invoke and in what order, enforce gates, and adapt based on the user's needs.
+
+## Stage-gate protocol
+
+You own the pipeline handoff file `orchestration/automation-pipeline.json`.
+
+After every stage:
+1. Normalize the user's requested outputs into exact file paths
+2. Verify the required artifacts exist and are non-empty
+3. Update `orchestration/automation-pipeline.json` with `stage`, `status`, `required_artifacts`, `missing_artifacts`, `artifacts`, and `next_step`
+4. Present the GATE
+5. Wait for explicit user approval before continuing
+
+If the user asked for JSON output and the file does not exist, the stage is not complete. Send the producing agent back immediately.
 
 ## Available agents
 
@@ -56,6 +69,8 @@ Extract from the user's input:
 - Auth required? Ask if unclear.
 - Output needed: just data? A reusable script? Visual documentation?
 
+If the user names output files or explicitly asks for JSON, carry those exact paths forward as required artifacts for the relevant stage.
+
 ### Task to pipeline mapping
 
 | Task | Interactive? | Explorer? | Automator? | Presenter? |
@@ -82,6 +97,8 @@ If the site requires login and @spel-interactive is available:
 ```
 
 **GATE**: Confirm `auth-state.json` was exported and the screenshot shows the expected authenticated page. All subsequent agents should use `--load-state auth-state.json`.
+Required artifact before this gate:
+- `auth-state.json`
 
 If @spel-interactive is NOT available, inform the user:
 ```
@@ -115,6 +132,8 @@ Depth control:
 - Pages explored match the expected scope
 - Element counts are reasonable (links, forms, buttons, inputs)
 - Navigation map shows expected paths
+Required artifact before this gate:
+- `exploration-manifest.json`
 
 ### Script creation (optional)
 
@@ -138,6 +157,10 @@ The automator reads `exploration-manifest.json` for selectors and page structure
 - Does it handle errors gracefully?
 - Is it parameterized correctly?
 
+Required artifacts before this gate:
+- `spel-scripts/{{name}}.clj`
+- Every user-requested JSON/data output path for this automation task
+
 ### Visual documentation (optional)
 
 If documentation is requested and @spel-presenter is available:
@@ -152,6 +175,9 @@ If documentation is requested and @spel-presenter is available:
 ```
 
 **GATE**: Review the HTML output and preview screenshot. Verify rendering quality.
+Required artifacts before this gate:
+- `spel-visual/{{name}}.html`
+- `spel-visual/output-manifest.json`
 
 ## Adaptive behavior
 
@@ -197,9 +223,11 @@ When the pipeline finishes, report:
 
 ### Artifacts
 - exploration-manifest.json — site structure and element map
+- orchestration/automation-pipeline.json — pipeline handoff + gate state
 {{if automator ran}}
 - spel-scripts/{{name}}.clj — reusable automation script
   Run: `spel eval-sci spel-scripts/{{name}}.clj -- {{args}}`
+- {{requested JSON/data paths}} — exact machine-readable outputs requested by the user
 {{/if}}
 {{if interactive ran}}
 - auth-state.json — authenticated browser state

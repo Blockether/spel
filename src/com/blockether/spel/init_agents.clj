@@ -149,7 +149,7 @@
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for agent templates that need frontmatter transformation.
    resolved-only: nil for all agents, or a set of resolved subagent keywords to filter by."
-  [loop-target flavour resolved-only learnings?]
+  [loop-target flavour resolved-only _learnings?]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
         ct? (= "clojure-test" flavour)
         generator-template (if ct?
@@ -166,13 +166,6 @@
                                   (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
                              distinct
                              vec)
-        learnings-files (if learnings?
-                          [["learnings.md"
-                            "LEARNINGS.md"
-                            "meta learnings report"
-                            "+"
-                            nil]]
-                          [])
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
                             "API reference skill"
@@ -309,7 +302,7 @@
                                     true)))
                        all-test-files)
                      all-test-files)]
-    (into (into learnings-files skill-files) test-files)))
+    (into skill-files test-files)))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.
@@ -515,6 +508,12 @@
   (let [base-contract (str
                         "\n\n## Meta Learnings (enabled via --learnings)\n"
                         "For every run, append your scoped learnings to `LEARNINGS.md` at repository root.\n"
+                        "If `LEARNINGS.md` does not exist yet, create it first with these top-level sections in order:\n"
+                        "- `# LEARNINGS`\n"
+                        "- `## High-Level Issues (cross-agent synthesis)`\n"
+                        "- `## Agent-Scoped Learnings`\n"
+                        "- `## Corrective Backlog`\n"
+                        "Write your section immediately after your stage/pipeline completes. Do NOT defer learnings until the end of the whole run.\n"
                         "Do not overwrite other agent sections. Always append under this header:\n\n"
                         "```markdown\n"
                         "## Agent: " agent-name "\n"
@@ -553,6 +552,7 @@
                                 "- `## Agent-Scoped Learnings`\n"
                                 "For every high-level issue, include exact reproduction with Context, Preconditions, Steps, Expected, Actual, and Evidence.\n"
                                 "Cross-check subagent findings for duplicates, contradictions, and confidence before finalizing.\n"
+                                "Append/update learnings after each completed pipeline gate, not only in the final wrap-up.\n"
                                 "You must include `## Corrective Backlog` with prompt/skill/template fixes prioritized by impact and confidence.\n")]
     (str content
       base-contract
@@ -727,8 +727,8 @@
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
   (println "  --no-tests        Skip seed test and specs directory — scaffold agents + SKILL only.")
   (println "                    Use this when you don't need a starter test file.")
-  (println "  --learnings       Scaffold LEARNINGS.md and inject mandatory per-agent learnings contracts.")
-  (println "                    Agents append scoped learnings; orchestrators synthesize high-level issues with exact reproductions.")
+  (println "  --learnings       Inject mandatory per-agent learnings contracts.")
+  (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
@@ -790,8 +790,8 @@
       (println "     spel eval-sci '(page/navigate \"https://example.org\")')")
       (when learnings?
         (println "")
-        (println "  4. Capture meta learnings in LEARNINGS.md")
-        (println "     Every agent now appends scoped learnings; orchestrators must synthesize high-level issues.")))
+        (println "  4. Capture meta learnings in LEARNINGS.md when a run produces them")
+        (println "     Agents now create/update the file lazily; orchestrators must synthesize high-level issues.")))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
         (println "Done! Use @spel-orchestrator to get started, or @spel-test-planner to plan tests directly.")
@@ -824,8 +824,8 @@
       (println "     to point to your development server.")
       (when learnings?
         (println "")
-        (println "  5. Capture meta learnings in LEARNINGS.md")
-        (println "     Every agent now appends scoped learnings; orchestrators must synthesize high-level issues.")))))
+        (println "  5. Capture meta learnings in LEARNINGS.md when a run produces them")
+        (println "     Agents now create/update the file lazily; orchestrators must synthesize high-level issues.")))))
 
 ;; =============================================================================
 ;; Main Entry Point

@@ -1026,31 +1026,45 @@ fi
 LEARN_TMP=$(mktemp -d)
 TEMP_FILES+=("$LEARN_TMP")
 OUT=$(cd "$LEARN_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --learnings --force 2>&1)
-assert_contains "init-agents --learnings scaffolds LEARNINGS.md" "$OUT" "LEARNINGS.md"
 
 LEARNINGS_FILE="$LEARN_TMP/LEARNINGS.md"
 LEARN_ORCH_FILE="$LEARN_TMP/.opencode/agents/spel-orchestrator.md"
 LEARN_HUNTER_FILE="$LEARN_TMP/.opencode/agents/spel-bug-hunter.md"
+LEARN_AUTO_FILE="$LEARN_TMP/.opencode/agents/spel-auto-orchestrator.md"
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^# LEARNINGS$' "$LEARNINGS_FILE" && grep -q '^## High-Level Issues (cross-agent synthesis)$' "$LEARNINGS_FILE" && grep -q '^## Corrective Backlog$' "$LEARNINGS_FILE"; then
-  pass "--learnings creates LEARNINGS schema"
+if [ ! -f "$LEARNINGS_FILE" ]; then
+  pass "--learnings does not precreate LEARNINGS.md"
 else
-  fail "--learnings creates LEARNINGS schema" "Expected LEARNINGS.md with high-level issues section"
+  fail "--learnings does not precreate LEARNINGS.md" "Expected LEARNINGS.md to be created lazily by agents, not scaffolded up front"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^## Meta Learnings (enabled via --learnings)$' "$LEARN_HUNTER_FILE" && grep -q '^### Exact Reproductions$' "$LEARN_HUNTER_FILE" && grep -q '^### Root Cause and Corrective Action$' "$LEARN_HUNTER_FILE"; then
+if grep -q '^## Meta Learnings (enabled via --learnings)$' "$LEARN_HUNTER_FILE" && grep -q '^### Exact Reproductions$' "$LEARN_HUNTER_FILE" && grep -q '^### Root Cause and Corrective Action$' "$LEARN_HUNTER_FILE" && grep -q 'create it first with these top-level sections' "$LEARN_HUNTER_FILE"; then
   pass "specialist agent gets scoped learnings contract"
 else
   fail "specialist agent gets scoped learnings contract" "Expected scoped learnings + exact reproductions in specialist agent"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^### Orchestrator Synthesis (required)$' "$LEARN_ORCH_FILE" && grep -q '## High-Level Issues (cross-agent synthesis)' "$LEARN_ORCH_FILE"; then
+if grep -q '^### Orchestrator Synthesis (required)$' "$LEARN_ORCH_FILE" && grep -q '## High-Level Issues (cross-agent synthesis)' "$LEARN_ORCH_FILE" && grep -q 'Append/update learnings after each completed pipeline gate' "$LEARN_ORCH_FILE"; then
   pass "orchestrator gets synthesis learnings contract"
 else
   fail "orchestrator gets synthesis learnings contract" "Expected orchestrator synthesis contract with high-level issues guidance"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If a promised JSON artifact is missing, the pipeline is incomplete' "$LEARN_ORCH_FILE"; then
+  pass "meta orchestrator enforces artifact-first handoffs"
+else
+  fail "meta orchestrator enforces artifact-first handoffs" "Expected write access plus handoff JSON and fail-closed artifact guidance"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^  write: true$' "$LEARN_AUTO_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_AUTO_FILE" && grep -q 'If the user asked for JSON output and the file does not exist, the stage is not complete' "$LEARN_AUTO_FILE"; then
+  pass "automation orchestrator enforces requested JSON outputs"
+else
+  fail "automation orchestrator enforces requested JSON outputs" "Expected automation orchestrator to require exact JSON outputs and pipeline handoff"
 fi
 
 # --only test --dry-run: includes test agents, excludes others

@@ -1,6 +1,6 @@
 # LEARNINGS
 
-This file is generated when `spel init-agents --learnings` is used.
+Use this schema when an agent needs to create `LEARNINGS.md` lazily during a `--learnings` run.
 
 Purpose:
 - Capture what worked, what failed, and what confused each agent.
@@ -29,6 +29,7 @@ Document only validated cross-cutting issues.
 
 Every participating agent appends to its own section.
 Do not overwrite existing sections; append newest entries.
+Write/update agent sections immediately after each completed stage or pipeline, not only at the very end.
 
 ### Agent: <agent-name>
 #### What worked

@@ -6,6 +6,8 @@ description: Automation workflow: explore, script, and interact with browser ses
 
 Orchestrates browser exploration, script creation, and interactive sessions using spel subagents.
 
+The orchestrator must maintain `orchestration/automation-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
+
 ## Parameters
 
 - Task: the automation goal (explore a site, write a script, interactive session)
@@ -33,6 +35,8 @@ Three agents in a progressive pipeline. Run only what you need.
 ```
 
 GATE: Review exploration artifacts, pages explored, selectors found, navigation coverage. Do NOT proceed until reviewed.
+Required artifact before this gate:
+- `exploration-manifest.json`
 
 ## Automate
 
@@ -46,6 +50,9 @@ GATE: Review exploration artifacts, pages explored, selectors found, navigation 
 ```
 
 GATE: Review generated script, verify it runs with test args, handles errors, and produces expected output. Do NOT proceed until approved.
+Required artifacts before this gate:
+- `spel-scripts/<name>.clj`
+- Any exact JSON/data output paths requested by the user
 
 ## Interactive refinement (optional)
 
@@ -60,6 +67,9 @@ Only needed when human-in-the-loop is required (2FA, CAPTCHA, SSO).
 ```
 
 GATE: Confirm authenticated state, verify `auth-state.json` was exported and screenshot shows expected page. Do NOT proceed until confirmed.
+Required artifacts before this gate:
+- `auth-state.json`
+- `orchestration/automation-pipeline.json`
 
 ## Composition
 
@@ -89,3 +99,4 @@ Sessions never overlap. Each agent closes its session on completion or error.
 - Scripts accept args via `--` separator: `spel eval-sci script.clj -- arg1 arg2`
 - Every step has a GATE — human review before proceeding
 - Each agent produces machine-readable output for downstream composition
+- Missing artifacts fail closed: if a promised JSON/data file is absent, the step is incomplete

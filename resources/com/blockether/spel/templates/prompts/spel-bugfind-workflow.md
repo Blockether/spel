@@ -6,6 +6,8 @@ description: Adversarial bug-finding workflow — Hunt, Challenge, Judge using t
 
 Orchestrates a three-agent adversarial pipeline to find, challenge, and verify bugs in a live web application. See `BUGFIND_GUIDE.md` for methodology, scoring, and JSON schemas.
 
+The orchestrator must maintain `orchestration/qa-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
+
 ## Parameters
 
 - Target URL: the URL to audit
@@ -64,6 +66,8 @@ Produces: `diff-report.json`, current vs baseline comparison.
 ```
 
 GATE: Review the Hunter's report. It should contain specific bugs with evidence, not vague observations. If weak, send back with feedback.
+Required artifact before this gate:
+- `bugfind-reports/hunter-report.json`
 
 ## Challenge
 
@@ -75,6 +79,8 @@ GATE: Review the Hunter's report. It should contain specific bugs with evidence,
 ```
 
 GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-evidence and the Skeptic didn't rubber-stamp everything as ACCEPT.
+Required artifact before this gate:
+- `bugfind-reports/skeptic-review.json`
 
 ## Judge
 
@@ -91,6 +97,7 @@ GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-ev
 - `bugfind-reports/referee-verdict.json` -> canonical machine verdict (`verified_bug_list` ordered by severity)
 - `bugfind-reports/qa-report.html` -> stakeholder report
 - `bugfind-reports/qa-report.md` -> LLM/agent handoff report with exact reproductions per issue
+- `orchestration/qa-pipeline.json` -> pipeline handoff + gate state
 
 ## Notes
 
@@ -98,3 +105,4 @@ GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-ev
 - All three steps are required for full adversarial value. Running only the Hunter produces an unfiltered list.
 - Pre-exploration is optional: the Hunter can explore on its own, but specialist agents produce higher-quality input.
 - Responsive testing: the Hunter captures at mobile (375x812), tablet (768x1024), and desktop (1440x900).
+- Missing artifacts fail closed: if a promised JSON/report file is absent, the step is incomplete

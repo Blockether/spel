@@ -29,7 +29,6 @@
       --mc-shadow-soft: 0 10px 24px rgba(43, 33, 22, 0.05);
       --mc-radius-lg: 24px;
       --mc-radius-md: 18px;
-      --mc-radius-sm: 12px;
       --sidebar-width: 260px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -333,7 +332,6 @@
     .summary-card-highlight { border-top-color: var(--mc-accent); }
     .summary-card-success { border-top-color: var(--mc-accent-green); }
     .summary-card-warning { border-top-color: var(--mc-accent-yellow); }
-    .summary-card-danger { border-top-color: var(--mc-accent-red); }
     .summary-card-neutral { border-top-color: var(--mc-text); }
     .summary-card-critical { border-top-color: var(--mc-accent-red); }
     .summary-card-high { border-top-color: var(--mc-accent-yellow); }
@@ -396,7 +394,7 @@
     }
     .severity-row {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(84px, auto) minmax(0, 1fr) auto;
       align-items: center;
       gap: 0.55rem;
       font-size: 0.78rem;
@@ -430,53 +428,35 @@
     .severity-fill-medium { background: linear-gradient(90deg, #d28a49, var(--mc-accent)); }
     .severity-fill-low { background: linear-gradient(90deg, #2aa975, var(--mc-accent-green)); }
 
-    .spark-grid {
+    .coverage-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.65rem;
-      align-items: end;
-      min-height: 136px;
       margin-bottom: 0.9rem;
     }
-    .spark-col {
-      display: grid;
-      justify-items: center;
-      gap: 0.4rem;
+    .coverage-stat {
+      border: 1px solid var(--mc-border);
+      border-radius: 14px;
+      padding: 0.8rem 0.85rem;
+      background: rgba(255, 255, 255, 0.58);
     }
-    .spark-track {
-      width: 100%;
-      max-width: 52px;
-      height: 104px;
-      border-radius: 999px;
-      background: rgba(125, 99, 68, 0.14);
-      display: flex;
-      align-items: flex-end;
-      overflow: hidden;
-      border: 1px solid rgba(125, 99, 68, 0.18);
-    }
-    .spark-fill {
-      width: 100%;
-      height: calc(clamp(0, var(--value), 12) / 12 * 100%);
-      border-radius: 999px;
-      transition: height 0.35s ease;
-    }
-    .spark-label {
+    .coverage-label {
+      display: block;
       font-family: 'IBM Plex Mono', ui-monospace, monospace;
-      font-size: 0.64rem;
-      color: var(--mc-text-secondary);
+      font-size: 0.62rem;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.09em;
+      color: var(--mc-text-secondary);
+      margin-bottom: 0.28rem;
     }
-    .spark-count {
+    .coverage-value {
+      display: block;
       font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
-      font-weight: 700;
-      font-size: 0.86rem;
+      font-size: 1.15rem;
+      font-weight: 800;
       color: var(--mc-text);
+      letter-spacing: -0.03em;
     }
-    .spark-fill-critical { background: linear-gradient(180deg, #df5e4f, var(--mc-accent-red)); }
-    .spark-fill-high { background: linear-gradient(180deg, #d9962e, var(--mc-accent-yellow)); }
-    .spark-fill-medium { background: linear-gradient(180deg, #d28a49, var(--mc-accent)); }
-    .spark-fill-low { background: linear-gradient(180deg, #2aa975, var(--mc-accent-green)); }
     .confidence-strip {
       display: grid;
       gap: 0.5rem;
@@ -610,6 +590,12 @@
       color: var(--mc-text);
       background: rgba(255,255,255,0.5);
     }
+    .mobile-nav-list a.active {
+      background: linear-gradient(90deg, rgba(178, 101, 42, 0.14), rgba(178, 101, 42, 0.05));
+      border-color: rgba(178, 101, 42, 0.24);
+      color: var(--mc-accent);
+      font-weight: 700;
+    }
 
     /* Pills and Tags */
     .pill {
@@ -643,6 +629,20 @@
     .tag-pm { color: var(--mc-accent); border-color: var(--mc-accent); }
     .tag-qa { color: var(--mc-accent-green); border-color: var(--mc-accent-green); }
     .tag-category { color: var(--mc-text-secondary); border-color: var(--mc-border); background: var(--mc-bg-tertiary); }
+    .tag-functional { color: var(--mc-accent); border-color: rgba(178, 101, 42, 0.38); background: rgba(178, 101, 42, 0.08); }
+    .tag-visual { color: var(--mc-accent-purple); border-color: rgba(139, 92, 246, 0.34); background: rgba(139, 92, 246, 0.08); }
+    .tag-accessibility { color: var(--mc-accent-cyan); border-color: rgba(15, 118, 110, 0.34); background: rgba(15, 118, 110, 0.08); }
+    .tag-ux { color: #8f4e20; border-color: rgba(178, 101, 42, 0.34); background: rgba(255, 241, 227, 0.9); }
+    .tag-performance { color: var(--mc-accent-yellow); border-color: rgba(183, 121, 31, 0.34); background: rgba(183, 121, 31, 0.08); }
+    .tag-api { color: #2b6cb0; border-color: rgba(43, 108, 176, 0.34); background: rgba(43, 108, 176, 0.08); }
+    .tag-security { color: #9b2c2c; border-color: rgba(155, 44, 44, 0.34); background: rgba(196, 69, 54, 0.08); }
+    .tag-core { color: var(--mc-text); border-color: rgba(31, 41, 51, 0.2); background: rgba(31, 41, 51, 0.06); }
+    .tag-navigation { color: #805ad5; border-color: rgba(128, 90, 213, 0.34); background: rgba(128, 90, 213, 0.08); }
+    .tag-status-verified { color: var(--mc-accent-green); border-color: rgba(31, 138, 92, 0.36); background: rgba(31, 138, 92, 0.08); }
+    .tag-status-broken { color: var(--mc-accent-red); border-color: rgba(196, 69, 54, 0.36); background: rgba(196, 69, 54, 0.08); }
+    .tag-status-untested { color: var(--mc-accent-yellow); border-color: rgba(183, 121, 31, 0.36); background: rgba(183, 121, 31, 0.08); }
+    .tag-status-inferred { color: var(--mc-accent-purple); border-color: rgba(139, 92, 246, 0.34); background: rgba(139, 92, 246, 0.08); }
+    .tag-status-gated { color: var(--mc-accent-cyan); border-color: rgba(15, 118, 110, 0.34); background: rgba(15, 118, 110, 0.08); }
 
     /* Tables */
     table {
@@ -703,7 +703,7 @@
     .dimension-score { font-weight: 700; font-size: 14px; }
     .dimension-issues { list-style: none; font-size: 11px; margin-bottom: 0.5rem; }
     .dimension-issues li { padding: 0.25rem 0; padding-left: 1rem; position: relative; color: var(--mc-text-secondary); }
-    .dimension-issues li::before { content: "•"; position: absolute; left: 0; color: var(--mc-accent-red); }
+    .dimension-issues li::before { content: "•"; position: absolute; left: 0; color: var(--mc-accent); }
     .dimension-refs { font-size: 10px; color: var(--mc-accent); padding-top: 0.5rem; border-top: 1px solid var(--mc-border); }
 
     /* Role cards */
@@ -716,7 +716,9 @@
       border-left: 4px solid var(--mc-accent);
       box-shadow: var(--mc-shadow-soft);
     }
+    .role-card-inferred { border-left-color: var(--mc-accent-purple); }
     .role-name { font-weight: 700; font-size: 14px; margin-bottom: 0.5rem; font-family: 'Atkinson Hyperlegible', Georgia, serif; }
+    .role-meta { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
     .role-description { font-size: 12px; color: var(--mc-text-secondary); margin-bottom: 0.5rem; }
     .role-tasks { list-style: none; font-size: 11px; }
     .role-tasks li { padding: 0.25rem 0; padding-left: 1rem; position: relative; }
@@ -759,7 +761,8 @@
       font-size: 12px;
       color: #fff;
     }
-    .rec-priority-high { background: var(--mc-accent-red); }
+    .rec-priority-critical { background: var(--mc-accent-red); }
+    .rec-priority-high { background: var(--mc-accent-yellow); }
     .rec-priority-medium { background: var(--mc-accent); }
     .rec-priority-low { background: var(--mc-accent-green); }
     .rec-body { flex: 1; }
@@ -812,6 +815,7 @@
     .finding-url { color: var(--mc-text-secondary); font-size: 11px; margin-left: auto; }
     .finding-provenance { font-size: 11px; color: var(--mc-text-secondary); margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: var(--mc-bg-tertiary); border-radius: 0.375rem; }
     .finding-tags { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .finding-footer { display: flex; gap: 1.5rem; margin-top: 0.75rem; font-size: 12px; flex-wrap: wrap; }
 
     /* Steps */
     .steps { margin: 0.75rem 0; padding-left: 1.5rem; }
@@ -825,6 +829,12 @@
     figure { margin: 0.75rem 0; }
     figure img { max-width: 100%; border: 1px solid var(--mc-border); border-radius: 0.375rem; display: block; }
     figcaption { font-size: 11px; color: var(--mc-text-secondary); margin-top: 0.25rem; }
+    .empty-state {
+      border-style: dashed;
+      color: var(--mc-text-secondary);
+      background: rgba(255, 255, 255, 0.42);
+    }
+    .empty-state p:last-child { margin-bottom: 0; }
 
     /* Console output */
     .console { background: var(--mc-bg-tertiary); padding: 0.75rem; border-radius: 0.375rem; overflow-x: auto; font-size: 12px; white-space: pre-wrap; margin: 0.75rem 0; }
@@ -957,7 +967,9 @@
       }
       .main-content { max-width: 100%; padding: 1rem; }
       .mobile-nav { display: block; }
+      .mobile-nav-list { grid-template-columns: 1fr; }
       .summary-visuals { grid-template-columns: 1fr; }
+      .coverage-grid { grid-template-columns: 1fr; }
       .severity-chart { grid-template-columns: 1fr; justify-items: stretch; }
       .guide-grid { grid-template-columns: 1fr; }
       .section-overview { grid-template-columns: 1fr; }
@@ -1036,9 +1048,18 @@
         <a href="#reading-guide">How to Read</a>
         <a href="#product-overview">Overview</a>
         <a href="#feature-inventory">Features</a>
+        <a href="#user-roles">Roles</a>
+        <a href="#feature-matrix">Matrix</a>
         <a href="#coherence-audit">Coherence</a>
+        <a href="#faq">FAQ</a>
+        <a href="#navigation-map">Navigation</a>
         <a href="#visual-checks">Visual Checks</a>
+        <a href="#viewports">Viewports</a>
+        <a href="#heatmap">Heatmap</a>
+        <a href="#timeline">Timeline</a>
         <a href="#findings">Findings</a>
+        <a href="#disputed">Disputed</a>
+        <a href="#coverage">Coverage</a>
         <a href="#recommendations">Recommendations</a>
         <a href="#appendix">Appendix</a>
       </div>
@@ -1114,16 +1135,17 @@
           </div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Risk Skyline</div>
-          <div class="spark-grid">
-            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-critical" style="--value: {CRITICAL_COUNT};"></div></div><div class="spark-count">{CRITICAL_COUNT}</div><div class="spark-label">Critical</div></div>
-            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-high" style="--value: {HIGH_COUNT};"></div></div><div class="spark-count">{HIGH_COUNT}</div><div class="spark-label">High</div></div>
-            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-medium" style="--value: {MEDIUM_COUNT};"></div></div><div class="spark-count">{MEDIUM_COUNT}</div><div class="spark-label">Medium</div></div>
-            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-low" style="--value: {LOW_COUNT};"></div></div><div class="spark-count">{LOW_COUNT}</div><div class="spark-label">Low</div></div>
+          <div class="chart-title">Audit Coverage</div>
+          <div class="coverage-grid">
+            <div class="coverage-stat"><span class="coverage-label">Pages Audited</span><span class="coverage-value">{PAGES_AUDITED}</span></div>
+            <div class="coverage-stat"><span class="coverage-label">Categories Audited</span><span class="coverage-value">{CATEGORIES_CHECKED}</span></div>
+            <div class="coverage-stat"><span class="coverage-label">Viewports Tested</span><span class="coverage-value">{VIEWPORTS_TESTED}</span></div>
+            <div class="coverage-stat"><span class="coverage-label">Screenshots Captured</span><span class="coverage-value">{TOTAL_SCREENSHOTS}</span></div>
           </div>
           <div class="confidence-strip">
-            <div class="strip-row"><strong>Agent Success</strong><div class="strip-track"><div class="strip-fill" style="--value: 100;"></div></div><span class="strip-value">{AGENTS_SUCCEEDED}</span></div>
-            <div class="strip-row"><strong>Scope Breadth</strong><div class="strip-track"><div class="strip-fill" style="--value: 82;"></div></div><span class="strip-value">{PAGES_AUDITED}</span></div>
+            <div class="strip-row"><strong>Verified</strong><div class="strip-track"><div class="strip-fill" style="--value: {VERIFIED_COUNT};"></div></div><span class="strip-value">{VERIFIED_COUNT}</span></div>
+            <div class="strip-row"><strong>Reported</strong><div class="strip-track"><div class="strip-fill" style="--value: {REPORTED_COUNT};"></div></div><span class="strip-value">{REPORTED_COUNT}</span></div>
+            <div class="strip-row"><strong>Agents Succeeded</strong><div class="strip-track"><div class="strip-fill" style="--value: {AGENTS_SUCCEEDED};"></div></div><span class="strip-value">{AGENTS_SUCCEEDED}</span></div>
           </div>
         </div>
       </div>
@@ -1131,7 +1153,7 @@
         <p><strong>Verdict:</strong> {VERDICT_SUMMARY}</p>
         <div class="metrics">
           <span>Pages audited: <span class="metric-value">{PAGES_AUDITED}</span></span>
-          <span>Categories: <span class="metric-value">{CATEGORIES_CHECKED}</span></span>
+          <span>Categories audited: <span class="metric-value">{CATEGORIES_CHECKED}</span></span>
           <span>Viewports: <span class="metric-value">{VIEWPORTS_TESTED}</span></span>
         </div>
         <div class="metrics">
@@ -1245,23 +1267,23 @@
             <tr>
               <td>F-001</td>
               <td>User authentication</td>
-              <td><span class="tag tag-category">Security</span></td>
+              <td><span class="tag tag-category tag-security">Security</span></td>
               <td>/login</td>
-              <td><span class="tag tag-qa">Active</span></td>
+              <td><span class="tag tag-status-verified">Verified</span></td>
             </tr>
             <tr>
               <td>F-002</td>
               <td>Dashboard overview</td>
-              <td><span class="tag tag-category">Core</span></td>
+              <td><span class="tag tag-category tag-core">Core</span></td>
               <td>/dashboard</td>
-              <td><span class="tag tag-qa">Active</span></td>
+              <td><span class="tag tag-status-gated">Gated</span></td>
             </tr>
             <tr>
               <td>F-003</td>
               <td>Search functionality</td>
-              <td><span class="tag tag-category">Navigation</span></td>
+              <td><span class="tag tag-category tag-navigation">Navigation</span></td>
               <td>/search</td>
-              <td><span class="tag tag-qa">Active</span></td>
+              <td><span class="tag tag-status-untested">Untested</span></td>
             </tr>
             <!-- END SAMPLE -->
             <!-- {FEATURE_ROWS} -->
@@ -1278,6 +1300,9 @@
         <!-- SAMPLE ROLE CARD (remove and replace with generated cards) -->
         <div class="role-card">
           <div class="role-name">Administrator</div>
+          <div class="role-meta">
+            <span class="tag tag-status-verified">Verified</span>
+          </div>
           <div class="role-description">
             Full system access with configuration and user management capabilities.
           </div>
@@ -1290,6 +1315,9 @@
         </div>
         <div class="role-card">
           <div class="role-name">Standard User</div>
+          <div class="role-meta">
+            <span class="tag tag-status-verified">Verified</span>
+          </div>
           <div class="role-description">
             Regular user with access to core features based on permissions.
           </div>
@@ -1300,8 +1328,11 @@
             <li>Manage personal settings</li>
           </ul>
         </div>
-        <div class="role-card">
+        <div class="role-card role-card-inferred">
           <div class="role-name">Guest</div>
+          <div class="role-meta">
+            <span class="tag tag-status-inferred">Inferred</span>
+          </div>
           <div class="role-description">
             Limited read-only access for unauthenticated visitors.
           </div>
@@ -1797,12 +1828,13 @@
         <div class="finding-header">
           <span class="finding-id">ISSUE-001</span>
           <span class="pill pill-critical">Critical</span>
-          <span class="tag tag-category">accessibility</span>
+          <span class="tag tag-category tag-accessibility">accessibility</span>
           <span class="finding-url">/login</span>
         </div>
         <div class="finding-tags">
           <span class="tag tag-dev">DEV</span>
           <span class="tag tag-qa">QA</span>
+          <span class="tag tag-status-verified">Verified</span>
         </div>
         <div class="finding-provenance">
           Found by: <strong>Hunter</strong> &middot; Challenged by: <strong>Skeptic</strong> &middot; Verdict: <strong>Referee CONFIRMED</strong>
@@ -1825,7 +1857,7 @@
           <p>The submit button uses a &lt;div&gt; with an onclick handler instead of a native &lt;button&gt; element. It has no tabindex attribute and no role="button" ARIA role, making it invisible to keyboard navigation and screen readers.</p>
         </div>
         <pre class="console"><span class="error">[a11y] Element div.submit-btn is not focusable — missing tabindex or native interactive element</span></pre>
-        <div style="display: flex; gap: 1.5rem; margin-top: 0.75rem; font-size: 12px">
+        <div class="finding-footer">
           <span class="confidence conf-high">Confidence: <span class="conf-bar"><span class="conf-fill"></span></span> High</span>
           <span><strong>Impact:</strong> Blocks keyboard-only and screen reader users from logging in</span>
         </div>
@@ -1843,7 +1875,7 @@
         <div class="finding-header">
           <span class="finding-id">ISSUE-002</span>
           <span class="pill pill-medium">Medium</span>
-          <span class="tag tag-category">visual</span>
+          <span class="tag tag-category tag-visual">visual</span>
         </div>
         <p style="margin-bottom: 0.5rem"><strong>Button text truncated on mobile viewport</strong></p>
         <div class="dispute-flow">
@@ -2001,7 +2033,7 @@ Ended: {SESSION_END}
 Duration: {SESSION_DURATION}
 User Agent: {USER_AGENT}
 Viewport: {VIEWPORT_SIZE}
-Screenshots: {SCREENSHOTS}
+Screenshots: {TOTAL_SCREENSHOTS}
 Network requests: {NETWORK_REQUESTS}</div>
       </div>
 
@@ -2025,6 +2057,56 @@ Network requests: {NETWORK_REQUESTS}</div>
 
   </main>
 </div>
+
+<script>
+  (() => {
+    const sections = Array.from(document.querySelectorAll("section[id]"));
+    const navLinks = Array.from(document.querySelectorAll(".sidebar-nav a, .mobile-nav-list a"));
+
+    if (!sections.length || !navLinks.length) {
+      return;
+    }
+
+    const setActive = id => {
+      navLinks.forEach(link => {
+        link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
+      });
+    };
+
+    const initialId = window.location.hash ? window.location.hash.slice(1) : sections[0].id;
+    setActive(initialId);
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visible) {
+          setActive(visible.target.id);
+        }
+      }, {
+        rootMargin: "-35% 0px -55% 0px",
+        threshold: [0.2, 0.45, 0.7]
+      });
+
+      sections.forEach(section => observer.observe(section));
+    }
+
+    window.addEventListener("hashchange", () => {
+      setActive(window.location.hash ? window.location.hash.slice(1) : sections[0].id);
+    });
+
+    navLinks.forEach(link => {
+      link.addEventListener("click", () => {
+        const mobileNav = link.closest("details.mobile-nav");
+        if (mobileNav) {
+          mobileNav.removeAttribute("open");
+        }
+      });
+    });
+  })();
+</script>
 
 </body>
 </html>
