@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.16] - 2026-03-07
+
+### Changed
+- feat(report): elevate unified report clarity and visual storytelling
+- fix(init-agents): improve Claude template transformation fidelity
+- chore: wire orphaned refs into subagent-ref-map + delete dogfood-report.html
+- fix(init-agents): --no-tests now scaffolds all agents, skips only seed test + specs
+- feat(cross-agent-integration): wire product-spec.json downstream + unified spel-report.html
+- test(integration): add CLI regression tests for unified template scaffolding
+- chore: delete old report templates, update init_agents ref-map, regenerate docs
+- refactor(templates): update all remaining template references to spel-report.html
+- refactor(product-analyst): update template reference to spel-report.html
+- fix(templates): use canonical responsive_behavior dimension name in appendix
+- feat(templates): create unified spel-report.html merging QA and product reports
+- feat(bug-hunter): add product-spec.json consumption and feature-enriched coverage
+- feat(product-analyst): add viewport mandate to Phase 6 coherence audit
+- fix(visual-qa): remove duplicate severity/GATE blocks and add product-spec.json input
+- chore: regenerate FULL_API.md and help-registry after discovery agent addition
+- test(discovery): add CLI regression tests for discovery group
+- docs(discovery): update agent counts and group references
+- feat(discovery): wire product-analyst into init-agents scaffolding
+- feat(discovery): add product-analyst to orchestrator pipelines
+- feat(discovery): add product-report.html template with sidebar navigation
+- feat(discovery): add product-analyst agent template and PRODUCT_DISCOVERY ref
+- refactor(agents): strip duplicated patterns from test pipeline agents
+- refactor(agents): strip duplicated patterns from automation+visual agents
+- feat(discovery): add discovery workflow prompt
+- refactor(agents): strip duplicated patterns from bugfind pipeline agents
+- refactor(agents): extract 5 common patterns to AGENT_COMMON.md
+- release: update version files for v0.5.15, bump to next dev version
+
+
 ## [v0.5.15] - 2026-03-07
 
 ### Changed
@@ -586,7 +618,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.15...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.16...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -609,3 +641,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.13]: https://github.com/Blockether/spel/releases/tag/v0.5.13
 [v0.5.14]: https://github.com/Blockether/spel/releases/tag/v0.5.14
 [v0.5.15]: https://github.com/Blockether/spel/releases/tag/v0.5.15
+[v0.5.16]: https://github.com/Blockether/spel/releases/tag/v0.5.16
