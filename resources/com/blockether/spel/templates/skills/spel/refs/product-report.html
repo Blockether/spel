@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Discovery Report — {PRODUCT_NAME}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --mc-bg: #fdf4e5;
+      --mc-bg-secondary: #fff;
+      --mc-bg-tertiary: #f5ead6;
+      --mc-border: #e0d4be;
+      --mc-text: #333;
+      --mc-text-secondary: #6e6453;
+      --mc-accent: #b8960c;
+      --mc-accent-green: #1a7a2e;
+      --mc-accent-yellow: #a67b00;
+      --mc-accent-red: #c83232;
+      --mc-accent-purple: #7c3aed;
+      --mc-accent-cyan: #0d7d72;
+      --sidebar-width: 220px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--mc-text);
+      background: var(--mc-bg);
+    }
+    h1, h2, h3, h4 {
+      font-family: 'Atkinson Hyperlegible', Georgia, serif;
+      font-weight: 700;
+      color: var(--mc-text);
+    }
+    h2 { font-size: 1.35rem; margin-bottom: 1rem; }
+    h3 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+    h4 { font-size: 1rem; margin-bottom: 0.5rem; }
+    a { color: var(--mc-accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    p { margin-bottom: 0.75rem; }
+
+    /* Layout with sidebar */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: sticky;
+      top: 1rem;
+      width: var(--sidebar-width);
+      min-width: var(--sidebar-width);
+      background: var(--mc-bg-secondary);
+      border-right: 1px solid var(--mc-border);
+      padding: 1.5rem 1rem;
+      height: calc(100vh - 2rem);
+      overflow-y: auto;
+      align-self: flex-start;
+    }
+    .sidebar-brand {
+      color: var(--mc-accent);
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 0.5rem;
+      font-family: 'Atkinson Hyperlegible', Georgia, serif;
+    }
+    .sidebar-product {
+      font-size: 11px;
+      color: var(--mc-text-secondary);
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    .sidebar-nav {
+      list-style: none;
+    }
+    .sidebar-nav li {
+      margin-bottom: 0.25rem;
+    }
+    .sidebar-nav a {
+      display: block;
+      padding: 0.5rem 0.75rem;
+      color: var(--mc-text-secondary);
+      font-size: 12px;
+      border-radius: 0.375rem;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-nav a:hover {
+      background: var(--mc-bg-tertiary);
+      color: var(--mc-text);
+      text-decoration: none;
+    }
+    .sidebar-nav a.active {
+      background: var(--mc-bg-tertiary);
+      color: var(--mc-accent);
+      border-left-color: var(--mc-accent);
+      font-weight: 600;
+    }
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--mc-border);
+      font-size: 10px;
+      color: var(--mc-text-secondary);
+    }
+
+    /* Main content */
+    .main-content {
+      flex: 1;
+      max-width: calc(100% - var(--sidebar-width));
+      padding: 1.5rem 2rem 2rem;
+    }
+
+    /* Report header */
+    .report-header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    .report-title {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .report-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      font-size: 12px;
+      color: var(--mc-text-secondary);
+      margin-bottom: 0.5rem;
+    }
+    .report-meta strong { color: var(--mc-text); }
+    .report-description {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      font-size: 13px;
+    }
+
+    /* Sections */
+    .section {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    .section:last-child {
+      border-bottom: none;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 1rem;
+    }
+
+    /* Summary grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .summary-card {
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      text-align: center;
+      border-top: 3px solid var(--mc-border);
+    }
+    .summary-card-highlight { border-top-color: var(--mc-accent); }
+    .summary-card-success { border-top-color: var(--mc-accent-green); }
+    .summary-card-warning { border-top-color: var(--mc-accent-yellow); }
+    .summary-card-danger { border-top-color: var(--mc-accent-red); }
+    .summary-card-neutral { border-top-color: var(--mc-text); }
+    .summary-count {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .summary-label {
+      font-size: 11px;
+      color: var(--mc-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Metrics */
+    .metrics {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--mc-text-secondary);
+      margin: 0.75rem 0;
+    }
+    .metric-value { font-weight: 600; color: var(--mc-text); }
+
+    /* Pills and Tags */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 0.375rem;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pill-critical { background: var(--mc-accent-red); }
+    .pill-high { background: var(--mc-accent-yellow); }
+    .pill-medium { background: var(--mc-accent); }
+    .pill-low { background: var(--mc-accent-green); }
+    .pill-info { background: var(--mc-accent-cyan); }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 0.375rem;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border: 1px solid;
+    }
+    .tag-dev { color: var(--mc-accent-cyan); border-color: var(--mc-accent-cyan); }
+    .tag-design { color: var(--mc-accent-purple); border-color: var(--mc-accent-purple); }
+    .tag-pm { color: var(--mc-accent); border-color: var(--mc-accent); }
+    .tag-qa { color: var(--mc-accent-green); border-color: var(--mc-accent-green); }
+    .tag-category { color: var(--mc-text-secondary); border-color: var(--mc-border); background: var(--mc-bg-tertiary); }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      color: var(--mc-accent);
+      font-weight: 600;
+      border-bottom: 2px solid var(--mc-border);
+    }
+    td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    tr:nth-child(even) td { background: var(--mc-bg-tertiary); }
+    tr.summary-row td {
+      font-weight: 700;
+      background: var(--mc-bg-secondary);
+      border-top: 2px solid var(--mc-border);
+    }
+
+    /* Feature matrix specific */
+    .matrix-cell {
+      text-align: center;
+    }
+    .matrix-check { color: var(--mc-accent-green); font-weight: 700; }
+    .matrix-cross { color: var(--mc-accent-red); font-weight: 700; }
+    .matrix-partial { color: var(--mc-accent-yellow); font-weight: 700; }
+
+    /* Progress bars */
+    .score-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .score-label {
+      min-width: 120px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .score-track {
+      flex: 1;
+      height: 8px;
+      background: var(--mc-bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .score-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .score-fill-high { background: var(--mc-accent-green); }
+    .score-fill-medium { background: var(--mc-accent); }
+    .score-fill-low { background: var(--mc-accent-red); }
+    .score-value {
+      min-width: 40px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Coherence dimension cards */
+    .dimension-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .dimension-card {
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+    .dimension-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    .dimension-name {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .dimension-score {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .dimension-issues {
+      list-style: none;
+      font-size: 11px;
+      margin-bottom: 0.5rem;
+    }
+    .dimension-issues li {
+      padding: 0.25rem 0;
+      padding-left: 1rem;
+      position: relative;
+      color: var(--mc-text-secondary);
+    }
+    .dimension-issues li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--mc-accent-red);
+    }
+    .dimension-refs {
+      font-size: 10px;
+      color: var(--mc-accent);
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--mc-border);
+    }
+
+    /* Role cards */
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .role-card {
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      border-left: 4px solid var(--mc-accent);
+    }
+    .role-name {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 0.5rem;
+      font-family: 'Atkinson Hyperlegible', Georgia, serif;
+    }
+    .role-description {
+      font-size: 12px;
+      color: var(--mc-text-secondary);
+      margin-bottom: 0.5rem;
+    }
+    .role-tasks {
+      list-style: none;
+      font-size: 11px;
+    }
+    .role-tasks li {
+      padding: 0.25rem 0;
+      padding-left: 1rem;
+      position: relative;
+    }
+    .role-tasks li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--mc-accent);
+    }
+
+    /* FAQ */
+    .faq-item {
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--mc-border);
+    }
+    .faq-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .faq-question {
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 0.5rem;
+      font-family: 'Atkinson Hyperlegible', Georgia, serif;
+      color: var(--mc-text);
+    }
+    .faq-answer {
+      font-size: 12px;
+      color: var(--mc-text-secondary);
+      padding-left: 1rem;
+      border-left: 3px solid var(--mc-accent);
+    }
+
+    /* Navigation map */
+    .nav-tree {
+      list-style: none;
+      padding-left: 0;
+    }
+    .nav-tree ul {
+      list-style: none;
+      padding-left: 1.5rem;
+      margin-top: 0.5rem;
+    }
+    .nav-tree li {
+      padding: 0.25rem 0;
+    }
+    .nav-page {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 12px;
+    }
+    .nav-page a {
+      color: var(--mc-text);
+    }
+    .nav-page a:hover {
+      color: var(--mc-accent);
+    }
+    .nav-icon {
+      color: var(--mc-text-secondary);
+      font-size: 10px;
+    }
+
+    /* Recommendations */
+    .recommendation {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .rec-priority {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 12px;
+      color: #fff;
+    }
+    .rec-priority-high { background: var(--mc-accent-red); }
+    .rec-priority-medium { background: var(--mc-accent); }
+    .rec-priority-low { background: var(--mc-accent-green); }
+    .rec-body {
+      flex: 1;
+    }
+    .rec-title {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 0.25rem;
+    }
+    .rec-desc {
+      font-size: 12px;
+      color: var(--mc-text-secondary);
+    }
+
+    /* Appendix */
+    .appendix-section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: var(--mc-bg-secondary);
+      border: 1px solid var(--mc-border);
+      border-radius: 0.5rem;
+    }
+    .appendix-section h4 {
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--mc-border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--mc-accent);
+    }
+    .appendix-content {
+      font-size: 11px;
+      color: var(--mc-text-secondary);
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: pre-wrap;
+      background: var(--mc-bg-tertiary);
+      padding: 0.75rem;
+      border-radius: 0.375rem;
+      overflow-x: auto;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--mc-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--mc-border); border-radius: 4px; }
+
+    /* Animations */
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .section {
+        animation: fadeInUp 0.4s ease both;
+      }
+      .section:nth-child(1) { animation-delay: 0s; }
+      .section:nth-child(2) { animation-delay: 0.05s; }
+      .section:nth-child(3) { animation-delay: 0.1s; }
+      .section:nth-child(4) { animation-delay: 0.15s; }
+      .section:nth-child(5) { animation-delay: 0.2s; }
+      .section:nth-child(6) { animation-delay: 0.25s; }
+      .section:nth-child(7) { animation-delay: 0.3s; }
+      .section:nth-child(8) { animation-delay: 0.35s; }
+      .section:nth-child(9) { animation-delay: 0.4s; }
+      .section:nth-child(10) { animation-delay: 0.45s; }
+    }
+
+    /* Print styles */
+    @media print {
+      .sidebar {
+        display: none;
+      }
+      .main-content {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .layout {
+        display: block;
+      }
+      .section {
+        animation: none;
+        break-inside: avoid;
+      }
+      .card {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+      body {
+        font-size: 11px;
+        background: #fff;
+      }
+      a {
+        color: var(--mc-text);
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+      }
+      .sidebar {
+        position: relative;
+        top: 0;
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--mc-border);
+      }
+      .sidebar-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+      .sidebar-nav li {
+        margin-bottom: 0;
+      }
+      .sidebar-nav a {
+        padding: 0.375rem 0.5rem;
+        font-size: 11px;
+      }
+      .main-content {
+        max-width: 100%;
+        padding: 1rem;
+      }
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .metrics {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .dimension-grid {
+        grid-template-columns: 1fr;
+      }
+      .role-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Footer */
+    .report-footer {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--mc-border);
+      text-align: center;
+      color: var(--mc-text-secondary);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">spel Discovery</div>
+    <div class="sidebar-product">
+      <strong>{PRODUCT_NAME}</strong><br>
+      {PRODUCT_URL}
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="#executive-summary">Executive Summary</a></li>
+      <li><a href="#product-overview">Product Overview</a></li>
+      <li><a href="#feature-inventory">Feature Inventory</a></li>
+      <li><a href="#user-roles">User Roles</a></li>
+      <li><a href="#feature-matrix">Feature Matrix</a></li>
+      <li><a href="#coherence-audit">Coherence Audit</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="#navigation-map">Navigation Map</a></li>
+      <li><a href="#recommendations">Recommendations</a></li>
+      <li><a href="#appendix">Appendix</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      Generated {DATE}<br>
+      spel Product Discovery Pipeline
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- ===== SECTION 1: REPORT HEADER ===== -->
+    <header class="report-header">
+      <h1 class="report-title">Product Discovery Report</h1>
+      <div class="report-meta">
+        <span><strong>Product:</strong> {PRODUCT_NAME}</span>
+        <span><strong>URL:</strong> <a href="{PRODUCT_URL}">{PRODUCT_URL}</a></span>
+        <span><strong>Date:</strong> {DATE}</span>
+        <span><strong>Session:</strong> {SESSION_ID}</span>
+      </div>
+      <div class="report-description">
+        {PRODUCT_DESCRIPTION}
+      </div>
+    </header>
+
+    <!-- ===== SECTION 2: EXECUTIVE SUMMARY ===== -->
+    <section id="executive-summary" class="section">
+      <h2>Executive Summary</h2>
+      <div class="summary-grid">
+        <div class="summary-card summary-card-highlight">
+          <div class="summary-count" style="color: var(--mc-accent)">{FEATURE_COUNT}</div>
+          <div class="summary-label">Features</div>
+        </div>
+        <div class="summary-card summary-card-success">
+          <div class="summary-count" style="color: var(--mc-accent-green)">{USER_ROLES_COUNT}</div>
+          <div class="summary-label">User Roles</div>
+        </div>
+        <div class="summary-card summary-card-warning">
+          <div class="summary-count" style="color: var(--mc-accent-yellow)">{PAGES_DISCOVERED}</div>
+          <div class="summary-label">Pages</div>
+        </div>
+        <div class="summary-card summary-card-neutral">
+          <div class="summary-count">{COHERENCE_SCORE}</div>
+          <div class="summary-label">Coherence</div>
+        </div>
+      </div>
+      <div class="card">
+        <p><strong>Verdict:</strong> {VERDICT_SUMMARY}</p>
+        <div class="metrics">
+          <span>Pages crawled: <span class="metric-value">{PAGES_CRAWLED}</span></span>
+          <span>Interactions: <span class="metric-value">{INTERACTIONS}</span></span>
+          <span>Screenshots: <span class="metric-value">{SCREENSHOTS}</span></span>
+        </div>
+        <div class="metrics">
+          <span>Agents succeeded: <span class="metric-value">{AGENTS_SUCCEEDED}</span></span>
+          <span>Agents failed: <span class="metric-value">{AGENTS_FAILED}</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 3: PRODUCT OVERVIEW ===== -->
+    <section id="product-overview" class="section">
+      <h2>Product Overview</h2>
+      <div class="card">
+        <h3>Metadata</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td><strong>Product Name</strong></td>
+              <td>{PRODUCT_NAME}</td>
+            </tr>
+            <tr>
+              <td><strong>URL</strong></td>
+              <td><a href="{PRODUCT_URL}">{PRODUCT_URL}</a></td>
+            </tr>
+            <tr>
+              <td><strong>Category</strong></td>
+              <td>{PRODUCT_CATEGORY}</td>
+            </tr>
+            <tr>
+              <td><strong>Industry</strong></td>
+              <td>{PRODUCT_INDUSTRY}</td>
+            </tr>
+            <tr>
+              <td><strong>Target Audience</strong></td>
+              <td>{TARGET_AUDIENCE}</td>
+            </tr>
+            <tr>
+              <td><strong>Discovery Date</strong></td>
+              <td>{DISCOVERY_DATE}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Description</h3>
+        <p>{PRODUCT_DESCRIPTION}</p>
+      </div>
+      <div class="card">
+        <h3>Value Proposition</h3>
+        <p>{VALUE_PROPOSITION}</p>
+      </div>
+    </section>
+
+    <!-- ===== SECTION 4: FEATURE INVENTORY ===== -->
+    <section id="feature-inventory" class="section">
+      <h2>Feature Inventory</h2>
+      <p style="margin-bottom: 1rem;">Complete list of discovered features organized by category.</p>
+      <div class="card" style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Feature</th>
+              <th>Category</th>
+              <th>Location</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- SAMPLE FEATURE ROW (remove and replace with generated rows) -->
+            <tr>
+              <td>F-001</td>
+              <td>User authentication</td>
+              <td><span class="tag tag-category">Security</span></td>
+              <td>/login</td>
+              <td><span class="tag tag-qa">Active</span></td>
+            </tr>
+            <tr>
+              <td>F-002</td>
+              <td>Dashboard overview</td>
+              <td><span class="tag tag-category">Core</span></td>
+              <td>/dashboard</td>
+              <td><span class="tag tag-qa">Active</span></td>
+            </tr>
+            <tr>
+              <td>F-003</td>
+              <td>Search functionality</td>
+              <td><span class="tag tag-category">Navigation</span></td>
+              <td>/search</td>
+              <td><span class="tag tag-qa">Active</span></td>
+            </tr>
+            <!-- END SAMPLE -->
+            <!-- {FEATURE_ROWS} -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!--
+    === FEATURE ROW TEMPLATE ===
+    <tr>
+      <td>{FEATURE_ID}</td>
+      <td>{FEATURE_NAME}</td>
+      <td><span class="tag tag-category">{FEATURE_CATEGORY}</span></td>
+      <td>{FEATURE_LOCATION}</td>
+      <td><span class="tag tag-qa">{FEATURE_STATUS}</span></td>
+    </tr>
+    === END FEATURE ROW TEMPLATE ===
+    -->
+
+    <!-- ===== SECTION 5: USER ROLES ===== -->
+    <section id="user-roles" class="section">
+      <h2>User Roles</h2>
+      <p style="margin-bottom: 1rem;">Identified user personas and their primary tasks.</p>
+      <div class="role-grid">
+        <!-- SAMPLE ROLE CARD (remove and replace with generated cards) -->
+        <div class="role-card">
+          <div class="role-name">Administrator</div>
+          <div class="role-description">
+            Full system access with configuration and user management capabilities.
+          </div>
+          <ul class="role-tasks">
+            <li>Manage user accounts</li>
+            <li>Configure system settings</li>
+            <li>View audit logs</li>
+            <li>Access all features</li>
+          </ul>
+        </div>
+        <div class="role-card">
+          <div class="role-name">Standard User</div>
+          <div class="role-description">
+            Regular user with access to core features based on permissions.
+          </div>
+          <ul class="role-tasks">
+            <li>Create and edit content</li>
+            <li>View dashboard</li>
+            <li>Use search features</li>
+            <li>Manage personal settings</li>
+          </ul>
+        </div>
+        <div class="role-card">
+          <div class="role-name">Guest</div>
+          <div class="role-description">
+            Limited read-only access for unauthenticated visitors.
+          </div>
+          <ul class="role-tasks">
+            <li>View public content</li>
+            <li>Search public resources</li>
+            <li>Register for account</li>
+          </ul>
+        </div>
+        <!-- END SAMPLE -->
+        <!-- {ROLE_CARDS} -->
+      </div>
+    </section>
+
+    <!--
+    === ROLE CARD TEMPLATE ===
+    <div class="role-card">
+      <div class="role-name">{ROLE_NAME}</div>
+      <div class="role-description">{ROLE_DESCRIPTION}</div>
+      <ul class="role-tasks">
+        {ROLE_TASKS}
+      </ul>
+    </div>
+
+    Task format: <li>{TASK_TEXT}</li>
+    === END ROLE CARD TEMPLATE ===
+    -->
+
+    <!-- ===== SECTION 6: FEATURE MATRIX ===== -->
+    <section id="feature-matrix" class="section">
+      <h2>Feature Matrix</h2>
+      <p style="margin-bottom: 1rem;">Cross-reference of user roles and feature availability.</p>
+      <div class="card" style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Role / Feature</th>
+              <th>Auth</th>
+              <th>Dashboard</th>
+              <th>Search</th>
+              <th>Settings</th>
+              <th>Admin</th>
+              <th>Reports</th>
+              <th>API</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- SAMPLE MATRIX ROWS (remove and replace with generated rows) -->
+            <tr>
+              <td><strong>Administrator</strong></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+            </tr>
+            <tr>
+              <td><strong>Standard User</strong></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-check">✓</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-partial">◐</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+            </tr>
+            <tr>
+              <td><strong>Guest</strong></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-partial">◐</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+              <td class="matrix-cell"><span class="matrix-cross">✗</span></td>
+            </tr>
+            <!-- END SAMPLE -->
+            <!-- {MATRIX_ROWS} -->
+          </tbody>
+        </table>
+      </div>
+      <div class="metrics" style="margin-top: 1rem;">
+        <span><span class="matrix-check">✓</span> = Full access</span>
+        <span><span class="matrix-partial">◐</span> = Partial access</span>
+        <span><span class="matrix-cross">✗</span> = No access</span>
+      </div>
+    </section>
+
+    <!--
+    === MATRIX ROW TEMPLATE ===
+    <tr>
+      <td><strong>{ROLE_NAME}</strong></td>
+      <td class="matrix-cell"><span class="matrix-{ACCESS_1}">{ICON_1}</span></td>
+      <td class="matrix-cell"><span class="matrix-{ACCESS_2}">{ICON_2}</span></td>
+      ...
+    </tr>
+
+    Access values: check, cross, partial
+    Icons: ✓ (check), ✗ (cross), ◐ (partial)
+    === END MATRIX ROW TEMPLATE ===
+    -->
+
+    <!-- ===== SECTION 7: COHERENCE AUDIT ===== -->
+    <section id="coherence-audit" class="section">
+      <h2>Coherence Audit</h2>
+      <p style="margin-bottom: 1rem;">Evaluation across 8 coherence dimensions.</p>
+      <div class="dimension-grid">
+        <!-- SAMPLE DIMENSION CARDS (remove and replace with generated cards) -->
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Visual Consistency</span>
+            <span class="dimension-score" style="color: var(--mc-accent-green)">85</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-high" style="width: 85%"></div>
+            </div>
+            <span class="score-value">85%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Minor color variation in secondary buttons</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e1a, @e2b</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Interaction Patterns</span>
+            <span class="dimension-score" style="color: var(--mc-accent-green)">92</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-high" style="width: 92%"></div>
+            </div>
+            <span class="score-value">92%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>No issues found</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e3c</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Navigation Clarity</span>
+            <span class="dimension-score" style="color: var(--mc-accent)">74</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-medium" style="width: 74%"></div>
+            </div>
+            <span class="score-value">74%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Deep menu hierarchy (4+ levels)</li>
+            <li>Missing breadcrumb on settings pages</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e4d, @e5e</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Content Structure</span>
+            <span class="dimension-score" style="color: var(--mc-accent-green)">88</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-high" style="width: 88%"></div>
+            </div>
+            <span class="score-value">88%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Some pages have inconsistent heading hierarchy</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e6f</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Responsiveness</span>
+            <span class="dimension-score" style="color: var(--mc-accent-red)">58</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-low" style="width: 58%"></div>
+            </div>
+            <span class="score-value">58%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Tables overflow on mobile</li>
+            <li>Modal dialogs cut off at 320px</li>
+            <li>Navigation collapses poorly</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e7g, @e8h, @e9i</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Accessibility</span>
+            <span class="dimension-score" style="color: var(--mc-accent)">71</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-medium" style="width: 71%"></div>
+            </div>
+            <span class="score-value">71%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Missing alt text on 12 images</li>
+            <li>Focus indicators inconsistent</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e10j, @e11k</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Performance</span>
+            <span class="dimension-score" style="color: var(--mc-accent-green)">82</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-high" style="width: 82%"></div>
+            </div>
+            <span class="score-value">82%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Large bundle on initial load</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e12l</div>
+        </div>
+
+        <div class="dimension-card">
+          <div class="dimension-header">
+            <span class="dimension-name">Error Handling</span>
+            <span class="dimension-score" style="color: var(--mc-accent)">65</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill score-fill-medium" style="width: 65%"></div>
+            </div>
+            <span class="score-value">65%</span>
+          </div>
+          <ul class="dimension-issues">
+            <li>Generic error messages</li>
+            <li>No retry mechanism for failed requests</li>
+            <li>Form validation feedback delayed</li>
+          </ul>
+          <div class="dimension-refs">Refs: @e13m, @e14n, @e15o</div>
+        </div>
+        <!-- END SAMPLE -->
+        <!-- {DIMENSION_CARDS} -->
+      </div>
+    </section>
+
+    <!--
+    === DIMENSION CARD TEMPLATE ===
+    <div class="dimension-card">
+      <div class="dimension-header">
+        <span class="dimension-name">{DIMENSION_NAME}</span>
+        <span class="dimension-score" style="color: var(--mc-accent-{SCORE_COLOR})">{DIMENSION_SCORE}</span>
+      </div>
+      <div class="score-bar">
+        <div class="score-track">
+          <div class="score-fill score-fill-{FILL_CLASS}" style="width: {DIMENSION_SCORE}%"></div>
+        </div>
+        <span class="score-value">{DIMENSION_SCORE}%</span>
+      </div>
+      <ul class="dimension-issues">
+        {ISSUE_LIST}
+      </ul>
+      <div class="dimension-refs">Refs: {ELEMENT_REFS}</div>
+    </div>
+
+    Score color values: green (80+), accent (60-79), red (<60)
+    Fill class values: high (80+), medium (60-79), low (<60)
+    Issue format: <li>{ISSUE_TEXT}</li>
+    === END DIMENSION CARD TEMPLATE ===
+    -->
+
+    <!-- OPTIONAL: Omit this entire section if no FAQ data available -->
+    <!-- ===== SECTION 8: FAQ ===== -->
+    <section id="faq" class="section">
+      <h2>FAQ</h2>
+      <p style="margin-bottom: 1rem;">Common questions and answers about the product.</p>
+      <div class="card">
+        <!-- SAMPLE FAQ ITEMS (remove and replace with generated items) -->
+        <div class="faq-item">
+          <div class="faq-question">How do I reset my password?</div>
+          <div class="faq-answer">
+            Navigate to the login page and click "Forgot Password". Enter your email address and follow the instructions sent to your inbox. The reset link expires after 24 hours.
+          </div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question">What browsers are supported?</div>
+          <div class="faq-answer">
+            The application supports Chrome 90+, Firefox 88+, Safari 14+, and Edge 90+. Internet Explorer is not supported.
+          </div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-question">How do I export my data?</div>
+          <div class="faq-answer">
+            Go to Settings → Data Management → Export. You can choose between JSON, CSV, or PDF formats. Large exports may take several minutes to process.
+          </div>
+        </div>
+        <!-- END SAMPLE -->
+        <!-- {FAQ_ITEMS} -->
+      </div>
+    </section>
+
+    <!--
+    === FAQ ITEM TEMPLATE ===
+    <div class="faq-item">
+      <div class="faq-question">{QUESTION}</div>
+      <div class="faq-answer">{ANSWER}</div>
+    </div>
+    === END FAQ ITEM TEMPLATE ===
+    -->
+
+    <!-- OPTIONAL: Omit this entire section if no navigation map data available -->
+    <!-- ===== SECTION 9: NAVIGATION MAP ===== -->
+    <section id="navigation-map" class="section">
+      <h2>Navigation Map</h2>
+      <p style="margin-bottom: 1rem;">Site structure and page hierarchy.</p>
+      <div class="card">
+        <ul class="nav-tree">
+          <!-- SAMPLE NAV TREE (remove and replace with generated tree) -->
+          <li>
+            <div class="nav-page">
+              <span class="nav-icon">◈</span>
+              <a href="/">Home</a>
+            </div>
+          </li>
+          <li>
+            <div class="nav-page">
+              <span class="nav-icon">◈</span>
+              <a href="/dashboard">Dashboard</a>
+            </div>
+            <ul>
+              <li>
+                <div class="nav-page">
+                  <span class="nav-icon">◦</span>
+                  <a href="/dashboard/analytics">Analytics</a>
+                </div>
+              </li>
+              <li>
+                <div class="nav-page">
+                  <span class="nav-icon">◦</span>
+                  <a href="/dashboard/reports">Reports</a>
+                </div>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <div class="nav-page">
+              <span class="nav-icon">◈</span>
+              <a href="/settings">Settings</a>
+            </div>
+            <ul>
+              <li>
+                <div class="nav-page">
+                  <span class="nav-icon">◦</span>
+                  <a href="/settings/profile">Profile</a>
+                </div>
+              </li>
+              <li>
+                <div class="nav-page">
+                  <span class="nav-icon">◦</span>
+                  <a href="/settings/security">Security</a>
+                </div>
+              </li>
+              <li>
+                <div class="nav-page">
+                  <span class="nav-icon">◦</span>
+                  <a href="/settings/notifications">Notifications</a>
+                </div>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <div class="nav-page">
+              <span class="nav-icon">◈</span>
+              <a href="/login">Login</a>
+            </div>
+          </li>
+          <li>
+            <div class="nav-page">
+              <span class="nav-icon">◈</span>
+              <a href="/register">Register</a>
+            </div>
+          </li>
+          <!-- END SAMPLE -->
+          <!-- {NAV_TREE} -->
+        </ul>
+      </div>
+    </section>
+
+    <!--
+    === NAV TREE TEMPLATE ===
+    <li>
+      <div class="nav-page">
+        <span class="nav-icon">{ICON}</span>
+        <a href="{PAGE_URL}">{PAGE_NAME}</a>
+      </div>
+      {CHILD_PAGES}
+    </li>
+
+    Icons: ◈ (top-level), ◦ (nested)
+    Child format: <ul>{CHILD_ITEMS}</ul>
+    === END NAV TREE TEMPLATE ===
+    -->
+
+    <!-- OPTIONAL: Omit this entire section if no recommendations data available -->
+    <!-- ===== SECTION 10: RECOMMENDATIONS ===== -->
+    <section id="recommendations" class="section">
+      <h2>Recommendations</h2>
+      <p style="margin-bottom: 1rem;">Actionable items to improve the product.</p>
+
+      <!-- SAMPLE RECOMMENDATIONS (remove and replace with generated items) -->
+      <div class="recommendation">
+        <div class="rec-priority rec-priority-high">1</div>
+        <div class="rec-body">
+          <div class="rec-title">Fix Mobile Responsiveness Issues</div>
+          <div class="rec-desc">
+            Address table overflow, modal cutoff, and navigation collapse problems identified in the responsiveness audit. Consider implementing a mobile-first approach for critical user flows.
+          </div>
+        </div>
+      </div>
+
+      <div class="recommendation">
+        <div class="rec-priority rec-priority-high">2</div>
+        <div class="rec-body">
+          <div class="rec-title">Improve Error Handling UX</div>
+          <div class="rec-desc">
+            Replace generic error messages with specific, actionable guidance. Add retry mechanisms for failed requests and improve form validation timing.
+          </div>
+        </div>
+      </div>
+
+      <div class="recommendation">
+        <div class="rec-priority rec-priority-medium">3</div>
+        <div class="rec-body">
+          <div class="rec-title">Enhance Navigation Structure</div>
+          <div class="rec-desc">
+            Add breadcrumb navigation to settings pages and consider flattening the menu hierarchy to reduce cognitive load.
+          </div>
+        </div>
+      </div>
+
+      <div class="recommendation">
+        <div class="rec-priority rec-priority-medium">4</div>
+        <div class="rec-body">
+          <div class="rec-title">Address Accessibility Gaps</div>
+          <div class="rec-desc">
+            Add descriptive alt text to all images and standardize focus indicator styling across all interactive elements.
+          </div>
+        </div>
+      </div>
+
+      <div class="recommendation">
+        <div class="rec-priority rec-priority-low">5</div>
+        <div class="rec-body">
+          <div class="rec-title">Optimize Bundle Size</div>
+          <div class="rec-desc">
+            Implement code splitting and lazy loading to reduce initial bundle size and improve time-to-interactive metrics.
+          </div>
+        </div>
+      </div>
+      <!-- END SAMPLE -->
+      <!-- {RECOMMENDATIONS} -->
+    </section>
+
+    <!--
+    === RECOMMENDATION TEMPLATE ===
+    <div class="recommendation">
+      <div class="rec-priority rec-priority-{PRIORITY}">{PRIORITY_NUMBER}</div>
+      <div class="rec-body">
+        <div class="rec-title">{REC_TITLE}</div>
+        <div class="rec-desc">{REC_DESCRIPTION}</div>
+      </div>
+    </div>
+
+    Priority values: high, medium, low
+    === END RECOMMENDATION TEMPLATE ===
+    -->
+
+    <!-- ===== SECTION 11: APPENDIX ===== -->
+    <section id="appendix" class="section">
+      <h2>Appendix</h2>
+      <p style="margin-bottom: 1rem;">Raw data and methodology notes.</p>
+
+      <div class="appendix-section">
+        <h4>Discovery Methodology</h4>
+        <div class="appendix-content">This product discovery was performed using automated browser exploration with the following approach:
+
+1. Initial page load and snapshot at {PRODUCT_URL}
+2. Recursive link discovery within same origin
+3. Interactive element enumeration per page
+4. Feature identification through DOM analysis
+5. Role inference from navigation patterns
+6. Coherence scoring via heuristics
+
+Agents used: Explorer, Analyzer, Cataloger
+Session duration: {SESSION_DURATION}
+Pages crawled: {PAGES_CRAWLED}
+Elements analyzed: {ELEMENTS_ANALYZED}</div>
+      </div>
+
+      <div class="appendix-section">
+        <h4>Raw Feature Data</h4>
+        <div class="appendix-content">{RAW_FEATURE_DATA_JSON}</div>
+      </div>
+
+      <div class="appendix-section">
+        <h4>Coherence Scoring Criteria</h4>
+        <div class="appendix-content">Visual Consistency (85): Color palette, typography, spacing uniformity
+Interaction Patterns (92): Consistent hover/focus states, button styles
+Navigation Clarity (74): Menu depth, breadcrumb presence, URL structure
+Content Structure (88): Heading hierarchy, list formatting, whitespace
+Responsiveness (58): Mobile layout, touch targets, overflow handling
+Accessibility (71): Alt text, focus indicators, ARIA labels
+Performance (82): Load time, bundle size, lazy loading
+Error Handling (65): Error message clarity, recovery options, validation
+
+Overall coherence: {OVERALL_COHERENCE_SCORE}</div>
+      </div>
+
+      <div class="appendix-section">
+        <h4>Session Metadata</h4>
+        <div class="appendix-content">Session ID: {SESSION_ID}
+Started: {SESSION_START}
+Ended: {SESSION_END}
+Duration: {SESSION_DURATION}
+User Agent: {USER_AGENT}
+Viewport: {VIEWPORT_SIZE}
+Screenshots: {SCREENSHOTS}
+Network requests: {NETWORK_REQUESTS}</div>
+      </div>
+
+      <!-- {APPENDIX_SECTIONS} -->
+    </section>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="report-footer">
+      <p>
+        <strong>Product Discovery Pipeline</strong> — Automated product analysis by spel<br>
+        Generated {DATE} • Session {SESSION_ID}
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>
