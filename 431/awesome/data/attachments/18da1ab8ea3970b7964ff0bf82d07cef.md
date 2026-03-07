@@ -1,0 +1,25 @@
+## GET /health → 200 OK
+
+### Request Headers
+```
+GET /health
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Sat, 07 Mar 2026 12:02:59 GMT
+```
+
+### Response Body
+```json
+{
+  "status": "ok"
+}
+```
+
+### cURL
+```bash
+curl '/health'
+```
