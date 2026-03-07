@@ -88,7 +88,9 @@
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
    :qa-orchestrator ["AGENT_COMMON.md" "qa-report.html"]
-   :auto-orchestrator ["AGENT_COMMON.md"]})
+   :auto-orchestrator ["AGENT_COMMON.md"]
+   :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
+                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "product-report.html"]})
 
 (def ^:private subagent-groups
   "Maps --only group keywords to sets of subagent keywords.
@@ -109,7 +111,9 @@
    :auto-orchestrator #{:auto-orchestrator}
    :automation #{:explorer :automator :interactive}
    :visual #{:presenter :visual-qa}
-   :bugfind #{:bug-hunter :bug-skeptic :bug-referee}})
+   :bugfind #{:bug-hunter :bug-skeptic :bug-referee}
+   :discovery #{:product-analyst}
+   :product-analyst #{:product-analyst}})
 
 (def ^:private agent-to-subagent
   "Maps agent template names to their subagent group keyword."
@@ -128,7 +132,8 @@
    "spel-orchestrator" :orchestrator
    "spel-test-orchestrator" :test-orchestrator
    "spel-qa-orchestrator" :qa-orchestrator
-   "spel-auto-orchestrator" :auto-orchestrator})
+   "spel-auto-orchestrator" :auto-orchestrator
+   "spel-product-analyst" :product-analyst})
 
 (def ^:private workflow-required-agents
   "Maps workflow prompt resource paths to the set of subagent keywords they require.
@@ -136,7 +141,8 @@
   {"prompts/spel-test-workflow.md" #{:test}
    "prompts/spel-visual-workflow.md" #{:presenter :visual-qa}
    "prompts/spel-automation-workflow.md" #{:explorer :automator :interactive}
-   "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}})
+   "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}
+   "prompts/spel-discovery-workflow.md" #{:product-analyst}})
 
 (defn- files-to-create
   "Returns file specs based on loop target, flavour, --only filter, and whether tests are included.
@@ -277,7 +283,17 @@
                          (str agent-dir "/spel-auto-orchestrator" agent-ext)
                          "auto orchestrator agent"
                          "+"
-                         "spel-auto-orchestrator"]]
+                         "spel-auto-orchestrator"]
+                        ["agents/spel-product-analyst.md"
+                         (str agent-dir "/spel-product-analyst" agent-ext)
+                         "product analyst agent"
+                         "+"
+                         "spel-product-analyst"]
+                        ["prompts/spel-discovery-workflow.md"
+                         (str prompt-dir "/spel-discovery-workflow.md")
+                         "discovery workflow"
+                         "+"
+                         nil]]
         test-files (if resolved-only
                      (filterv (fn [[resource-path _ _ _ agent-name]]
                                 (if agent-name
@@ -418,7 +434,8 @@
    "spel-orchestrator"
    "spel-test-orchestrator"
    "spel-qa-orchestrator"
-   "spel-auto-orchestrator"])
+   "spel-auto-orchestrator"
+   "spel-product-analyst"])
 
 (defn- transform-agent-references
   "Replaces @agent-name references in template content with the
@@ -631,11 +648,13 @@
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
-  (println "                            orchestrator, test-orchestrator, qa-orchestrator, auto-orchestrator")
+  (println "                            orchestrator, test-orchestrator, qa-orchestrator, auto-orchestrator,")
+  (println "                            product-analyst, discovery")
   (println "                    Groups: automation (explorer+automator+interactive),")
   (println "                            visual (presenter+visual-qa),")
   (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
-  (println "                            orchestrator (all 4 orchestrators)")
+  (println "                            orchestrator (all 4 orchestrators),")
+  (println "                            discovery (product-analyst)")
   (println "                    Example: --only test,bugfind")
   (println "                    SKILL.md and core refs are always included")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
