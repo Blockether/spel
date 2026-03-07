@@ -20,6 +20,10 @@ if ! command -v timeout >/dev/null 2>&1; then
 fi
 
 SPEL="${1:-./target/spel}"
+case "$SPEL" in
+  /*) ;;
+  *) SPEL="$PWD/${SPEL#./}" ;;
+esac
 PASS_COUNT=0
 FAIL_COUNT=0
 ERROR_COUNT=0
@@ -989,6 +993,34 @@ assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
 
 OUT=$("$SPEL" init-agents --loop=vscode 2>&1 || true)
 assert_contains "init-agents --loop=vscode shows deprecation error" "$OUT" "removed"
+
+CLAUDE_TMP=$(mktemp -d)
+TEMP_FILES+=("$CLAUDE_TMP")
+OUT=$(cd "$CLAUDE_TMP" && "$SPEL" init-agents --ns demo-app --loop=claude --force 2>&1)
+assert_contains "init-agents --loop=claude creates .claude agents" "$OUT" ".claude/agents/spel-orchestrator.md"
+
+CLAUDE_ORCH_FILE="$CLAUDE_TMP/.claude/agents/spel-orchestrator.md"
+CLAUDE_DISC_FILE="$CLAUDE_TMP/.claude/agents/spel-product-analyst.md"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q 'Read `.claude/docs/spel/SKILL.md` before any action\.' "$CLAUDE_ORCH_FILE"; then
+  pass "claude agent reads local SKILL.md"
+else
+  fail "claude agent reads local SKILL.md" "Expected Claude agent to read local SKILL.md"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^name: spel-orchestrator$' "$CLAUDE_ORCH_FILE"; then
+  pass "claude agent frontmatter uses name field"
+else
+  fail "claude agent frontmatter uses name field" "Missing Claude name frontmatter"
+fi
+
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^description: "Analyzes a web product' "$CLAUDE_DISC_FILE" && ! grep -q '^description: "\\"' "$CLAUDE_DISC_FILE"; then
+  pass "claude description does not double-quote"
+else
+  fail "claude description does not double-quote" "Expected clean quoted description in Claude frontmatter"
+fi
 
 # --only test --dry-run: includes test agents, excludes others
 OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)

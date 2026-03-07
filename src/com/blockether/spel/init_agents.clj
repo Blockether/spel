@@ -414,6 +414,16 @@
   (when-let [match (re-find (re-pattern (str "(?m)^" (java.util.regex.Pattern/quote field-name) ":\\s*(.*)$")) fm-str)]
     (str/trim (second match))))
 
+(defn- strip-matching-quotes
+  "Removes one matching layer of surrounding single or double quotes."
+  [s]
+  (if (and (string? s)
+        (>= (count s) 2)
+        (or (and (str/starts-with? s "\"") (str/ends-with? s "\""))
+          (and (str/starts-with? s "'") (str/ends-with? s "'"))))
+    (subs s 1 (dec (count s)))
+    s))
+
 (def ^:private agent-ref-names
   "Agent names that may be referenced in templates via @name syntax."
   ["spel-test-planner"
@@ -448,16 +458,21 @@
   "Replaces the OpenCode skill loading instruction with a file-read instruction
    for non-OpenCode targets."
   [body skill-dir]
-  (str/replace body
-    "You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first."
-    (str "You MUST read the file `" skill-dir "/SKILL.md` before performing any action. This file contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without reading it first.")))
+  (-> body
+    (str/replace
+      "Load the `spel` skill before any action."
+      (str "Read `" skill-dir "/SKILL.md` before any action."))
+    (str/replace
+      "You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first."
+      (str "You MUST read the file `" skill-dir "/SKILL.md` before performing any action. This file contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without reading it first."))))
 
 (defn- transform-for-claude
   "Transforms OpenCode agent template to Claude Code format.
    Replaces frontmatter with Claude Code fields and updates skill instruction."
   [content agent-name skill-dir]
   (if-let [[fm-str body] (extract-frontmatter content)]
-    (let [description (extract-fm-field fm-str "description")
+    (let [description (some-> (extract-fm-field fm-str "description")
+                        strip-matching-quotes)
           color (or (extract-fm-field fm-str "color") "\"#22C55E\"")
           new-fm (str "---\n"
                    "name: " agent-name "\n"
