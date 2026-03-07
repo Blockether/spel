@@ -7,69 +7,118 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --mc-bg: #fdf4e5;
-      --mc-bg-secondary: #fff;
-      --mc-bg-tertiary: #f5ead6;
-      --mc-border: #e0d4be;
-      --mc-text: #333;
-      --mc-text-secondary: #6e6453;
-      --mc-accent: #b8960c;
-      --mc-accent-green: #1a7a2e;
-      --mc-accent-yellow: #a67b00;
-      --mc-accent-red: #c83232;
-      --mc-accent-purple: #7c3aed;
-      --mc-accent-cyan: #0d7d72;
-      --sidebar-width: 220px;
+      --mc-bg: #f6f1e8;
+      --mc-bg-secondary: rgba(255, 251, 245, 0.88);
+      --mc-bg-tertiary: #ebe3d7;
+      --mc-bg-elevated: rgba(255, 255, 255, 0.94);
+      --mc-border: rgba(125, 99, 68, 0.18);
+      --mc-border-strong: rgba(125, 99, 68, 0.34);
+      --mc-text: #1f2933;
+      --mc-text-secondary: #55606e;
+      --mc-accent: #b2652a;
+      --mc-accent-green: #1f8a5c;
+      --mc-accent-yellow: #b7791f;
+      --mc-accent-red: #c44536;
+      --mc-accent-purple: #8b5cf6;
+      --mc-accent-cyan: #0f766e;
+      --mc-shadow: 0 18px 42px rgba(43, 33, 22, 0.08);
+      --mc-shadow-soft: 0 10px 24px rgba(43, 33, 22, 0.05);
+      --mc-radius-lg: 24px;
+      --mc-radius-md: 18px;
+      --mc-radius-sm: 12px;
+      --sidebar-width: 260px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: 'IBM Plex Mono', ui-monospace, monospace;
-      font-size: 13px;
-      line-height: 1.6;
+      font-family: 'Atkinson Hyperlegible', 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
       color: var(--mc-text);
-      background: var(--mc-bg);
+      background:
+        radial-gradient(circle at top left, rgba(178, 101, 42, 0.12), transparent 30%),
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.10), transparent 28%),
+        linear-gradient(180deg, #fbf7f1 0%, var(--mc-bg) 48%, #efe7dc 100%);
+      min-height: 100vh;
     }
     h1, h2, h3, h4 {
-      font-family: 'Atkinson Hyperlegible', Georgia, serif;
-      font-weight: 700;
+      font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
+      font-weight: 800;
       color: var(--mc-text);
+      line-height: 1.15;
     }
-    h2 { font-size: 1.35rem; margin-bottom: 1rem; }
-    h3 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+    h2 { font-size: 1.6rem; margin-bottom: 1rem; letter-spacing: -0.03em; }
+    h3 { font-size: 1.15rem; margin-bottom: 0.75rem; letter-spacing: -0.02em; }
     h4 { font-size: 1rem; margin-bottom: 0.5rem; }
-    a { color: var(--mc-accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    p { margin-bottom: 0.75rem; }
+    a {
+      color: var(--mc-accent);
+      text-decoration: none;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 0.18em;
+      transition: color 0.2s ease, text-decoration-color 0.2s ease;
+    }
+    a:hover { color: #8f4e20; text-decoration: underline; }
+    a:focus-visible {
+      outline: 3px solid rgba(178, 101, 42, 0.32);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    p { margin-bottom: 0.9rem; }
+    code, pre, .metric-value, .summary-label, .tag, .pill, .console, .appendix-content, .sidebar-footer {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    .skip-link {
+      position: absolute;
+      left: 1rem;
+      top: -3rem;
+      z-index: 10;
+      padding: 0.75rem 1rem;
+      border-radius: 999px;
+      background: var(--mc-text);
+      color: #fff;
+      box-shadow: var(--mc-shadow-soft);
+    }
+    .skip-link:focus { top: 1rem; }
 
     /* Layout with sidebar */
-    .layout { display: flex; min-height: 100vh; }
+    .layout { display: flex; min-height: 100vh; gap: 1.5rem; padding: 1.25rem; }
 
     /* Sidebar */
     .sidebar {
       position: sticky;
-      top: 1rem;
+      top: 1.25rem;
       width: var(--sidebar-width);
       min-width: var(--sidebar-width);
-      background: var(--mc-bg-secondary);
-      border-right: 1px solid var(--mc-border);
+      background: linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(248, 241, 231, 0.92));
+      border: 1px solid var(--mc-border);
+      border-radius: var(--mc-radius-lg);
       padding: 1.5rem 1rem;
-      height: calc(100vh - 2rem);
+      height: calc(100vh - 2.5rem);
       overflow-y: auto;
       align-self: flex-start;
+      box-shadow: var(--mc-shadow-soft);
+      backdrop-filter: blur(12px);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(125, 99, 68, 0.45) transparent;
     }
     .sidebar-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
       color: var(--mc-accent);
-      font-weight: 700;
-      font-size: 14px;
-      margin-bottom: 0.5rem;
-      font-family: 'Atkinson Hyperlegible', Georgia, serif;
+      font-weight: 800;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+      font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     .sidebar-product {
-      font-size: 11px;
+      font-size: 0.78rem;
       color: var(--mc-text-secondary);
       margin-bottom: 1.5rem;
       padding-bottom: 1rem;
@@ -79,22 +128,24 @@
     .sidebar-nav li { margin-bottom: 0.25rem; }
     .sidebar-nav a {
       display: block;
-      padding: 0.5rem 0.75rem;
+      padding: 0.65rem 0.8rem;
       color: var(--mc-text-secondary);
-      font-size: 12px;
-      border-radius: 0.375rem;
-      border-left: 3px solid transparent;
+      font-size: 0.8rem;
+      border-radius: 999px;
+      border-left: 4px solid transparent;
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
     }
     .sidebar-nav a:hover {
-      background: var(--mc-bg-tertiary);
+      background: rgba(178, 101, 42, 0.1);
       color: var(--mc-text);
       text-decoration: none;
+      transform: translateX(2px);
     }
     .sidebar-nav a.active {
-      background: var(--mc-bg-tertiary);
+      background: linear-gradient(90deg, rgba(178, 101, 42, 0.14), rgba(178, 101, 42, 0.05));
       color: var(--mc-accent);
       border-left-color: var(--mc-accent);
-      font-weight: 600;
+      font-weight: 700;
     }
     .sidebar-footer {
       margin-top: auto;
@@ -108,26 +159,58 @@
     .main-content {
       flex: 1;
       max-width: calc(100% - var(--sidebar-width));
-      padding: 1.5rem 2rem 2rem;
+      padding: 0.25rem 0 2.5rem;
     }
 
     /* Report header */
     .report-header {
       margin-bottom: 2rem;
-      padding-bottom: 1.5rem;
-      border-bottom: 1px solid var(--mc-border);
+      padding: 1.6rem;
+      border: 1px solid var(--mc-border);
+      border-radius: var(--mc-radius-lg);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 238, 226, 0.88)),
+        linear-gradient(180deg, rgba(178, 101, 42, 0.06), rgba(15, 118, 110, 0.04));
+      box-shadow: var(--mc-shadow);
+    }
+    .report-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.7rem;
+      margin-bottom: 0.9rem;
+      border-radius: 999px;
+      background: rgba(178, 101, 42, 0.12);
+      color: var(--mc-accent);
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     .report-title {
-      font-size: 1.75rem;
-      margin-bottom: 0.5rem;
+      font-size: clamp(2rem, 5vw, 3.35rem);
+      margin-bottom: 0.65rem;
+      max-width: 12ch;
+    }
+    .report-subtitle {
+      max-width: 70ch;
+      font-size: 1rem;
+      color: var(--mc-text-secondary);
+      margin-bottom: 1rem;
     }
     .report-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 1.5rem;
-      font-size: 12px;
+      gap: 0.85rem;
+      font-size: 0.8rem;
       color: var(--mc-text-secondary);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.9rem;
+    }
+    .report-meta span {
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--mc-border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.55);
     }
     .report-meta strong { color: var(--mc-text); }
     .report-description {
@@ -149,12 +232,86 @@
 
     /* Cards */
     .card {
-      background: var(--mc-bg-secondary);
+      background: var(--mc-bg-elevated);
       border: 1px solid var(--mc-border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-radius: var(--mc-radius-md);
+      padding: 1.3rem;
+      box-shadow: var(--mc-shadow-soft);
       margin-bottom: 1rem;
+      backdrop-filter: blur(10px);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--mc-shadow); border-color: var(--mc-border-strong); }
+
+    .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.8rem;
+      margin-bottom: 1rem;
+    }
+    .guide-card {
+      border: 1px solid var(--mc-border);
+      border-radius: 14px;
+      padding: 0.85rem 0.9rem;
+      background: rgba(255, 255, 255, 0.62);
+    }
+    .guide-title {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.66rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--mc-accent);
+      margin-bottom: 0.35rem;
+    }
+    .guide-text {
+      font-size: 0.81rem;
+      color: var(--mc-text-secondary);
+      margin: 0;
+    }
+    .guide-list {
+      list-style: none;
+      display: grid;
+      gap: 0.32rem;
+      font-size: 0.8rem;
+      color: var(--mc-text-secondary);
+      margin: 0;
+    }
+    .guide-list li {
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+    }
+    .guide-list code {
+      font-size: 0.68rem;
+      padding: 0.12rem 0.35rem;
+      background: rgba(178, 101, 42, 0.1);
+      border: 1px solid var(--mc-border);
+      border-radius: 999px;
+      color: var(--mc-text);
+    }
+    .decision-flow {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.75rem;
+    }
+    .decision-step {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.55rem;
+      align-items: start;
+      font-size: 0.8rem;
+      color: var(--mc-text-secondary);
+    }
+    .decision-step strong {
+      display: inline-grid;
+      place-items: center;
+      width: 1.3rem;
+      height: 1.3rem;
+      border-radius: 999px;
+      background: rgba(178, 101, 42, 0.14);
+      color: var(--mc-accent);
+      font-size: 0.72rem;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
     }
 
     /* Summary grid */
@@ -165,12 +322,13 @@
       margin-bottom: 1rem;
     }
     .summary-card {
-      background: var(--mc-bg-secondary);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 246, 239, 0.96));
       border: 1px solid var(--mc-border);
-      border-radius: 0.5rem;
+      border-radius: var(--mc-radius-md);
       padding: 1rem;
-      text-align: center;
-      border-top: 3px solid var(--mc-border);
+      text-align: left;
+      border-top: 4px solid var(--mc-border);
+      box-shadow: var(--mc-shadow-soft);
     }
     .summary-card-highlight { border-top-color: var(--mc-accent); }
     .summary-card-success { border-top-color: var(--mc-accent-green); }
@@ -183,15 +341,17 @@
     .summary-card-low { border-top-color: var(--mc-accent-green); }
     .summary-card-total { border-top-color: var(--mc-text); }
     .summary-count {
-      font-size: 2rem;
-      font-weight: 700;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
       line-height: 1.2;
+      letter-spacing: -0.04em;
     }
     .summary-label {
-      font-size: 11px;
+      font-size: 0.72rem;
       color: var(--mc-text-secondary);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.12em;
+      margin-top: 0.35rem;
     }
 
     /* Metrics */
@@ -199,11 +359,257 @@
       display: flex;
       gap: 2rem;
       flex-wrap: wrap;
-      font-size: 12px;
+      font-size: 0.8rem;
       color: var(--mc-text-secondary);
       margin: 0.75rem 0;
     }
-    .metric-value { font-weight: 600; color: var(--mc-text); }
+    .metric-value { font-weight: 700; color: var(--mc-accent); }
+
+    .summary-visuals {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .chart-card {
+      background: var(--mc-bg-elevated);
+      border: 1px solid var(--mc-border);
+      border-radius: var(--mc-radius-md);
+      padding: 1.1rem;
+      box-shadow: var(--mc-shadow-soft);
+    }
+    .chart-title {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--mc-text-secondary);
+      margin-bottom: 0.85rem;
+    }
+    .severity-chart {
+      display: grid;
+      gap: 0.62rem;
+    }
+    .severity-bars {
+      display: grid;
+      gap: 0.58rem;
+    }
+    .severity-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.78rem;
+    }
+    .severity-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    }
+    .severity-label { color: var(--mc-text-secondary); }
+    .severity-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(125, 99, 68, 0.14);
+      border: 1px solid rgba(125, 99, 68, 0.12);
+      overflow: hidden;
+    }
+    .severity-fill {
+      height: 100%;
+      width: calc(clamp(0, var(--value), 12) / 12 * 100%);
+      border-radius: 999px;
+    }
+    .severity-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 700; color: var(--mc-text); min-width: 2ch; text-align: right; }
+    .dot-critical { background: var(--mc-accent-red); }
+    .dot-high { background: var(--mc-accent-yellow); }
+    .dot-medium { background: var(--mc-accent); }
+    .dot-low { background: var(--mc-accent-green); }
+    .severity-fill-critical { background: linear-gradient(90deg, #df5e4f, var(--mc-accent-red)); }
+    .severity-fill-high { background: linear-gradient(90deg, #d9962e, var(--mc-accent-yellow)); }
+    .severity-fill-medium { background: linear-gradient(90deg, #d28a49, var(--mc-accent)); }
+    .severity-fill-low { background: linear-gradient(90deg, #2aa975, var(--mc-accent-green)); }
+
+    .spark-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.65rem;
+      align-items: end;
+      min-height: 136px;
+      margin-bottom: 0.9rem;
+    }
+    .spark-col {
+      display: grid;
+      justify-items: center;
+      gap: 0.4rem;
+    }
+    .spark-track {
+      width: 100%;
+      max-width: 52px;
+      height: 104px;
+      border-radius: 999px;
+      background: rgba(125, 99, 68, 0.14);
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+      border: 1px solid rgba(125, 99, 68, 0.18);
+    }
+    .spark-fill {
+      width: 100%;
+      height: calc(clamp(0, var(--value), 12) / 12 * 100%);
+      border-radius: 999px;
+      transition: height 0.35s ease;
+    }
+    .spark-label {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.64rem;
+      color: var(--mc-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .spark-count {
+      font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
+      font-weight: 700;
+      font-size: 0.86rem;
+      color: var(--mc-text);
+    }
+    .spark-fill-critical { background: linear-gradient(180deg, #df5e4f, var(--mc-accent-red)); }
+    .spark-fill-high { background: linear-gradient(180deg, #d9962e, var(--mc-accent-yellow)); }
+    .spark-fill-medium { background: linear-gradient(180deg, #d28a49, var(--mc-accent)); }
+    .spark-fill-low { background: linear-gradient(180deg, #2aa975, var(--mc-accent-green)); }
+    .confidence-strip {
+      display: grid;
+      gap: 0.5rem;
+      margin-top: 0.2rem;
+    }
+    .strip-row {
+      display: grid;
+      grid-template-columns: 128px 1fr auto;
+      align-items: center;
+      gap: 0.7rem;
+      font-size: 0.76rem;
+    }
+    .strip-row strong { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--mc-text-secondary); }
+    .strip-track {
+      height: 8px;
+      background: rgba(125, 99, 68, 0.14);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .strip-fill {
+      height: 100%;
+      width: calc(clamp(0, var(--value), 100) * 1%);
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--mc-accent), var(--mc-accent-cyan));
+    }
+    .strip-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; color: var(--mc-text); }
+
+    .section-overview {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-bottom: 1rem;
+    }
+    .overview-pill {
+      border: 1px solid var(--mc-border);
+      border-radius: 14px;
+      padding: 0.65rem 0.75rem;
+      background: rgba(255, 255, 255, 0.52);
+    }
+    .overview-label {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--mc-text-secondary);
+      margin-bottom: 0.24rem;
+    }
+    .overview-value { font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--mc-text); }
+
+    .coherence-hero {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border: 1px solid var(--mc-border);
+      border-radius: var(--mc-radius-md);
+      background: linear-gradient(140deg, rgba(255,255,255,0.7), rgba(239, 248, 245, 0.72));
+      box-shadow: var(--mc-shadow-soft);
+    }
+    .coherence-ring {
+      position: relative;
+      width: 124px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: conic-gradient(var(--mc-accent-cyan) 0 calc(clamp(0, var(--value), 100) * 1%), rgba(125, 99, 68, 0.16) 0 100%);
+    }
+    .coherence-ring::before {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border-radius: 50%;
+      background: var(--mc-bg-elevated);
+      border: 1px solid var(--mc-border);
+    }
+    .coherence-value {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--mc-text);
+    }
+    .coherence-value span {
+      display: block;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--mc-text-secondary);
+      margin-top: 0.2rem;
+      text-align: center;
+    }
+    .coherence-copy h3 { margin-bottom: 0.35rem; }
+    .coherence-copy p { margin: 0; font-size: 0.86rem; color: var(--mc-text-secondary); }
+
+    .mobile-nav {
+      display: none;
+      margin-bottom: 1rem;
+      padding: 0.85rem 1rem;
+    }
+    .mobile-nav summary {
+      list-style: none;
+      cursor: pointer;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--mc-text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .mobile-nav summary::-webkit-details-marker { display: none; }
+    .mobile-nav-list {
+      margin-top: 0.8rem;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.4rem;
+    }
+    .mobile-nav-list a {
+      display: block;
+      padding: 0.48rem 0.58rem;
+      border: 1px solid var(--mc-border);
+      border-radius: 10px;
+      font-size: 0.75rem;
+      color: var(--mc-text);
+      background: rgba(255,255,255,0.5);
+    }
 
     /* Pills and Tags */
     .pill {
@@ -239,10 +645,32 @@
     .tag-category { color: var(--mc-text-secondary); border-color: var(--mc-border); background: var(--mc-bg-tertiary); }
 
     /* Tables */
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th { text-align: left; padding: 0.5rem 0.75rem; color: var(--mc-accent); font-weight: 600; border-bottom: 2px solid var(--mc-border); }
-    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--mc-border); }
-    tr:nth-child(even) td { background: var(--mc-bg-tertiary); }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.84rem;
+      overflow: hidden;
+      border: 1px solid var(--mc-border);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+    th {
+      text-align: left;
+      padding: 0.85rem 0.9rem;
+      color: var(--mc-accent);
+      font-weight: 700;
+      border-bottom: 1px solid var(--mc-border-strong);
+      background: rgba(178, 101, 42, 0.08);
+    }
+    td {
+      padding: 0.8rem 0.9rem;
+      border-bottom: 1px solid var(--mc-border);
+      vertical-align: top;
+    }
+    td + td, th + th { border-left: 1px solid rgba(125, 99, 68, 0.08); }
+    tr:nth-child(even) td { background: rgba(235, 227, 215, 0.36); }
+    tr:hover td { background: rgba(15, 118, 110, 0.06); }
     tr.summary-row td { font-weight: 700; background: var(--mc-bg-secondary); border-top: 2px solid var(--mc-border); }
 
     /* Feature matrix specific */
@@ -264,10 +692,11 @@
     /* Coherence dimension cards */
     .dimension-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
     .dimension-card {
-      background: var(--mc-bg-secondary);
+      background: var(--mc-bg-elevated);
       border: 1px solid var(--mc-border);
-      border-radius: 0.5rem;
+      border-radius: var(--mc-radius-md);
       padding: 1rem;
+      box-shadow: var(--mc-shadow-soft);
     }
     .dimension-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--mc-border); }
     .dimension-name { font-weight: 600; font-size: 13px; }
@@ -280,11 +709,12 @@
     /* Role cards */
     .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
     .role-card {
-      background: var(--mc-bg-secondary);
+      background: var(--mc-bg-elevated);
       border: 1px solid var(--mc-border);
-      border-radius: 0.5rem;
+      border-radius: var(--mc-radius-md);
       padding: 1rem;
       border-left: 4px solid var(--mc-accent);
+      box-shadow: var(--mc-shadow-soft);
     }
     .role-name { font-weight: 700; font-size: 14px; margin-bottom: 0.5rem; font-family: 'Atkinson Hyperlegible', Georgia, serif; }
     .role-description { font-size: 12px; color: var(--mc-text-secondary); margin-bottom: 0.5rem; }
@@ -312,10 +742,11 @@
       display: flex;
       gap: 1rem;
       padding: 1rem;
-      background: var(--mc-bg-secondary);
+      background: var(--mc-bg-elevated);
       border: 1px solid var(--mc-border);
-      border-radius: 0.5rem;
+      border-radius: var(--mc-radius-md);
       margin-bottom: 0.75rem;
+      box-shadow: var(--mc-shadow-soft);
     }
     .rec-priority {
       display: flex;
@@ -364,10 +795,6 @@
 
     /* Heatmap dots */
     .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
-    .dot-critical { background: var(--mc-accent-red); }
-    .dot-high { background: var(--mc-accent-yellow); }
-    .dot-medium { background: var(--mc-accent); }
-    .dot-low { background: var(--mc-accent-green); }
     .dot-none { background: var(--mc-border); }
 
     /* Timeline */
@@ -453,6 +880,39 @@
     ::-webkit-scrollbar-track { background: var(--mc-bg); }
     ::-webkit-scrollbar-thumb { background: var(--mc-border); border-radius: 4px; }
 
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --mc-bg: #151a20;
+        --mc-bg-secondary: rgba(26, 32, 40, 0.88);
+        --mc-bg-tertiary: #1d2530;
+        --mc-bg-elevated: rgba(24, 30, 38, 0.96);
+        --mc-border: rgba(255, 255, 255, 0.1);
+        --mc-border-strong: rgba(255, 255, 255, 0.18);
+        --mc-text: #ecf1f7;
+        --mc-text-secondary: #a9b7c8;
+        --mc-shadow: 0 22px 48px rgba(0, 0, 0, 0.32);
+        --mc-shadow-soft: 0 12px 28px rgba(0, 0, 0, 0.24);
+      }
+      body {
+        background:
+          radial-gradient(circle at top left, rgba(178, 101, 42, 0.14), transparent 24%),
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.15), transparent 22%),
+          linear-gradient(180deg, #12171d 0%, #151a20 52%, #1a212a 100%);
+      }
+      .report-header,
+      .summary-card,
+      table,
+      .sidebar,
+      .card,
+      .dimension-card,
+      .role-card,
+      .recommendation {
+        background-color: var(--mc-bg-elevated);
+      }
+      tr:nth-child(even) td { background: rgba(255, 255, 255, 0.025); }
+      tr:hover td { background: rgba(15, 118, 110, 0.14); }
+    }
+
     /* Animations */
     @media (prefers-reduced-motion: no-preference) {
       @keyframes fadeInUp {
@@ -491,20 +951,17 @@
 
     /* Responsive */
     @media (max-width: 768px) {
-      .layout { flex-direction: column; }
+      .layout { flex-direction: column; padding: 0.75rem; gap: 0.9rem; }
       .sidebar {
-        position: relative;
-        top: 0;
-        width: 100%;
-        min-width: 100%;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid var(--mc-border);
+        display: none;
       }
-      .sidebar-nav { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-      .sidebar-nav li { margin-bottom: 0; }
-      .sidebar-nav a { padding: 0.375rem 0.5rem; font-size: 11px; }
       .main-content { max-width: 100%; padding: 1rem; }
+      .mobile-nav { display: block; }
+      .summary-visuals { grid-template-columns: 1fr; }
+      .severity-chart { grid-template-columns: 1fr; justify-items: stretch; }
+      .guide-grid { grid-template-columns: 1fr; }
+      .section-overview { grid-template-columns: 1fr; }
+      .coherence-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
       .summary-grid { grid-template-columns: repeat(2, 1fr); }
       .metrics { flex-direction: column; gap: 0.5rem; }
       .dimension-grid { grid-template-columns: 1fr; }
@@ -512,6 +969,8 @@
       .viewport-grid { grid-template-columns: 1fr; }
       .checks-grid { grid-template-columns: 1fr; }
       .finding-url { margin-left: 0; width: 100%; }
+      .report-title { max-width: none; }
+      th, td { padding: 0.7rem; }
     }
 
     /* Footer */
@@ -528,6 +987,8 @@
 </head>
 <body>
 
+<a class="skip-link" href="#main-report">Skip to report content</a>
+
 <div class="layout">
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
@@ -538,6 +999,7 @@
     </div>
     <ul class="sidebar-nav">
       <li><a href="#executive-summary">Executive Summary</a></li>
+      <li><a href="#reading-guide">How To Read</a></li>
       <!-- PRODUCER: spel-product-analyst -->
       <li><a href="#product-overview">Product Overview</a></li>
       <li><a href="#feature-inventory">Feature Inventory</a></li>
@@ -565,11 +1027,28 @@
   </aside>
 
   <!-- ===== MAIN CONTENT ===== -->
-  <main class="main-content">
+  <main id="main-report" class="main-content">
+
+    <details class="mobile-nav card">
+      <summary>Jump To Section <span>+</span></summary>
+      <div class="mobile-nav-list">
+        <a href="#executive-summary">Summary</a>
+        <a href="#reading-guide">How to Read</a>
+        <a href="#product-overview">Overview</a>
+        <a href="#feature-inventory">Features</a>
+        <a href="#coherence-audit">Coherence</a>
+        <a href="#visual-checks">Visual Checks</a>
+        <a href="#findings">Findings</a>
+        <a href="#recommendations">Recommendations</a>
+        <a href="#appendix">Appendix</a>
+      </div>
+    </details>
 
     <!-- ===== SECTION 1: REPORT HEADER ===== -->
     <header class="report-header">
+      <div class="report-kicker">Unified Product + QA Report</div>
       <h1 class="report-title">spel Report — {APP_NAME}</h1>
+      <p class="report-subtitle">A structured view of product coverage, visual quality, interaction coherence, and verified issues across the audited experience.</p>
       <div class="report-meta">
         <span><strong>URL:</strong> <a href="{APP_URL}">{APP_URL}</a></span>
         <span><strong>Date:</strong> {DATE}</span>
@@ -622,6 +1101,32 @@
           <div class="summary-label">Total Issues</div>
         </div>
       </div>
+      <div class="summary-visuals">
+        <div class="chart-card">
+          <div class="chart-title">Severity Distribution</div>
+          <div class="severity-chart">
+            <div class="severity-bars">
+              <div class="severity-row"><span class="severity-dot dot-critical"></span><span class="severity-label">Critical</span><div class="severity-track"><div class="severity-fill severity-fill-critical" style="--value: {CRITICAL_COUNT};"></div></div><span class="severity-value">{CRITICAL_COUNT}</span></div>
+              <div class="severity-row"><span class="severity-dot dot-high"></span><span class="severity-label">High</span><div class="severity-track"><div class="severity-fill severity-fill-high" style="--value: {HIGH_COUNT};"></div></div><span class="severity-value">{HIGH_COUNT}</span></div>
+              <div class="severity-row"><span class="severity-dot dot-medium"></span><span class="severity-label">Medium</span><div class="severity-track"><div class="severity-fill severity-fill-medium" style="--value: {MEDIUM_COUNT};"></div></div><span class="severity-value">{MEDIUM_COUNT}</span></div>
+              <div class="severity-row"><span class="severity-dot dot-low"></span><span class="severity-label">Low</span><div class="severity-track"><div class="severity-fill severity-fill-low" style="--value: {LOW_COUNT};"></div></div><span class="severity-value">{LOW_COUNT}</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Risk Skyline</div>
+          <div class="spark-grid">
+            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-critical" style="--value: {CRITICAL_COUNT};"></div></div><div class="spark-count">{CRITICAL_COUNT}</div><div class="spark-label">Critical</div></div>
+            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-high" style="--value: {HIGH_COUNT};"></div></div><div class="spark-count">{HIGH_COUNT}</div><div class="spark-label">High</div></div>
+            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-medium" style="--value: {MEDIUM_COUNT};"></div></div><div class="spark-count">{MEDIUM_COUNT}</div><div class="spark-label">Medium</div></div>
+            <div class="spark-col"><div class="spark-track"><div class="spark-fill spark-fill-low" style="--value: {LOW_COUNT};"></div></div><div class="spark-count">{LOW_COUNT}</div><div class="spark-label">Low</div></div>
+          </div>
+          <div class="confidence-strip">
+            <div class="strip-row"><strong>Agent Success</strong><div class="strip-track"><div class="strip-fill" style="--value: 100;"></div></div><span class="strip-value">{AGENTS_SUCCEEDED}</span></div>
+            <div class="strip-row"><strong>Scope Breadth</strong><div class="strip-track"><div class="strip-fill" style="--value: 82;"></div></div><span class="strip-value">{PAGES_AUDITED}</span></div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <p><strong>Verdict:</strong> {VERDICT_SUMMARY}</p>
         <div class="metrics">
@@ -633,6 +1138,38 @@
           <span>Agents succeeded: <span class="metric-value">{AGENTS_SUCCEEDED}</span></span>
           <span>Agents failed: <span class="metric-value">{AGENTS_FAILED}</span></span>
           <span>Agents skipped: <span class="metric-value">{AGENTS_SKIPPED}</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section id="reading-guide" class="section">
+      <h2>How To Read This Report</h2>
+      <div class="card">
+        <div class="guide-grid">
+          <div class="guide-card">
+            <div class="guide-title">Score Labels</div>
+            <p class="guide-text">Coherence scores use a 0-100 scale: 80-100 = stable and consistent, 60-79 = usable with notable friction, below 60 = corrective design work should be prioritized.</p>
+          </div>
+          <div class="guide-card">
+            <div class="guide-title">Severity Labels</div>
+            <ul class="guide-list">
+              <li><code>Critical</code> blocks core tasks or causes data/security risk</li>
+              <li><code>High</code> strongly degrades key user flows</li>
+              <li><code>Medium</code> creates repeated friction or confusion</li>
+              <li><code>Low</code> cosmetic or edge-case quality issues</li>
+            </ul>
+          </div>
+          <div class="guide-card">
+            <div class="guide-title">Evidence Rule</div>
+            <p class="guide-text">A finding is considered verified only when both reproduction steps and concrete evidence (snapshot refs, screenshots, logs, or transcript traces) are present.</p>
+          </div>
+        </div>
+        <div class="chart-title" style="margin-bottom: 0.55rem;">Decision Logic</div>
+        <div class="decision-flow">
+          <div class="decision-step"><strong>1</strong><span>Discovery maps pages, roles, and feature intent so issues are judged against expected product behavior.</span></div>
+          <div class="decision-step"><strong>2</strong><span>Hunter proposes potential bugs and attaches first-pass evidence from real interactions.</span></div>
+          <div class="decision-step"><strong>3</strong><span>Skeptic challenges weak claims, attempts counter-evidence, and filters false positives.</span></div>
+          <div class="decision-step"><strong>4</strong><span>Referee confirms only issues with reproducible proof and assigns final severity for prioritization.</span></div>
         </div>
       </div>
     </section>
@@ -687,6 +1224,11 @@
     <section id="feature-inventory" class="section">
       <h2>Feature Inventory</h2>
       <p style="margin-bottom: 1rem;">Complete list of discovered features organized by category.</p>
+      <div class="section-overview">
+        <div class="overview-pill"><div class="overview-label">Mapped Features</div><div class="overview-value">{FEATURE_COUNT}</div></div>
+        <div class="overview-pill"><div class="overview-label">Pages Supporting Features</div><div class="overview-value">{PAGES_DISCOVERED}</div></div>
+        <div class="overview-pill"><div class="overview-label">Role Touchpoints</div><div class="overview-value">{USER_ROLES_COUNT}</div></div>
+      </div>
       <div class="card" style="overflow-x: auto;">
         <table>
           <thead>
@@ -840,6 +1382,15 @@
     <section id="coherence-audit" class="section">
       <h2>Coherence Audit</h2>
       <p style="margin-bottom: 1rem;">Evaluation across 8 coherence dimensions.</p>
+      <div class="coherence-hero">
+        <div class="coherence-ring" style="--value: {COHERENCE_SCORE};">
+          <div class="coherence-value">{COHERENCE_SCORE}<span>Overall Coherence</span></div>
+        </div>
+        <div class="coherence-copy">
+          <h3>Signal, Not Noise</h3>
+          <p>The score summarizes consistency across visual language, interaction behavior, and recovery quality. Use low-scoring dimensions below as the immediate design and QA backlog.</p>
+        </div>
+      </div>
       <div class="dimension-grid">
         <!-- SAMPLE DIMENSION CARDS (remove and replace with generated cards) -->
         <div class="dimension-card">
@@ -1177,6 +1728,11 @@
     <!-- ===== SECTION 12: SEVERITY HEATMAP ===== -->
     <section id="heatmap" class="section">
       <h2>Severity Heatmap</h2>
+      <div class="section-overview">
+        <div class="overview-pill"><div class="overview-label">Verified Findings</div><div class="overview-value">{VERIFIED_COUNT}</div></div>
+        <div class="overview-pill"><div class="overview-label">Reported Findings</div><div class="overview-value">{REPORTED_COUNT}</div></div>
+        <div class="overview-pill"><div class="overview-label">Disputed Findings</div><div class="overview-value">{DISPUTED_COUNT}</div></div>
+      </div>
       <div class="card" style="overflow-x: auto">
         <table>
           <thead>
