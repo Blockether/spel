@@ -1,0 +1,9 @@
+=== Old references eliminated ===
+qa-report.html template refs: 0 (was 2)
+product-report.html refs: 0 (was 4-5)
+
+=== New references added ===
+spel-report.html in discovery-workflow: 5 occurrences
+spel-report.html in SKILL.md: 1 occurrence
+spel-report.html in AGENT_COMMON.md: 1 occurrence
+spel-report.html in qa-orchestrator.md: 1 template ref (line 201)

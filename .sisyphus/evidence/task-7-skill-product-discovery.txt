@@ -1,0 +1,6 @@
+=== PRODUCT_DISCOVERY.md added to SKILL.md ===
+
+| `refs/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
+
+
+Description: Product discovery JSON schemas — product-spec.json, product-faq.json field definitions

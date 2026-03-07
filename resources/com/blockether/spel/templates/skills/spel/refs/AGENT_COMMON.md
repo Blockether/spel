@@ -402,7 +402,7 @@ See `refs/PDF_STITCH_VIDEO.md` for the complete FFmpeg reference.
 
 ### Video in QA reports
 
-The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `refs/qa-report.html` for the template structure.
+The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `refs/spel-report.html` for the template structure.
 
 ---
 

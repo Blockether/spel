@@ -10,7 +10,7 @@ Orchestrates product discovery using spel subagents to analyze web products and 
 
 - Task: the discovery goal (analyze a product, crawl and analyze, full auth-gated analysis)
 - Target URL: the URL to analyze
-- Output path (optional): directory for `product-spec.json`, `product-faq.json`, `product-report.html` (default: `discovery-output/`)
+- Output path (optional): directory for `product-spec.json`, `product-faq.json`, `spel-report.html` (default: `discovery-output/`)
 - Session name (optional): named session for isolation (default: `disc`)
 
 ## Pipeline overview
@@ -20,7 +20,7 @@ Three agents in a progressive pipeline. Run only what you need.
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
 | 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots | Target URL |
-| 2. Analyze | @spel-product-analyst | `product-spec.json`, `product-faq.json`, `product-report.html` | Exploration data (optional) |
+| 2. Analyze | @spel-product-analyst | `product-spec.json`, `product-faq.json`, `spel-report.html` | Exploration data (optional) |
 | 3. Interactive | @spel-interactive | `auth-state.json`, authenticated snapshots | Target URL |
 
 ## Explore
@@ -46,7 +46,7 @@ GATE: Review exploration artifacts, pages discovered, link graph, snapshot cover
 </analyze>
 ```
 
-GATE: Review `product-spec.json` for completeness, `product-faq.json` for accuracy, `product-report.html` for clarity. Do NOT proceed until approved.
+GATE: Review `product-spec.json` for completeness, `product-faq.json` for accuracy, `spel-report.html` for clarity. Do NOT proceed until approved.
 
 ## Interactive setup (optional)
 
@@ -82,7 +82,7 @@ Produced by spel-product-analyst. Full product specification with:
 ### product-faq.json
 Produced by spel-product-analyst. FAQ entries derived from the spec and page content.
 
-### product-report.html
+### spel-report.html
 Produced by spel-product-analyst. Human-readable HTML report with sidebar navigation and embedded snapshots.
 
 ## Session isolation
@@ -100,7 +100,7 @@ Sessions never overlap. Each agent closes its session on completion or error.
 ### Pattern 1: Quick analysis
 For public sites with no auth:
 ```
-@spel-product-analyst Analyze https://example.com and produce product-spec.json, product-faq.json, product-report.html
+@spel-product-analyst Analyze https://example.com and produce product-spec.json, product-faq.json, spel-report.html
 ```
 
 ### Pattern 2: Standard (with deep crawl)

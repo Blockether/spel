@@ -268,7 +268,8 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 |-----|-------|
 | `refs/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
 | `refs/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
-| `refs/qa-report.html` | QA report HTML template — final deliverable from the QA pipeline |
+| `refs/spel-report.html` | Unified report HTML template — QA + product discovery |
+| `refs/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
 
 ### CLI & tools
 | Ref | Topic |
