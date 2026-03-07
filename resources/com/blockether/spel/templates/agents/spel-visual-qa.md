@@ -105,41 +105,77 @@ spel snapshot -S --max --json > current-max.json
 
 ## Core workflow
 
-### Phase 1: capture baseline
+### Mandatory viewports
+
+You MUST capture baselines and run comparisons at all three viewports:
+
+| Viewport | Size | How to set |
+|----------|------|------------|
+| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
+| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
+| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
+
+### Phase 1: capture baseline (at all viewports)
 
 ```bash
 SESSION="vqa-<name>-$(date +%s)"
 spel --session $SESSION open <url> --interactive
 
-spel --session $SESSION snapshot -S --json > baselines/<page>-baseline.json
-spel --session $SESSION screenshot baselines/<page>-baseline.png
+# Desktop (1280x720) — default viewport
+spel --session $SESSION snapshot -S --json > baselines/<page>-desktop.json
+spel --session $SESSION screenshot baselines/<page>-desktop.png
 
-echo "Baseline captured: $(date)" >> baselines/README.md
+# Tablet (768x1024)
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 768 1024)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > baselines/<page>-tablet.json
+spel --session $SESSION screenshot baselines/<page>-tablet.png
+
+# Mobile (375x667)
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 375 667)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > baselines/<page>-mobile.json
+spel --session $SESSION screenshot baselines/<page>-mobile.png
+
+echo "Baseline captured at 3 viewports: $(date)" >> baselines/README.md
 
 spel --session $SESSION close
 ```
 
-### Phase 2: run comparison
+### Phase 2: run comparison (at all viewports)
 
 ```bash
 SESSION="vqa-<name>-$(date +%s)"
 spel --session $SESSION open <url> --interactive
 
-spel --session $SESSION snapshot -S --json > current/<page>-current.json
-spel --session $SESSION screenshot current/<page>-current.png
+# Repeat for each viewport: desktop, tablet, mobile
+# 1. Set viewport size
+# 2. Capture current snapshot + screenshot
+# 3. Diff against baseline for that viewport
 
+# Desktop
+spel --session $SESSION snapshot -S --json > current/<page>-desktop.json
+spel --session $SESSION screenshot current/<page>-desktop.png
+
+# Tablet
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 768 1024)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > current/<page>-tablet.json
+spel --session $SESSION screenshot current/<page>-tablet.png
+
+# Mobile
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 375 667)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > current/<page>-mobile.json
+spel --session $SESSION screenshot current/<page>-mobile.png
+
+# Diff each viewport (example for desktop — repeat for tablet, mobile):
 spel eval-sci '
-(let [baseline (json/read-str (slurp "baselines/<page>-baseline.json") :key-fn keyword)
-      current (json/read-str (slurp "current/<page>-current.json") :key-fn keyword)
-      [additions removals _] (clojure.data/diff baseline current)
-      style-changes []
-      report {:agent "spel-visual-qa"
-              :target_url "<url>"
-              :additions (or additions [])
-              :removals (or removals [])
-              :style_changes style-changes}]
-  (spit "diff-report.json" (json/write-str report))
-  (println "Diff report written: diff-report.json"))'
+(let [baseline (json/read-str (slurp "baselines/<page>-desktop.json") :key-fn keyword)
+      current (json/read-str (slurp "current/<page>-desktop.json") :key-fn keyword)
+      [additions removals _] (clojure.data/diff baseline current)]
+  ;; ... build diff-report per viewport ...)
+'
 
 spel --session $SESSION close
 ```
@@ -150,11 +186,31 @@ spel --session $SESSION close
 SESSION="vqa-<name>-$(date +%s)"
 spel --session $SESSION open <url>
 
+# Capture annotated screenshots at each viewport for the report
 spel --session $SESSION annotate
-spel --session $SESSION screenshot diff-evidence.png
+spel --session $SESSION screenshot diff-evidence-desktop.png
+
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 768 1024)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION screenshot diff-evidence-tablet.png
+
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 375 667)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION screenshot diff-evidence-mobile.png
+
 spel --session $SESSION unannotate
 spel --session $SESSION close
 ```
+
+Severity thresholds:
+- Structural changes (`additions`/`removals`) = critical
+- Position deltas `> 5px` = medium
+- Sub-pixel deltas (`< 1px`) = ignore as rendering noise
+- Viewport-specific regressions (breaks on mobile but not desktop) = medium-to-critical depending on impact
+
+GATE: Visual diff report
+
+Present diff report with evidence from all 3 viewports. Do NOT update baselines until user confirms changes are intentional.
 
 Severity thresholds:
 - Structural changes (`additions`/`removals`) = critical
@@ -170,13 +226,23 @@ Present diff report. Do NOT update baselines until user confirms changes are int
 Directory convention:
 ```
 baselines/
-  <page-name>-baseline.json    # Accessibility snapshot
-  <page-name>-baseline.png     # Screenshot
+  <page-name>-desktop.json     # Desktop accessibility snapshot
+  <page-name>-desktop.png      # Desktop screenshot
+  <page-name>-tablet.json      # Tablet accessibility snapshot
+  <page-name>-tablet.png       # Tablet screenshot
+  <page-name>-mobile.json      # Mobile accessibility snapshot
+  <page-name>-mobile.png       # Mobile screenshot
   README.md                    # What was captured and when
 current/
-  <page-name>-current.json     # Current state for comparison
-  <page-name>-current.png      # Current screenshot
+  <page-name>-desktop.json     # Current desktop state
+  <page-name>-desktop.png      # Current desktop screenshot
+  <page-name>-tablet.json      # Current tablet state
+  <page-name>-tablet.png       # Current tablet screenshot
+  <page-name>-mobile.json      # Current mobile state
+  <page-name>-mobile.png       # Current mobile screenshot
 ```
+
+Naming: `<page-name>` should be descriptive: `homepage`, `checkout-flow`, `user-profile`.
 
 Naming: `<page-name>` should be descriptive: `homepage`, `checkout-flow`, `user-profile`.
 

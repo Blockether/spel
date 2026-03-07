@@ -121,19 +121,36 @@ Inspect and capture evidence for:
 - Partially visible elements (meaningful content cut off by overflow:hidden, off-screen positioning, or overlapping layers)
 - Broken layout (misaligned grid columns, collapsed flexbox, orphaned floating elements)
 - Visual incoherence (repeated UI patterns with inconsistent internal layout — badges, icons, or metadata jumping position based on content length)
-### Viewport fit checks
+### Mandatory viewport audit
 
-For every page audited, verify layout at multiple viewports:
+You MUST test every audited page at all three viewports. No exceptions.
 
-```bash
-# Desktop (1280x720)
-spel --session $SESSION eval-sci '(let [sw (spel/evaluate "document.documentElement.scrollWidth") cw (spel/evaluate "document.documentElement.clientWidth")] (println "Desktop overflow:" (> sw cw) "scroll:" sw "client:" cw))'
+| Viewport | Size | How to set |
+|----------|------|------------|
+| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
+| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
+| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
 
-# Tablet (768x1024) and Mobile (375x667)
-# Use spel eval-sci with viewport resize or open with device emulation
+At each viewport, capture:
+1. Annotated screenshot: `(spel/save-audit-screenshot! "<page> @ <viewport>" "bugfind-reports/evidence/<page>-<viewport>.png" {:refs (:refs snap)})`
+2. Snapshot JSON: `spel snapshot -S --json > bugfind-reports/evidence/<page>-<viewport>.json`
+3. Overflow check:
+
+```clojure
+;; Run at each viewport — true means horizontal overflow exists
+(let [sw (spel/evaluate "document.documentElement.scrollWidth")
+      cw (spel/evaluate "document.documentElement.clientWidth")]
+  (println "Overflow:" (> sw cw) "scroll:" sw "client:" cw))
 ```
 
-Horizontal overflow, overlapping elements, truncated text, and duplicate content blocks at non-desktop sizes are visual bugs.
+What to look for at non-desktop viewports:
+- Horizontal overflow (scrollbar appears, content wider than screen)
+- Overlapping elements (buttons on text, cards on cards)
+- Truncated or clipped text that was visible on desktop
+- Touch targets smaller than 44x44px
+- Navigation that becomes unusable (hamburger missing, menus off-screen)
+- Elements that reorder incorrectly or disappear entirely
+- Duplicate content blocks that appear only at certain breakpoints
 
 For each candidate bug:
 1. Reproduce reliably
@@ -204,7 +221,8 @@ No evidence = do not report as a bug.
 Write `bugfind-reports/hunter-report.json` using BUGFIND_GUIDE schema, including:
 - `agent`, `timestamp`, `target_url`, `pages_audited`, `total_score`
 - `bugs[]` with `id`, `category`, `location`, `description`, `impact`, `points`, `evidence`, `steps_to_reproduce`
-- `visual_checks` object — mark each visual anomaly type as `true` (checked, no issue) or `false` (issue found). Add a `notes` field explaining any `false` entries.
+- `visual_checks` object — each check is `{"pass": true, "evidence": null}` or `{"pass": false, "snapshot_refs": [...], "screenshot": "path", "description": "..."}`. Every failed check needs an annotated screenshot with action markers on the affected refs.
+- `viewport_checks` object — one entry per viewport (desktop/tablet/mobile) per page, each with `screenshot`, `snapshot`, `overflow`, and `bugs_found`. Every viewport MUST have an annotated screenshot and snapshot captured.
 - `artifacts[]` index
 
 Store all captured files under `bugfind-reports/evidence/`.
@@ -215,11 +233,12 @@ Store all captured files under `bugfind-reports/evidence/`.
 
 Before presenting your report, ask yourself:
 - "What would embarrass this report?" — Did I miss an obvious page or flow?
-- "Did I actually audit all 6 categories?" — Check the Bug Inventory matrix for unchecked cells. Check `visual_checks` — every field must be explicitly `true` or `false`.
-- "Does every bug and every `false` visual_check have evidence?" — At minimum a snapshot ref (`@eXXXX`) or screenshot path. No evidence = delete the bug or flip the check to `true`.
+- "Did I actually audit all 6 categories?" — Check the Bug Inventory matrix for unchecked cells. Check `visual_checks` — every check must have `pass` set to `true` or `false`.
+- "Did I test every page at all 3 viewports?" — Check `viewport_checks` — every page must have desktop, tablet, and mobile entries with screenshots and snapshots captured.
+- "Does every bug and every failed visual_check have evidence?" — Every bug needs an annotated screenshot. Every `"pass": false` visual check needs `snapshot_refs` + `screenshot` with action markers. No evidence = delete it or flip to pass.
 - "Is every bug reproducible?" — Would the skeptic disprove it in 30 seconds?
 - "Did I do the exploratory pass?" — Unscripted exploration is mandatory, not optional.
-- "Are my artifacts complete?" — Every screenshot and snapshot referenced in `evidence` or `visual_checks.notes` must exist in `bugfind-reports/evidence/` and appear in the `artifacts[]` index.
+- "Are my artifacts complete?" — Every screenshot path in `bugs[].evidence`, `visual_checks[].screenshot`, and `viewport_checks[]` must exist in `bugfind-reports/evidence/` and appear in `artifacts[]`.
 
 If any answer reveals a gap, go back and audit before presenting.
 

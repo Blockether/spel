@@ -68,13 +68,45 @@ spel eval-sci '(spel/screenshot {:path "baselines/home-full-baseline.png" :full-
 
 ```
 baselines/
-  <page-name>-<tier>-baseline.json   # structural
-  <page-name>-baseline.png           # pixel
-  <page-name>-full-baseline.png      # full-page pixel
+  <page-name>-desktop.json             # desktop structural baseline
+  <page-name>-desktop.png              # desktop screenshot
+  <page-name>-tablet.json              # tablet structural baseline
+  <page-name>-tablet.png               # tablet screenshot
+  <page-name>-mobile.json              # mobile structural baseline
+  <page-name>-mobile.png               # mobile screenshot
+  <page-name>-full-baseline.png        # full-page pixel (desktop)
 ```
 
-Examples: `baselines/checkout-minimal-baseline.json`, `baselines/nav-base-baseline.json`.
+Examples: `baselines/checkout-desktop.json`, `baselines/checkout-mobile.png`.
 
+### Mandatory viewport matrix
+
+Baselines and comparisons MUST be captured at all three viewports:
+
+| Viewport | Size | How to set |
+|----------|------|------------|
+| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
+| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
+| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
+
+Capture workflow for each viewport:
+```clojure
+;; Set viewport
+(spel/set-viewport-size! 768 1024)  ;; tablet
+(spel/wait-for-load-state)
+
+;; Structural snapshot
+(def snap (spel/capture-snapshot))
+(spit "baselines/homepage-tablet.json" (json/write-str snap))
+
+;; Annotated screenshot
+(spel/save-audit-screenshot!
+  "Homepage baseline @ tablet (768x1024)"
+  "baselines/homepage-tablet.png"
+  {:refs (:refs snap)})
+```
+
+Repeat for desktop and mobile. A baseline set is incomplete without all 3 viewports.
 ---
 
 ## Structural diff (JSON comparison)

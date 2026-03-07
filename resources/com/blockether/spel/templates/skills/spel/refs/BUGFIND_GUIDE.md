@@ -103,29 +103,65 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
     }
   ],
   "visual_checks": {
-    "duplicate_elements": true,
-    "duplicate_messages": true,
-    "text_overflow": true,
-    "text_truncation": true,
-    "visual_inequality": true,
-    "visual_coherence": false,
-    "partially_visible": true,
-    "broken_layout": true,
-    "notes": "visual_coherence: badge placement in task list rows is inconsistent — badges shift horizontally based on title length instead of staying right-aligned. Refs @e4kqmn, @e7xrtw, @e9bnnq marked on evidence/visual-coherence-badges.png."
+    "duplicate_elements": {"pass": true, "evidence": null},
+    "duplicate_messages": {"pass": true, "evidence": null},
+    "text_overflow": {"pass": true, "evidence": null},
+    "text_truncation": {"pass": true, "evidence": null},
+    "visual_inequality": {"pass": true, "evidence": null},
+    "visual_coherence": {
+      "pass": false,
+      "snapshot_refs": ["@e4kqmn", "@e7xrtw", "@e9bnnq"],
+      "screenshot": "evidence/visual-coherence-badges.png",
+      "description": "Badge placement in task list rows is inconsistent — badges shift horizontally based on title length instead of staying right-aligned"
+    },
+    "partially_visible": {"pass": true, "evidence": null},
+    "broken_layout": {"pass": true, "evidence": null}
+  },
+  "viewport_checks": {
+    "homepage": {
+      "desktop": {
+        "screenshot": "evidence/homepage-desktop.png",
+        "snapshot": "evidence/homepage-desktop.json",
+        "overflow": false,
+        "bugs_found": []
+      },
+      "tablet": {
+        "screenshot": "evidence/homepage-tablet.png",
+        "snapshot": "evidence/homepage-tablet.json",
+        "overflow": false,
+        "bugs_found": ["BUG-004"]
+      },
+      "mobile": {
+        "screenshot": "evidence/homepage-mobile.png",
+        "snapshot": "evidence/homepage-mobile.json",
+        "overflow": true,
+        "bugs_found": ["BUG-005", "BUG-006"]
+      }
+    }
   },
   "artifacts": [
     {"type": "annotated-screenshot", "path": "evidence/page-annotated.png"},
     {"type": "annotated-screenshot", "path": "evidence/bug-001-annotated.png"},
     {"type": "annotated-screenshot", "path": "evidence/visual-coherence-badges.png"},
-    {"type": "snapshot", "path": "evidence/page-snapshot.json"}
+    {"type": "annotated-screenshot", "path": "evidence/homepage-desktop.png"},
+    {"type": "annotated-screenshot", "path": "evidence/homepage-tablet.png"},
+    {"type": "annotated-screenshot", "path": "evidence/homepage-mobile.png"},
+    {"type": "snapshot", "path": "evidence/page-snapshot.json"},
+    {"type": "snapshot", "path": "evidence/homepage-desktop.json"},
+    {"type": "snapshot", "path": "evidence/homepage-tablet.json"},
+    {"type": "snapshot", "path": "evidence/homepage-mobile.json"}
   ]
 }
 ```
 
 **`visual_checks` rules:**
-- `true` = checked, no issue found.
-- `false` = issue found. The `notes` field MUST include: (a) the snapshot ref(s) `@eXXXX` of the affected elements, and (b) a path to an annotated screenshot where those refs are highlighted with action markers. No refs + no screenshot = flip to `true` or file a bug in `bugs[]` with proper evidence instead.
-- Every screenshot/snapshot referenced in `notes` must exist in `bugfind-reports/evidence/` and appear in `artifacts[]`.
+- `"pass": true` + `"evidence": null` = checked, no issue found.
+- `"pass": false` = issue found. MUST include:
+  - `"snapshot_refs"`: array of `@eXXXX` refs for the affected elements
+  - `"screenshot"`: path to an annotated screenshot with action markers highlighting those refs
+  - `"description"`: what's wrong, in one sentence
+- The screenshot must be captured with `inject-action-markers!` + `save-audit-screenshot!` so the affected refs are visually highlighted.
+- Every screenshot path must exist in `bugfind-reports/evidence/` and appear in the top-level `artifacts[]`.
 
 **Evidence capture for visual_checks:**
 ```clojure
@@ -137,6 +173,35 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
   "bugfind-reports/evidence/visual-coherence-badges.png"
   {:refs (:refs snap)})
 (spel/remove-action-markers!)
+```
+
+**`viewport_checks` rules:**
+- One entry per audited page. Each page has `desktop` (1280x720), `tablet` (768x1024), and `mobile` (375x667).
+- Every viewport MUST have:
+  - `"screenshot"`: annotated screenshot captured at that viewport via `save-audit-screenshot!`
+  - `"snapshot"`: structural snapshot JSON captured at that viewport
+  - `"overflow"`: boolean — did horizontal scrollbar appear?
+  - `"bugs_found"`: array of bug IDs discovered at this viewport (empty array if clean)
+- Use `spel/set-viewport-size!` to resize between captures. Re-snapshot after each resize.
+- All screenshot/snapshot paths must exist in `bugfind-reports/evidence/` and appear in `artifacts[]`.
+
+**Viewport capture workflow:**
+```clojure
+;; For each page, at each viewport:
+(spel/set-viewport-size! 375 667)  ;; mobile
+(spel/wait-for-load-state)
+(def snap (spel/capture-snapshot))
+(spel/save-audit-screenshot!
+  "Homepage @ mobile (375x667)"
+  "bugfind-reports/evidence/homepage-mobile.png"
+  {:refs (:refs snap)})
+;; Save snapshot JSON separately via CLI:
+;; spel --session $SESSION snapshot -S --json > bugfind-reports/evidence/homepage-mobile.json
+
+;; Check for horizontal overflow:
+(let [sw (spel/evaluate "document.documentElement.scrollWidth")
+      cw (spel/evaluate "document.documentElement.clientWidth")]
+  (> sw cw))  ;; true = overflow bug
 ```
 
 ### Skeptic review (`skeptic-review.json`)
@@ -251,12 +316,15 @@ bugfind-reports/
   referee-verdict.json
   evidence/
     <page>-snapshot.json
-    <page>-screenshot.png
     <page>-annotated.png
-    responsive-mobile.png
-    responsive-tablet.png
-    responsive-desktop.png
-    bug-001-screenshot.png
+    <page>-desktop.png
+    <page>-desktop.json
+    <page>-tablet.png
+    <page>-tablet.json
+    <page>-mobile.png
+    <page>-mobile.json
+    bug-001-annotated.png
+    visual-coherence-badges.png
     skeptic-bug-001-counter.png
     referee-bug-001-verdict.png
 ```
@@ -276,7 +344,7 @@ The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy
 | Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
 | Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? Repeated list/card patterns maintain consistent internal layout (badges, icons, metadata in the same position regardless of content length)? |
 | Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? Same message text appearing in multiple places? |
-| Responsiveness | Works at mobile/tablet/desktop? Touch targets sized for thumbs? |
+| Responsiveness | Tested at all 3 viewports (desktop 1280x720, tablet 768x1024, mobile 375x667)? Annotated screenshot + snapshot captured at each? Touch targets ≥44x44px on mobile? No horizontal overflow? Navigation usable at every size? |
 
 The Jobs Filter:
 - "Would a user need to be told this exists?" → UX confusion bug
