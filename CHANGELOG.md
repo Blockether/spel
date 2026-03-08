@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.18] - 2026-03-08
+
+### Changed
+- fix(init-agents): use record format for tools in product-analyst template
+- fix(init-agents): suppress --ns warning when --no-tests is set
+- release: update version files for v0.5.17, bump to next dev version
+
+
 ## [v0.5.17] - 2026-03-07
 
 ### Changed
@@ -625,7 +633,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.17...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.18...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -650,3 +658,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.15]: https://github.com/Blockether/spel/releases/tag/v0.5.15
 [v0.5.16]: https://github.com/Blockether/spel/releases/tag/v0.5.16
 [v0.5.17]: https://github.com/Blockether/spel/releases/tag/v0.5.17
+[v0.5.18]: https://github.com/Blockether/spel/releases/tag/v0.5.18
