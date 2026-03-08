@@ -181,7 +181,7 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (all 18 agents by default — use `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
+Scaffold agent skills (all 18 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
 
 ```bash
 # Full scaffolding with all 12 agents (default)
@@ -195,6 +195,8 @@ spel init-agents --only=test          # test agents only
 spel init-agents --only=automation    # browser automation agents only
 spel init-agents --only=visual        # visual QA agents only
 spel init-agents --only=bugfind      # adversarial bug-finding agents only
+spel init-agents --only=core         # simplified 6-agent core setup
+spel init-agents --simplified        # alias for --only=core
 ```
 
 Choose the right loop for your coding agent:
@@ -369,6 +371,8 @@ spel init-agents --only=orchestrator          # all 4 orchestrator agents only
 spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec reviewer
 spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --only=discovery             # product discovery agents only
+spel init-agents --only=core                  # simplified 6-agent core setup
+spel init-agents --simplified                 # alias for --only=core
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
 spel init-agents --no-tests                   # all agents, skip seed test + specs
 ```
@@ -376,7 +380,8 @@ spel init-agents --no-tests                   # all agents, skip seed test + spe
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
-| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `spec-skeptic` |
+| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `spec-skeptic`, `core` |
+| `--simplified` | — | Use simplified 6-agent setup (equivalent to `--only=core`) |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
 | `--no-tests` | — | Skip seed test and specs directory — scaffold agents + SKILL only |

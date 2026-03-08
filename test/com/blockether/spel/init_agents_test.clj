@@ -27,6 +27,7 @@
         (expect (= false (:dry-run opts)))
         (expect (= false (:force opts)))
         (expect (= false (:no-tests opts)))
+        (expect (= false (:simplified opts)))
         (expect (= false (:learnings opts)))
         (expect (= "lazytest" (:flavour opts)))
         (expect (nil? (:ns opts)))
@@ -46,6 +47,9 @@
 
     (it "parses --learnings"
       (expect (= true (:learnings (#'sut/parse-args ["--learnings"])))))
+
+    (it "parses --simplified"
+      (expect (= true (:simplified (#'sut/parse-args ["--simplified"])))))
 
     (it "parses --help"
       (expect (= true (:help (#'sut/parse-args ["--help"])))))
@@ -271,8 +275,8 @@
 
   (it "replaces short skill loading instruction"
     (let [result (#'sut/replace-skill-instruction
-                   "Load the `spel` skill before any action."
-                   ".claude/docs/spel")]
+                  "Load the `spel` skill before any action."
+                  ".claude/docs/spel")]
       (expect (= "Read `.claude/docs/spel/SKILL.md` before any action." result))))
 
   (it "replaces long skill loading instruction"
@@ -528,6 +532,30 @@
       (it "excludes non-orchestrator agents"
         (expect (not (contains? names "spel-test-planner")))
         (expect (not (contains? names "spel-bug-hunter"))))))
+
+  (describe "--only core"
+    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator
+                     :product-analyst :spec-skeptic}
+          specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
+          names (set (agent-names specs))]
+
+      (it "includes simplified core agents"
+        (expect (contains? names "spel-orchestrator"))
+        (expect (contains? names "spel-test-orchestrator"))
+        (expect (contains? names "spel-qa-orchestrator"))
+        (expect (contains? names "spel-auto-orchestrator"))
+        (expect (contains? names "spel-product-analyst"))
+        (expect (contains? names "spel-spec-skeptic")))
+
+      (it "excludes specialist swarm agents"
+        (expect (not (contains? names "spel-explorer")))
+        (expect (not (contains? names "spel-automator")))
+        (expect (not (contains? names "spel-interactive")))
+        (expect (not (contains? names "spel-bug-hunter")))
+        (expect (not (contains? names "spel-bug-skeptic")))
+        (expect (not (contains? names "spel-bug-referee")))
+        (expect (not (contains? names "spel-presenter")))
+        (expect (not (contains? names "spel-visual-qa"))))))
 
   (describe "workflow filtering"
     (it "excludes visual workflow when only presenter is selected (missing visual-qa)"

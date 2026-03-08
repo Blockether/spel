@@ -113,7 +113,10 @@
    :visual #{:presenter :visual-qa}
    :bugfind #{:bug-hunter :bug-skeptic :bug-referee}
    :discovery #{:product-analyst}
-   :product-analyst #{:product-analyst}})
+   :product-analyst #{:product-analyst}
+   ;; Simplified helper-first setup: six core agents only
+   :core #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator
+           :product-analyst :spec-skeptic}})
 
 (def ^:private agent-to-subagent
   "Maps agent template names to their subagent group keyword."
@@ -575,12 +578,13 @@
 
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS, --learnings"
+   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS, --simplified, --learnings"
   [args]
   (loop [remaining args
          opts {:dry-run false
                :force false
                :no-tests false
+               :simplified false
                :learnings false
                :flavour "lazytest"
                :ns nil
@@ -602,6 +606,9 @@
 
           (= "--learnings" arg)
           (recur (rest remaining) (assoc opts :learnings true))
+
+          (= "--simplified" arg)
+          (recur (rest remaining) (assoc opts :simplified true))
 
           (= "--only" arg)
           (recur (drop 2 remaining)
@@ -733,14 +740,16 @@
   (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
   (println "                            orchestrator, test-orchestrator, qa-orchestrator, auto-orchestrator,")
-  (println "                            product-analyst, discovery")
+  (println "                            product-analyst, discovery, core")
   (println "                    Groups: automation (explorer+automator+interactive),")
   (println "                            visual (presenter+visual-qa),")
   (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
   (println "                            orchestrator (all 4 orchestrators),")
-  (println "                            discovery (product-analyst)")
+  (println "                            discovery (product-analyst),")
+  (println "                            core (simplified 6-agent setup)")
   (println "                    Example: --only test,bugfind")
   (println "                    SKILL.md and core refs are always included")
+  (println "  --simplified      Use simplified template set (equivalent to --only core)")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
   (println "  --specs-dir DIR   Test plans directory (default: test-e2e/specs)")
   (println "  --dry-run         Show what would be created without writing")
@@ -873,7 +882,8 @@
             no-tests (:no-tests opts)
             learnings? (:learnings opts)
             flavour (:flavour opts)
-            only-set (:only opts)
+            only-set (or (:only opts)
+                       (when (:simplified opts) #{:core}))
             resolved-only (when only-set
                             (reduce into #{} (map #(get subagent-groups %) only-set)))
             ns-name (or (:ns opts)
