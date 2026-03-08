@@ -18,6 +18,7 @@
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as network]
@@ -273,6 +274,7 @@
   "Set of user-facing browser commands that should be recorded in the action log."
   #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
     "select" "dblclick" "focus" "clear" "screenshot" "scroll"
+    "survey" "audit" "routes" "inspect" "overview" "debug" "emulate"
     "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
 
 (defn- track-action!
@@ -1098,6 +1100,124 @@
   (ensure-page-loaded!)
   (annotate/remove-overlays! (pg))
   {:removed true})
+
+(defmethod handle-cmd "survey" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [opts (cond-> {}
+               (get params "output-dir") (assoc :output-dir (get params "output-dir"))
+               (get params "prefix")     (assoc :prefix (get params "prefix"))
+               (get params "overlap")    (assoc :overlap (long (get params "overlap")))
+               (get params "annotate")   (assoc :annotate? true)
+               (get params "max-frames") (assoc :max-frames (long (get params "max-frames"))))
+        results (helpers/survey! (pg) opts)]
+    {:frames results :count (count results)}))
+
+(defmethod handle-cmd "audit" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/audit! (pg)))
+
+(defmethod handle-cmd "routes" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [opts (cond-> {}
+               (get params "internal-only") (assoc :internal-only? true)
+               (get params "visible-only")  (assoc :visible-only? true))]
+    (helpers/routes! (pg) opts)))
+
+(defmethod handle-cmd "inspect" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [opts (cond-> {}
+               (contains? params "compact")      (assoc :compact? (get params "compact"))
+               (get params "style-detail")       (assoc :style-detail (get params "style-detail"))
+               (get params "scope")              (assoc :scope (get params "scope"))
+               (get params "device")             (assoc :device (get params "device")))
+        snap (helpers/inspect! (pg) opts)]
+    (snapshot-after-action!)
+    {:tree (:tree snap)
+     :refs (:refs snap)
+     :counter (:counter snap)
+     :viewport (:viewport snap)}))
+
+(defmethod handle-cmd "overview" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [path   (get params "path")
+        opts   (cond-> {}
+                 path                             (assoc :path path)
+                 (get params "all")                  (assoc :all-frames? true)
+                 (contains? params "show-badges")     (assoc :show-badges (get params "show-badges"))
+                 (contains? params "show-dimensions") (assoc :show-dimensions (get params "show-dimensions"))
+                 (contains? params "show-boxes")      (assoc :show-boxes (get params "show-boxes"))
+                 (get params "scope")                 (assoc :scope (get params "scope")))
+        result (helpers/overview! (pg) opts)]
+    (if (:bytes result)
+      (let [tmp-path (str (System/getProperty "java.io.tmpdir")
+                       java.io.File/separator
+                       "spel-overview-"
+                       (System/currentTimeMillis) ".png")
+            _        (Files/write
+                       (Path/of ^String tmp-path (into-array String []))
+                       ^bytes (:bytes result)
+                       ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
+        {:path tmp-path :size (alength ^bytes (:bytes result)) :refs_annotated (:refs-annotated result)})
+      {:path (:path result) :size (:size result) :refs_annotated (:refs-annotated result)})))
+
+(defmethod handle-cmd "debug" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [page-diag    (helpers/debug! (pg))
+        ;; Enrich with daemon-tracked console messages
+        console-msgs @!console-messages
+        console-errs (filterv #(#{"error" "warning"} (:type %)) console-msgs)
+        ;; Enrich with tracked page errors
+        page-errs    @!page-errors
+        ;; Enrich with failed network requests (4xx/5xx)
+        net-reqs     @!tracked-requests
+        failed-net   (filterv #(>= (long (:status %)) 400) net-reqs)
+        ;; Optionally clear after read
+        _            (when (get params "clear")
+                       (reset! !console-messages [])
+                       (reset! !page-errors []))]
+    (merge page-diag
+      {:console_errors  console-errs
+       :page_errors     page-errs
+       :failed_requests failed-net
+       :summary {:console_error_count  (count console-errs)
+                 :page_error_count    (count page-errs)
+                 :failed_request_count (count failed-net)
+                 :total_issues (+ (count console-errs)
+                                 (count page-errs)
+                                 (count failed-net))}})))
+
+(defmethod handle-cmd "emulate" [_ params]
+  (ensure-browser!)
+  (let [device-name (get params "device")
+        result      (handle-cmd "set_device" {"device" device-name})]
+    (if (:error result)
+      result
+      (let [overview-opts (cond-> {}
+                            (get params "path")                           (assoc :path (get params "path"))
+                            (get params "all")                            (assoc :all-frames? true)
+                            (contains? params "show-badges")              (assoc :show-badges (get params "show-badges"))
+                            (contains? params "show-dimensions")          (assoc :show-dimensions (get params "show-dimensions"))
+                            (contains? params "show-boxes")               (assoc :show-boxes (get params "show-boxes")))
+            ov-result   (helpers/overview! (pg) overview-opts)]
+        (if (:bytes ov-result)
+          (let [tmp-path (str (System/getProperty "java.io.tmpdir")
+                           java.io.File/separator
+                           "spel-emulate-"
+                           (System/currentTimeMillis) ".png")
+                _        (Files/write
+                           (Path/of ^String tmp-path (into-array String []))
+                           ^bytes (:bytes ov-result)
+                           ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
+            {:device device-name :preset (:preset result)
+             :path tmp-path :size (alength ^bytes (:bytes ov-result)) :refs_annotated (:refs-annotated ov-result)})
+          {:device device-name :preset (:preset result)
+           :path (:path ov-result) :size (:size ov-result) :refs_annotated (:refs-annotated ov-result)})))))
 
 (defmethod handle-cmd "evaluate" [_ {:strs [script base64]}]
   (ensure-page-loaded!)

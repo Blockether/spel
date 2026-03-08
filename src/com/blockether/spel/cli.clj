@@ -451,6 +451,132 @@
       "Examples:"
       "  spel unannotate"])
 
+   "survey"
+   (str/join \newline
+     ["survey - Scroll full page and save viewport screenshots"
+      ""
+      "Usage:"
+      "  spel survey [flags]"
+      ""
+      "Examples:"
+      "  spel survey"
+      "  spel survey --max-frames 5"
+      "  spel survey -o ./shots --overlap 120"
+      "  spel survey -a"
+      ""
+      "Flags:"
+      "  -a, --annotate            Annotate each frame before screenshot"
+      "  -o, --output-dir DIR      Directory for output frames"
+      "  --overlap PX              Pixel overlap between frames"
+      "  --max-frames N            Maximum frames to capture"])
+
+   "audit"
+   (str/join \newline
+     ["audit - Discover page structure and landmark sections"
+      ""
+      "Usage:"
+      "  spel audit"
+      ""
+      "Examples:"
+      "  spel audit"])
+
+   "routes"
+   (str/join \newline
+     ["routes - Extract links from the current page"
+      ""
+      "Usage:"
+      "  spel routes [flags]"
+      ""
+      "Examples:"
+      "  spel routes"
+      "  spel routes --internal"
+      "  spel routes --visible"
+      ""
+      "Flags:"
+      "  --internal, --internal-only  Include same-origin links only"
+      "  --visible, --visible-only    Include visible links only"])
+
+   "inspect"
+   (str/join \newline
+     ["inspect - Interactive snapshot with computed styles (agent view)"
+      ""
+      "Usage:"
+      "  spel inspect [flags]"
+      ""
+      "Examples:"
+      "  spel inspect"
+      "  spel inspect --minimal"
+      "  spel inspect --max -s \"#main\""
+      ""
+      "Flags:"
+      "  -s, --scope SEL            Scope inspect snapshot to selector"
+      "  --minimal                  Use minimal style detail"
+      "  --max                      Use max style detail"])
+
+   "overview"
+   (str/join \newline
+     ["overview - Annotated full-page screenshot"
+      ""
+      "Usage:"
+      "  spel overview [path] [flags]"
+      ""
+      "Examples:"
+      "  spel overview"
+      "  spel overview page-overview.png"
+      "  spel overview --no-badges --no-boxes"
+      "  spel overview --all                   # include iframe content"
+      ""
+      "Flags:"
+      "  -a, --all                 Include iframe content (capture-full-snapshot)"
+      "  --no-badges               Hide element type badges"
+      "  --no-dimensions, --no-dims  Hide dimensions"
+      "  --no-boxes                Hide bounding boxes"
+      "  -s, --scope SEL           Scope overview annotations to selector"])
+
+   "debug"
+   (str/join \newline
+     ["debug - Page diagnostic snapshot"
+      ""
+      "Usage:"
+      "  spel debug [flags]"
+      ""
+      "Examples:"
+      "  spel debug"
+      "  spel debug --clear"
+      "  spel debug --json"
+      ""
+      "Collects:"
+      "  - Performance timing (DNS, TTFB, DOM complete, page load)"
+      "  - Console errors and warnings"
+      "  - Uncaught JS exceptions"
+      "  - Failed network requests (4xx/5xx)"
+      "  - Failed resource loads"
+      "  - DOM statistics and dimensions"
+      ""
+      "Flags:"
+      "  --clear                   Clear console/error buffers after reading"])
+
+   "emulate"
+   (str/join \newline
+     ["emulate - Device emulation with annotated overview"
+      ""
+      "Usage:"
+      "  spel emulate <device> [path] [flags]"
+      ""
+      "Examples:"
+      "  spel emulate 'iPhone 14'"
+      "  spel emulate 'Pixel 7' mobile-view.png"
+      "  spel emulate 'iPad Pro 11' --no-badges"
+      ""
+      "Sets device emulation (viewport, user-agent, touch) and takes an"
+      "annotated full-page overview screenshot in one command."
+      ""
+      "Flags:"
+      "  -a, --all                 Include iframe content"
+      "  --no-badges               Hide element type badges"
+      "  --no-dimensions, --no-dims  Hide dimensions"
+      "  --no-boxes                Hide bounding boxes"])
+
    "pdf"
    (str/join \newline
      ["pdf - Save page as PDF (Chromium only)"
@@ -1233,6 +1359,11 @@
      "  stitch                  Stitch multiple screenshots vertically"
      "  annotate                Inject annotation overlays"
      "  unannotate              Remove annotation overlays"
+     "  survey                  Sweep viewport screenshots down page"
+     "  audit                   Discover page landmarks and sections"
+     "  routes                  Extract links from page"
+     "  inspect                 Interactive styled snapshot"
+     "  overview                Full-page annotated screenshot"
      "  pdf                     Save page as PDF"
      ""
      "JavaScript:"
@@ -1803,7 +1934,70 @@
           ;; Unannotate (remove overlays from the page)
             "unannotate" {:action "unannotate"}
 
-          ;; PDF
+          ;; Survey (full-page screenshot sweep)
+            "survey" (cond-> {:action "survey"}
+                       (some #{"-a" "--annotate"} cmd-args) (assoc :annotate true)
+                       (some #{"-o" "--output-dir"} cmd-args)
+                       (assoc :output-dir (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-o")
+                                                            (.indexOf ^java.util.List (vec cmd-args) "--output-dir")))]
+                                            (when (>= idx 0) (nth cmd-args (inc idx) nil))))
+                       (some #{"--overlap"} cmd-args)
+                       (assoc :overlap (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--overlap"))]
+                                         (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "0")))))
+                       (some #{"--max-frames"} cmd-args)
+                       (assoc :max-frames (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--max-frames"))]
+                                            (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "50"))))))
+
+          ;; Audit (page structure discovery)
+            "audit" {:action "audit"}
+
+          ;; Routes (link extraction)
+            "routes" (cond-> {:action "routes"}
+                       (some #{"--internal" "--internal-only"} cmd-args) (assoc :internal-only true)
+                       (some #{"--visible" "--visible-only"} cmd-args) (assoc :visible-only true))
+
+          ;; Inspect (interactive snapshot with styles - agent view)
+            "inspect" (cond-> {:action "inspect"}
+                        (some #{"--scope" "-s"} cmd-args)
+                        (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
+                                                        (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
+                                        (when (>= idx 0) (nth cmd-args (inc idx) nil))))
+                        (some #{"--minimal"} cmd-args) (assoc :style-detail "minimal")
+                        (some #{"--max"} cmd-args) (assoc :style-detail "max"))
+
+          ;; Overview (annotated full-page screenshot)
+            "overview" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
+                             path      (first path-args)]
+                         (cond-> {:action "overview"}
+                           path (assoc :path path)
+                           (some #{"-a" "--all"} cmd-args) (assoc :all true)
+                           (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
+                           (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
+                           (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)
+                           (some #{"-s" "--scope"} cmd-args)
+                           (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
+                                                           (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
+                                           (when (>= idx 0) (nth cmd-args (inc idx) nil))))))
+
+          ;; Debug (page diagnostic snapshot)
+            "debug" (cond-> {:action "debug"}
+                      (some #{"--clear"} cmd-args) (assoc :clear true))
+
+          ;; Emulate (device emulation + annotated overview)
+            "emulate" (let [;; First non-flag arg is the device name, second is optional path
+                            non-flag (remove #(str/starts-with? % "-") cmd-args)
+                            device   (first non-flag)
+                            path     (second non-flag)]
+                        (when-not device
+                          (throw (ex-info "emulate requires a device name. Usage: spel emulate 'iPhone 14'" {})))
+                        (cond-> {:action "emulate" :device device}
+                          path (assoc :path path)
+                          (some #{"-a" "--all"} cmd-args) (assoc :all true)
+                          (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
+                          (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
+                          (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)))
+
+;; PDF
             "pdf"      {:action "pdf" :path (or (first cmd-args) "page.pdf")}
 
           ;; JavaScript

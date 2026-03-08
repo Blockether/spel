@@ -32,6 +32,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.annotate :as annotate]
    [com.blockether.spel.action-log :as action-log]
+   [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.markdown :as markdown]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
@@ -1195,6 +1196,40 @@
   ([caption path] (throw-if-anomaly (annotate/save-audit-screenshot! (require-page!) caption path)))
   ([caption path opts] (throw-if-anomaly (annotate/save-audit-screenshot! (require-page!) caption path opts))))
 
+(defn sci-survey
+  "Scrolls through the page taking a screenshot at each viewport position.
+   Returns vector of {:path :y :index :viewport} maps."
+  ([] (sci-survey {}))
+  ([opts] (helpers/survey! (require-page!) opts)))
+
+(defn sci-audit
+  "Discovers page structure - header, nav, main, footer, aside sections.
+   Returns map with :url :title :scroll-height :viewport :sections."
+  []
+  (helpers/audit! (require-page!)))
+
+(defn sci-routes
+  "Extracts all links from the page. Returns map with :url :count :links."
+  ([] (sci-routes {}))
+  ([opts] (helpers/routes! (require-page!) opts)))
+
+(defn sci-inspect
+  "Takes interactive snapshot with styles - the 'agent view'.
+   Returns snapshot map with :tree :refs :counter :viewport."
+  ([] (sci-inspect {}))
+  ([opts] (helpers/inspect! (require-page!) opts)))
+
+(defn sci-overview
+  "Takes annotated full-page screenshot. Opts: :path :show-badges :show-dimensions :show-boxes :scope :all-frames?.
+   Returns {:bytes :refs-annotated} or {:path :size :refs-annotated}."
+  ([] (sci-overview {}))
+  ([opts] (helpers/overview! (require-page!) opts)))
+
+(defn sci-debug
+  "Collects page diagnostics: performance timing, failed resources, DOM stats, dimensions.
+   Returns map with :url :title :ready-state :timing :failed-resources :dom :dimensions."
+  [] (helpers/debug! (require-page!)))
+
 ;; Report builder (polymorphic entries -> HTML / PDF)
 (defn sci-report->html
   "Builds a rich HTML report from typed entries. No page needed."
@@ -1507,6 +1542,12 @@
                   ;; Audit screenshots
                   ['audit-screenshot          sci-audit-screenshot]
                   ['save-audit-screenshot!    sci-save-audit-screenshot!]
+                  ['survey                    sci-survey]
+                  ['audit                     sci-audit]
+                  ['routes                    sci-routes]
+                  ['inspect                   sci-inspect]
+                  ['overview                  sci-overview]
+                  ['debug                     sci-debug]
                    ;; Report builder (polymorphic entries)
                   ['report->html              sci-report->html]
                   ['report->pdf               sci-report->pdf]])

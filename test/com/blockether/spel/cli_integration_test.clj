@@ -1245,6 +1245,80 @@
         (expect (true? (:removed r)))))))
 
 ;; =============================================================================
+;; 41. Helpers (survey, audit, routes, inspect, overview)
+;; =============================================================================
+
+(defdescribe helpers-integration-test
+  "Integration tests for survey, audit, routes, inspect, overview helpers"
+
+  (describe "survey"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns frames with paths"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "survey" {})]
+        (expect (vector? (:frames result)))
+        (expect (pos? (count (:frames result))))
+        (expect (string? (:path (first (:frames result)))))
+        (expect (= 0 (:y (first (:frames result)))))))
+
+    (it "respects max-frames"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "survey" {"max-frames" 2})]
+        (expect (<= (count (:frames result)) 2)))))
+
+  (describe "audit"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns page structure with sections"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "audit" {})]
+        (expect (string? (:url result)))
+        (expect (string? (:title result)))
+        (expect (pos? (:scroll-height result)))
+        (expect (map? (:viewport result)))
+        (expect (vector? (:sections result))))))
+
+  (describe "routes"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "extracts links from page"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "routes" {})]
+        (expect (string? (:url result)))
+        (expect (number? (:count result)))
+        (expect (pos? (:count result)))
+        (expect (vector? (:links result)))
+        (let [link (first (:links result))]
+          (expect (string? (:href link)))
+          (expect (contains? link :internal?)))))
+
+    (it "filters internal links"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "routes" {"internal-only" true})]
+        (expect (every? :internal? (:links result))))))
+
+  (describe "inspect"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns snapshot with styles"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "inspect" {})]
+        (expect (string? (:tree result)))
+        (expect (map? (:refs result)))
+        (expect (pos? (:counter result))))))
+
+  (describe "overview"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns screenshot path and annotated count"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "overview" {})]
+        (expect (string? (:path result)))
+        (expect (pos? (:size result)))
+        (expect (number? (:refs_annotated result)))))))
+
+;; =============================================================================
 ;; 41a. Pre-action Markers (mark/unmark)
 ;; =============================================================================
 
@@ -1489,6 +1563,19 @@
       (let [_ (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
             r (cmd "sci_eval" {"code" "(spel/title)"})]
         (expect (= "\"Test Page\"" (:result r)))))
+
+    (it "exposes new spel helper functions"
+      (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
+            survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})
+            audit-r   (cmd "sci_eval" {"code" "(map? (spel/audit))"})
+            routes-r  (cmd "sci_eval" {"code" "(map? (spel/routes))"})
+            inspect-r (cmd "sci_eval" {"code" "(map? (spel/inspect))"})
+            over-r    (cmd "sci_eval" {"code" "(map? (spel/overview))"})]
+        (expect (= "true" (:result survey-r)))
+        (expect (= "true" (:result audit-r)))
+        (expect (= "true" (:result routes-r)))
+        (expect (= "true" (:result inspect-r)))
+        (expect (= "true" (:result over-r)))))
 
     (it "start! is a no-op when daemon has page"
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]
@@ -2688,4 +2775,3 @@
       (let [after (cmd "action_log" {})]
         (expect (= 0 (:count after)))
         (expect (empty? (:entries after)))))))
-

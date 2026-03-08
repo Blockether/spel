@@ -1593,6 +1593,50 @@ OUT=$("$SPEL" init-agents --only bugfind --ns test-app --force 2>&1)
 assert_contains "bug-referee references spel-report" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.html"
 assert_contains "bug-referee references spel-report markdown" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.md"
 
+section "Helpers (44)"
+
+"$SPEL" open https://example.com >/dev/null 2>&1
+
+OUT=$("$SPEL" --json survey 2>&1)
+assert_jq "survey → has frames" "$OUT" '.frames | length > 0'
+assert_jq "survey → frame has path" "$OUT" '.frames[0].path'
+
+OUT=$("$SPEL" --json audit 2>&1)
+assert_jq "audit → has url" "$OUT" '.url'
+assert_jq "audit → has sections" "$OUT" '.sections | type == "array"'
+
+OUT=$("$SPEL" --json routes 2>&1)
+assert_jq "routes → has links" "$OUT" '.links | type == "array"'
+assert_jq "routes → has count" "$OUT" '.count >= 0'
+
+OUT=$("$SPEL" --json inspect 2>&1)
+assert_jq "inspect → has tree" "$OUT" '.tree'
+assert_jq "inspect → has refs" "$OUT" '.refs'
+
+OUT=$("$SPEL" --json overview 2>&1)
+assert_jq "overview → has path" "$OUT" '.path'
+assert_jq "overview → has size" "$OUT" '.size > 0'
+
+OUT=$("$SPEL" --json overview --all 2>&1)
+assert_jq "overview --all → has path" "$OUT" '.path'
+assert_jq "overview --all → has size" "$OUT" '.size > 0'
+assert_jq "overview --all → has refs_annotated" "$OUT" '.refs_annotated >= 0'
+
+OUT=$("$SPEL" --json debug 2>&1)
+assert_jq "debug → has url" "$OUT" '.url'
+assert_jq "debug → has title" "$OUT" '.title'
+assert_jq "debug → has timing" "$OUT" '.timing'
+assert_jq "debug → has dom" "$OUT" '.dom'
+assert_jq "debug → has dimensions" "$OUT" '.dimensions'
+assert_jq "debug → has summary" "$OUT" '.summary'
+assert_jq "debug → summary.total_issues >= 0" "$OUT" '.summary.total_issues >= 0'
+
+OUT=$("$SPEL" --json emulate 'iPhone 14' 2>&1)
+assert_jq "emulate → has device" "$OUT" '.device'
+assert_jq "emulate → has path" "$OUT" '.path'
+assert_jq "emulate → has size" "$OUT" '.size > 0'
+assert_jq "emulate → has preset" "$OUT" '.preset'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)
