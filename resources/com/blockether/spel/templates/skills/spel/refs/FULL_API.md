@@ -728,6 +728,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/assert-value` | [sel value] \| [sel value opts] | Asserts the locator (input) has the specified value. |
 | `spel/assert-values` | [sel values] \| [sel values opts] | Asserts the locator (multi-select) has the specified values. |
 | `spel/assert-visible` | [sel] \| [sel opts] | Asserts the locator is visible. |
+| `spel/audit` | [] | Discovers page structure - header, nav, main, footer, aside sections. |
 | `spel/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
 | `spel/blur` | [sel] | Blurs (removes focus from) the element. |
 | `spel/bounding-box` | [sel] | Returns the bounding box of the element. |
@@ -763,6 +764,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/context-storage-state` | [] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `spel/count-elements` | [sel] | Returns the number of elements matching the locator. |
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
+| `spel/debug` | [] | Collects page diagnostics: performance timing, failed resources, DOM stats, dimensions. |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
 | `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
 | `spel/drag-by` | [sel dx dy] \| [sel dx dy opts] | Drags an element by pixel offset using mouse events. |
@@ -807,6 +809,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
 | `spel/input-value` | [sel] | Returns the input value of an input element. |
+| `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles - the 'agent view'. |
 | `spel/keyboard` | [] | Returns the Keyboard for this page. |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |
 | `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
@@ -833,6 +836,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/on-request` | [handler] | Registers a handler for requests. |
 | `spel/on-response` | [handler] | Registers a handler for responses. |
 | `spel/once-dialog` | [handler] | Registers a one-time handler for the next dialog. |
+| `spel/overview` | [] \| [opts] | Takes annotated full-page screenshot. Opts: :path :show-badges :show-dimensions :show-boxes :scope :all-frames?. |
 | `spel/page` | [] | Returns the current Page instance. |
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
 | `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
@@ -845,6 +849,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/route!` | [pattern handler] | Registers a route handler for URL pattern. |
 | `spel/route-from-har!` | [har] \| [har opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
 | `spel/route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
+| `spel/routes` | [] \| [opts] | Extracts all links from the page. Returns map with :url :count :links. |
 | `spel/save-annotated-screenshot!` | [refs path] \| [refs path opts] | Takes an annotated screenshot and saves it to a file. |
 | `spel/save-audit-screenshot!` | [caption path] \| [caption path opts] | Takes an audit screenshot and saves it to a file. |
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
@@ -864,6 +869,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
 | `spel/stop!` | [] | Stops the Playwright session, closing browser and cleaning up resources. |
+| `spel/survey` | [] \| [opts] | Scrolls through the page taking a screenshot at each viewport position. |
 | `spel/switch-tab!` | [idx] | Switches to the tab at the given index. |
 | `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
 | `spel/tap-element` | [sel] | Taps an element (for touch devices). |
