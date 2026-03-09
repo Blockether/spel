@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.21] - 2026-03-09
+
+### Changed
+- refactor(agents): merge visual-qa into bug-hunter, consolidate to 14 agents
+- release: update version files for v0.5.20, bump to next dev version
+
+
 ## [v0.5.20] - 2026-03-09
 
 ### Changed
@@ -654,7 +661,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.20...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.21...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -682,3 +689,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.18]: https://github.com/Blockether/spel/releases/tag/v0.5.18
 [v0.5.19]: https://github.com/Blockether/spel/releases/tag/v0.5.19
 [v0.5.20]: https://github.com/Blockether/spel/releases/tag/v0.5.20
+[v0.5.21]: https://github.com/Blockether/spel/releases/tag/v0.5.21
