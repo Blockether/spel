@@ -29,7 +29,7 @@ Three agents with competing scoring incentives:
 
 > Skip if you want the Hunter to do its own exploration.
 
-If @spel-explorer and @spel-visual-qa are scaffolded, invoke them first for higher-quality input data:
+If @spel-explorer is scaffolded, invoke it first for higher-quality input data. The Hunter handles visual regression as its Phase 0 when baselines exist.
 
 ### Explore
 
@@ -42,17 +42,12 @@ If @spel-explorer and @spel-visual-qa are scaffolded, invoke them first for high
 
 Produces: `exploration-manifest.json`, page snapshots, screenshots.
 
-### Visual regression (if baselines exist)
+### Visual regression (handled by Hunter)
 
-```xml
-<visual-qa>
-  <task>Compare against existing baselines</task>
-  <url>{{target-url}}</url>
-  <baseline-dir>{{baseline-dir}}</baseline-dir>
-</visual-qa>
-```
+If baselines exist in `{{baseline-dir}}`, the Hunter's Phase 0 automatically handles visual regression.
+It captures current state, diffs against baselines, and generates `bugfind-reports/diff-report.json`.
 
-Produces: `diff-report.json`, current vs baseline comparison.
+No separate agent invocation needed — visual regression is built into the Hunter.
 
 ## Hunt
 

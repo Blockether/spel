@@ -116,7 +116,7 @@ For sites requiring login or cookie acceptance:
 
 - With automation workflow: run the explore step before automating. The automator reads `exploration-manifest.json` for selectors and page structure.
 - With test workflow: exploration data helps the test planner identify user flows and test scenarios.
-- With visual workflow: explorer snapshots provide baseline material for visual-qa.
+- With visual workflow: explorer snapshots provide baseline material for the Bug Hunter's visual regression phase.
 
 ## Notes
 

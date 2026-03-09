@@ -181,10 +181,10 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (all 15 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
+Scaffold agent skills (all 14 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
 
 ```bash
-# Full scaffolding with all 12 agents (default)
+# Full scaffolding with all 14 agents (default)
 spel init-agents
 
 # All agents, no seed test or specs directory
@@ -361,7 +361,7 @@ spel compiles to a native binary via GraalVM - no JVM startup, instant execution
 Point your AI agent at spel and let it write your E2E tests.
 
 ```bash
-spel init-agents                              # all 15 agents (default)
+spel init-agents                              # all 14 agents (default)
 spel init-agents --loop=claude                # Claude Code
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
@@ -399,7 +399,7 @@ Orchestrators are smart entry points that route your request to the right specia
 |-------|---------|
 | `@spel-orchestrator` | **Meta-orchestrator** — analyzes your request and routes to the right pipeline |
 | `@spel-test-orchestrator` | Drives the full test pipeline: plan → [challenge] → generate → heal |
-| `@spel-qa-orchestrator` | Coordinates QA: [explore] → [visual-diff] → hunt → challenge → judge |
+| `@spel-qa-orchestrator` | Coordinates QA: [explore] → hunt (with visual regression) → challenge → judge |
 | `@spel-orchestrator` | Also runs automation coordination directly: [auth] → explore → [script] → [document] |
 
 Just say `@spel-orchestrator test the login page` and it handles the rest.
@@ -412,7 +412,7 @@ Orchestrators are artifact-first: they should stop at explicit user-review gates
 |-------|--------|---------|
 | `test` | planner, generator, healer | E2E test writing |
 | `automation` | explorer, automator | Browser automation |
-| `visual` | presenter, visual-qa | Visual content + QA |
+| `visual` | presenter | Visual content |
 | `bugfind` | bug-hunter, bug-skeptic, bug-referee | Adversarial bug finding |
 | `orchestrator` | orchestrator, test-orch, qa-orch | Smart routing |
 | `discovery` | product-analyst | Product feature inventory + coherence audit |

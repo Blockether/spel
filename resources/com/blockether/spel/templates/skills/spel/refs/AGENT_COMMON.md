@@ -34,8 +34,8 @@ rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 
 Agent short names:
 - planner → `plan`, generator → `gen`, healer → `heal`
-- explorer → `exp`, automator → `auto`, interactive → `iact`
-- presenter → `pres`, visual-qa → `vqa`
+- explorer → `exp`, automator → `auto`
+- presenter → `pres`
 - bug-hunter → `hunt`, bug-skeptic → `skep`, bug-referee → `ref`
 - spec-skeptic → `sskep`
 - product-analyst → `disc`

@@ -414,9 +414,9 @@
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false))]
         (expect (some #(= ".opencode/skills/spel/SKILL.md" %) paths))))
 
-    (it "includes all 15 agent templates"
+    (it "includes all 14 agent templates"
       (let [names (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false))]
-        (expect (= 15 (count names)))))
+        (expect (= 14 (count names)))))
 
     (it "includes test agents"
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
@@ -551,13 +551,8 @@
         (expect (not (contains? names "spel-visual-qa"))))))
 
   (describe "workflow filtering"
-    (it "excludes visual workflow when only presenter is selected (missing visual-qa)"
+    (it "includes visual workflow when presenter is selected (visual-qa merged into bug-hunter)"
       (let [resolved #{:presenter}
-            paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" resolved false)))]
-        (expect (not (some #(str/includes? % "spel-visual-workflow") paths)))))
-
-    (it "includes visual workflow when both presenter and visual-qa are selected"
-      (let [resolved #{:presenter :visual-qa}
             paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" resolved false)))]
         (expect (some #(str/includes? % "spel-visual-workflow") paths))))
 

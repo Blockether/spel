@@ -286,7 +286,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 ## Pipeline flow
 
 ```
-Phase 0 (optional): @spel-explorer + @spel-visual-qa
+Phase 0 (optional): @spel-explorer + visual regression (built into Hunter)
   Exploration data + visual regression report
   ↓
 Phase 1: @spel-bug-hunter

@@ -1,5 +1,5 @@
 ---
-description: "Adversarial bug finder. Hunts functional, visual, accessibility, UX, and performance bugs using spel. Use when user says 'find bugs', 'test for issues', 'audit this site', or 'check for broken functionality'. Do NOT use for writing E2E tests or automation scripts."
+description: "Adversarial bug finder with visual regression. Hunts functional, visual, accessibility, UX, and performance bugs using spel. Handles baseline capture, visual diff comparison, and regression detection. Use when user says 'find bugs', 'test for issues', 'audit this site', 'check for broken functionality', 'visual regression', 'compare screenshots', 'check for visual changes', or 'diff the baseline'. Do NOT use for writing E2E tests or automation scripts."
 mode: subagent
 color: "#DC2626"
 tools:
@@ -30,13 +30,13 @@ Focus on these refs from your SKILL:
 Inputs:
 - Target URL (REQUIRED)
 - `exploration-manifest.json` (OPTIONAL, from `spel-explorer`)
-- `diff-report.json` (OPTIONAL, from `spel-visual-qa`)
-- `product-spec.json` (OPTIONAL, from `spel-product-analyst`) — when present, use coherence_audit scores to prioritize dimensions (focus on score < 70 first) and enrich coverage matrix with feature names from features[]
+- `baselines/` directory with prior snapshot/screenshot artifacts (OPTIONAL, for visual regression)
+- `product-spec.json` (OPTIONAL, from `spel-product-analyst`) — when present, use coherence_audit scores to prioritize dimensions (focus on score < 70 first) and enrich coverage matrix with feature names from features[]. Also auto-populate page list from `navigation_map.pages[]`.
 
 Outputs:
 - `bugfind-reports/hunter-report.json` — Hunter report using BUGFIND_GUIDE schema (JSON)
 - `bugfind-reports/evidence/` — Supporting screenshots, snapshots, and logs
-
+- `bugfind-reports/diff-report.json` — Visual regression report (JSON, only when baselines exist)
 
 See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 
@@ -94,6 +94,27 @@ spel --session $SESSION open <url> --interactive
 spel --session $SESSION close
 ```
 
+## Snapshot style tiers
+
+Choose the right tier for the task:
+
+- `--minimal`: layout check, position (top/left/right/bottom), display, dimensions (16 props)
+- (default): standard visual state, adds visibility, float, clear (31 props)
+- `--max`: full style comparison, adds transform, all computed styles (44 props)
+
+```bash
+# Quick layout check (position props included!)
+spel snapshot -S --minimal --json > current-minimal.json
+
+# Standard visual comparison
+spel snapshot -S --json > current-state.json
+
+# Full style comparison
+spel snapshot -S --max --json > current-max.json
+```
+
+Use `--minimal` for layout verification and viewport checks. Use default for visual regression comparison. Use `--max` only when investigating specific style property changes.
+
 See AGENT_COMMON.md for daemon notes.
 
 ## Bug categories (audit all 6)
@@ -116,9 +137,9 @@ Objective: maximize total score by finding legitimate bugs. Missing real bugs is
 ## Composition rules
 
 1. If `exploration-manifest.json` exists, read it first and use it to prioritize flows/pages. Do not re-explore already covered paths unless needed for reproduction.
-2. If `diff-report.json` exists, incorporate those regressions into candidate bug list and verify severity with fresh evidence.
+2. If `baselines/` directory exists, run the visual regression workflow (Phase 0) before bug hunting. Generate `bugfind-reports/diff-report.json` with structural and style changes.
 3. If neither file exists, proceed with direct audit from target URL.
-4. If `product-spec.json` exists, read `coherence_audit.dimensions[]` and sort by score ascending to prioritize hunt order. Use `features[]` to build a feature-enriched coverage matrix.
+4. If `product-spec.json` exists, read `coherence_audit.dimensions[]` and sort by score ascending to prioritize hunt order. Use `features[]` to build a feature-enriched coverage matrix. Also auto-populate page list from `navigation_map.pages[]` (filter to `status: "ok"` only).
 
 ### Pre-audit: build bug inventory
 
@@ -136,6 +157,62 @@ Before starting, build a coverage matrix of all areas to audit. This prevents bl
 Check off each cell as you audit it. Include this inventory in `hunter-report.json` so the skeptic and referee know your coverage scope.
 
 ## Core workflow
+
+### Phase 0: visual regression (if baselines exist)
+
+If a `baselines/` directory exists with prior snapshots/screenshots, capture current state and diff against baselines at all three viewports before proceeding to bug hunting.
+
+```bash
+SESSION="hunt-<name>-$(date +%s)"
+spel --session $SESSION open <url> --interactive
+
+# For each page, at each viewport (desktop 1280x720, tablet 768x1024, mobile 375x667):
+# 1. Set viewport size
+# 2. Capture current snapshot + screenshot
+
+# Desktop (default viewport)
+spel --session $SESSION snapshot -S --json > current/<page>-desktop.json
+spel --session $SESSION screenshot current/<page>-desktop.png
+
+# Tablet
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 768 1024)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > current/<page>-tablet.json
+spel --session $SESSION screenshot current/<page>-tablet.png
+
+# Mobile
+spel --session $SESSION eval-sci '(spel/set-viewport-size! 375 667)'
+spel --session $SESSION eval-sci '(spel/wait-for-load-state)'
+spel --session $SESSION snapshot -S --json > current/<page>-mobile.json
+spel --session $SESSION screenshot current/<page>-mobile.png
+```
+
+Diff each viewport against its baseline using `clojure.data/diff` in eval-sci. Generate `bugfind-reports/diff-report.json`:
+
+```json
+{
+  "agent": "spel-bug-hunter",
+  "target_url": "https://example.com",
+  "additions": [],
+  "removals": [],
+  "style_changes": [
+    {
+      "ref": "e12",
+      "property": "top",
+      "baseline": "120px",
+      "current": "128px"
+    }
+  ]
+}
+```
+
+Severity thresholds for visual regression:
+- Structural changes (`additions`/`removals`) = critical
+- Position deltas `> 5px` = medium
+- Sub-pixel deltas (`< 1px`) = ignore as rendering noise
+- Viewport-specific regressions (breaks on mobile but not desktop) = medium-to-critical depending on impact
+
+Incorporate regressions into the candidate bug list for Phases 1-2.
 
 ### Phase 1: technical audit
 
@@ -258,3 +335,33 @@ Present hunter report to user. Do NOT proceed until reviewed.
 - If auth wall blocks testing: report auth requirement and request state/profile or handoff to interactive login flow.
 - If a selector/step fails: capture snapshot + screenshot of current state and continue auditing reachable areas.
 - If session fails/conflicts: rotate to a fresh `hunt-<name>-<timestamp>` session and retry once.
+
+## Baseline management
+
+When baselines exist, use them. When they don't, offer to capture them.
+
+Directory convention:
+```
+baselines/
+  <page-name>-desktop.json     # Desktop accessibility snapshot
+  <page-name>-desktop.png      # Desktop screenshot
+  <page-name>-tablet.json      # Tablet accessibility snapshot
+  <page-name>-tablet.png       # Tablet screenshot
+  <page-name>-mobile.json      # Mobile accessibility snapshot
+  <page-name>-mobile.png       # Mobile screenshot
+  README.md                    # What was captured and when
+current/
+  <page-name>-desktop.json     # Current desktop state
+  <page-name>-desktop.png      # Current desktop screenshot
+  <page-name>-tablet.json      # Current tablet state
+  <page-name>-tablet.png       # Current tablet screenshot
+  <page-name>-mobile.json      # Current mobile state
+  <page-name>-mobile.png       # Current mobile screenshot
+```
+
+Naming: `<page-name>` should be descriptive: `homepage`, `checkout-flow`, `user-profile`.
+
+If NO baselines exist but user wants visual regression:
+- Run baseline capture mode (capture snapshots + screenshots at all viewports, no comparison)
+- Inform user: "Captured initial baselines. Run again after changes to detect regressions."
+- Do NOT update baselines until user confirms changes are intentional.

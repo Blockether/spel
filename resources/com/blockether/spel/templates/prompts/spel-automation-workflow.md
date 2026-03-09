@@ -71,7 +71,7 @@ spel --load-state auth-state.json eval-sci script.clj
 
 - With bugfind workflow: run the explore step before the bug-finding pipeline. The Hunter reads `exploration-manifest.json` for prioritized coverage.
 - With test workflow: exploration data helps the test planner identify selectors and flows.
-- With visual workflow: explorer snapshots provide baseline material for visual-qa.
+- With visual workflow: explorer snapshots provide baseline material for the Bug Hunter's visual regression phase.
 
 ## Session isolation
 

@@ -36,7 +36,7 @@ If the installed version does not match **{{version}}**:
 
 The orchestrator routes to:
 - `@spel-test-orchestrator` — E2E test writing (plan → challenge → generate → heal)
-- `@spel-qa-orchestrator` — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML + Markdown reports)
+- `@spel-qa-orchestrator` — Bug finding (explore → hunt (with visual regression) → challenge → judge → HTML + Markdown reports)
 - Automation specialists directly (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
 
 You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.

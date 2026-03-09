@@ -90,15 +90,15 @@ make lint                    # clojure-lsp diagnostics --raw
 make validate-safe-graal     # check for reflection/boxed-math warnings
 make gen-docs                # regenerate refs/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
-make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 15 agents)
+make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 14 agents)
 ```
 
 ## Agent Scaffolding
 
-`spel init-agents` scaffolds 15 agents across six groups. Use `--only` to scaffold a subset.
+`spel init-agents` scaffolds 14 agents across six groups. Use `--only` to scaffold a subset.
 
 ```bash
-spel init-agents                              # all 15 agents (default)
+spel init-agents                              # all 14 agents (default)
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
 spel init-agents --only=visual                # visual QA agents only
@@ -115,12 +115,12 @@ spel init-agents --only=discovery             # product discovery agents only
 |-------|--------|---------|
 | `test` | spel-test-planner, spel-test-generator, spel-test-healer | E2E test writing |
 | `automation` | spel-explorer, spel-automator | Browser automation |
-| `visual` | spel-presenter, spel-visual-qa | Visual content + QA |
+| `visual` | spel-presenter | Visual content |
 | `bugfind` | spel-bug-hunter, spel-bug-skeptic, spel-bug-referee | Adversarial bug finding |
 | `orchestrator` | spel-orchestrator, spel-test-orchestrator, spel-qa-orchestrator | Smart routing |
 | `discovery` | spel-product-analyst | Product feature inventory + coherence audit |
 
-Individual agent names also work as `--only` values: `explorer`, `automator`, `presenter`, `visual-qa`, `spec-skeptic`, `bug-hunter`, `bug-skeptic`, `bug-referee`, `orchestrator`, `test-orchestrator`, `qa-orchestrator`, `product-analyst`.
+Individual agent names also work as `--only` values: `explorer`, `automator`, `presenter`, `bug-hunter`, `bug-skeptic`, `bug-referee`, `orchestrator`, `test-orchestrator`, `qa-orchestrator`, `product-analyst`.
 
 ### `--loop` flag
 

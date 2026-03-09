@@ -76,11 +76,9 @@
                "CODEGEN_CLI.md" "FRAMES_INPUT.md" "PDF_STITCH_VIDEO.md"]
    :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
                "SLIDE_PATTERNS.md" "PDF_STITCH_VIDEO.md"]
-   :visual-qa ["SELECTORS_SNAPSHOTS.md" "SNAPSHOT_TESTING.md"
-               "ASSERTIONS_EVENTS.md" "VISUAL_QA_GUIDE.md"]
    :bug-hunter ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                 "BUGFIND_GUIDE.md" "NAVIGATION_WAIT.md" "NETWORK_ROUTING.md"
-                "PAGE_LOCATORS.md"]
+                "PAGE_LOCATORS.md" "SNAPSHOT_TESTING.md"]
    :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                  "BUGFIND_GUIDE.md"]
    :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
@@ -99,7 +97,6 @@
    :explorer #{:explorer}
    :automator #{:automator}
    :presenter #{:presenter}
-   :visual-qa #{:visual-qa}
    :bug-hunter #{:bug-hunter}
    :bug-skeptic #{:bug-skeptic}
    :bug-referee #{:bug-referee}
@@ -107,7 +104,7 @@
    :test-orchestrator #{:test-orchestrator}
    :qa-orchestrator #{:qa-orchestrator}
    :automation #{:explorer :automator}
-   :visual #{:presenter :visual-qa}
+   :visual #{:presenter}
    :bugfind #{:bug-hunter :bug-skeptic :bug-referee}
    :discovery #{:product-analyst}
    :product-analyst #{:product-analyst}
@@ -124,7 +121,6 @@
    "spel-explorer" :explorer
    "spel-automator" :automator
    "spel-presenter" :presenter
-   "spel-visual-qa" :visual-qa
    "spel-bug-hunter" :bug-hunter
    "spel-bug-skeptic" :bug-skeptic
    "spel-bug-referee" :bug-referee
@@ -137,7 +133,7 @@
   "Maps workflow prompt resource paths to the set of subagent keywords they require.
    A workflow is only scaffolded if ALL its required agents are selected."
   {"prompts/spel-test-workflow.md" #{:test}
-   "prompts/spel-visual-workflow.md" #{:presenter :visual-qa}
+   "prompts/spel-visual-workflow.md" #{:presenter}
    "prompts/spel-automation-workflow.md" #{:explorer :automator}
    "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}
    "prompts/spel-discovery-workflow.md" #{:product-analyst}})
@@ -211,11 +207,6 @@
                          "presenter agent"
                          "+"
                          "spel-presenter"]
-                        ["agents/spel-visual-qa.md"
-                         (str agent-dir "/spel-visual-qa" agent-ext)
-                         "visual qa agent"
-                         "+"
-                         "spel-visual-qa"]
                         ["prompts/spel-test-workflow.md"
                          (str prompt-dir "/spel-test-workflow.md")
                          "coverage workflow"
@@ -421,7 +412,6 @@
    "spel-explorer"
    "spel-automator"
    "spel-presenter"
-   "spel-visual-qa"
    "spel-bug-hunter"
    "spel-bug-skeptic"
    "spel-bug-referee"
@@ -721,11 +711,11 @@
   (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
   (println "                    Values: test, spec-skeptic, explorer, automator,")
-  (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
+  (println "                            presenter, bug-hunter, bug-skeptic, bug-referee,")
   (println "                            orchestrator, test-orchestrator, qa-orchestrator,")
   (println "                            product-analyst, discovery, core")
   (println "                    Groups: automation (explorer+automator),")
-  (println "                            visual (presenter+visual-qa),")
+  (println "                            visual (presenter),")
   (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
   (println "                            orchestrator (all 3 orchestrators),")
   (println "                            discovery (product-analyst),")
