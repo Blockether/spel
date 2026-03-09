@@ -1,0 +1,126 @@
+F3: Manual QA — spel init-agents (14→8 agent consolidation)
+============================================================
+Date: Mon Mar 09 2026
+spel version: 0.5.21
+
+Scenarios [12/12 pass] | --only groups [7/7] | Flavours [2/2] | Loops [2/2] | VERDICT: APPROVE
+
+================================================================================
+SCENARIO 1: spel init-agents --dry-run --ns test-app
+EXPECT: exactly 8 agents
+RESULT: PASS (8 agents)
+  Agents:
+    1. spel-test-planner.md
+    2. spel-test-writer.md
+    3. spel-explorer.md
+    4. spel-automator.md
+    5. spel-presenter.md
+    6. spel-bug-hunter.md
+    7. spel-orchestrator.md
+    8. spel-product-analyst.md
+  No deleted agents present (test-orchestrator, qa-orchestrator, bug-skeptic,
+  bug-referee, spec-skeptic, test-healer, test-generator) — CONFIRMED ABSENT
+
+================================================================================
+SCENARIO 2: spel init-agents --only=test --dry-run
+EXPECT: test-planner + test-writer (NOT generator/healer)
+RESULT: PASS
+  Agents: spel-test-planner.md, spel-test-writer.md
+  test-generator: 0 matches
+  test-healer: 0 matches
+
+================================================================================
+SCENARIO 3: spel init-agents --only=bugfind --dry-run
+EXPECT: bug-hunter ONLY (NOT skeptic/referee)
+RESULT: PASS
+  Agents: spel-bug-hunter.md
+  bug-skeptic: 0 matches
+  bug-referee: 0 matches
+
+================================================================================
+SCENARIO 4: spel init-agents --only=orchestrator --dry-run
+EXPECT: orchestrator ONLY (NOT test-orch/qa-orch)
+RESULT: PASS
+  Agents: spel-orchestrator.md
+  test-orchestrator: 0 matches
+  qa-orchestrator: 0 matches
+
+================================================================================
+SCENARIO 5: spel init-agents --only=core --dry-run
+EXPECT: exactly 6 agents (orchestrator, test-planner, test-writer, explorer, bug-hunter, product-analyst)
+RESULT: PASS (6 agents)
+  Agents:
+    1. spel-test-planner.md
+    2. spel-test-writer.md
+    3. spel-explorer.md
+    4. spel-bug-hunter.md
+    5. spel-orchestrator.md
+    6. spel-product-analyst.md
+
+================================================================================
+SCENARIO 6: spel init-agents --only=automation --dry-run
+EXPECT: explorer + automator
+RESULT: PASS
+  Agents: spel-explorer.md, spel-automator.md
+
+================================================================================
+SCENARIO 7: spel init-agents --only=visual --dry-run
+EXPECT: presenter only
+RESULT: PASS
+  Agents: spel-presenter.md
+
+================================================================================
+SCENARIO 8: spel init-agents --only=discovery --dry-run
+EXPECT: product-analyst only
+RESULT: PASS
+  Agents: spel-product-analyst.md
+
+================================================================================
+SCENARIO 9: spel init-agents --flavour=clojure-test --only=test --dry-run --ns test-app
+EXPECT: spel-test-writer (not test-generator); clojure-test deps in output
+RESULT: PASS
+  Agents: spel-test-planner.md, spel-test-writer.md
+  Deps include cognitect test-runner (clojure-test flavour confirmed)
+
+================================================================================
+SCENARIO 10: spel init-agents --loop=claude --dry-run --ns test-app
+EXPECT: .claude/agents/ paths (not .opencode/)
+RESULT: PASS
+  All 8 agents use .claude/agents/ path
+  .claude/ paths: 8
+  .opencode/ paths: 0
+
+================================================================================
+SCENARIO 11: spel init-agents --only=invalid 2>&1
+EXPECT: "Unknown --only" error, non-zero exit
+RESULT: PASS
+  Output: Error: Unknown --only value: 'invalid'. Valid values: automation, automator,
+          bug-hunter, bugfind, core, discovery, explorer, orchestrator, presenter,
+          product-analyst, test, visual
+  Exit code: 1
+
+================================================================================
+SCENARIO 12: spel init-agents --loop=vscode 2>&1
+EXPECT: deprecation error with "removed"
+RESULT: PASS
+  Output: Error: --loop=vscode has been removed. Use --loop=opencode (default)
+          or --loop=claude instead.
+
+================================================================================
+SUMMARY
+================================================================================
+  Scenarios:    12/12 pass
+  --only groups: 7/7 (test, bugfind, orchestrator, core, automation, visual, discovery)
+  Flavours:      2/2 (lazytest [default, implicit], clojure-test [explicit S9])
+  Loops:         2/2 (claude [S10], vscode-deprecated [S12])
+
+  Deleted agents confirmed absent from ALL outputs:
+    - test-orchestrator    ✗ (removed)
+    - qa-orchestrator      ✗ (removed)
+    - bug-skeptic          ✗ (removed)
+    - bug-referee          ✗ (removed)
+    - spec-skeptic         ✗ (removed)
+    - test-healer          ✗ (removed)
+    - test-generator       ✗ (removed → replaced by test-writer)
+
+  VERDICT: APPROVE

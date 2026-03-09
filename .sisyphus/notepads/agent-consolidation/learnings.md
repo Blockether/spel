@@ -128,3 +128,10 @@
   - `spel-explorer.md:205` — "that's spel-test-generator's domain" → should be `spel-test-writer`
   - `spel-automator.md:222` — "that's spel-test-generator's job" → should be `spel-test-writer`
 - These were in the 3 templates marked "KEEP AS-IS" (explorer, automator, presenter) — the stale-ref sweep missed them because they weren't `@`-prefixed references
+
+## F4: Scope fidelity outcomes
+
+- Commit `cf1843c069` scope matches plan task surface: templates, scaffolding code, tests, prompts, docs, and generated `help-registry.edn` only.
+- No out-of-scope file touches detected against expected scope list (unaccounted files: 0).
+- Guardrail pass: no changes to `page.clj`, `locator.clj`, `sci_env.clj`, `daemon.clj`, `cli.clj`, CI workflows, or `CHANGELOG.md`.
+- Consolidated template size guardrail pass: orchestrator 247, bug-hunter 446, test-planner 320, test-writer 276, test-writer-ct 275 (all <= 500).

@@ -1,0 +1,136 @@
+F1: Plan Compliance Audit — 14→8 Agent Consolidation
+=====================================================
+Date: 2026-03-09
+Commit: 9d659b7406 (HEAD) on main, tag v0.5.22
+Baseline: 2739454ca3 (pre-consolidation, v0.5.21 release)
+
+========================================
+MUST HAVE [4/4]
+========================================
+
+1. ✅ All 8 surviving agents scaffold correctly for both opencode and claude loops
+   - opencode: `spel init-agents --dry-run --ns test-app` → 8 agents to .opencode/agents/
+   - claude:   `spel init-agents --loop=claude --dry-run --ns test-app` → 8 agents to .claude/agents/
+   - Agents: orchestrator, test-planner, test-writer, explorer, automator, bug-hunter, presenter, product-analyst
+
+2. ✅ Merged agents preserve ALL functionality from absorbed agents
+   - test-writer: Phase 1 (Generate) + Phase 2 (Self-Heal) = test-generator + test-healer merged
+     Evidence: task-1-template-structure.txt (276 lines, has both phases)
+   - bug-hunter: Phases 0-5 including self-challenge (Phase 4, from bug-skeptic) + verdict/reporting (Phase 5, from bug-referee)
+     Evidence: task-5-bug-hunter-phases.txt (446 lines, all phases present, 0 stale refs)
+   - orchestrator: Inlines test pipeline + QA pipeline execution (from test-orchestrator + qa-orchestrator)
+     Evidence: task-3-orchestrator-coverage.txt (247 lines, pipeline sections present)
+
+3. ✅ Workflow prompts match the new agent set
+   - spel-test-workflow.md: planner → [self-challenge] → writer (generate + heal)
+   - spel-bugfind-workflow.md: single bug-hunter multi-phase (0-5)
+   - Zero stale refs: grep returns 0 matches across all prompts
+     Evidence: task-8-workflow-stale-refs.txt
+
+4. ✅ Tests cover the new agent set
+   - `clojure -M:test -n com.blockether.spel.init-agents-test`: 116 cases, 0 failures
+   - CLI tests updated: 315 assertions (above 150 floor), 1 new test-writer assertion
+     Evidence: task-12-init-agents-tests.txt, task-13-cli-tests.txt
+
+========================================
+MUST NOT HAVE [11/11]
+========================================
+
+ 1. ✅ No orchestration JSON schema changes
+    Cmd: git diff 2739454ca3..HEAD --name-only | grep "qa-pipeline.json\|test-pipeline.json"
+    Result: NO_MATCHES
+
+ 2. ✅ No library code changes (page.clj, locator.clj, etc.)
+    Cmd: git diff 2739454ca3..HEAD --name-only | grep -E "page\.clj|locator\.clj"
+    Result: NO_MATCHES
+
+ 3. ✅ No SCI bindings changes (sci_env.clj, daemon.clj, cli.clj)
+    Cmd: git diff 2739454ca3..HEAD --name-only | grep -E "sci_env\.clj|daemon\.clj|cli\.clj"
+    Result: NO_MATCHES
+
+ 4. ✅ No new ref doc files created
+    Cmd: git diff 2739454ca3..HEAD --diff-filter=A --name-only | grep "templates/skills"
+    Result: NO_NEW_SKILL_FILES
+
+ 5. ✅ No new workflow prompts or new --only group keywords
+    Cmd: git diff 2739454ca3..HEAD --diff-filter=A --name-only | grep "templates/prompts\|templates/workflows"
+    Result: NO_NEW_PROMPTS
+
+ 6. ✅ No backward-compatibility aliases for removed --only values
+    Cmd: grep "test-orchestrator\|qa-orchestrator\|bug-skeptic\|bug-referee\|spec-skeptic\|test-healer" src/com/blockether/spel/init_agents.clj
+    Result: NO_ALIASES_FOUND (only unrelated ":e2e alias" string)
+
+ 7. ✅ No scaffolding system architecture refactoring
+    Cmd: git diff 2739454ca3..HEAD --stat -- src/com/blockether/spel/init_agents.clj
+    Result: 25 insertions(+), 79 deletions(-) — data removals, not architecture changes
+
+ 8. ✅ No templates exceeding 500 lines
+    Cmd: wc -l resources/com/blockether/spel/templates/agents/*.md
+    Result: Max = 446 (spel-bug-hunter.md). All under 500.
+      222 spel-automator.md
+      446 spel-bug-hunter.md
+      292 spel-explorer.md
+      247 spel-orchestrator.md
+      152 spel-presenter.md
+      360 spel-product-analyst.md
+      320 spel-test-planner.md
+      275 spel-test-writer-ct.md
+      276 spel-test-writer.md
+
+ 9. ✅ No narrative rewrites in AGENTS.md/README.md
+    Cmd: git diff 2739454ca3..HEAD --stat -- AGENTS.md README.md
+    Result: AGENTS.md 18 lines (10-/8+), README.md 23 lines (14-/9+) — name/count updates only
+
+10. ✅ No CI workflow YAML changes
+    Cmd: git diff 2739454ca3..HEAD --name-only | grep ".github/workflows/.*\.yml"
+    Result: NO_CI_CHANGES
+
+11. ✅ No historical LEARNINGS.md changes
+    Cmd: git diff 2739454ca3..HEAD --name-only | grep "LEARNINGS.md"
+    Result: NO_LEARNINGS_CHANGES
+
+========================================
+DEFINITION OF DONE [6/7 verified]
+========================================
+
+1. ✅ `spel init-agents --dry-run` lists exactly 8 agents — CONFIRMED
+2. ✅ `make test` (init-agents subset): 116 cases, 0 failures — CONFIRMED
+3. ✅ grep for 6 removed agent names → 0 matches across all templates — CONFIRMED
+4. ✅ No merged template exceeds 500 lines (max: 446 bug-hunter) — CONFIRMED
+5. ✅ --only=core (6 agents), --only=bugfind (1), --only=orchestrator (1) all work — CONFIRMED
+6. ✅ --flavour=clojure-test scaffolds spel-test-writer (not test-generator) — CONFIRMED
+7. ⏭️  ./verify.sh — NOT RUN (per audit constraints; full test run deferred)
+
+========================================
+EVIDENCE FILES [15/15]
+========================================
+
+All required evidence files present in .sisyphus/evidence/:
+  ✓ task-1-stale-refs.txt
+  ✓ task-1-template-structure.txt
+  ✓ task-2-ct-variant.txt
+  ✓ task-3-orchestrator-coverage.txt
+  ✓ task-3-stale-refs.txt
+  ✓ task-4-self-challenge.txt
+  ✓ task-5-bug-hunter-phases.txt
+  ✓ task-6-init-agents-consistency.txt
+  ✓ task-7-file-list.txt
+  ✓ task-8-workflow-stale-refs.txt
+  ✓ task-9-ref-docs-stale.txt
+  ✓ task-10-agents-md.txt
+  ✓ task-11-readme.txt
+  ✓ task-12-init-agents-tests.txt
+  ✓ task-13-cli-tests.txt
+
+========================================
+MINOR OBSERVATIONS (non-blocking)
+========================================
+
+1. README.md has duplicate `--only=core` line (cosmetic)
+2. AGENTS.md removed `--only=discovery` from examples but group still works
+
+========================================
+VERDICT
+========================================
+
+Must Have [4/4] | Must NOT Have [11/11] | Tasks [6/7] | VERDICT: APPROVE
