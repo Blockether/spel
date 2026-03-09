@@ -219,4 +219,4 @@ When writing scripts for unknown site types:
 - use `wait-for-url` or `wait-for-load-state :domcontentloaded` after click-driven route changes
 - treat larger click timeouts as fallback behavior, not the primary pattern
 
-No hardcoded URLs or credentials. Use `*command-line-args*`. No test assertions (that's spel-test-generator's job). Max 200 lines per script.
+No hardcoded URLs or credentials. Use `*command-line-args*`. No test assertions (that's spel-test-writer's job). Max 200 lines per script.

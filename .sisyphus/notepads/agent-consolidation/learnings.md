@@ -117,3 +117,14 @@
 - The `orchestrator-agent?` tests (string-matching utility) were kept unchanged — they test function behavior not agent existence
 - The `:test` keyword in `resolved-only` works for both test-planner and test-writer since both map to `:test` in `agent-to-subagent`
 - 118 test cases, 0 failures
+
+## F2: Code quality review findings
+
+- `make format`: clean (nothing to format)
+- `make lint`: 0 errors; 3 pre-existing info-level warnings in annotate.clj + snapshot_test.clj
+- @agent-name syntax: all 63 `@spel-*` references across 13 files point to valid surviving agents
+- Template sizes: all 9 templates ≤500 lines (max: bug-hunter at 446)
+- 2 stale plain-text refs to `spel-test-generator` survived in "KEEP AS-IS" templates:
+  - `spel-explorer.md:205` — "that's spel-test-generator's domain" → should be `spel-test-writer`
+  - `spel-automator.md:222` — "that's spel-test-generator's job" → should be `spel-test-writer`
+- These were in the 3 templates marked "KEEP AS-IS" (explorer, automator, presenter) — the stale-ref sweep missed them because they weren't `@`-prefixed references

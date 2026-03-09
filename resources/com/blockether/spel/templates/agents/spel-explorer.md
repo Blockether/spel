@@ -202,7 +202,7 @@ spel --session $SESSION --timeout 10000 eval-sci '
 
 ## What NOT to do
 
-- Do NOT write test assertions (that's spel-test-generator's domain)
+- Do NOT write test assertions (that's spel-test-writer's domain)
 - Do NOT write reusable automation scripts (that's spel-automator's domain)
 - Do NOT modify application code
 - Do NOT interact with elements without first running `snapshot -i` to verify refs
