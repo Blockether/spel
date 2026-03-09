@@ -1030,7 +1030,6 @@ OUT=$(cd "$LEARN_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-
 LEARNINGS_FILE="$LEARN_TMP/LEARNINGS.md"
 LEARN_ORCH_FILE="$LEARN_TMP/.opencode/agents/spel-orchestrator.md"
 LEARN_HUNTER_FILE="$LEARN_TMP/.opencode/agents/spel-bug-hunter.md"
-LEARN_AUTO_FILE="$LEARN_TMP/.opencode/agents/spel-auto-orchestrator.md"
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [ ! -f "$LEARNINGS_FILE" ]; then
@@ -1061,10 +1060,10 @@ else
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^  write: true$' "$LEARN_AUTO_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_AUTO_FILE" && grep -q 'If the user asked for JSON output and the file does not exist, the stage is not complete' "$LEARN_AUTO_FILE"; then
-  pass "automation orchestrator enforces requested JSON outputs"
+if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'Embedded automation coordination flow' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If the user requested JSON outputs and any are missing, the stage is incomplete' "$LEARN_ORCH_FILE"; then
+  pass "orchestrator embeds automation coordination and JSON output gates"
 else
-  fail "automation orchestrator enforces requested JSON outputs" "Expected automation orchestrator to require exact JSON outputs and pipeline handoff"
+  fail "orchestrator embeds automation coordination and JSON output gates" "Expected merged orchestrator to enforce automation handoff JSON and requested output gates"
 fi
 
 # --only test --dry-run: includes test agents, excludes others

@@ -1,5 +1,5 @@
 ---
-description: Adversarial bug finder. Hunts functional, visual, accessibility, UX, and performance bugs using spel.
+description: "Adversarial bug finder. Hunts functional, visual, accessibility, UX, and performance bugs using spel. Use when user says 'find bugs', 'test for issues', 'audit this site', or 'check for broken functionality'. Do NOT use for writing E2E tests or automation scripts."
 mode: subagent
 color: "#DC2626"
 tools:

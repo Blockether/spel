@@ -1,6 +1,6 @@
 ---
 name: spel
-description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when working with browser automation, E2E tests, Playwright API, or visual testing in Clojure."
+description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when user says 'test the login page', 'find bugs on this site', 'automate the checkout flow', 'explore the website', 'take a screenshot', 'write E2E tests', 'run visual regression', 'scrape data from', or asks about Playwright in Clojure. Do NOT use for general web development, backend APIs without browser context, or non-Playwright testing frameworks."
 version: "{{version}}"
 license: Apache-2.0
 compatibility: opencode
@@ -37,10 +37,21 @@ If the installed version does not match **{{version}}**:
 The orchestrator routes to:
 - `@spel-test-orchestrator` — E2E test writing (plan → challenge → generate → heal)
 - `@spel-qa-orchestrator` — Bug finding (explore → visual-diff → hunt → challenge → judge → HTML + Markdown reports)
-- `@spel-auto-orchestrator` — Browser automation (auth → explore → script → document)
+- Automation specialists directly (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
 
 You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
 Artifact-first rule: if you ask for JSON/report files, the orchestrator must treat those exact paths as required outputs, stop at gates, and keep `orchestration/*-pipeline.json` handoff manifests up to date.
+
+Runtime note:
+- In a fully scaffolded spel environment, `@spel-orchestrator` can route to `@spel-qa-orchestrator` and `@spel-test-orchestrator`, and coordinate automation specialists directly.
+- In constrained runtimes where those sub-orchestrators are not invokable, fall back to the equivalent workflow directly with spel CLI and `eval-sci`, but keep the same artifact-first contract and write the same `orchestration/*-pipeline.json` handoffs.
+
+Proven navigation playbook:
+- ALWAYS simulate user actions: click links, buttons, and navigation elements like a real human would. NEVER use `spel open <url>` to skip navigation steps — only use it for the initial page load.
+- Prefer split initial load: `spel open <url>` first, then `spel wait --load ...` as a separate command.
+- Default follow-up wait: `spel wait --load load` for traditional multi-page sites.
+- Heavy portal or ad/tracker pages: prefer `spel wait --load domcontentloaded` after clicks and use `spel wait --url <partial>` when the route change matters more than full resource completion.
+- Treat longer click timeouts as a last resort, not the first fix.
 
 
 | Command | Purpose |
@@ -81,100 +92,16 @@ Artifact-first rule: if you ask for JSON/report files, the orchestrator must tre
 
 ## Google search
 
-Search Google from the CLI, SCI `eval-sci` mode, or Clojure library — no API key required. Uses Playwright with stealth mode.
-
-### CLI
+Search Google from CLI, SCI, or library — no API key required. Quick example:
 
 ```bash
-spel search "clojure programming"                    # table output (default)
-spel search "clojure" --json                          # JSON output
-spel search "cats" --images                           # image search
-spel search "world news" --news                       # news search
-spel search "query" --page 2 --num 20                 # pagination
-spel search "query" --max-pages 3 --json              # multi-page collect
-spel search "query" --limit 5                         # first 5 results only
-spel search "query" --open 1                          # navigate to result #1
-spel search "query" --lang en --time-range week       # language + time filter
-spel search "query" --screenshot results.png          # save screenshot
-spel search "query" --no-stealth                      # disable stealth mode
+spel search "clojure programming"              # table output
+spel search "clojure" --json                    # JSON output
+spel search "cats" --images                     # image search
+spel search "query" --open 1                    # navigate to result #1
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--images` | Image search |
-| `--news` | News search |
-| `--page N` | Results page (default: 1) |
-| `--num N` | Results per page (default: 10) |
-| `--max-pages N` | Collect N pages |
-| `--limit N` | Show first N results |
-| `--open N` | Navigate to result #N |
-| `--json` | JSON output |
-| `--screenshot PATH` | Save screenshot |
-| `--lang LANG` | Language code |
-| `--safe MODE` | Safe search: off, medium, high |
-| `--time-range RANGE` | Time: day, week, month, year |
-| `--no-stealth` | Disable stealth mode |
-
-### SCI `eval-sci` mode
-
-```clojure
-;; Basic search (returns Clojure map)
-(def r (search/search! "clojure programming"))
-(:results r)    ;; => [{:title "..." :url "..." :snippet "..." :position 1} ...]
-(:stats r)      ;; => "About 1,234,567 results (0.42 seconds)"
-
-;; Image / news search
-(search/search! "cats" {:type :images})
-(search/search! "news" {:type :news})
-
-;; Extract from current page (after search!)
-(search/extract-web-results)          ;; web results
-(search/extract-image-results)        ;; image results
-(search/extract-news-results)         ;; news results
-(search/extract-people-also-ask)      ;; PAA questions
-(search/extract-related-searches)     ;; related queries
-(search/extract-result-stats)         ;; result stats
-
-;; Pagination
-(search/has-next-page?)   ;; => true/false
-(search/next-page!)       ;; navigate + extract next page
-(search/go-to-page! "query" 3) ;; jump to page 3
-
-;; Lazy pagination with iteration
-(->> (search/search-pages "clojure")
-     (take 3)
-     (mapcat :results)
-     (map :title))
-
-;; Build URL only
-(search/search-url "test" {:type :images :page 2})
-```
-
-### Library API
-
-```clojure
-(require '[com.blockether.spel.search :as search])
-
-;; Single page search
-(search/search! page "clojure" {:type :web :num 20})
-
-;; Multi-page collect
-(search/search-and-collect! page "clojure" {:type :web :max-pages 3})
-
-;; Lazy pagination with iteration
-(->> (search/search-pages page "clojure")
-     (take 3)
-     (mapcat :results))
-
-;; Individual extractors (after navigating to Google results)
-(search/extract-web-results page)
-(search/extract-image-results page)
-(search/extract-news-results page)
-(search/extract-people-also-ask page)
-(search/extract-related-searches page)
-(search/has-next-page? page)
-(search/next-page! page)
-```
+For full CLI flags, SCI functions, and library API, see `refs/SEARCH_API.md`.
 
 ## ⚠️ SCI eval vs library: key differences
 
@@ -231,6 +158,66 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 | Lifecycle | Use `with-*` macros (`with-playwright`, `with-browser`, `with-page`) — resources auto-cleaned |
 | Screenshots | After visual/UI changes, ALWAYS take and display a screenshot as proof |
 
+## Examples
+
+Example 1: Write E2E tests
+User says: "Test the login page at http://localhost:3000"
+Actions:
+1. Route to @spel-test-orchestrator
+2. @spel-test-planner explores the login page, writes test plan
+3. @spel-test-generator creates Clojure E2E tests with assertions
+4. @spel-test-healer fixes any failing tests
+Result: Working E2E test suite in `test-e2e/` with Allure reporting
+
+Example 2: Find bugs on a live site
+User says: "Find bugs on https://example.com"
+Actions:
+1. Route to @spel-qa-orchestrator
+2. @spel-explorer maps the site, captures snapshots
+3. @spel-bug-hunter tests for functional, visual, and UX bugs
+4. @spel-bug-skeptic challenges each finding
+5. @spel-bug-referee delivers final verdicts
+Result: HTML + Markdown bug reports with evidence screenshots
+
+Example 3: Automate a browser workflow
+User says: "Automate filling out the registration form"
+Actions:
+1. @spel-orchestrator runs embedded automation pipeline
+2. @spel-explorer maps the form fields and page structure
+3. @spel-automator writes a reusable eval-sci script
+Result: Reusable `.clj` automation script with JSON output
+
+Example 4: Take a screenshot and explore
+User says: "Open https://example.com and take a screenshot"
+Actions:
+1. `spel open https://example.com`
+2. `spel wait --load load`
+3. `spel screenshot example.png`
+Result: Screenshot saved to `example.png`
+
+## Troubleshooting
+
+### Click times out on SPA / heavy pages
+Cause: Default `load` wait hangs on SPAs that never fully "load" (ad trackers, analytics).
+Solution: Use `spel wait --load domcontentloaded` after clicks. If the click itself times out, try `spel wait --url <partial>` to wait for the route change instead. NEVER skip user actions by navigating directly — always click like a human would.
+
+### Session conflict / stale daemon
+Cause: Previous session was not closed, or daemon socket is stale.
+Solution: Close with `spel --session $SESSION close`. If that fails, run `spel session list` and kill stale sessions. As a last resort, remove stale socket files.
+
+### Snapshot refs not found after navigation
+Cause: Page content changed after navigation; old refs are invalid.
+Solution: ALWAYS re-run `spel snapshot -i` after any navigation or page state change. Never reuse refs from a previous snapshot.
+
+For more troubleshooting, see `refs/COMMON_PROBLEMS.md`.
+
+## Performance notes
+
+- Take your time to verify selectors and page state thoroughly before writing assertions.
+- Quality is more important than speed — flaky tests cost more than slow generation.
+- Do not skip validation steps (snapshot verification, gate approvals).
+- Prefer fewer, well-verified assertions over many untested ones.
+
 ## Reference documentation
 
 ### Core API & patterns
@@ -242,6 +229,7 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 | `refs/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
 | `refs/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
 | `refs/CONSTANTS.md` | Constants, enums, AriaRole values |
+| `refs/SEARCH_API.md` | Google Search CLI, SCI, and library API |
 
 ### Browser & network
 | Ref | Topic |

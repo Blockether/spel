@@ -363,9 +363,6 @@
   (it "detects spel-qa-orchestrator"
     (expect (true? (#'sut/orchestrator-agent? "spel-qa-orchestrator"))))
 
-  (it "detects spel-auto-orchestrator"
-    (expect (true? (#'sut/orchestrator-agent? "spel-auto-orchestrator"))))
-
   (it "rejects spel-test-planner"
     (expect (false? (#'sut/orchestrator-agent? "spel-test-planner"))))
 
@@ -417,9 +414,9 @@
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false))]
         (expect (some #(= ".opencode/skills/spel/SKILL.md" %) paths))))
 
-    (it "includes all 17 agent templates"
+    (it "includes all 15 agent templates"
       (let [names (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false))]
-        (expect (= 17 (count names)))))
+        (expect (= 15 (count names)))))
 
     (it "includes test agents"
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
@@ -431,8 +428,7 @@
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
         (expect (contains? names "spel-orchestrator"))
         (expect (contains? names "spel-test-orchestrator"))
-        (expect (contains? names "spel-qa-orchestrator"))
-        (expect (contains? names "spel-auto-orchestrator"))))
+        (expect (contains? names "spel-qa-orchestrator"))))
 
     (it "includes all workflow prompts"
       (let [paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false)))]
@@ -472,14 +468,13 @@
         (expect (some #(str/includes? % "CONSTANTS.md") paths)))))
 
   (describe "--only automation"
-    (let [resolved #{:explorer :automator :interactive}
+    (let [resolved #{:explorer :automator}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))]
 
       (it "includes automation agents"
         (expect (contains? names "spel-explorer"))
-        (expect (contains? names "spel-automator"))
-        (expect (contains? names "spel-interactive")))
+        (expect (contains? names "spel-automator")))
 
       (it "excludes test agents"
         (expect (not (contains? names "spel-test-planner"))))))
@@ -519,22 +514,21 @@
         (expect (not (contains? names "spel-test-planner"))))))
 
   (describe "--only orchestrator"
-    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator}
+    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))]
 
-      (it "includes all four orchestrators"
+      (it "includes all three orchestrators"
         (expect (contains? names "spel-orchestrator"))
         (expect (contains? names "spel-test-orchestrator"))
-        (expect (contains? names "spel-qa-orchestrator"))
-        (expect (contains? names "spel-auto-orchestrator")))
+        (expect (contains? names "spel-qa-orchestrator")))
 
       (it "excludes non-orchestrator agents"
         (expect (not (contains? names "spel-test-planner")))
         (expect (not (contains? names "spel-bug-hunter"))))))
 
   (describe "--only core"
-    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator
+    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator
                      :product-analyst :spec-skeptic}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))]
@@ -543,14 +537,13 @@
         (expect (contains? names "spel-orchestrator"))
         (expect (contains? names "spel-test-orchestrator"))
         (expect (contains? names "spel-qa-orchestrator"))
-        (expect (contains? names "spel-auto-orchestrator"))
         (expect (contains? names "spel-product-analyst"))
         (expect (contains? names "spel-spec-skeptic")))
 
       (it "excludes specialist swarm agents"
         (expect (not (contains? names "spel-explorer")))
         (expect (not (contains? names "spel-automator")))
-        (expect (not (contains? names "spel-interactive")))
+        (expect (not (contains? names "spel-bug-hunter")))
         (expect (not (contains? names "spel-bug-hunter")))
         (expect (not (contains? names "spel-bug-skeptic")))
         (expect (not (contains? names "spel-bug-referee")))
@@ -574,7 +567,7 @@
         (expect (not (some #(str/includes? % "spel-automation-workflow") paths)))))
 
     (it "includes automation workflow when all automation agents are selected"
-      (let [resolved #{:explorer :automator :interactive}
+      (let [resolved #{:explorer :automator}
             paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" resolved false)))]
         (expect (some #(str/includes? % "spel-automation-workflow") paths))))
 

@@ -1,5 +1,5 @@
 ---
-description: Orchestrates the full E2E test pipeline: plans, challenges, generates, and heals tests automatically
+description: "Orchestrates the full E2E test pipeline: plans, challenges, generates, and heals tests automatically. Use when user says 'test this page', 'write E2E tests', 'create test coverage', or 'run the test pipeline'. Do NOT use for bug finding or browser automation."
 mode: subagent
 color: "#22C55E"
 tools:

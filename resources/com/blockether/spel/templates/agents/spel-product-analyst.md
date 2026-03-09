@@ -1,5 +1,5 @@
 ---
-description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ — outputs product-spec.json, product-faq.json, spel-report.html, and spel-report.md"
+description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit, and FAQ. Use when user says 'analyze this product', 'create a feature inventory', 'audit product coherence', or 'map the product structure'. Do NOT use for bug finding or test generation."
 mode: subagent
 color: "#059669"
 tools:

@@ -1,5 +1,5 @@
 ---
-description: Visual regression testing using accessibility snapshots with styles and screenshot comparison
+description: "Visual regression testing using accessibility snapshots with styles and screenshot comparison. Use when user says 'visual regression', 'compare screenshots', 'check for visual changes', or 'diff the baseline'. Do NOT use for functional bug finding or test generation."
 mode: subagent
 color: "#F97316"
 tools:

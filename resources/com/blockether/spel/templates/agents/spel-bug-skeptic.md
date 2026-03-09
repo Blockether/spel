@@ -1,5 +1,5 @@
 ---
-description: Adversarial bug reviewer. Challenges and disproves reported bugs using independent verification with spel.
+description: "Adversarial bug reviewer. Challenges and disproves reported bugs using independent verification with spel. Use when bug-hunter findings need validation, or user says 'verify these bugs', 'challenge the findings', or 'are these bugs real'. Do NOT use for finding new bugs or writing tests."
 mode: subagent
 color: "#F59E0B"
 tools:

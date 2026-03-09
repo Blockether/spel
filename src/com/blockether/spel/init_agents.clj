@@ -70,10 +70,10 @@
           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md" "CI_WORKFLOWS.md"]
    :spec-skeptic ["ASSERTIONS_EVENTS.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
-              "NAVIGATION_WAIT.md" "FRAMES_INPUT.md"]
+              "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_AGENTS.md"
+              "BROWSER_OPTIONS.md"]
    :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
                "CODEGEN_CLI.md" "FRAMES_INPUT.md" "PDF_STITCH_VIDEO.md"]
-   :interactive ["PROFILES_AGENTS.md" "BROWSER_OPTIONS.md" "EVAL_GUIDE.md" "FRAMES_INPUT.md"]
    :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
                "SLIDE_PATTERNS.md" "PDF_STITCH_VIDEO.md"]
    :visual-qa ["SELECTORS_SNAPSHOTS.md" "SNAPSHOT_TESTING.md"
@@ -88,7 +88,6 @@
    :orchestrator ["AGENT_COMMON.md"]
    :test-orchestrator ["AGENT_COMMON.md"]
    :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html" "spel-report.md"]
-   :auto-orchestrator ["AGENT_COMMON.md"]
    :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
                      "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html" "spel-report.md"]})
 
@@ -99,23 +98,21 @@
    :spec-skeptic #{:spec-skeptic}
    :explorer #{:explorer}
    :automator #{:automator}
-   :interactive #{:interactive}
    :presenter #{:presenter}
    :visual-qa #{:visual-qa}
    :bug-hunter #{:bug-hunter}
    :bug-skeptic #{:bug-skeptic}
    :bug-referee #{:bug-referee}
-   :orchestrator #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator}
+   :orchestrator #{:orchestrator :test-orchestrator :qa-orchestrator}
    :test-orchestrator #{:test-orchestrator}
    :qa-orchestrator #{:qa-orchestrator}
-   :auto-orchestrator #{:auto-orchestrator}
-   :automation #{:explorer :automator :interactive}
+   :automation #{:explorer :automator}
    :visual #{:presenter :visual-qa}
    :bugfind #{:bug-hunter :bug-skeptic :bug-referee}
    :discovery #{:product-analyst}
    :product-analyst #{:product-analyst}
    ;; Simplified helper-first setup: six core agents only
-   :core #{:orchestrator :test-orchestrator :qa-orchestrator :auto-orchestrator
+   :core #{:orchestrator :test-orchestrator :qa-orchestrator
            :product-analyst :spec-skeptic}})
 
 (def ^:private agent-to-subagent
@@ -126,7 +123,6 @@
    "spel-spec-skeptic" :spec-skeptic
    "spel-explorer" :explorer
    "spel-automator" :automator
-   "spel-interactive" :interactive
    "spel-presenter" :presenter
    "spel-visual-qa" :visual-qa
    "spel-bug-hunter" :bug-hunter
@@ -135,7 +131,6 @@
    "spel-orchestrator" :orchestrator
    "spel-test-orchestrator" :test-orchestrator
    "spel-qa-orchestrator" :qa-orchestrator
-   "spel-auto-orchestrator" :auto-orchestrator
    "spel-product-analyst" :product-analyst})
 
 (def ^:private workflow-required-agents
@@ -143,7 +138,7 @@
    A workflow is only scaffolded if ALL its required agents are selected."
   {"prompts/spel-test-workflow.md" #{:test}
    "prompts/spel-visual-workflow.md" #{:presenter :visual-qa}
-   "prompts/spel-automation-workflow.md" #{:explorer :automator :interactive}
+   "prompts/spel-automation-workflow.md" #{:explorer :automator}
    "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}
    "prompts/spel-discovery-workflow.md" #{:product-analyst}})
 
@@ -211,11 +206,6 @@
                          "automator agent"
                          "+"
                          "spel-automator"]
-                        ["agents/spel-interactive.md"
-                         (str agent-dir "/spel-interactive" agent-ext)
-                         "interactive agent"
-                         "+"
-                         "spel-interactive"]
                         ["agents/spel-presenter.md"
                          (str agent-dir "/spel-presenter" agent-ext)
                          "presenter agent"
@@ -281,11 +271,6 @@
                          "qa orchestrator agent"
                          "+"
                          "spel-qa-orchestrator"]
-                        ["agents/spel-auto-orchestrator.md"
-                         (str agent-dir "/spel-auto-orchestrator" agent-ext)
-                         "auto orchestrator agent"
-                         "+"
-                         "spel-auto-orchestrator"]
                         ["agents/spel-product-analyst.md"
                          (str agent-dir "/spel-product-analyst" agent-ext)
                          "product analyst agent"
@@ -435,7 +420,6 @@
    "spel-spec-skeptic"
    "spel-explorer"
    "spel-automator"
-   "spel-interactive"
    "spel-presenter"
    "spel-visual-qa"
    "spel-bug-hunter"
@@ -444,7 +428,6 @@
    "spel-orchestrator"
    "spel-test-orchestrator"
    "spel-qa-orchestrator"
-   "spel-auto-orchestrator"
    "spel-product-analyst"])
 
 (defn- transform-agent-references
@@ -737,14 +720,14 @@
   (println "  --learnings       Inject mandatory per-agent learnings contracts.")
   (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
-  (println "                    Values: test, spec-skeptic, explorer, automator, interactive,")
+  (println "                    Values: test, spec-skeptic, explorer, automator,")
   (println "                            presenter, visual-qa, bug-hunter, bug-skeptic, bug-referee,")
-  (println "                            orchestrator, test-orchestrator, qa-orchestrator, auto-orchestrator,")
+  (println "                            orchestrator, test-orchestrator, qa-orchestrator,")
   (println "                            product-analyst, discovery, core")
-  (println "                    Groups: automation (explorer+automator+interactive),")
+  (println "                    Groups: automation (explorer+automator),")
   (println "                            visual (presenter+visual-qa),")
   (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
-  (println "                            orchestrator (all 4 orchestrators),")
+  (println "                            orchestrator (all 3 orchestrators),")
   (println "                            discovery (product-analyst),")
   (println "                            core (simplified 6-agent setup)")
   (println "                    Example: --only test,bugfind")

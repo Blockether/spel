@@ -20,6 +20,18 @@ spel --session $SESSION eval-sci '(spel/title)'
 spel --session $SESSION close
 ```
 
+If cleanup does not actually remove the session, escalate immediately instead of leaving an orphan behind:
+
+```bash
+spel --session $SESSION close
+spel session list
+
+# If the session still exists, clean up the daemon process and stale sockets.
+pkill -f "spel daemon"
+pkill -f "chrome-headless-shell"
+rm -f /tmp/spel-*.sock /tmp/spel-*.pid
+```
+
 Agent short names:
 - planner → `plan`, generator → `gen`, healer → `heal`
 - explorer → `exp`, automator → `auto`, interactive → `iact`
@@ -149,8 +161,9 @@ If any required artifact is missing, do not ask for approval yet. Fix the stage 
 |---------|-----------|----------|
 | URL unreachable | `spel open` returns error | Report: "Target URL unreachable: <url>. Verify the application is running." |
 | Selector not found | `--timeout` expires | Capture snapshot, show what IS on the page. Suggest alternative selectors. |
+| Heavy page click times out | Click on portal/SPA element hangs on wait | Use `spel wait --load domcontentloaded` or `spel wait --url <partial>` after the click. NEVER skip user actions by navigating directly — always click like a human would. |
 | Session conflict | `spel --session` error | Generate a new unique session name and retry. |
-| Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-interactive for human-in-the-loop login, or provide --load-state." |
+| Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-explorer for auth bootstrap (Step 0: open headed browser, let user log in, export state), or provide --load-state." |
 | JavaScript errors | Console errors in snapshot | Capture and report. Continue unless the page is non-functional. |
 | Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |
 
@@ -234,6 +247,22 @@ input "Email" @e3kqmn [pos:100,100 300×30]
 ## Selector strategy: snapshot refs first
 
 ALWAYS capture a snapshot before any interaction.
+
+## Navigation decision table
+
+Choose navigation strategy based on site behavior instead of blindly clicking and waiting for `load`.
+
+| Situation | Preferred action | Preferred wait | Why |
+|-----------|------------------|----------------|-----|
+| Traditional multi-page site | `spel --session $SESSION open <url>` | `spel --session $SESSION wait --load load` | Full page load is a good readiness signal |
+| Heavy portal / ad-heavy page | Click only if needed | `spel --session $SESSION wait --load domcontentloaded` or `spel --session $SESSION wait --url <partial>` | Full `load` is often delayed by third-party resources |
+| SPA route already known | `spel --session $SESSION open <target-url>` | `spel --session $SESSION wait --load domcontentloaded` | Direct navigation is more reliable than click-driven client routing |
+| SPA route unknown | Snapshot first, then click | `spel --session $SESSION wait --url <partial>` and content wait | URL change is the stable signal, not full resource completion |
+
+Rules:
+- Prefer split commands: `open` first, `wait` second.
+- Do not solve navigation flakiness by immediately raising timeouts.
+- If a click repeatedly times out on SPA or portal pages, switch to direct navigation when possible and record the behavior in artifacts.
 
 ### Why refs over CSS selectors
 

@@ -25,6 +25,7 @@
       (eval-string ctx \"(spel/capture-snapshot)\")
       (eval-string ctx \"(spel/stop!)\")"
   (:require
+   [charred.api :as json]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -927,6 +928,21 @@
        :url     (net/response-url resp)
        :headers (net/response-headers resp)})))
 
+(defn sci-net-requests
+  "Returns the daemon-tracked network request summaries when available.
+   In standalone SCI contexts without the daemon request ring buffer, returns []."
+  []
+  (if-let [tracked-var (try
+                         (requiring-resolve 'com.blockether.spel.daemon/!tracked-requests)
+                         (catch Exception _ nil))]
+    @(var-get tracked-var)
+    []))
+
+(defn sci-json-write-str
+  "Serializes Clojure data to a JSON string for eval-sci scripts."
+  [data]
+  (json/write-json-str data))
+
 ;; =============================================================================
 ;; Info
 ;; =============================================================================
@@ -1371,6 +1387,7 @@
                   ['get-attribute sci-attr]
                   ['input-value   sci-value]
                   ['count-elements sci-count-of]
+                  ['count-of       sci-count-of]
                   ['visible?      sci-visible?]
                   ['hidden?       sci-hidden?]
                   ['enabled?      sci-enabled?]
@@ -1676,7 +1693,8 @@
                    ['wsr-connect-to-server! net/wsr-connect-to-server!]
                    ['wsr-on-message         net/wsr-on-message]
                    ['wsr-send!              net/wsr-send!]
-                   ['wsr-on-close           net/wsr-on-close]])
+                   ['wsr-on-close           net/wsr-on-close]
+                   ['requests               sci-net-requests]])
 
         ;; =================================================================
         ;; loc/ — Raw locator operations (explicit Locator argument)
@@ -1928,6 +1946,13 @@
                                                 (list 'do (list 'spel/start!)
                                                   (list* 'let [sym (list 'spel/page)] body)))))
                                           {:sci/macro true})]])
+
+        ;; =================================================================
+        ;; json/ — Lightweight JSON helpers for eval-sci scripts
+        ;; =================================================================
+        json-ns  (sci/create-ns 'json nil)
+        json-map (make-ns-map json-ns
+                   [['write-str sci-json-write-str]])
 
         ;; =================================================================
         ;; page/ — Raw page operations (explicit Page argument)
@@ -2253,6 +2278,7 @@
                     'input    input-map
                     'frame    frame-map
                     'net      net-map
+                    'json     json-map
                     'loc      loc-map
                     'assert   assert-ns-map
                     'core     core-map

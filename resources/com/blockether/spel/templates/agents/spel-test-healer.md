@@ -1,5 +1,5 @@
 ---
-description: Diagnoses and fixes failing Clojure Playwright E2E tests using spel
+description: "Diagnoses and fixes failing Clojure Playwright E2E tests using spel. Use when user says 'fix this test', 'heal the failures', 'debug why the test fails', or tests from the generator are failing. Do NOT use for writing new tests or planning."
 mode: subagent
 color: "#EF4444"
 tools:

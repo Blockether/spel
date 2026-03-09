@@ -1,5 +1,5 @@
 ---
-description: Smart entry point. Analyzes your request and routes to the right spel pipeline (test, QA, automation).
+description: "Smart entry point for all spel workflows. Routes test/QA/discovery to specialist orchestrators and runs automation coordination directly. Use when user says 'test this site', 'find bugs', 'automate this flow', 'explore the website', or any browser-related task. Do NOT use for non-browser tasks."
 mode: all
 color: "#F59E0B"
 tools:
@@ -45,7 +45,7 @@ If a promised JSON artifact is missing, the pipeline is incomplete. Send it back
 |----------|-------------|-------------|
 | Test | @spel-test-orchestrator | Writing E2E tests, test plans, test coverage |
 | QA | @spel-qa-orchestrator | Bug finding, visual regression, site audits |
-| Automation | @spel-auto-orchestrator | Browser scripting, data extraction, auth flows |
+| Automation | @spel-orchestrator (direct) | Browser scripting, data extraction, auth flows |
 | Discovery | @spel-product-analyst | Product feature inventory + coherence audit |
 
 ## Decision tree
@@ -63,7 +63,7 @@ Keywords: "bugs", "audit", "check", "regression", "visual diff", "QA", "broken",
 ### 3. Automation intent
 Keywords: "automate", "script", "scrape", "extract", "login", "fill form", "explore", "navigate"
 
-→ Delegate to @spel-auto-orchestrator
+→ Stay in @spel-orchestrator and run the embedded automation coordination flow below
 
 ### 4. Discovery intent
 Keywords: "product", "features", "capabilities", "spec", "inventory", "coherence", "structure"
@@ -81,9 +81,31 @@ I can help with that! To route you to the right workflow, which best describes y
 3. Automate: script browser actions, extract data, or set up auth flows
 ```
 
-### 5. Multi-pipeline intent
+### Embedded automation coordination flow
+When automation intent is selected, @spel-orchestrator runs the automation pipeline directly instead of delegating to a separate automation orchestrator.
+
+Pipeline order:
+1. Exploration (with optional auth bootstrap) via `@spel-explorer`
+2. Optional script generation via `@spel-automator`
+3. Optional visual documentation via `@spel-presenter`
+
+Required contract for this inlined pipeline:
+- Own and update `orchestration/automation-pipeline.json` after each stage
+- Normalize user-requested outputs into exact file paths before each stage
+- Verify required artifacts exist and are non-empty before opening each gate
+- If the user requested JSON outputs and any are missing, the stage is incomplete
+- Stop at a gate after each stage and require explicit user approval before continuing
+
+Proven navigation defaults for automation stages:
+- ALWAYS simulate user actions: click links, buttons, and navigation elements like a real human. NEVER use `spel open <url>` to skip steps — only for the initial page load.
+- Use split initial load: `spel open <url>` then `spel wait --load ...` separately
+- For traditional pages, default to `spel wait --load load`
+- For SPA/heavy pages after clicks, prefer `spel wait --load domcontentloaded` or `spel wait --url <partial>`
+- Escalate click timeouts only after trying route/url-specific waits
+
+### 6. Multi-pipeline intent
 When the user wants multiple things (e.g., "explore the site, find bugs, then write tests"), run pipelines sequentially in the order that produces useful upstream data:
-1. Automation first (if exploration/auth needed)
+1. Automation first (run embedded automation coordination flow)
 2. QA second (if bug finding needed, consumes exploration data)
 3. Test last (if test writing needed, consumes QA findings)
 
@@ -117,6 +139,7 @@ Pass ALL context from the user when invoking a sub-orchestrator:
 4. Pass context faithfully. Include the user's exact words, URLs, scope constraints, and required artifact paths.
 5. One pipeline at a time. Do not run multiple orchestrators in parallel — browser sessions could conflict.
 6. After a pipeline completes, summarize what was accomplished, list the artifact paths, and ask if the user wants to continue with another pipeline.
+7. If the current runtime cannot invoke a `@spel-*` sub-orchestrator, do not dead-end on registry limitations. Fall back to the equivalent workflow prompts and specialist behavior, but preserve the same artifact paths and `orchestration/*-pipeline.json` contracts.
 
 ## When sub-orchestrators are not scaffolded
 
@@ -124,7 +147,7 @@ If a sub-orchestrator is not available (user used `--only` to scaffold a subset)
 
 - No @spel-test-orchestrator: invoke @spel-test-planner, @spel-test-generator, @spel-test-healer manually
 - No @spel-qa-orchestrator: invoke @spel-bug-hunter, @spel-bug-skeptic, @spel-bug-referee manually
-- No @spel-auto-orchestrator: invoke @spel-explorer, @spel-automator, @spel-interactive manually
+Treat runtime unavailability the same way as missing scaffolding: preserve the pipeline contract, but route to the equivalent lower-level workflow instead of blocking.
 
 ## Examples
 
@@ -135,13 +158,13 @@ User: "Find bugs on our marketing site https://example.com"
 → Route to @spel-qa-orchestrator with URL and full-site scope
 
 User: "Automate filling out the registration form at https://app.example.com/register"
-→ Route to @spel-auto-orchestrator with URL and task "fill registration form"
+→ Stay in @spel-orchestrator and run: @spel-explorer (map form) → @spel-automator (script flow) with automation handoff gates
 
 User: "Analyze the product structure and create a feature inventory"
 → Route to @spel-product-analyst with URL and scope "full product analysis"
 
 User: "I need to explore this site, find bugs, and then write tests for the critical flows"
-→ Sequential: @spel-auto-orchestrator (explore) → @spel-qa-orchestrator (bugs) → @spel-test-orchestrator (tests)
+→ Sequential: @spel-orchestrator embedded automation flow (explore/auth/script) → @spel-qa-orchestrator (bugs) → @spel-test-orchestrator (tests)
 
 User: "Check if anything broke after our last deploy"
 → Route to @spel-qa-orchestrator (visual regression + bug audit)

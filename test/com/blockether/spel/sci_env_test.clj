@@ -73,6 +73,10 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/url)")))))
 
+    (it "has count-of function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? spel/count-of)")))))
+
     (it "has title function"
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/title)")))))
@@ -101,6 +105,15 @@
     (it "has ref-bounding-box function"
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? snapshot/ref-bounding-box)"))))))
+
+  (describe "json namespace"
+    (it "has write-str function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? json/write-str)")))))
+
+    (it "serializes maps to JSON"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (= "{\"a\":1}" (sut/eval-string ctx "(json/write-str {:a 1})"))))))
 
   (describe "annotate namespace"
     (it "has annotated-screenshot function"
@@ -220,6 +233,17 @@
     (it "has screenshot function"
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? locator/screenshot)"))))))
+
+  (describe "net namespace"
+    (it "has requests function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? net/requests)")))))
+
+    (it "returns tracked request summaries as a vector"
+      (let [ctx (sut/create-sci-ctx)
+            result (sut/eval-string ctx "(net/requests)")]
+        (expect (vector? result))
+        (expect (every? map? result)))))
 
   (describe "core namespace (lifecycle macros and functions)"
     (it "with-playwright is a macro"

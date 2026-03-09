@@ -1,5 +1,5 @@
 ---
-description: Orchestrates QA: exploration, visual regression, and adversarial bug finding with adaptive depth
+description: "Orchestrates QA: exploration, visual regression, and adversarial bug finding with adaptive depth. Use when user says 'find bugs on', 'QA this site', 'check for regressions', or 'audit the site'. Do NOT use for test generation or browser automation scripting."
 mode: subagent
 color: "#EF4444"
 tools:
@@ -37,7 +37,7 @@ If a promised JSON/report file is missing, the stage is not complete. Send the p
 |-------|------|-----------|
 | @spel-explorer | Deep site exploration, captures data + snapshots | Optional (for multi-page scope) |
 | @spel-visual-qa | Visual regression: baseline capture or diff | Optional (if baselines exist or requested) |
-| @spel-interactive | Auth flow with human-in-the-loop | Optional (if auth required) |
+| @spel-explorer | Auth bootstrap (Step 0) + deep site exploration | Optional (auth or multi-page scope) |
 | @spel-bug-hunter | Finds bugs: functional, visual, a11y, UX | YES |
 | @spel-bug-skeptic | Challenges bug reports adversarially | YES |
 | @spel-bug-referee | Final verdict on disputed bugs | YES |
@@ -60,8 +60,8 @@ If `product-spec.json` does NOT exist and you need product context:
 ## Pipeline (full)
 
 ```
-[@spel-interactive] → [@spel-explorer] → [@spel-visual-qa] → @spel-bug-hunter → @spel-bug-skeptic → @spel-bug-referee
-   (auth if needed)    (deep exploration)   (visual diff)       (hunt bugs)        (challenge)         (judge)
+[@spel-explorer auth] → [@spel-explorer explore] → [@spel-visual-qa] → @spel-bug-hunter → @spel-bug-skeptic → @spel-bug-referee
+   (auth+explore)         (if separate)        (visual diff)       (hunt bugs)        (challenge)         (judge)
 ```
 
 Stages in `[ ]` are optional, included based on scope analysis.
@@ -82,26 +82,26 @@ Extract from the user's input:
 
 ### Scope to pipeline mapping
 
-| Scope | Explorer? | Visual QA? | Interactive? | Hunter depth |
+| Scope | Explorer? | Visual QA? | Auth? | Hunter depth |
 |-------|-----------|------------|--------------|-------------|
-| Single page | NO, Hunter explores itself | If baselines exist | If auth needed | Focused: 1 page, all categories |
-| Specific flow (e.g., "checkout") | NO, Hunter follows the flow | If baselines exist | If auth needed | Focused: flow pages only |
-| Full site | YES, deep crawl first | YES if baselines exist | If auth needed | Full: all discovered pages |
-| Visual only | Optional for multi-page | YES | If auth needed | Skip Hunter entirely |
-| Quick scan | NO | NO | If auth needed | Surface: 1 pass, major issues only |
+| Single page | NO, Hunter explores itself | If baselines exist | Explorer Step 0 if needed | Focused: 1 page, all categories |
+| Specific flow (e.g., "checkout") | NO, Hunter follows the flow | If baselines exist | Explorer Step 0 if needed | Focused: flow pages only |
+| Full site | YES, deep crawl first | YES if baselines exist | Explorer Step 0 if needed | Full: all discovered pages |
+| Visual only | Optional for multi-page | YES | Explorer Step 0 if needed | Skip Hunter entirely |
+| Quick scan | NO | NO | Explorer Step 0 if needed | Surface: 1 pass, major issues only |
 
 ### Authentication (optional)
 
-If auth is required and @spel-interactive is available:
+If auth is required, use @spel-explorer's Step 0 (auth bootstrap):
 
 ```
-@spel-interactive
+@spel-explorer
 
-<interact>
-  <task>Open headed browser for user to log in, then export auth state</task>
+<explore>
+  <task>Open headed browser for user to log in, then export auth state. After auth, explore the site.</task>
   <url>{{target URL}}</url>
   <channel>chrome</channel>
-</interact>
+</explore>
 ```
 
 GATE: Confirm `auth-state.json` was exported. All subsequent agents should use `--load-state auth-state.json`.

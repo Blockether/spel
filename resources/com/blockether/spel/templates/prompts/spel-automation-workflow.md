@@ -4,26 +4,25 @@ description: Automation workflow: explore, script, and interact with browser ses
 
 # Automation workflow
 
-Orchestrates browser exploration, script creation, and interactive sessions using spel subagents.
+Orchestrates browser exploration and script creation using spel subagents.
 
 The orchestrator must maintain `orchestration/automation-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
 
 ## Parameters
 
-- Task: the automation goal (explore a site, write a script, interactive session)
+- Task: the automation goal (explore a site, write a script, auth-gated automation)
 - Target URL: the URL to automate
 - Script output (optional): path for generated `.clj` scripts (default: `spel-scripts/`)
 - Args (optional): arguments to pass to eval scripts via `--`
 
 ## Pipeline overview
 
-Three agents in a progressive pipeline. Run only what you need.
+Two agents in a progressive pipeline. Run only what you need.
 
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
-| 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots, screenshots | Target URL |
+| 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots, screenshots, `auth-state.json` (optional) | Target URL |
 | 2. Automate | @spel-automator | `spel-scripts/<name>.clj` | Exploration data (optional) |
-| 3. Interact | @spel-interactive | `auth-state.json`, authenticated screenshots | Target URL |
 
 ## Explore
 
@@ -54,22 +53,19 @@ Required artifacts before this gate:
 - `spel-scripts/<name>.clj`
 - Any exact JSON/data output paths requested by the user
 
-## Interactive refinement (optional)
+## Auth-gated exploration (optional)
 
-Only needed when human-in-the-loop is required (2FA, CAPTCHA, SSO).
+When the target site requires login (2FA, CAPTCHA, SSO), the explorer handles auth as its Step 0:
 
-```xml
-<interact>
-  <task>Open headed browser for user interaction, then continue automation</task>
-  <url>{{target-url}}</url>
-  <channel>chrome</channel>
-</interact>
+1. Explorer opens the site with `--interactive` and the user's browser profile
+2. User authenticates manually
+3. Explorer exports `auth-state.json` for reuse
+4. Explorer continues with normal exploration workflow
+
+The exported `auth-state.json` can then be used by the automator:
+```bash
+spel --load-state auth-state.json eval-sci script.clj
 ```
-
-GATE: Confirm authenticated state, verify `auth-state.json` was exported and screenshot shows expected page. Do NOT proceed until confirmed.
-Required artifacts before this gate:
-- `auth-state.json`
-- `orchestration/automation-pipeline.json`
 
 ## Composition
 
@@ -83,7 +79,6 @@ Each agent uses its own named session:
 
 - Explorer: `exp-<name>`
 - Automator: `auto-<name>`
-- Interactive: `iact-<name>`
 
 Sessions never overlap. Each agent closes its session on completion or error.
 
@@ -91,7 +86,7 @@ Sessions never overlap. Each agent closes its session on completion or error.
 
 - Data exploration only: run the explore step alone
 - Full automation script creation: run explore + automate
-- Auth-gated automation: run interactive first, then explore + automate with `--load-state auth-state.json`
+- Auth-gated automation: run explore with auth bootstrap, then automate with `--load-state auth-state.json`
 - Quick script without exploration: run automate alone (automator explores minimally on its own)
 
 ## Notes

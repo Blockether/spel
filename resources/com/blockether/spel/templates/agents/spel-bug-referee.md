@@ -1,5 +1,5 @@
 ---
-description: Final arbiter in adversarial bug review. Delivers evidence-based verdicts on disputed bugs using spel
+description: "Final arbiter in adversarial bug review. Delivers evidence-based verdicts on disputed bugs using spel. Use when hunter and skeptic disagree, or user says 'judge these bugs', 'final verdict', or 'resolve the dispute'. Do NOT use for finding or challenging bugs directly."
 mode: subagent
 color: "#7C3AED"
 tools:

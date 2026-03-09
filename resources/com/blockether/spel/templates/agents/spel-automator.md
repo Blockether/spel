@@ -1,5 +1,5 @@
 ---
-description: Writes reusable CLI automation scripts using spel eval-sci with argument support
+description: "Writes reusable CLI automation scripts using spel eval-sci with argument support. Use when user says 'automate this workflow', 'script the checkout flow', 'create a reusable browser script', or 'write an eval-sci automation'. Do NOT use for test generation or page exploration."
 mode: subagent
 color: "#F59E0B"
 tools:
@@ -122,6 +122,17 @@ GATE: show the user the script, run it with test args, show the output. Get appr
   (page/wait-for-url @!page "**/success**"))
 ```
 
+For SPAs and heavy pages, prefer route-aware waits over blind click timeouts:
+
+```clojure
+(let [[url] *command-line-args*]
+  (page/navigate @!page url)
+  (page/wait-for-load-state @!page :domcontentloaded)
+  ;; If you know the destination, go there directly instead of relying on a flaky click.
+  (page/navigate @!page "https://www.frisco.pl/login")
+  (page/wait-for-load-state @!page :domcontentloaded))
+```
+
 ### Snapshot-first interaction
 ```clojure
 ;; PREFERRED: Use snapshot refs instead of hardcoded CSS selectors
@@ -202,5 +213,10 @@ See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eva
 ## Conventions
 
 Scripts go in `spel-scripts/`. Output data to JSON files. Take screenshots with `spel screenshot <name>.png`. Print progress to stdout. Add a header comment with `Script`, `Author`, `Date`, and `Args`.
+
+When writing scripts for unknown site types:
+- start with direct navigation and split waits
+- use `wait-for-url` or `wait-for-load-state :domcontentloaded` after click-driven route changes
+- treat larger click timeouts as fallback behavior, not the primary pattern
 
 No hardcoded URLs or credentials. Use `*command-line-args*`. No test assertions (that's spel-test-generator's job). Max 200 lines per script.

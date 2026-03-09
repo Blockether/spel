@@ -154,6 +154,28 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 (spel/capture-snapshot)  ;; look for overlays, modals, banners in the tree
 ```
 
+## 8a. Click works poorly on SPA or portal navigation
+
+`spel click @eXXXX` hangs or times out on sites that rely on client-side routing or that keep loading third-party resources forever. The click may be valid, but waiting for the wrong readiness signal makes it look broken.
+
+Try this in order:
+
+```clojure
+;; Prefer route-aware waiting after clicks
+(spel/click "@eXXXX")
+(spel/wait-for-url #".*target-route.*")
+(spel/wait-for-load-state :domcontentloaded)
+
+;; If you already know the destination, navigate directly instead
+(spel/navigate "https://www.frisco.pl/login")
+(spel/wait-for-load-state :domcontentloaded)
+```
+
+Rules of thumb:
+- Heavy portals: prefer `:domcontentloaded` or `wait-for-url` after interactions.
+- SPAs: direct navigation to a known route is often more reliable than clicking through menus.
+- Raising the timeout helps only after choosing the right wait strategy.
+
 ## 9. File I/O in eval mode
 
 `(require '[clojure.java.io :as io])` throws an error. `require` doesn't work in the SCI sandbox. All namespaces are pre-registered, and `clojure.java.io` is already available as `io`.

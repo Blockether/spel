@@ -1,5 +1,5 @@
 ---
-description: Explores live application and creates thorough E2E test plans using spel
+description: "Explores live application and creates thorough E2E test plans using spel. Use when user says 'plan tests for', 'create a test spec', 'what should we test', or 'write a test plan'. Do NOT use for generating test code or fixing tests."
 mode: subagent
 color: "#22C55E"
 tools:

@@ -1,5 +1,5 @@
 ---
-description: Generates Clojure E2E tests from test plans using spel and clojure.test
+description: "Generates Clojure E2E tests from test plans using spel and clojure.test. Use when user says 'generate tests from this plan', 'write the test code', or 'implement the test spec'. Do NOT use for planning tests or fixing failures."
 mode: subagent
 color: "#3B82F6"
 tools:

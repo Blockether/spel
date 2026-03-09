@@ -202,6 +202,45 @@ Single-page apps don't trigger full page loads. After clicking a link, wait for 
 
 The pattern: interact → wait for URL → wait for element → proceed.
 
+### Heavy portals and ad/tracker pages
+
+Portal pages often keep loading third-party resources long after the meaningful content is ready. In those cases, waiting for full `:load` after every click is too strict.
+
+Preferred pattern:
+
+```clojure
+(spel/navigate "https://onet.pl")
+(spel/wait-for-load-state :load)
+
+;; After clicking a heavy navigation target, relax the wait.
+(spel/click "@eXXXX")
+(spel/wait-for-url #".*wiadomosci.*")
+(spel/wait-for-load-state :domcontentloaded)
+```
+
+Use this decision order after interactions on heavy pages:
+1. `wait-for-url` when you know the route should change
+2. `wait-for-selector` when you know the target content marker
+3. `wait-for-load-state :domcontentloaded` when the page is content-ready but ads keep loading
+4. Longer timeouts only as the final fallback
+
+### Direct navigation beats brittle clicks on SPAs
+
+If you already know the target route on a client-side app, prefer direct navigation to that route instead of clicking through an unreliable UI transition.
+
+```clojure
+;; Better for known SPA routes
+(spel/navigate "https://www.frisco.pl/login")
+(spel/wait-for-load-state :domcontentloaded)
+
+;; Better than clicking a homepage login button that may stall
+```
+
+Direct navigation is especially useful when:
+- click handlers trigger client-side routing but Playwright waits too long
+- a search button or menu click repeatedly times out
+- the goal is coverage or evidence capture rather than pixel-perfect replay of user gestures
+
 ### Content loading (open page → wait for element → extract)
 
 Pages that load data asynchronously after the initial render.

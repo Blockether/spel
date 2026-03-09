@@ -1,5 +1,5 @@
 ---
-description: Adversarial test plan reviewer. Challenges specs for missing edge cases, fragile selectors, and unrealistic assertions
+description: "Adversarial test plan reviewer. Challenges specs for missing edge cases, fragile selectors, and unrealistic assertions. Use when user says 'review this test plan', 'challenge the spec', or 'find gaps in the plan'. Do NOT use for writing tests or finding bugs."
 mode: subagent
 color: "#F97316"
 tools:

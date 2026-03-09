@@ -15,13 +15,12 @@ Orchestrates product discovery using spel subagents to analyze web products and 
 
 ## Pipeline overview
 
-Three agents in a progressive pipeline. Run only what you need.
+Two agents in a progressive pipeline. Run only what you need.
 
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
-| 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots | Target URL |
+| 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots, `auth-state.json` (optional) | Target URL |
 | 2. Analyze | @spel-product-analyst | `product-spec.json`, `product-faq.json`, `spel-report.html`, `spel-report.md` | Exploration data (optional) |
-| 3. Interactive | @spel-interactive | `auth-state.json`, authenticated snapshots | Target URL |
 
 ## Explore
 
@@ -48,20 +47,14 @@ GATE: Review exploration artifacts, pages discovered, link graph, snapshot cover
 
 GATE: Review `product-spec.json` for completeness, `product-faq.json` for accuracy, `spel-report.html` for clarity, and `spel-report.md` for LLM readability. Do NOT proceed until approved.
 
-## Interactive setup (optional)
+## Auth-gated exploration (optional)
 
-Only needed when auth, cookies, or manual interaction is required.
+When the target site requires login or cookie acceptance, the explorer handles auth as its Step 0:
 
-```xml
-<interact>
-  <task>Open headed browser for user interaction — accept cookies, log in, set up session</task>
-  <url>{{target-url}}</url>
-  <channel>chrome</channel>
-  <session>{{session-name}}</session>
-</interact>
-```
-
-GATE: Confirm authenticated state, verify `auth-state.json` was exported and snapshot shows expected page. Do NOT proceed until confirmed.
+1. Explorer opens the site with `--interactive` and the user's browser profile
+2. User authenticates manually
+3. Explorer exports `auth-state.json` for reuse
+4. Explorer continues with normal exploration workflow
 
 ## Handoff artifacts
 
@@ -94,7 +87,6 @@ Each agent uses its own named session:
 
 - Explorer: `disc-explorer`
 - Analyst: `disc-analyst`
-- Interactive: `disc-interactive`
 
 Sessions never overlap. Each agent closes its session on completion or error.
 
@@ -116,8 +108,7 @@ For sites where you want thorough page coverage:
 ### Pattern 3: Full (with auth)
 For sites requiring login or cookie acceptance:
 ```
-@spel-interactive Set up session for https://example.com — accept cookies and log in
-@spel-explorer Crawl https://example.com (session already set up) and save exploration-manifest.json
+@spel-explorer Set up session for https://example.com with auth — accept cookies, log in, then crawl
 @spel-product-analyst Analyze https://example.com using exploration-manifest.json
 ```
 

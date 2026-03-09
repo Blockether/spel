@@ -763,6 +763,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/context-set-offline!` | [offline] | Sets the context to offline or online mode. |
 | `spel/context-storage-state` | [] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `spel/count-elements` | [sel] | Returns the number of elements matching the locator. |
+| `spel/count-of` | [sel] | Returns the number of elements matching the locator. |
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
 | `spel/debug` | [] | Collects page diagnostics: performance timing, failed resources, DOM stats, dimensions. |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
@@ -987,6 +988,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `net/request-response` | [req] | Returns the response for this request. |
 | `net/request-timing` | [req] | Returns the request timing information. |
 | `net/request-url` | [req] | Returns the request URL. |
+| `net/requests` | [] | Returns the daemon-tracked network request summaries when available. |
 | `net/response-all-headers` | [resp] | Returns all response headers. |
 | `net/response-body` | [resp] | Returns the response body as bytes. |
 | `net/response-finished` | [resp] | Returns nil when response finishes, or the failure error string. |

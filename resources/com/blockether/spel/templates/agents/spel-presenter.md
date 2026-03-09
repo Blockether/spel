@@ -1,5 +1,5 @@
 ---
-description: Generates beautiful HTML presentations, visual explanations, diagrams, data tables, and slide decks
+description: "Generates beautiful HTML presentations, visual explanations, diagrams, data tables, and slide decks. Use when user says 'create a presentation', 'generate a visual report', 'make a diagram', or 'build a slide deck from these findings'. Do NOT use for browser automation or test generation."
 mode: subagent
 color: "#EC4899"
 tools:

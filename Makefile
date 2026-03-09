@@ -1,6 +1,6 @@
 .PHONY: test test-cli test-cli-clj test-watch test-junit test-allure allure-serve allure \
 	clean jar install deploy lint repl format preview \
-	spel uberjar install-local gen-docs init-agents validate-safe-graal autotrainer-example-org
+	spel uberjar install-local gen-docs init-agents validate-safe-graal
 
 REPL_PORT ?= 7600
 
@@ -106,9 +106,3 @@ PREVIEW_PORT ?= 8765
 
 preview: ## Preview allure landing page with mock data
 	@./dev/preview-landing.sh --port=$(PREVIEW_PORT)
-
-autotrainer-example-org: ## Capture example.org baseline artifacts for autotrainer iteration 0
-	clojure -M -m com.blockether.spel.autotrainer --target=https://example.org --refresh
-
-autotrainer-onet: ## Run refreshed example.org baseline plus supervised onet.pl validation
-	clojure -M -m com.blockether.spel.autotrainer --target=https://example.org --validation-target=https://onet.pl --depth=2 --max-iterations=50 --opencode-model=zai-coding-plan/glm-5 --refresh --validate
