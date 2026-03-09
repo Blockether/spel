@@ -166,16 +166,15 @@ Try this in order:
 (spel/wait-for-url #".*target-route.*")
 (spel/wait-for-load-state :domcontentloaded)
 
-;; If you already know the destination, navigate directly instead
-(spel/navigate "https://www.frisco.pl/login")
-(spel/wait-for-load-state :domcontentloaded)
+;; WRONG — NEVER skip user actions by navigating directly:
+;; (spel/navigate "https://www.frisco.pl/login")
+;; Always click the link/button like a human would.
 ```
 
 Rules of thumb:
 - Heavy portals: prefer `:domcontentloaded` or `wait-for-url` after interactions.
-- SPAs: direct navigation to a known route is often more reliable than clicking through menus.
+- SPAs: use `wait-for-url` after clicks to detect route changes — NEVER skip the click with direct navigation.
 - Raising the timeout helps only after choosing the right wait strategy.
-
 ## 9. File I/O in eval mode
 
 `(require '[clojure.java.io :as io])` throws an error. `require` doesn't work in the SCI sandbox. All namespaces are pre-registered, and `clojure.java.io` is already available as `io`.

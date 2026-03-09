@@ -224,23 +224,26 @@ Use this decision order after interactions on heavy pages:
 3. `wait-for-load-state :domcontentloaded` when the page is content-ready but ads keep loading
 4. Longer timeouts only as the final fallback
 
-### Direct navigation beats brittle clicks on SPAs
+### Handling click timeouts on SPAs
 
-If you already know the target route on a client-side app, prefer direct navigation to that route instead of clicking through an unreliable UI transition.
+If a click times out on a client-side app, the problem is almost always the wait strategy, not the click itself. NEVER skip the click and navigate directly — always simulate user actions like a human would.
 
 ```clojure
-;; Better for known SPA routes
-(spel/navigate "https://www.frisco.pl/login")
-(spel/wait-for-load-state :domcontentloaded)
+;; WRONG — skipping user actions:
+;; (spel/navigate "https://www.frisco.pl/login")
+;; This bypasses the actual user journey and misses real bugs.
 
-;; Better than clicking a homepage login button that may stall
+;; RIGHT — click the element, then wait smarter:
+(spel/click "@eXXXX")
+(spel/wait-for-url #".*login.*")               ;; wait for route change
+(spel/wait-for-load-state :domcontentloaded)   ;; don't wait for ads/trackers
 ```
 
-Direct navigation is especially useful when:
-- click handlers trigger client-side routing but Playwright waits too long
-- a search button or menu click repeatedly times out
-- the goal is coverage or evidence capture rather than pixel-perfect replay of user gestures
-
+When a click seems "unreliable":
+- First: check if you're waiting for the wrong readiness signal (`:load` vs `:domcontentloaded`)
+- Second: use `wait-for-url` to detect the route change after the click
+- Third: use `wait-for-selector` to detect the target content appearing
+- Last resort: increase the timeout — but NEVER skip the click itself
 ### Content loading (open page → wait for element → extract)
 
 Pages that load data asynchronously after the initial render.
