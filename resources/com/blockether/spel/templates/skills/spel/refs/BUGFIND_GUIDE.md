@@ -1,6 +1,6 @@
 # Adversarial bug-finding guide
 
-The adversarial bug-finding pipeline uses three competing agents with opposing incentives to produce a verified bug list with minimal false positives. Based on the Hunter/Skeptic/Referee methodology.
+The adversarial bug-finding pipeline uses a single agent (`spel-bug-hunter`) with built-in competing phases to produce a verified bug list with minimal false positives. Based on the Hunter/Skeptic/Referee methodology, now consolidated into one agent with three internal phases.
 
 ---
 
@@ -204,25 +204,20 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
   (> sw cw))  ;; true = overflow bug
 ```
 
-### Skeptic review (`skeptic-review.json`)
+### Self-challenge review (built into hunter report)
+
+The bug-hunter's internal skeptic phase produces challenge records within the hunter report:
 
 ```json
 {
-  "agent": "spel-bug-skeptic",
-  "timestamp": "2026-03-06T12:30:00Z",
-  "hunter_report": "bugfind-reports/hunter-report.json",
-  "total_bugs_reviewed": 12,
-  "total_disproved": 4,
-  "total_accepted": 8,
-  "skeptic_score": 14,
-  "reviews": [
+  "challenges": [
     {
       "bug_id": "BUG-001",
       "original_points": 5,
       "original_category": "functional",
       "counter_argument": "The submit button has a 200ms debounce handler. Re-testing shows double-submission is prevented.",
       "evidence": {
-        "screenshots": ["evidence/skeptic-bug-001-counter.png"]
+        "screenshots": ["evidence/challenge-bug-001-counter.png"]
       },
       "confidence": 90,
       "risk_calculation": "+5 correct, -10 wrong. EV = +3.5",
@@ -233,15 +228,13 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 }
 ```
 
-### Referee verdict (`referee-verdict.json`)
+### Final verdict (built into hunter report)
+
+The bug-hunter's internal referee phase produces the final verdict within the same report:
 
 ```json
 {
-  "agent": "spel-bug-referee",
-  "timestamp": "2026-03-06T13:00:00Z",
-  "hunter_report": "bugfind-reports/hunter-report.json",
-  "skeptic_review": "bugfind-reports/skeptic-review.json",
-  "summary": {
+  "verdict_summary": {
     "total_bugs_reviewed": 12,
     "confirmed_real": 9,
     "dismissed": 3,
@@ -254,10 +247,10 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
     {
       "bug_id": "BUG-001",
       "hunter_claim": "Submit allows double-submission",
-      "skeptic_counter": "200ms debounce prevents it",
-      "your_observation": "Debounce exists but 300ms+ intervals bypass it. Real bug, lower severity.",
+      "self_challenge": "200ms debounce prevents it",
+      "final_observation": "Debounce exists but 300ms+ intervals bypass it. Real bug, lower severity.",
       "evidence": {
-        "screenshots": ["evidence/referee-bug-001-verdict.png"]
+        "screenshots": ["evidence/verdict-bug-001.png"]
       },
       "verdict": "REAL BUG",
       "final_severity": "Low",
@@ -289,20 +282,20 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 Phase 0 (optional): @spel-explorer + visual regression (built into Hunter)
   Exploration data + visual regression report
   ↓
-Phase 1: @spel-bug-hunter
+Phase 1: @spel-bug-hunter — Hunt
   Reads exploration data (if available)
   Technical audit + Design audit (UX Architect lens)
-  → bugfind-reports/hunter-report.json
-  ↓ GATE: User reviews findings
-Phase 2: @spel-bug-skeptic
-  Reads hunter-report.json
-  Independent verification in separate browser session
-  → bugfind-reports/skeptic-review.json
-  ↓ GATE: User reviews challenges
-Phase 3: @spel-bug-referee
-  Reads both reports
-  Independent verification of disputed bugs in third session
-  → bugfind-reports/referee-verdict.json (final deliverable)
+  → bugfind-reports/hunter-report.json (bugs section)
+  ↓
+Phase 2: @spel-bug-hunter — Self-Challenge (internal)
+  Re-verifies each finding independently
+  Attempts to disprove weak claims
+  → bugfind-reports/hunter-report.json (challenges section)
+  ↓ GATE: User reviews findings and challenges
+Phase 3: @spel-bug-hunter — Verdict (internal)
+  Weighs hunt claims vs self-challenge evidence
+  Independent verification of disputed bugs
+  → bugfind-reports/hunter-report.json (verdict section — final deliverable)
 ```
 
 ---
@@ -312,8 +305,6 @@ Phase 3: @spel-bug-referee
 ```
 bugfind-reports/
   hunter-report.json
-  skeptic-review.json
-  referee-verdict.json
   evidence/
     <page>-snapshot.json
     <page>-annotated.png
@@ -325,8 +316,8 @@ bugfind-reports/
     <page>-mobile.json
     bug-001-annotated.png
     visual-coherence-badges.png
-    skeptic-bug-001-counter.png
-    referee-bug-001-verdict.png
+    challenge-bug-001-counter.png
+    verdict-bug-001.png
 ```
 
 ---

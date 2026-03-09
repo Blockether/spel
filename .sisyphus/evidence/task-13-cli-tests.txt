@@ -1,0 +1,19 @@
+Task 13: Update test-cli.sh for 8-agent consolidation
+=====================================================
+
+Changes Made:
+1. Added assertion for test-writer in --only test section (line 1072):
+   assert_contains "init-agents --only test includes test-writer" "$OUT" "spel-test-writer"
+
+2. Updated bug-referee references → bug-hunter in Unified Report Template section (lines 1589-1594):
+   - REFEREE_FILE → BUGFIND_FILE (.opencode/agents/spel-bug-hunter.md)
+   - "bug-referee references spel-report" → "bug-hunter references spel-report"
+   - "bug-referee references spel-report markdown" → "bug-hunter references spel-report markdown"
+
+Verification:
+- Assertion count: 315 (was 314, added 1 for test-writer) — well above 150 floor
+- Removed agent references: ZERO (grep for bug-referee|bug-skeptic|test-healer|test-generator|test-orchestrator|qa-orchestrator|spec-skeptic returns nothing)
+- No test sections removed — only updated assertions within existing sections
+- No test infrastructure changes (assert_jq, assert_contains helpers untouched)
+
+Note: Cannot run make test-cli yet — binary not built (Task 14).

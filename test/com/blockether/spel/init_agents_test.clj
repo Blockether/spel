@@ -357,12 +357,6 @@
   (it "detects spel-orchestrator"
     (expect (true? (#'sut/orchestrator-agent? "spel-orchestrator"))))
 
-  (it "detects spel-test-orchestrator"
-    (expect (true? (#'sut/orchestrator-agent? "spel-test-orchestrator"))))
-
-  (it "detects spel-qa-orchestrator"
-    (expect (true? (#'sut/orchestrator-agent? "spel-qa-orchestrator"))))
-
   (it "rejects spel-test-planner"
     (expect (false? (#'sut/orchestrator-agent? "spel-test-planner"))))
 
@@ -414,21 +408,18 @@
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false))]
         (expect (some #(= ".opencode/skills/spel/SKILL.md" %) paths))))
 
-    (it "includes all 14 agent templates"
+    (it "includes all 8 agent templates"
       (let [names (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false))]
-        (expect (= 14 (count names)))))
+        (expect (= 8 (count names)))))
 
     (it "includes test agents"
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
         (expect (contains? names "spel-test-planner"))
-        (expect (contains? names "spel-test-generator"))
-        (expect (contains? names "spel-test-healer"))))
+        (expect (contains? names "spel-test-writer"))))
 
-    (it "includes orchestrator agents"
+    (it "includes orchestrator agent"
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
-        (expect (contains? names "spel-orchestrator"))
-        (expect (contains? names "spel-test-orchestrator"))
-        (expect (contains? names "spel-qa-orchestrator"))))
+        (expect (contains? names "spel-orchestrator"))))
 
     (it "includes all workflow prompts"
       (let [paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false)))]
@@ -446,8 +437,7 @@
 
       (it "includes test agents"
         (expect (contains? names "spel-test-planner"))
-        (expect (contains? names "spel-test-generator"))
-        (expect (contains? names "spel-test-healer")))
+        (expect (contains? names "spel-test-writer")))
 
       (it "excludes non-test agents"
         (expect (not (contains? names "spel-explorer")))
@@ -480,15 +470,13 @@
         (expect (not (contains? names "spel-test-planner"))))))
 
   (describe "--only bugfind"
-    (let [resolved #{:bug-hunter :bug-skeptic :bug-referee}
+    (let [resolved #{:bug-hunter}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))
           paths (set (output-paths specs))]
 
       (it "includes bugfind agents"
-        (expect (contains? names "spel-bug-hunter"))
-        (expect (contains? names "spel-bug-skeptic"))
-        (expect (contains? names "spel-bug-referee")))
+        (expect (contains? names "spel-bug-hunter")))
 
       (it "includes bugfind workflow"
         (expect (some #(str/includes? % "spel-bugfind-workflow") paths)))
@@ -514,41 +502,34 @@
         (expect (not (contains? names "spel-test-planner"))))))
 
   (describe "--only orchestrator"
-    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator}
+    (let [resolved #{:orchestrator}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))]
 
-      (it "includes all three orchestrators"
-        (expect (contains? names "spel-orchestrator"))
-        (expect (contains? names "spel-test-orchestrator"))
-        (expect (contains? names "spel-qa-orchestrator")))
+      (it "includes orchestrator"
+        (expect (contains? names "spel-orchestrator")))
 
       (it "excludes non-orchestrator agents"
         (expect (not (contains? names "spel-test-planner")))
         (expect (not (contains? names "spel-bug-hunter"))))))
 
   (describe "--only core"
-    (let [resolved #{:orchestrator :test-orchestrator :qa-orchestrator
-                     :product-analyst :spec-skeptic}
+    (let [resolved #{:orchestrator :test :explorer
+                     :bug-hunter :product-analyst}
           specs (#'sut/files-to-create "opencode" "lazytest" resolved false)
           names (set (agent-names specs))]
 
-      (it "includes simplified core agents"
+      (it "includes core agents"
         (expect (contains? names "spel-orchestrator"))
-        (expect (contains? names "spel-test-orchestrator"))
-        (expect (contains? names "spel-qa-orchestrator"))
-        (expect (contains? names "spel-product-analyst"))
-        (expect (contains? names "spel-spec-skeptic")))
+        (expect (contains? names "spel-test-planner"))
+        (expect (contains? names "spel-test-writer"))
+        (expect (contains? names "spel-explorer"))
+        (expect (contains? names "spel-bug-hunter"))
+        (expect (contains? names "spel-product-analyst")))
 
-      (it "excludes specialist swarm agents"
-        (expect (not (contains? names "spel-explorer")))
+      (it "excludes non-core agents"
         (expect (not (contains? names "spel-automator")))
-        (expect (not (contains? names "spel-bug-hunter")))
-        (expect (not (contains? names "spel-bug-hunter")))
-        (expect (not (contains? names "spel-bug-skeptic")))
-        (expect (not (contains? names "spel-bug-referee")))
-        (expect (not (contains? names "spel-presenter")))
-        (expect (not (contains? names "spel-visual-qa"))))))
+        (expect (not (contains? names "spel-presenter"))))))
 
   (describe "workflow filtering"
     (it "includes visual workflow when presenter is selected (visual-qa merged into bug-hunter)"
@@ -566,10 +547,10 @@
             paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" resolved false)))]
         (expect (some #(str/includes? % "spel-automation-workflow") paths))))
 
-    (it "excludes bugfind workflow when only bug-hunter is selected"
+    (it "includes bugfind workflow when bug-hunter is selected"
       (let [resolved #{:bug-hunter}
             paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest" resolved false)))]
-        (expect (not (some #(str/includes? % "spel-bugfind-workflow") paths))))))
+        (expect (some #(str/includes? % "spel-bugfind-workflow") paths)))))
 
   (describe "ref deduplication"
     (it "does not duplicate shared ref files across agent groups"
@@ -588,10 +569,10 @@
         (expect (some #(= ".claude/docs/spel/SKILL.md" %) paths)))))
 
   (describe "clojure-test flavour"
-    (it "uses clojure-test generator template"
+    (it "uses clojure-test writer template"
       (let [specs (#'sut/files-to-create "opencode" "clojure-test" nil false)
             resource-paths (map first specs)]
-        (expect (some #(= "agents/spel-test-generator-ct.md" %) resource-paths))))
+        (expect (some #(= "agents/spel-test-writer-ct.md" %) resource-paths))))
 
     (it "uses clojure-test testing conventions"
       (let [specs (#'sut/files-to-create "opencode" "clojure-test" nil false)
@@ -639,7 +620,7 @@
         (expect (str/includes? content "## Corrective Backlog"))))
 
     (it "includes base contract plus orchestrator section"
-      (let [content (#'sut/append-learnings-contract "base" "spel-qa-orchestrator")]
+      (let [content (#'sut/append-learnings-contract "base" "spel-orchestrator")]
         ;; base contract
         (expect (str/includes? content "## Meta Learnings"))
         ;; orchestrator addition

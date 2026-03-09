@@ -1069,6 +1069,7 @@ fi
 # --only test --dry-run: includes test agents, excludes others
 OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)
 assert_contains "init-agents --only test includes test-planner" "$OUT" "spel-test-planner"
+assert_contains "init-agents --only test includes test-writer" "$OUT" "spel-test-writer"
 assert_contains "init-agents --only test includes SKILL" "$OUT" "SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if echo "$OUT" | grep -q "spel-explorer"; then
@@ -1585,12 +1586,12 @@ else
   pass "old product-report.html not scaffolded"
 fi
 
-# 5. force-created bug-referee file references spel-report.html
-REFEREE_FILE=".opencode/agents/spel-bug-referee.md"
-TEMP_FILES+=("$REFEREE_FILE")
+# 5. force-created bug-hunter file references spel-report.html
+BUGFIND_FILE=".opencode/agents/spel-bug-hunter.md"
+TEMP_FILES+=("$BUGFIND_FILE")
 OUT=$("$SPEL" init-agents --only bugfind --ns test-app --force 2>&1)
-assert_contains "bug-referee references spel-report" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.html"
-assert_contains "bug-referee references spel-report markdown" "$(cat "$REFEREE_FILE" 2>/dev/null)" "spel-report.md"
+assert_contains "bug-hunter references spel-report" "$(cat "$BUGFIND_FILE" 2>/dev/null)" "spel-report.html"
+assert_contains "bug-hunter references spel-report markdown" "$(cat "$BUGFIND_FILE" 2>/dev/null)" "spel-report.md"
 
 section "Helpers (44)"
 

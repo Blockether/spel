@@ -1,0 +1,162 @@
+  com.blockether.spel.init-agents-test
+    Unit tests for CLI argument parsing
+      defaults
+        [32m√[0m [90mreturns default values when no args given[0m
+      boolean flags
+        [32m√[0m [90mparses --dry-run[0m
+        [32m√[0m [90mparses --force[0m
+        [32m√[0m [90mparses --no-tests[0m
+        [32m√[0m [90mparses --learnings[0m
+        [32m√[0m [90mparses --simplified[0m
+        [32m√[0m [90mparses --help[0m
+        [32m√[0m [90mparses -h as help[0m
+      --ns
+        [32m√[0m [90mparses --ns with space-separated value[0m
+        [32m√[0m [90mparses --ns= syntax[0m
+      --loop
+        [32m√[0m [90mparses --loop with space-separated value[0m
+        [32m√[0m [90mparses --loop= syntax[0m
+      --flavour
+        [32m√[0m [90mparses --flavour with space-separated value[0m
+        [32m√[0m [90mparses --flavour= syntax[0m
+      --test-dir and --specs-dir
+        [32m√[0m [90mparses --test-dir with space-separated value[0m
+        [32m√[0m [90mparses --test-dir= syntax[0m
+        [32m√[0m [90mparses --specs-dir with space-separated value[0m
+        [32m√[0m [90mparses --specs-dir= syntax[0m
+      --only
+        [32m√[0m [90mparses --only with space-separated value[0m
+        [32m√[0m [90mparses --only= syntax[0m
+        [32m√[0m [90mparses comma-separated --only values[0m
+        [32m√[0m [90mparses comma-separated --only= values[0m
+      combined flags
+        [32m√[0m [90mparses multiple flags together[0m
+        [32m√[0m [90mignores unknown args[0m
+    Unit tests for --only value parsing
+      [32m√[0m [90mparses single value[0m
+      [32m√[0m [90mparses comma-separated values[0m
+      [32m√[0m [90mtrims whitespace around values[0m
+      [32m√[0m [90mignores empty segments from trailing comma[0m
+      [32m√[0m [90mhandles multiple groups[0m
+    Unit tests for namespace-to-path conversion
+      ns->path
+        [32m√[0m [90mconverts dotted namespace to slash-separated path[0m
+        [32m√[0m [90mconverts hyphens to underscores in path segments[0m
+        [32m√[0m [90mhandles single-segment namespace[0m
+        [32m√[0m [90mhandles deeply nested namespace[0m
+    Unit tests for seed template resource selection
+      [32m√[0m [90mreturns lazytest template for lazytest flavour[0m
+      [32m√[0m [90mreturns clojure-test template for clojure-test flavour[0m
+    Unit tests for frontmatter parsing
+      extract-frontmatter
+        [32m√[0m [90mextracts frontmatter and body from valid content[0m
+        [32m√[0m [90mreturns nil when no frontmatter present[0m
+        [32m√[0m [90mreturns nil when content doesn't start with ---[0m
+        [32m√[0m [90mreturns nil when closing --- is missing[0m
+        [32m√[0m [90mhandles empty body after frontmatter[0m
+      extract-fm-field
+        [32m√[0m [90mextracts a top-level field[0m
+        [32m√[0m [90mextracts a quoted field value[0m
+        [32m√[0m [90mreturns nil for missing field[0m
+        [32m√[0m [90mdoes not match indented (nested) fields[0m
+        [32m√[0m [90mtrims whitespace from value[0m
+      strip-matching-quotes
+        [32m√[0m [90mstrips double quotes[0m
+        [32m√[0m [90mstrips single quotes[0m
+        [32m√[0m [90mdoes not strip mismatched quotes[0m
+        [32m√[0m [90mreturns non-string input as-is[0m
+        [32m√[0m [90mreturns short strings as-is[0m
+        [32m√[0m [90mreturns unquoted strings as-is[0m
+    Unit tests for agent reference replacement
+      [32m√[0m [90mpreserves @agent-name syntax for opencode target[0m
+      [32m√[0m [90mreplaces @agent-name for claude target[0m
+      [32m√[0m [90mreplaces multiple agent references in one string[0m
+      [32m√[0m [90mdoes not modify text without agent references[0m
+    Unit tests for skill instruction replacement
+      [32m√[0m [90mreplaces short skill loading instruction[0m
+      [32m√[0m [90mreplaces long skill loading instruction[0m
+      [32m√[0m [90mpasses through content without skill instructions[0m
+    Unit tests for OpenCode → Claude frontmatter transformation
+      [32m√[0m [90mtransforms frontmatter with description and default color[0m
+      [32m√[0m [90mpreserves custom color from frontmatter[0m
+      [32m√[0m [90muses default color when none specified[0m
+      [32m√[0m [90mreturns content unchanged when no frontmatter[0m
+      [32m√[0m [90mreplaces skill loading instruction in body[0m
+    Unit tests for agent template transformation dispatch
+      [32m√[0m [90mreturns content unchanged for opencode target[0m
+      [32m√[0m [90mtransforms content for claude target[0m
+      [32m√[0m [90mreturns content unchanged when agent-name is nil[0m
+    Unit tests for orchestrator agent detection
+      [32m√[0m [90mdetects spel-orchestrator[0m
+      [32m√[0m [90mdetects spel-test-orchestrator[0m
+      [32m√[0m [90mdetects spel-qa-orchestrator[0m
+      [32m√[0m [90mrejects spel-test-planner[0m
+      [32m√[0m [90mrejects spel-bug-hunter[0m
+      [32m√[0m [90mrejects nil[0m
+    Unit tests for template placeholder replacement
+      [32m√[0m [90mreplaces {{ns}} placeholder[0m
+      [32m√[0m [90mreplaces {{version}} placeholder[0m
+      [32m√[0m [90mreplaces multiple placeholders in one template[0m
+    Unit tests for init-agents scaffold selection
+      learnings scaffolding
+        [32m√[0m [90mdoes not scaffold LEARNINGS.md when learnings are enabled[0m
+        [32m√[0m [90mstill scaffolds skill files when learnings are enabled[0m
+      all agents (no --only)
+        [32m√[0m [90mincludes SKILL.md[0m
+        [32m√[0m [90mincludes all 8 agent templates[0m
+        [32m√[0m [90mincludes test agents[0m
+        [32m√[0m [90mincludes orchestrator agent[0m
+        [32m√[0m [90mincludes all workflow prompts[0m
+      --only test
+        [32m√[0m [90mincludes test agents[0m
+        [32m√[0m [90mexcludes non-test agents[0m
+        [32m√[0m [90mincludes test workflow[0m
+        [32m√[0m [90mexcludes automation workflow[0m
+        [32m√[0m [90malways includes SKILL.md[0m
+        [32m√[0m [90mincludes core refs[0m
+      --only automation
+        [32m√[0m [90mincludes automation agents[0m
+        [32m√[0m [90mexcludes test agents[0m
+      --only bugfind
+        [32m√[0m [90mincludes bugfind agents[0m
+        [32m√[0m [90mincludes bugfind workflow[0m
+        [32m√[0m [90mexcludes test and automation agents[0m
+      --only discovery
+        [32m√[0m [90mincludes product-analyst[0m
+        [32m√[0m [90mincludes discovery workflow[0m
+        [32m√[0m [90mexcludes non-discovery agents[0m
+      --only orchestrator
+        [32m√[0m [90mincludes orchestrator[0m
+        [32m√[0m [90mexcludes non-orchestrator agents[0m
+      --only core
+        [32m√[0m [90mincludes core agents[0m
+        [32m√[0m [90mexcludes non-core agents[0m
+      workflow filtering
+        [32m√[0m [90mincludes visual workflow when presenter is selected (visual-qa merged into bug-hunter)[0m
+        [32m√[0m [90mexcludes automation workflow when only explorer is selected[0m
+        [32m√[0m [90mincludes automation workflow when all automation agents are selected[0m
+        [32m√[0m [90mincludes bugfind workflow when bug-hunter is selected[0m
+      ref deduplication
+        [32m√[0m [90mdoes not duplicate shared ref files across agent groups[0m
+      claude loop target
+        [32m√[0m [90muses .claude directory paths[0m
+        [32m√[0m [90mincludes SKILL.md under .claude/docs/spel[0m
+      clojure-test flavour
+        [32m√[0m [90muses clojure-test writer template[0m
+        [32m√[0m [90muses clojure-test testing conventions[0m
+    Unit tests for learnings contract injection
+      specialist agents
+        [32m√[0m [90madds lazy creation instructions[0m
+        [32m√[0m [90mincludes agent name in section header[0m
+        [32m√[0m [90mincludes exact reproduction template[0m
+        [32m√[0m [90mincludes root cause section[0m
+        [32m√[0m [90mdoes not include orchestrator synthesis[0m
+      orchestrator agents
+        [32m√[0m [90madds incremental synthesis instructions[0m
+        [32m√[0m [90mrequires corrective backlog[0m
+        [32m√[0m [90mincludes base contract plus orchestrator section[0m
+      preserves original content
+        [32m√[0m [90mprepends to existing content[0m
+
+Ran 118 test cases in 0.08523 seconds.
+[32m0 failures.[0m

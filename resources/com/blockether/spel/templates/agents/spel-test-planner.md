@@ -25,14 +25,14 @@ Use `spel --session $SESSION ...` for every command and always close at the end.
 
 ## Pipeline context
 
-You are Stage 1 of a 3-agent test pipeline:
+You are Stage 1 of a 2-agent test pipeline:
 
 ```
-@spel-test-planner → @spel-test-generator → @spel-test-healer
-  (you are here)        (generates tests)       (fixes failures)
+@spel-test-planner → @spel-test-writer (generate + self-heal)
+  (you are here)        (writes and fixes tests)
 ```
 
-Your output (`test-e2e/specs/<feature>-test-plan.md` + `.json`) is the REQUIRED input for `@spel-test-generator`.
+Your output (`test-e2e/specs/<feature>-test-plan.md` + `.json`) is the REQUIRED input for `@spel-test-writer`.
 
 ## Contract
 
@@ -41,7 +41,7 @@ Inputs:
 - Target URL: application entry point to explore (REQUIRED)
 - `test-e2e/<ns>/e2e/seed_test.clj`: seed test to infer project test patterns (REQUIRED)
 
-Outputs (consumed by @spel-test-generator):
+Outputs (consumed by @spel-test-writer):
 
 - `test-e2e/specs/<feature>-test-plan.md`: human-readable test plan (format: MD)
 - `test-e2e/specs/<feature>-test-plan.json`: machine-readable sidecar with scenarios/selectors/expectations (format: JSON)
@@ -190,8 +190,47 @@ JSON sidecar schema:
         "email_input": {"ref": "@ea3kf5", "role": "textbox", "name": "Email"}
       }
     }
-  ]
+  ],
+  "self_review": {
+    "ran": true,
+    "gaps_found": [
+      {"id": "SR-001", "category": "missing_edge_case", "score": 7, "issue": "No empty-state test", "action": "added scenario 2.4"}
+    ],
+    "gaps_added": ["2.4"],
+    "total_score": 7
+  }
 }
+```
+
+### Self-Challenge (optional)
+
+> **When to run:** Non-trivial plans with 5+ scenarios or multi-flow coverage.
+> **Skip for:** quick/smoke tests, single-feature requests, or plans with ≤4 scenarios.
+
+After writing the draft spec (steps 4–5 above), adopt a skeptical QA perspective and challenge your own plan before presenting it to the user.
+
+**Step 1 — Challenge each scenario group.** For each group, ask:
+
+- What edge cases are missing? (empty states, error states, boundary values, concurrent actions)
+- What assumptions are untested? (auth expiry, session timeout, race conditions)
+- Are selectors resilient to UI changes? (prefer ARIA roles/text over brittle CSS paths)
+- Are assertions behavior-focused? (user-visible outcomes, not implementation details)
+- Is there redundancy? (scenarios testing the same behavior with no new coverage)
+
+**Step 2 — Score each gap found:**
+
+| Score | Meaning | Action |
+|-------|---------|--------|
+| 1–4 | Minor improvement | Note but do not add |
+| 5–7 | Missing edge case | Add to spec |
+| 8–10 | Critical gap | Must add to spec |
+
+**Step 3 — Remediate.** Add gaps scored ≥5 back into the spec as new scenarios or steps. Update both the `.md` and `.json` files.
+
+**Step 4 — Record.** Add `self_review` to `test-plan.json` (see schema above). If self-challenge was skipped, set:
+
+```json
+{"self_review": {"ran": false, "reason": "single-feature request"}}
 ```
 
 GATE: Present the spec to the user. Do NOT mark as complete until user approves.
@@ -203,7 +242,7 @@ Present:
 
 Do NOT proceed to test generation until explicit user approval.
 
-Handoff: After user approves, invoke `@spel-test-generator` with:
+Handoff: After user approves, invoke `@spel-test-writer` with:
 
 - The approved spec path: `test-e2e/specs/<feature>-test-plan.md`
 - The target URL used during exploration
@@ -258,6 +297,7 @@ Selectors verified via snapshot:
 - [ ] Expected text for assertions is exact (no implicit substring matching)
 - [ ] Snapshot refs are included to prove selectors were verified against the live app
 - [ ] `test-e2e/specs/<feature>-test-plan.json` exists and matches the markdown plan
+- [ ] Self-challenge completed (or explicitly skipped with reason in `self_review`)
 - [ ] QA Inventory is included with all areas marked as covered
 - [ ] Visual QA scenarios are separate from functional scenarios
 - [ ] Exploratory pass completed — unexpected findings documented

@@ -33,11 +33,10 @@ rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 ```
 
 Agent short names:
-- planner → `plan`, generator → `gen`, healer → `heal`
+- planner → `plan`, test-writer → `tw`
 - explorer → `exp`, automator → `auto`
 - presenter → `pres`
-- bug-hunter → `hunt`, bug-skeptic → `skep`, bug-referee → `ref`
-- spec-skeptic → `sskep`
+- bug-hunter → `hunt`
 - product-analyst → `disc`
 
 ---
@@ -480,7 +479,7 @@ The QA orchestrator can embed video in the HTML report using the `<video>` eleme
 
 ## Black-box testing rule
 
-**NEVER read application source code.** Bug-finding agents (Hunter, Skeptic, Referee) are black-box testers. They test what users see and experience: UI, behavior, accessibility, network responses.
+**NEVER read application source code.** Bug-finding agents (Hunter) are black-box testers. They test what users see and experience: UI, behavior, accessibility, network responses.
 
 Reading source code introduces bias: you test what you know is there, miss bugs in the gap between intent and implementation, and skip exploratory paths a real user would try.
 

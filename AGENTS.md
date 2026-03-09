@@ -90,37 +90,35 @@ make lint                    # clojure-lsp diagnostics --raw
 make validate-safe-graal     # check for reflection/boxed-math warnings
 make gen-docs                # regenerate refs/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
-make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 14 agents)
+make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 8 agents)
 ```
 
 ## Agent Scaffolding
 
-`spel init-agents` scaffolds 14 agents across six groups. Use `--only` to scaffold a subset.
+`spel init-agents` scaffolds 8 agents across six groups. Use `--only` to scaffold a subset.
 
 ```bash
-spel init-agents                              # all 14 agents (default)
+spel init-agents                              # all 8 agents (default)
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
 spel init-agents --only=visual                # visual QA agents only
 spel init-agents --only=bugfind              # adversarial bug-finding agents only
-spel init-agents --only=orchestrator          # all 3 orchestrator agents
-spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec reviewer
+spel init-agents --only=orchestrator          # orchestrator agent only
 spel init-agents --only=test,visual           # combine groups with commas
-spel init-agents --only=discovery             # product discovery agents only
 ```
 
 ### Subagent groups
 
 | Group | Agents | Use for |
 |-------|--------|---------|
-| `test` | spel-test-planner, spel-test-generator, spel-test-healer | E2E test writing |
+| `test` | spel-test-planner, spel-test-writer | E2E test writing |
 | `automation` | spel-explorer, spel-automator | Browser automation |
 | `visual` | spel-presenter | Visual content |
-| `bugfind` | spel-bug-hunter, spel-bug-skeptic, spel-bug-referee | Adversarial bug finding |
-| `orchestrator` | spel-orchestrator, spel-test-orchestrator, spel-qa-orchestrator | Smart routing |
+| `bugfind` | spel-bug-hunter | Adversarial bug finding |
+| `orchestrator` | spel-orchestrator | Smart routing |
 | `discovery` | spel-product-analyst | Product feature inventory + coherence audit |
 
-Individual agent names also work as `--only` values: `explorer`, `automator`, `presenter`, `bug-hunter`, `bug-skeptic`, `bug-referee`, `orchestrator`, `test-orchestrator`, `qa-orchestrator`, `product-analyst`.
+Individual agent names also work as `--only` values: `explorer`, `automator`, `presenter`, `bug-hunter`, `orchestrator`, `product-analyst`.
 
 ### `--loop` flag
 

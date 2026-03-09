@@ -1,0 +1,42 @@
+Task 4: Absorb spel-spec-skeptic.md into spel-test-planner.md as Self-Challenge phase
+======================================================================================
+
+Status: COMPLETE
+
+Verification Results:
+- Line count: 320 (≤350 ✓)
+- spec-skeptic references: 0 (✓)
+- self-challenge/self_review mentions: 5 (✓)
+
+Changes Made:
+1. Added `self_review` object to JSON schema example (lines 194-201)
+   - Shows full structure: ran, gaps_found, gaps_added, total_score
+2. Added "### Self-Challenge (optional)" section (lines 205-234)
+   - Explicit optionality: "Skip for quick/smoke tests, single-feature, ≤4 scenarios"
+   - 4-step process: Challenge → Score → Remediate → Record
+   - Scoring table: 1-4 note only, 5-7 add, 8-10 must add
+   - Skip recording format: {"self_review": {"ran": false, "reason": "..."}}
+3. Added pre-delivery checklist item (line 300)
+   - "Self-challenge completed (or explicitly skipped with reason in self_review)"
+
+Content Absorbed from spec-skeptic.md:
+- Challenge dimensions: edge cases, untested assumptions, selector resilience, assertion focus, redundancy
+- Gap scoring system (simplified from 3-tier to table format)
+- Remediation threshold: gaps ≥5 added back to spec
+- Recording requirement in JSON sidecar
+
+Design Decisions:
+- Self-challenge is AFTER draft spec (steps 4-5) and BEFORE GATE presentation
+- Threshold: 5+ scenarios triggers self-challenge (matches "non-trivial" intent)
+- Scoring simplified from spec-skeptic's +1/+5/+10 to ranges (1-4/5-7/8-10) for clarity
+- No separate output file — integrated into test-plan.json under self_review key
+- No @spel-spec-skeptic reference anywhere in the file
+
+Post-verification fix: Stale agent references updated
+------------------------------------------------------
+- @spel-test-generator → @spel-test-writer (4 occurrences)
+- @spel-test-healer removed from pipeline diagram
+- Pipeline description: "3-agent" → "2-agent"
+- Final verification: grep -c 'spel-test-generator|spel-test-healer' → 0 ✓
+- grep -c 'spel-test-writer' → 4 ✓
+- Line count: 320 (unchanged) ✓
