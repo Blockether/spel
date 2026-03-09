@@ -444,7 +444,7 @@ Library:
 
 ## Agent initialization
 
-`spel init-agents` scaffolds E2E test agents for AI coding tools. Three agents work together in a plan, generate, heal loop.
+`spel init-agents` scaffolds E2E test agents for AI coding tools. Agents work together: planner writes test plans with self-challenge, test-writer generates tests and self-heals failures.
 
 ### Quick start
 
@@ -474,8 +474,7 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 | File | Purpose |
 |------|---------|
 | `agents/spel-test-planner` | Explores the app with `spel` CLI and `eval-sci`. Catalogs pages/flows. Writes test plans to `specs/`. |
-| `agents/spel-test-generator` | Reads plans from `specs/`. Generates Clojure test files. Verifies selectors before committing. |
-| `agents/spel-test-healer` | Runs failing tests, investigates with `spel` CLI, diagnoses root causes, applies targeted fixes. |
+| `agents/spel-test-writer` | Reads plans from `specs/`. Generates Clojure test files. Verifies selectors, self-heals failures. |
 | `prompts/spel-test-workflow` | Orchestrator prompt: plan, generate, heal cycle. |
 | `skills/spel/SKILL.md` | API reference so agents know spel's functions and conventions. |
 | `specs/README.md` | Test plans directory with instructions for the planner. |
@@ -485,10 +484,9 @@ With `--no-tests`, only the SKILL file is generated. Useful for interactive deve
 
 ### How the agents work together
 1. Planner opens the target app with `spel`, takes snapshots, explores navigation flows, and writes markdown test plans.
-2. Generator reads those plans, writes Clojure test files, and runs them to confirm they pass.
-3. Healer picks up failures, investigates with `spel snapshot` and `eval-sci`, identifies why the test broke, and patches the code.
+2. Test-writer reads those plans, writes Clojure test files, runs them, and self-heals any failures.
 
-The `spel-test-workflow` prompt chains all three: plan first, generate second, heal until green.
+The `spel-test-workflow` prompt chains both: plan first, generate and heal second.
 
 ### File locations by target
 

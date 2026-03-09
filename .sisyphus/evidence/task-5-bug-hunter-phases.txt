@@ -1,0 +1,14 @@
+Task: Expand spel-bug-hunter with Self-Challenge and Verdict & Reporting phases
+File: resources/com/blockether/spel/templates/agents/spel-bug-hunter.md
+
+Verification output:
+- wc -l => 446 (<= 500)
+- grep Self-Challenge/self-challenge => present (frontmatter + Phase 4)
+- grep Verdict/verdict.json => present (Phase 5)
+- grep qa-report.html/qa-report.md => present
+- grep "### Phase 0: visual regression" => present
+- grep -c 'spel-bug-skeptic\|spel-bug-referee' => 0
+
+Additional checks:
+- Existing Phase 0-3 content preserved; new phases appended after existing workflow/gate content.
+- Frontmatter description updated to include self-verification and final reporting.

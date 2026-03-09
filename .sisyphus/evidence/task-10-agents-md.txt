@@ -1,0 +1,31 @@
+TASK 10: Update AGENTS.md for 8-agent consolidation
+=====================================================
+
+VERIFICATION RESULTS:
+✓ grep -c '14 agents|15 agents' AGENTS.md → 0
+✓ grep -c 'spec-skeptic|bug-skeptic|bug-referee|test-healer|test-orchestrator|qa-orchestrator|test-generator' AGENTS.md → 0
+✓ Agent count now says "8 agents" (3 occurrences)
+
+CHANGES MADE:
+1. Line 93: Updated make init-agents comment from "all 14 agents" to "all 8 agents"
+2. Line 98: Updated scaffolding description from "14 agents" to "8 agents"
+3. Line 101: Updated example from "all 14 agents" to "all 8 agents"
+4. Line 106: Updated --only=orchestrator from "all 3 orchestrator agents" to "orchestrator agent only"
+5. Lines 107-109: Removed spec-skeptic example, kept test,visual example
+6. Line 116: Updated test group from "spel-test-planner, spel-test-generator, spel-test-healer" to "spel-test-planner, spel-test-writer"
+7. Line 119: Updated bugfind group from "spel-bug-hunter, spel-bug-skeptic, spel-bug-referee" to "spel-bug-hunter"
+8. Line 120: Updated orchestrator group from "spel-orchestrator, spel-test-orchestrator, spel-qa-orchestrator" to "spel-orchestrator"
+9. Line 123: Updated individual agent names list to remove: spec-skeptic, bug-skeptic, bug-referee, test-orchestrator, qa-orchestrator
+
+SUBAGENT GROUPS TABLE (UPDATED):
+| Group | Agents | Use for |
+|-------|--------|---------|
+| test | spel-test-planner, spel-test-writer | E2E test writing |
+| automation | spel-explorer, spel-automator | Browser automation |
+| visual | spel-presenter | Visual content |
+| bugfind | spel-bug-hunter | Adversarial bug finding |
+| orchestrator | spel-orchestrator | Smart routing |
+| discovery | spel-product-analyst | Product feature inventory + coherence audit |
+
+STATUS: COMPLETE
+All expected outcomes met. File ready for commit.

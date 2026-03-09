@@ -68,7 +68,6 @@
           "AGENT_COMMON.md"]
    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md" "CI_WORKFLOWS.md"]
-   :spec-skeptic ["ASSERTIONS_EVENTS.md" "SNAPSHOT_TESTING.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
               "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_AGENTS.md"
               "BROWSER_OPTIONS.md"]
@@ -78,14 +77,9 @@
                "SLIDE_PATTERNS.md" "PDF_STITCH_VIDEO.md"]
    :bug-hunter ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
                 "BUGFIND_GUIDE.md" "NAVIGATION_WAIT.md" "NETWORK_ROUTING.md"
-                "PAGE_LOCATORS.md" "SNAPSHOT_TESTING.md"]
-   :bug-skeptic ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md"]
-   :bug-referee ["SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                 "BUGFIND_GUIDE.md" "spel-report.html" "spel-report.md"]
-   :orchestrator ["AGENT_COMMON.md"]
-   :test-orchestrator ["AGENT_COMMON.md"]
-   :qa-orchestrator ["AGENT_COMMON.md" "spel-report.html" "spel-report.md"]
+                "PAGE_LOCATORS.md" "SNAPSHOT_TESTING.md"
+                "spel-report.html" "spel-report.md"]
+   :orchestrator ["AGENT_COMMON.md" "spel-report.html" "spel-report.md"]
    :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
                      "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html" "spel-report.md"]})
 
@@ -93,40 +87,29 @@
   "Maps --only group keywords to sets of subagent keywords.
    Used to resolve which agents and refs to scaffold."
   {:test #{:test}
-   :spec-skeptic #{:spec-skeptic}
    :explorer #{:explorer}
    :automator #{:automator}
    :presenter #{:presenter}
    :bug-hunter #{:bug-hunter}
-   :bug-skeptic #{:bug-skeptic}
-   :bug-referee #{:bug-referee}
-   :orchestrator #{:orchestrator :test-orchestrator :qa-orchestrator}
-   :test-orchestrator #{:test-orchestrator}
-   :qa-orchestrator #{:qa-orchestrator}
+   :orchestrator #{:orchestrator}
    :automation #{:explorer :automator}
    :visual #{:presenter}
-   :bugfind #{:bug-hunter :bug-skeptic :bug-referee}
+   :bugfind #{:bug-hunter}
    :discovery #{:product-analyst}
    :product-analyst #{:product-analyst}
    ;; Simplified helper-first setup: six core agents only
-   :core #{:orchestrator :test-orchestrator :qa-orchestrator
-           :product-analyst :spec-skeptic}})
+   :core #{:orchestrator :test :explorer
+           :bug-hunter :product-analyst}})
 
 (def ^:private agent-to-subagent
   "Maps agent template names to their subagent group keyword."
   {"spel-test-planner" :test
-   "spel-test-generator" :test
-   "spel-test-healer" :test
-   "spel-spec-skeptic" :spec-skeptic
+   "spel-test-writer" :test
    "spel-explorer" :explorer
    "spel-automator" :automator
    "spel-presenter" :presenter
    "spel-bug-hunter" :bug-hunter
-   "spel-bug-skeptic" :bug-skeptic
-   "spel-bug-referee" :bug-referee
    "spel-orchestrator" :orchestrator
-   "spel-test-orchestrator" :test-orchestrator
-   "spel-qa-orchestrator" :qa-orchestrator
    "spel-product-analyst" :product-analyst})
 
 (def ^:private workflow-required-agents
@@ -135,7 +118,7 @@
   {"prompts/spel-test-workflow.md" #{:test}
    "prompts/spel-visual-workflow.md" #{:presenter}
    "prompts/spel-automation-workflow.md" #{:explorer :automator}
-   "prompts/spel-bugfind-workflow.md" #{:bug-hunter :bug-skeptic :bug-referee}
+   "prompts/spel-bugfind-workflow.md" #{:bug-hunter}
    "prompts/spel-discovery-workflow.md" #{:product-analyst}})
 
 (defn- files-to-create
@@ -146,9 +129,9 @@
   [loop-target flavour resolved-only _learnings?]
   (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
         ct? (= "clojure-test" flavour)
-        generator-template (if ct?
-                             "agents/spel-test-generator-ct.md"
-                             "agents/spel-test-generator.md")
+        writer-template (if ct?
+                          "agents/spel-test-writer-ct.md"
+                          "agents/spel-test-writer.md")
         testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
         active-keys (if resolved-only
                       resolved-only
@@ -182,16 +165,11 @@
                          "test planner agent"
                          "+"
                          "spel-test-planner"]
-                        [generator-template
-                         (str agent-dir "/spel-test-generator" agent-ext)
-                         "test generator agent"
+                        [writer-template
+                         (str agent-dir "/spel-test-writer" agent-ext)
+                         "test writer agent"
                          "+"
-                         "spel-test-generator"]
-                        ["agents/spel-test-healer.md"
-                         (str agent-dir "/spel-test-healer" agent-ext)
-                         "test healer agent"
-                         "+"
-                         "spel-test-healer"]
+                         "spel-test-writer"]
                         ["agents/spel-explorer.md"
                          (str agent-dir "/spel-explorer" agent-ext)
                          "explorer agent"
@@ -222,26 +200,11 @@
                          "automation workflow"
                          "+"
                          nil]
-                        ["agents/spel-spec-skeptic.md"
-                         (str agent-dir "/spel-spec-skeptic" agent-ext)
-                         "spec skeptic agent"
-                         "+"
-                         "spel-spec-skeptic"]
                         ["agents/spel-bug-hunter.md"
                          (str agent-dir "/spel-bug-hunter" agent-ext)
                          "bug hunter agent"
                          "+"
                          "spel-bug-hunter"]
-                        ["agents/spel-bug-skeptic.md"
-                         (str agent-dir "/spel-bug-skeptic" agent-ext)
-                         "bug skeptic agent"
-                         "+"
-                         "spel-bug-skeptic"]
-                        ["agents/spel-bug-referee.md"
-                         (str agent-dir "/spel-bug-referee" agent-ext)
-                         "bug referee agent"
-                         "+"
-                         "spel-bug-referee"]
                         ["prompts/spel-bugfind-workflow.md"
                          (str prompt-dir "/spel-bugfind-workflow.md")
                          "bugfind workflow"
@@ -252,16 +215,6 @@
                          "orchestrator agent"
                          "+"
                          "spel-orchestrator"]
-                        ["agents/spel-test-orchestrator.md"
-                         (str agent-dir "/spel-test-orchestrator" agent-ext)
-                         "test orchestrator agent"
-                         "+"
-                         "spel-test-orchestrator"]
-                        ["agents/spel-qa-orchestrator.md"
-                         (str agent-dir "/spel-qa-orchestrator" agent-ext)
-                         "qa orchestrator agent"
-                         "+"
-                         "spel-qa-orchestrator"]
                         ["agents/spel-product-analyst.md"
                          (str agent-dir "/spel-product-analyst" agent-ext)
                          "product analyst agent"
@@ -405,19 +358,13 @@
 
 (def ^:private agent-ref-names
   "Agent names that may be referenced in templates via @name syntax."
-  ["spel-test-planner"
-   "spel-test-generator"
-   "spel-test-healer"
-   "spel-spec-skeptic"
+  ["spel-orchestrator"
+   "spel-test-planner"
+   "spel-test-writer"
    "spel-explorer"
    "spel-automator"
-   "spel-presenter"
    "spel-bug-hunter"
-   "spel-bug-skeptic"
-   "spel-bug-referee"
-   "spel-orchestrator"
-   "spel-test-orchestrator"
-   "spel-qa-orchestrator"
+   "spel-presenter"
    "spel-product-analyst"])
 
 (defn- transform-agent-references
@@ -710,14 +657,13 @@
   (println "  --learnings       Inject mandatory per-agent learnings contracts.")
   (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
   (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
-  (println "                    Values: test, spec-skeptic, explorer, automator,")
-  (println "                            presenter, bug-hunter, bug-skeptic, bug-referee,")
-  (println "                            orchestrator, test-orchestrator, qa-orchestrator,")
-  (println "                            product-analyst, discovery, core")
+  (println "                    Values: test, explorer, automator, presenter,")
+  (println "                            bug-hunter, orchestrator, product-analyst,")
+  (println "                            automation, visual, bugfind, discovery, core")
   (println "                    Groups: automation (explorer+automator),")
   (println "                            visual (presenter),")
-  (println "                            bugfind (bug-hunter+bug-skeptic+bug-referee),")
-  (println "                            orchestrator (all 3 orchestrators),")
+  (println "                            bugfind (bug-hunter),")
+  (println "                            orchestrator (spel-orchestrator),")
   (println "                            discovery (product-analyst),")
   (println "                            core (simplified 6-agent setup)")
   (println "                    Example: --only test,bugfind")

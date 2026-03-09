@@ -1,0 +1,33 @@
+Task 2: Create spel-test-writer-ct.md (clojure.test variant)
+============================================================
+
+File: resources/com/blockether/spel/templates/agents/spel-test-writer-ct.md
+Lines: 276
+
+Verification results:
+  grep -c 'clojure.test' → 5 (≥1 ✅)
+  grep -ci 'allure' → 0 (=0 ✅)
+  grep -c 'defdescribe|com.blockether.spel.allure' → 0 (=0 ✅)
+  grep -c 'deftest|testing|(is ' → 25 (clojure.test patterns present ✅)
+
+Structure (mirrors spel-test-writer.md):
+  ✅ Frontmatter: name=spel-test-writer-ct, mode=subagent
+  ✅ Session management
+  ✅ Pipeline context
+  ✅ Contract (inputs/outputs)
+  ✅ Priority refs (no ALLURE_REPORTING.md)
+  ✅ API vs browser testing
+  ✅ Phase 1: Generate (with generation-report.json schema, flavour=clojure-test)
+  ✅ Visual QA section (deftest/testing/is, not describe/it/expect)
+  ✅ Phase 2: Self-Heal (with healing-report.json schema, flavour=clojure-test)
+  ✅ Required code patterns (clojure.test :refer [deftest testing is])
+  ✅ Hard rules (includes ct-specific (is (nil? ...)) rule)
+  ✅ Output and gate
+
+Key differences from lazytest variant:
+  - No allure imports or references
+  - deftest/testing/is instead of defdescribe/describe/it/expect
+  - (is (nil? (assert/has-text ...))) pattern for Playwright assertions
+  - flavour: "clojure-test" in report schemas
+  - No ALLURE_REPORTING.md in priority refs
+  - Removed flavor awareness section (this IS the clojure-test flavor)

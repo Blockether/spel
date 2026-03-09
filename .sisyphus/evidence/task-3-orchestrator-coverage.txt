@@ -1,0 +1,23 @@
+Task 3 verification evidence: spel-orchestrator coverage
+
+File: resources/com/blockether/spel/templates/agents/spel-orchestrator.md
+
+Line count check:
+- Command: wc -l resources/com/blockether/spel/templates/agents/spel-orchestrator.md
+- Output: 251 resources/com/blockether/spel/templates/agents/spel-orchestrator.md
+
+Required section coverage:
+- Inlined test pipeline execution
+- Inlined QA pipeline execution
+- Scope to pipeline mapping
+- Adaptive depth for test pipeline
+- Adaptive depth for QA pipeline
+
+Handoff file reference coverage:
+- orchestration/automation-pipeline.json
+- orchestration/test-pipeline.json
+- orchestration/qa-pipeline.json
+
+Notes:
+- Available pipelines table updated to direct orchestration for Test/QA/Automation.
+- Sub-orchestrator fallback section removed.

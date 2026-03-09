@@ -181,10 +181,10 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (all 14 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
+Scaffold agent skills (all 8 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
 
 ```bash
-# Full scaffolding with all 14 agents (default)
+# Full scaffolding with all 8 agents (default)
 spel init-agents
 
 # All agents, no seed test or specs directory
@@ -361,16 +361,16 @@ spel compiles to a native binary via GraalVM - no JVM startup, instant execution
 Point your AI agent at spel and let it write your E2E tests.
 
 ```bash
-spel init-agents                              # all 14 agents (default)
+spel init-agents                              # all 8 agents (default)
 spel init-agents --loop=claude                # Claude Code
 spel init-agents --only=test                  # test agents only
 spel init-agents --only=automation            # browser automation agents only
 spel init-agents --only=visual                # visual QA agents only
 spel init-agents --only=bugfind              # adversarial bug-finding agents only
-spel init-agents --only=orchestrator          # all 3 orchestrator agents only
-spel init-agents --only=test,spec-skeptic     # test agents + adversarial spec reviewer
+spel init-agents --only=orchestrator          # orchestrator agent only
 spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --only=discovery             # product discovery agents only
+spel init-agents --only=core                  # simplified 6-agent core setup
 spel init-agents --only=core                  # simplified 6-agent core setup
 spel init-agents --simplified                 # alias for --only=core
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
@@ -380,7 +380,7 @@ spel init-agents --no-tests                   # all agents, skip seed test + spe
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
-| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `spec-skeptic`, `core` |
+| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `core` |
 | `--simplified` | — | Use simplified 6-agent setup (equivalent to `--only=core`) |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
@@ -396,11 +396,7 @@ spel init-agents --no-tests                   # all agents, skip seed test + spe
 Orchestrators are smart entry points that route your request to the right specialist pipeline:
 
 | Agent | Purpose |
-|-------|---------|
 | `@spel-orchestrator` | **Meta-orchestrator** — analyzes your request and routes to the right pipeline |
-| `@spel-test-orchestrator` | Drives the full test pipeline: plan → [challenge] → generate → heal |
-| `@spel-qa-orchestrator` | Coordinates QA: [explore] → hunt (with visual regression) → challenge → judge |
-| `@spel-orchestrator` | Also runs automation coordination directly: [auth] → explore → [script] → [document] |
 
 Just say `@spel-orchestrator test the login page` and it handles the rest.
 
@@ -409,12 +405,11 @@ Orchestrators are artifact-first: they should stop at explicit user-review gates
 ### Subagent Groups
 
 | Group | Agents | Use for |
-|-------|--------|---------|
-| `test` | planner, generator, healer | E2E test writing |
+| `test` | planner, writer | E2E test writing |
 | `automation` | explorer, automator | Browser automation |
 | `visual` | presenter | Visual content |
-| `bugfind` | bug-hunter, bug-skeptic, bug-referee | Adversarial bug finding |
-| `orchestrator` | orchestrator, test-orch, qa-orch | Smart routing |
+| `bugfind` | bug-hunter | Adversarial bug finding |
+| `orchestrator` | orchestrator | Smart routing |
 | `discovery` | product-analyst | Product feature inventory + coherence audit |
 
 ## Video Recording

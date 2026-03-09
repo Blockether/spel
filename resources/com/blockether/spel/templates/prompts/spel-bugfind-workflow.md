@@ -1,10 +1,10 @@
 ---
-description: Adversarial bug-finding workflow — Hunt, Challenge, Judge using three competing agents
+description: Bug-finding workflow — Hunt, challenge, and verdict in a single-agent multi-phase pipeline
 ---
 
-# Adversarial bug-finding workflow
+# Bug-finding workflow
 
-Orchestrates a three-agent adversarial pipeline to find, challenge, and verify bugs in a live web application. See `BUGFIND_GUIDE.md` for methodology, scoring, and JSON schemas.
+Orchestrates a single-agent multi-phase pipeline to find, challenge, and verify bugs in a live web application. See `BUGFIND_GUIDE.md` for methodology, scoring, and JSON schemas.
 
 The orchestrator must maintain `orchestration/qa-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
 
@@ -17,19 +17,20 @@ The orchestrator must maintain `orchestration/qa-pipeline.json` as the machine-r
 
 ## Pipeline overview
 
-Three agents with competing scoring incentives:
+One agent with five phases:
 
-| Agent | Incentive | Output |
-|-------|-----------|--------|
-| Hunter | +1/+5/+10 per bug found | `bugfind-reports/hunter-report.json` |
-| Skeptic | +score per disproval, -2x for wrong dismissal | `bugfind-reports/skeptic-review.json` |
-| Referee | +1 correct, -1 incorrect judgment | `bugfind-reports/referee-verdict.json` |
+| Phase | Purpose | Output |
+|-------|---------|--------|
+| 0. Visual regression | Diff against baselines (if present) | `bugfind-reports/diff-report.json` |
+| 1-3. Hunt | Explore + test across all categories | `bugfind-reports/hunter-report.json` |
+| 4. Self-challenge | Challenge each finding: real bug or false positive? | Integrated into final report |
+| 5. Verdict + report | Final severity scoring and report generation | `bugfind-reports/qa-report.html`, `bugfind-reports/qa-report.md` |
 
 ## Pre-exploration (optional)
 
-> Skip if you want the Hunter to do its own exploration.
+> Skip if you want the Bug Hunter to do its own exploration.
 
-If @spel-explorer is scaffolded, invoke it first for higher-quality input data. The Hunter handles visual regression as its Phase 0 when baselines exist.
+If @spel-explorer is scaffolded, invoke it first for higher-quality input data. The Bug Hunter handles visual regression as its Phase 0 when baselines exist.
 
 ### Explore
 
@@ -42,14 +43,9 @@ If @spel-explorer is scaffolded, invoke it first for higher-quality input data. 
 
 Produces: `exploration-manifest.json`, page snapshots, screenshots.
 
-### Visual regression (handled by Hunter)
-
-If baselines exist in `{{baseline-dir}}`, the Hunter's Phase 0 automatically handles visual regression.
-It captures current state, diffs against baselines, and generates `bugfind-reports/diff-report.json`.
-
-No separate agent invocation needed — visual regression is built into the Hunter.
-
 ## Hunt
+
+> Agent: @spel-bug-hunter
 
 ```xml
 <hunt>
@@ -60,44 +56,31 @@ No separate agent invocation needed — visual regression is built into the Hunt
 </hunt>
 ```
 
-GATE: Review the Hunter's report. It should contain specific bugs with evidence, not vague observations. If weak, send back with feedback.
-Required artifact before this gate:
+The Bug Hunter runs all five phases in sequence:
+
+1. **Visual regression** (Phase 0): If baselines exist, captures current state, diffs against baselines, generates `bugfind-reports/diff-report.json`.
+2. **Hunt** (Phases 1–3): Explores the target, tests across all bug categories, collects evidence with screenshots and reproduction steps.
+3. **Self-challenge** (Phase 4): Challenges each finding — disproves false positives, verifies real bugs with counter-evidence, adjusts severity scores.
+4. **Verdict + report** (Phase 5): Produces the final verified bug list ordered by severity, generates `bugfind-reports/qa-report.html` and `bugfind-reports/qa-report.md`.
+
+**GATE**: Review the Bug Hunter's final report. It should contain specific, self-challenged bugs with evidence — not vague observations or unverified claims. If weak, send back with feedback.
+Required artifacts before this gate:
 - `bugfind-reports/hunter-report.json`
-
-## Challenge
-
-```xml
-<challenge>
-  <url>{{target-url}}</url>
-  <hunter-report>bugfind-reports/hunter-report.json</hunter-report>
-</challenge>
-```
-
-GATE: Review the Skeptic's challenges. Check that disproved bugs have counter-evidence and the Skeptic didn't rubber-stamp everything as ACCEPT.
-Required artifact before this gate:
-- `bugfind-reports/skeptic-review.json`
-
-## Judge
-
-```xml
-<judge>
-  <url>{{target-url}}</url>
-  <hunter-report>bugfind-reports/hunter-report.json</hunter-report>
-  <skeptic-review>bugfind-reports/skeptic-review.json</skeptic-review>
-</judge>
-```
+- `bugfind-reports/qa-report.html`
+- `bugfind-reports/qa-report.md`
+- `orchestration/qa-pipeline.json`
 
 ## Final deliverable
 
-- `bugfind-reports/referee-verdict.json` -> canonical machine verdict (`verified_bug_list` ordered by severity)
-- `bugfind-reports/qa-report.html` -> stakeholder report
-- `bugfind-reports/qa-report.md` -> LLM/agent handoff report with exact reproductions per issue
-- `orchestration/qa-pipeline.json` -> pipeline handoff + gate state
+- `bugfind-reports/hunter-report.json` → machine-readable bug list with self-challenge verdicts
+- `bugfind-reports/qa-report.html` → stakeholder report
+- `bugfind-reports/qa-report.md` → LLM/agent handoff report with exact reproductions per issue
+- `orchestration/qa-pipeline.json` → pipeline handoff + gate state
 
 ## Notes
 
-- Session isolation is critical: each agent uses its own named session. Shared sessions contaminate evidence.
-- All three steps are required for full adversarial value. Running only the Hunter produces an unfiltered list.
-- Pre-exploration is optional: the Hunter can explore on its own, but specialist agents produce higher-quality input.
-- Responsive testing: the Hunter captures at mobile (375x812), tablet (768x1024), and desktop (1440x900).
-- Missing artifacts fail closed: if a promised JSON/report file is absent, the step is incomplete
+- Session isolation is critical: the Bug Hunter uses its own named session. Shared sessions contaminate evidence.
+- The self-challenge phase is built into the Bug Hunter — no separate agent invocation needed.
+- Pre-exploration is optional: the Bug Hunter can explore on its own, but specialist agents produce higher-quality input.
+- Responsive testing: the Bug Hunter captures at mobile (375x812), tablet (768x1024), and desktop (1440x900).
+- Missing artifacts fail closed: if a promised JSON/report file is absent, the step is incomplete.

@@ -35,16 +35,16 @@ If the installed version does not match **{{version}}**:
 ```
 
 The orchestrator routes to:
-- `@spel-test-orchestrator` — E2E test writing (plan → challenge → generate → heal)
-- `@spel-qa-orchestrator` — Bug finding (explore → hunt (with visual regression) → challenge → judge → HTML + Markdown reports)
+- E2E test writing (`@spel-test-planner` → `@spel-test-writer`) — plan with self-challenge → generate with self-heal
+- Bug finding (`@spel-bug-hunter`) — explore → hunt with visual regression → self-challenge → verdict → HTML + Markdown reports
 - Automation specialists directly (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
 
 You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
 Artifact-first rule: if you ask for JSON/report files, the orchestrator must treat those exact paths as required outputs, stop at gates, and keep `orchestration/*-pipeline.json` handoff manifests up to date.
 
 Runtime note:
-- In a fully scaffolded spel environment, `@spel-orchestrator` can route to `@spel-qa-orchestrator` and `@spel-test-orchestrator`, and coordinate automation specialists directly.
-- In constrained runtimes where those sub-orchestrators are not invokable, fall back to the equivalent workflow directly with spel CLI and `eval-sci`, but keep the same artifact-first contract and write the same `orchestration/*-pipeline.json` handoffs.
+- In a fully scaffolded spel environment, `@spel-orchestrator` coordinates all specialist agents directly.
+- In constrained runtimes where specialist agents are not invokable, fall back to the equivalent workflow directly with spel CLI and `eval-sci`, but keep the same artifact-first contract and write the same `orchestration/*-pipeline.json` handoffs.
 
 Proven navigation playbook:
 - ALWAYS simulate user actions: click links, buttons, and navigation elements like a real human would. NEVER use `spel open <url>` to skip navigation steps — only use it for the initial page load.
@@ -163,20 +163,17 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 Example 1: Write E2E tests
 User says: "Test the login page at http://localhost:3000"
 Actions:
-1. Route to @spel-test-orchestrator
-2. @spel-test-planner explores the login page, writes test plan
-3. @spel-test-generator creates Clojure E2E tests with assertions
-4. @spel-test-healer fixes any failing tests
+1. @spel-orchestrator routes to test pipeline
+2. @spel-test-planner explores the login page, writes test plan (with self-challenge)
+3. @spel-test-writer generates Clojure E2E tests with assertions and self-heals failures
 Result: Working E2E test suite in `test-e2e/` with Allure reporting
 
 Example 2: Find bugs on a live site
 User says: "Find bugs on https://example.com"
 Actions:
-1. Route to @spel-qa-orchestrator
+1. @spel-orchestrator routes to bug-finding pipeline
 2. @spel-explorer maps the site, captures snapshots
-3. @spel-bug-hunter tests for functional, visual, and UX bugs
-4. @spel-bug-skeptic challenges each finding
-5. @spel-bug-referee delivers final verdicts
+3. @spel-bug-hunter tests for functional, visual, and UX bugs, self-challenges each finding, and delivers final verdicts
 Result: HTML + Markdown bug reports with evidence screenshots
 
 Example 3: Automate a browser workflow
