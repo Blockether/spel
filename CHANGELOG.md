@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.20] - 2026-03-09
+
+### Changed
+- fix(refs): remove 'navigate directly' anti-patterns from NAVIGATION_WAIT and COMMON_PROBLEMS
+- refactor(agents): consolidate to 15 agents, enforce human-like navigation
+- feat(autotrainer): add bounded training loop with iteration, feedback, convergence
+- feat(init-agents): add simplified core scaffold mode
+- feat(helpers): add overview all-frames plus debug and emulate commands
+- test(init-agents): add 113 unit tests for agent scaffolding logic
+- chore(agents): regenerate test specs README for 0.5.19
+- release: update version files for v0.5.19, bump to next dev version
+
+
 ## [v0.5.19] - 2026-03-08
 
 ### Changed
@@ -641,7 +654,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.19...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.20...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -668,3 +681,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.17]: https://github.com/Blockether/spel/releases/tag/v0.5.17
 [v0.5.18]: https://github.com/Blockether/spel/releases/tag/v0.5.18
 [v0.5.19]: https://github.com/Blockether/spel/releases/tag/v0.5.19
+[v0.5.20]: https://github.com/Blockether/spel/releases/tag/v0.5.20
