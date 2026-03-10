@@ -26,13 +26,15 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.driver :as driver]
    [com.blockether.spel.locator :as locator]
+   [com.blockether.spel.markdown :as markdown]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.stealth :as stealth])
   (:import
    [com.microsoft.playwright BrowserContext Page]
    [com.microsoft.playwright.options AriaRole]
    [java.net URLEncoder]
-   [java.nio.charset StandardCharsets]))
+   [java.nio.charset StandardCharsets]
+   [java.util Random]))
 
 ;; =============================================================================
 ;; URL Building
@@ -88,6 +90,38 @@
                       (= :year time-range)
                       (conj "tbs=qdr:y"))]
      (str "https://www.google.com/search?" (str/join "&" params)))))
+
+;; =============================================================================
+;; User-Agent Rotation
+;; =============================================================================
+
+(def ^:private user-agents
+  "Pool of realistic Chrome user-agent strings for rotation."
+  ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"])
+
+(def ^:private rng (delay (Random.)))
+
+(defn- random-user-agent
+  "Picks a random user-agent from the pool."
+  ^String []
+  (nth user-agents (.nextInt ^Random @rng (count user-agents))))
+
+(defn- random-delay!
+  "Sleeps for a random duration between min-ms and max-ms."
+  [^long min-ms ^long max-ms]
+  (let [delay (+ min-ms (.nextInt ^Random @rng (- max-ms min-ms)))]
+    (Thread/sleep delay)))
+
+;; =============================================================================
+;; Retry Logic
+;; =============================================================================
 
 ;; =============================================================================
 ;; Consent Handling
@@ -196,6 +230,8 @@
      (page/navigate page url)
      (page/wait-for-load-state page :domcontentloaded)
      (dismiss-consent! page)
+     ;; Randomized delay to appear more human (800-2000ms)
+     (random-delay! 800 2000)
      nil)))
 
 ;; =============================================================================
@@ -546,6 +582,41 @@
            :related-searches (extract-related-searches page)))))))
 
 ;; =============================================================================
+;; Retry Logic
+;; =============================================================================
+
+(def ^:private max-retries
+  "Maximum number of search retries on empty results."
+  3)
+
+(defn- retry-search!
+  "Retries search! up to max-retries times with exponential backoff.
+   Returns the first result with non-empty :results, or the last result.
+
+   Params:
+   `page`  - Page instance.
+   `query` - String.
+   `opts`  - Search options map.
+   `attempt` - Current attempt (1-based)."
+  [^Page page ^String query opts ^long attempt]
+  (let [result (search! page query opts)]
+    (if (and (empty? (:results result))
+          (< attempt max-retries))
+      (let [block (detect-block! page)
+            backoff-ms (* 1000 (long (Math/pow 2 attempt)))]
+        (binding [*out* *err*]
+          (println (str "Retry " attempt "/" max-retries
+                     " (" (if block (str "blocked: " (name block)) "empty results")
+                     ") \u2014 waiting " backoff-ms "ms...")))
+        (Thread/sleep backoff-ms)
+        (page/navigate page "https://www.google.com/")
+        (page/wait-for-load-state page :domcontentloaded)
+        (dismiss-consent! page)
+        (random-delay! 500 1500)
+        (recur page query opts (inc attempt)))
+      result)))
+
+;; =============================================================================
 ;; High-Level Collect
 ;; =============================================================================
 
@@ -739,11 +810,76 @@
     (println)))
 
 ;; =============================================================================
+;; Markdown Table Rendering
+;; =============================================================================
+
+(defn- format-web-results-markdown
+  "Formats web results as a markdown table with #, Title, URL, Snippet columns."
+  [results]
+  (if (empty? results)
+    "*No results found.*"
+    (markdown/to-markdown-table
+      (mapv (fn [{:keys [title url snippet position]}]
+              {"#" position
+               "Title" (or title "")
+               "URL" (or url "")
+               "Snippet" (or snippet "")})
+        results)
+      {:columns ["#" "Title" "URL" "Snippet"]})))
+
+(defn- format-image-results-markdown
+  "Formats image results as a markdown table with #, Title, Thumbnail, Source columns."
+  [results]
+  (if (empty? results)
+    "*No results found.*"
+    (markdown/to-markdown-table
+      (mapv (fn [{:keys [title thumbnail-url source-url position]}]
+              {"#" position
+               "Title" (if (str/blank? title) "(no title)" title)
+               "Thumbnail" (or thumbnail-url "")
+               "Source" (or source-url "")})
+        results)
+      {:columns ["#" "Title" "Thumbnail" "Source"]})))
+
+(defn- format-news-results-markdown
+  "Formats news results as a markdown table with #, Title, Source, Time, URL columns."
+  [results]
+  (if (empty? results)
+    "*No results found.*"
+    (markdown/to-markdown-table
+      (mapv (fn [{:keys [title url source time snippet position]}]
+              {"#" position
+               "Title" (or title "")
+               "Source" (or source "")
+               "Time" (or time "")
+               "URL" (or url "")})
+        results)
+      {:columns ["#" "Title" "Source" "Time" "URL"]})))
+
+(defn format-results-as-markdown
+  "Formats search results as a markdown table based on search type.
+
+   Params:
+   `search-type` - Keyword. :web, :images, or :news.
+   `results`     - Vector of result maps.
+
+   Returns:
+   String. Markdown table."
+  [search-type results]
+  (case search-type
+    :images (format-image-results-markdown results)
+    :news   (format-news-results-markdown results)
+    (format-web-results-markdown results)))
+
+;; =============================================================================
 ;; CLI Entry Point
 ;; =============================================================================
 
 (defn- print-search-help []
   (println "search - Search Google from the command line")
+  (println "")
+  (println "Output: Markdown table by default. Use --json for machine-readable output.")
+  (println "Retries: Automatically retries up to 3 times with backoff on empty results.")
   (println "")
   (println "Usage:")
   (println "  spel search <query> [options]")
@@ -759,10 +895,10 @@
   (println "  --time-range RANGE    Time filter: day, week, month, year")
   (println "  --limit N             Show only first N results")
   (println "  --open N              Navigate to result #N and print its info")
-  (println "  --json                Output as JSON")
+  (println "  --json                Output as JSON (includes warning field on failure)")
   (println "  --screenshot PATH     Save screenshot of results page")
   (println "  --no-stealth          Disable stealth mode (stealth is ON by default)")
-  (println "  --debug               Show diagnostics and save screenshot on failure")
+  (println "  --debug               Show extra diagnostics on failure")
   (println "  --help, -h            Show this help")
   (println "")
   (println "Examples:")
@@ -874,7 +1010,7 @@
             (println "Error: search requires a query argument")
             (println "Usage: spel search <query> [options]")
             (println "Run 'spel search --help' for details."))
-          (System/exit 1))
+        (System/exit 1))
 
       :else
       (let [max-pages (long (or (:max-pages opts) 1))
@@ -889,9 +1025,9 @@
                               (-> (assoc :args (stealth/stealth-args))
                                 (assoc :ignore-default-args (stealth/stealth-ignore-default-args))))
                 browser     (core/launch-chromium pw launch-opts)
+                ua          (if stealth? (random-user-agent) nil)
                 ctx-opts    (cond-> {:viewport {:width 1280 :height 720}}
-                              stealth?
-                              (assoc :user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"))
+                              ua (assoc :user-agent ua))
                 ctx         (core/new-context browser ctx-opts)
                 _           (when stealth?
                               (.addInitScript ^BrowserContext ctx ^String (stealth/stealth-init-script)))
@@ -899,29 +1035,32 @@
             (try
               (let [result    (if (> max-pages 1)
                                 (search-and-collect! pg query (dissoc opts :max-pages :page))
-                                (search! pg query (dissoc opts :max-pages)))
+                                (retry-search! pg query (dissoc opts :max-pages) 1))
                     n-results (long (if (> max-pages 1)
                                       (:total-results result 0)
                                       (count (:results result))))
-                    blocked?  (when (zero? n-results) (detect-block! pg))]
+                    blocked?  (when (zero? n-results) (detect-block! pg))
+                    warning   (when (zero? n-results)
+                                (if blocked?
+                                  (str "Google blocked the request (" (name blocked?) ")")
+                                  "0 results returned. Google may have blocked the request (bot detection)."))
+                    result    (cond-> result
+                                warning (assoc :warning warning))]
                 (when (zero? n-results)
                   (binding [*out* *err*]
-                    (if blocked?
-                      (println (str "Warning: Google blocked the request (" (name blocked?) ")."))
-                      (println "Warning: 0 results returned. Google may have blocked the request (bot detection).")))
+                    (println (str "Warning: " warning)))
                   (print-diagnostics! pg blocked?)
-                  (when debug?
-                    (let [debug-path (str (System/getProperty "java.io.tmpdir")
-                                       "/spel-search-debug-" (System/currentTimeMillis) ".png")]
-                      (page/screenshot pg {:path debug-path :full-page true})
-                      (binding [*out* *err*]
-                        (println (str "  Debug screenshot: " debug-path))))))
+                  (let [debug-path (str (System/getProperty "java.io.tmpdir")
+                                     "/spel-search-debug-" (System/currentTimeMillis) ".png")]
+                    (page/screenshot pg {:path debug-path :full-page true})
+                    (binding [*out* *err*]
+                      (println (str "  Debug screenshot: " debug-path)))))
                 (when screenshot
                   (page/screenshot pg {:path screenshot :full-page true})
                   (when-not json?
                     (println (str "Screenshot saved: " screenshot))))
 
-                ;; Handle --open N: navigate to result and print info
+                ;; Handle --open N
                 (when open
                   (let [all-results (if (> max-pages 1)
                                       (mapcat :results (:pages result))
@@ -943,31 +1082,41 @@
                 (when-not (and open (not json?))
                   (if json?
                     (println (json/write-json-str result :escape-slash false))
+                    ;; Default: markdown table output
                     (if (> max-pages 1)
-                      ;; Multi-page output
                       (do
-                        (print-header query (:stats (first (:pages result))))
+                        (println (str "## " query))
+                        (when (:stats (first (:pages result)))
+                          (println (str "*" (:stats (first (:pages result))) "*")))
+                        (println)
                         (doseq [pg-data (:pages result)]
                           (let [rs (cond->> (:results pg-data)
                                      limit (take limit))]
-                            (println (bold-cyan (str "--- Page " (:page pg-data 1) " ---")))
+                            (println (str "### Page " (:page pg-data 1)))
                             (println)
-                            (case (:type result)
-                              :images (print-image-cards rs)
-                              :news   (print-news-cards rs)
-                              (print-web-cards rs))))
-                        (println (dim (str "Total: " (:total-results result) " results"))))
-                      ;; Single page output
+                            (println (format-results-as-markdown (:type result) rs))
+                            (println)))
+                        (println (str "**Total: " (:total-results result) " results**")))
                       (let [rs (cond->> (:results result)
                                  limit (take limit))]
-                        (print-header query (:stats result))
-                        (case (:type result)
-                          :images (print-image-cards rs)
-                          :news   (print-news-cards rs)
-                          (print-web-cards rs))
+                        (println (str "## " query))
+                        (when (:stats result)
+                          (println (str "*" (:stats result) "*")))
+                        (println)
+                        (println (format-results-as-markdown (:type result) rs))
                         (when (= :web (:type result))
-                          (print-people-also-ask (:people-also-ask result))
-                          (print-related-searches (:related-searches result))))))))
+                          (when (seq (:people-also-ask result))
+                            (println)
+                            (println "### People also ask")
+                            (doseq [q (:people-also-ask result)]
+                              (println (str "- " q))))
+                          (when (seq (:related-searches result))
+                            (println)
+                            (println "### Related searches")
+                            (println (str/join " \u00b7 " (:related-searches result)))))))))
+                (when warning
+                  (println)
+                  (println (str "> \u26a0\ufe0f **Warning:** " warning))))
               (finally
                 (try (core/close-browser! browser) (catch Exception _))
                 (try (core/close! pw) (catch Exception _)))))

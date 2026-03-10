@@ -628,6 +628,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `extract-related-searches` | [page] | Extracts related search suggestions from the bottom of the results page. |
 | `extract-result-stats` | [page] | Extracts the result statistics text (e.g. 'About 1,234 results'). |
 | `extract-web-results` | [page] | Extracts web search results from the current Google results page. |
+| `format-results-as-markdown` | [search-type results] | Formats search results as a markdown table based on search type. |
 | `go-to-page!` | [page query page-num] \| [page query page-num opts] | Navigates directly to a specific page of search results using URL parameters. |
 | `has-next-page?` | [page] | Returns true if there is a next page of results. |
 | `next-page!` | [page] | Navigates to the next page of results and waits for them to load. |
@@ -1198,6 +1199,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `search/extract-related-searches` | [] | Extracts related search suggestions from the bottom of the results page. |
 | `search/extract-result-stats` | [] | Extracts the result statistics text (e.g. 'About 1,234 results'). |
 | `search/extract-web-results` | [] | Extracts web search results from the current Google results page. |
+| `search/format-results-as-markdown` | [search-type results] | Formats search results as a markdown table based on search type. |
 | `search/go-to-page!` | [query page-num] \| [query page-num opts] | Navigates directly to a specific page of search results using URL parameters. |
 | `search/has-next-page?` | [] | Returns true if there is a next page of results. |
 | `search/next-page!` | [] | Navigates to the next page of results and waits for them to load. |

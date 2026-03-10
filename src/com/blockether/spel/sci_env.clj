@@ -217,19 +217,19 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1313,6 +1313,10 @@
 (defn sci-search-pages
   ([query] (search/search-pages (require-page!) query))
   ([query opts] (search/search-pages (require-page!) query opts)))
+(defn sci-format-results-as-markdown
+  "Formats search results as a markdown table based on search type."
+  [search-type results]
+  (search/format-results-as-markdown search-type results))
 
 ;; =============================================================================
 ;; SCI Namespace Registration
@@ -2304,7 +2308,8 @@
                       ['has-next-page?           sci-has-next-page?]
                       ['next-page!               sci-search-next-page!]
                       ['go-to-page!              sci-search-go-to-page!]
-                      ['search-pages             sci-search-pages]])]
+                      ['search-pages             sci-search-pages]
+                      ['format-results-as-markdown sci-format-results-as-markdown]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)

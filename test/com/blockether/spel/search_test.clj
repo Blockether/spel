@@ -595,3 +595,100 @@
         (expect (true? (:debug? result)))
         (expect (true? (:json? result)))
         (expect (= :images (get-in result [:opts :type])))))))
+
+;; =============================================================================
+;; User-Agent Rotation
+;; =============================================================================
+
+(defdescribe user-agent-rotation-test
+  "Unit tests for user-agent rotation"
+
+  (describe "random-user-agent"
+    (it "returns a non-blank string"
+      (let [ua (#'sut/random-user-agent)]
+        (expect (string? ua))
+        (expect (not (str/blank? ua)))))
+
+    (it "contains Chrome identifier"
+      (let [ua (#'sut/random-user-agent)]
+        (expect (.contains ^String ua "Chrome"))))
+
+    (it "returns different values over multiple calls"
+      (let [uas (set (repeatedly 20 #'sut/random-user-agent))]
+        ;; With 8 UAs and 20 draws, should get at least 2 distinct
+        (expect (> (count uas) 1))))))
+
+;; =============================================================================
+;; Markdown Table Rendering
+;; =============================================================================
+
+(defdescribe format-results-as-markdown-test
+  "Unit tests for markdown table output"
+
+  (describe "web results"
+    (it "formats as markdown table with correct columns"
+      (let [results [{:title "Example" :url "https://example.org" :snippet "A snippet" :position 1}
+                     {:title "Test" :url "https://test.com" :snippet "Another" :position 2}]
+            md (sut/format-results-as-markdown :web results)]
+        (expect (.contains ^String md "| # "))
+        (expect (.contains ^String md "| Title "))
+        (expect (.contains ^String md "| URL "))
+        (expect (.contains ^String md "| Snippet "))
+        (expect (.contains ^String md "Example"))
+        (expect (.contains ^String md "https://example.org"))
+        (expect (.contains ^String md "A snippet"))
+        (expect (.contains ^String md "Test"))
+        ;; Should have header + separator + 2 data rows = 4 lines
+        (expect (= 4 (count (str/split-lines md))))))
+
+    (it "returns no-results message for empty"
+      (let [md (sut/format-results-as-markdown :web [])]
+        (expect (= "*No results found.*" md)))))
+
+  (describe "image results"
+    (it "formats with Thumbnail and Source columns"
+      (let [results [{:title "Cat" :thumbnail-url "https://img.com/cat.jpg"
+                      :source-url "https://cats.com" :position 1}]
+            md (sut/format-results-as-markdown :images results)]
+        (expect (.contains ^String md "| Thumbnail "))
+        (expect (.contains ^String md "| Source "))
+        (expect (.contains ^String md "Cat"))
+        (expect (.contains ^String md "https://img.com/cat.jpg"))))
+
+    (it "shows (no title) for blank title"
+      (let [results [{:title "" :thumbnail-url "https://img.com/a.jpg" :source-url nil :position 1}]
+            md (sut/format-results-as-markdown :images results)]
+        (expect (.contains ^String md "(no title)")))))
+
+  (describe "news results"
+    (it "formats with Source and Time columns"
+      (let [results [{:title "Breaking" :url "https://news.com" :source "BBC"
+                      :time "2h ago" :snippet "Details" :position 1}]
+            md (sut/format-results-as-markdown :news results)]
+        (expect (.contains ^String md "| Source "))
+        (expect (.contains ^String md "| Time "))
+        (expect (.contains ^String md "BBC"))
+        (expect (.contains ^String md "2h ago"))))))
+
+;; =============================================================================
+;; Retry Constants
+;; =============================================================================
+
+(defdescribe retry-constants-test
+  "Unit tests for retry infrastructure"
+
+  (describe "max-retries"
+    (it "is a positive integer"
+      (expect (pos-int? @#'sut/max-retries)))))
+
+;; =============================================================================
+;; SCI search/format-results-as-markdown availability
+;; =============================================================================
+
+(defdescribe sci-format-markdown-test
+  "Unit tests for format-results-as-markdown in SCI"
+
+  (describe "search/ namespace"
+    (it "has format-results-as-markdown function"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (true? (sci-env/eval-string ctx "(fn? search/format-results-as-markdown)")))))))
