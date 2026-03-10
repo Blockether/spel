@@ -1060,7 +1060,7 @@ else
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'Embedded automation coordination flow' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If the user requested JSON outputs and any are missing, the stage is incomplete' "$LEARN_ORCH_FILE"; then
+if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'Embedded automation coordination flow' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If the user asked for JSON/report outputs and any are missing' "$LEARN_ORCH_FILE"; then
   pass "orchestrator embeds automation coordination and JSON output gates"
 else
   fail "orchestrator embeds automation coordination and JSON output gates" "Expected merged orchestrator to enforce automation handoff JSON and requested output gates"
