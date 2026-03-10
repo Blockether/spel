@@ -358,7 +358,41 @@
 
     (it "does not include cropToContent when flag not given"
       (let [c (cmd ["screenshot" "shot.png"])]
-        (expect (nil? (:cropToContent c))))))
+        (expect (nil? (:cropToContent c)))))
+
+    (it "parses --session with screenshot path"
+      (let [r (sut/parse-args ["--session" "mysess" "screenshot" "some_path/screenshot.png"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "mysess" (:session f)))
+        (expect (= "screenshot" (:action c)))
+        (expect (= "some_path/screenshot.png" (:path c)))))
+
+    (it "parses --session=value with screenshot"
+      (let [r (sut/parse-args ["--session=work" "screenshot" "out.png"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "work" (:session f)))
+        (expect (= "screenshot" (:action c)))
+        (expect (= "out.png" (:path c)))))
+
+    (it "parses --session with screenshot and -f flag"
+      (let [r (sut/parse-args ["--session" "agent1" "screenshot" "dir/shot.png" "-f"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "agent1" (:session f)))
+        (expect (= "screenshot" (:action c)))
+        (expect (= "dir/shot.png" (:path c)))
+        (expect (true? (:fullPage c)))))
+
+    (it "parses --json --session with screenshot"
+      (let [r (sut/parse-args ["--json" "--session" "test" "screenshot" "out.png"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "test" (:session f)))
+        (expect (true? (:json f)))
+        (expect (= "screenshot" (:action c)))
+        (expect (= "out.png" (:path c))))))
 
   (describe "pdf"
     (it "parses pdf with path"
@@ -604,7 +638,21 @@
 
   (describe "close"
     (it "parses close"
-      (expect (= {:action "close"} (cmd ["close"]))))))
+      (expect (= {:action "close"} (cmd ["close"]))))
+
+    (it "parses --session with close"
+      (let [r (sut/parse-args ["--session" "mysess" "close"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "mysess" (:session f)))
+        (expect (= "close" (:action c)))))
+
+    (it "parses --session=value with close"
+      (let [r (sut/parse-args ["--session=work" "close"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "work" (:session f)))
+        (expect (= "close" (:action c)))))))
 
 ;; =============================================================================
 ;; Count / BBox
@@ -653,6 +701,50 @@
     (it "defaults session to default"
       (let [f (flags ["open" "http://x.com"])]
         (expect (= "default" (:session f))))))
+
+  (describe "--channel flag"
+    (it "sets channel"
+      (let [f (flags ["--channel" "msedge" "open" "http://x.com"])]
+        (expect (= "msedge" (:channel f)))))
+
+    (it "supports --channel=value syntax"
+      (let [f (flags ["--channel=chrome-beta" "open" "http://x.com"])]
+        (expect (= "chrome-beta" (:channel f)))))
+
+    (it "combines --channel with --session"
+      (let [r (sut/parse-args ["--channel" "msedge" "--session" "mysess" "screenshot" "path.png"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "msedge" (:channel f)))
+        (expect (= "mysess" (:session f)))
+        (expect (= "screenshot" (:action c)))
+        (expect (= "path.png" (:path c)))))
+
+    (it "combines --channel with --session and --browser"
+      (let [r (sut/parse-args ["--channel" "msedge" "--session" "dev" "--browser" "chromium" "open" "http://x.com"])
+            f (:flags r)
+            c (:command r)]
+        (expect (= "msedge" (:channel f)))
+        (expect (= "dev" (:session f)))
+        (expect (= "chromium" (:browser f)))
+        (expect (= "navigate" (:action c))))))
+
+  (describe "em-dash / en-dash normalization"
+    (it "normalizes em-dash —session to --session"
+      (let [f (flags ["—session" "test" "open" "http://x.com"])]
+        (expect (= "test" (:session f)))))
+
+    (it "normalizes em-dash —session=value to --session=value"
+      (let [f (flags ["—session=mysess" "open" "http://x.com"])]
+        (expect (= "mysess" (:session f)))))
+
+    (it "normalizes en-dash –session to --session"
+      (let [f (flags ["–session" "test" "open" "http://x.com"])]
+        (expect (= "test" (:session f))))))
+
+  (it "normalizes en-dash+hyphen \u2013-session to --session"
+    (let [f (flags ["\u2013-session" "test" "open" "http://x.com"])]
+      (expect (= "test" (:session f)))))
 
   (describe "--json flag"
     (it "sets json to true"
@@ -1698,6 +1790,32 @@
         (expect (not (some #{"--session"} (:command-args g))))
         (expect (not (some #{"work"} (:command-args g)))))))
 
+  (describe "em-dash / en-dash normalization (normalize-args + parse-global-flags)"
+    (it "normalizes em-dash —session to --session"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               (com.blockether.spel.native/normalize-args ["—session" "work" "eval-sci" "(+ 1 2)"]))]
+        (expect (= "work" (:session g)))))
+
+    (it "normalizes em-dash —session=value to --session=value"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               (com.blockether.spel.native/normalize-args ["—session=work" "eval-sci" "(+ 1 2)"]))]
+        (expect (= "work" (:session g)))))
+
+    (it "strips em-dash —session from command-args after normalization"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               (com.blockether.spel.native/normalize-args ["—session" "work" "eval-sci" "(+ 1 2)"]))]
+        (expect (= ["eval-sci" "(+ 1 2)"] (:command-args g)))))
+
+    (it "normalizes en-dash –session to --session"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               (com.blockether.spel.native/normalize-args ["–session" "work" "eval-sci" "(+ 1 2)"]))]
+        (expect (= "work" (:session g)))))
+
+    (it "normalizes en-dash+hyphen \u2013-session to --session"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               (com.blockether.spel.native/normalize-args ["\u2013-session" "work" "eval-sci" "(+ 1 2)"]))]
+        (expect (= "work" (:session g))))))
+
   (describe "--interactive flag"
     (it "defaults to false"
       (let [g (#'com.blockether.spel.native/parse-global-flags ["eval-sci" "(+ 1 2)"])]
@@ -1808,6 +1926,31 @@
                ["--profile" "/path/to/chrome" "--cdp" "http://localhost:9222" "eval-sci" "(+ 1 2)"])]
         (expect (= "/path/to/chrome" (:profile g)))
         (expect (= "http://localhost:9222" (:cdp g)))
+        (expect (= ["eval-sci" "(+ 1 2)"] (:command-args g))))))
+
+  (describe "--channel flag"
+    (it "defaults to SPEL_CHANNEL env"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["eval-sci" "(+ 1 2)"])]
+        (expect (= (System/getenv "SPEL_CHANNEL") (:channel g)))))
+
+    (it "parses --channel <name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel" "msedge" "eval-sci" "(+ 1 2)"])]
+        (expect (= "msedge" (:channel g)))))
+
+    (it "parses --channel=<name>"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel=chrome-beta" "eval-sci" "(+ 1 2)"])]
+        (expect (= "chrome-beta" (:channel g)))))
+
+    (it "strips --channel from command-args"
+      (let [g (#'com.blockether.spel.native/parse-global-flags ["--channel" "msedge" "eval-sci" "(+ 1 2)"])]
+        (expect (= ["eval-sci" "(+ 1 2)"] (:command-args g)))))
+
+    (it "combines --channel with --session and --browser"
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--channel" "msedge" "--session" "dev" "--browser" "chromium" "eval-sci" "(+ 1 2)"])]
+        (expect (= "msedge" (:channel g)))
+        (expect (= "dev" (:session g)))
+        (expect (= "chromium" (:browser g)))
         (expect (= ["eval-sci" "(+ 1 2)"] (:command-args g)))))))
 
 ;; =============================================================================
@@ -1931,3 +2074,67 @@
         (expect (= "before.png" (:baseline c)))
         (expect (= "0.03" (:threshold c)))
         (expect (= "out.png" (:path c)))))))
+
+;; =============================================================================
+;; Typographic Dash Normalization (native.clj normalize-arg / normalize-args)
+;; =============================================================================
+
+(defdescribe normalize-args-test
+  "Tests for typographic dash normalization in native.clj"
+
+  (describe "normalize-arg"
+    (it "passes normal double-dash through unchanged"
+      (expect (= "--session"
+                (#'com.blockether.spel.native/normalize-arg "--session"))))
+
+    (it "replaces leading em-dash with double-hyphen"
+      (expect (= "--session"
+                (#'com.blockether.spel.native/normalize-arg "—session"))))
+
+    (it "replaces leading en-dash with double-hyphen"
+      (expect (= "--session"
+                (#'com.blockether.spel.native/normalize-arg "–session"))))
+
+    (it "handles en-dash + hyphen (\u2013-session → --session)"
+      (expect (= "--session"
+                (#'com.blockether.spel.native/normalize-arg "\u2013-session"))))
+
+    (it "does not modify non-flag arguments"
+      (expect (= "https://example.com"
+                (#'com.blockether.spel.native/normalize-arg "https://example.com"))))
+
+    (it "does not modify arguments without leading dashes"
+      (expect (= "open"
+                (#'com.blockether.spel.native/normalize-arg "open"))))
+
+    (it "handles em-dash for --timeout"
+      (expect (= "--timeout"
+                (#'com.blockether.spel.native/normalize-arg "—timeout"))))
+
+    (it "handles em-dash for --json"
+      (expect (= "--json"
+                (#'com.blockether.spel.native/normalize-arg "—json"))))
+
+    (it "handles em-dash for --browser"
+      (expect (= "--browser"
+                (#'com.blockether.spel.native/normalize-arg "—browser"))))
+
+    (it "handles em-dash with =value syntax"
+      (expect (= "--session=mytest"
+                (#'com.blockether.spel.native/normalize-arg "—session=mytest")))))
+
+  (describe "normalize-args"
+    (it "normalizes all args in a vector"
+      (expect (= ["--session" "test" "open" "http://x.com"]
+                (com.blockether.spel.native/normalize-args
+                  ["—session" "test" "open" "http://x.com"]))))
+
+    (it "handles mixed normal and typographic dashes"
+      (expect (= ["--json" "--session" "dev" "open" "http://x.com"]
+                (com.blockether.spel.native/normalize-args
+                  ["—json" "--session" "dev" "open" "http://x.com"]))))
+
+    (it "passes through when no typographic dashes present"
+      (expect (= ["--session" "test" "open" "http://x.com"]
+                (com.blockether.spel.native/normalize-args
+                  ["--session" "test" "open" "http://x.com"]))))))

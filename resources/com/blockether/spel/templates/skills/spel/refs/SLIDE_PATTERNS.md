@@ -408,11 +408,11 @@ After creating a slide deck, capture individual slides as evidence:
 
 ```bash
 # Open the slide deck
-spel open ./spel-visual/slides.html
+spel open $(pwd)/spel-visual/slides.html
 
 # Navigate to a specific slide, then capture
-spel screenshot ./spel-visual/slide-01.png
-spel screenshot ./spel-visual/slide-02.png
+spel screenshot $(pwd)/spel-visual/slide-01.png
+spel screenshot $(pwd)/spel-visual/slide-02.png
 # etc.
 ```
 

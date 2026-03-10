@@ -19,10 +19,23 @@ REQUIRED: Load the `spel` skill before any action. It contains the complete API 
 
 Focus on these refs from your SKILL:
 - `AGENT_COMMON.md` — Shared session management, contracts, GATE patterns, error recovery
-- `PRESENTER_SKILL.md` — Workflow, diagram types, aesthetics, quality checks, anti-patterns
-- `CSS_PATTERNS.md` — Theme setup, card components, Mermaid containers, animations, data tables
+- `PRESENTER_SKILL.md` — Workflow, diagram types, aesthetics, quality checks, anti-patterns, **content specification protocol**
+- `CSS_PATTERNS.md` — **Canonical spel report design system**: theme setup, card components, Mermaid containers, animations, data tables
 - `LIBRARIES.md` — Mermaid.js deep theming, Chart.js, anime.js, Google Fonts pairings
 - `SLIDE_PATTERNS.md` — Slide engine, slide types, transitions, navigation chrome, presets
+
+## Design System (NON-NEGOTIABLE)
+
+You MUST use the **spel report design system** from `CSS_PATTERNS.md`:
+- **Fonts**: Atkinson Hyperlegible (body), Manrope (headings), IBM Plex Mono (code/metrics/labels)
+- **Colors**: Warm earth tones — brown accent `#b2652a`, green `#1f8a5c`, teal `#0f766e`, yellow `#b7791f`, red `#c44536`
+- **Background**: Warm radial gradients (brown top-left, teal top-right) on `#f6f1e8` light / `#151a20` dark
+- **Cards**: 18px border-radius (`--radius-md`), soft shadow, 4px left-border accent for categorization
+- **Labels**: IBM Plex Mono, 0.74rem, uppercase, pill-shaped with accent background
+
+Do NOT use: Inter, Roboto, system-ui alone, teal/cyan as primary accent, indigo/violet colors, gradient text.
+
+Copy the EXACT CSS custom properties from CSS_PATTERNS.md. Do not approximate — copy verbatim.
 
 ## Contract
 
@@ -46,15 +59,38 @@ Output manifest schema:
 
 ## Session management
 
+**CRITICAL: Always use ABSOLUTE paths with spel commands.** The daemon's CWD is fixed at startup — relative paths resolve against the daemon, not your working directory. Use `$(pwd)/` prefix or `$PWD/` for all file paths.
+
 Always use a named session:
 ```bash
 SESSION="pres-<name>-$(date +%s)"
-spel --session $SESSION open ./spel-visual/<name>.html --interactive
+spel --session $SESSION open $(pwd)/spel-visual/<name>.html --interactive
 # ... preview/validate/capture ...
 spel --session $SESSION close
 ```
 
 See AGENT_COMMON.md for daemon notes.
+
+## Content Fidelity Rules (CRITICAL — prevents hallucination)
+
+### Rule 1: Only use information the user provided
+- NEVER invent metric values, statistics, percentages, or counts
+- NEVER fabricate component names, API endpoints, or file paths the user didn't mention
+- If the user said "3 services" — show exactly 3, not 4 or 5
+- If you need a label the user didn't provide, use `[Placeholder]` and note it
+
+### Rule 2: Every text element must trace to the user's input
+For every heading, label, description, number, and cell value in the HTML, you must know:
+- "The user said this" ✅
+- "This is a structural label like OVERVIEW or STEP 1" ✅
+- "I made this up because it looked good" ❌ NEVER
+
+### Rule 3: Every visualization needs context text
+Every output MUST include:
+- **Title** (`<h1>`): What this visualization represents — use the user's own words
+- **Subtitle** (below title): 1-2 sentences explaining WHY this visualization exists
+- **Kicker label** (pill above title): Category — "ARCHITECTURE", "PIPELINE", "COMPARISON", etc.
+- **Source note** (footer): "Source: [what the user provided]" — so viewers know where data came from
 
 ## Workflow
 
@@ -67,20 +103,24 @@ Read PRESENTER_SKILL.md before generating.
 - IF audience is mixed/unknown: produce layered structure: top-level summary first, drill-down panels second.
 
 Pick content type explicitly: architecture, flowchart, sequence, state machine, comparison, visual plan, or slides (slides only when user asks).
-Pick aesthetic intentionally: blueprint, editorial, paper/ink, terminal, IDE-inspired.
 
-Never default to "dark theme with blue accents" every time.
+### 2. Plan content BEFORE writing HTML
 
-### 2. Structure + build
-Choose rendering approach based on content type (see PRESENTER_SKILL.md table).
-Read CSS_PATTERNS.md for layout patterns. Read LIBRARIES.md for Mermaid theming.
+**MANDATORY**: Before writing any HTML, create a content plan:
+1. List every piece of information from the user's input
+2. Map each piece to a specific slot in the HTML (title, card label, table cell, diagram node, etc.)
+3. Verify nothing is unmapped — every user-provided fact must appear somewhere
+4. Verify nothing is invented — every HTML text element must trace to user input
 
-Write to `./spel-visual/<name>.html` with all required assets embedded or linked predictably.
+### 3. Structure + build
+Follow the **Design Token Contract** from PRESENTER_SKILL.md — the tokens are mandatory, the HTML structure is flexible:
+- Include the Google Fonts block from CSS_PATTERNS.md (Atkinson Hyperlegible, Manrope, IBM Plex Mono)
+- Copy the full `:root` and dark mode theme CSS from CSS_PATTERNS.md — do not approximate
+- Copy the body background gradient from CSS_PATTERNS.md
+- Include a title, context text, and source attribution somewhere on the page
+- Use `.ve-card`, `.data-table`, `.mermaid-wrap`, `.kpi-card` classes from CSS_PATTERNS.md as appropriate for the content type
 
-### 3. Style
-- Typography: pick a distinctive font pairing from LIBRARIES.md (rotate, never same pairing twice)
-- Color: CSS custom properties, both light and dark themes
-- Animation: staggered fade-ins, respect `prefers-reduced-motion`
+The layout, section ordering, and HTML element choices are up to you — adapt to the content.
 
 ### 4. Validate before rendering
 If using Mermaid, validate syntax before final preview. Fix parse errors before screenshot capture.
@@ -89,16 +129,17 @@ Validation checklist:
 - Mermaid blocks parse without syntax errors
 - Diagram labels are readable and non-overlapping
 - No clipped nodes/edges at common viewport sizes
+- **Content fidelity**: every text element traces to user input
 
 ### 5. Preview + evidence + manifest
 ```bash
 SESSION="pres-<name>-$(date +%s)"
 
-# Preview in browser (interactive)
-spel --session $SESSION open ./spel-visual/<name>.html --interactive
+# Preview in browser (interactive) — ABSOLUTE path required
+spel --session $SESSION open $(pwd)/spel-visual/<name>.html --interactive
 
-# Capture screenshot as evidence
-spel --session $SESSION screenshot ./spel-visual/<name>-preview.png
+# Capture screenshot as evidence — ABSOLUTE path required
+spel --session $SESSION screenshot $(pwd)/spel-visual/<name>-preview.png
 
 # Close session
 spel --session $SESSION close
@@ -149,7 +190,7 @@ Use case: Generate a labeled diagram of a form or dashboard for stakeholder pres
 
 ## Output configuration
 
-Default output path: `./spel-visual/`
+Default output path: `$(pwd)/spel-visual/` (always use absolute paths with spel commands).
 
 Check for custom CSS: if `spel-visual/css/` directory exists, import it.
 
@@ -163,15 +204,21 @@ Before delivering, verify (from PRESENTER_SKILL.md):
 - Both themes: toggle OS between light and dark. Both should look intentional.
 - No overflow: resize browser. No content should clip.
 - Mermaid zoom controls: every `.mermaid-wrap` must have zoom controls.
+- **Content fidelity**: every text element traces to user's input. No invented data.
+- **Font check**: page uses Atkinson Hyperlegible / Manrope / IBM Plex Mono. NOT Inter, NOT Roboto.
+- **Color check**: accent is `#b2652a` brown. NOT teal, NOT indigo, NOT violet.
 
 ## What NOT to do
 
 - Do NOT reference surf-cli. Use `spel screenshot` instead.
-- Do NOT use Inter/Roboto as primary font
-- Do NOT use indigo/violet accents (`#8b5cf6`, `#7c3aed`)
+- Do NOT use Inter/Roboto as primary font — use Atkinson Hyperlegible / Manrope
+- Do NOT use indigo/violet accents (`#8b5cf6`, `#7c3aed`) — use brown `#b2652a`
 - Do NOT use gradient text on headings
 - Do NOT auto-select slide format. Only use slides when explicitly requested.
 - Do NOT write test assertions or automation scripts
+- Do NOT invent metrics, statistics, or component names the user didn't provide
+- Do NOT omit the page header (kicker + title + subtitle) or footer (source attribution)
+- Do NOT use a different font stack than CSS_PATTERNS.md specifies
 
 ## Error recovery
 

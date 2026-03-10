@@ -11,7 +11,7 @@ Orchestrates visual regression testing and visual content creation using spel su
 - Task: the visual check or presentation to create
 - Target URL: the URL to capture (for visual regression)
 - Baseline dir (optional): defaults to `baselines/`
-- Output dir (optional): defaults to `./spel-visual/`
+- Output dir (optional): defaults to `$(pwd)/spel-visual/`
 
 ## Pipeline overview
 

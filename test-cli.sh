@@ -802,9 +802,9 @@ OUT=$("$SPEL" --json state clean 2>&1)
 assert_jq "state clean → success" "$OUT" 'has("error") | not'
 
 # =============================================================================
-# SESSIONS (3)
+# SESSIONS (10)
 # =============================================================================
-section "Sessions (3)"
+section "Sessions (10)"
 
 OUT=$("$SPEL" --json session 2>&1)
 assert_jq_eq "session → .session" "$OUT" '.session' 'default'
@@ -815,6 +815,42 @@ assert_jq "session list → success" "$OUT" 'has("error") | not'
 OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session testsession close >/dev/null 2>&1 || true
+
+# --session with screenshot (auto-path)
+OUT=$(timeout 30 "$SPEL" --json --session screenshotsess open https://example.com 2>/dev/null) || true
+assert_jq_eq "--session screenshot setup → .url" "$OUT" '.url' 'https://example.com/'
+
+OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot 2>/dev/null) || true
+assert_jq_gt "--session screenshot (auto) → .size > 0" "$OUT" '.size' 0
+
+# --session with screenshot to named path
+SESS_SHOT_PATH="/tmp/test-cli-session-shot.png"
+TEMP_FILES+=("$SESS_SHOT_PATH")
+OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot "$SESS_SHOT_PATH" 2>/dev/null) || true
+assert_jq_contains "--session screenshot (named) → .path" "$OUT" '.path' 'test-cli-session-shot.png'
+
+# --session with screenshot to subdirectory (tests parent dir creation)
+SESS_SUBDIR="/tmp/test-cli-session-subdir"
+SESS_SUBDIR_SHOT="$SESS_SUBDIR/evidence/shot.png"
+TEMP_FILES+=("$SESS_SUBDIR_SHOT")
+rm -rf "$SESS_SUBDIR" 2>/dev/null
+OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot "$SESS_SUBDIR_SHOT" 2>/dev/null) || true
+assert_jq_contains "--session screenshot (subdir) → .path" "$OUT" '.path' 'evidence/shot.png'
+
+# --session close (graceful close of named session)
+OUT=$(timeout 10 "$SPEL" --json --session screenshotsess close 2>/dev/null) || true
+assert_jq "--session close → .closed" "$OUT" '.closed == true'
+rm -rf "$SESS_SUBDIR" 2>/dev/null
+
+# --session close (no daemon running — should succeed without starting one)
+OUT=$(timeout 10 "$SPEL" --json --session nonexistent-session close 2>/dev/null) || true
+assert_jq "--session close (no daemon) → .closed" "$OUT" '.closed == true'
+
+# --session open + close roundtrip on fresh session
+OUT=$(timeout 30 "$SPEL" --json --session roundtrip open https://example.com 2>/dev/null) || true
+assert_jq_eq "--session roundtrip open → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 10 "$SPEL" --json --session roundtrip close 2>/dev/null) || true
+assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
 # =============================================================================
 # UTILITY (5)
@@ -842,9 +878,9 @@ OUT=$("$SPEL" --json close 2>&1)
 assert_jq "close → success" "$OUT" 'has("error") | not'
 
 # =============================================================================
-# GLOBAL FLAGS (2)
+# GLOBAL FLAGS (5)
 # =============================================================================
-section "Global Flags (2)"
+section "Global Flags (5)"
 
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
@@ -852,6 +888,19 @@ assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
 OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
+
+# --channel + --session combined (use default chromium channel)
+OUT=$(timeout 30 "$SPEL" --json --channel chromium --session chantest open https://example.com 2>/dev/null) || true
+assert_jq_eq "--channel + --session open → .url" "$OUT" '.url' 'https://example.com/'
+
+# --channel + --session close
+OUT=$(timeout 10 "$SPEL" --json --channel chromium --session chantest close 2>/dev/null) || true
+assert_jq "--channel + --session close → .closed" "$OUT" '.closed == true'
+
+# --channel=value syntax with --session
+OUT=$(timeout 30 "$SPEL" --json --channel=chromium --session=chaneq open https://example.com 2>/dev/null) || true
+assert_jq_eq "--channel=val + --session=val open → .url" "$OUT" '.url' 'https://example.com/'
+timeout 10 "$SPEL" --session chaneq close >/dev/null 2>&1 || true
 
 # Final close
 "$SPEL" close >/dev/null 2>&1

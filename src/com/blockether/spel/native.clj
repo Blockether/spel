@@ -386,6 +386,44 @@
   (flush))
 
 ;; =============================================================================
+;; Argument Normalization — typographic dash fix
+;; =============================================================================
+
+(defn- normalize-arg
+  "Normalizes a single CLI argument by replacing typographic dashes.
+
+   When users copy-paste commands from rendered Markdown, Slack, or word
+   processors, double-hyphens (--) are often replaced with em-dashes (\u2014)
+   or en-dashes (\u2013). This makes flags like --session silently fail.
+
+   Handles three cases:
+   - \u2014session  → --session  (em-dash replaced both hyphens)
+   - \u2013-session → --session  (en-dash replaced first hyphen only)
+   - \u2013session  → --session  (en-dash replaced both hyphens)"
+  [^String arg]
+  (cond
+    ;; \u2014session → --session (most common: -- becomes em-dash)
+    (str/starts-with? arg "\u2014")
+    (str "--" (subs arg 1))
+
+    ;; \u2013-session → --session (en-dash replaced first hyphen only)
+    ;; Must check before plain \u2013 — more specific prefix match.
+    (str/starts-with? arg "\u2013-")
+    (str "--" (subs arg 2))
+
+    ;; \u2013session → --session (en-dash replaced both hyphens)
+    (str/starts-with? arg "\u2013")
+    (str "--" (subs arg 1))
+
+    :else arg))
+
+(defn normalize-args
+  "Normalizes all CLI arguments by replacing typographic dashes.
+   See `normalize-arg` for details."
+  [args]
+  (mapv normalize-arg args))
+
+;; =============================================================================
 ;; Daemon Argument Parsing
 ;; =============================================================================
 
@@ -399,7 +437,7 @@
      --browser <type>   Browser engine: chromium, firefox, webkit (default: chromium)
      --cdp <url>        Connect via Chrome DevTools Protocol"
   [args]
-  (loop [remaining args
+  (loop [remaining (normalize-args args)
          opts {:session "default" :headless true}]
     (if (empty? remaining)
       opts
@@ -443,9 +481,9 @@
    :command-args has global flags stripped for dispatch (finding the command).
    Original args are preserved for modes that do their own parsing (CLI daemon)."
   [args]
-  (loop [remaining args
+  (loop [remaining (normalize-args args)
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :auto-connect (some? (System/getenv "SPEL_AUTO_CONNECT")) :browser (System/getenv "SPEL_BROWSER") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :auto-connect (some? (System/getenv "SPEL_AUTO_CONNECT")) :browser (System/getenv "SPEL_BROWSER") :channel (System/getenv "SPEL_CHANNEL") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -545,6 +583,18 @@
           (= "--auto-connect" arg)
           (recur (rest remaining) cmd-args (assoc opts :auto-connect true))
 
+          ;; --channel=<name>
+          (and (string? arg) (str/starts-with? arg "--channel="))
+          (recur (rest remaining) cmd-args
+            (assoc opts :channel (subs arg 10)))
+
+          ;; --channel <name>
+          (= "--channel" arg)
+          (let [val (second remaining)]
+            (if val
+              (recur (drop 2 remaining) cmd-args (assoc opts :channel val))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
@@ -581,6 +631,7 @@
         ;; The daemon uses these to configure browser type, profile, etc.
         eval-flags   (cond-> {}
                        (:browser global) (assoc "browser" (:browser global))
+                       (:channel global) (assoc "channel" (:channel global))
                        (:profile global) (assoc "profile" (:profile global))
                        (:cdp global)     (assoc "cdp" (:cdp global)))
         exit-code (volatile! 0)]
@@ -644,26 +695,26 @@
                 ;; Snapshot result — format like 'spel snapshot' output
                 (do (when-not (str/blank? (str snap-tree))
                       (println (str/trim (str snap-tree))))
-                    (when-let [url (get data :url)]
-                      (println (str "\n  URL: " url)))
-                    (when-let [title (get data :title)]
-                      (println (str "  Title: " title)))
-                    (when-let [desc (get data :description)]
-                      (println (str "  Description: " desc))))
+                  (when-let [url (get data :url)]
+                    (println (str "\n  URL: " url)))
+                  (when-let [title (get data :title)]
+                    (println (str "  Title: " title)))
+                  (when-let [desc (get data :description)]
+                    (println (str "  Description: " desc))))
                 (println result-str))))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (let [error-msg (or (get-in response [:data :error])
-                                (:error response)
-                                "Unknown error")]
-                (if (:json? global)
+            (let [error-msg (or (get-in response [:data :error])
+                              (:error response)
+                              "Unknown error")]
+              (if (:json? global)
                   ;; --json mode: structured error with call_log/selector
-                  (let [err-map (cond-> {:error error-msg}
-                                  (:call_log response) (assoc :call_log (:call_log response))
-                                  (:selector response) (assoc :selector (:selector response)))]
-                    (println (json/write-json-str err-map :escape-slash false)))
+                (let [err-map (cond-> {:error error-msg}
+                                (:call_log response) (assoc :call_log (:call_log response))
+                                (:selector response) (assoc :selector (:selector response)))]
+                  (println (json/write-json-str err-map :escape-slash false)))
                   ;; text mode: print full error message as-is
-                  (eprintln (str "Error: " error-msg)))))))
+                (eprintln (str "Error: " error-msg)))))))
       (catch Exception e
         (vreset! exit-code 1)
         (eprintln (str "Error: " (.getMessage e))))
@@ -770,8 +821,9 @@
    Global flags (--timeout, --debug, --json) are parsed first and
    apply across all modes. For eval-sci mode, --timeout sets Playwright's
    default action timeout. For CLI mode, flags pass through to cli.clj."
-  [& args]
-  (let [global    (parse-global-flags args)
+  [& raw-args]
+  (let [args      (normalize-args raw-args)
+        global    (parse-global-flags args)
         cmd-args  (:command-args global)
         first-arg (first cmd-args)
         ;; Set Playwright action timeout — sci-start! picks it up in eval-sci mode
@@ -791,10 +843,10 @@
           (let [{:keys [dirs opts]} (parse-merge-reports-args sub-args)]
             (if (empty? dirs)
               (do (println "Error: at least one source directory is required")
-                  (println "")
-                  (println "Usage: spel merge-reports <dir1> <dir2> ... [options]")
-                  (println "Run 'spel merge-reports --help' for details.")
-                  (System/exit 1))
+                (println "")
+                (println "Usage: spel merge-reports <dir1> <dir2> ... [options]")
+                (println "Run 'spel merge-reports --help' for details.")
+                (System/exit 1))
               (allure-reporter/merge-results! dirs opts)))))
 
       (= "codegen" first-arg)
@@ -848,11 +900,11 @@
         (if (some #{"--help" "-h"} sub-args)
           (println (get cli/command-help "search"))
           (do (driver/ensure-driver!)
-              (apply search/-main sub-args))))
+            (apply search/-main sub-args))))
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)
@@ -860,7 +912,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "inspector"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["open"] rest-args)))))
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
@@ -868,7 +920,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Stitch — local image stitching, no daemon needed
       (= "stitch" first-arg)
@@ -884,7 +936,7 @@
                 ovl-idx    (long (.indexOf ^java.util.List args-v "--overlap"))
                 overlap-px (when (>= ovl-idx 0)
                              (try (Long/parseLong (nth args-v (inc ovl-idx)))
-                                  (catch Exception _ 0)))
+                               (catch Exception _ 0)))
                 ;; Collect input paths (everything that's not a flag or flag value)
                 skip-idxs  (cond-> #{}
                              (>= out-idx 0)   (conj out-idx (inc out-idx))
@@ -899,8 +951,8 @@
             (cond
               (< (count inputs) 2)
               (do (eprintln "Error: stitch requires at least 2 input images")
-                  (eprintln "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]")
-                  (System/exit 1))
+                (eprintln "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]")
+                (System/exit 1))
 
               (some #(not (.exists (java.io.File. ^String %))) inputs)
               (let [missing (first (filter #(not (.exists (java.io.File. ^String %))) inputs))]
@@ -909,10 +961,10 @@
 
               :else
               (do (driver/ensure-driver!)
-                  (stitch/stitch-vertical-overlap inputs output
-                    (cond-> {:overlap-px (or overlap-px 0)}
-                      (:browser global) (assoc :browser-type (:browser global))))
-                  (println output))))))
+                (stitch/stitch-vertical-overlap inputs output
+                  (cond-> {:overlap-px (or overlap-px 0)}
+                    (:browser global) (assoc :browser-type (:browser global))))
+                (println output))))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -928,16 +980,16 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))
+        (let [opts (parse-daemon-args (rest cmd-args))
                 ;; parse-global-flags may have consumed --session/--browser/--headed
                 ;; before they reached cmd-args; prefer global values for the daemon.
-                opts (cond-> opts
-                       (:session global) (assoc :session (:session global))
-                       (:interactive? global) (assoc :headless false)
-                       (:cdp global) (assoc :cdp (:cdp global))
-                       (and (:browser global) (not (:browser opts)))
-                       (assoc :browser (:browser global)))]
-            (daemon/start-daemon! opts)))
+              opts (cond-> opts
+                     (:session global) (assoc :session (:session global))
+                     (:interactive? global) (assoc :headless false)
+                     (:cdp global) (assoc :cdp (:cdp global))
+                     (and (:browser global) (not (:browser opts)))
+                     (assoc :browser (:browser global)))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       ;; Supports both inline code and .clj file paths:
@@ -953,10 +1005,10 @@
                        code-or-file)]
             (run-eval! code script-args global))
           (do (eprintln "Error: eval-sci requires a code argument or .clj file path")
-              (System/exit 1))))
+            (System/exit 1))))
 
-      ;; CLI command — pass ORIGINAL args (cli.clj has its own flag parser)
+      ;; CLI command — pass NORMALIZED args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))

@@ -28,12 +28,15 @@ Always use `theme: 'base'` — the only theme where all `themeVariables` are ful
     theme: 'base',
     look: 'classic',
     themeVariables: {
-      primaryColor: isDark ? '#134e4a' : '#ccfbf1',
-      primaryBorderColor: isDark ? '#14b8a6' : '#0d9488',
-      primaryTextColor: isDark ? '#f0fdfa' : '#134e4a',
-      secondaryColor: isDark ? '#1e293b' : '#f0fdf4',
-      secondaryBorderColor: isDark ? '#059669' : '#16a34a',
-      lineColor: isDark ? '#64748b' : '#94a3b8',
+      // Warm earth tones matching spel report design system
+      primaryColor: isDark ? '#3d2514' : '#fdf0e6',
+      primaryBorderColor: isDark ? '#b2652a' : '#b2652a',
+      primaryTextColor: isDark ? '#ecf1f7' : '#1f2933',
+      secondaryColor: isDark ? '#1a2520' : '#f0fdf4',
+      secondaryBorderColor: isDark ? '#1f8a5c' : '#1f8a5c',
+      tertiaryColor: isDark ? '#1a2028' : '#f0f8ff',
+      tertiaryBorderColor: isDark ? '#0f766e' : '#0f766e',
+      lineColor: isDark ? '#a9b7c8' : '#55606e',
       fontSize: '16px',
       fontFamily: 'var(--font-body)',
     }
@@ -170,22 +173,29 @@ When using anime.js, set initial opacity to 0 in CSS:
 
 ## Google Fonts — Typography
 
-Always load with `display=swap`. Pick a distinctive pairing.
+Always load with `display=swap`.
 
-**FORBIDDEN as `--font-body`:** Inter, Roboto, Arial, Helvetica, system-ui alone.
+**Default (spel brand):** Atkinson Hyperlegible + Manrope + IBM Plex Mono. Use this unless the user explicitly requests a different aesthetic.
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 ```
 
 ```css
 :root {
-  --font-body: 'Outfit', system-ui, sans-serif;
-  --font-mono: 'Space Mono', 'SF Mono', Consolas, monospace;
+  --font-body: 'Atkinson Hyperlegible', 'Segoe UI', sans-serif;
+  --font-heading: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 ```
+
+**FORBIDDEN as `--font-body`:** Inter, Roboto, Arial, Helvetica, system-ui alone.
+
+### Alternative pairings (for non-default aesthetics only)
 
 ### Font Pairings (rotate — never use same pairing twice in a row)
 

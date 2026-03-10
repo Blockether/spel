@@ -883,10 +883,11 @@
                           (System/currentTimeMillis) ".png"))
           ^bytes ss-bytes (page/screenshot (pg))]
       (snapshot-after-action!)
-      (java.nio.file.Files/write
-        (Path/of ^String path-str (into-array String []))
-        ss-bytes
-        ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+      (let [out-path (Path/of ^String path-str (into-array String []))]
+        (when-let [parent (.getParent out-path)]
+          (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
+        (java.nio.file.Files/write out-path ss-bytes
+          ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)
        :viewport (page/viewport-size (pg))})
     (let [tree (snapshot-after-action!)]
@@ -1062,11 +1063,12 @@
                             (page/screenshot (pg) (cond-> {}
                                                     full-page? (assoc :full-page true)))))]
     (if path-str
-      (do (java.nio.file.Files/write
-            (Path/of ^String path-str (into-array String []))
-            ss-bytes
-            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-          {:path path-str :size (alength ss-bytes)})
+      (let [out-path (Path/of ^String path-str (into-array String []))]
+        (when-let [parent (.getParent out-path)]
+          (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
+        (Files/write out-path ss-bytes
+          ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+        {:path path-str :size (alength ss-bytes)})
       (let [tmp-path (str (System/getProperty "java.io.tmpdir")
                        java.io.File/separator
                        "spel-screenshot-"
