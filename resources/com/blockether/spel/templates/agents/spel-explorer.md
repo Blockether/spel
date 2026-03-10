@@ -88,6 +88,8 @@ spel --session $SESSION snapshot -i
 spel --session $SESSION snapshot -S --json > <page>-snapshot.json
 ```
 
+> **Shortcut:** Use `eval-sci '(audit)'` to discover all page sections (header, nav, main, footer, aside) in one call.
+
 Navigation rules while exploring:
 - Keep `open` and `wait` as separate commands.
 - For heavy portal pages, prefer `spel --session $SESSION wait --load domcontentloaded` after click-driven navigation.
@@ -102,6 +104,8 @@ spel --session $SESSION annotate
 spel --session $SESSION screenshot <page>-screenshot.png
 spel --session $SESSION unannotate
 ```
+
+> **Shortcut:** Use `eval-sci '(overview {:path "<page>-overview.png"})'` to combine annotate + full-page screenshot in one call. Use `eval-sci '(survey {:output-dir "survey"})'` for a scrolling screenshot sweep.
 
 ### 3. Data extraction with eval-sci
 ```bash
@@ -126,6 +130,43 @@ spel --session $SESSION eval-sci '
   (println (:tree snap))
   (println (spel/text "@e2yrjz")))'
 ```
+
+#### High-level helpers (prefer over manual composition)
+
+These single-call helpers replace common multi-step exploration patterns:
+
+| Helper | Purpose | Replaces |
+|--------|---------|----------|
+| `(audit)` | Discover page sections (header, nav, main, footer, aside) | Manual landmark scanning |
+| `(routes)` | Extract all links with resolved URLs and visibility status | Manual link extraction |
+| `(inspect)` | Interactive snapshot with computed styles | Manual snapshot + style queries |
+| `(survey)` | Scroll through page, screenshot at each viewport | Manual scroll + screenshot loop |
+| `(overview)` | Annotated full-page screenshot with element labels | Manual annotate + screenshot |
+
+```bash
+# Discover page structure before detailed exploration
+spel --session $SESSION eval-sci '(audit)'
+# → {:sections [{:type "nav" :text-preview "Home About..."} {:type "main" ...}]}
+
+# Extract all links with metadata (preferred over manual link extraction)
+spel --session $SESSION eval-sci '(routes)'
+# → [{:url "https://..." :text "Home" :visible true} ...]
+
+# Snapshot with computed styles for element analysis
+spel --session $SESSION eval-sci '(inspect)'
+
+# Full-page screenshot sweep — scrolls and captures at each position
+spel --session $SESSION eval-sci '(survey {:output-dir "survey"})'
+
+# Annotated full-page screenshot with element labels
+spel --session $SESSION eval-sci '(overview {:path "page-overview.png"})'
+```
+
+**Recommended exploration start sequence using helpers:**
+1. `(audit)` — understand page layout and sections
+2. `(routes)` — map all navigation targets
+3. `(overview {:path "<page>-overview.png"})` — visual overview with labels
+4. Continue with targeted extraction using steps 4-5 patterns
 
 ### 4. JSON endpoint inspection
 ```bash

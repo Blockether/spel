@@ -82,6 +82,20 @@ spel --session $SESSION eval-sci '
     (println "Input value:" (spel/input-value "#email")))'
 ```
 
+For element analysis and style verification, use SCI helpers:
+
+```bash
+spel --session $SESSION eval-sci '
+  (do
+    (spel/navigate "<url>")
+    ;; Inspect element structure with computed styles
+    (let [snap (inspect)]
+      (println "Element tree:" (:tree snap)))
+    ;; Get specific element styles for assertions
+    (let [styles (get-styles "button.submit")]
+      (println "Button color:" (:color styles))))'
+```
+
 4. Generate `test-e2e/<ns>/e2e/<feature>_test.clj`.
 5. Run tests: `clojure -M:test -n <test-namespace>`.
 6. Write `generation-report.json` with selector evidence and pass/fail counts.

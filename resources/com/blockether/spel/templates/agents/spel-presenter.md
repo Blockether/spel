@@ -117,6 +117,36 @@ Ask: "Approve this visual output, or request revisions?"
 
 Do NOT continue with additional variants unless user approves.
 
+## SCI helpers for presentations
+
+Use these eval-sci helpers to automate visual content generation:
+
+### `(survey {:output-dir "slides"})`
+
+Scrolls through the current page, taking screenshots at each viewport position. Ideal for creating slide decks from long-form content or multi-section pages.
+
+**Example:**
+```clojure
+(survey {:output-dir "presentation-slides"})
+```
+
+Returns: `{:slides ["slide-0.png" "slide-1.png" ...] :output-dir "presentation-slides"}`
+
+Use case: Convert a feature walkthrough page into a slide deck by capturing each viewport as a separate slide.
+
+### `(overview {:path "overview.png"})`
+
+Captures a full-page screenshot with annotated element labels overlaid. Ideal for visual presentations that need to highlight interactive elements and their roles.
+
+**Example:**
+```clojure
+(overview {:path "annotated-overview.png"})
+```
+
+Returns: `{:path "annotated-overview.png" :width 1920 :height <full-page-height>}`
+
+Use case: Generate a labeled diagram of a form or dashboard for stakeholder presentations.
+
 ## Output configuration
 
 Default output path: `./spel-visual/`

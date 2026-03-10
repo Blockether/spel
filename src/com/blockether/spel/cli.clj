@@ -556,6 +556,72 @@
       "Flags:"
       "  --clear                   Clear console/error buffers after reading"])
 
+   "text-contrast"
+   (str/join \newline
+     ["text-contrast - Audit WCAG text contrast for all visible text elements"
+      ""
+      "Usage:"
+      "  spel text-contrast"
+      ""
+      "Examples:"
+      "  spel text-contrast"
+      "  spel text-contrast --json"])
+
+   "color-palette"
+   (str/join \newline
+     ["color-palette - Extract the color palette used on the current page"
+      ""
+      "Usage:"
+      "  spel color-palette"
+      ""
+      "Examples:"
+      "  spel color-palette"
+      "  spel color-palette --json"])
+
+   "layout-check"
+   (str/join \newline
+     ["layout-check - Detect layout issues (overflow, overlap, alignment)"
+      ""
+      "Usage:"
+      "  spel layout-check"
+      ""
+      "Examples:"
+      "  spel layout-check"
+      "  spel layout-check --json"])
+
+   "font-audit"
+   (str/join \newline
+     ["font-audit - Audit font usage across the page"
+      ""
+      "Usage:"
+      "  spel font-audit"
+      ""
+      "Examples:"
+      "  spel font-audit"
+      "  spel font-audit --json"])
+
+   "link-health"
+   (str/join \newline
+     ["link-health - Check all links on the page for health (status codes, broken links)"
+      ""
+      "Usage:"
+      "  spel link-health"
+      ""
+      "Examples:"
+      "  spel link-health"
+      "  spel link-health --json"])
+
+   "heading-structure"
+   (str/join \newline
+     ["heading-structure - Analyze heading hierarchy (h1-h6) for structure issues"
+      ""
+      "Usage:"
+      "  spel heading-structure"
+      ""
+      "Examples:"
+      "  spel heading-structure"
+      "  spel heading-structure --json"])
+
    "emulate"
    (str/join \newline
      ["emulate - Device emulation with annotated overview"
@@ -1982,6 +2048,14 @@
           ;; Debug (page diagnostic snapshot)
             "debug" (cond-> {:action "debug"}
                       (some #{"--clear"} cmd-args) (assoc :clear true))
+
+          ;; QA helper commands
+            "text-contrast"      {:action "text-contrast"}
+            "color-palette"      {:action "color-palette"}
+            "layout-check"       {:action "layout-check"}
+            "font-audit"         {:action "font-audit"}
+            "link-health"        {:action "link-health"}
+            "heading-structure"  {:action "heading-structure"}
 
           ;; Emulate (device emulation + annotated overview)
             "emulate" (let [;; First non-flag arg is the device name, second is optional path

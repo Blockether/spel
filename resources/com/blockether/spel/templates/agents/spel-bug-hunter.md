@@ -165,6 +165,13 @@ Check off each cell as you audit it. Include this inventory in `hunter-report.js
 
 If a `baselines/` directory exists with prior snapshots/screenshots, capture current state and diff against baselines at all three viewports before proceeding to bug hunting.
 
+**SCI helpers** — run automated discovery before regression comparison:
+```bash
+spel eval-sci "(audit)"     # → {:sections [...]} page structure inventory
+spel eval-sci "(survey)"    # → viewport screenshots (desktop/tablet/mobile)
+spel eval-sci "(overview)"  # → annotated full-page screenshot with overlays
+```
+
 ```bash
 SESSION="hunt-<name>-$(date +%s)"
 spel --session $SESSION open <url> --interactive
@@ -236,6 +243,13 @@ Inspect and capture evidence for:
 - Visual incoherence (repeated UI patterns with inconsistent internal layout — badges, icons, or metadata jumping position based on content length)
 See **AGENT_COMMON.md § Mandatory viewport audit** for the viewport table and overflow check.
 
+**SCI helpers** — run automated technical checks before manual inspection:
+```bash
+spel eval-sci "(debug)"         # → {:console-errors [...] :failed-resources [...]}
+spel eval-sci "(layout-check)"  # → {:clean? true/false :issues [...]}
+spel eval-sci "(link-health)"   # → {:broken [...] :ok [...] :total N}
+```
+
 What to look for at non-desktop viewports:
 - Horizontal overflow (scrollbar appears, content wider than screen)
 - Overlapping elements (buttons on text, cards on cards)
@@ -267,6 +281,14 @@ Audit the same flows/pages for:
 - Broken grid/flex layout (misaligned columns, collapsed rows, orphaned floats)
 - Density (remove-without-loss test)
 - Responsiveness and touch ergonomics
+
+**SCI helpers** — run automated design/a11y checks before manual audit:
+```bash
+spel eval-sci "(text-contrast)"      # → {:failing N :passing N} WCAG contrast
+spel eval-sci "(color-palette)"      # → {:colors [...]} design consistency
+spel eval-sci "(font-audit)"         # → {:fonts [...] :issues [...]} typography
+spel eval-sci "(heading-structure)"  # → {:valid? bool :tree [...]} heading hierarchy
+```
 
 Apply Jobs Filter from BUGFIND_GUIDE.md:
 - "Would a user need to be told this exists?"

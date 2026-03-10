@@ -275,6 +275,7 @@
   #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
     "select" "dblclick" "focus" "clear" "screenshot" "scroll"
     "survey" "audit" "routes" "inspect" "overview" "debug" "emulate"
+    "text-contrast" "color-palette" "layout-check" "font-audit" "link-health" "heading-structure"
     "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
 
 (defn- track-action!
@@ -1191,6 +1192,36 @@
                  :total_issues (+ (count console-errs)
                                  (count page-errs)
                                  (count failed-net))}})))
+
+(defmethod handle-cmd "text-contrast" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/text-contrast! (pg)))
+
+(defmethod handle-cmd "color-palette" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/color-palette! (pg)))
+
+(defmethod handle-cmd "layout-check" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/layout-check! (pg)))
+
+(defmethod handle-cmd "font-audit" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/font-audit! (pg)))
+
+(defmethod handle-cmd "link-health" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/link-health! (pg)))
+
+(defmethod handle-cmd "heading-structure" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (helpers/heading-structure! (pg)))
 
 (defmethod handle-cmd "emulate" [_ params]
   (ensure-browser!)

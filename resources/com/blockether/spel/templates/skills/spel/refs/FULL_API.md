@@ -747,6 +747,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/clipboard-copy` | [text] | Writes text to the browser clipboard. |
 | `spel/clipboard-paste` | [] | Pastes clipboard contents into the currently focused element. |
 | `spel/clipboard-read` | [] | Reads text from the browser clipboard. |
+| `spel/color-palette` | [] | Builds a page color inventory from computed text/background/border colors. |
 | `spel/compare-pages` | [baseline-page current-page] \| [baseline-page current-page opts] | Compare two live pages: screenshot + snapshot + diff with semantic enrichment. |
 | `spel/compare-screenshot-files` | [baseline-path current-path] \| [baseline-path current-path opts] | Compare two PNG files pixel-by-pixel. See compare-screenshots for details. |
 | `spel/compare-screenshots` | [baseline-bytes current-bytes] \| [baseline-bytes current-bytes opts] | Compare two PNG screenshots pixel-by-pixel using pixelmatch. |
@@ -784,6 +785,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/finish-video-recording` | [] \| [opts] | Stops video recording by closing the context to finalize the video. |
 | `spel/first-element` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
+| `spel/font-audit` | [] | Audits typography usage consistency across visible text elements. |
 | `spel/frame-by-name` | [name] | Returns a frame by its name attribute. |
 | `spel/frame-by-url` | [pattern] | Returns a frame by matching URL pattern. |
 | `spel/frames` | [] | Returns all frames in the page. |
@@ -799,6 +801,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/get-styles` | [sel] \| [sel opts] | Returns computed CSS styles for an element. Pass {:full true} for all properties. |
 | `spel/go-back` | [] | Navigates back in history. |
 | `spel/go-forward` | [] | Navigates forward in history. |
+| `spel/heading-structure` | [] | Validates heading hierarchy and order from h1..h6 in DOM sequence. |
 | `spel/help` | [] \| [query] | Lists all available SCI eval functions with arglists and descriptions. |
 | `spel/hidden?` | [sel] | Returns whether the element is hidden. |
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
@@ -814,6 +817,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/keyboard` | [] | Returns the Keyboard for this page. |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |
 | `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
+| `spel/layout-check` | [] | Checks page layout for common rendering integrity issues (overflow, offscreen, overlap). |
+| `spel/link-health` | [] | Checks link health using in-page bulk collection plus parallel HEAD requests. |
 | `spel/loc-filter` | [sel opts] | Filters this locator to a narrower set. |
 | `spel/loc-get-by-label` | [sel text] | Locates elements by label within this locator. |
 | `spel/loc-get-by-role` | [sel role] | Locates elements by ARIA role within this locator. |
@@ -875,6 +880,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
 | `spel/tap-element` | [sel] | Taps an element (for touch devices). |
 | `spel/text-content` | [sel] | Returns the text content of the element. |
+| `spel/text-contrast` | [] | Audits text contrast across all visible text elements using WCAG 2.1 rules. |
 | `spel/title` | [] | Returns the page title. |
 | `spel/touchscreen` | [] | Returns the Touchscreen for this page. |
 | `spel/trace-group` | [name] | Opens a named group in the trace. Groups nest actions visually in Trace Viewer. |

@@ -118,22 +118,48 @@ Do this cycle for every page you explore.
 
 See **AGENT_COMMON.md § Mandatory exploratory pass** for the 6-step unscripted exploration protocol.
 
-### Deep exploration with `spel eval-sci`
+### Discovery helpers: audit, routes, inspect
+
+Before deep exploration, use these SCI helpers to discover testable sections and navigation:
 
 ```bash
 spel --session $SESSION eval-sci '
   (do
     (spel/navigate "<url>")
-    (let [snap (spel/capture-snapshot)]
-      (println (:tree snap)))
-    (println "Links:" (spel/all-text-contents "a"))
-    (println "Buttons:" (spel/all-text-contents "button"))
-    (println "Inputs:" (spel/count-of "input"))
+    ;; Discover page sections to test
+    (println "Page sections:" (audit))
+    ;; Map all navigation routes
+    (println "Routes:" (routes))
+    ;; Detailed element analysis with computed styles
+    (println "Element tree:" (inspect)))'
+```
+
+Helper reference:
+- `(audit)` → `{:sections [...]}` — discovers testable page sections (forms, lists, headers)
+- `(routes)` → `{:links [...]}` — maps all navigation links and routes to test
+- `(inspect)` → `{:tree {...}}` — detailed element tree with computed styles and accessibility info
+
+
+### Deep exploration with `spel eval-sci`
+
+After using the discovery helpers, perform detailed exploration combining helper output with manual interaction:
+
+```bash
+spel --session $SESSION eval-sci '
+  (do
+    (spel/navigate "<url>")
+    ;; Use audit to identify sections, then inspect each
+    (let [sections (audit)
+          tree (inspect)]
+      (println "Sections to test:" (:sections sections))
+      (println "Element details:" (:tree tree)))
+    ;; Navigate through routes discovered by routes helper
+    (let [nav-routes (routes)]
+      (println "Navigation routes:" (:links nav-routes)))
+    ;; Manual interaction after discovery
     (spel/click (spel/get-by-text "Login"))
     (println "After click — Title:" (spel/title))
-    (println "After click — URL:" (spel/url))
-    (let [snap2 (spel/capture-snapshot)]
-      (println (:tree snap2))))'
+    (println "After click — URL:" (spel/url)))'
 ```
 
 See AGENT_COMMON.md for daemon notes.

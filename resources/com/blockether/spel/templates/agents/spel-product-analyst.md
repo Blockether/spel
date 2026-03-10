@@ -108,6 +108,11 @@ Evidence requirements:
 - At least one snapshot per major route family.
 - At least one screenshot for landing, auth, and primary product surface.
 
+**SCI helpers for crawl evidence:**
+- `spel eval-sci '(audit)'` — discovers page sections (nav, hero, sidebar, footer) as structured data. Bootstrap region identification per page.
+- `spel eval-sci '(routes)'` — extracts all navigation links with labels and URLs. Feed directly into `navigation_map` construction.
+- `spel eval-sci '(overview "crawl-home")'` — captures annotated screenshot with element overlays. Use for evidence snapshots on representative pages.
+
 ## Phase 2: CLASSIFY
 Goal: normalize page taxonomy and identify region/feature surface by page.
 
@@ -131,6 +136,9 @@ Region mapping output:
 Feature-presence mapping:
 - Build page -> category adjacency map.
 - Note whether feature surface is read-only, interactive, or gated.
+
+**SCI helper for element classification:**
+- `spel eval-sci '(inspect "@eXXXX")'` — returns tag, text, computed styles, and bounding box for any snapshot ref. Use to confirm region membership and feature-surface type when classification is ambiguous.
 
 ## Phase 3: DISCOVER ROLES
 Goal: infer the user-role model and role-dependent feature access.
@@ -235,6 +243,11 @@ Coherence methodology:
 - Score by observed consistency, clarity, recoverability, and predictability.
 - Prefer evidence-backed deductions over stylistic preference.
 - Separate severity from confidence when evidence is partial.
+
+**SCI helpers for coherence scoring:**
+- `spel eval-sci '(heading-structure)'` — returns heading hierarchy (h1-h6) with nesting analysis. Score `information_architecture` dimension directly.
+- `spel eval-sci '(color-palette)'` — extracts unique colors with frequency counts from computed styles. Score `visual_consistency` for color discipline.
+- `spel eval-sci '(font-audit)'` — extracts font families, sizes, and weights in use. Score `visual_consistency` for typography consistency.
 
 Issue reporting format:
 - `dimension`
