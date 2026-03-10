@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.23] - 2026-03-10
+
+### Changed
+- Merge branch 'agent-helpers-v0523': add 6 QA helpers, wire agents, fix dark theme (v0.5.23)
+- feat(helpers): add 6 QA helpers, wire helpers into agents, fix report dark theme
+- chore: mark agent-consolidation plan complete in boulder state
+- chore: add F-wave review evidence and update notepads
+- fix(agents): replace stale spel-test-generator refs in explorer and automator templates
+- release: update version files for v0.5.22, bump to next dev version
+
+
 ## [v0.5.22] - 2026-03-09
 
 ### Changed
@@ -668,7 +679,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.22...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.23...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -698,3 +709,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.20]: https://github.com/Blockether/spel/releases/tag/v0.5.20
 [v0.5.21]: https://github.com/Blockether/spel/releases/tag/v0.5.21
 [v0.5.22]: https://github.com/Blockether/spel/releases/tag/v0.5.22
+[v0.5.23]: https://github.com/Blockether/spel/releases/tag/v0.5.23
