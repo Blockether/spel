@@ -133,6 +133,17 @@ For SPAs and heavy pages, prefer route-aware waits over blind click timeouts:
   (page/wait-for-load-state @!page :domcontentloaded))
 ```
 
+### Element analysis with `inspect`
+
+Before writing automation scripts, use `(inspect)` to understand element structure and computed styles:
+
+```clojure
+;; Get interactive snapshot with computed styles
+(eval-sci "(inspect)")
+;; Returns: {:tree "..." :elements [{:ref "@e2yrjz" :role "button" :name "Submit" :styles {...}}]}
+;; Useful for knowing what to target in automation scripts
+```
+
 ### Snapshot-first interaction
 ```clojure
 ;; PREFERRED: Use snapshot refs instead of hardcoded CSS selectors

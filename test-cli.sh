@@ -1637,6 +1637,35 @@ assert_jq "emulate → has path" "$OUT" '.path'
 assert_jq "emulate → has size" "$OUT" '.size > 0'
 assert_jq "emulate → has preset" "$OUT" '.preset'
 
+# =============================================================================
+# QA HELPERS (45)
+# =============================================================================
+section "QA Helpers (45)"
+
+OUT=$("$SPEL" text-contrast --help 2>&1)
+assert_contains "text-contrast --help mentions text-contrast" "$OUT" "text-contrast"
+assert_contains "text-contrast --help mentions WCAG" "$OUT" "WCAG"
+
+OUT=$("$SPEL" color-palette --help 2>&1)
+assert_contains "color-palette --help mentions color-palette" "$OUT" "color-palette"
+assert_contains "color-palette --help mentions palette" "$OUT" "palette"
+
+OUT=$("$SPEL" layout-check --help 2>&1)
+assert_contains "layout-check --help mentions layout-check" "$OUT" "layout-check"
+assert_contains "layout-check --help mentions layout" "$OUT" "layout"
+
+OUT=$("$SPEL" font-audit --help 2>&1)
+assert_contains "font-audit --help mentions font-audit" "$OUT" "font-audit"
+assert_contains "font-audit --help mentions font" "$OUT" "font"
+
+OUT=$("$SPEL" link-health --help 2>&1)
+assert_contains "link-health --help mentions link-health" "$OUT" "link-health"
+assert_contains "link-health --help mentions links" "$OUT" "links"
+
+OUT=$("$SPEL" heading-structure --help 2>&1)
+assert_contains "heading-structure --help mentions heading-structure" "$OUT" "heading-structure"
+assert_contains "heading-structure --help mentions heading" "$OUT" "heading"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

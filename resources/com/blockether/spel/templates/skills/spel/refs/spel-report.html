@@ -909,18 +909,95 @@
           radial-gradient(circle at top right, rgba(15, 118, 110, 0.15), transparent 22%),
           linear-gradient(180deg, #12171d 0%, #151a20 52%, #1a212a 100%);
       }
-      .report-header,
-      .summary-card,
-      table,
-      .sidebar,
+      /* Sidebar */
+      .sidebar {
+        background: linear-gradient(180deg, rgba(26, 32, 40, 0.96), rgba(20, 25, 32, 0.92));
+      }
+      /* Header and cards */
+      .report-header {
+        background:
+          linear-gradient(135deg, rgba(24, 30, 38, 0.95), rgba(20, 25, 32, 0.92)),
+          linear-gradient(180deg, rgba(178, 101, 42, 0.08), rgba(15, 118, 110, 0.06));
+      }
+      .report-meta span {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--mc-border);
+      }
+      /* Summary and guide cards */
+      .summary-card {
+        background: linear-gradient(180deg, rgba(24, 30, 38, 0.98), rgba(20, 26, 33, 0.96));
+      }
+      .guide-card,
+      .coverage-stat,
+      .overview-pill {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      /* Coherence hero */
+      .coherence-hero {
+        background: linear-gradient(140deg, rgba(24, 30, 38, 0.95), rgba(20, 35, 32, 0.92));
+      }
+      .coherence-ring::before {
+        background: var(--mc-bg-elevated);
+      }
+      /* Main card types */
       .card,
       .dimension-card,
       .role-card,
       .recommendation {
         background-color: var(--mc-bg-elevated);
       }
-      tr:nth-child(even) td { background: rgba(255, 255, 255, 0.025); }
-      tr:hover td { background: rgba(15, 118, 110, 0.14); }
+      .chart-card {
+        background: var(--mc-bg-elevated);
+      }
+      /* Tables */
+      table {
+        background: rgba(0, 0, 0, 0.2);
+      }
+      th {
+        background: rgba(178, 101, 42, 0.12);
+      }
+      tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+      tr:hover td { background: rgba(15, 118, 110, 0.12); }
+      tr.summary-row td { background: rgba(255, 255, 255, 0.04); }
+      /* Mobile nav */
+      .mobile-nav-list a {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .mobile-nav-list a.active {
+        background: linear-gradient(90deg, rgba(178, 101, 42, 0.18), rgba(178, 101, 42, 0.08));
+        border-color: rgba(178, 101, 42, 0.35);
+      }
+      /* Empty state */
+      .empty-state {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      /* Console and appendix */
+      .console,
+      .appendix-content {
+        background: var(--mc-bg-tertiary);
+      }
+      /* Check items and viewport cards */
+      .check-item,
+      .viewport-card {
+        background: var(--mc-bg-secondary);
+      }
+      .viewport-card-header {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      /* Finding provenance */
+      .finding-provenance {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      /* Pipeline info */
+      .pipeline-info {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      /* Severity track */
+      .severity-track,
+      .strip-track {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.06);
+      }
     }
 
     /* Animations */

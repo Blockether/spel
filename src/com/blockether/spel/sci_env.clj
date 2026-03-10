@@ -1246,6 +1246,36 @@
    Returns map with :url :title :ready-state :timing :failed-resources :dom :dimensions."
   [] (helpers/debug! (require-page!)))
 
+(defn sci-text-contrast
+  "Audits text contrast across all visible text elements using WCAG 2.1 rules.
+   Returns map with :url :total-elements :passing :failing :elements."
+  [] (helpers/text-contrast! (require-page!)))
+
+(defn sci-color-palette
+  "Builds a page color inventory from computed text/background/border colors.
+   Returns map with :url :total-colors :colors :near-duplicates :hue-groups."
+  [] (helpers/color-palette! (require-page!)))
+
+(defn sci-layout-check
+  "Checks page layout for common rendering integrity issues (overflow, offscreen, overlap).
+   Returns map with :url :viewport :issues :total-issues :clean?."
+  [] (helpers/layout-check! (require-page!)))
+
+(defn sci-font-audit
+  "Audits typography usage consistency across visible text elements.
+   Returns map with :url :fonts :sizes :weights :issues :stats."
+  [] (helpers/font-audit! (require-page!)))
+
+(defn sci-link-health
+  "Checks link health using in-page bulk collection plus parallel HEAD requests.
+   Returns map with :url :total-links :ok :broken :redirects :timeouts :warning :links."
+  [] (helpers/link-health! (require-page!)))
+
+(defn sci-heading-structure
+  "Validates heading hierarchy and order from h1..h6 in DOM sequence.
+   Returns map with :url :headings :issues :valid? :stats."
+  [] (helpers/heading-structure! (require-page!)))
+
 ;; Report builder (polymorphic entries -> HTML / PDF)
 (defn sci-report->html
   "Builds a rich HTML report from typed entries. No page needed."
@@ -1565,6 +1595,12 @@
                   ['inspect                   sci-inspect]
                   ['overview                  sci-overview]
                   ['debug                     sci-debug]
+                  ['text-contrast              sci-text-contrast]
+                  ['color-palette              sci-color-palette]
+                  ['layout-check               sci-layout-check]
+                  ['font-audit                 sci-font-audit]
+                  ['link-health                sci-link-health]
+                  ['heading-structure          sci-heading-structure]
                    ;; Report builder (polymorphic entries)
                   ['report->html              sci-report->html]
                   ['report->pdf               sci-report->pdf]])
