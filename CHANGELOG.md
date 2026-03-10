@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.26] - 2026-03-10
+
+### Changed
+- fix: session close timing + forward --channel to daemon subprocess
+- release: update version files for v0.5.25, bump to next dev version
+
+
 ## [v0.5.25] - 2026-03-10
 
 ### Changed
@@ -695,7 +702,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.25...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.5.26...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -728,3 +735,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.5.23]: https://github.com/Blockether/spel/releases/tag/v0.5.23
 [v0.5.24]: https://github.com/Blockether/spel/releases/tag/v0.5.24
 [v0.5.25]: https://github.com/Blockether/spel/releases/tag/v0.5.25
+[v0.5.26]: https://github.com/Blockether/spel/releases/tag/v0.5.26
