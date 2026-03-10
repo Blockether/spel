@@ -2138,3 +2138,40 @@
       (expect (= ["--session" "test" "open" "http://x.com"]
                 (com.blockether.spel.native/normalize-args
                   ["--session" "test" "open" "http://x.com"]))))))
+
+;; =============================================================================
+;; Audit Subcommand Tests
+;; =============================================================================
+
+(defdescribe audit-subcommand-test
+  "Tests for audit umbrella command with subcommands"
+
+  (describe "audit (no subcommand) → audit-all"
+    (it "runs all audits"
+      (expect (= {:action "audit-all"} (cmd ["audit"]))))
+
+    (it "passes --only flag"
+      (expect (= {:action "audit-all" :only "contrast,layout"}
+                (cmd ["audit" "--only" "contrast,layout"])))))
+
+  (describe "audit subcommands"
+    (it "audit structure → audit action"
+      (expect (= {:action "audit"} (cmd ["audit" "structure"]))))
+
+    (it "audit contrast → text-contrast action"
+      (expect (= {:action "text-contrast"} (cmd ["audit" "contrast"]))))
+
+    (it "audit colors → color-palette action"
+      (expect (= {:action "color-palette"} (cmd ["audit" "colors"]))))
+
+    (it "audit layout → layout-check action"
+      (expect (= {:action "layout-check"} (cmd ["audit" "layout"]))))
+
+    (it "audit fonts → font-audit action"
+      (expect (= {:action "font-audit"} (cmd ["audit" "fonts"]))))
+
+    (it "audit links → link-health action"
+      (expect (= {:action "link-health"} (cmd ["audit" "links"]))))
+
+    (it "audit headings → heading-structure action"
+      (expect (= {:action "heading-structure"} (cmd ["audit" "headings"]))))))

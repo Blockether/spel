@@ -283,6 +283,7 @@ Phase 0 (optional): @spel-explorer + visual regression (built into Hunter)
   Exploration data + visual regression report
   ↓
 Phase 1: @spel-bug-hunter — Hunt
+  Recommended first step: `spel audit` (runs all 7 audits at once — structure, contrast, colors, layout, fonts, links, headings)
   Reads exploration data (if available)
   Technical audit + Design audit (UX Architect lens)
   → bugfind-reports/hunter-report.json (bugs section)

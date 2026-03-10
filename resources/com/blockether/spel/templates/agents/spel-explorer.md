@@ -88,7 +88,7 @@ spel --session $SESSION snapshot -i
 spel --session $SESSION snapshot -S --json > <page>-snapshot.json
 ```
 
-> **Shortcut:** Use `eval-sci '(audit)'` to discover all page sections (header, nav, main, footer, aside) in one call.
+> **Shortcut:** Use `eval-sci '(audit)'` or `spel audit structure` to discover all page sections (header, nav, main, footer, aside) in one call. Use `spel audit` (no subcommand) to run all audits at once.
 
 Navigation rules while exploring:
 - Keep `open` and `wait` as separate commands.
@@ -137,7 +137,7 @@ These single-call helpers replace common multi-step exploration patterns:
 
 | Helper | Purpose | Replaces |
 |--------|---------|----------|
-| `(audit)` | Discover page sections (header, nav, main, footer, aside) | Manual landmark scanning |
+| `(audit)` | Discover page sections (header, nav, main, footer, aside) | Manual landmark scanning | CLI: `spel audit structure` |
 | `(routes)` | Extract all links with resolved URLs and visibility status | Manual link extraction |
 | `(inspect)` | Interactive snapshot with computed styles | Manual snapshot + style queries |
 | `(survey)` | Scroll through page, screenshot at each viewport | Manual scroll + screenshot loop |

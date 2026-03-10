@@ -41,6 +41,24 @@ Agent short names:
 
 ---
 
+## Audit commands
+
+`spel audit` runs all page quality audits at once. Use subcommands for individual checks.
+
+| CLI command | eval-sci function | What it checks |
+|---|---|---|
+| `spel audit` | — | All 7 audits combined |
+| `spel audit structure` | `(audit)` | Page landmarks and sections |
+| `spel audit contrast` | `(text-contrast)` | WCAG text contrast |
+| `spel audit colors` | `(color-palette)` | Page color palette |
+| `spel audit layout` | `(layout-check)` | Overflow, overlap, alignment |
+| `spel audit fonts` | `(font-audit)` | Font usage consistency |
+| `spel audit links` | `(link-health)` | Broken links (HEAD requests) |
+| `spel audit headings` | `(heading-structure)` | Heading hierarchy (h1-h6) |
+
+Use `--only` to run a subset: `spel audit --only contrast,layout`.
+---
+
 ## Input/output contracts
 
 Every agent declares what it reads and what it produces, enabling composition.

@@ -1072,6 +1072,40 @@
       font-size: 12px;
     }
     .footer-pipeline { max-width: 600px; margin: 0 auto 1rem; font-size: 11px; }
+
+    /* Collapsible details sections */
+    details.collapsible {
+      border: 1px solid var(--mc-border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    details.collapsible summary {
+      padding: 14px 20px;
+      background: var(--mc-bg-elevated);
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--mc-text);
+    }
+    details.collapsible summary::-webkit-details-marker { display: none; }
+    details.collapsible summary::before {
+      content: '▸';
+      font-size: 11px;
+      color: var(--mc-text-secondary);
+      transition: transform 0.15s ease;
+    }
+    details.collapsible[open] summary::before { transform: rotate(90deg); }
+    details.collapsible .collapsible__body {
+      padding: 16px 20px;
+      border-top: 1px solid var(--mc-border);
+      font-size: 13px;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
@@ -1097,6 +1131,8 @@
       <li><a href="#coherence-audit">Coherence Audit</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="#navigation-map">Navigation Map</a></li>
+      <!-- PRODUCER: spel audit (CLI) -->
+      <li><a href="#automated-audit">Automated Audit</a></li>
       <!-- PRODUCER: spel-bug-hunter -->
       <li><a href="#visual-checks">Visual Checks</a></li>
       <li><a href="#viewports">Viewport Audit</a></li>
@@ -1130,6 +1166,7 @@
         <a href="#coherence-audit">Coherence</a>
         <a href="#faq">FAQ</a>
         <a href="#navigation-map">Navigation</a>
+        <a href="#automated-audit">Audit</a>
         <a href="#visual-checks">Visual Checks</a>
         <a href="#viewports">Viewports</a>
         <a href="#heatmap">Heatmap</a>
@@ -1751,6 +1788,78 @@
           <!-- {NAV_TREE} -->
         </ul>
       </div>
+    </section>
+
+    <!-- ===== SECTION 9B: AUTOMATED AUDIT ===== -->
+    <section id="automated-audit" class="section">
+      <h2>Automated Audit</h2>
+      <p style="margin-bottom: 1rem;">Machine-verified quality checks from <code>spel audit</code>.</p>
+
+      <div class="summary-grid" style="margin-bottom: 2rem;">
+        <div class="summary-card summary-card-highlight">
+          <div class="summary-count" style="color: var(--mc-accent)">{AUDIT_STRUCTURE_SECTIONS}</div>
+          <div class="summary-label">Structure</div>
+        </div>
+        <div class="summary-card summary-card-critical">
+          <div class="summary-count" style="color: var(--mc-accent-red)">{AUDIT_CONTRAST_FAILING}</div>
+          <div class="summary-label">Contrast Fails</div>
+        </div>
+        <div class="summary-card summary-card-highlight">
+          <div class="summary-count" style="color: var(--mc-accent)">{AUDIT_COLORS_COUNT}</div>
+          <div class="summary-label">Colors</div>
+        </div>
+        <div class="summary-card summary-card-warning">
+          <div class="summary-count" style="color: var(--mc-accent-yellow)">{AUDIT_LAYOUT_COUNT}</div>
+          <div class="summary-label">Layout Issues</div>
+        </div>
+        <div class="summary-card summary-card-highlight">
+          <div class="summary-count" style="color: var(--mc-accent)">{AUDIT_FONTS_COUNT}</div>
+          <div class="summary-label">Fonts</div>
+        </div>
+        <div class="summary-card summary-card-critical">
+          <div class="summary-count" style="color: var(--mc-accent-red)">{AUDIT_LINKS_BROKEN}</div>
+          <div class="summary-label">Broken Links</div>
+        </div>
+        <div class="summary-card summary-card-success">
+          <div class="summary-count" style="color: var(--mc-accent-green)">{AUDIT_HEADINGS_VALID}</div>
+          <div class="summary-label">Headings</div>
+        </div>
+      </div>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Text Contrast ({AUDIT_CONTRAST_FAILING} failing)</summary>
+        <div class="collapsible__body">{AUDIT_CONTRAST_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Layout Issues ({AUDIT_LAYOUT_COUNT} issues)</summary>
+        <div class="collapsible__body">{AUDIT_LAYOUT_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Font Audit ({AUDIT_FONTS_COUNT} fonts)</summary>
+        <div class="collapsible__body">{AUDIT_FONTS_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Link Health ({AUDIT_LINKS_BROKEN} broken)</summary>
+        <div class="collapsible__body">{AUDIT_LINKS_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Heading Structure ({AUDIT_HEADINGS_VALID})</summary>
+        <div class="collapsible__body">{AUDIT_HEADINGS_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Color Palette ({AUDIT_COLORS_COUNT} unique colors)</summary>
+        <div class="collapsible__body">{AUDIT_COLORS_DETAILS}</div>
+      </details>
+
+      <details class="collapsible" style="margin-bottom: 1rem;">
+        <summary>Page Structure ({AUDIT_STRUCTURE_SECTIONS} sections)</summary>
+        <div class="collapsible__body">{AUDIT_STRUCTURE_DETAILS}</div>
+      </details>
     </section>
 
     <!-- PRODUCER: spel-bug-hunter — sections: Visual Checks, Viewport Comparison, Heatmap, Timeline, Findings, Disputed Findings, Coverage Matrix -->

@@ -244,10 +244,12 @@ Coherence methodology:
 - Prefer evidence-backed deductions over stylistic preference.
 - Separate severity from confidence when evidence is partial.
 
-**SCI helpers for coherence scoring:**
-- `spel eval-sci '(heading-structure)'` — returns heading hierarchy (h1-h6) with nesting analysis. Score `information_architecture` dimension directly.
-- `spel eval-sci '(color-palette)'` — extracts unique colors with frequency counts from computed styles. Score `visual_consistency` for color discipline.
-- `spel eval-sci '(font-audit)'` — extracts font families, sizes, and weights in use. Score `visual_consistency` for typography consistency.
+**SCI helpers for coherence scoring** (also available via `spel audit` CLI — see AGENT_COMMON.md § Audit commands):
+- `spel eval-sci '(heading-structure)'` (CLI: `spel audit headings`) — returns heading hierarchy (h1-h6) with nesting analysis. Score `information_architecture` dimension directly.
+- `spel eval-sci '(color-palette)'` (CLI: `spel audit colors`) — extracts unique colors with frequency counts from computed styles. Score `visual_consistency` for color discipline.
+- `spel eval-sci '(font-audit)'` (CLI: `spel audit fonts`) — extracts font families, sizes, and weights in use. Score `visual_consistency` for typography consistency.
+
+> **Tip:** Run `spel audit` to execute all audits at once and get combined JSON output.
 
 Issue reporting format:
 - `dimension`

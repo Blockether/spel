@@ -68,6 +68,50 @@ Overall coherence score: {COHERENCE_SCORE}
 
 {NAV_TREE}
 
+## Automated Audit
+
+Machine-verified quality checks from `spel audit`.
+
+### Summary
+
+| Check | Result | Details |
+|---|---|---|
+| Structure | {AUDIT_STRUCTURE_SECTIONS} sections | {AUDIT_STRUCTURE_SUMMARY} |
+| Contrast | {AUDIT_CONTRAST_FAILING} failing | {AUDIT_CONTRAST_SUMMARY} |
+| Colors | {AUDIT_COLORS_COUNT} unique | {AUDIT_COLORS_SUMMARY} |
+| Layout | {AUDIT_LAYOUT_COUNT} issues | {AUDIT_LAYOUT_SUMMARY} |
+| Fonts | {AUDIT_FONTS_COUNT} fonts | {AUDIT_FONTS_SUMMARY} |
+| Links | {AUDIT_LINKS_BROKEN} broken / {AUDIT_LINKS_TOTAL} total | {AUDIT_LINKS_SUMMARY} |
+| Headings | {AUDIT_HEADINGS_VALID} | {AUDIT_HEADINGS_SUMMARY} |
+
+### Contrast Details
+
+{AUDIT_CONTRAST_DETAILS}
+
+### Layout Details
+
+{AUDIT_LAYOUT_DETAILS}
+
+### Font Details
+
+{AUDIT_FONTS_DETAILS}
+
+### Link Details
+
+{AUDIT_LINKS_DETAILS}
+
+### Heading Details
+
+{AUDIT_HEADINGS_DETAILS}
+
+### Color Palette
+
+{AUDIT_COLORS_DETAILS}
+
+### Structure Details
+
+{AUDIT_STRUCTURE_DETAILS}
+
 ## QA Findings
 
 ### Audit Coverage

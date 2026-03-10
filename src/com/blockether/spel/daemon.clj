@@ -274,8 +274,7 @@
   "Set of user-facing browser commands that should be recorded in the action log."
   #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
     "select" "dblclick" "focus" "clear" "screenshot" "scroll"
-    "survey" "audit" "routes" "inspect" "overview" "debug" "emulate"
-    "text-contrast" "color-palette" "layout-check" "font-audit" "link-health" "heading-structure"
+    "survey" "audit" "audit-all" "routes" "inspect" "overview" "debug" "emulate"
     "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
 
 (defn- track-action!
@@ -604,7 +603,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -1121,6 +1120,23 @@
   (ensure-page-loaded!)
   (helpers/audit! (pg)))
 
+(defmethod handle-cmd "audit-all" [_ params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [only (when-let [o (get params "only")]
+               (if (string? o) (set (str/split o #",")) (set o)))
+        pg   (pg)
+        run? (fn [k] (or (nil? only) (contains? only (name k))))
+        safe (fn [f] (try (f) (catch Exception e {:error (.getMessage e)})))]
+    (cond-> {}
+      (run? :structure) (assoc :structure (safe #(helpers/audit! pg)))
+      (run? :contrast)  (assoc :contrast  (safe #(helpers/text-contrast! pg)))
+      (run? :colors)    (assoc :colors    (safe #(helpers/color-palette! pg)))
+      (run? :layout)    (assoc :layout    (safe #(helpers/layout-check! pg)))
+      (run? :fonts)     (assoc :fonts     (safe #(helpers/font-audit! pg)))
+      (run? :links)     (assoc :links     (safe #(helpers/link-health! pg)))
+      (run? :headings)  (assoc :headings  (safe #(helpers/heading-structure! pg))))))
+
 (defmethod handle-cmd "routes" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
@@ -1296,15 +1312,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1315,11 +1331,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -1572,13 +1588,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "click" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "fill" :snapshot tree}))
+                  (let [tree (snapshot-after-action!)]
+                    {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -1729,7 +1745,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -1805,12 +1821,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -1932,7 +1948,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page

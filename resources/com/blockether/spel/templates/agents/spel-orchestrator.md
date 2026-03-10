@@ -68,6 +68,8 @@ Keywords: "test", "write tests", "E2E", "coverage", "test plan", "spec"
 ### 2. QA / bug-finding intent
 Keywords: "bugs", "audit", "check", "regression", "visual diff", "QA", "broken", "issues"
 
+> **Unified audit command:** `spel audit` runs all page quality audits (structure, contrast, colors, layout, fonts, links, headings) at once. Use subcommands for individual checks (e.g. `spel audit contrast`). See AGENT_COMMON.md § Audit commands.
+
 -> Run the inlined QA pipeline execution flow.
 
 ### 3. Automation intent

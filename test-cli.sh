@@ -1651,8 +1651,9 @@ assert_jq "survey → has frames" "$OUT" '.frames | length > 0'
 assert_jq "survey → frame has path" "$OUT" '.frames[0].path'
 
 OUT=$("$SPEL" --json audit 2>&1)
-assert_jq "audit → has url" "$OUT" '.url'
-assert_jq "audit → has sections" "$OUT" '.sections | type == "array"'
+assert_jq "audit → has structure" "$OUT" '.structure.url'
+assert_jq "audit → has contrast" "$OUT" '.contrast["total-elements"] >= 0'
+assert_jq "audit → has sections" "$OUT" '.structure.sections | type == "array"'
 
 OUT=$("$SPEL" --json routes 2>&1)
 assert_jq "routes → has links" "$OUT" '.links | type == "array"'
@@ -1687,33 +1688,22 @@ assert_jq "emulate → has size" "$OUT" '.size > 0'
 assert_jq "emulate → has preset" "$OUT" '.preset'
 
 # =============================================================================
-# QA HELPERS (45)
+# AUDIT COMMAND (45)
 # =============================================================================
-section "QA Helpers (45)"
+section "Audit Command (45)"
 
-OUT=$("$SPEL" text-contrast --help 2>&1)
-assert_contains "text-contrast --help mentions text-contrast" "$OUT" "text-contrast"
-assert_contains "text-contrast --help mentions WCAG" "$OUT" "WCAG"
-
-OUT=$("$SPEL" color-palette --help 2>&1)
-assert_contains "color-palette --help mentions color-palette" "$OUT" "color-palette"
-assert_contains "color-palette --help mentions palette" "$OUT" "palette"
-
-OUT=$("$SPEL" layout-check --help 2>&1)
-assert_contains "layout-check --help mentions layout-check" "$OUT" "layout-check"
-assert_contains "layout-check --help mentions layout" "$OUT" "layout"
-
-OUT=$("$SPEL" font-audit --help 2>&1)
-assert_contains "font-audit --help mentions font-audit" "$OUT" "font-audit"
-assert_contains "font-audit --help mentions font" "$OUT" "font"
-
-OUT=$("$SPEL" link-health --help 2>&1)
-assert_contains "link-health --help mentions link-health" "$OUT" "link-health"
-assert_contains "link-health --help mentions links" "$OUT" "links"
-
-OUT=$("$SPEL" heading-structure --help 2>&1)
-assert_contains "heading-structure --help mentions heading-structure" "$OUT" "heading-structure"
-assert_contains "heading-structure --help mentions heading" "$OUT" "heading"
+# spel audit --help shows unified audit help
+OUT=$("$SPEL" audit --help 2>&1)
+assert_contains "audit --help mentions audit" "$OUT" "audit"
+assert_contains "audit --help mentions subcommands" "$OUT" "Subcommands"
+assert_contains "audit --help mentions structure" "$OUT" "structure"
+assert_contains "audit --help mentions contrast" "$OUT" "contrast"
+assert_contains "audit --help mentions colors" "$OUT" "colors"
+assert_contains "audit --help mentions layout" "$OUT" "layout"
+assert_contains "audit --help mentions fonts" "$OUT" "fonts"
+assert_contains "audit --help mentions links" "$OUT" "links"
+assert_contains "audit --help mentions headings" "$OUT" "headings"
+assert_contains "audit --help mentions --only" "$OUT" "--only"
 
 # SUMMARY
 # =============================================================================

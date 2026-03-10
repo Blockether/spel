@@ -135,10 +135,11 @@ spel --session $SESSION eval-sci '
 ```
 
 Helper reference:
-- `(audit)` → `{:sections [...]}` — discovers testable page sections (forms, lists, headers)
+- `(audit)` → `{:sections [...]}` — discovers testable page sections (forms, lists, headers). CLI: `spel audit structure`
 - `(routes)` → `{:links [...]}` — maps all navigation links and routes to test
 - `(inspect)` → `{:tree {...}}` — detailed element tree with computed styles and accessibility info
 
+> **Tip:** Run `spel audit` (no subcommand) to execute all page quality audits at once and get combined JSON output. See AGENT_COMMON.md § Audit commands for the full CLI↔eval-sci mapping.
 
 ### Deep exploration with `spel eval-sci`
 

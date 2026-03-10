@@ -472,13 +472,29 @@
 
    "audit"
    (str/join \newline
-     ["audit - Discover page structure and landmark sections"
+     ["audit - Run page quality audits (all or specific)"
       ""
       "Usage:"
-      "  spel audit"
+      "  spel audit                    Run all audits at once"
+      "  spel audit <subcommand>       Run a specific audit"
+      ""
+      "Subcommands:"
+      "  structure    Discover page landmarks and sections"
+      "  contrast     Audit WCAG text contrast for all visible text"
+      "  colors       Extract the color palette used on the page"
+      "  layout       Detect layout issues (overflow, overlap, alignment)"
+      "  fonts        Audit font usage consistency across the page"
+      "  links        Check all links for health (status codes, broken links)"
+      "  headings     Analyze heading hierarchy (h1-h6) for structure issues"
+      ""
+      "Flags:"
+      "  --only LIST   Comma-separated list of audits to run (e.g. --only contrast,layout)"
       ""
       "Examples:"
-      "  spel audit"])
+      "  spel audit                        # run all 7 audits"
+      "  spel audit structure              # page landmarks only"
+      "  spel audit contrast               # WCAG contrast only"
+      "  spel audit --only fonts,links     # selective"])
 
    "routes"
    (str/join \newline
@@ -552,76 +568,7 @@
       "  - Failed network requests (4xx/5xx)"
       "  - Failed resource loads"
       "  - DOM statistics and dimensions"
-      ""
-      "Flags:"
       "  --clear                   Clear console/error buffers after reading"])
-
-   "text-contrast"
-   (str/join \newline
-     ["text-contrast - Audit WCAG text contrast for all visible text elements"
-      ""
-      "Usage:"
-      "  spel text-contrast"
-      ""
-      "Examples:"
-      "  spel text-contrast"
-      "  spel text-contrast --json"])
-
-   "color-palette"
-   (str/join \newline
-     ["color-palette - Extract the color palette used on the current page"
-      ""
-      "Usage:"
-      "  spel color-palette"
-      ""
-      "Examples:"
-      "  spel color-palette"
-      "  spel color-palette --json"])
-
-   "layout-check"
-   (str/join \newline
-     ["layout-check - Detect layout issues (overflow, overlap, alignment)"
-      ""
-      "Usage:"
-      "  spel layout-check"
-      ""
-      "Examples:"
-      "  spel layout-check"
-      "  spel layout-check --json"])
-
-   "font-audit"
-   (str/join \newline
-     ["font-audit - Audit font usage across the page"
-      ""
-      "Usage:"
-      "  spel font-audit"
-      ""
-      "Examples:"
-      "  spel font-audit"
-      "  spel font-audit --json"])
-
-   "link-health"
-   (str/join \newline
-     ["link-health - Check all links on the page for health (status codes, broken links)"
-      ""
-      "Usage:"
-      "  spel link-health"
-      ""
-      "Examples:"
-      "  spel link-health"
-      "  spel link-health --json"])
-
-   "heading-structure"
-   (str/join \newline
-     ["heading-structure - Analyze heading hierarchy (h1-h6) for structure issues"
-      ""
-      "Usage:"
-      "  spel heading-structure"
-      ""
-      "Examples:"
-      "  spel heading-structure"
-      "  spel heading-structure --json"])
-
    "emulate"
    (str/join \newline
      ["emulate - Device emulation with annotated overview"
@@ -1426,7 +1373,7 @@
      "  annotate                Inject annotation overlays"
      "  unannotate              Remove annotation overlays"
      "  survey                  Sweep viewport screenshots down page"
-     "  audit                   Discover page landmarks and sections"
+     "  audit                   Page quality audits (structure, contrast, layout, fonts, links, headings, colors)"
      "  routes                  Extract links from page"
      "  inspect                 Interactive styled snapshot"
      "  overview                Full-page annotated screenshot"
@@ -2030,8 +1977,22 @@
                        (assoc :max-frames (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--max-frames"))]
                                             (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "50"))))))
 
-          ;; Audit (page structure discovery)
-            "audit" {:action "audit"}
+          ;; Audit (umbrella: runs all audits or a specific subcommand)
+            "audit" (let [sub (first cmd-args)
+                          only-val (when (some #{"--only"} cmd-args)
+                                     (let [idx (.indexOf ^java.util.List (vec cmd-args) "--only")]
+                                       (when (>= idx 0) (nth cmd-args (inc idx) nil))))]
+                      (case sub
+                        "structure" {:action "audit"}
+                        "contrast"  {:action "text-contrast"}
+                        "colors"    {:action "color-palette"}
+                        "layout"    {:action "layout-check"}
+                        "fonts"     {:action "font-audit"}
+                        "links"     {:action "link-health"}
+                        "headings"  {:action "heading-structure"}
+                       ;; No subcommand or unknown → run all
+                        (cond-> {:action "audit-all"}
+                          only-val (assoc :only only-val))))
 
           ;; Routes (link extraction)
             "routes" (cond-> {:action "routes"}
@@ -2064,14 +2025,6 @@
           ;; Debug (page diagnostic snapshot)
             "debug" (cond-> {:action "debug"}
                       (some #{"--clear"} cmd-args) (assoc :clear true))
-
-          ;; QA helper commands
-            "text-contrast"      {:action "text-contrast"}
-            "color-palette"      {:action "color-palette"}
-            "layout-check"       {:action "layout-check"}
-            "font-audit"         {:action "font-audit"}
-            "link-health"        {:action "link-health"}
-            "heading-structure"  {:action "heading-structure"}
 
           ;; Emulate (device emulation + annotated overview)
             "emulate" (let [;; First non-flag arg is the device name, second is optional path
@@ -3014,13 +2967,13 @@
       (let [session (:session flags)]
         (if (daemon/daemon-running? session)
           (do (close-session! session)
-              (when (:json flags)
-                (println (json/write-json-str {:closed true} :escape-slash false)))
-              (System/exit 0))
+            (when (:json flags)
+              (println (json/write-json-str {:closed true} :escape-slash false)))
+            (System/exit 0))
           (do (cleanup-session-files! session)
-              (when (:json flags)
-                (println (json/write-json-str {:closed true} :escape-slash false)))
-              (System/exit 0)))))
+            (when (:json flags)
+              (println (json/write-json-str {:closed true} :escape-slash false)))
+            (System/exit 0)))))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)

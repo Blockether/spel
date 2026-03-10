@@ -245,9 +245,17 @@ See **AGENT_COMMON.md § Mandatory viewport audit** for the viewport table and o
 
 **SCI helpers** — run automated technical checks before manual inspection:
 ```bash
+# Run all technical audits at once (recommended — returns combined JSON)
+spel audit
+
+# Or via eval-sci (same checks, SCI function names unchanged):
 spel eval-sci "(debug)"         # → {:console-errors [...] :failed-resources [...]}
 spel eval-sci "(layout-check)"  # → {:clean? true/false :issues [...]}
 spel eval-sci "(link-health)"   # → {:broken [...] :ok [...] :total N}
+
+# Individual CLI subcommands:
+spel audit layout              # same as eval-sci "(layout-check)"
+spel audit links               # same as eval-sci "(link-health)"
 ```
 
 What to look for at non-desktop viewports:
@@ -284,10 +292,20 @@ Audit the same flows/pages for:
 
 **SCI helpers** — run automated design/a11y checks before manual audit:
 ```bash
+# Run all design/a11y audits at once (recommended)
+spel audit
+
+# Or via eval-sci (same checks, SCI function names unchanged):
 spel eval-sci "(text-contrast)"      # → {:failing N :passing N} WCAG contrast
 spel eval-sci "(color-palette)"      # → {:colors [...]} design consistency
 spel eval-sci "(font-audit)"         # → {:fonts [...] :issues [...]} typography
 spel eval-sci "(heading-structure)"  # → {:valid? bool :tree [...]} heading hierarchy
+
+# Individual CLI subcommands:
+spel audit contrast            # same as eval-sci "(text-contrast)"
+spel audit colors              # same as eval-sci "(color-palette)"
+spel audit fonts               # same as eval-sci "(font-audit)"
+spel audit headings            # same as eval-sci "(heading-structure)"
 ```
 
 Apply Jobs Filter from BUGFIND_GUIDE.md:
