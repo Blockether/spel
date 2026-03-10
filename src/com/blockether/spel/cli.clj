@@ -2603,6 +2603,8 @@
                     (conj "--headed")
                     (:browser opts)
                     (into ["--browser" (:browser opts)])
+                    (:channel opts)
+                    (into ["--channel" (:channel opts)])
                     (:cdp opts)
                     (into ["--cdp" (:cdp opts)]))
         pb        (if (and exec-path
@@ -2965,15 +2967,13 @@
     ;; any stale files and exit.
     (when (and (= "close" (:action command)) (not (:all-sessions command)))
       (let [session (:session flags)]
+        (when (:json flags)
+          (println (json/write-json-str {:closed true} :escape-slash false))
+          (.flush *out*))
         (if (daemon/daemon-running? session)
-          (do (close-session! session)
-            (when (:json flags)
-              (println (json/write-json-str {:closed true} :escape-slash false)))
-            (System/exit 0))
-          (do (cleanup-session-files! session)
-            (when (:json flags)
-              (println (json/write-json-str {:closed true} :escape-slash false)))
-            (System/exit 0)))))
+          (close-session! session)
+          (cleanup-session-files! session))
+        (System/exit 0)))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)

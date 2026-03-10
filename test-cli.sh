@@ -889,17 +889,17 @@ OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>/d
 assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
 
-# --channel + --session combined (use default chromium channel)
-OUT=$(timeout 30 "$SPEL" --json --channel chromium --session chantest open https://example.com 2>/dev/null) || true
-assert_jq_eq "--channel + --session open → .url" "$OUT" '.url' 'https://example.com/'
+# --browser + --session combined (use default chromium browser)
+OUT=$(timeout 30 "$SPEL" --json --browser chromium --session chantest open https://example.com 2>/dev/null) || true
+assert_jq_eq "--browser + --session open → .url" "$OUT" '.url' 'https://example.com/'
 
-# --channel + --session close
-OUT=$(timeout 10 "$SPEL" --json --channel chromium --session chantest close 2>/dev/null) || true
-assert_jq "--channel + --session close → .closed" "$OUT" '.closed == true'
+# --browser + --session close
+OUT=$(timeout 10 "$SPEL" --json --browser chromium --session chantest close 2>/dev/null) || true
+assert_jq "--browser + --session close → .closed" "$OUT" '.closed == true'
 
-# --channel=value syntax with --session
-OUT=$(timeout 30 "$SPEL" --json --channel=chromium --session=chaneq open https://example.com 2>/dev/null) || true
-assert_jq_eq "--channel=val + --session=val open → .url" "$OUT" '.url' 'https://example.com/'
+# --browser=value syntax with --session
+OUT=$(timeout 30 "$SPEL" --json --browser=chromium --session=chaneq open https://example.com 2>/dev/null) || true
+assert_jq_eq "--browser=val + --session=val open → .url" "$OUT" '.url' 'https://example.com/'
 timeout 10 "$SPEL" --session chaneq close >/dev/null 2>&1 || true
 
 # Final close
