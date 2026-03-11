@@ -63,7 +63,7 @@ spel wraps Playwright Java with idiomatic Clojure: maps for options, anomaly map
 
 ```clojure
 ;; deps.edn
-{:deps {com.blockether/spel {:mvn/version "0.6.3"}}}
+{:deps {com.blockether/spel {:mvn/version "0.6.4"}}}
 ```
 
 **Native CLI (download from GitHub releases):**
