@@ -249,6 +249,14 @@ For more troubleshooting, see `refs/COMMON_PROBLEMS.md`.
 | `refs/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
 | `refs/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
 
+### Presenter & visual output
+| Ref | Topic |
+|-----|-------|
+| `refs/CSS_PATTERNS.md` | **Canonical design system** — fonts, colors, dark mode, card/table/KPI components (REQUIRED for all visual output) |
+| `refs/PRESENTER_SKILL.md` | Presenter workflow, content types, design token contract, quality checks |
+| `refs/SLIDE_PATTERNS.md` | Slide engine, scroll-snap slides, transitions, navigation chrome, presets |
+| `refs/LIBRARIES.md` | External libraries — Mermaid.js theming, Chart.js, anime.js, Google Fonts pairings |
+
 ### QA / exploratory testing
 | Ref | Topic |
 |-----|-------|
@@ -264,6 +272,12 @@ For more troubleshooting, see `refs/COMMON_PROBLEMS.md`.
 | `refs/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
 | `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
 | `refs/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect, storage state, agent scaffolding |
+
+### Agent shared patterns
+| Ref | Topic |
+|-----|-------|
+| `refs/AGENT_COMMON.md` | Shared agent patterns — session management, GATE contracts, error recovery |
+| `refs/ENVIRONMENT_VARIABLES.md` | All spel environment variables — browser, session, network, SSL, testing, advanced |
 
 ### Troubleshooting
 | Ref | Topic |
