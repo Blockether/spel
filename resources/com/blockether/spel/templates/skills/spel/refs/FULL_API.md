@@ -622,6 +622,9 @@ Auto-generated from source code. Each namespace lists public functions with args
 | Function | Args | Description |
 |----------|------|-------------|
 | `-main` | [& args] | CLI entry point for the search tool command. |
+| `anti-detection-headers` | [ua] | Returns a map of HTTP headers that reduce Google bot detection. |
+| `ddg-search!` | [page query] | Searches DuckDuckGo and returns structured results. |
+| `duckduckgo-url` | [query] | Builds a DuckDuckGo HTML search URL from a query string. |
 | `extract-image-results` | [page] | Extracts image search results from the current Google Images page. |
 | `extract-news-results` | [page] | Extracts news search results from the current Google News results page. |
 | `extract-people-also-ask` | [page] | Extracts 'People also ask' questions from the results page. |
@@ -1193,6 +1196,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 
 | Function | Args | Description |
 |----------|------|-------------|
+| `search/anti-detection-headers` | [ua] | Returns anti-detection HTTP headers matched to a user-agent string. |
+| `search/ddg-search!` | [query] | Searches DuckDuckGo and returns structured results. |
+| `search/duckduckgo-url` | [query] | Builds a DuckDuckGo search URL from a query string. |
 | `search/extract-image-results` | [] | Extracts image search results from the current Google Images page. |
 | `search/extract-news-results` | [] | Extracts news search results from the current Google News results page. |
 | `search/extract-people-also-ask` | [] | Extracts 'People also ask' questions from the results page. |
