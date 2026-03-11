@@ -392,6 +392,11 @@ function drawGrayPixel(img, i, alpha, output) {
 (defn- element-area ^long [bbox]
   (* (long (:width bbox)) (long (:height bbox))))
 
+(defn- round2
+  "Rounds a double to 2 decimal places in a locale-independent way."
+  ^double [^double x]
+  (/ (double (Math/round (* x 100.0))) 100.0))
+
 (defn- enrich-region
   "Enriches a single diff region with snapshot element information.
    Finds all snapshot elements whose bounding boxes overlap with the region,
@@ -410,7 +415,7 @@ function drawGrayPixel(img, i, alpha, output) {
                         {:ref ref-id
                          :role role
                          :name name
-                         :overlap (Double/parseDouble (format "%.2f" overlap-ratio))
+                         :overlap (round2 overlap-ratio)
                          :area el-area})))))
           (sort-by :area)
           vec)
@@ -596,7 +601,7 @@ function drawGrayPixel(img, i, alpha, output) {
                                           :height (long (or (:height bbox) (get bbox "height") 0))}}))
                   (or (:regions result) (get result "regions") []))
         diff-percent (if (pos? total-pixels)
-                       (Double/parseDouble (format "%.2f" (* 100.0 (/ (double diff-count) (double total-pixels)))))
+                       (round2 (* 100.0 (/ (double diff-count) (double total-pixels))))
                        0.0)
         dimension-mismatch (or (not= (:width baseline-dims) (:width current-dims))
                              (not= (:height baseline-dims) (:height current-dims)))]

@@ -6,6 +6,7 @@
    [com.blockether.spel.test-fixtures :as tf :refer [*pw* *browser* with-playwright with-browser]]
    [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
   (:import
+   [java.net InetAddress ServerSocket]
    [com.microsoft.playwright Browser BrowserContext BrowserType
     Page Playwright]))
 
@@ -27,6 +28,26 @@
   (describe "close! edge cases"
     (expect-it "close! with nil is safe"
       (nil? (sut/close! nil)))))
+
+(defdescribe find-free-port-test
+  "Tests for finding an available local TCP port"
+
+  (it "returns a valid TCP port number"
+    (let [port (sut/find-free-port)]
+      (expect (integer? port))
+      (expect (<= 1 port))
+      (expect (<= port 65535))))
+
+  (it "returns a free port even when three ports are already occupied"
+    (with-open [^ServerSocket s1 (ServerSocket. 0 50 (InetAddress/getByName "127.0.0.1"))
+                ^ServerSocket s2 (ServerSocket. 0 50 (InetAddress/getByName "127.0.0.1"))
+                ^ServerSocket s3 (ServerSocket. 0 50 (InetAddress/getByName "127.0.0.1"))]
+      (let [occupied #{(.getLocalPort s1) (.getLocalPort s2) (.getLocalPort s3)}
+            port     (sut/find-free-port)]
+        (expect (integer? port))
+        (expect (not (contains? occupied port)))
+        (with-open [^ServerSocket verify (ServerSocket. port 50 (InetAddress/getByName "127.0.0.1"))]
+          (expect (= port (.getLocalPort verify))))))))
 
 (defdescribe with-playwright-test
   "Tests for with-playwright macro"

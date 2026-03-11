@@ -2179,3 +2179,11 @@
 
     (it "audit headings → heading-structure action"
       (expect (= {:action "heading-structure"} (cmd ["audit" "headings"]))))))
+
+(defdescribe utility-command-test
+  "Tests for utility CLI commands"
+
+  (describe "find-free-port"
+    (it "parses find-free-port command"
+      (expect (= {:action "find_free_port"}
+                (cmd ["find-free-port"]))))))

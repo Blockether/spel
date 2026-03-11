@@ -104,6 +104,77 @@
         (expect (true? (get-in response ["data" "closed"])))
         (expect (true? (get-in response ["data" "shutdown"])))))))
 
+(defdescribe click-diagnostics-test
+  "Unit tests for click error diagnostics helpers"
+
+  (describe "yes-no formatting"
+    (it "renders booleans as Yes/No"
+      (expect (= "Yes" (#'sut/yes-no true)))
+      (expect (= "No" (#'sut/yes-no false)))))
+
+  (describe "throw-click-error!"
+    (it "throws ex-info containing structured diagnostics"
+      (let [thrown? (try
+                      (#'sut/throw-click-error!
+                       "@e123"
+                       {:found false :visible nil :enabled nil}
+                       (ex-info "original cause" {}))
+                      false
+                      (catch clojure.lang.ExceptionInfo e
+                        (let [m (.getMessage e)
+                              d (ex-data e)]
+                          (expect (str/includes? m "Click failed for @e123"))
+                          (expect (str/includes? m "Element found: No"))
+                          (expect (str/includes? m "Element visible: Unknown"))
+                          (expect (str/includes? m "Element enabled: Unknown"))
+                          (expect (= "@e123" (:selector d)))
+                          (expect (false? (:found d)))
+                          true)))]
+        (expect thrown?)))))
+
+(defdescribe error-response-humanization-test
+  "Unit tests for humanized error responses"
+
+  (describe "error-response"
+    (it "adds hint and error_code for No page loaded errors"
+      (let [resp (#'sut/error-response "No page loaded. Navigate first: spel open <url>")]
+        (expect (false? (:success resp)))
+        (expect (= "No page loaded. Navigate first: spel open <url>" (:error resp)))
+        (expect (string? (:hint resp)))
+        (expect (= "no_page_loaded" (:error_code resp)))))
+
+    (it "adds generic hint for Unknown error"
+      (let [resp (#'sut/error-response "Unknown error")]
+        (expect (false? (:success resp)))
+        (expect (= "Unknown error" (:error resp)))
+        (expect (string? (:hint resp)))
+        (expect (= "unknown_error" (:error_code resp)))))
+
+    (it "uses humanized fallback when message is missing"
+      (let [resp (#'sut/error-response nil)]
+        (expect (false? (:success resp)))
+        (expect (str/includes? (:error resp) "unexpected browser error"))
+        (expect (string? (:hint resp)))
+        (expect (= "unknown_error" (:error_code resp))))))
+
+  (describe "find_free_port action"
+    (it "returns valid port"
+      (let [resp (#'sut/handle-cmd "find_free_port" {})
+            port (:port resp)]
+        (expect (integer? port))
+        (expect (<= 1 port))
+        (expect (<= port 65535))))
+
+    (it "process-command dispatches find_free_port action"
+      (let [response (json/read-json
+                       (#'sut/process-command
+                        (json/write-json-str {"action" "find_free_port"})))
+            port (get-in response ["data" "port"])]
+        (expect (true? (get response "success")))
+        (expect (integer? port))
+        (expect (<= 1 port))
+        (expect (<= port 65535))))))
+
 ;; =============================================================================
 ;; Unit Tests — filter-snapshot-tree
 ;; =============================================================================
@@ -571,4 +642,3 @@
       (let [response (json/read-json (#'sut/process-command "invalid json!!!"))]
         (expect (false? (get response "success")))
         (expect (str/includes? (get response "error") "Parse error"))))))
-

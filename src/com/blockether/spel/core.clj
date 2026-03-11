@@ -21,6 +21,7 @@
    [com.blockether.spel.options :as opts])
   (:import
    [java.io File]
+   [java.net InetAddress ServerSocket]
    [java.nio.file Path]
    [java.util UUID]
    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
@@ -72,7 +73,8 @@
 
       :else
       (anomaly/anomaly ::anomaly/fault
-        (or (.getMessage e) "Unknown error")
+        (or (.getMessage e)
+          (str "Unknown Playwright error (" (.getName (.getClass e)) ")"))
         (assoc base :playwright/error-type :playwright.error/unknown)))))
 
 (defmacro safe
@@ -136,6 +138,21 @@
         (Playwright/create (doto (Playwright$CreateOptions.)
                              (.setEnv {"PLAYWRIGHT_JAVA_SRC" src-dirs})))
         (Playwright/create)))))
+
+(defn find-free-port
+  "Finds an available local TCP port and returns it as an integer.
+
+   Binds to loopback with port 0 so the OS allocates a free ephemeral port,
+   then immediately closes the socket and returns the selected port.
+
+   Returns:
+   - integer port on success
+   - anomaly map on failure"
+  []
+  (safe
+    (with-open [^ServerSocket socket (ServerSocket. 0 50 (InetAddress/getByName "127.0.0.1"))]
+      (.setReuseAddress socket true)
+      (.getLocalPort socket))))
 
 (defn close!
   "Closes a Playwright instance and releases all resources.

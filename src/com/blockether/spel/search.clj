@@ -681,7 +681,7 @@
           ;; Hard block (sorry page, CAPTCHA) — retrying is pointless, return immediately
           (do (binding [*out* *err*]
                 (println (str "Google blocked (" (name block) ") — skipping retries.")))
-            result)
+              result)
           ;; Empty results but not blocked — transient failure, retry with backoff
           (if (< attempt (long max-retries))
             (let [backoff-ms (* 1000 (long (Math/pow 2 attempt)))]
@@ -1102,7 +1102,7 @@
             (println "Error: search requires a query argument")
             (println "Usage: spel search <query> [options]")
             (println "Run 'spel search --help' for details."))
-        (System/exit 1))
+          (System/exit 1))
 
       :else
       (let [max-pages (long (or (:max-pages opts) 1))

@@ -89,6 +89,18 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/remove-overlays!)"))))))
 
+  (describe "spel utility helpers"
+    (it "has find-free-port function"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? spel/find-free-port)")))))
+
+    (it "find-free-port returns integer"
+      (let [ctx (sut/create-sci-ctx)
+            port (sut/eval-string ctx "(spel/find-free-port)")]
+        (expect (integer? port))
+        (expect (<= 1 port))
+        (expect (<= port 65535)))))
+
   (describe "snapshot namespace"
     (it "has capture-snapshot function"
       (let [ctx (sut/create-sci-ctx)]

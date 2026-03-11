@@ -603,7 +603,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                              (catch Exception _ {})))
+                                                                 (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -729,6 +729,96 @@
       (snapshot/resolve-ref (pg) ref-id))
     (page/locator (pg) selector)))
 
+(declare unwrap-anomaly!)
+
+(defn- yes-no
+  "Formats booleans as Yes/No for human-readable diagnostics."
+  [v]
+  (if v "Yes" "No"))
+
+(defn- locator-diagnostics
+  "Collects lightweight click diagnostics for a locator.
+
+   Returns:
+   {:count long :found boolean :visible boolean? :enabled boolean?}"
+  [loc]
+  (let [countv (try
+                 (long (locator/count-elements loc))
+                 (catch Exception _ 0))
+        found? (clojure.core/pos? (long countv))]
+    {:count   countv
+     :found   found?
+     :visible (when found?
+                (try (boolean (locator/is-visible? loc))
+                     (catch Exception _ nil)))
+     :enabled (when found?
+                (try (boolean (locator/is-enabled? loc))
+                     (catch Exception _ nil)))}))
+
+(defn- refresh-snapshot!
+  "Captures a fresh snapshot and updates daemon ref state."
+  []
+  (let [snap (snapshot/capture-snapshot (pg))]
+    (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+    snap))
+
+(defn- throw-click-error!
+  "Throws an ex-info with rich click diagnostics and the original cause."
+  [selector {:keys [found visible enabled]} cause]
+  (let [msg (str "Click failed for " selector "\n"
+              "  - Element found: " (yes-no found) "\n"
+              "  - Element visible: " (if (nil? visible) "Unknown" (yes-no visible)) "\n"
+              "  - Element enabled: " (if (nil? enabled) "Unknown" (yes-no enabled))
+              (when-let [m (.getMessage ^Throwable cause)]
+                (str "\n  - Playwright: " m)))]
+    (throw (ex-info msg {:selector selector
+                         :found found
+                         :visible visible
+                         :enabled enabled}
+             cause))))
+
+(defn- click-with-ref-recovery!
+  "Clicks a selector with stale-ref recovery and fail-fast diagnostics.
+
+   For @e refs:
+   1) preflight locator existence
+   2) refresh snapshot once if missing
+   3) fail fast with diagnostics when still missing
+
+   For non-ref selectors, still performs preflight diagnostics before click."
+  [^String selector]
+  (let [ref-selector? (and selector (ref? selector))
+        ref-id        (when ref-selector? (str/replace selector #"^@" ""))
+        loc           (if ref-selector?
+                        (let [refs          (:refs @!state)
+                              ref-present?  (contains? refs ref-id)
+                              fresh-snap    (when-not ref-present? (refresh-snapshot!))
+                              fresh-present (if fresh-snap
+                                              (contains? (:refs fresh-snap) ref-id)
+                                              ref-present?)]
+                          (when-not fresh-present
+                            (throw (ex-info
+                                     (str "Ref " ref-id " not found.\n"
+                                       "Click failed for " selector "\n"
+                                       "  - Element found: No\n"
+                                       "  - Suggestion: run 'snapshot -i' and retry click.")
+                                     {:selector selector :found false :stale-ref true})))
+                          (snapshot/resolve-ref (pg) ref-id))
+                        (resolve-selector selector))
+        diag (locator-diagnostics loc)]
+    (when-not (:found diag)
+      (throw (ex-info
+               (str "Selector not found: " selector "\n"
+                 "Click failed for " selector "\n"
+                 "  - Element found: No\n"
+                 "  - Suggestion: run 'snapshot -i' and retry click.")
+               {:selector selector :found false})))
+    (try
+      ;; Keep click failures fast in automation/CDP scenarios.
+      (unwrap-anomaly! (locator/click loc {:timeout 5000}))
+      (catch Throwable t
+        (throw-click-error! selector (locator-diagnostics loc) t)))))
+
 (defn- describe-element
   "Returns a short human-readable description of the element behind a locator.
    e.g. 'h1 \"Example Domain\"', 'button \"Submit\"', 'input[type=text][name=email]'.
@@ -828,15 +918,71 @@
         call-log (assoc :call_log call-log)
         selector (assoc :selector selector)))))
 
+(declare humanize-error)
+
+(defn- default-error-message
+  "Returns a human-friendly fallback message when runtime provided no details."
+  ([]
+   "unexpected browser error (no details from runtime)")
+  ([^Throwable e]
+   (if e
+     (str "unexpected browser error (" (.getSimpleName (.getClass e)) ", no details from runtime)")
+     (default-error-message))))
+
 (defn- error-response
   "Creates a structured error response map from an error message string.
    Parses Playwright error context (call_log, selector) when present.
    Returns {:success false :error msg} with optional :call_log and :selector."
   [^String msg]
-  (let [parsed (parse-playwright-error msg)]
+  (let [msg    (if (str/blank? msg) (default-error-message) msg)
+        parsed (parse-playwright-error msg)
+        human  (humanize-error msg)]
     (cond-> {:success false :error msg}
       (:call_log parsed) (assoc :call_log (:call_log parsed))
-      (:selector parsed) (assoc :selector (:selector parsed)))))
+      (:selector parsed) (assoc :selector (:selector parsed))
+      (:hint human) (assoc :hint (:hint human))
+      (:error_code human) (assoc :error_code (name (:error_code human))))))
+
+(defn- humanize-error
+  "Adds actionable, human-readable hints to known error patterns.
+
+   Returns map with optional keys:
+   - :hint string
+   - :error_code keyword"
+  [^String msg]
+  (cond
+    (or (nil? msg)
+      (str/blank? msg)
+      (= "Unknown error" msg)
+      (str/starts-with? msg "unexpected browser error"))
+    {:hint "An unexpected browser error occurred. Retry once with --debug; if it repeats, run `spel close` and try again."
+     :error_code :unknown_error}
+
+    (str/includes? msg "No page loaded")
+    {:hint "Open a page first, for example: `spel open https://example.org`."
+     :error_code :no_page_loaded}
+
+    (str/includes? msg "No browser")
+    {:hint "Start a browser session first with `spel open <url>` or `spel eval-sci '(spel/start!)'`."
+     :error_code :no_browser}
+
+    (re-find #"(?i)target page, context or browser has been closed|TargetClosedError" msg)
+    {:hint "The browser or tab closed during the command. Re-open the page and retry. For CDP runs, verify the debug browser is still running."
+     :error_code :target_closed}
+
+    (re-find #"(?i)timeout .* exceeded|timed out" msg)
+    {:hint "The operation timed out. Verify selector/page state and consider increasing --timeout for slow pages."
+     :error_code :timeout}
+
+    (str/includes? msg "Ref ")
+    {:hint "The element ref is stale or missing. Run `spel snapshot -i` and retry with a fresh @ref."
+     :error_code :stale_ref}
+
+    (str/includes? msg "Unknown action:")
+    {:hint "The command action is not supported by the daemon. Check `spel --help` for valid commands."
+     :error_code :unknown_action}
+
+    :else nil))
 
 (defn- unwrap-anomaly!
   "Checks if x is an anomaly map and re-throws the underlying error.
@@ -849,7 +995,7 @@
   (if (anomaly/anomaly? x)
     (if-let [ex (:playwright/exception x)]
       (throw ex)
-      (throw (ex-info (or (::anomaly/message x) "Unknown error")
+      (throw (ex-info (or (::anomaly/message x) (default-error-message))
                (dissoc x ::anomaly/message ::anomaly/category))))
     x))
 
@@ -942,7 +1088,9 @@
 
 (defmethod handle-cmd "click" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (unwrap-anomaly! (locator/click (resolve-selector selector)))
+  (when (str/blank? (str selector))
+    (throw (ex-info "click requires a selector or @ref" {})))
+  (click-with-ref-recovery! selector)
   (let [tree (snapshot-after-action!)]
     {:clicked selector :snapshot tree}))
 
@@ -1312,15 +1460,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1331,11 +1479,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -1448,7 +1596,9 @@
                          (java.nio.file.Path/of ^String baseline (into-array String [])))
         current-bytes  (page/screenshot (pg))
         current-snap   (snapshot/capture-snapshot (pg))
-        threshold-val  (if threshold (Double/parseDouble (str threshold)) 0.1)
+        threshold-val  (if threshold
+                         (Double/parseDouble (str/replace (str threshold) #"," "."))
+                         0.1)
         result         (visual-diff/compare-screenshots baseline-bytes current-bytes
                          :threshold threshold-val
                          :current-refs (:refs current-snap))
@@ -1588,13 +1738,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "click" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "click" :snapshot tree}))
       "fill"    (do (locator/fill loc find_value)
-                  (let [tree (snapshot-after-action!)]
-                    {:found by :value value :action "fill" :snapshot tree}))
+                    (let [tree (snapshot-after-action!)]
+                      {:found by :value value :action "fill" :snapshot tree}))
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -1745,7 +1895,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -1821,12 +1971,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -1948,7 +2098,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -2058,6 +2208,9 @@
     (reset! !tracked-requests [])
     (page/on-response pg-inst track-response!)
     {:connected url :url (page/url pg-inst)}))
+
+(defmethod handle-cmd "find_free_port" [_ _]
+  {:port (unwrap-anomaly! (core/find-free-port))})
 
 ;; --- SCI Eval ---
 
@@ -2245,7 +2398,7 @@
             (let [msg  (::anomaly/message anomaly-v)
                   ex   (:playwright/exception anomaly-v)
                   hint (when ex (reflection-error-hint ex))
-                  error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) "Unknown error")]
+                  error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
               (json/write-json-str (error-response error-msg)))
             :else
             (do
@@ -2255,7 +2408,7 @@
               (json/write-json-str {:success true :data result}))))
         (catch Throwable e
           (let [hint (reflection-error-hint e)
-                msg  (or hint (.getMessage e))
+                msg  (or hint (.getMessage e) (default-error-message e))
                 data (ex-data e)]
             (json/write-json-str (cond-> (error-response msg)
                                    (:stdout data) (assoc :data {:stdout (:stdout data)
