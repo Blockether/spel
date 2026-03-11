@@ -37,9 +37,9 @@ If the installed version does not match **{{version}}**:
 The orchestrator routes to:
 - E2E test writing (`@spel-test-planner` → `@spel-test-writer`) — plan with self-challenge → generate with self-heal
 - Bug finding (`@spel-bug-hunter`) — explore → hunt with visual regression → self-challenge → verdict → HTML + Markdown reports
-- Automation specialists directly (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
+- Automation specialists via orchestrator (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
 
-You can also call specialist agents directly if you know exactly what you need, but the orchestrator handles pipeline coordination, gates, and adaptive depth for you.
+Direct specialist invocation is deprecated in this workflow. Prefer `@spel-orchestrator` so gates, artifacts, and sequencing remain consistent.
 Artifact-first rule: if you ask for JSON/report files, the orchestrator must treat those exact paths as required outputs, stop at gates, and keep `orchestration/*-pipeline.json` handoff manifests up to date.
 
 Runtime note:
@@ -59,7 +59,7 @@ Proven navigation playbook:
 | `spel --help` | CLI help |
 | `spel open <url>` | Open URL (stealth mode is ON by default) |
 | `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge and open URL via CDP |
-| `spel --cdp http://127.0.0.1:9222 open <url>` | Connect to Chrome/Edge via explicit CDP endpoint |
+| `CDP_PORT=$(spel find-free-port) && spel --session agent-$(date +%s) --cdp http://127.0.0.1:$CDP_PORT open <url>` | Connect to Chrome/Edge via explicit CDP endpoint (ephemeral port + named session) |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
 | `spel --load-state auth.json open <url>` | Open with browser state JSON (cookies/localStorage) |

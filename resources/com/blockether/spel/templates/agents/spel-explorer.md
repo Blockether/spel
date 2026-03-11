@@ -66,6 +66,22 @@ spel --session $SESSION open <url>
 spel --session $SESSION close
 ```
 
+CDP runs must stay session-first:
+
+- Keep one `SESSION` for the whole exploration stage.
+- If using CDP, attach with the same `--cdp` endpoint across all commands in this stage.
+- Do not recreate session names per command.
+- Do not run global browser kills as retry logic.
+
+If you need a dedicated debug browser for this stage, prefer an ephemeral port + dedicated user data dir:
+
+```bash
+CDP_PORT=$(spel find-free-port)
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
+
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open <url>
+```
+
 See **AGENT_COMMON.md** for daemon notes.
 
 ## Structured exploration plan
@@ -93,8 +109,8 @@ spel --session $SESSION snapshot -S --json > <page>-snapshot.json
 Navigation rules while exploring:
 - Keep `open` and `wait` as separate commands.
 - For heavy portal pages, prefer `spel --session $SESSION wait --load domcontentloaded` after click-driven navigation.
-- For SPAs with known routes, prefer direct `spel --session $SESSION open <target-url>` over clicking menus or buttons just to change routes.
-- If a click keeps timing out, capture evidence, re-snapshot, and switch to direct navigation when possible.
+- Do not bypass user-visible navigation with direct `open` route jumps; use clicks/keyboard interactions to reach the route, then wait with `--url` or `--load domcontentloaded`.
+- If a click keeps timing out, capture evidence, re-snapshot, and escalate wait strategy (`--url`, `--load domcontentloaded`) before increasing timeout.
 
 See **AGENT_COMMON.md § Position annotations in snapshot refs** for annotated ref usage.
 

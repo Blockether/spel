@@ -133,22 +133,25 @@ Two ways to enable CDP:
 #### Option 1: launch browser with debug port + custom user-data-dir
 
 ```bash
+SESSION="agent-$(date +%s)"
+CDP_PORT=$(spel find-free-port)
+
 # macOS
-open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 # or Edge:
-open -na "Microsoft Edge" --args --remote-debugging-port=9222 --user-data-dir="$HOME/edge-debug" --no-first-run
+open -na "Microsoft Edge" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 
 # Linux
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-debug" --no-first-run
+google-chrome --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 # or Edge:
-microsoft-edge --remote-debugging-port=9222 --user-data-dir="$HOME/edge-debug" --no-first-run
+microsoft-edge --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 ```
 
 Then connect:
 ```bash
-spel --auto-connect open https://example.com
+spel --session $SESSION --auto-connect open https://example.com
 # or explicitly:
-spel --cdp http://127.0.0.1:9222 open https://example.com
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open https://example.com
 ```
 
 #### Option 2: enable in running browser (M144+)
@@ -193,6 +196,7 @@ spel click @eXXXX                                # still connected
 - CDP is Chromium-only. Firefox and WebKit don't support it.
 - Chrome/Edge must be launched with `--user-data-dir` pointing to a non-default directory (136+ security requirement).
 - If the browser is already running, you cannot add `--remote-debugging-port` retroactively — use `chrome://inspect/#remote-debugging` (or `edge://inspect/#remote-debugging`) instead (M144+).
+- Reuse one named session per stage (`--session <name>`) and keep one endpoint owner; avoid attaching multiple sessions to the same CDP endpoint concurrently.
 - The `--user-data-dir` browser instance has a fresh profile unless you point it to an existing one.
 ---
 

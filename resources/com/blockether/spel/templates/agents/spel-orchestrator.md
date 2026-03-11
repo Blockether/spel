@@ -227,6 +227,20 @@ Pass full context when invoking any specialist agent:
 4. **Pass context faithfully.** Preserve user wording, URLs, scope, and exact output paths.
 5. **One pipeline at a time.** Do not run concurrent pipelines that can conflict on browser/session resources.
 6. **Completion output is explicit.** After each pipeline, list artifact paths and ask whether to proceed to next pipeline.
+7. **Session-first ownership is mandatory.** For any browser task, each specialist must keep one named session for the whole stage and must not recreate sessions command-by-command.
+8. **CDP endpoint ownership is exclusive.** Never allow two specialists to attach to the same CDP endpoint concurrently.
+9. **No global browser kills.** Recovery must target only the failing run's session/debug browser; never `pkill` all Chrome globally.
+
+## CDP and session guardrails (applies to explorer/automator/bug-hunter/planner)
+
+Before invoking a specialist for CDP workflows, pass these constraints explicitly:
+
+- Use one named session for the entire stage.
+- If a dedicated debug browser is needed, allocate an ephemeral port (do not hardcode 9222 when concurrency is possible).
+- Use a dedicated `--user-data-dir` per run.
+- Reuse the same session + endpoint across `open`, `snapshot`, `click`, `eval-sci`, etc.
+- On `TargetClosedError`/attach failures: health-check endpoint, relaunch only dedicated debug browser, then reattach.
+- Never kill unrelated browser processes.
 
 ## Examples
 

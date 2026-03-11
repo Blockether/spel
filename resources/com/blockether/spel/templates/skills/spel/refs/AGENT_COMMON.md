@@ -32,6 +32,43 @@ pkill -f "chrome-headless-shell"
 rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 ```
 
+### Session-first CDP policy (mandatory)
+
+When using CDP, treat one named session as the single owner of one CDP endpoint.
+
+- Create one session and keep reusing it for the whole flow.
+- Do **not** create a new `--session` for every command in the same flow.
+- Do **not** attach multiple agent sessions to the same CDP browser endpoint concurrently.
+- Never run broad browser kills (`pkill -f "Google Chrome"`, `pkill -f "chrome"`) as a normal recovery step — this can kill the user's browser and other agent runs.
+
+Recommended pattern:
+
+```bash
+SESSION="exp-$(date +%s)"
+
+# Resolve a dedicated debug port for this run (spel-native helper).
+CDP_PORT=$(spel find-free-port)
+
+# Launch dedicated debug browser (custom user-data-dir; never default profile)
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
+
+# Attach once, then reuse same session for all commands
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open https://example.com
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT click @eXXXXX
+
+# Teardown only your session
+spel --session $SESSION close
+```
+
+If CDP attach fails (`TargetClosedError`, `ECONNREFUSED`):
+1. Keep the same session name.
+2. Verify endpoint health (`curl http://127.0.0.1:$CDP_PORT/json/version`).
+3. Relaunch only the dedicated debug browser for that session and reattach.
+4. Re-snapshot and continue.
+
+Never recover by killing all Chrome processes.
+
 Agent short names:
 - planner → `plan`, test-writer → `tw`
 - explorer → `exp`, automator → `auto`
@@ -180,6 +217,7 @@ If any required artifact is missing, do not ask for approval yet. Fix the stage 
 | Selector not found | `--timeout` expires | Capture snapshot, show what IS on the page. Suggest alternative selectors. |
 | Heavy page click times out | Click on portal/SPA element hangs on wait | Use `spel wait --load domcontentloaded` or `spel wait --url <partial>` after the click. NEVER skip user actions by navigating directly — always click like a human would. |
 | Session conflict | `spel --session` error | Generate a new unique session name and retry. |
+| CDP endpoint conflict | `TargetClosedError` / `ECONNREFUSED` / attach flake | Use one owner session per CDP endpoint, relaunch only dedicated debug browser, keep user browser untouched. |
 | Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-explorer for auth bootstrap (Step 0: open headed browser, let user log in, export state), or provide --load-state." |
 | JavaScript errors | Console errors in snapshot | Capture and report. Continue unless the page is non-functional. |
 | Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |
@@ -273,13 +311,13 @@ Choose navigation strategy based on site behavior instead of blindly clicking an
 |-----------|------------------|----------------|-----|
 | Traditional multi-page site | `spel --session $SESSION open <url>` | `spel --session $SESSION wait --load load` | Full page load is a good readiness signal |
 | Heavy portal / ad-heavy page | Click only if needed | `spel --session $SESSION wait --load domcontentloaded` or `spel --session $SESSION wait --url <partial>` | Full `load` is often delayed by third-party resources |
-| SPA route already known | `spel --session $SESSION open <target-url>` | `spel --session $SESSION wait --load domcontentloaded` | Direct navigation is more reliable than click-driven client routing |
+| SPA route already known | Reach route via user-visible interactions (click/keyboard), then use route-aware wait | `spel --session $SESSION wait --url <partial>` then `spel --session $SESSION wait --load domcontentloaded` | Preserves user-like navigation while using reliable SPA readiness checks |
 | SPA route unknown | Snapshot first, then click | `spel --session $SESSION wait --url <partial>` and content wait | URL change is the stable signal, not full resource completion |
 
 Rules:
 - Prefer split commands: `open` first, `wait` second.
 - Do not solve navigation flakiness by immediately raising timeouts.
-- If a click repeatedly times out on SPA or portal pages, switch to direct navigation when possible and record the behavior in artifacts.
+- If a click repeatedly times out on SPA or portal pages, keep user-visible interaction flow, adjust waits (`--url`, `--load domcontentloaded`), and record evidence in artifacts.
 
 ### Why refs over CSS selectors
 

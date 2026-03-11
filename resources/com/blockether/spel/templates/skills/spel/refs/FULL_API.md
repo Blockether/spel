@@ -62,6 +62,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `create` | [] | Creates a new Playwright instance. |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
+| `find-free-port` | [] | Finds an available local TCP port and returns it as an integer. |
 | `firefox` | [pw] | Returns the Firefox BrowserType. |
 | `form-data` | [] | Creates a new FormData instance. |
 | `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
@@ -778,6 +779,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/editable?` | [sel] | Returns whether the element is editable. |
 | `spel/emulate-media!` | [opts] | Emulates media type and features. |
 | `spel/enabled?` | [sel] | Returns whether the element is enabled. |
+| `spel/eval-js` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
 | `spel/evaluate` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
 | `spel/evaluate-all` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
 | `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
@@ -786,6 +788,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/expose-binding!` | [binding-name f] | Exposes a Clojure function as a binding. |
 | `spel/expose-function!` | [fn-name f] | Exposes a Clojure function to JavaScript. |
 | `spel/fill` | [sel value] \| [sel value opts] | Fills an input element with text. |
+| `spel/find-free-port` | [] | Returns an available local TCP port (integer). |
 | `spel/finish-video-recording` | [] \| [opts] | Stops video recording by closing the context to finalize the video. |
 | `spel/first-element` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
@@ -1462,6 +1465,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `eval-js <js>` | Run JavaScript |
 | `eval-js <js> -b` | Run JavaScript, base64-encode result |
 | `connect <url>` | Connect to browser via CDP |
+| `find-free-port` | Print an available local TCP port |
 | `trace start / trace stop` | Record trace |
 | `console / console clear` | View/clear console (auto-captured) |
 | `errors / errors clear` | View/clear errors (auto-captured) |

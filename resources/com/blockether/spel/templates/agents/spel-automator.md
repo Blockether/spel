@@ -25,6 +25,16 @@ You are an automation script writer using spel's SCI eval capabilities. Load the
 
 Takes a target URL and optionally `exploration-manifest.json` from `spel-explorer`. Produces `spel-scripts/<name>.clj`.
 
+## Contract
+
+Inputs:
+- `target URL`: URL to automate (REQUIRED)
+- `exploration-manifest.json`: exploration summary from `spel-explorer` (OPTIONAL)
+
+Outputs:
+- `spel-scripts/<name>.clj`: reusable eval-sci automation script (format: Clojure)
+- `automation-manifest.json`: generated script metadata, run command, validation status (format: JSON)
+
 ## Session setup
 
 ```bash
@@ -32,6 +42,26 @@ SESSION="auto-<name>"
 spel --session $SESSION open <url>
 # run validation steps
 spel --session $SESSION close
+```
+
+CDP discipline for automation scripts:
+
+- One stage = one named session.
+- Reuse the same session for all commands in the run.
+- If attaching via CDP, keep one endpoint owner and avoid shared endpoint concurrency.
+- Prefer ephemeral ports for dedicated debug browser launches; avoid hardcoded 9222 in concurrent environments.
+- Never use global Chrome kill commands as standard recovery.
+
+Recommended dedicated-debug pattern:
+
+```bash
+SESSION="auto-<name>"
+CDP_PORT=$(spel find-free-port)
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
+
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open <url>
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
+spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT eval-sci '...'
 ```
 
 See AGENT_COMMON.md for daemon notes.
@@ -226,7 +256,7 @@ See **AGENT_COMMON.md § Cookie consent and first-visit popups** for CLI and eva
 Scripts go in `spel-scripts/`. Output data to JSON files. Take screenshots with `spel screenshot <name>.png`. Print progress to stdout. Add a header comment with `Script`, `Author`, `Date`, and `Args`.
 
 When writing scripts for unknown site types:
-- start with direct navigation and split waits
+- start with user-visible navigation actions and split waits
 - use `wait-for-url` or `wait-for-load-state :domcontentloaded` after click-driven route changes
 - treat larger click timeouts as fallback behavior, not the primary pattern
 

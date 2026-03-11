@@ -14,9 +14,16 @@ Real-world issues you'll hit when using spel, with tested fixes.
 If that doesn't work, the daemon may be orphaned:
 
 ```bash
+# Target only the affected session first
+spel --session <session-name> close
+
+# If daemon is stale, clean up only spel-owned daemon/socket artifacts
 pkill -f "spel daemon"
 pkill -f "chrome-headless-shell"
+rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 ```
+
+Do not kill all user Chrome/Edge processes as a default recovery step.
 
 Then `(spel/start!)` again.
 
@@ -223,6 +230,7 @@ Any command throws "Target closed" or "Browser has been closed". The browser pro
 If `spel/stop!` itself fails:
 
 ```bash
+spel --session <session-name> close
 pkill -f "spel daemon"
 pkill -f "chrome-headless-shell"
 rm -f /tmp/spel-*.sock /tmp/spel-*.pid
@@ -319,21 +327,18 @@ ps aux | grep -E "chrome|chromium|msedge|spel" | grep -v grep
 
 ```bash
 # Graceful: close your session
-spel close
-# or with a named session:
 spel --session mysession close
 
-# Nuclear: kill ALL spel and browser processes
+# If stale, kill only spel daemon + spel-owned headless shell and stale sockets
 pkill -f "spel daemon"
 pkill -f "chrome-headless-shell"
-pkill -f "chromium"
-pkill -f "msedge"
+rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 
-# Verify nothing is left
-ps aux | grep -E "spel|chrome|msedge" | grep -v grep
+# Verify only spel daemons are gone (do not kill unrelated user Chrome/Edge)
+ps aux | grep -E "spel daemon|chrome-headless-shell" | grep -v grep
 
-# Start fresh
-spel open https://example.com
+# Start fresh with explicit session
+spel --session mysession open https://example.com
 ```
 
 ### Profile directory locked
