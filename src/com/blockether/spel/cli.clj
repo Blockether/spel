@@ -21,7 +21,18 @@
    [java.io BufferedReader InputStreamReader OutputStreamWriter]
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
    [java.nio.channels Channels SocketChannel]
-   [java.nio.file Files]))
+   [java.nio.file Files Path]))
+
+(defn- resolve-path
+  "Resolves a file path to absolute if relative.
+   When the CLI sends paths to the daemon, relative paths must be resolved
+   against the caller's CWD — the daemon's CWD may differ."
+  ^String [^String path]
+  (when path
+    (let [p (Path/of path (into-array String []))]
+      (if (.isAbsolute p)
+        path
+        (str (.toAbsolutePath p))))))
 
 (defn- looks-like-url?
   "Returns true if the string looks like a URL (has a scheme, contains a dot,
@@ -1745,7 +1756,7 @@
               (cond-> {:action "navigate" :url url :raw-input raw-url}
                 interactive? (assoc :interactive true)
                 screenshot?  (assoc :screenshot true)
-                ss-path      (assoc :screenshot-path ss-path)
+                ss-path      (assoc :screenshot-path (resolve-path ss-path))
                 vp-w         (assoc :viewport-width vp-w :viewport-height vp-h)))
 
           ;; Snapshot (with filter options)
@@ -1938,7 +1949,7 @@
             "screenshot" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
                                path      (first path-args)]
                            (cond-> {:action "screenshot"}
-                             path (assoc :path path)
+                             path (assoc :path (resolve-path path))
                              (some #{"-f" "--full-page" "--full"} cmd-args)
                              (assoc :fullPage true)
                              (some #{"--crop-to-content"} cmd-args)
@@ -2013,7 +2024,7 @@
             "overview" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
                              path      (first path-args)]
                          (cond-> {:action "overview"}
-                           path (assoc :path path)
+                           path (assoc :path (resolve-path path))
                            (some #{"-a" "--all"} cmd-args) (assoc :all true)
                            (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
                            (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
@@ -2035,14 +2046,14 @@
                         (when-not device
                           (throw (ex-info "emulate requires a device name. Usage: spel emulate 'iPhone 14'" {})))
                         (cond-> {:action "emulate" :device device}
-                          path (assoc :path path)
+                          path (assoc :path (resolve-path path))
                           (some #{"-a" "--all"} cmd-args) (assoc :all true)
                           (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
                           (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
                           (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)))
 
 ;; PDF
-            "pdf"      {:action "pdf" :path (or (first cmd-args) "page.pdf")}
+            "pdf"      {:action "pdf" :path (resolve-path (or (first cmd-args) "page.pdf"))}
 
           ;; JavaScript
             "eval-js"  (let [base64?  (some #{"-b" "--base64"} cmd-args)
@@ -2282,7 +2293,7 @@
                            "start" {:action "trace_start"
                                     :name (second cmd-args)}
                            "stop"  {:action "trace_stop"
-                                    :path (second cmd-args)}
+                                    :path (resolve-path (second cmd-args))}
                            {:error (str "Unknown trace command: " sub)}))
 
             "console"  (let [sub (first cmd-args)
@@ -2316,11 +2327,11 @@
 
                              srt?
                              (cond-> {:action "action_log_srt"}
-                               out-path (assoc :_output_file out-path))
+                               out-path (assoc :_output_file (resolve-path out-path)))
 
                              :else
                              (cond-> {:action "action_log"}
-                               out-path (assoc :_output_file out-path))))
+                               out-path (assoc :_output_file (resolve-path out-path)))))
 
             "errors"   (case (first cmd-args)
                          "clear" {:action "errors_clear"}
@@ -2339,8 +2350,8 @@
           ;; State management
             "state"    (let [sub (first cmd-args)]
                          (case sub
-                           "save"   {:action "state_save" :path (second cmd-args)}
-                           "load"   {:action "state_load" :path (second cmd-args)}
+                           "save"   {:action "state_save" :path (resolve-path (second cmd-args))}
+                           "load"   {:action "state_load" :path (resolve-path (second cmd-args))}
                            "list"   {:action "state_list"}
                            "show"   {:action "state_show" :file (second cmd-args)}
                            "rename" {:action "state_rename"
@@ -2395,13 +2406,13 @@
                            "screenshot" {:action "diff_screenshot"
                                          :baseline (let [args (rest cmd-args)
                                                          idx (.indexOf ^java.util.List (vec args) "--baseline")]
-                                                     (when (>= idx 0) (nth args (inc idx))))
+                                                     (resolve-path (when (>= idx 0) (nth args (inc idx)))))
                                          :threshold (let [args (rest cmd-args)
                                                           idx (.indexOf ^java.util.List (vec args) "--threshold")]
                                                       (when (>= idx 0) (nth args (inc idx))))
                                          :path (let [args (rest cmd-args)
                                                      idx (.indexOf ^java.util.List (vec args) "-o")]
-                                                 (when (>= idx 0) (nth args (inc idx))))}
+                                                 (resolve-path (when (>= idx 0) (nth args (inc idx)))))}
                            {:error (str "Unknown diff command: " sub)}))
 
           ;; Close (+ aliases)

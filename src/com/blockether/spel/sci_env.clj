@@ -1459,6 +1459,7 @@
                   ['evaluate-all       sci-evaluate-all-locs]
                   ;; JavaScript
                   ['evaluate      sci-eval-js]
+                  ['eval-js       sci-eval-js]
                   ['evaluate-handle sci-evaluate-handle]
                    ;; Screenshots
                   ['screenshot    sci-screenshot]

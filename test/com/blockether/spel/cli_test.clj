@@ -22,6 +22,10 @@
   [args]
   (:flags (sut/parse-args args)))
 
+(defn- abs-path
+  "Resolves a relative path to absolute (matches cli/resolve-path behavior)."
+  ^String [^String path]
+  (str (.toAbsolutePath (java.nio.file.Path/of path (into-array String [])))))
 ;; =============================================================================
 ;; Navigation Commands
 ;; =============================================================================
@@ -103,7 +107,7 @@
         (expect (= 800 (:viewport-width c)))
         (expect (= 600 (:viewport-height c)))
         (expect (true? (:screenshot c)))
-        (expect (= "out.png" (:screenshot-path c)))))
+        (expect (= (abs-path "out.png") (:screenshot-path c)))))
 
     (it "does not include viewport keys when --viewport not given"
       (let [c (cmd ["open" "https://example.org"])]
@@ -331,7 +335,7 @@
     (it "parses screenshot with path"
       (let [c (cmd ["screenshot" "shot.png"])]
         (expect (= "screenshot" (:action c)))
-        (expect (= "shot.png" (:path c)))))
+        (expect (= (abs-path "shot.png") (:path c)))))
 
     (it "parses screenshot without path"
       (let [c (cmd ["screenshot"])]
@@ -341,13 +345,13 @@
     (it "parses screenshot with full-page flag"
       (let [c (cmd ["screenshot" "shot.png" "-f"])]
         (expect (= "screenshot" (:action c)))
-        (expect (= "shot.png" (:path c)))
+        (expect (= (abs-path "shot.png") (:path c)))
         (expect (true? (:fullPage c)))))
 
     (it "parses screenshot with --crop-to-content flag"
       (let [c (cmd ["screenshot" "shot.png" "--crop-to-content"])]
         (expect (= "screenshot" (:action c)))
-        (expect (= "shot.png" (:path c)))
+        (expect (= (abs-path "shot.png") (:path c)))
         (expect (true? (:cropToContent c)))))
 
     (it "parses screenshot with both -f and --crop-to-content"
@@ -366,7 +370,7 @@
             c (:command r)]
         (expect (= "mysess" (:session f)))
         (expect (= "screenshot" (:action c)))
-        (expect (= "some_path/screenshot.png" (:path c)))))
+        (expect (= (abs-path "some_path/screenshot.png") (:path c)))))
 
     (it "parses --session=value with screenshot"
       (let [r (sut/parse-args ["--session=work" "screenshot" "out.png"])
@@ -374,7 +378,7 @@
             c (:command r)]
         (expect (= "work" (:session f)))
         (expect (= "screenshot" (:action c)))
-        (expect (= "out.png" (:path c)))))
+        (expect (= (abs-path "out.png") (:path c)))))
 
     (it "parses --session with screenshot and -f flag"
       (let [r (sut/parse-args ["--session" "agent1" "screenshot" "dir/shot.png" "-f"])
@@ -382,7 +386,7 @@
             c (:command r)]
         (expect (= "agent1" (:session f)))
         (expect (= "screenshot" (:action c)))
-        (expect (= "dir/shot.png" (:path c)))
+        (expect (= (abs-path "dir/shot.png") (:path c)))
         (expect (true? (:fullPage c)))))
 
     (it "parses --json --session with screenshot"
@@ -392,18 +396,18 @@
         (expect (= "test" (:session f)))
         (expect (true? (:json f)))
         (expect (= "screenshot" (:action c)))
-        (expect (= "out.png" (:path c))))))
+        (expect (= (abs-path "out.png") (:path c))))))
 
   (describe "pdf"
     (it "parses pdf with path"
       (let [c (cmd ["pdf" "page.pdf"])]
         (expect (= "pdf" (:action c)))
-        (expect (= "page.pdf" (:path c)))))
+        (expect (= (abs-path "page.pdf") (:path c)))))
 
     (it "defaults pdf path"
       (let [c (cmd ["pdf"])]
         (expect (= "pdf" (:action c)))
-        (expect (= "page.pdf" (:path c)))))))
+        (expect (= (abs-path "page.pdf") (:path c)))))))
 
 ;; =============================================================================
 ;; Annotate
@@ -718,7 +722,7 @@
         (expect (= "msedge" (:channel f)))
         (expect (= "mysess" (:session f)))
         (expect (= "screenshot" (:action c)))
-        (expect (= "path.png" (:path c)))))
+        (expect (= (abs-path "path.png") (:path c)))))
 
     (it "combines --channel with --session and --browser"
       (let [r (sut/parse-args ["--channel" "msedge" "--session" "dev" "--browser" "chromium" "open" "http://x.com"])
@@ -1443,7 +1447,7 @@
     (it "parses trace stop"
       (let [c (cmd ["trace" "stop" "trace.zip"])]
         (expect (= "trace_stop" (:action c)))
-        (expect (= "trace.zip" (:path c)))))))
+        (expect (= (abs-path "trace.zip") (:path c)))))))
 
 ;; =============================================================================
 ;; Console & Errors
@@ -1503,13 +1507,13 @@
     (it "parses state save"
       (let [c (cmd ["state" "save" "state.json"])]
         (expect (= "state_save" (:action c)))
-        (expect (= "state.json" (:path c))))))
+        (expect (= (abs-path "state.json") (:path c))))))
 
   (describe "state load"
     (it "parses state load"
       (let [c (cmd ["state" "load" "state.json"])]
         (expect (= "state_load" (:action c)))
-        (expect (= "state.json" (:path c))))))
+        (expect (= (abs-path "state.json") (:path c))))))
 
   (describe "state list"
     (it "parses state list"
@@ -2066,14 +2070,14 @@
     (it "parses diff screenshot baseline"
       (let [c (cmd ["diff" "screenshot" "--baseline" "before.png"])]
         (expect (= "diff_screenshot" (:action c)))
-        (expect (= "before.png" (:baseline c)))))
+        (expect (= (abs-path "before.png") (:baseline c)))))
 
     (it "parses diff screenshot threshold and output path"
       (let [c (cmd ["diff" "screenshot" "--baseline" "before.png" "--threshold" "0.03" "-o" "out.png"])]
         (expect (= "diff_screenshot" (:action c)))
-        (expect (= "before.png" (:baseline c)))
+        (expect (= (abs-path "before.png") (:baseline c)))
         (expect (= "0.03" (:threshold c)))
-        (expect (= "out.png" (:path c)))))))
+        (expect (= (abs-path "out.png") (:path c)))))))
 
 ;; =============================================================================
 ;; Typographic Dash Normalization (native.clj normalize-arg / normalize-args)
