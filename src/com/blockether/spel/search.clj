@@ -31,10 +31,10 @@
    [com.blockether.spel.stealth :as stealth])
   (:import
    [com.microsoft.playwright BrowserContext Page]
-   [com.microsoft.playwright.options AriaRole]
-   [java.net URLEncoder]
+   [com.microsoft.playwright.options AriaRole Cookie]
+   [java.net URLDecoder URLEncoder]
    [java.nio.charset StandardCharsets]
-   [java.util Random]))
+   [java.util Collections Random]))
 
 ;; =============================================================================
 ;; URL Building
@@ -88,7 +88,10 @@
                       (= :month time-range)
                       (conj "tbs=qdr:m")
                       (= :year time-range)
-                      (conj "tbs=qdr:y"))]
+                      (conj "tbs=qdr:y")
+                      ;; Anti-detection: disable personalization & filtering
+                      true
+                      (conj "pws=0" "filter=0"))]
      (str "https://www.google.com/search?" (str/join "&" params)))))
 
 ;; =============================================================================
@@ -97,14 +100,14 @@
 
 (def ^:private user-agents
   "Pool of realistic Chrome user-agent strings for rotation."
-  ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
-   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"])
+  ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"])
 
 (def ^:private rng (delay (Random.)))
 
@@ -120,6 +123,64 @@
     (Thread/sleep delay)))
 
 ;; =============================================================================
+;; Anti-Detection Headers
+;; =============================================================================
+
+(defn- extract-chrome-version
+  "Extracts the Chrome major version number from a user-agent string.
+   Returns nil if not found."
+  [^String ua]
+  (when-let [m (re-find #"Chrome/(\d+)" ua)]
+    (Long/parseLong (second m))))
+
+(defn- sec-ch-ua-for
+  "Generates sec-ch-ua Client Hints header matching the given user-agent.
+   Google uses these to cross-check browser identity — mismatches trigger detection."
+  ^String [^String ua]
+  (let [v (or (extract-chrome-version ua) 131)]
+    (str "\"Google Chrome\";v=\"" v "\", \"Chromium\";v=\"" v "\", \"Not_A Brand\";v=\"24\"")))
+
+(defn- detect-platform
+  "Detects the platform from a user-agent string for sec-ch-ua-platform header."
+  ^String [^String ua]
+  (cond
+    (str/includes? ua "Windows")   "\"Windows\""
+    (str/includes? ua "Macintosh") "\"macOS\""
+    :else                          "\"Linux\""))
+
+(defn anti-detection-headers
+  "Returns a map of HTTP headers that reduce Google bot detection.
+   Should be used as :extra-http-headers in context options.
+
+   Includes sec-ch-ua Client Hints that match the user-agent,
+   Accept-Language, DNT, and Upgrade-Insecure-Requests.
+
+   Params:
+   `ua` - String. The user-agent string to match headers against.
+
+   Returns:
+   Map of String->String."
+  [^String ua]
+  {"Accept-Language"           "en-US,en;q=0.9"
+   "DNT"                       "1"
+   "Upgrade-Insecure-Requests" "1"
+   "sec-ch-ua"                 (sec-ch-ua-for ua)
+   "sec-ch-ua-mobile"          "?0"
+   "sec-ch-ua-platform"        (detect-platform ua)})
+
+(defn- set-consent-cookie!
+  "Sets CONSENT=YES+ cookie on the browser context to pre-approve Google's
+   GDPR cookie consent. Prevents the consent dialog from appearing.
+
+   Params:
+   `ctx` - BrowserContext instance."
+  [^BrowserContext ctx]
+  (let [cookie (doto (Cookie. "CONSENT" "YES+")
+                 (.setDomain ".google.com")
+                 (.setPath "/"))]
+    (.addCookies ctx (Collections/singletonList cookie))))
+
+;; =============================================================================
 ;; Retry Logic
 ;; =============================================================================
 
@@ -131,6 +192,7 @@
   "Dismisses Google's cookie consent dialog if present.
 
    Handles EU GDPR consent dialogs by clicking the accept/reject button.
+   Tries multiple selectors including Google's known button IDs.
    Uses a short timeout so it does not block if no consent dialog appears.
 
    Params:
@@ -145,10 +207,19 @@
                         (when (pos? (locator/count-elements btn))
                           (locator/click btn {:timeout 3000})
                           true))
+                      (catch Exception _ false)))
+        try-css   (fn [selector]
+                    (try
+                      (let [el (page/locator page selector)]
+                        (when (pos? (locator/count-elements el))
+                          (locator/click el {:timeout 3000})
+                          true))
                       (catch Exception _ false)))]
     (or (try-click "Accept all")
       (try-click "Reject all")
-      (try-click "I agree")))
+      (try-click "I agree")
+      (try-css "#L2AGLb")
+      (try-css ".QS5gu")))
   nil)
 
 ;; =============================================================================
@@ -591,30 +662,178 @@
 
 (defn- retry-search!
   "Retries search! up to max-retries times with exponential backoff.
+   If Google actively blocks the request (sorry page, CAPTCHA, etc.),
+   returns immediately without retrying — retries only help with transient
+   empty results, not hard blocks from datacenter IPs.
+
    Returns the first result with non-empty :results, or the last result.
 
    Params:
-   `page`  - Page instance.
-   `query` - String.
-   `opts`  - Search options map.
+   `page`    - Page instance.
+   `query`   - String.
+   `opts`    - Search options map.
    `attempt` - Current attempt (1-based)."
   [^Page page ^String query opts ^long attempt]
   (let [result (search! page query opts)]
-    (if (and (empty? (:results result))
-          (< attempt max-retries))
-      (let [block (detect-block! page)
-            backoff-ms (* 1000 (long (Math/pow 2 attempt)))]
-        (binding [*out* *err*]
-          (println (str "Retry " attempt "/" max-retries
-                     " (" (if block (str "blocked: " (name block)) "empty results")
-                     ") \u2014 waiting " backoff-ms "ms...")))
-        (Thread/sleep backoff-ms)
-        (page/navigate page "https://www.google.com/")
-        (page/wait-for-load-state page :domcontentloaded)
-        (dismiss-consent! page)
-        (random-delay! 500 1500)
-        (recur page query opts (inc attempt)))
+    (if (empty? (:results result))
+      (let [block (detect-block! page)]
+        (if block
+          ;; Hard block (sorry page, CAPTCHA) — retrying is pointless, return immediately
+          (do (binding [*out* *err*]
+                (println (str "Google blocked (" (name block) ") — skipping retries.")))
+            result)
+          ;; Empty results but not blocked — transient failure, retry with backoff
+          (if (< attempt max-retries)
+            (let [backoff-ms (* 1000 (long (Math/pow 2 attempt)))]
+              (binding [*out* *err*]
+                (println (str "Retry " attempt "/" max-retries
+                           " (empty results) \u2014 waiting " backoff-ms "ms...")))
+              (Thread/sleep backoff-ms)
+              (page/navigate page "https://www.google.com/")
+              (page/wait-for-load-state page :domcontentloaded)
+              (dismiss-consent! page)
+              (random-delay! 500 1500)
+              (recur page query opts (inc attempt)))
+            result)))
       result)))
+
+;; =============================================================================
+;; DuckDuckGo Fallback
+;; =============================================================================
+
+(defn duckduckgo-url
+  "Builds a DuckDuckGo HTML search URL from a query string.
+
+   Uses the bot-friendly html.duckduckgo.com/html/ endpoint which returns
+   static HTML without JavaScript or CAPTCHA challenges. This is the
+   recommended endpoint for automated search from datacenter IPs.
+
+   Params:
+   `query` - String. The search query.
+
+   Returns:
+   String. Fully-formed DuckDuckGo HTML search URL."
+  ^String [^String query]
+  (let [encoded-q (URLEncoder/encode query ^java.nio.charset.Charset StandardCharsets/UTF_8)]
+    (str "https://html.duckduckgo.com/html/?q=" encoded-q)))
+
+(defn- ddg-decode-redirect-url
+  "Decodes a DuckDuckGo redirect URL to extract the real destination.
+
+   DDG wraps result URLs in redirects like:
+   //duckduckgo.com/l/?uddg=https%3A%2F%2Freal-url.com&rut=...
+
+   This function extracts and decodes the `uddg` parameter.
+
+   Params:
+   `href` - String. The href attribute from a DDG result link.
+
+   Returns:
+   String. The decoded real URL, or the original href if not a redirect."
+  ^String [^String href]
+  (if (and href (or (.contains href "uddg=") (.contains href "/l/?uddg")))
+    (try
+      (let [idx (.indexOf href "uddg=")]
+        (when (>= idx 0)
+          (let [start   (+ idx 5)
+                amp-idx (.indexOf href "&" start)
+                encoded (if (> amp-idx start)
+                          (.substring href start amp-idx)
+                          (.substring href start))]
+            (URLDecoder/decode encoded "UTF-8"))))
+      (catch Exception _ href))
+    href))
+
+(def ^:private ^String ddg-html-results-js
+  "JavaScript that extracts search results from DuckDuckGo's HTML endpoint.
+   The HTML endpoint (html.duckduckgo.com/html/) uses a different DOM structure
+   than the JS endpoint. Results use .result, .result__a, .result__snippet classes.
+   URLs are wrapped in DDG redirects with a ?uddg= parameter that must be decoded.
+   Returns an array of {title, url, snippet} objects."
+  "() => {
+  const results = [];
+  const seen = new Set();
+  let pos = 0;
+  // DDG HTML endpoint uses div.result inside #links container
+  const resultDivs = document.querySelectorAll('#links .result');
+  for (const div of resultDivs) {
+    // Skip ad results
+    if (div.closest('.results--ads')) continue;
+    const titleLink = div.querySelector('a.result__a');
+    if (!titleLink) continue;
+    let href = titleLink.href || '';
+    // DDG wraps URLs in redirect: //duckduckgo.com/l/?uddg=REAL_URL
+    // Extract the uddg parameter to get the real URL
+    try {
+      const url = new URL(href, window.location.origin);
+      const uddg = url.searchParams.get('uddg');
+      if (uddg) href = decodeURIComponent(uddg);
+    } catch(e) {}
+    if (!href || seen.has(href)) continue;
+    if (href.startsWith('https://duckduckgo.com')) continue;
+    seen.add(href);
+    pos++;
+    const snippetEl = div.querySelector('a.result__snippet');
+    const snippet = snippetEl ? snippetEl.textContent.trim() : null;
+    const title = titleLink.textContent.trim();
+    if (!title) continue;
+    results.push({
+      title: title,
+      url: href,
+      snippet: snippet,
+      position: pos
+    });
+  }
+  return results;
+}")
+
+(defn- ddg-extract-web-results
+  "Extracts web results from a DuckDuckGo HTML search results page.
+
+   Params:
+   `page` - Page instance on a DDG HTML results page.
+
+   Returns:
+   Vector of maps with :title, :url, :snippet, :position."
+  [^Page page]
+  (try
+    (let [raw (page/evaluate page ddg-html-results-js)]
+      (vec (for [r raw]
+             {:title    (get r "title")
+              :url      (get r "url")
+              :snippet  (get r "snippet")
+              :position (long (get r "position" 0))})))
+    (catch Exception _ [])))
+
+(defn ddg-search!
+  "Searches DuckDuckGo and returns structured results.
+
+   Uses the bot-friendly HTML endpoint (html.duckduckgo.com/html/) which
+   returns static HTML without JavaScript or CAPTCHA challenges. This makes
+   it a reliable fallback when Google blocks datacenter IPs (Hetzner, AWS, etc.).
+
+   Params:
+   `page`  - Page instance.
+   `query` - String. The search query.
+
+   Returns:
+   Map with :query, :type, :engine, :results, :stats."
+  [^Page page ^String query]
+  (let [url (duckduckgo-url query)]
+    (page/navigate page url)
+    (page/wait-for-load-state page :domcontentloaded)
+    ;; Wait for results to render — HTML endpoint is fast but still needs DOM
+    (try
+      (page/wait-for-function page
+        "() => document.querySelectorAll('#links .result').length > 0"
+        {:timeout 10000})
+      (catch Exception _))
+    (let [results (ddg-extract-web-results page)]
+      {:query   query
+       :type    :web
+       :engine  :duckduckgo
+       :stats   (str (count results) " results from DuckDuckGo")
+       :results results})))
 
 ;; =============================================================================
 ;; High-Level Collect
@@ -899,6 +1118,8 @@
   (println "  --screenshot PATH     Save screenshot of results page")
   (println "  --no-stealth          Disable stealth mode (stealth is ON by default)")
   (println "  --debug               Show extra diagnostics on failure")
+  (println "  --ddg                 Use DuckDuckGo instead of Google")
+  (println "                        (auto-fallback: DDG is tried when Google blocks)")
   (println "  --help, -h            Show this help")
   (println "")
   (println "Examples:")
@@ -910,6 +1131,7 @@
   (println "  spel search \"query\" --limit 5")
   (println "  spel search \"query\" --open 1")
   (println "  spel search \"query\" --screenshot results.png")
+  (println "  spel search \"query\" --ddg")
   (println "  spel search \"query\" --lang en --time-range week"))
 
 (defn- parse-search-args
@@ -924,73 +1146,77 @@
          open      nil
          stealth?  true
          help?     false
-         debug?    false]
+         debug?    false
+         ddg?      false]
     (if (empty? remaining)
       {:query query :opts (assoc opts :max-pages max-pages) :json? json?
-       :screenshot screenshot :limit limit :open open :stealth? stealth? :help? help? :debug? debug?}
+       :screenshot screenshot :limit limit :open open :stealth? stealth? :help? help? :debug? debug? :ddg? ddg?}
       (let [arg (first remaining)]
         (cond
           (or (= "--help" arg) (= "-h" arg))
-          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? true debug?)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? true debug? ddg?)
 
           (= "--images" arg)
-          (recur (rest remaining) (assoc opts :type :images) query json? screenshot max-pages limit open stealth? help? debug?)
+          (recur (rest remaining) (assoc opts :type :images) query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--news" arg)
-          (recur (rest remaining) (assoc opts :type :news) query json? screenshot max-pages limit open stealth? help? debug?)
+          (recur (rest remaining) (assoc opts :type :news) query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--json" arg)
-          (recur (rest remaining) opts query true screenshot max-pages limit open stealth? help? debug?)
+          (recur (rest remaining) opts query true screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--page" arg)
           (recur (drop 2 remaining) (assoc opts :page (parse-long (second remaining)))
-            query json? screenshot max-pages limit open stealth? help? debug?)
+            query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--num" arg)
           (recur (drop 2 remaining) (assoc opts :num (parse-long (second remaining)))
-            query json? screenshot max-pages limit open stealth? help? debug?)
+            query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--max-pages" arg)
           (recur (drop 2 remaining) opts query json? screenshot
-            (parse-long (second remaining)) limit open stealth? help? debug?)
+            (parse-long (second remaining)) limit open stealth? help? debug? ddg?)
 
           (= "--limit" arg)
           (recur (drop 2 remaining) opts query json? screenshot max-pages
-            (parse-long (second remaining)) open stealth? help? debug?)
+            (parse-long (second remaining)) open stealth? help? debug? ddg?)
 
           (= "--open" arg)
           (recur (drop 2 remaining) opts query json? screenshot max-pages
-            limit (parse-long (second remaining)) stealth? help? debug?)
+            limit (parse-long (second remaining)) stealth? help? debug? ddg?)
 
           (= "--lang" arg)
           (recur (drop 2 remaining) (assoc opts :lang (second remaining))
-            query json? screenshot max-pages limit open stealth? help? debug?)
+            query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--safe" arg)
           (recur (drop 2 remaining) (assoc opts :safe (keyword (second remaining)))
-            query json? screenshot max-pages limit open stealth? help? debug?)
+            query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--time-range" arg)
           (recur (drop 2 remaining) (assoc opts :time-range (keyword (second remaining)))
-            query json? screenshot max-pages limit open stealth? help? debug?)
+            query json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           (= "--screenshot" arg)
-          (recur (drop 2 remaining) opts query json? (second remaining) max-pages limit open stealth? help? debug?)
+          (recur (drop 2 remaining) opts query json? (second remaining) max-pages limit open stealth? help? debug? ddg?)
 
           (= "--stealth" arg)
-          (recur (rest remaining) opts query json? screenshot max-pages limit open true help? debug?)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open true help? debug? ddg?)
 
           (= "--no-stealth" arg)
-          (recur (rest remaining) opts query json? screenshot max-pages limit open false help? debug?)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open false help? debug? ddg?)
 
           (= "--debug" arg)
-          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? true)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? true ddg?)
+
+          (= "--ddg" arg)
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? debug? true)
 
           (nil? query)
-          (recur (rest remaining) opts arg json? screenshot max-pages limit open stealth? help? debug?)
+          (recur (rest remaining) opts arg json? screenshot max-pages limit open stealth? help? debug? ddg?)
 
           :else
-          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? debug?))))))
+          (recur (rest remaining) opts query json? screenshot max-pages limit open stealth? help? debug? ddg?))))))
 
 (defn -main
   "CLI entry point for the search tool command.
@@ -1000,7 +1226,7 @@
 
    See --help for all options."
   [& args]
-  (let [{:keys [query opts json? screenshot limit open stealth? help? debug?]} (parse-search-args args)]
+  (let [{:keys [query opts json? screenshot limit open stealth? help? debug? ddg?]} (parse-search-args args)]
     (cond
       help?
       (print-search-help)
@@ -1027,24 +1253,39 @@
                 browser     (core/launch-chromium pw launch-opts)
                 ua          (if stealth? (random-user-agent) nil)
                 ctx-opts    (cond-> {:viewport {:width 1280 :height 720}}
-                              ua (assoc :user-agent ua))
+                              ua (assoc :user-agent ua
+                                   :extra-http-headers (anti-detection-headers ua)))
                 ctx         (core/new-context browser ctx-opts)
                 _           (when stealth?
+                              (set-consent-cookie! ctx)
                               (.addInitScript ^BrowserContext ctx ^String (stealth/stealth-init-script)))
                 pg          (core/new-page-from-context ctx)]
             (try
-              (let [result    (if (> max-pages 1)
-                                (search-and-collect! pg query (dissoc opts :max-pages :page))
-                                (retry-search! pg query (dissoc opts :max-pages) 1))
-                    n-results (long (if (> max-pages 1)
+              (let [;; Primary search: Google or DDG based on --ddg flag
+                    result    (if ddg?
+                                (ddg-search! pg query)
+                                (if (> max-pages 1)
+                                  (search-and-collect! pg query (dissoc opts :max-pages :page))
+                                  (retry-search! pg query (dissoc opts :max-pages) 1)))
+                    n-results (long (if (and (not ddg?) (> max-pages 1))
                                       (:total-results result 0)
                                       (count (:results result))))
-                    blocked?  (when (zero? n-results) (detect-block! pg))
+                    blocked?  (when (and (zero? n-results) (not ddg?)) (detect-block! pg))
+                    ;; DDG fallback: auto-switch when Google is blocked
+                    [result n-results] (if (and blocked? (not ddg?))
+                                         (do
+                                           (binding [*out* *err*]
+                                             (println "Google blocked \u2014 falling back to DuckDuckGo..."))
+                                           (let [ddg-result (ddg-search! pg query)
+                                                 ddg-n     (long (count (:results ddg-result)))]
+                                             [ddg-result ddg-n]))
+                                         [result n-results])
                     warning   (when (zero? n-results)
                                 (if blocked?
-                                  (str "Google blocked the request (" (name blocked?) ")")
-                                  "0 results returned. Google may have blocked the request (bot detection)."))
+                                  (str "Google blocked (" (name blocked?) ") and DuckDuckGo fallback returned 0 results.")
+                                  (when-not ddg? "0 results returned.")))
                     result    (cond-> result
+                                warning (assoc :warning warning)
                                 warning (assoc :warning warning))]
                 (when (zero? n-results)
                   (binding [*out* *err*]

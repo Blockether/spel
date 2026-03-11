@@ -1317,6 +1317,18 @@
   "Formats search results as a markdown table based on search type."
   [search-type results]
   (search/format-results-as-markdown search-type results))
+(defn sci-anti-detection-headers
+  "Returns anti-detection HTTP headers matched to a user-agent string."
+  [ua]
+  (search/anti-detection-headers ua))
+(defn sci-duckduckgo-url
+  "Builds a DuckDuckGo search URL from a query string."
+  [query]
+  (search/duckduckgo-url query))
+(defn sci-ddg-search!
+  "Searches DuckDuckGo and returns structured results."
+  [query]
+  (search/ddg-search! (require-page!) query))
 
 ;; =============================================================================
 ;; SCI Namespace Registration
@@ -2309,7 +2321,10 @@
                       ['next-page!               sci-search-next-page!]
                       ['go-to-page!              sci-search-go-to-page!]
                       ['search-pages             sci-search-pages]
-                      ['format-results-as-markdown sci-format-results-as-markdown]])]
+                      ['format-results-as-markdown sci-format-results-as-markdown]
+                      ['anti-detection-headers      sci-anti-detection-headers]
+                      ['duckduckgo-url              sci-duckduckgo-url]
+                      ['ddg-search!                  sci-ddg-search!]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)

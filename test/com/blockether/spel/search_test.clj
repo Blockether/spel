@@ -21,11 +21,15 @@
   (describe "basic query"
     (it "builds URL with just a query"
       (let [url (sut/search-url "test")]
-        (expect (= "https://www.google.com/search?q=test" url))))
+        (expect (.startsWith ^String url "https://www.google.com/search?q=test"))
+        ;; Anti-detection params are always appended
+        (expect (.contains ^String url "pws=0"))
+        (expect (.contains ^String url "filter=0"))))
 
     (it "encodes query with spaces"
       (let [url (sut/search-url "hello world")]
-        (expect (= "https://www.google.com/search?q=hello+world" url))))
+        (expect (.contains ^String url "q=hello+world"))
+        (expect (.contains ^String url "pws=0"))))
 
     (it "encodes special characters"
       (let [url (sut/search-url "clojure & java")]
@@ -304,7 +308,8 @@
     (it "search/search-url builds correct URL"
       (let [ctx (sci-env/create-sci-ctx)
             url (sci-env/eval-string ctx "(search/search-url \"test\")")]
-        (expect (= "https://www.google.com/search?q=test" url))))
+        (expect (.startsWith ^String url "https://www.google.com/search?q=test"))
+        (expect (.contains ^String url "pws=0"))))
 
     (it "search/search-url with opts builds correct URL"
       (let [ctx (sci-env/create-sci-ctx)
@@ -679,7 +684,23 @@
 
   (describe "max-retries"
     (it "is a positive integer"
-      (expect (pos-int? @#'sut/max-retries)))))
+      (expect (pos-int? @#'sut/max-retries))))
+
+  (describe "retry-search! contract"
+    (it "detect-block-js checks sorry page"
+      (expect (.contains ^String @#'sut/detect-block-js "sorry")))
+
+    (it "detect-block-js checks captcha"
+      (expect (.contains ^String @#'sut/detect-block-js "captcha")))
+
+    (it "detect-block-js checks recaptcha"
+      (expect (.contains ^String @#'sut/detect-block-js "recaptcha")))
+
+    (it "detect-block-js checks unusual traffic"
+      (expect (.contains ^String @#'sut/detect-block-js "unusual traffic")))
+
+    (it "detect-block-js returns empty string for non-blocked pages"
+      (expect (.contains ^String @#'sut/detect-block-js "return ''")))))
 
 ;; =============================================================================
 ;; SCI search/format-results-as-markdown availability
@@ -692,3 +713,186 @@
     (it "has format-results-as-markdown function"
       (let [ctx (sci-env/create-sci-ctx)]
         (expect (true? (sci-env/eval-string ctx "(fn? search/format-results-as-markdown)")))))))
+
+;; =============================================================================
+;; Anti-Detection Headers
+;; =============================================================================
+
+(defdescribe anti-detection-headers-test
+  "Unit tests for anti-detection header generation"
+
+  (describe "extract-chrome-version"
+    (it "extracts version from Windows Chrome UA"
+      (expect (= 133 (#'sut/extract-chrome-version
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"))))
+
+    (it "extracts version from macOS Chrome UA"
+      (expect (= 131 (#'sut/extract-chrome-version
+                      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"))))
+
+    (it "returns nil for non-Chrome UA"
+      (expect (nil? (#'sut/extract-chrome-version "Mozilla/5.0 (compatible; Googlebot/2.1)")))))
+
+  (describe "sec-ch-ua-for"
+    (it "generates matching sec-ch-ua for Chrome 133"
+      (let [header (#'sut/sec-ch-ua-for "Chrome/133.0.0.0")]
+        (expect (.contains ^String header "\"Google Chrome\";v=\"133\""))
+        (expect (.contains ^String header "\"Chromium\";v=\"133\""))))
+
+    (it "defaults to 131 for unknown UA"
+      (let [header (#'sut/sec-ch-ua-for "SomeRandomBrowser/1.0")]
+        (expect (.contains ^String header "v=\"131\"")))))
+
+  (describe "detect-platform"
+    (it "detects Windows"
+      (expect (= "\"Windows\"" (#'sut/detect-platform "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"))))
+
+    (it "detects macOS"
+      (expect (= "\"macOS\"" (#'sut/detect-platform "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"))))
+
+    (it "defaults to Linux"
+      (expect (= "\"Linux\"" (#'sut/detect-platform "Mozilla/5.0 (X11; Linux x86_64)")))))
+
+  (describe "anti-detection-headers"
+    (it "returns map with all required headers"
+      (let [ua "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+            h  (sut/anti-detection-headers ua)]
+        (expect (map? h))
+        (expect (= "en-US,en;q=0.9" (get h "Accept-Language")))
+        (expect (= "1" (get h "DNT")))
+        (expect (= "1" (get h "Upgrade-Insecure-Requests")))
+        (expect (= "?0" (get h "sec-ch-ua-mobile")))
+        (expect (= "\"Windows\"" (get h "sec-ch-ua-platform")))
+        (expect (.contains ^String (get h "sec-ch-ua") "133"))))
+
+    (it "detects macOS platform from UA"
+      (let [ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            h  (sut/anti-detection-headers ua)]
+        (expect (= "\"macOS\"" (get h "sec-ch-ua-platform")))
+        (expect (.contains ^String (get h "sec-ch-ua") "131"))))
+
+    (it "detects Linux platform from UA"
+      (let [ua "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+            h  (sut/anti-detection-headers ua)]
+        (expect (= "\"Linux\"" (get h "sec-ch-ua-platform")))
+        (expect (.contains ^String (get h "sec-ch-ua") "132"))))))
+
+(defdescribe search-url-anti-detection-test
+  "Unit tests for anti-detection parameters in search URLs"
+
+  (describe "pws and filter params"
+    (it "always includes pws=0"
+      (let [url (sut/search-url "test")]
+        (expect (.contains ^String url "pws=0"))))
+
+    (it "always includes filter=0"
+      (let [url (sut/search-url "test")]
+        (expect (.contains ^String url "filter=0"))))
+
+    (it "includes anti-detection params with other options"
+      (let [url (sut/search-url "test" {:type :images :lang "de"})]
+        (expect (.contains ^String url "pws=0"))
+        (expect (.contains ^String url "filter=0"))
+        (expect (.contains ^String url "tbm=isch"))
+        (expect (.contains ^String url "hl=de"))))))
+
+;; =============================================================================
+;; DuckDuckGo Fallback
+;; =============================================================================
+
+(defdescribe duckduckgo-url-test
+  "Unit tests for DuckDuckGo URL building"
+
+  (describe "basic query"
+    (it "builds DuckDuckGo HTML endpoint URL"
+      (let [url (sut/duckduckgo-url "test")]
+        (expect (= "https://html.duckduckgo.com/html/?q=test" url))))
+
+    (it "encodes spaces"
+      (let [url (sut/duckduckgo-url "hello world")]
+        (expect (= "https://html.duckduckgo.com/html/?q=hello+world" url))))
+
+    (it "encodes special characters"
+      (let [url (sut/duckduckgo-url "clojure & java")]
+        (expect (.contains ^String url "q=clojure+%26+java"))))))
+
+(defdescribe ddg-decode-redirect-url-test
+  "Unit tests for DuckDuckGo redirect URL decoding"
+
+  (describe "uddg parameter extraction"
+    (it "decodes uddg parameter from redirect URL"
+      (let [href "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage&rut=abc"
+            result (#'sut/ddg-decode-redirect-url href)]
+        (expect (= "https://example.com/page" result))))
+
+    (it "decodes uddg without rut parameter"
+      (let [href "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com"
+            result (#'sut/ddg-decode-redirect-url href)]
+        (expect (= "https://example.com" result))))
+
+    (it "returns original URL when no uddg parameter"
+      (let [href "https://example.com/direct"
+            result (#'sut/ddg-decode-redirect-url href)]
+        (expect (= "https://example.com/direct" result))))
+
+    (it "handles complex encoded URLs"
+      (let [href "//duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FClojure_%28programming_language%29&rut=xyz"
+            result (#'sut/ddg-decode-redirect-url href)]
+        (expect (= "https://en.wikipedia.org/wiki/Clojure_(programming_language)" result))))
+
+    (it "handles nil href"
+      (expect (nil? (#'sut/ddg-decode-redirect-url nil))))))
+
+(defdescribe ddg-html-results-js-test
+  "Unit tests for DuckDuckGo HTML endpoint result extraction JS"
+
+  (describe "JS constant"
+    (it "is a non-blank string"
+      (expect (string? @#'sut/ddg-html-results-js))
+      (expect (not (str/blank? @#'sut/ddg-html-results-js))))
+
+    (it "references #links .result selector"
+      (expect (.contains ^String @#'sut/ddg-html-results-js "#links .result")))
+
+    (it "references result__a selector for titles"
+      (expect (.contains ^String @#'sut/ddg-html-results-js "result__a")))
+
+    (it "references result__snippet selector for snippets"
+      (expect (.contains ^String @#'sut/ddg-html-results-js "result__snippet")))
+
+    (it "references uddg parameter for URL decoding"
+      (expect (.contains ^String @#'sut/ddg-html-results-js "uddg")))))
+
+(defdescribe parse-search-args-ddg-test
+  "Unit tests for --ddg flag in parse-search-args"
+
+  (describe "ddg flag"
+    (it "defaults to false"
+      (let [result (#'sut/parse-search-args ["test"])]
+        (expect (false? (:ddg? result)))))
+
+    (it "parses --ddg"
+      (let [result (#'sut/parse-search-args ["test" "--ddg"])]
+        (expect (true? (:ddg? result)))))
+
+    (it "works with other flags"
+      (let [result (#'sut/parse-search-args ["test" "--ddg" "--json"])]
+        (expect (true? (:ddg? result)))
+        (expect (true? (:json? result)))))))
+
+(defdescribe sci-ddg-availability-test
+  "Unit tests for DuckDuckGo functions in SCI"
+
+  (describe "search/ namespace"
+    (it "has duckduckgo-url function"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (true? (sci-env/eval-string ctx "(fn? search/duckduckgo-url)")))))
+
+    (it "duckduckgo-url builds correct URL"
+      (let [ctx (sci-env/create-sci-ctx)
+            url (sci-env/eval-string ctx "(search/duckduckgo-url \"test\")")]
+        (expect (= "https://html.duckduckgo.com/html/?q=test" url))))
+
+    (it "has ddg-search! function"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (true? (sci-env/eval-string ctx "(fn? search/ddg-search!)")))))))
