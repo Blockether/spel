@@ -896,7 +896,9 @@
 
       ;; Search — Google search tool
       (= "search" first-arg)
-      (let [sub-args (rest cmd-args)]
+      (let [sub-args (rest cmd-args)
+            ;; Re-inject --json if global parser consumed it
+            sub-args (if (:json? global) (cons "--json" sub-args) sub-args)]
         (if (some #{"--help" "-h"} sub-args)
           (println (get cli/command-help "search"))
           (do (driver/ensure-driver!)
