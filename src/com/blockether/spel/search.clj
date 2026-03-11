@@ -717,33 +717,6 @@
   (let [encoded-q (URLEncoder/encode query ^java.nio.charset.Charset StandardCharsets/UTF_8)]
     (str "https://html.duckduckgo.com/html/?q=" encoded-q)))
 
-(defn- ddg-decode-redirect-url
-  "Decodes a DuckDuckGo redirect URL to extract the real destination.
-
-   DDG wraps result URLs in redirects like:
-   //duckduckgo.com/l/?uddg=https%3A%2F%2Freal-url.com&rut=...
-
-   This function extracts and decodes the `uddg` parameter.
-
-   Params:
-   `href` - String. The href attribute from a DDG result link.
-
-   Returns:
-   String. The decoded real URL, or the original href if not a redirect."
-  ^String [^String href]
-  (if (and href (or (.contains href "uddg=") (.contains href "/l/?uddg")))
-    (try
-      (let [idx (.indexOf href "uddg=")]
-        (when (>= idx 0)
-          (let [start   (+ idx 5)
-                amp-idx (.indexOf href "&" start)
-                encoded (if (> amp-idx start)
-                          (.substring href start amp-idx)
-                          (.substring href start))]
-            (URLDecoder/decode encoded "UTF-8"))))
-      (catch Exception _ href))
-    href))
-
 (def ^:private ^String ddg-html-results-js
   "JavaScript that extracts search results from DuckDuckGo's HTML endpoint.
    The HTML endpoint (html.duckduckgo.com/html/) uses a different DOM structure
@@ -922,113 +895,6 @@
      :somef some?)))
 
 ;; =============================================================================
-;; ANSI Terminal Rendering
-;; =============================================================================
-
-(def ^:dynamic *color-enabled*
-  "Controls ANSI color output. nil = auto-detect, true/false = force."
-  nil)
-
-(defn- color-enabled?
-  "Returns true when ANSI color output should be used.
-   Respects NO_COLOR env var (https://no-color.org/) and TTY detection."
-  []
-  (if (some? *color-enabled*)
-    *color-enabled*
-    (and (nil? (System/getenv "NO_COLOR"))
-      (some? (System/console)))))
-
-(defn- ansi
-  "Wraps text with ANSI escape codes when color is enabled.
-   codes is a string of ANSI parameter codes (e.g. \"1;33\" for bold yellow)."
-  ^String [^String codes ^String text]
-  (if (color-enabled?)
-    (str "\033[" codes "m" text "\033[0m")
-    text))
-
-(defn- bold         ^String [^String s] (ansi "1" s))
-(defn- dim          ^String [^String s] (ansi "2" s))
-(defn- green        ^String [^String s] (ansi "32" s))
-(defn- cyan         ^String [^String s] (ansi "36" s))
-(defn- magenta      ^String [^String s] (ansi "35" s))
-(defn- bold-yellow  ^String [^String s] (ansi "1;33" s))
-(defn- bold-cyan    ^String [^String s] (ansi "1;36" s))
-(defn- dim-yellow   ^String [^String s] (ansi "2;33" s))
-
-;; ---------------------------------------------------------------------------
-;; Card-style renderers (googler/ddgr-inspired)
-;; ---------------------------------------------------------------------------
-
-(defn- format-position
-  "Formats a result position number, right-aligned to 2 chars."
-  ^String [^long pos]
-  (let [s (str pos)]
-    (if (< pos 10) (str " " s) s)))
-
-(defn- print-web-cards
-  "Prints web results as cards: position + title, URL, snippet."
-  [results]
-  (doseq [{:keys [title url snippet position]} results]
-    (println (str " " (bold-yellow (format-position (long position))) "  " (bold title)))
-    (when url
-      (println (str "    " (green url))))
-    (when (and snippet (not (str/blank? snippet)))
-      (println (str "    " (dim snippet))))
-    (println)))
-
-(defn- print-image-cards
-  "Prints image results as cards: position + title, thumbnail, source."
-  [results]
-  (doseq [{:keys [title thumbnail-url source-url position]} results]
-    (let [display-title (if (str/blank? title) "(no title)" title)]
-      (println (str " " (bold-yellow (format-position (long position))) "  " (bold display-title)))
-      (when thumbnail-url
-        (println (str "    " (dim "thumb") "  " (green thumbnail-url))))
-      (when source-url
-        (println (str "    " (dim "source") " " (green source-url))))
-      (println))))
-
-(defn- print-news-cards
-  "Prints news results as cards: position + title, source/time, URL, snippet."
-  [results]
-  (doseq [{:keys [title url source time snippet position]} results]
-    (println (str " " (bold-yellow (format-position (long position))) "  " (bold title)))
-    (when (or source time)
-      (println (str "    "
-                 (when source (magenta source))
-                 (when (and source time) (dim " \u00b7 "))
-                 (when time (dim-yellow time)))))
-    (when url
-      (println (str "    " (green url))))
-    (when (and snippet (not (str/blank? snippet)))
-      (println (str "    " (dim snippet))))
-    (println)))
-
-(defn- print-header
-  "Prints the search header: query in bold, stats in dim."
-  [^String query stats]
-  (println (str " " (bold query)
-             (when stats (str "  " (dim stats)))))
-  (println))
-
-(defn- print-people-also-ask
-  "Prints 'People also ask' section with styled markers."
-  [questions]
-  (when (seq questions)
-    (println (bold-cyan "People also ask"))
-    (doseq [q questions]
-      (println (str "  " (cyan (str "\u25b8 " q)))))
-    (println)))
-
-(defn- print-related-searches
-  "Prints related searches inline with dot separators."
-  [searches]
-  (when (seq searches)
-    (println (bold-cyan "Related searches"))
-    (println (str "  " (str/join (dim " \u00b7 ") searches)))
-    (println)))
-
-;; =============================================================================
 ;; Markdown Table Rendering
 ;; =============================================================================
 
@@ -1066,7 +932,7 @@
   (if (empty? results)
     "*No results found.*"
     (markdown/to-markdown-table
-      (mapv (fn [{:keys [title url source time snippet position]}]
+      (mapv (fn [{:keys [title url source time _snippet position]}]
               {"#" position
                "Title" (or title "")
                "Source" (or source "")
@@ -1226,7 +1092,7 @@
 
    See --help for all options."
   [& args]
-  (let [{:keys [query opts json? screenshot limit open stealth? help? debug? ddg?]} (parse-search-args args)]
+  (let [{:keys [query opts json? screenshot limit open stealth? help? _debug? ddg?]} (parse-search-args args)]
     (cond
       help?
       (print-search-help)
