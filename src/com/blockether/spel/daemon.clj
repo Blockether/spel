@@ -603,7 +603,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -750,10 +750,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                     (catch Exception _ nil)))
+                  (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                     (catch Exception _ nil)))}))
+                  (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -1035,8 +1035,9 @@
           ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)
        :viewport (page/viewport-size (pg))})
-    (let [tree (snapshot-after-action!)]
-      (cond-> {:snapshot tree :url (page/url (pg)) :title (page/title (pg))}
+    (do
+      (snapshot-after-action!)
+      (cond-> {:url (page/url (pg)) :title (page/title (pg))}
         viewport-width (assoc :viewport (page/viewport-size (pg)))
         (page-description) (assoc :description (page-description))))))
 
@@ -1091,8 +1092,8 @@
   (when (str/blank? (str selector))
     (throw (ex-info "click requires a selector or @ref" {})))
   (click-with-ref-recovery! selector)
-  (let [tree (snapshot-after-action!)]
-    {:clicked selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:clicked selector})
 
 (defmethod handle-cmd "download" [_ {:strs [selector save-path timeout-ms]}]
   (ensure-page-loaded!)
@@ -1112,22 +1113,22 @@
 (defmethod handle-cmd "fill" [_ {:strs [selector value]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/fill (resolve-selector selector) value))
-  (let [tree (snapshot-after-action!)]
-    {:filled selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:filled selector})
 
 (defmethod handle-cmd "type" [_ {:strs [selector text]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/type-text (resolve-selector selector) text))
-  (let [tree (snapshot-after-action!)]
-    {:typed selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:typed selector})
 
 (defmethod handle-cmd "press" [_ {:strs [key selector]}]
   (ensure-page-loaded!)
   (if selector
     (unwrap-anomaly! (locator/press (resolve-selector selector) key))
     (.press ^Keyboard (page/page-keyboard (pg)) key))
-  (let [tree (snapshot-after-action!)]
-    {:pressed key :snapshot tree}))
+  (snapshot-after-action!)
+  {:pressed key})
 
 (defmethod handle-cmd "hover" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1140,26 +1141,26 @@
 (defmethod handle-cmd "check" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/check (resolve-selector selector)))
-  (let [tree (snapshot-after-action!)]
-    {:checked selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:checked selector})
 
 (defmethod handle-cmd "uncheck" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/uncheck (resolve-selector selector)))
-  (let [tree (snapshot-after-action!)]
-    {:unchecked selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:unchecked selector})
 
 (defmethod handle-cmd "select" [_ {:strs [selector values]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/select-option (resolve-selector selector) values))
-  (let [tree (snapshot-after-action!)]
-    {:selected selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:selected selector})
 
 (defmethod handle-cmd "dblclick" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/dblclick (resolve-selector selector)))
-  (let [tree (snapshot-after-action!)]
-    {:dblclicked selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:dblclicked selector})
 
 (defmethod handle-cmd "focus" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1435,40 +1436,40 @@
                     (if sel
                       (locator/scroll (resolve-selector sel) direction opts)
                       (page/scroll (pg) direction opts)))
-        tree      (snapshot-after-action!)]
-    (assoc result :snapshot tree)))
+        _         (snapshot-after-action!)]
+    result))
 
 (defmethod handle-cmd "back" [_ _]
   (ensure-page-loaded!)
   (page/go-back (pg))
-  (let [tree (snapshot-after-action!)]
-    {:snapshot tree :url (page/url (pg))}))
+  (snapshot-after-action!)
+  {:url (page/url (pg))})
 
 (defmethod handle-cmd "forward" [_ _]
   (ensure-page-loaded!)
   (page/go-forward (pg))
-  (let [tree (snapshot-after-action!)]
-    {:snapshot tree :url (page/url (pg))}))
+  (snapshot-after-action!)
+  {:url (page/url (pg))})
 
 (defmethod handle-cmd "reload" [_ _]
   (ensure-page-loaded!)
   (page/reload (pg))
-  (let [tree (snapshot-after-action!)]
-    {:snapshot tree :url (page/url (pg))}))
+  (snapshot-after-action!)
+  {:url (page/url (pg))})
 
 (defmethod handle-cmd "wait" [_ params]
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1479,11 +1480,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -1507,8 +1508,8 @@
   (let [pages (core/context-pages (ctx))
         pg-inst (nth pages (int index))]
     (swap! !state assoc :page pg-inst)
-    (let [tree (snapshot-after-action!)]
-      {:tab index :url (page/url pg-inst) :snapshot tree})))
+    (snapshot-after-action!)
+    {:tab index :url (page/url pg-inst)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
   (let [current (pg)]
@@ -1660,8 +1661,8 @@
 (defmethod handle-cmd "scrollintoview" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (locator/scroll-into-view (resolve-selector selector))
-  (let [tree (snapshot-after-action!)]
-    {:scrolled_into_view selector :snapshot tree}))
+  (snapshot-after-action!)
+  {:scrolled_into_view selector})
 
 (defmethod handle-cmd "drag" [_ {:strs [source target force steps timeout
                                         source-position target-position]}]
@@ -1677,23 +1678,23 @@
     (if (seq opts)
       (unwrap-anomaly! (locator/drag-to src-loc tgt-loc opts))
       (unwrap-anomaly! (locator/drag-to src-loc tgt-loc)))
-    (let [tree (snapshot-after-action!)]
-      {:dragged {:from source :to target} :snapshot tree})))
+    (snapshot-after-action!)
+    {:dragged {:from source :to target}}))
 
 (defmethod handle-cmd "drag-by" [_ {:strs [selector dx dy steps]}]
   (ensure-page-loaded!)
   (let [loc  (resolve-selector selector)
         opts (when steps {:steps (long steps)})]
     (unwrap-anomaly! (locator/drag-by (pg) loc dx dy opts))
-    (let [tree (snapshot-after-action!)]
-      {:dragged_by {:selector selector :dx dx :dy dy} :snapshot tree})))
+    (snapshot-after-action!)
+    {:dragged_by {:selector selector :dx dx :dy dy}}))
 
 (defmethod handle-cmd "upload" [_ {:strs [selector files]}]
   (ensure-page-loaded!)
   (let [file-paths (if (string? files) [files] files)]
     (locator/set-input-files! (resolve-selector selector) file-paths)
-    (let [tree (snapshot-after-action!)]
-      {:uploaded {:selector selector :files file-paths} :snapshot tree})))
+    (snapshot-after-action!)
+    {:uploaded {:selector selector :files file-paths}}))
 
 (defmethod handle-cmd "get_value" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -1738,13 +1739,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "click" :snapshot tree}))
+                  (snapshot-after-action!)
+                  {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                    (let [tree (snapshot-after-action!)]
-                      {:found by :value value :action "fill" :snapshot tree}))
+                  (snapshot-after-action!)
+                  {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -1895,7 +1896,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -1971,12 +1972,12 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -2098,7 +2099,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page

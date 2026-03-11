@@ -107,7 +107,7 @@
       (let [r (nav! "/test-page")]
         (expect (str/includes? (:url r) "/test-page"))
         (expect (= "Test Page" (:title r)))
-        (expect (string? (:snapshot r)))))
+        (expect (not (contains? r :snapshot)))))
 
     (it "back returns to previous page"
       (nav! "/test-page")
@@ -186,11 +186,11 @@
   (describe "click and dblclick"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
-    (it "click returns selector and snapshot"
+    (it "click returns selector without snapshot"
       (nav! "/test-page")
       (let [r (cmd "click" {"selector" "#submit-btn"})]
         (expect (= "#submit-btn" (:clicked r)))
-        (expect (string? (:snapshot r)))))
+        (expect (not (contains? r :snapshot)))))
 
     (it "dblclick returns selector"
       (nav! "/test-page")
@@ -456,7 +456,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -475,7 +475,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -522,7 +522,7 @@
       (nav! "/test-page")
       (let [r (cmd "drag" {"source" "#submit-btn" "target" "#text-input"})]
         (expect (map? (:dragged r)))
-        (expect (contains? r :snapshot))))
+        (expect (not (contains? r :snapshot)))))
     (it "drag with steps option"
       (nav! "/test-page")
       (let [r (cmd "drag" {"source" "#submit-btn" "target" "#text-input" "steps" 5})]
@@ -531,7 +531,7 @@
       (nav! "/test-page")
       (let [r (cmd "drag-by" {"selector" "#submit-btn" "dx" 100 "dy" 0})]
         (expect (map? (:dragged_by r)))
-        (expect (contains? r :snapshot))))
+        (expect (not (contains? r :snapshot)))))
     (it "drag-by with steps"
       (nav! "/test-page")
       (let [r (cmd "drag-by" {"selector" "#submit-btn" "dx" 50 "dy" 50 "steps" 10})]
@@ -2045,7 +2045,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---
@@ -2726,7 +2726,7 @@
           (expect (some? (:url entry)))
           (expect (string? (:url entry))))))
 
-    (it "tracks click actions with snapshot"
+    (it "tracks click actions without snapshot"
       (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
       ;; Clear the navigate entry
       (cmd "action_log_clear" {})
@@ -2736,8 +2736,8 @@
         (let [entry (first (:entries r))]
           (expect (= "click" (:action entry)))
           (expect (some? (:url entry)))
-          ;; Click result includes snapshot, so the entry should too
-          (expect (some? (:snapshot entry))))))
+          ;; Click result no longer includes snapshot
+          (expect (nil? (:snapshot entry))))))
 
     (it "does not track read-only commands"
       (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
