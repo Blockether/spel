@@ -683,7 +683,7 @@
                 (println (str "Google blocked (" (name block) ") — skipping retries.")))
             result)
           ;; Empty results but not blocked — transient failure, retry with backoff
-          (if (< attempt max-retries)
+          (if (< attempt (long max-retries))
             (let [backoff-ms (* 1000 (long (Math/pow 2 attempt)))]
               (binding [*out* *err*]
                 (println (str "Retry " attempt "/" max-retries
@@ -1136,7 +1136,7 @@
                     n-results (long (if (and (not ddg?) (> max-pages 1))
                                       (:total-results result 0)
                                       (count (:results result))))
-                    blocked?  (when (and (zero? n-results) (not ddg?)) (detect-block! pg))
+                    blocked?  (when (and (zero? (long n-results)) (not ddg?)) (detect-block! pg))
                     ;; DDG fallback: auto-switch when Google is blocked
                     [result n-results] (if (and blocked? (not ddg?))
                                          (do
@@ -1146,14 +1146,14 @@
                                                  ddg-n     (long (count (:results ddg-result)))]
                                              [ddg-result ddg-n]))
                                          [result n-results])
-                    warning   (when (zero? n-results)
+                    warning   (when (zero? (long n-results))
                                 (if blocked?
                                   (str "Google blocked (" (name blocked?) ") and DuckDuckGo fallback returned 0 results.")
                                   (when-not ddg? "0 results returned.")))
                     result    (cond-> result
                                 warning (assoc :warning warning)
                                 warning (assoc :warning warning))]
-                (when (zero? n-results)
+                (when (zero? (long n-results))
                   (binding [*out* *err*]
                     (println (str "Warning: " warning)))
                   (print-diagnostics! pg blocked?)
