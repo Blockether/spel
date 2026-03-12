@@ -541,20 +541,38 @@
    
    Params:
    `page` - Page instance.
-   `url`  - String glob, regex Pattern, or predicate."
-  [^Page page url]
-  (safe
-    (cond
-      (instance? java.util.regex.Pattern url)
-      (.waitForURL page ^java.util.regex.Pattern url)
+   `url`  - String glob, regex Pattern, or predicate.
+   `opts` - Map, optional. Wait options:
+            :timeout    - Double. Timeout in ms.
+            :wait-until - Keyword. :load :domcontentloaded :networkidle :commit."
+  ([^Page page url]
+   (safe
+     (cond
+       (instance? java.util.regex.Pattern url)
+       (.waitForURL page ^java.util.regex.Pattern url)
 
-      (string? url)
-      (.waitForURL page ^String url)
+       (string? url)
+       (.waitForURL page ^String url)
 
-      :else
-      (.waitForURL page ^java.util.function.Predicate
-        (reify java.util.function.Predicate
-          (test [_ v] (boolean (url v))))))))
+       :else
+       (.waitForURL page ^java.util.function.Predicate
+         (reify java.util.function.Predicate
+           (test [_ v] (boolean (url v))))))))
+  ([^Page page url wait-opts]
+   (let [pw-opts (opts/->page-wait-for-url-options wait-opts)]
+     (safe
+       (cond
+         (instance? java.util.regex.Pattern url)
+         (.waitForURL page ^java.util.regex.Pattern url pw-opts)
+
+         (string? url)
+         (.waitForURL page ^String url pw-opts)
+
+         :else
+         (.waitForURL page ^java.util.function.Predicate
+           (reify java.util.function.Predicate
+             (test [_ v] (boolean (url v))))
+           pw-opts))))))
 
 (defn wait-for-selector
   "Waits for a selector to satisfy a condition.
@@ -589,13 +607,16 @@
    `opts`       - Map, optional. Options:
                   :timeout  - Double. Timeout in ms (default 30000).
                   :polling  - Double. Polling interval in ms.
+                  :arg      - Optional argument passed as first function param.
    
    Returns:
    JSHandle or anomaly map on timeout."
   ([^Page page ^String expression]
    (safe (.waitForFunction page expression)))
   ([^Page page ^String expression opts]
-   (safe (.waitForFunction page expression (opts/->page-wait-for-function-options opts)))))
+   (let [arg        (when (contains? opts :arg) (:arg opts))
+         wait-opts  (dissoc opts :arg)]
+     (safe (.waitForFunction page expression arg (opts/->page-wait-for-function-options wait-opts))))))
 
 (defn wait-for-response
   "Waits for a response matching the URL or predicate.

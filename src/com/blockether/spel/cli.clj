@@ -15,6 +15,7 @@
      spel close"
   (:require
    [charred.api :as json]
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.daemon :as daemon])
   (:import
@@ -499,13 +500,46 @@
       "  headings     Analyze heading hierarchy (h1-h6) for structure issues"
       ""
       "Flags:"
+      "  --all         Run all audits explicitly (same as bare `spel audit`)"
       "  --only LIST   Comma-separated list of audits to run (e.g. --only contrast,layout)"
       ""
       "Examples:"
       "  spel audit                        # run all 7 audits"
+      "  spel audit --all                  # explicit all-audits mode"
       "  spel audit structure              # page landmarks only"
       "  spel audit contrast               # WCAG contrast only"
       "  spel audit --only fonts,links     # selective"])
+
+   "markdownify"
+   (str/join \newline
+     ["markdownify - Convert page or HTML input into Markdown"
+      ""
+      "Usage:"
+      "  spel markdownify"
+      "  spel markdownify --url <url>"
+      "  spel markdownify --file <path>"
+      "  spel markdownify --input <html>"
+      ""
+      "Behavior:"
+      "  - No args: converts the current page in the active session"
+      "  - --url: opens the URL in a temporary session, converts it, then closes that session"
+      "  - --file: reads HTML from a file and converts it locally"
+      "  - --input: converts a raw HTML string locally"
+      ""
+      "Flags:"
+      "  --url URL       Load URL before converting"
+      "  --file PATH     Read HTML from file"
+      "  --input HTML    Convert raw HTML string"
+      "  --no-title      Omit document title heading"
+      "  --full          Disable readability extraction (include full page)"
+      "  --help, -h      Show this help"
+      ""
+      "Examples:"
+      "  spel markdownify"
+      "  spel markdownify --url https://example.com"
+      "  spel markdownify --file ./page.html"
+      "  spel markdownify --input '<h1>Hello</h1><p>World</p>'"
+      "  spel markdownify --url https://example.com --full --no-title"])
 
    "routes"
    (str/join \newline
@@ -1396,6 +1430,7 @@
      "  unannotate              Remove annotation overlays"
      "  survey                  Sweep viewport screenshots down page"
      "  audit                   Page quality audits (structure, contrast, layout, fonts, links, headings, colors)"
+     "  markdownify             Convert page or HTML input into Markdown"
      "  routes                  Extract links from page"
      "  inspect                 Interactive styled snapshot"
      "  overview                Full-page annotated screenshot"
@@ -2004,7 +2039,8 @@
             "audit" (let [sub (first cmd-args)
                           only-val (when (some #{"--only"} cmd-args)
                                      (let [idx (.indexOf ^java.util.List (vec cmd-args) "--only")]
-                                       (when (>= idx 0) (nth cmd-args (inc idx) nil))))]
+                                       (when (>= idx 0) (nth cmd-args (inc idx) nil))))
+                          all? (some #{"--all"} cmd-args)]
                       (case sub
                         "structure" {:action "audit"}
                         "contrast"  {:action "text-contrast"}
@@ -2014,8 +2050,25 @@
                         "links"     {:action "link-health"}
                         "headings"  {:action "heading-structure"}
                        ;; No subcommand or unknown → run all
-                        (cond-> {:action "audit-all"}
+                        (cond-> {:action "audit" :all true}
+                          all?     (assoc :all true)
                           only-val (assoc :only only-val))))
+
+            "markdownify" (let [args-v    (vec cmd-args)
+                                flag-val  (fn [flag]
+                                            (let [i (.indexOf ^java.util.List args-v flag)]
+                                              (when (>= i 0) (nth args-v (inc i) nil))))
+                                url-val   (flag-val "--url")
+                                file-val  (flag-val "--file")
+                                input-val (flag-val "--input")
+                                title?    (not (some #{"--no-title"} cmd-args))
+                                readable? (not (some #{"--full"} cmd-args))]
+                            (cond-> {:action "markdownify"}
+                              url-val   (assoc :url url-val)
+                              file-val  (assoc :file (resolve-path file-val))
+                              input-val (assoc :input input-val)
+                              true      (assoc :title title?)
+                              true      (assoc :readable readable?)))
 
           ;; Routes (link extraction)
             "routes" (cond-> {:action "routes"}
@@ -2784,6 +2837,9 @@
           (:html data)
           (println (:html data))
 
+          (:markdown data)
+          (print (:markdown data))
+
           ;; Boolean results
           (contains? data :visible)
           (println (:visible data))
@@ -2981,6 +3037,41 @@
       (com.microsoft.playwright.CLI/main
         (into-array String (into ["show-trace"] (:cli-args command))))
       (System/exit 0))
+
+    ;; Markdownify — hybrid local/temporary-session command
+    (when (= "markdownify" (:action command))
+      (let [{:keys [url file input title readable]} command
+            input-count (count (remove nil? [url file input]))
+            json? (:json flags)]
+        (cond
+          (> input-count 1)
+          (do (binding [*out* *err*]
+                (println "Error: markdownify accepts only one of --file or --input or --url"))
+              (System/exit 1))
+
+          (or file input url)
+          (let [session (str "markdownify-" (System/currentTimeMillis))]
+            (try
+              (ensure-daemon! session flags)
+              (let [flag-keys (dissoc flags :session :headless :json)
+                    html      (when-not url (if file (slurp (io/file file)) input))
+                    nav-url   (or url
+                                (str "data:text/html;base64,"
+                                  (.encodeToString (java.util.Base64/getEncoder)
+                                    (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
+                    nav-cmd   (cond-> {:action "navigate" :url nav-url}
+                                (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
+                    _         (send-command! session nav-cmd (or (:timeout flags) 30000))
+                    resp      (send-command! session (cond-> {:action "markdownify"}
+                                                       (contains? command :title) (assoc :title title)
+                                                       (contains? command :readable) (assoc :readable readable))
+                                (or (:timeout flags) 30000))]
+                (print-result resp json?)
+                (System/exit (if (:success resp) 0 1)))
+              (finally
+                (close-session! session))))
+
+          :else nil)))
 
     ;; Close --all-sessions — close every active daemon (bypasses ensure-daemon!)
     (when (and (= "close" (:action command)) (:all-sessions command))

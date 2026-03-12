@@ -110,6 +110,7 @@
   (println "    --no-boxes              Hide bounding boxes")
   (println "  unannotate                Remove annotation overlays")
   (println "  pdf <path>                Save as PDF")
+  (println "  markdownify               Convert page or HTML input to Markdown")
   (println "")
   (println "Get Info:")
   (println "  get text <sel>            Get text content")
@@ -248,6 +249,7 @@
   (println "Tools:")
 
   (println "  search <query> [opts]     Google search from the CLI (--help for details)")
+  (println "  markdownify [opts]        Convert current page, URL, file, or input HTML to Markdown")
   (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")

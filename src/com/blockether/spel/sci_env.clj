@@ -35,6 +35,7 @@
    [com.blockether.spel.action-log :as action-log]
    [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.markdown :as markdown]
+   [com.blockether.spel.markdownify :as markdownify]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.frame :as frame]
@@ -278,6 +279,10 @@
 (defn sci-url       [] (page/url (require-page!)))
 (defn sci-title     [] (page/title (require-page!)))
 (defn sci-html      [] (page/content (require-page!)))
+(defn sci-markdownify
+  "Converts the current page HTML into Markdown."
+  ([] (throw-if-anomaly (markdownify/html->markdown (require-page!) (page/content (require-page!)))))
+  ([html] (throw-if-anomaly (markdownify/html->markdown (require-page!) html))))
 
 ;; =============================================================================
 ;; Locators
@@ -493,8 +498,12 @@
   ([]      (throw-if-anomaly (page/wait-for-load-state (require-page!))))
   ([state] (throw-if-anomaly (page/wait-for-load-state (require-page!) state))))
 (defn sci-sleep [ms] (page/wait-for-timeout (require-page!) ms))
-(defn sci-wait-for-url [url] (throw-if-anomaly (page/wait-for-url (require-page!) url)))
-(defn sci-wait-for-function [expr] (throw-if-anomaly (page/wait-for-function (require-page!) expr)))
+(defn sci-wait-for-url
+  ([url] (throw-if-anomaly (page/wait-for-url (require-page!) url)))
+  ([url opts] (throw-if-anomaly (page/wait-for-url (require-page!) url opts))))
+(defn sci-wait-for-function
+  ([expr] (throw-if-anomaly (page/wait-for-function (require-page!) expr)))
+  ([expr opts] (throw-if-anomaly (page/wait-for-function (require-page!) expr opts))))
 (defn sci-wait-for-popup
   ([action]      (page/wait-for-popup (require-page!) action))
   ([action opts] (page/wait-for-popup (require-page!) action opts)))
@@ -1616,6 +1625,7 @@
                   ['save-audit-screenshot!    sci-save-audit-screenshot!]
                   ['survey                    sci-survey]
                   ['audit                     sci-audit]
+                  ['markdownify               sci-markdownify]
                   ['routes                    sci-routes]
                   ['inspect                   sci-inspect]
                   ['overview                  sci-overview]
@@ -2287,6 +2297,33 @@
                   ['to-markdown-table   markdown/to-markdown-table]])
 
         ;; =================================================================
+        ;; clojure.string / string — String helpers
+        ;; =================================================================
+        string-ns  (sci/create-ns 'string nil)
+        string-map (make-ns-map string-ns
+                     [['blank?                 str/blank?]
+                      ['capitalize             str/capitalize]
+                      ['ends-with?             str/ends-with?]
+                      ['escape                 str/escape]
+                      ['includes?              str/includes?]
+                      ['index-of               str/index-of]
+                      ['join                   str/join]
+                      ['last-index-of          str/last-index-of]
+                      ['lower-case             str/lower-case]
+                      ['replace                str/replace]
+                      ['replace-first          str/replace-first]
+                      ['reverse                str/reverse]
+                      ['re-quote-replacement   str/re-quote-replacement]
+                      ['split                  str/split]
+                      ['split-lines            str/split-lines]
+                      ['starts-with?           str/starts-with?]
+                      ['trim                   str/trim]
+                      ['triml                  str/triml]
+                      ['trim-newline           str/trim-newline]
+                      ['trimr                  str/trimr]
+                      ['upper-case             str/upper-case]])
+
+        ;; =================================================================
         ;; clojure.java.io — File I/O functions
         ;; =================================================================
         io-ns  (sci/create-ns 'clojure.java.io nil)
@@ -2364,6 +2401,8 @@
                      ;; Utility namespaces
                     'markdown                            md-map
                     'com.blockether.spel.markdown        md-map
+                    'string                              string-map
+                    'clojure.string                      string-map
                      ;; File I/O namespaces
                     'clojure.java.io                     io-map
                     'io                                  io-map
