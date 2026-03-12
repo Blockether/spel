@@ -2989,6 +2989,14 @@
         flags (if (and (= "navigate" (:action command)) (:interactive command))
                 (assoc flags :headless false)
                 flags)]
+    ;; Proactive warning: auto-connect (or explicit --cdp) to an endpoint that is
+    ;; already route-locked by another session can lead to command conflicts.
+    (when-let [cdp-url (:cdp flags)]
+      (when-let [owner (daemon/cdp-route-lock-owner cdp-url)]
+        (when (not= owner session)
+          (binding [*out* *err*]
+            (println (str "warn: CDP endpoint is currently route-locked by session '" owner
+                       "'. Commands requiring page control may fail fast with cdp_route_lock."))))))
     ;; Check for parse errors
     (when (:error command)
       (binding [*out* *err*]

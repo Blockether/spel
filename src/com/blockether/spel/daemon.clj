@@ -42,6 +42,7 @@
 (declare stop-daemon!)
 (declare save-inflight-trace!)
 (declare pg)
+(declare daemon-running?)
 
 (defn- warn
   "Logs a warning to stderr. Used in cleanup paths where we must continue
@@ -85,6 +86,43 @@
              File/separator
              "spel-" session ".flags.json")
     (into-array String [])))
+
+(defn- cdp-route-lock-path
+  "Returns a filesystem lock path keyed by CDP endpoint URL.
+   Used to prevent multi-session route interception on the same CDP browser."
+  ^Path [^String cdp-url]
+  (let [encoder (.withoutPadding (Base64/getUrlEncoder))
+        token   (.encodeToString encoder (.getBytes cdp-url java.nio.charset.StandardCharsets/UTF_8))]
+    (Path/of (str (System/getProperty "java.io.tmpdir")
+               File/separator
+               "spel-cdp-route-lock-" token ".json")
+      (into-array String []))))
+
+(defn- read-cdp-route-lock
+  "Reads the lock map for a CDP endpoint, or nil if absent/invalid."
+  [^String cdp-url]
+  (let [path (cdp-route-lock-path cdp-url)]
+    (when (Files/exists path (into-array java.nio.file.LinkOption []))
+      (try
+        (json/read-json (String. (Files/readAllBytes path)))
+        (catch Exception _ nil)))))
+
+(defn- clear-cdp-route-lock!
+  "Deletes the lock file for a CDP endpoint. Best-effort."
+  [^String cdp-url]
+  (try
+    (Files/deleteIfExists (cdp-route-lock-path cdp-url))
+    (catch Exception e (warn "delete-cdp-route-lock" e))))
+
+(defn- write-cdp-route-lock!
+  "Writes/overwrites the lock owner for a CDP endpoint."
+  [^String cdp-url ^String session]
+  (let [payload {:session session
+                 :cdp cdp-url
+                 :updated_at (System/currentTimeMillis)}]
+    (Files/writeString (cdp-route-lock-path cdp-url)
+      (json/write-json-str payload)
+      (into-array java.nio.file.OpenOption []))))
 
 (defn- parse-devtools-active-port
   "Parses a DevToolsActivePort file, returning {:port N :ws-path \"/devtools/...\"} or nil."
@@ -222,6 +260,84 @@
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
 
+(def ^:private cdp-route-lock-exempt-actions
+  "Actions allowed even when another session owns route interception lock.
+   Keep this minimal so page-driving commands fail fast instead of hanging."
+  #{"close" "session_info" "session_list"
+    "network_list" "network_requests" "network_get_ref"
+    "console_list" "console_get_ref"
+    "pages_list" "pages_get_ref"
+    "network_unroute"
+    "action_log" "action_log_srt" "action_log_clear"})
+
+(defn- current-cdp-url
+  "Returns currently configured CDP URL from daemon launch flags, if any."
+  []
+  (get-in @!state [:launch-flags "cdp"]))
+
+(defn- active-cdp-route-lock
+  "Returns an active lock map for cdp-url, clearing stale locks automatically."
+  [^String cdp-url]
+  (when-let [lock (read-cdp-route-lock cdp-url)]
+    (let [owner (get lock "session")]
+      (cond
+        (str/blank? owner)
+        (do (clear-cdp-route-lock! cdp-url) nil)
+
+        ;; Keep our own lock as active.
+        (= owner (:session @!state))
+        lock
+
+        ;; If owner daemon is gone, clear stale lock.
+        (not (daemon-running? owner))
+        (do (clear-cdp-route-lock! cdp-url) nil)
+
+        :else
+        lock))))
+
+(defn- cdp-route-lock-conflict
+  "Returns conflict details when current command should be blocked due to
+   another session owning CDP route interception lock on the same endpoint."
+  [^String action]
+  (let [session       (:session @!state)
+        cdp-connected (true? (:cdp-connected @!state))
+        cdp-url       (current-cdp-url)]
+    (when (and cdp-connected
+            (string? cdp-url)
+            (not (contains? cdp-route-lock-exempt-actions action)))
+      (when-let [lock (active-cdp-route-lock cdp-url)]
+        (let [owner (get lock "session")]
+          (when (and owner (not= owner session))
+            {:owner-session owner
+             :cdp-url cdp-url}))))))
+
+(defn- cdp-route-lock-warning
+  "Returns a warning payload when another session owns active CDP route lock.
+   Used by the `connect` command so users get proactive guidance before hangs."
+  [^String cdp-url]
+  (let [session (:session @!state)]
+    (when-let [lock (active-cdp-route-lock cdp-url)]
+      (let [owner (get lock "session")]
+        (when (and owner (not= owner session))
+          {:warning (str "Another session ('" owner "') already has active network routes on this CDP endpoint. "
+                     "Use one session per --cdp endpoint for route interception to avoid hangs.")
+           :route_lock_owner owner})))))
+
+(defn cdp-route-lock-owner
+  "Returns the owning session name when `cdp-url` currently has an active
+   cross-session route lock, otherwise nil. Stale locks are cleared lazily."
+  [^String cdp-url]
+  (when-let [lock (active-cdp-route-lock cdp-url)]
+    (get lock "session")))
+
+(defn- release-cdp-route-lock-if-owned!
+  "Clears CDP route lock if this daemon session currently owns it."
+  []
+  (when-let [cdp-url (current-cdp-url)]
+    (when-let [lock (read-cdp-route-lock cdp-url)]
+      (when (= (:session @!state) (get lock "session"))
+        (clear-cdp-route-lock! cdp-url)))))
+
 (defn- persist-launch-flags!
   "Writes current launch-flags to the session's flags file for CLI to read.
    Called after flags are stored in !state so subsequent commands and daemon
@@ -267,6 +383,29 @@
 (defonce ^:private !page-counter (atom 0))
 
 (defonce ^:private !session-entry-count (atom 0))
+
+(def ^:private max-preview-body-bytes 65536)
+(def ^:private preview-body-resource-types #{"fetch" "xhr"})
+
+(defn- parse-long-safe
+  "Parses a string into a long, returning nil on invalid input."
+  [s]
+  (when (some? s)
+    (try
+      (Long/parseLong (str s))
+      (catch Exception _ nil))))
+
+(defn- should-capture-response-body?
+  "Returns true when response body preview is likely cheap/useful enough to capture.
+   Avoids expensive reads for large/non-text/static assets that can stall CDP-heavy sessions."
+  [resource-type resp-headers]
+  (let [content-type   (some-> (get resp-headers "content-type") str/lower-case)
+        content-length (parse-long-safe (get resp-headers "content-length"))]
+    (and (contains? preview-body-resource-types resource-type)
+      (or (nil? content-length)
+        (<= content-length max-preview-body-bytes))
+      (or (str/blank? content-type)
+        (re-find #"json|text|javascript|xml|x-www-form-urlencoded" content-type)))))
 
 ;; Action Log — user-facing browser commands tracked for SRT export.
 ;; Atoms live in sci-env (alongside !page, !context, etc.) to avoid circular deps.
@@ -357,18 +496,20 @@
   (when (< (long @!session-entry-count) (long max-session-total))
     (let [^Request req (.request resp)
           ref-id (str "n" (swap! !network-counter inc))
+          resource-type (.resourceType req)
           page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
           req-headers (try (into {} (.allHeaders req)) (catch Exception _ {}))
           resp-headers (try (into {} (.allHeaders resp)) (catch Exception _ {}))
           post-data (try (.postData req) (catch Exception _ nil))
-          resp-body (try (.text resp) (catch Exception _ nil))
+          resp-body (when (should-capture-response-body? resource-type resp-headers)
+                      (try (.text resp) (catch Exception _ nil)))
           req-body-preview (safe-parse-json-body post-data 500)
           resp-body-preview (safe-parse-json-body resp-body 500)
           duration 0
           entry {:ref (str "@" ref-id)
                  :method (.method req)
                  :url (.url req)
-                 :resource_type (.resourceType req)
+                 :resource_type resource-type
                  :status (.status resp)
                  :duration_ms duration
                  :timestamp (System/currentTimeMillis)
@@ -381,7 +522,7 @@
           full-entry {:ref (str "@" ref-id)
                       :method (.method req)
                       :url (.url req)
-                      :resource_type (.resourceType req)
+                      :resource_type resource-type
                       :status (.status resp)
                       :duration_ms duration
                       :timestamp (System/currentTimeMillis)
@@ -1978,16 +2119,21 @@
                     (network/route-continue! route)))]
     (page/route! (pg) url handler)
     (swap! !routes assoc url handler)
+    (when (and (:cdp-connected @!state) (current-cdp-url))
+      (write-cdp-route-lock! (current-cdp-url) (:session @!state)))
     {:route_added url}))
 
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
         (swap! !routes dissoc url)
+        (when (empty? @!routes)
+          (release-cdp-route-lock-if-owned!))
         {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
         (reset! !routes {})
+        (release-cdp-route-lock-if-owned!)
         {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
@@ -2200,13 +2346,16 @@
 ;; --- Phase 5: Connect CDP ---
 
 (defmethod handle-cmd "connect" [_ {:strs [url]}]
-  (let [pw (or (:pw @!state) (core/create))
+  (let [warning-payload (cdp-route-lock-warning url)
+        pw (or (:pw @!state) (core/create))
         browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String url)
         contexts (.contexts ^com.microsoft.playwright.Browser browser)
         context (if (seq contexts) (first contexts) (core/new-context browser))
         pages (core/context-pages context)
         pg-inst (if (seq pages) (first pages) (core/new-page-from-context context))]
-    (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)
+    (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true)
+    (swap! !state assoc-in [:launch-flags "cdp"] url)
+    (persist-launch-flags!)
     ;; Auto-register console, error, and request listeners
     (reset! !console-messages [])
     (page/on-console pg-inst (fn [msg]
@@ -2219,7 +2368,8 @@
                                     {:message (str error)})))
     (reset! !tracked-requests [])
     (page/on-response pg-inst track-response!)
-    {:connected url :url (page/url pg-inst)}))
+    (cond-> {:connected url :url (page/url pg-inst)}
+      warning-payload (merge warning-payload))))
 
 (defmethod handle-cmd "find_free_port" [_ _]
   {:port (unwrap-anomaly! (core/find-free-port))})
@@ -2395,8 +2545,20 @@
       (when (seq flags)
         (swap! !state update :launch-flags merge flags)
         (persist-launch-flags!))
-      (try
-        (let [result    (handle-cmd action params)
+      (if-let [{:keys [owner-session cdp-url]} (cdp-route-lock-conflict action)]
+        (json/write-json-str
+          {:success false
+           :error (str "CDP endpoint is currently controlled by session '" owner-session
+                    "' with active network routes. Blocking action '" action
+                    "' in session '" (:session @!state) "' to prevent command hangs.")
+           :hint (str "Use one session per --cdp endpoint when routes are active. "
+                   "Either run `spel --session " owner-session " network unroute all` "
+                   "or close that session before retrying.")
+           :error_code "cdp_route_lock"
+           :owner_session owner-session
+           :cdp cdp-url})
+        (try
+          (let [result    (handle-cmd action params)
               anomaly-v (cond
                           (anomaly/anomaly? result)
                           result
@@ -2418,13 +2580,13 @@
               (when (trackable-actions action)
                 (track-action! action params result))
               (json/write-json-str {:success true :data result}))))
-        (catch Throwable e
-          (let [hint (reflection-error-hint e)
-                msg  (or hint (.getMessage e) (default-error-message e))
-                data (ex-data e)]
-            (json/write-json-str (cond-> (error-response msg)
-                                   (:stdout data) (assoc :data {:stdout (:stdout data)
-                                                                :stderr (:stderr data)})))))))
+          (catch Throwable e
+            (let [hint (reflection-error-hint e)
+                  msg  (or hint (.getMessage e) (default-error-message e))
+                  data (ex-data e)]
+              (json/write-json-str (cond-> (error-response msg)
+                                     (:stdout data) (assoc :data {:stdout (:stdout data)
+                                                                  :stderr (:stderr data)}))))))))
     (catch Throwable e
       (json/write-json-str {:success false :error (str "Parse error: " (.getMessage e))}))))
 
@@ -2537,6 +2699,8 @@
                 (java.nio.file.Files/deleteIfExists dir)
                 java.nio.file.FileVisitResult/CONTINUE))))
         (catch Exception e (warn "cleanup-tmp-profile" e))))
+    ;; 3c. Release shared CDP route lock if we own it
+    (release-cdp-route-lock-if-owned!)
     ;; 4. Only delete files if they still belong to US (a new daemon may
     ;;    have already replaced them during our slow browser cleanup)
     (when (owns-pid-file? session)

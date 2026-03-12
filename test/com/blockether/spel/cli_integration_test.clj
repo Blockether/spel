@@ -1060,7 +1060,64 @@
       (nav! "/test-page")
       (cmd "network_route" {"url" "**/test" "action_type" "abort"})
       (let [r (cmd "network_unroute" {})]
-        (expect (true? (:all_routes_removed r)))))))
+        (expect (true? (:all_routes_removed r)))))
+
+    (it "process-command fails fast when another CDP session owns route lock"
+      (let [state-a       (deref #'daemon/!state)
+            cdp-url       "http://127.0.0.1:9222"
+            owner-session (str "owner-" (System/currentTimeMillis))
+            owner-pid     (daemon/pid-file-path owner-session)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url)]
+        (swap! state-a assoc
+          :session "integ-test"
+          :cdp-connected true
+          :launch-flags {"cdp" cdp-url})
+        (Files/writeString owner-pid
+          (str (.pid (java.lang.ProcessHandle/current)))
+          (into-array java.nio.file.OpenOption []))
+        (Files/writeString lock-path
+          (json/write-json-str {"session" owner-session
+                                "cdp" cdp-url
+                                "updated_at" (System/currentTimeMillis)})
+          (into-array java.nio.file.OpenOption []))
+        (try
+          (let [resp (json/read-json
+                       (#'daemon/process-command
+                         (json/write-json-str {"action" "navigate"
+                                               "url" (str *test-server-url* "/test-page")})))]
+            (expect (= false (get resp "success")))
+            (expect (= "cdp_route_lock" (get resp "error_code")))
+            (expect (= owner-session (get resp "owner_session")))
+            (expect (str/includes? (get resp "error") "active network routes"))
+            ;; lock guard must still allow close/session cleanup commands
+            (let [close-resp (json/read-json (#'daemon/process-command (json/write-json-str {"action" "close"})))]
+              (expect (= true (get close-resp "success")))))
+          (finally
+            (Files/deleteIfExists owner-pid)
+            (Files/deleteIfExists lock-path)))))
+
+    (it "connect warning helper returns owner session for active lock"
+      (let [state-a       (deref #'daemon/!state)
+            cdp-url       "http://127.0.0.1:9222"
+            owner-session (str "owner-" (System/currentTimeMillis))
+            owner-pid     (daemon/pid-file-path owner-session)
+            lock-path     (#'daemon/cdp-route-lock-path cdp-url)]
+        (swap! state-a assoc :session "integ-test")
+        (Files/writeString owner-pid
+          (str (.pid (java.lang.ProcessHandle/current)))
+          (into-array java.nio.file.OpenOption []))
+        (Files/writeString lock-path
+          (json/write-json-str {"session" owner-session
+                                "cdp" cdp-url
+                                "updated_at" (System/currentTimeMillis)})
+          (into-array java.nio.file.OpenOption []))
+        (try
+          (let [warning (#'daemon/cdp-route-lock-warning cdp-url)]
+            (expect (= owner-session (:route_lock_owner warning)))
+            (expect (str/includes? (:warning warning) "active network routes")))
+          (finally
+            (Files/deleteIfExists owner-pid)
+            (Files/deleteIfExists lock-path)))))))
 
 ;; =============================================================================
 ;; 32. Network Requests
