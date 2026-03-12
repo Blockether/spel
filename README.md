@@ -181,7 +181,7 @@ Run `spel install` to download Chromium. If the user chose Edge, also run `spel 
 
 > "Will you use spel for **automation only** (scripting, scraping, agents) or also for **writing tests** (with assertions and Allure reports)?"
 
-Scaffold agent skills (all 8 agents by default — use `--simplified` for the 6-agent core setup, `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
+Scaffold agent skills (all 8 agents by default, use `--only` to scaffold a subset, or `--no-tests` to skip the seed test file):
 
 ```bash
 # Full scaffolding with all 8 agents (default)
@@ -195,8 +195,8 @@ spel init-agents --only=test          # test agents only
 spel init-agents --only=automation    # browser automation agents only
 spel init-agents --only=visual        # visual QA agents only
 spel init-agents --only=bugfind      # adversarial bug-finding agents only
-spel init-agents --only=core         # simplified 6-agent core setup
-spel init-agents --simplified        # alias for --only=core
+spel init-agents --only=orchestrator # orchestrator agent only
+spel init-agents --only=discovery    # product discovery agents only
 ```
 
 Choose the right loop for your coding agent:
@@ -256,9 +256,10 @@ All options merge with built-in defaults — public CDN certs continue to work.
 
 All env vars are optional. **CLI flags always take priority over env vars.**
 
+**Browser**
+
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
-| **Browser** | | |
 | `SPEL_BROWSER` | `--browser` | Browser engine: `chromium` (default), `firefox`, `webkit` |
 | `SPEL_CHANNEL` | `--channel` | Chromium channel: `chrome`, `msedge`, `chrome-beta`, etc. |
 | `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory (full profile: extensions, passwords, bookmarks) |
@@ -266,25 +267,45 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
 | `SPEL_USER_AGENT` | `--user-agent` | Custom user agent string |
 | `SPEL_STEALTH` | `--no-stealth` | Set to `false` to disable stealth mode (ON by default) |
-| **Session** | | |
+
+**Session**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
 | `SPEL_SESSION` | `--session` | Session name (default: `default`) |
 | `SPEL_JSON` | `--json` | Set to `true` for JSON output |
 | `SPEL_TIMEOUT` | `--timeout` | Command timeout in milliseconds |
-| **Network** | | |
+
+**Network**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
 | `SPEL_PROXY` | `--proxy` | Proxy server URL |
 | `SPEL_PROXY_BYPASS` | `--proxy-bypass` | Proxy bypass patterns |
 | `SPEL_HEADERS` | `--headers` | Default HTTP headers (JSON string) |
 | `SPEL_IGNORE_HTTPS_ERRORS` | `--ignore-https-errors` | Set to `true` to ignore HTTPS errors |
-| **SSL/TLS** | | |
+
+**SSL/TLS**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
 | `SPEL_CA_BUNDLE` | — | PEM file with extra CA certs (merged with defaults) |
 | `NODE_EXTRA_CA_CERTS` | — | PEM file, also respected by Node.js subprocess |
 | `SPEL_TRUSTSTORE` | — | JKS/PKCS12 truststore path |
 | `SPEL_TRUSTSTORE_TYPE` | — | Truststore type (default: JKS) |
 | `SPEL_TRUSTSTORE_PASSWORD` | — | Truststore password |
-| **Testing** | | |
+
+**Testing**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
 | `SPEL_INTERACTIVE` | — | Set to `true` for headed mode in test fixtures |
 | `SPEL_SLOW_MO` | — | Slow motion delay in ms for test fixtures |
-| **Advanced** | | |
+
+**Advanced**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
 | `SPEL_AUTO_CONNECT` | `--auto-connect` | Set to any value to auto-discover Chrome CDP |
 | `SPEL_CDP` | `--cdp` | Connect via Chrome DevTools Protocol URL |
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
@@ -350,8 +371,6 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 
 See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
 
-See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
-
 ### Native CLI
 
 spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `eval-sci` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
@@ -370,7 +389,6 @@ spel init-agents --only=bugfind              # adversarial bug-finding agents on
 spel init-agents --only=orchestrator          # orchestrator agent only
 spel init-agents --only=test,visual           # combine groups with commas
 spel init-agents --only=discovery             # product discovery agents only
-spel init-agents --only=core                  # simplified 6-agent core setup
 spel init-agents --only=core                  # simplified 6-agent core setup
 spel init-agents --simplified                 # alias for --only=core
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
@@ -396,6 +414,7 @@ spel init-agents --no-tests                   # all agents, skip seed test + spe
 Orchestrators are smart entry points that route your request to the right specialist pipeline:
 
 | Agent | Purpose |
+|-------|---------|
 | `@spel-orchestrator` | **Meta-orchestrator** — analyzes your request and routes to the right pipeline |
 
 Just say `@spel-orchestrator test the login page` and it handles the rest.
@@ -405,6 +424,7 @@ Orchestrators are artifact-first: they should stop at explicit user-review gates
 ### Subagent Groups
 
 | Group | Agents | Use for |
+|-------|--------|---------|
 | `test` | planner, writer | E2E test writing |
 | `automation` | explorer, automator | Browser automation |
 | `visual` | presenter | Visual content |
