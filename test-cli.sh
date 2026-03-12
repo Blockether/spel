@@ -1739,6 +1739,22 @@ assert_contains "markdownify --help mentions --input" "$OUT" "--input"
 assert_contains "markdownify --help mentions --full" "$OUT" "--full"
 assert_contains "markdownify --help mentions --no-title" "$OUT" "--no-title"
 
+section "Agent Evals (46)"
+
+OUT=$(python3 evals/run.py --binary "$SPEL" --help 2>&1)
+assert_contains "evals --help mentions binary" "$OUT" "--binary"
+assert_contains "evals --help mentions strict-advisory" "$OUT" "--strict-advisory"
+
+OUT=$(python3 evals/run.py --binary "$SPEL" --case orchestrator-core-opencode --json 2>&1)
+assert_jq "evals smoke → case count" "$OUT" '.summary.case_count == 1'
+assert_jq "evals smoke → required failures == 0" "$OUT" '.summary.required_failed == 0'
+assert_jq "evals smoke → case status pass" "$OUT" '.cases[0].status == "pass"'
+
+OUT=$(python3 evals/run_real.py --binary "$SPEL" --case orchestrator-automation-blocked-no-url --json 2>&1)
+assert_jq "real evals smoke → case count" "$OUT" '.summary.case_count == 1'
+assert_jq "real evals smoke → no hard fail" "$OUT" '.summary.fail == 0'
+assert_jq "real evals smoke → classified status" "$OUT" '(.cases[0].status == "pass") or (.cases[0].status == "blocked_runtime_billing") or (.cases[0].status == "blocked_runtime_auth") or (.cases[0].status == "blocked_runtime_timeout")'
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

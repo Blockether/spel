@@ -525,11 +525,11 @@ ffmpeg -i session.webm -vf "subtitles=session.srt" output.mp4
 ffmpeg -i session.webm -vf "mpdecimate,setpts=N/30/TB" -r 30 trimmed.mp4
 ```
 
-See `refs/PDF_STITCH_VIDEO.md` for the complete FFmpeg reference.
+See `references/PDF_STITCH_VIDEO.md` for the complete FFmpeg reference.
 
 ### Video in QA reports
 
-The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `refs/spel-report.html` for visual structure and `refs/spel-report.md` for LLM handoff structure.
+The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `references/spel-report.html` for visual structure and `references/spel-report.md` for LLM handoff structure.
 
 ---
 

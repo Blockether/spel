@@ -62,7 +62,7 @@ spel --no-stealth open https://protected-site.com
         (page/navigate pg "https://protected-site.com")))))
 ```
 
-See `refs/PROFILES_AGENTS.md` for full details on what stealth patches are applied.
+See `references/PROFILES_AGENTS.md` for full details on what stealth patches are applied.
 
 ## 3. `assert-url` fails with partial URLs
 

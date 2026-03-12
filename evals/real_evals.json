@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "orchestrator-automation-blocked-no-url",
+      "description": "Run the generated spel-orchestrator on a minimal automation request and expect a handoff artifact or a classified runtime block.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Create orchestration/automation-pipeline.json with status blocked and next_step 'need URL'. Do not browse. Keep it minimal.",
+      "timeout_seconds": 120,
+      "expected_artifacts": [
+        "orchestration/automation-pipeline.json"
+      ],
+      "artifact_contains": {
+        "orchestration/automation-pipeline.json": [
+          "blocked",
+          "need URL"
+        ]
+      }
+    },
+    {
+      "id": "orchestrator-discovery-blocked-no-url",
+      "description": "Run the generated spel-orchestrator on a minimal discovery request and expect a machine-readable discovery handoff or a classified runtime block.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Create orchestration/discovery-pipeline.json with status blocked and next_step 'need URL'. Do not browse. Keep it minimal.",
+      "timeout_seconds": 120,
+      "expected_artifacts": [
+        "orchestration/discovery-pipeline.json"
+      ],
+      "artifact_contains": {
+        "orchestration/discovery-pipeline.json": [
+          "blocked",
+          "need URL"
+        ]
+      }
+    },
+    {
+      "id": "orchestrator-automation-page-example",
+      "description": "Run a real page eval through orchestrator using spel CLI on https://example.com and require machine-readable outputs.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Use spel CLI to evaluate https://example.com. Capture page title and URL into eval-artifacts/example-page.json. Also write orchestration/automation-pipeline.json with status completed and next_step done. Use bash/python for file writes (do not use apply_patch).",
+      "timeout_seconds": 180,
+      "expected_artifacts": [
+        "eval-artifacts/example-page.json",
+        "orchestration/automation-pipeline.json"
+      ],
+      "artifact_contains": {
+        "eval-artifacts/example-page.json": [
+          "Example Domain",
+          "example.com"
+        ],
+        "orchestration/automation-pipeline.json": [
+          "completed",
+          "done"
+        ]
+      }
+    },
+    {
+      "id": "orchestrator-qa-page-example",
+      "description": "Run a light QA page eval through orchestrator and require QA handoff artifact for example.com.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Do a quick QA check on https://example.com using spel CLI. Write eval-artifacts/qa-summary.md with at least one finding line, and write orchestration/qa-pipeline.json with status completed and next_step done. Use bash/python for file writes (do not use apply_patch).",
+      "timeout_seconds": 180,
+      "expected_artifacts": [
+        "eval-artifacts/qa-summary.md",
+        "orchestration/qa-pipeline.json"
+      ],
+      "artifact_contains": {
+        "eval-artifacts/qa-summary.md": [
+          "example.com"
+        ],
+        "orchestration/qa-pipeline.json": [
+          "completed",
+          "done"
+        ]
+      }
+    }
+  ]
+}

@@ -208,7 +208,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `wait-for-response` | [page url-or-fn callback] | Waits for a response matching the URL or predicate. |
 | `wait-for-selector` | [page selector] \| [page selector wait-opts] | Waits for a selector to satisfy a condition. |
 | `wait-for-timeout` | [page timeout] | Waits for the specified time in milliseconds. |
-| `wait-for-url` | [page url] | Waits for the page to navigate to a URL. |
+| `wait-for-url` | [page url] \| [page url wait-opts] | Waits for the page to navigate to a URL. |
 | `web-error-error` | [we] | Returns the underlying error for this web error. |
 | `web-error-page` | [we] | Returns the page that generated this web error, if any. |
 | `worker-evaluate` | [worker expression] \| [worker expression arg] | Evaluates JavaScript in the worker context. |
@@ -836,6 +836,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/locator` | [sel-or-loc] | Resolves a ref ID to a Playwright Locator. |
 | `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
 | `spel/main-frame` | [] | Returns the main frame of the page. |
+| `spel/markdownify` | [] \| [html] | Converts the current page HTML into Markdown. |
 | `spel/mouse` | [] | Returns the Mouse for this page. |
 | `spel/navigate` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
@@ -903,12 +904,12 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/visible?` | [sel] | Returns whether the element is visible. |
 | `spel/wait-for-download` | [action] \| [action opts] | Waits for a download to start while executing `action`. |
 | `spel/wait-for-file-chooser` | [action] \| [action opts] | Waits for a file chooser dialog while executing `action`. |
-| `spel/wait-for-function` | [expr] | Waits for a JavaScript function to return a truthy value. |
+| `spel/wait-for-function` | [expr] \| [expr opts] | Waits for a JavaScript function to return a truthy value. |
 | `spel/wait-for-load-state` | [] \| [state] | Waits for the page to reach a load state. |
 | `spel/wait-for-popup` | [action] \| [action opts] | Waits for a popup page to open while executing `action`. |
 | `spel/wait-for-selector` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
 | `spel/wait-for-timeout` | [ms] | Waits for the specified time in milliseconds. |
-| `spel/wait-for-url` | [url] | Waits for the page to navigate to a URL. |
+| `spel/wait-for-url` | [url] \| [url opts] | Waits for the page to navigate to a URL. |
 
 ### `snapshot/` — Accessibility snapshot capture and ref resolution
 
@@ -1355,6 +1356,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--no-boxes` | Hide bounding boxes |
 | `unannotate` | Remove annotation overlays |
 | `pdf <path>` | Save as PDF |
+| `markdownify` | Convert page or HTML input to Markdown |
 
 ### Get Info
 
@@ -1529,6 +1531,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `search <query> [opts]` | Google search from the CLI (--help for details) |
+| `markdownify [opts]` | Convert current page, URL, file, or input HTML to Markdown |
 | `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |

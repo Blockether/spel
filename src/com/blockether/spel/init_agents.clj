@@ -64,8 +64,8 @@
 (def ^:private subagent-ref-map
   "Maps subagent group keywords to their relevant ref file names.
    :core refs are ALWAYS included regardless of agent selection."
-  {:core ["FULL_API.md" "CONSTANTS.md" "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md"
-          "AGENT_COMMON.md"]
+  {:core ["START_HERE.md" "CAPABILITIES.md" "FULL_API.md" "CONSTANTS.md"
+          "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md" "AGENT_COMMON.md"]
    :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
           "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md" "CI_WORKFLOWS.md"]
    :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
@@ -149,13 +149,13 @@
                             "+"
                             nil]
                            [testing-conventions-resource
-                            (str skill-dir "/refs/TESTING_CONVENTIONS.md")
+                            (str skill-dir "/references/TESTING_CONVENTIONS.md")
                             "ref: TESTING_CONVENTIONS"
                             "+"
                             nil]]
                       (mapv (fn [filename]
-                              [(str "skills/spel/refs/" filename)
-                               (str skill-dir "/refs/" filename)
+                              [(str "skills/spel/references/" filename)
+                               (str skill-dir "/references/" filename)
                                (str "ref: " (str/replace filename #"\.[^.]+$" ""))
                                "+"
                                nil])

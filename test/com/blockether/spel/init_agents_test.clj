@@ -555,7 +555,7 @@
   (describe "ref deduplication"
     (it "does not duplicate shared ref files across agent groups"
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false))
-            ref-paths (filter #(str/includes? % "/refs/") paths)]
+            ref-paths (filter #(str/includes? % "/references/") paths)]
         (expect (= (count ref-paths) (count (distinct ref-paths)))))))
 
   (describe "claude loop target"

@@ -509,15 +509,15 @@
             "\n"))))))
 
 ;; =============================================================================
-;; FULL_API.md Generation (refs/FULL_API.md)
+;; FULL_API.md Generation (references/FULL_API.md)
 ;; =============================================================================
 
 (def ^:private full-api-output-path
-  "Auto-generated API reference — written to refs/FULL_API.md."
-  "resources/com/blockether/spel/templates/skills/spel/refs/FULL_API.md")
+  "Auto-generated API reference — written to references/FULL_API.md."
+  "resources/com/blockether/spel/templates/skills/spel/references/FULL_API.md")
 
 (defn generate-full-api-ref
-  "Generates refs/FULL_API.md with library API, SCI eval API, and CLI commands.
+  "Generates references/FULL_API.md with library API, SCI eval API, and CLI commands.
    This replaces the old SKILL.md template-based generation.
    SKILL.md is now a hand-edited concise orientation doc."
   []
@@ -533,7 +533,7 @@
                  "\n---\n\n"
                  cli-commands)]
     (spit (io/file full-api-output-path) result)
-    (println "Generated refs/FULL_API.md with:")
+    (println "Generated references/FULL_API.md with:")
     (println "  - Library API:" (count (re-seq #"\| `" library-api)) "functions")
     (println "  - SCI eval API:" (count (re-seq #"\| `" sci-api)) "functions")
     (println "  - CLI commands:" (count (re-seq #"\| `" cli-commands)) "commands")

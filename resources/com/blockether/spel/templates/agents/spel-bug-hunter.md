@@ -36,8 +36,8 @@ Inputs:
 Outputs:
 - `bugfind-reports/hunter-report.json` — Hunter report using BUGFIND_GUIDE schema (JSON)
 - `bugfind-reports/verdict.json` — Final verified bug list after self-challenge (JSON)
-- `bugfind-reports/qa-report.html` — Human-readable QA report rendered from `refs/spel-report.html`
-- `bugfind-reports/qa-report.md` — LLM-friendly QA report rendered from `refs/spel-report.md`
+- `bugfind-reports/qa-report.html` — Human-readable QA report rendered from `references/spel-report.html`
+- `bugfind-reports/qa-report.md` — LLM-friendly QA report rendered from `references/spel-report.md`
 - `bugfind-reports/evidence/` — Supporting screenshots, snapshots, and logs
 - `bugfind-reports/diff-report.json` — Visual regression report (JSON, only when baselines exist)
 
@@ -410,8 +410,8 @@ Severity reconciliation rules:
 
 After self-challenge, generate the final artifacts in this order:
 1. `bugfind-reports/verdict.json`
-2. `bugfind-reports/qa-report.html` from `refs/spel-report.html`
-3. `bugfind-reports/qa-report.md` from `refs/spel-report.md`
+2. `bugfind-reports/qa-report.html` from `references/spel-report.html`
+3. `bugfind-reports/qa-report.md` from `references/spel-report.md`
 
 `verdict.json` must include:
 - `agent`, `timestamp`, `target_url`

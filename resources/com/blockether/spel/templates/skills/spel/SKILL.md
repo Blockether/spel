@@ -101,7 +101,7 @@ spel search "cats" --images                     # image search
 spel search "query" --open 1                    # navigate to result #1
 ```
 
-For full CLI flags, SCI functions, and library API, see `refs/SEARCH_API.md`.
+For full CLI flags, SCI functions, and library API, see `references/SEARCH_API.md`.
 
 ## ⚠️ SCI eval vs library: key differences
 
@@ -206,7 +206,7 @@ Solution: Close with `spel --session $SESSION close`. If that fails, run `spel s
 Cause: Page content changed after navigation; old refs are invalid.
 Solution: ALWAYS re-run `spel snapshot -i` after any navigation or page state change. Never reuse refs from a previous snapshot.
 
-For more troubleshooting, see `refs/COMMON_PROBLEMS.md`.
+For more troubleshooting, see `references/COMMON_PROBLEMS.md`.
 
 ## Performance notes
 
@@ -217,69 +217,71 @@ For more troubleshooting, see `refs/COMMON_PROBLEMS.md`.
 
 ## Reference documentation
 
+Start with `references/START_HERE.md` for the shortest orientation path and `references/CAPABILITIES.md` for the compact capability map.
+
 ### Core API & patterns
 | Ref | Topic |
 |-----|-------|
-| `refs/FULL_API.md` | Complete API tables — auto-generated library API, SCI eval API, CLI commands |
-| `refs/PAGE_LOCATORS.md` | Page locators, selectors, get-by-* methods |
-| `refs/NAVIGATION_WAIT.md` | Navigation, waiting, load states |
-| `refs/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
-| `refs/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
-| `refs/CONSTANTS.md` | Constants, enums, AriaRole values |
-| `refs/SEARCH_API.md` | Google Search CLI, SCI, and library API |
+| `references/FULL_API.md` | Complete API tables — auto-generated library API, SCI eval API, CLI commands |
+| `references/PAGE_LOCATORS.md` | Page locators, selectors, get-by-* methods |
+| `references/NAVIGATION_WAIT.md` | Navigation, waiting, load states |
+| `references/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
+| `references/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
+| `references/CONSTANTS.md` | Constants, enums, AriaRole values |
+| `references/SEARCH_API.md` | Google Search CLI, SCI, and library API |
 
 ### Browser & network
 | Ref | Topic |
 |-----|-------|
-| `refs/BROWSER_OPTIONS.md` | Browser launch/context options, presets, lifecycle macros, device emulation |
-| `refs/NETWORK_ROUTING.md` | Page routing, request/response inspection, WebSocket |
-| `refs/FRAMES_INPUT.md` | Frame navigation, keyboard/mouse/touchscreen input |
+| `references/BROWSER_OPTIONS.md` | Browser launch/context options, presets, lifecycle macros, device emulation |
+| `references/NETWORK_ROUTING.md` | Page routing, request/response inspection, WebSocket |
+| `references/FRAMES_INPUT.md` | Frame navigation, keyboard/mouse/touchscreen input |
 
 ### Testing & assertions
 | Ref | Topic |
 |-----|-------|
-| `refs/TESTING_CONVENTIONS.md` | Test framework conventions, fixtures, running tests (flavour-specific) |
-| `refs/ASSERTIONS_EVENTS.md` | Playwright assertions, events/signals, file input |
-| `refs/SNAPSHOT_TESTING.md` | Snapshot testing patterns |
-| `refs/API_TESTING.md` | API testing context, HTTP methods, hooks, retry |
+| `references/TESTING_CONVENTIONS.md` | Test framework conventions, fixtures, running tests (flavour-specific) |
+| `references/ASSERTIONS_EVENTS.md` | Playwright assertions, events/signals, file input |
+| `references/SNAPSHOT_TESTING.md` | Snapshot testing patterns |
+| `references/API_TESTING.md` | API testing context, HTTP methods, hooks, retry |
 
 ### Reporting & CI
 | Ref | Topic |
 |-----|-------|
-| `refs/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
-| `refs/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
+| `references/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
+| `references/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
 
 ### Presenter & visual output
 | Ref | Topic |
 |-----|-------|
-| `refs/CSS_PATTERNS.md` | **Canonical design system** — fonts, colors, dark mode, card/table/KPI components (REQUIRED for all visual output) |
-| `refs/PRESENTER_SKILL.md` | Presenter workflow, content types, design token contract, quality checks |
-| `refs/SLIDE_PATTERNS.md` | Slide engine, scroll-snap slides, transitions, navigation chrome, presets |
-| `refs/LIBRARIES.md` | External libraries — Mermaid.js theming, Chart.js, anime.js, Google Fonts pairings |
+| `references/CSS_PATTERNS.md` | **Canonical design system** — fonts, colors, dark mode, card/table/KPI components (REQUIRED for all visual output) |
+| `references/PRESENTER_SKILL.md` | Presenter workflow, content types, design token contract, quality checks |
+| `references/SLIDE_PATTERNS.md` | Slide engine, scroll-snap slides, transitions, navigation chrome, presets |
+| `references/LIBRARIES.md` | External libraries — Mermaid.js theming, Chart.js, anime.js, Google Fonts pairings |
 
 ### QA / exploratory testing
 | Ref | Topic |
 |-----|-------|
-| `refs/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
-| `refs/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
-| `refs/spel-report.html` | Unified report HTML template — QA + product discovery |
-| `refs/spel-report.md` | Unified report Markdown template — LLM-friendly QA + product discovery handoff |
-| `refs/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
+| `references/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
+| `references/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
+| `references/spel-report.html` | Unified report HTML template — QA + product discovery |
+| `references/spel-report.md` | Unified report Markdown template — LLM-friendly QA + product discovery handoff |
+| `references/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
 
 ### CLI & tools
 | Ref | Topic |
 |-----|-------|
-| `refs/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
-| `refs/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `refs/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect, storage state, agent scaffolding |
+| `references/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
+| `references/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
+| `references/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect, storage state, agent scaffolding |
 
 ### Agent shared patterns
 | Ref | Topic |
 |-----|-------|
-| `refs/AGENT_COMMON.md` | Shared agent patterns — session management, GATE contracts, error recovery |
-| `refs/ENVIRONMENT_VARIABLES.md` | All spel environment variables — browser, session, network, SSL, testing, advanced |
+| `references/AGENT_COMMON.md` | Shared agent patterns — session management, GATE contracts, error recovery |
+| `references/ENVIRONMENT_VARIABLES.md` | All spel environment variables — browser, session, network, SSL, testing, advanced |
 
 ### Troubleshooting
 | Ref | Topic |
 |-----|-------|
-| `refs/COMMON_PROBLEMS.md` | Common issues, debugging tips, error patterns |
+| `references/COMMON_PROBLEMS.md` | Common issues, debugging tips, error patterns |

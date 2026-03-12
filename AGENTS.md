@@ -88,7 +88,7 @@ make test-cli-clj            # CLI Clojure integration tests only
 make format                  # auto-format all source files
 make lint                    # clojure-lsp diagnostics --raw
 make validate-safe-graal     # check for reflection/boxed-math warnings
-make gen-docs                # regenerate refs/FULL_API.md from source (run BEFORE install-local)
+make gen-docs                # regenerate references/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
 make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 8 agents)
 ```
@@ -188,7 +188,7 @@ Done. The workflow (.github/workflows/release.yml) automatically:
 |---|---|
 | API reference (agents) | `.opencode/skills/spel/SKILL.md` |
 | SKILL source (hand-edited) | `resources/.../templates/skills/spel/SKILL.md` |
-| Full API ref (auto-generated) | `resources/.../templates/skills/spel/refs/FULL_API.md` |
+| Full API ref (auto-generated) | `resources/.../templates/skills/spel/references/FULL_API.md` |
 | Project docs | `README.md` |
 | nREPL eval | `clj-nrepl-eval` (eval Clojure against running nREPL) |
 | Paren repair | `clj-paren-repair <file>` |

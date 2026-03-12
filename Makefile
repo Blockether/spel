@@ -1,6 +1,6 @@
 .PHONY: test test-cli test-cli-clj test-watch test-junit test-allure allure-serve allure \
 	clean jar install deploy lint repl format preview \
-	spel uberjar install-local gen-docs init-agents validate-safe-graal
+	spel uberjar install-local gen-docs init-agents validate-safe-graal evals real-evals
 
 REPL_PORT ?= 7600
 
@@ -68,11 +68,17 @@ install-local: spel ## Build + install spel binary to ~/.local/bin
 	rm -f $(HOME)/.local/bin/spel
 	cp target/spel $(HOME)/.local/bin/spel
 
-gen-docs: ## Regenerate refs/FULL_API.md from source introspection (run BEFORE install-local)
+gen-docs: ## Regenerate references/FULL_API.md from source introspection (run BEFORE install-local)
 	clojure -T:build gen-docs
 
 init-agents: ## Scaffold OpenCode E2E testing agents (via spel)
 	./target/spel init-agents $(ARGS)
+
+evals: ## Run agent scaffold eval harness
+	python3 evals/run.py --binary ./target/spel
+
+real-evals: ## Run real OpenCode behavioral eval probes
+	python3 evals/run_real.py --binary ./target/spel
 
 # =============================================================================
 # Publish
