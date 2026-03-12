@@ -2150,13 +2150,18 @@
 (defdescribe audit-subcommand-test
   "Tests for audit umbrella command with subcommands"
 
-  (describe "audit (no subcommand) → audit-all"
+  (describe "audit (no subcommand) → audit all"
     (it "runs all audits"
-      (expect (= {:action "audit-all"} (cmd ["audit"]))))
+      (expect (= {:action "audit" :all true} (cmd ["audit"]))))
 
     (it "passes --only flag"
-      (expect (= {:action "audit-all" :only "contrast,layout"}
+      (expect (= {:action "audit" :all true :only "contrast,layout"}
                 (cmd ["audit" "--only" "contrast,layout"])))))
+
+  (describe "audit explicit all flag"
+    (it "audit --all maps to audit action with all flag"
+      (expect (= {:action "audit" :all true}
+                (cmd ["audit" "--all"])))))
 
   (describe "audit subcommands"
     (it "audit structure → audit action"
@@ -2187,3 +2192,26 @@
     (it "parses find-free-port command"
       (expect (= {:action "find_free_port"}
                 (cmd ["find-free-port"]))))))
+
+(defdescribe markdownify-command-test
+  "Tests for markdownify CLI parsing"
+
+  (it "parses markdownify with no args"
+    (expect (= {:action "markdownify" :title true :readable true}
+              (cmd ["markdownify"]))))
+
+  (it "parses markdownify --url"
+    (expect (= {:action "markdownify" :url "https://example.com" :title true :readable true}
+              (cmd ["markdownify" "--url" "https://example.com"]))))
+
+  (it "parses markdownify --file as absolute path"
+    (expect (= {:action "markdownify" :file (abs-path "page.html") :title true :readable true}
+              (cmd ["markdownify" "--file" "page.html"]))))
+
+  (it "parses markdownify --input"
+    (expect (= {:action "markdownify" :input "<h1>Hello</h1>" :title true :readable true}
+              (cmd ["markdownify" "--input" "<h1>Hello</h1>"]))))
+
+  (it "parses markdownify readability and title flags"
+    (expect (= {:action "markdownify" :url "https://example.com" :title false :readable false}
+              (cmd ["markdownify" "--url" "https://example.com" "--full" "--no-title"])))))

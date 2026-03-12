@@ -217,7 +217,7 @@ section "Navigation (4)"
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "open → .url" "$OUT" '.url' 'https://example.com/'
 assert_jq_eq "open → .title" "$OUT" '.title' 'Example Domain'
-assert_jq_contains "open → .snapshot has refs" "$OUT" '.snapshot' '[@e'
+assert_jq "open → no snapshot payload" "$OUT" 'has("snapshot") | not'
 # Navigate to a second URL so back/forward have history
 "$SPEL" open https://www.iana.org/help/example-domains >/dev/null 2>&1
 OUT=$("$SPEL" --json back 2>&1)
@@ -229,7 +229,7 @@ assert_jq "forward → success" "$OUT" 'has("error") | not'
 nav "https://example.com"
 
 OUT=$("$SPEL" --json reload 2>&1)
-assert_jq_contains "reload → snapshot has refs" "$OUT" '.snapshot' '[@e'
+assert_jq "reload → no snapshot payload" "$OUT" 'has("snapshot") | not'
 
 # =============================================================================
 # SNAPSHOT (5)
@@ -937,7 +937,7 @@ OUT=$(timeout 15 "$SPEL" --json close 2>&1) || true
 assert_jq "interactive close → success" "$OUT" 'has("error") | not'
 OUT=$(timeout 30 "$SPEL" --json open https://example.com 2>&1) || true
 assert_jq_eq "headless reopen after interactive → .url" "$OUT" '.url' 'https://example.com/'
-assert_jq_contains "headless reopen → snapshot" "$OUT" '.snapshot' '[@e'
+assert_jq "headless reopen → no snapshot payload" "$OUT" 'has("snapshot") | not'
 
 "$SPEL" close 2>/dev/null || true
 
@@ -1655,6 +1655,31 @@ assert_jq "audit → has structure" "$OUT" '.structure.url'
 assert_jq "audit → has contrast" "$OUT" '.contrast["total-elements"] >= 0'
 assert_jq "audit → has sections" "$OUT" '.structure.sections | type == "array"'
 
+OUT=$("$SPEL" --json audit --all 2>&1)
+assert_jq "audit --all → has structure" "$OUT" '.structure.url'
+assert_jq "audit --all → has headings" "$OUT" '.headings.headings | type == "array"'
+
+OUT=$("$SPEL" --json markdownify --input '<h1>Hello</h1><p>World</p>' 2>&1)
+assert_jq_contains "markdownify --input → heading" "$OUT" '.markdown' '# Hello'
+assert_jq_contains "markdownify --input → paragraph" "$OUT" '.markdown' 'World'
+
+MD_FILE=/tmp/test-cli-markdownify.html
+TEMP_FILES+=("$MD_FILE")
+printf '%s' '<html><body><h2>From File</h2><ul><li>One</li></ul></body></html>' > "$MD_FILE"
+OUT=$("$SPEL" --json markdownify --file "$MD_FILE" 2>&1)
+assert_jq_contains "markdownify --file → heading" "$OUT" '.markdown' '## From File'
+assert_jq_contains "markdownify --file → list" "$OUT" '.markdown' '- One'
+
+OUT=$("$SPEL" --json markdownify --input '<html><head><title>DocTitle</title></head><body><p>Body</p><footer>Footer Noise</footer></body></html>' 2>&1)
+assert_jq_contains "markdownify default → includes title heading" "$OUT" '.markdown' '# DocTitle'
+assert_jq "markdownify default → prunes footer content" "$OUT" '(.markdown | contains("Footer Noise")) | not'
+
+OUT=$("$SPEL" --json markdownify --input '<html><head><title>DocTitle</title></head><body><p>Body</p></body></html>' --no-title 2>&1)
+assert_jq "markdownify --no-title → omits title heading" "$OUT" '(.markdown | contains("# DocTitle")) | not'
+
+OUT=$("$SPEL" --json markdownify --input '<html><head><title>DocTitle</title></head><body><article><h1>Main</h1></article><footer>Footer Noise</footer></body></html>' --full 2>&1)
+assert_jq_contains "markdownify --full → keeps footer content" "$OUT" '.markdown' 'Footer Noise'
+
 OUT=$("$SPEL" --json routes 2>&1)
 assert_jq "routes → has links" "$OUT" '.links | type == "array"'
 assert_jq "routes → has count" "$OUT" '.count >= 0'
@@ -1703,7 +1728,16 @@ assert_contains "audit --help mentions layout" "$OUT" "layout"
 assert_contains "audit --help mentions fonts" "$OUT" "fonts"
 assert_contains "audit --help mentions links" "$OUT" "links"
 assert_contains "audit --help mentions headings" "$OUT" "headings"
+assert_contains "audit --help mentions --all" "$OUT" "--all"
 assert_contains "audit --help mentions --only" "$OUT" "--only"
+
+OUT=$("$SPEL" markdownify --help 2>&1)
+assert_contains "markdownify --help mentions markdownify" "$OUT" "markdownify"
+assert_contains "markdownify --help mentions --url" "$OUT" "--url"
+assert_contains "markdownify --help mentions --file" "$OUT" "--file"
+assert_contains "markdownify --help mentions --input" "$OUT" "--input"
+assert_contains "markdownify --help mentions --full" "$OUT" "--full"
+assert_contains "markdownify --help mentions --no-title" "$OUT" "--no-title"
 
 # SUMMARY
 # =============================================================================

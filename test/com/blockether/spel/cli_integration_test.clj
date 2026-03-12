@@ -456,7 +456,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))
+             (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -475,7 +475,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -1277,7 +1277,36 @@
         (expect (string? (:title result)))
         (expect (pos? (:scroll-height result)))
         (expect (map? (:viewport result)))
-        (expect (vector? (:sections result))))))
+        (expect (vector? (:sections result)))))
+
+    (it "runs all audits when all flag is set"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "audit" {"all" true})]
+        (expect (map? (:structure result)))
+        (expect (map? (:contrast result)))
+        (expect (map? (:colors result)))
+        (expect (map? (:layout result)))
+        (expect (map? (:fonts result)))
+        (expect (map? (:links result)))
+        (expect (map? (:headings result)))))
+
+    (it "runs only requested audits when only is set"
+      (cmd "navigate" {"url" "https://example.com"})
+      (let [result (cmd "audit" {"only" "contrast,layout"})]
+        (expect (nil? (:structure result)))
+        (expect (map? (:contrast result)))
+        (expect (map? (:layout result)))
+        (expect (nil? (:fonts result))))))
+
+  (describe "markdownify"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns markdown for current page"
+      (cmd "navigate" {"url" (str *test-server-url* "/test-page")})
+      (let [result (cmd "markdownify" {})]
+        (expect (string? (:markdown result)))
+        (expect (str/includes? (:markdown result) "# Test Page"))
+        (expect (str/includes? (:markdown result) "Submit")))))
 
   (describe "routes"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
@@ -1564,15 +1593,34 @@
             r (cmd "sci_eval" {"code" "(spel/title)"})]
         (expect (= "\"Test Page\"" (:result r)))))
 
+    (it "supports wait-for-url options in SCI"
+      (let [r (cmd "sci_eval" {"code" (str "(do (spel/navigate \"" *test-server-url* "/test-page\") "
+                                        "(spel/wait-for-url \"**/test-page\" {:timeout 5000}) :ok)")})]
+        (expect (= ":ok" (:result r)))))
+
+    (it "supports wait-for-function options in SCI"
+      (let [r (cmd "sci_eval" {"code" "(do (spel/wait-for-function \"() => true\" {:timeout 5000 :polling 100}) :ok)"})]
+        (expect (= ":ok" (:result r)))))
+
+    (it "exposes clojure.string as string namespace in SCI"
+      (let [r (cmd "sci_eval" {"code" "(string/includes? \"hello\" \"ell\")"})]
+        (expect (= "true" (:result r)))))
+
+    (it "exposes java.net.URLDecoder in SCI"
+      (let [r (cmd "sci_eval" {"code" "(java.net.URLDecoder/decode \"a%2Bb%3D1\" \"UTF-8\")"})]
+        (expect (= "\"a+b=1\"" (:result r)))))
+
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})
             audit-r   (cmd "sci_eval" {"code" "(map? (spel/audit))"})
+            md-r      (cmd "sci_eval" {"code" "(string? (spel/markdownify))"})
             routes-r  (cmd "sci_eval" {"code" "(map? (spel/routes))"})
             inspect-r (cmd "sci_eval" {"code" "(map? (spel/inspect))"})
             over-r    (cmd "sci_eval" {"code" "(map? (spel/overview))"})]
         (expect (= "true" (:result survey-r)))
         (expect (= "true" (:result audit-r)))
+        (expect (= "true" (:result md-r)))
         (expect (= "true" (:result routes-r)))
         (expect (= "true" (:result inspect-r)))
         (expect (= "true" (:result over-r)))))
@@ -2045,7 +2093,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                     (catch Exception _ true))]
+                        (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---
