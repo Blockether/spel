@@ -2630,9 +2630,11 @@
   (let [pid-path (pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try
-        (let [pid (str/trim (String. (Files/readAllBytes pid-path)))
-              p   (.start (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String ["kill" "-0" pid])))]
-          (= 0 (.waitFor p)))
+        (let [pid-text (str/trim (String. (Files/readAllBytes pid-path)))
+              pid      (Long/parseLong pid-text)]
+          (if-let [ph (.orElse (java.lang.ProcessHandle/of pid) nil)]
+            (.isAlive ^java.lang.ProcessHandle ph)
+            false))
         (catch Exception _
           (cleanup! session)
           false)))))

@@ -67,7 +67,20 @@
 
   (describe "returns falsy for non-existent session"
     (it "returns nil/false when no PID file exists"
-      (expect (not (sut/daemon-running? "nonexistent-session-12345"))))))
+      (expect (not (sut/daemon-running? "nonexistent-session-12345")))))
+
+  (describe "returns truthy for current process pid"
+    (it "detects current process from PID file"
+      (let [session  (str "daemon-running-current-" (System/currentTimeMillis))
+            pid-path (sut/pid-file-path session)]
+        (try
+          (java.nio.file.Files/writeString
+            pid-path
+            (str (.pid (java.lang.ProcessHandle/current)))
+            (into-array java.nio.file.OpenOption []))
+          (expect (true? (sut/daemon-running? session)))
+          (finally
+            (java.nio.file.Files/deleteIfExists pid-path)))))))
 
 ;; =============================================================================
 ;; Unit Tests — process-command (private)
