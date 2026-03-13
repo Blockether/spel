@@ -1210,12 +1210,12 @@
       (let [r (cmd "cdp_disconnect" {})]
         (expect (= false (:disconnected r)))))
 
-    (it "process-command reports clear error when cdp_reconnect has no URL"
+    (it "process-command reports clear error when cdp_reconnect has no previous connection"
       (let [resp (json/read-json
                    (#'daemon/process-command
                     (json/write-json-str {"action" "cdp_reconnect"})))]
         (expect (= false (get resp "success")))
-        (expect (str/includes? (get resp "error") "No CDP URL available"))))))
+        (expect (str/includes? (get resp "error") "No previous CDP connection found"))))))
 
 ;; =============================================================================
 ;; 37. Default (unknown action)
@@ -1725,10 +1725,10 @@
         ;; Non-CDP session: disconnect-cdp! returns {:disconnected false} — not an error
         (expect (= "{:disconnected false, :cdp nil}" (:result r)))))
 
-    (it "cdp-reconnect without URL fails with clear error in SCI"
+    (it "cdp-reconnect on non-CDP session tells you to connect first"
       (let [r (cmd "sci_eval" {"code" "(try (spel/cdp-reconnect) (catch Exception e (.getMessage e)))"})]
-        ;; No CDP URL available — error message should guide the user
-        (expect (clojure.string/includes? (:result r) "No CDP URL available"))))
+        ;; No previous CDP connection — clear error guiding the user
+        (expect (clojure.string/includes? (:result r) "No previous CDP connection found"))))
 
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})

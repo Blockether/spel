@@ -2401,7 +2401,7 @@
 (defmethod handle-cmd "cdp_reconnect" [_ {:strs [url]}]
   (let [target-url (or url (current-cdp-url))]
     (when (str/blank? target-url)
-      (throw (ex-info "No CDP URL available. Use: spel cdp reconnect <url>" {:error_code "cdp_url_required"})))
+      (throw (ex-info "No previous CDP connection found. Connect first: spel connect <url>" {:error_code "cdp_url_required"})))
     (disconnect-cdp!)
     (assoc (connect-cdp! target-url) :reconnected true)))
 
@@ -2425,11 +2425,11 @@
     result))
 
 (defn- sci-cdp-reconnect-handler
-  "CDP reconnect handler for SCI eval — disconnects, reconnects, syncs new state to SCI atoms."
+  "CDP reconnect handler for SCI eval — reconnects using last known CDP URL (or explicit override), syncs new state to SCI atoms."
   [url]
   (let [target-url (or url (current-cdp-url))]
     (when (str/blank? target-url)
-      (throw (ex-info "No CDP URL available. Pass URL: (spel/cdp-reconnect \"ws://...\")" {:error_code "cdp_url_required"})))
+      (throw (ex-info "No previous CDP connection found. Connect first: spel connect <url>" {:error_code "cdp_url_required"})))
     (disconnect-cdp!)
     (let [result (connect-cdp! target-url)
           st @!state]

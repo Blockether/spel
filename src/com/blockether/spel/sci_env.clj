@@ -1017,15 +1017,18 @@
 (defn sci-cdp-reconnect
   "Reconnects to the CDP endpoint after a disconnect.
 
-   Optionally takes a CDP WebSocket URL; defaults to the last
-   used URL from the session's launch flags.
+   No arguments needed — the daemon remembers the CDP URL from
+   the original connection. An explicit URL override is accepted
+   but almost never required.
 
    Returns:
    Map with :connected URL, :url current page URL, :reconnected true.
 
    Example:
-     (spel/cdp-reconnect)
-     (spel/cdp-reconnect \"ws://localhost:9222\")"
+     (spel/cdp-disconnect)
+     (spel/sleep 3000)
+     (spel/cdp-reconnect)          ; just works — daemon knows the URL
+     (spel/cdp-reconnect \"ws://localhost:9222\")  ; explicit override"
   ([] (sci-cdp-reconnect nil))
   ([url]
    (if-let [handler @!cdp-reconnect-handler]
