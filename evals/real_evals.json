@@ -85,6 +85,52 @@
           "done"
         ]
       }
+    },
+    {
+      "id": "orchestrator-automation-page-onet",
+      "description": "Run a real page eval through orchestrator on https://onet.pl and require machine-readable outputs.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Use spel CLI to evaluate https://onet.pl. Capture final page title and URL into eval-artifacts/onet-page.json. Also write orchestration/automation-pipeline.json with status completed and next_step done. Use split waits: open then wait --load domcontentloaded then wait --url onet.pl. Use bash/python for file writes (do not use apply_patch). FAST-PATH REQUIRED: do not run helper agents, do not run glob/grep workspace scans, and do not do planning-only turns; execute the minimal command chain immediately and verify both files exist before finishing.",
+      "timeout_seconds": 240,
+      "expected_artifacts": [
+        "eval-artifacts/onet-page.json",
+        "orchestration/automation-pipeline.json"
+      ],
+      "artifact_contains": {
+        "eval-artifacts/onet-page.json": [
+          "onet.pl"
+        ],
+        "orchestration/automation-pipeline.json": [
+          "completed",
+          "done"
+        ]
+      }
+    },
+    {
+      "id": "orchestrator-automation-page-wp",
+      "description": "Run a real page eval through orchestrator on https://wp.pl and require machine-readable outputs.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "openai/gpt-5.3-codex",
+      "message": "Use spel CLI to evaluate https://wp.pl. Capture final page title and URL into eval-artifacts/wp-page.json. Also write orchestration/automation-pipeline.json with status completed and next_step done. Use split waits: open then wait --load domcontentloaded then wait --url wp.pl. Use bash/python for file writes (do not use apply_patch). FAST-PATH REQUIRED: do not run helper agents, do not run glob/grep workspace scans, and do not do planning-only turns; execute the minimal command chain immediately and verify both files exist before finishing.",
+      "timeout_seconds": 240,
+      "expected_artifacts": [
+        "eval-artifacts/wp-page.json",
+        "orchestration/automation-pipeline.json"
+      ],
+      "artifact_contains": {
+        "eval-artifacts/wp-page.json": [
+          "wp.pl"
+        ],
+        "orchestration/automation-pipeline.json": [
+          "completed",
+          "done"
+        ]
+      }
     }
   ]
 }

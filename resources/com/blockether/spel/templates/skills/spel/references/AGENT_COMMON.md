@@ -216,8 +216,10 @@ If any required artifact is missing, do not ask for approval yet. Fix the stage 
 | URL unreachable | `spel open` returns error | Report: "Target URL unreachable: <url>. Verify the application is running." |
 | Selector not found | `--timeout` expires | Capture snapshot, show what IS on the page. Suggest alternative selectors. |
 | Heavy page click times out | Click on portal/SPA element hangs on wait | Use `spel wait --load domcontentloaded` or `spel wait --url <partial>` after the click. NEVER skip user actions by navigating directly — always click like a human would. |
+| Eval run times out before artifacts | Agent spends run budget on scans/helpers and never writes required files | Trigger direct-task fast-path: skip helper agents and broad scans, run minimal open/wait/get/write sequence, then verify artifact files immediately. |
 | Session conflict | `spel --session` error | Generate a new unique session name and retry. |
 | CDP endpoint conflict | `TargetClosedError` / `ECONNREFUSED` / attach flake | Use one owner session per CDP endpoint, relaunch only dedicated debug browser, keep user browser untouched. |
+| Edit tool denied by policy | Agent gets tool-permission error when writing artifacts | Write required files with `bash`/`python`, then read them back and verify exact content/paths before gate approval. |
 | Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-explorer for auth bootstrap (Step 0: open headed browser, let user log in, export state), or provide --load-state." |
 | JavaScript errors | Console errors in snapshot | Capture and report. Continue unless the page is non-functional. |
 | Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |

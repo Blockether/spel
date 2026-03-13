@@ -117,3 +117,7 @@ spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
 - Every step has a GATE — human review before proceeding
 - Each agent produces machine-readable output for downstream composition
 - Missing artifacts fail closed: if a promised JSON/data file is absent, the step is incomplete
+- For heavy portal front pages (for example `onet.pl`, `wp.pl`), prefer split waits: `wait --load domcontentloaded` then `wait --url <domain>` before collecting artifacts
+- If tool policy blocks patch-style editing, artifact files must be written with `bash`/`python` and then read back for verification
+- Do not pause for generic external-helper checks when the task is standard spel automation; execute directly and keep handoff artifacts current
+- For direct single-URL artifact tasks, skip exploration entirely: execute minimal commands in order (`open` -> waits -> `get title`/`get url` -> write JSON -> read/verify JSON), then update `orchestration/automation-pipeline.json`

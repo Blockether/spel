@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,29 @@ def load_json(path):
 
 def detect_auth_state():
     present = [name for name in AUTH_ENV_VARS if os.getenv(name)]
-    return {"available": bool(present), "vars": present}
+    return {"available": bool(present), "provider_count": len(present)}
+
+
+def sanitize_text(text):
+    if not text:
+        return ""
+    redacted = text
+    redacted = re.sub(
+        r"(?i)(api[_-]?key\s*[=:]\s*)([^\s\"']+)",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)(authorization\s*[:=]\s*bearer\s+)([^\s\"']+)",
+        r"\1[REDACTED]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|Z_AI_API_KEY)\b[^\n]*",
+        r"\1=[REDACTED]",
+        redacted,
+    )
+    return redacted
 
 
 def copy_if_exists(src: Path, dest: Path):
@@ -68,6 +91,11 @@ def scaffold_workspace(repo_root: Path, binary: Path, case):
         "--force",
     ]
     proc = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True, timeout=180)
+    proc_stdout = sanitize_text(proc.stdout)
+    proc_stderr = sanitize_text(proc.stderr)
+    proc = subprocess.CompletedProcess(
+        proc.args, proc.returncode, proc_stdout, proc_stderr
+    )
     return workdir, proc
 
 
@@ -94,8 +122,8 @@ def run_opencode_case(workdir: Path, case, model_override=None):
         return {
             "status": "completed",
             "returncode": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
+            "stdout": sanitize_text(proc.stdout),
+            "stderr": sanitize_text(proc.stderr),
             "command": cmd,
         }
     except subprocess.TimeoutExpired as exc:
@@ -112,8 +140,8 @@ def run_opencode_case(workdir: Path, case, model_override=None):
         return {
             "status": "timeout",
             "returncode": None,
-            "stdout": stdout,
-            "stderr": stderr,
+            "stdout": sanitize_text(stdout),
+            "stderr": sanitize_text(stderr),
             "command": cmd,
         }
 
@@ -153,7 +181,22 @@ def classify_result(auth_state, opencode_run, artifacts_present, contains_ok):
         return "pass"
     if "insufficient balance" in combined_output or "creditserror" in combined_output:
         return "blocked_runtime_billing"
-    if not auth_state["available"] and opencode_run["status"] == "timeout":
+    auth_markers = [
+        "authentication failed",
+        "unauthorized",
+        "invalid api key",
+        "api key missing",
+        "missing api key",
+        'statuscode":401',
+    ]
+    if any(marker in combined_output for marker in auth_markers):
+        return "blocked_runtime_auth"
+    if (
+        not auth_state.get("available", False)
+        and opencode_run["status"] == "timeout"
+        and "step_start" not in combined_output
+        and "tool_use" not in combined_output
+    ):
         return "blocked_runtime_auth"
     if opencode_run["status"] == "timeout":
         return "blocked_runtime_timeout"
@@ -197,9 +240,7 @@ def print_human(payload):
     print("spel real agent evals")
     print("")
     print(f"auth available: {payload['auth']['available']}")
-    print(
-        f"auth vars: {', '.join(payload['auth']['vars']) if payload['auth']['vars'] else 'none'}"
-    )
+    print(f"configured providers: {payload['auth']['provider_count']}")
     print("")
     for case in payload["cases"]:
         print(f"- {case['id']}: {case['status']}")
