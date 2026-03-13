@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.7] - 2026-03-13
+
+### Changed
+- fix: repair unbalanced parens in core.clj
+- fix: skip browser download in Playwright/create, fix README links (#82, #83)
+- chore(evals): remove compiled python cache artifacts
+- feat(evals): add real orchestrator eval harness and references docs
+- fix(daemon): fail fast on shared CDP route ownership
+- release: update version files for v0.6.6, bump to next dev version
+
+
 ## [v0.6.6] - 2026-03-12
 
 ### Changed
@@ -1255,7 +1266,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.6.6...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.6.7...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1297,3 +1308,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.6.4]: https://github.com/Blockether/spel/releases/tag/v0.6.4
 [v0.6.5]: https://github.com/Blockether/spel/releases/tag/v0.6.5
 [v0.6.6]: https://github.com/Blockether/spel/releases/tag/v0.6.6
+[v0.6.7]: https://github.com/Blockether/spel/releases/tag/v0.6.7
