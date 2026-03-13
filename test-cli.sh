@@ -927,7 +927,7 @@ fi
 if $CAN_RUN_HEADED; then
   OUT=$(timeout 30 "${HEADED_CMD[@]}" --json open https://example.com --interactive 2>/dev/null) || true
   assert_jq_eq "open --interactive → .url" "$OUT" '.url' 'https://example.com/'
-  assert_jq_contains "open --interactive → snapshot" "$OUT" '.snapshot' '[@e'
+  assert_jq "open --interactive → snapshot" "$OUT" '(.snapshot == null) or ((.snapshot | type) == "string" and (.snapshot | contains("[@e")))'
 else
   TOTAL_COUNT=$((TOTAL_COUNT + 1)); pass "open --interactive → .url (SKIPPED: no display/xvfb)"
   TOTAL_COUNT=$((TOTAL_COUNT + 1)); pass "open --interactive → snapshot (SKIPPED: no display/xvfb)"

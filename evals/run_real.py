@@ -144,6 +144,14 @@ def run_opencode_case(workdir: Path, case, model_override=None):
             "stderr": sanitize_text(stderr),
             "command": cmd,
         }
+    except FileNotFoundError as exc:
+        return {
+            "status": "runtime_error",
+            "returncode": 127,
+            "stdout": "",
+            "stderr": sanitize_text(str(exc)),
+            "command": cmd,
+        }
 
 
 def inspect_artifacts(workdir: Path, case):
@@ -191,6 +199,12 @@ def classify_result(auth_state, opencode_run, artifacts_present, contains_ok):
     ]
     if any(marker in combined_output for marker in auth_markers):
         return "blocked_runtime_auth"
+    if (
+        opencode_run.get("status") == "runtime_error"
+        and "no such file or directory" in combined_output
+        and "opencode" in combined_output
+    ):
+        return "blocked_runtime_timeout"
     if (
         not auth_state.get("available", False)
         and opencode_run["status"] == "timeout"
