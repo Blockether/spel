@@ -716,12 +716,95 @@
 (defn sci-on-console   [handler] (page/on-console (require-page!) handler))
 (defn sci-on-dialog    [handler] (page/on-dialog (require-page!) handler))
 (defn sci-once-dialog  [handler] (page/once-dialog (require-page!) handler))
+(defn sci-off-dialog
+  "Removes a previously registered dialog handler."
+  [handler]
+  (page/off-dialog (require-page!) handler))
 (defn sci-on-page-error [handler] (page/on-page-error (require-page!) handler))
 (defn sci-on-request   [handler] (page/on-request (require-page!) handler))
 (defn sci-on-response  [handler] (page/on-response (require-page!) handler))
 (defn sci-on-close     [handler] (page/on-close (require-page!) handler))
 (defn sci-on-download  [handler] (page/on-download (require-page!) handler))
 (defn sci-on-popup     [handler] (page/on-popup (require-page!) handler))
+
+;; =============================================================================
+;; Dialog manipulation
+;; =============================================================================
+
+(defn sci-dialog-type
+  "Returns the dialog type (alert, confirm, prompt, beforeunload)."
+  [dialog]
+  (page/dialog-type dialog))
+
+(defn sci-dialog-message
+  "Returns the dialog message text."
+  [dialog]
+  (page/dialog-message dialog))
+
+(defn sci-dialog-default-value
+  "Returns the default value for prompt dialogs."
+  [dialog]
+  (page/dialog-default-value dialog))
+
+(defn sci-dialog-accept!
+  "Accepts the dialog. Optional prompt-text for prompt dialogs."
+  ([dialog]
+   (page/dialog-accept! dialog))
+  ([dialog prompt-text]
+   (page/dialog-accept! dialog prompt-text)))
+
+(defn sci-dialog-dismiss!
+  "Dismisses the dialog."
+  [dialog]
+  (page/dialog-dismiss! dialog))
+
+;; --- High-level dialog convenience ---
+
+(def ^:private !sci-dialog-handler
+  "Atom holding the currently active dialog Consumer handler for SCI convenience functions."
+  (atom nil))
+
+(defn sci-auto-accept-dialogs!
+  "Registers a persistent dialog handler that auto-accepts all dialogs.
+   Optional prompt-text for prompt dialogs. Removes any previous handler first.
+   Returns nil."
+  ([]
+   (sci-auto-accept-dialogs! ""))
+  ([prompt-text]
+   (let [^Page pg (require-page!)]
+     (when-let [old @!sci-dialog-handler]
+       (.offDialog pg old))
+     (let [handler (reify java.util.function.Consumer
+                     (accept [_ dialog]
+                       (.accept ^Dialog dialog (or prompt-text ""))))]
+       (reset! !sci-dialog-handler handler)
+       (.onDialog pg handler))
+     nil)))
+
+(defn sci-auto-dismiss-dialogs!
+  "Registers a persistent dialog handler that auto-dismisses all dialogs.
+   Removes any previous handler first.
+   Returns nil."
+  []
+  (let [^Page pg (require-page!)]
+    (when-let [old @!sci-dialog-handler]
+      (.offDialog pg old))
+    (let [handler (reify java.util.function.Consumer
+                    (accept [_ dialog]
+                      (.dismiss ^Dialog dialog)))]
+      (reset! !sci-dialog-handler handler)
+      (.onDialog pg handler))
+    nil))
+
+(defn sci-clear-dialog-handler!
+  "Removes the current auto-accept/auto-dismiss dialog handler.
+   Returns nil."
+  []
+  (let [^Page pg (require-page!)]
+    (when-let [old @!sci-dialog-handler]
+      (.offDialog pg old)
+      (reset! !sci-dialog-handler nil))
+    nil))
 
 ;; =============================================================================
 ;; Routing
@@ -1641,12 +1724,23 @@
                   ['on-console   sci-on-console]
                   ['on-dialog    sci-on-dialog]
                   ['once-dialog  sci-once-dialog]
+                  ['off-dialog   sci-off-dialog]
                   ['on-page-error sci-on-page-error]
                   ['on-request   sci-on-request]
                   ['on-response  sci-on-response]
                   ['on-close     sci-on-close]
                   ['on-download  sci-on-download]
                   ['on-popup     sci-on-popup]
+                  ;; Dialog manipulation
+                  ['dialog-type          sci-dialog-type]
+                  ['dialog-message       sci-dialog-message]
+                  ['dialog-default-value sci-dialog-default-value]
+                  ['dialog-accept!       sci-dialog-accept!]
+                  ['dialog-dismiss!      sci-dialog-dismiss!]
+                  ;; Dialog convenience
+                  ['auto-accept-dialogs!  sci-auto-accept-dialogs!]
+                  ['auto-dismiss-dialogs! sci-auto-dismiss-dialogs!]
+                  ['clear-dialog-handler! sci-clear-dialog-handler!]
                   ;; Routing
                   ['route!       sci-route!]
                   ['unroute!     sci-unroute!]

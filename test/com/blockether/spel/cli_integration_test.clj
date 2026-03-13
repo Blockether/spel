@@ -1161,6 +1161,102 @@
         (expect (= "dismiss" (:dialog_handler r)))))))
 
 ;; =============================================================================
+;; 34. Dialog SCI functions (issue #85)
+;; =============================================================================
+
+(defdescribe dialog-sci-integration-test
+  "Integration tests for dialog manipulation via SCI eval (issue #85)"
+
+  (describe "dialog SCI functions"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "auto-accept-dialogs! accepts alert and returns nil"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs!)"})
+      ;; Trigger alert — should auto-accept without hanging
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"window.alert('hello'); 'done'\")"})]
+        (expect (= "\"done\"" (:result r)))))
+
+    (it "auto-accept-dialogs! accepts confirm as true"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs!)"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"confirm('ok?') ? 'yes' : 'no'\")"})]
+        (expect (= "\"yes\"" (:result r)))))
+
+    (it "auto-dismiss-dialogs! dismisses confirm as false"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-dismiss-dialogs!)"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"confirm('ok?') ? 'yes' : 'no'\")"})]
+        (expect (= "\"no\"" (:result r)))))
+
+    (it "auto-accept-dialogs! with prompt-text fills prompt"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs! \"my-answer\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"prompt('name?', 'default')\")"})]
+        (expect (= "\"my-answer\"" (:result r)))))
+
+    (it "clear-dialog-handler! removes the handler"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs!)"})
+      (cmd "sci_eval" {"code" "(spel/clear-dialog-handler!)"})
+      ;; After clearing, we re-register via once-dialog with dialog-accept!
+      (cmd "sci_eval" {"code" "(spel/once-dialog (fn [d] (spel/dialog-accept! d)))"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"window.alert('test'); 'ok'\")"})]
+        (expect (= "\"ok\"" (:result r)))))
+
+    (it "dialog-accept! works inside once-dialog handler"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/once-dialog (fn [d] (spel/dialog-accept! d)))"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"window.alert('hi'); 'accepted'\")"})]
+        (expect (= "\"accepted\"" (:result r)))))
+
+    (it "dialog-dismiss! works inside once-dialog handler"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/once-dialog (fn [d] (spel/dialog-dismiss! d)))"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"confirm('really?') ? 'yes' : 'no'\")"})]
+        (expect (= "\"no\"" (:result r)))))
+
+    (it "dialog-type returns dialog type string"
+      (nav! "/dialog-page")
+      (let [result-atom-code "(def !dialog-info (atom nil))
+                              (spel/once-dialog (fn [d]
+                                (reset! !dialog-info (spel/dialog-type d))
+                                (spel/dialog-accept! d)))"]
+        (cmd "sci_eval" {"code" result-atom-code})
+        (cmd "sci_eval" {"code" "(spel/eval-js \"window.alert('test')\")"})
+        (let [r (cmd "sci_eval" {"code" "@!dialog-info"})]
+          (expect (= "\"alert\"" (:result r))))))
+
+    (it "dialog-message returns dialog message text"
+      (nav! "/dialog-page")
+      (let [code "(def !dialog-msg (atom nil))
+                  (spel/once-dialog (fn [d]
+                    (reset! !dialog-msg (spel/dialog-message d))
+                    (spel/dialog-accept! d)))"]
+        (cmd "sci_eval" {"code" code})
+        (cmd "sci_eval" {"code" "(spel/eval-js \"window.alert('hello-msg')\")"})
+        (let [r (cmd "sci_eval" {"code" "@!dialog-msg"})]
+          (expect (= "\"hello-msg\"" (:result r))))))
+
+    (it "dialog-default-value returns prompt default"
+      (nav! "/dialog-page")
+      (let [code "(def !dialog-default (atom nil))
+                  (spel/once-dialog (fn [d]
+                    (reset! !dialog-default (spel/dialog-default-value d))
+                    (spel/dialog-accept! d)))"]
+        (cmd "sci_eval" {"code" code})
+        (cmd "sci_eval" {"code" "(spel/eval-js \"prompt('q', 'my-default')\")"})
+        (let [r (cmd "sci_eval" {"code" "@!dialog-default"})]
+          (expect (= "\"my-default\"" (:result r))))))
+
+    (it "replaces previous auto-accept handler without leaking"
+      (nav! "/dialog-page")
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs! \"first\")"})
+      (cmd "sci_eval" {"code" "(spel/auto-accept-dialogs! \"second\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"prompt('q', 'x')\")"})]
+        (expect (= "\"second\"" (:result r)))))))
+
+;; =============================================================================
 ;; 35. Trace Start / Stop
 ;; =============================================================================
 

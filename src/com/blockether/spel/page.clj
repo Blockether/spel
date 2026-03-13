@@ -742,6 +742,15 @@
     (reify java.util.function.Consumer
       (accept [_ dialog] (handler dialog)))))
 
+(defn off-dialog
+  "Removes a previously registered dialog handler.
+
+   Params:
+   `page`    - Page instance.
+   `handler` - The handler (Consumer) to remove."
+  [^Page page handler]
+  (.offDialog page handler))
+
 (defn on-page-error
   "Registers a handler for page errors.
    

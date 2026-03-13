@@ -65,6 +65,17 @@
   </script>
 </body></html>")
 
+(def ^:private dialog-page-html
+  "<!DOCTYPE html>
+<html><head><title>Dialog Page</title></head>
+<body>
+  <h1>Dialog Test</h1>
+  <button id=\"alert-btn\" onclick=\"alert('hello')\">Alert</button>
+  <button id=\"confirm-btn\" onclick=\"document.getElementById('result').textContent = confirm('ok?')\">Confirm</button>
+  <button id=\"prompt-btn\" onclick=\"document.getElementById('result').textContent = prompt('name?','default')\">Prompt</button>
+  <div id=\"result\"></div>
+</body></html>")
+
 (def ^:private second-page-html
   "<!DOCTYPE html>
 <html><head><title>Second Page</title></head>
@@ -99,6 +110,9 @@
 
           (and (= "GET" method) (= "/second-page" path))
           (send-response exchange 200 second-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/dialog-page" path))
+          (send-response exchange 200 dialog-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/iframe-page" path))
           (send-response exchange 200 iframe-page-html "text/html; charset=UTF-8")
