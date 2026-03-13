@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.9] - 2026-03-13
+
+### Changed
+- chore: regenerate help registry with CDP disconnect/reconnect entries
+- fix(test): update daemon_test CDP error message to match new wording
+- fix(sci): cdp-reconnect auto-resolves URL from daemon — no args needed
+- fix(sci): context-cookies returns Clojure maps (#84) + CDP disconnect/reconnect in eval-sci
+- feat(evals,daemon,sci): harden frisco flow and add cdp/url helpers
+- fix(daemon): use ProcessHandle for portable pid liveness checks
+- fix(evals): handle missing opencode binary in real eval smoke
+- feat(evals): enforce real-site fast-path orchestration
+- release: update version files for v0.6.8, bump to next dev version
+
+
 ## [v0.6.8] - 2026-03-13
 
 ### Changed
@@ -1273,7 +1287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.6.8...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.6.9...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1317,3 +1331,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.6.6]: https://github.com/Blockether/spel/releases/tag/v0.6.6
 [v0.6.7]: https://github.com/Blockether/spel/releases/tag/v0.6.7
 [v0.6.8]: https://github.com/Blockether/spel/releases/tag/v0.6.8
+[v0.6.9]: https://github.com/Blockether/spel/releases/tag/v0.6.9
