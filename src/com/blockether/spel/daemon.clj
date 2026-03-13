@@ -320,7 +320,7 @@
       (let [owner (get lock "session")]
         (when (and owner (not= owner session))
           {:warning (str "Another session ('" owner "') already has active network routes on this CDP endpoint. "
-                     "Use one session per --cdp endpoint for route interception to avoid hangs.")
+                      "Use one session per --cdp endpoint for route interception to avoid hangs.")
            :route_lock_owner owner})))))
 
 (defn cdp-route-lock-owner
@@ -384,7 +384,7 @@
 
 (defonce ^:private !session-entry-count (atom 0))
 
-(def ^:private max-preview-body-bytes 65536)
+(def ^:private max-preview-body-bytes (long 65536))
 (def ^:private preview-body-resource-types #{"fetch" "xhr"})
 
 (defn- parse-long-safe
@@ -403,7 +403,7 @@
         content-length (parse-long-safe (get resp-headers "content-length"))]
     (and (contains? preview-body-resource-types resource-type)
       (or (nil? content-length)
-        (<= content-length max-preview-body-bytes))
+        (<= (long content-length) (long max-preview-body-bytes)))
       (or (str/blank? content-type)
         (re-find #"json|text|javascript|xml|x-www-form-urlencoded" content-type)))))
 
@@ -2559,27 +2559,27 @@
            :cdp cdp-url})
         (try
           (let [result    (handle-cmd action params)
-              anomaly-v (cond
-                          (anomaly/anomaly? result)
-                          result
-                          (map? result)
-                          (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
-          (cond
+                anomaly-v (cond
+                            (anomaly/anomaly? result)
+                            result
+                            (map? result)
+                            (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
+            (cond
             ;; Handler returned an explicit failure map (e.g. sci_eval error path)
-            (and (map? result) (false? (:success result)))
-            (json/write-json-str result)
-            anomaly-v
-            (let [msg  (::anomaly/message anomaly-v)
-                  ex   (:playwright/exception anomaly-v)
-                  hint (when ex (reflection-error-hint ex))
-                  error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
-              (json/write-json-str (error-response error-msg)))
-            :else
-            (do
+              (and (map? result) (false? (:success result)))
+              (json/write-json-str result)
+              anomaly-v
+              (let [msg  (::anomaly/message anomaly-v)
+                    ex   (:playwright/exception anomaly-v)
+                    hint (when ex (reflection-error-hint ex))
+                    error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
+                (json/write-json-str (error-response error-msg)))
+              :else
+              (do
               ;; Track user-facing actions for SRT export
-              (when (trackable-actions action)
-                (track-action! action params result))
-              (json/write-json-str {:success true :data result}))))
+                (when (trackable-actions action)
+                  (track-action! action params result))
+                (json/write-json-str {:success true :data result}))))
           (catch Throwable e
             (let [hint (reflection-error-hint e)
                   msg  (or hint (.getMessage e) (default-error-message e))
