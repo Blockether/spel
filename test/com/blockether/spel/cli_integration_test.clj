@@ -1713,6 +1713,23 @@
       (let [r (cmd "sci_eval" {"code" "(url-decode \"a%2Bb%3D1+%26x+y\")"})]
         (expect (= "\"a+b=1 &x y\"" (:result r)))))
 
+    (it "context-cookies returns maps with keyword access in SCI (issue #84)"
+      (nav! "/test-page")
+      (let [page-url (:url (cmd "url" {}))
+            _  (cmd "cookies_set" {"name" "issue84" "value" "fixed" "url" page-url})
+            r  (cmd "sci_eval" {"code" "(let [cs (spel/context-cookies)] {:name (:name (first cs)) :value (:value (first cs))})"})]
+        (expect (= "{:name \"issue84\", :value \"fixed\"}" (:result r)))))
+
+    (it "cdp-disconnect is safe on non-CDP session in SCI"
+      (let [r (cmd "sci_eval" {"code" "(spel/cdp-disconnect)"})]
+        ;; Non-CDP session: disconnect-cdp! returns {:disconnected false} — not an error
+        (expect (= "{:disconnected false, :cdp nil}" (:result r)))))
+
+    (it "cdp-reconnect without URL fails with clear error in SCI"
+      (let [r (cmd "sci_eval" {"code" "(try (spel/cdp-reconnect) (catch Exception e (.getMessage e)))"})]
+        ;; No CDP URL available — error message should guide the user
+        (expect (clojure.string/includes? (:result r) "No CDP URL available"))))
+
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})

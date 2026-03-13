@@ -20,11 +20,11 @@
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.options :as opts])
   (:import
-    [java.io File]
-    [java.net InetAddress ServerSocket URLDecoder URLEncoder]
-    [java.nio.charset StandardCharsets]
-    [java.nio.file Path]
-    [java.util UUID]
+   [java.io File]
+   [java.net InetAddress ServerSocket URLDecoder URLEncoder]
+   [java.nio.charset StandardCharsets]
+   [java.nio.file Path]
+   [java.util UUID]
    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
@@ -534,16 +534,34 @@
   [^BrowserContext context]
   (.clearCookies context))
 
+(defn cookie->map
+  "Converts a Playwright Cookie Java object to a Clojure map.
+
+   Params:
+   `cookie` - com.microsoft.playwright.options.Cookie instance.
+
+   Returns:
+   Map with keys :name, :value, :domain, :path, :expires, :httpOnly, :secure, :sameSite."
+  [^com.microsoft.playwright.options.Cookie cookie]
+  {:name     (.name cookie)
+   :value    (.value cookie)
+   :domain   (.domain cookie)
+   :path     (.path cookie)
+   :expires  (.expires cookie)
+   :httpOnly (.httpOnly cookie)
+   :secure   (.secure cookie)
+   :sameSite (str (.sameSite cookie))})
+
 (defn context-cookies
-  "Returns all cookies in the context.
+  "Returns all cookies in the context as Clojure maps.
    
    Params:
    `context` - BrowserContext instance.
    
    Returns:
-   Vector of cookie maps."
+   Vector of cookie maps with keys :name, :value, :domain, :path, :expires, :httpOnly, :secure, :sameSite."
   [^BrowserContext context]
-  (vec (.cookies context)))
+  (mapv cookie->map (.cookies context)))
 
 (defn context-storage-state
   "Returns the storage state (cookies, localStorage) as a JSON string.

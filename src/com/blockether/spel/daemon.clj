@@ -2035,15 +2035,11 @@
 
 (defmethod handle-cmd "cookies_get" [_ {:strs [urls]}]
   (let [cookies (if urls
-                  (.cookies ^BrowserContext (ctx)
-                    (java.util.ArrayList. ^java.util.Collection (vec urls)))
+                  (mapv core/cookie->map
+                    (.cookies ^BrowserContext (ctx)
+                      (java.util.ArrayList. ^java.util.Collection (vec urls))))
                   (core/context-cookies (ctx)))]
-    {:cookies (mapv (fn [^Cookie c]
-                      {:name (.name c) :value (.value c) :domain (.domain c)
-                       :path (.path c) :expires (.expires c)
-                       :httpOnly (.httpOnly c) :secure (.secure c)
-                       :sameSite (str (.sameSite c))})
-                cookies)}))
+    {:cookies cookies}))
 
 (defmethod handle-cmd "cookies_set" [_ {:strs [name value domain path url]}]
   (let [cookie (Cookie. name value)]
@@ -2418,6 +2414,31 @@
 ;; across eval invocations so that def'd vars persist between calls.
 (defonce ^:private !sci-ctx (atom nil))
 
+(defn- sci-cdp-disconnect-handler
+  "CDP disconnect handler for SCI eval — disconnects and syncs nil state to SCI atoms."
+  []
+  (let [result (disconnect-cdp!)]
+    (reset! sci-env/!pw nil)
+    (reset! sci-env/!browser nil)
+    (reset! sci-env/!context nil)
+    (reset! sci-env/!page nil)
+    result))
+
+(defn- sci-cdp-reconnect-handler
+  "CDP reconnect handler for SCI eval — disconnects, reconnects, syncs new state to SCI atoms."
+  [url]
+  (let [target-url (or url (current-cdp-url))]
+    (when (str/blank? target-url)
+      (throw (ex-info "No CDP URL available. Pass URL: (spel/cdp-reconnect \"ws://...\")" {:error_code "cdp_url_required"})))
+    (disconnect-cdp!)
+    (let [result (connect-cdp! target-url)
+          st @!state]
+      (reset! sci-env/!pw (:pw st))
+      (reset! sci-env/!browser (:browser st))
+      (reset! sci-env/!context (:context st))
+      (reset! sci-env/!page (:page st))
+      (assoc result :reconnected true))))
+
 (defn- sync-state-to-sci!
   "Copies daemon's Playwright objects into SCI atoms so user code sees them."
   []
@@ -2427,7 +2448,10 @@
     (reset! sci-env/!browser (:browser st))
     (reset! sci-env/!context (:context st))
     (reset! sci-env/!page (:page st))
-    (reset! sci-env/!device (:device st))))
+    (reset! sci-env/!device (:device st)))
+  ;; Install CDP handlers so eval-sci scripts can call (spel/cdp-disconnect) / (spel/cdp-reconnect)
+  (reset! sci-env/!cdp-disconnect-handler sci-cdp-disconnect-handler)
+  (reset! sci-env/!cdp-reconnect-handler sci-cdp-reconnect-handler))
 
 (defn- sync-sci-to-state!
   "After SCI eval, syncs SCI atoms back to daemon state in case user code

@@ -100,6 +100,12 @@
 ;; When true, stop! is a no-op — the daemon owns the browser lifecycle.
 (defonce !daemon-mode? (atom false))
 
+;; CDP disconnect/reconnect handlers — injected by daemon.clj so SCI scripts
+;; can call (spel/cdp-disconnect) and (spel/cdp-reconnect url) without
+;; sci_env requiring daemon (which would be a circular dependency).
+(defonce !cdp-disconnect-handler (atom nil))
+(defonce !cdp-reconnect-handler (atom nil))
+
 ;; Default action timeout for Playwright operations (ms).
 ;; Set via --timeout flag in eval-sci mode. nil = Playwright default (30s).
 (defonce !default-timeout (atom nil))
@@ -986,6 +992,47 @@
   (core/url-decode s))
 
 ;; =============================================================================
+;; CDP disconnect/reconnect (anti-detection scripting)
+;; =============================================================================
+
+(defn sci-cdp-disconnect
+  "Temporarily disconnects from the CDP endpoint.
+
+   Used in anti-detection scripts to evade CDP watchers.
+   The Chrome process keeps running; only the debugging protocol
+   link is dropped. Call cdp-reconnect to reattach.
+
+   Returns:
+   Map with :disconnected boolean and :cdp URL string.
+
+   Example:
+     (spel/cdp-disconnect)
+     (spel/sleep 3000)         ; browser runs unmonitored
+     (spel/cdp-reconnect)"
+  []
+  (if-let [handler @!cdp-disconnect-handler]
+    (handler)
+    (throw (ex-info "cdp-disconnect requires daemon mode (start via: spel open/connect)" {}))))
+
+(defn sci-cdp-reconnect
+  "Reconnects to the CDP endpoint after a disconnect.
+
+   Optionally takes a CDP WebSocket URL; defaults to the last
+   used URL from the session's launch flags.
+
+   Returns:
+   Map with :connected URL, :url current page URL, :reconnected true.
+
+   Example:
+     (spel/cdp-reconnect)
+     (spel/cdp-reconnect \"ws://localhost:9222\")"
+  ([] (sci-cdp-reconnect nil))
+  ([url]
+   (if-let [handler @!cdp-reconnect-handler]
+     (handler url)
+     (throw (ex-info "cdp-reconnect requires daemon mode (start via: spel open/connect)" {})))))
+
+;; =============================================================================
 ;; Help
 ;; =============================================================================
 
@@ -1599,6 +1646,9 @@
                   ['context-route-web-socket!  sci-context-route-web-socket!]
                   ['browser-connected? sci-browser-connected?]
                   ['browser-version    sci-browser-version]
+                  ;; CDP disconnect/reconnect
+                  ['cdp-disconnect sci-cdp-disconnect]
+                  ['cdp-reconnect  sci-cdp-reconnect]
                   ;; Tracing
                   ['trace-start!     sci-trace-start!]
                   ['trace-stop!      sci-trace-stop!]
@@ -2433,11 +2483,11 @@
                      ;; Dynamic vars exposed to eval scripts
                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        :bindings   {'slurp     slurp
-                     'spit      spit
-                     'iteration iteration
-                     'sleep     sci-thread-sleep
-                     'url-encode sci-url-encode
-                     'url-decode sci-url-decode}
+                    'spit      spit
+                    'iteration iteration
+                    'sleep     sci-thread-sleep
+                    'url-encode sci-url-encode
+                    'url-decode sci-url-decode}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

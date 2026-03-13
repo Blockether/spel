@@ -341,3 +341,23 @@
       (let [result (sut/safe (throw (Exception. "e")))]
         (expect (anomaly/anomaly? result))
         (expect (= :playwright.error/unknown (:playwright/error-type result)))))))
+
+;; =============================================================================
+;; cookie->map
+;; =============================================================================
+
+(defdescribe cookie->map-test
+  "Tests for cookie->map conversion"
+
+  (describe "converts Cookie Java object to Clojure map"
+    (it "returns map with all expected keys"
+      (let [cookie (doto (com.microsoft.playwright.options.Cookie. "test" "val")
+                     (.setDomain "example.com")
+                     (.setPath "/"))
+            result (sut/cookie->map cookie)]
+        (expect (map? result))
+        (expect (= "test" (:name result)))
+        (expect (= "val" (:value result)))
+        (expect (= "example.com" (:domain result)))
+        (expect (= "/" (:path result)))
+        (expect (string? (:sameSite result)))))))

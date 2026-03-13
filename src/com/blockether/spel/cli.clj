@@ -1506,10 +1506,10 @@
      "Sessions:"
      "  session                 Manage browser sessions"
      ""
-      "Connection:"
-      "  connect                 Connect via CDP"
-      "  cdp                     CDP disconnect/reconnect helpers"
-      "  find-free-port          Print an available local TCP port"
+     "Connection:"
+     "  connect                 Connect via CDP"
+     "  cdp                     CDP disconnect/reconnect helpers"
+     "  find-free-port          Print an available local TCP port"
      ""
      "Search:"
      "  search <query>          Google search (web, images, news)"
@@ -2461,10 +2461,10 @@
 
           ;; CDP lifecycle
             "cdp"      (let [sub (first cmd-args)]
-                          (case sub
-                            "disconnect" {:action "cdp_disconnect"}
-                            "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
-                            {:error (str "Unknown cdp command: " sub)}))
+                         (case sub
+                           "disconnect" {:action "cdp_disconnect"}
+                           "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
+                           {:error (str "Unknown cdp command: " sub)}))
 
           ;; Utility: free local TCP port
             "find-free-port" {:action "find_free_port"}

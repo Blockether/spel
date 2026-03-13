@@ -47,7 +47,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-browser` | [context] | Returns the browser that owns this context. |
 | `context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `context-clear-permissions!` | [context] | Clears all granted permissions. |
-| `context-cookies` | [context] | Returns all cookies in the context. |
+| `context-cookies` | [context] | Returns all cookies in the context as Clojure maps. |
 | `context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `context-pages` | [context] | Returns all pages in a context. |
 | `context-route-from-har!` | [context har] \| [context har route-opts] | Routes requests in the context from a HAR file. Replays recorded responses |
@@ -59,6 +59,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
 | `context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `context-tracing` | [context] | Returns the Tracing for a context. |
+| `cookie->map` | [cookie] | Converts a Playwright Cookie Java object to a Clojure map. |
 | `create` | [] | Creates a new Playwright instance. |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
@@ -87,6 +88,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `selectors-register!` | [sels name script] | Registers a custom selector engine. |
 | `tracing-start!` | [tracing] \| [tracing trace-opts] | Starts tracing. |
 | `tracing-stop!` | [tracing] \| [tracing stop-opts] | Stops tracing and saves the trace file. |
+| `url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
+| `url-encode` | [s] | Encodes text for use in URL query strings using UTF-8. |
 | `video-delete!` | [page] | Deletes the video file for a page. |
 | `video-obj-delete!` | [video] | Deletes the video file from a Video instance. |
 | `video-obj-path` | [video] | Returns the path to the video file from a Video instance. |
@@ -743,6 +746,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/browser-version` | [] | Returns the browser version string. |
 | `spel/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
 | `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `spel/cdp-disconnect` | [] | Temporarily disconnects from the CDP endpoint. |
+| `spel/cdp-reconnect` | [] \| [url] | Reconnects to the CDP endpoint after a disconnect. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
 | `spel/clear` | [sel] | Clears input field content. |
@@ -760,7 +765,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/context` | [] | Returns the current BrowserContext instance. |
 | `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
-| `spel/context-cookies` | [] | Returns all cookies in the context. |
+| `spel/context-cookies` | [] | Returns all cookies in the context as Clojure maps. |
 | `spel/context-grant-permissions!` | [perms] | Grants permissions to the context. |
 | `spel/context-route-from-har!` | [har] \| [har opts] | Routes requests in the context from a HAR file. Replays recorded responses |
 | `spel/context-route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
@@ -899,6 +904,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
 | `spel/unroute!` | [pattern] | Removes a route handler. |
 | `spel/url` | [] | Returns the current page URL. |
+| `spel/url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
+| `spel/url-encode` | [s] | Encodes text for use in URL query strings using UTF-8. |
 | `spel/video-path` | [] | Returns the video file path for the current page, or nil if not recording. |
 | `spel/viewport-size` | [] | Returns the current viewport size of the active page as {:width N :height N}. |
 | `spel/visible?` | [sel] | Returns whether the element is visible. |
@@ -1166,7 +1173,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `core/context-browser` | [context] | Returns the browser that owns this context. |
 | `core/context-clear-cookies!` | [context] | Clears all cookies in the context. |
 | `core/context-clear-permissions!` | [context] | Clears all granted permissions. |
-| `core/context-cookies` | [context] | Returns all cookies in the context. |
+| `core/context-cookies` | [context] | Returns all cookies in the context as Clojure maps. |
 | `core/context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `core/context-pages` | [context] | Returns all pages in a context. |
 | `core/context-route-from-har!` | [context har] \| [context har route-opts] | Routes requests in the context from a HAR file. Replays recorded responses |
@@ -1195,6 +1202,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `core/retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
 | `core/run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
 | `core/run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
+| `core/url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
+| `core/url-encode` | [s] | Encodes text for use in URL query strings using UTF-8. |
 
 ### `search/` — Google Search automation (web, images, news, pagination)
 
@@ -1467,6 +1476,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `eval-js <js>` | Run JavaScript |
 | `eval-js <js> -b` | Run JavaScript, base64-encode result |
 | `connect <url>` | Connect to browser via CDP |
+| `cdp disconnect\|reconnect` | Temporarily detach/reattach CDP |
 | `find-free-port` | Print an available local TCP port |
 | `trace start / trace stop` | Record trace |
 | `console / console clear` | View/clear console (auto-captured) |
