@@ -134,10 +134,9 @@
   (safe
     (let [src-dirs (when-not (System/getenv "PLAYWRIGHT_JAVA_SRC")
                      (detect-source-dirs))]
-      (if src-dirs
-        (Playwright/create (doto (Playwright$CreateOptions.)
-                             (.setEnv {"PLAYWRIGHT_JAVA_SRC" src-dirs})))
-        (Playwright/create)))))
+      (Playwright/create (doto (Playwright$CreateOptions.)
+                           (.setEnv (cond-> {"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" "1"}
+                                      src-dirs (assoc "PLAYWRIGHT_JAVA_SRC" src-dirs)))))))
 
 (defn find-free-port
   "Finds an available local TCP port and returns it as an integer.

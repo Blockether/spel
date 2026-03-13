@@ -333,7 +333,7 @@ Pass an opts map for device emulation:
   (page/navigate pg "https://example.org"))
 ```
 
-For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](.opencode/skills/spel/SKILL.md).
+For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
 
 ### API Testing & Writing Tests
 
@@ -369,7 +369,7 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 
 > **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
 
-See [SKILL.md for fixtures, steps, and attachments](.opencode/skills/spel/SKILL.md).
+See [SKILL.md for fixtures, steps, and attachments](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
 
 ### Native CLI
 
@@ -440,7 +440,7 @@ Record browser sessions as WebM files for debugging and CI artifacts.
 (def ctx (core/new-context browser {:record-video-dir "videos"}))
 ```
 
-See [recording options and test fixtures](.opencode/skills/spel/SKILL.md).
+See [recording options and test fixtures](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
 
 ## Test Generation (Codegen)
 
@@ -451,7 +451,7 @@ spel codegen record -o recording.jsonl https://example.org
 spel codegen recording.jsonl > my_test.clj
 ```
 
-See [full actions and output formats](.opencode/skills/spel/SKILL.md).
+See [full actions and output formats](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
 
 ## Building from Source
 
