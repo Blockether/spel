@@ -111,6 +111,18 @@ spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
 - Auth-gated automation: run explore with auth bootstrap, then automate with `--load-state auth-state.json`
 - Quick script without exploration: run automate alone (automator explores minimally on its own)
 
+## Final artifact gate (fail-closed)
+
+Before finishing automation workflow output:
+
+1. Enumerate required artifacts for the current task.
+2. Verify each path exists and is non-empty.
+3. If any artifact is missing/empty, perform one focused corrective pass that writes only missing outputs.
+4. Re-check paths after corrective pass.
+5. If still missing, mark handoff status `blocked` and list `missing_artifacts` explicitly.
+
+Never emit `status: completed` while required artifacts are missing.
+
 ## Notes
 
 - Scripts accept args via `--` separator: `spel eval-sci script.clj -- arg1 arg2`
@@ -118,6 +130,9 @@ spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
 - Each agent produces machine-readable output for downstream composition
 - Missing artifacts fail closed: if a promised JSON/data file is absent, the step is incomplete
 - For heavy portal front pages (for example `onet.pl`, `wp.pl`), prefer split waits: `wait --load domcontentloaded` then `wait --url <domain>` before collecting artifacts
+- For consent/postcode/login modals, treat overlay handling as mandatory state management: after each modal-related action run a fresh snapshot; if click logs indicate overlay/pointer interception, take full `snapshot` (not only `snapshot -i`), resolve/close modal, then resume navigation.
 - If tool policy blocks patch-style editing, artifact files must be written with `bash`/`python` and then read back for verification
 - Do not pause for generic external-helper checks when the task is standard spel automation; execute directly and keep handoff artifacts current
 - For direct single-URL artifact tasks, skip exploration entirely: execute minimal commands in order (`open` -> waits -> `get title`/`get url` -> write JSON -> read/verify JSON), then update `orchestration/automation-pipeline.json`
+- Shell command hygiene: tool `bash` command fields must contain only executable shell commands (no narrative comments/prose embedded in command text).
+- End every direct artifact run with explicit file checks (for example `test -s`) and include the verification result in the handoff JSON.

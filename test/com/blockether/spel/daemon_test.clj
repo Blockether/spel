@@ -117,6 +117,56 @@
         (expect (true? (get-in response ["data" "closed"])))
         (expect (true? (get-in response ["data" "shutdown"])))))))
 
+(defdescribe cdp-lifecycle-command-test
+  "Unit tests for cdp_disconnect/cdp_reconnect command handling"
+
+  (describe "cdp_disconnect"
+    (it "returns not disconnected when no active cdp session"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "cdp-disconnect-test"
+                            :launch-flags {}})
+        (let [resp (#'sut/handle-cmd "cdp_disconnect" {})]
+          (expect (= false (:disconnected resp)))))))
+
+  (describe "cdp_reconnect"
+    (it "uses provided URL and marks reconnected"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "cdp-reconnect-test"
+                            :launch-flags {}})
+        (with-redefs [sut/disconnect-cdp! (fn [] {:disconnected true})
+                      sut/connect-cdp! (fn [url] {:connected url :url "https://example.org"})]
+          (let [resp (#'sut/handle-cmd "cdp_reconnect" {"url" "ws://localhost:9222"})]
+            (expect (= true (:reconnected resp)))
+            (expect (= "ws://localhost:9222" (:connected resp)))))))
+
+    (it "uses launch-flags cdp URL when explicit URL is missing"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "cdp-reconnect-flag-test"
+                            :launch-flags {"cdp" "http://127.0.0.1:9222"}})
+        (with-redefs [sut/disconnect-cdp! (fn [] {:disconnected true})
+                      sut/connect-cdp! (fn [url] {:connected url})]
+          (let [resp (#'sut/handle-cmd "cdp_reconnect" {})]
+            (expect (= true (:reconnected resp)))
+            (expect (= "http://127.0.0.1:9222" (:connected resp)))))))
+
+    (it "throws when no explicit or persisted cdp URL exists"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "cdp-reconnect-error-test"
+                            :launch-flags {}})
+        (try
+          (#'sut/handle-cmd "cdp_reconnect" {})
+          (expect false)
+          (catch clojure.lang.ExceptionInfo e
+            (expect (str/includes? (.getMessage e) "No CDP URL available"))))))))
+
 (defdescribe click-diagnostics-test
   "Unit tests for click error diagnostics helpers"
 

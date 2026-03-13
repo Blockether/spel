@@ -264,6 +264,7 @@
   "Actions allowed even when another session owns route interception lock.
    Keep this minimal so page-driving commands fail fast instead of hanging."
   #{"close" "session_info" "session_list"
+    "cdp_disconnect" "cdp_reconnect"
     "network_list" "network_requests" "network_get_ref"
     "console_list" "console_get_ref"
     "pages_list" "pages_get_ref"
@@ -2345,7 +2346,11 @@
 
 ;; --- Phase 5: Connect CDP ---
 
-(defmethod handle-cmd "connect" [_ {:strs [url]}]
+(defn- connect-cdp!
+  "Connects daemon state to a CDP endpoint and returns connection payload."
+  [^String url]
+  (when (str/blank? url)
+    (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
   (let [warning-payload (cdp-route-lock-warning url)
         pw (or (:pw @!state) (core/create))
         browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String url)
@@ -2370,6 +2375,39 @@
     (page/on-response pg-inst track-response!)
     (cond-> {:connected url :url (page/url pg-inst)}
       warning-payload (merge warning-payload))))
+
+(defn- disconnect-cdp!
+  "Disconnects current CDP browser connection while preserving launch flags.
+   This is a temporary detach operation used by anti-CDP evasion workflows."
+  []
+  (let [{:keys [cdp-connected page context browser pw]} @!state
+        cdp-url (current-cdp-url)]
+    (when cdp-connected
+      (when page
+        (try (core/close-page! page) (catch Exception e (warn "cdp-disconnect-close-page" e))))
+      (when context
+        (try (.close ^BrowserContext context) (catch Exception e (warn "cdp-disconnect-close-context" e))))
+      (when browser
+        (try (core/close-browser! browser) (catch Exception e (warn "cdp-disconnect-close-browser" e))))
+      (when pw
+        (try (core/close! pw) (catch Exception e (warn "cdp-disconnect-close-playwright" e))))
+      (release-cdp-route-lock-if-owned!))
+    (swap! !state assoc :pw nil :browser nil :context nil :page nil :cdp-connected false)
+    {:disconnected (boolean cdp-connected)
+     :cdp cdp-url}))
+
+(defmethod handle-cmd "connect" [_ {:strs [url]}]
+  (connect-cdp! url))
+
+(defmethod handle-cmd "cdp_disconnect" [_ _]
+  (disconnect-cdp!))
+
+(defmethod handle-cmd "cdp_reconnect" [_ {:strs [url]}]
+  (let [target-url (or url (current-cdp-url))]
+    (when (str/blank? target-url)
+      (throw (ex-info "No CDP URL available. Use: spel cdp reconnect <url>" {:error_code "cdp_url_required"})))
+    (disconnect-cdp!)
+    (assoc (connect-cdp! target-url) :reconnected true)))
 
 (defmethod handle-cmd "find_free_port" [_ _]
   {:port (unwrap-anomaly! (core/find-free-port))})

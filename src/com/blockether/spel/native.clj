@@ -197,6 +197,7 @@
   (println "  eval-js <js>              Run JavaScript")
   (println "  eval-js <js> -b           Run JavaScript, base64-encode result")
   (println "  connect <url>             Connect to browser via CDP")
+  (println "  cdp disconnect|reconnect  Temporarily detach/reattach CDP")
   (println "  find-free-port            Print an available local TCP port")
   (println "  trace start / trace stop  Record trace")
   (println "  console / console clear   View/clear console (auto-captured)")

@@ -1026,6 +1026,25 @@
         (expect (= "connect" (:action c)))
         (expect (= "http://localhost:9222" (:url c)))))))
 
+(defdescribe cdp-command-test
+  "Tests for cdp disconnect/reconnect command parsing"
+
+  (describe "cdp disconnect"
+    (it "parses cdp disconnect"
+      (let [c (cmd ["cdp" "disconnect"])]
+        (expect (= "cdp_disconnect" (:action c))))))
+
+  (describe "cdp reconnect"
+    (it "parses cdp reconnect without URL"
+      (let [c (cmd ["cdp" "reconnect"])]
+        (expect (= "cdp_reconnect" (:action c)))
+        (expect (nil? (:url c)))))
+
+    (it "parses cdp reconnect with URL"
+      (let [c (cmd ["cdp" "reconnect" "ws://localhost:9222"])]
+        (expect (= "cdp_reconnect" (:action c)))
+        (expect (= "ws://localhost:9222" (:url c)))))))
+
 ;; =============================================================================
 ;; Eval Flags
 ;; =============================================================================

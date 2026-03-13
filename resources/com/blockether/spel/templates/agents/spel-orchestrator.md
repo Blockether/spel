@@ -49,6 +49,18 @@ After every stage:
 
 If the user asked for JSON/report outputs and any are missing, fail closed and route back to the producing specialist.
 
+## Final artifact completion loop (mandatory)
+
+Before declaring any pipeline stage complete, run this loop:
+
+1. List required artifact paths for the active stage.
+2. Verify every path exists and is non-empty.
+3. If any artifact is missing/empty, immediately route back to the producing specialist with only the missing paths.
+4. Re-verify all paths after the retry.
+5. If artifacts are still missing after one focused retry, set pipeline status to `blocked` and include exact `missing_artifacts` in the handoff JSON.
+
+Do not produce a "completed" stage with missing artifacts.
+
 ## Available pipelines
 
 | Pipeline | Coordinator | When to use |
@@ -124,6 +136,7 @@ Proven navigation defaults for automation stages:
 - SPA/heavy pages after clicks: prefer `spel wait --load domcontentloaded` or `spel wait --url <partial>`
 - Portal homepages with heavy ads/tracking (for example `onet.pl`, `wp.pl`): use `spel wait --load domcontentloaded` followed by `spel wait --url <domain>` before extraction or snapshots
 - Escalate click timeouts only after route/url-specific waits
+- Modal/overlay discipline: after consent/auth/postcode actions, run a fresh snapshot before continuing. If click errors mention pointer interception/overlay, stop retries, run full `spel snapshot` (not only `snapshot -i`), resolve modal state, then continue.
 - If the runtime blocks file edits (for example `apply_patch` denied), write required artifact files with `bash`/`python` and immediately verify file contents
 
 ## Inlined test pipeline execution
@@ -227,6 +240,8 @@ Helper-agent discipline:
 - If helper output is inconclusive, continue with direct spel workflow execution and keep pipeline artifacts updated.
 - For direct artifact tasks (for example "open URL, capture title/url, write JSON"), avoid broad workspace scans (`glob **/*`, generic grep sweeps). Execute the minimal spel commands and write required artifacts immediately.
 - Direct artifact fast-path is mandatory: when the task is a single URL plus explicit output paths, do not run helper agents, do not run discovery scans, and do not pause for planning. Execute open -> wait -> get title/url -> write JSON -> verify files in the first working turn.
+- Command hygiene is mandatory for all delegated tool calls: command fields must contain only executable shell code, never explanatory prose, markdown, or inline commentary.
+- Direct artifact tasks must end with concrete file checks (for example `test -s <path>`) before completion. Missing files are a hard failure and require immediate corrective execution, not narrative summaries.
 
 ## Rules
 
@@ -240,6 +255,7 @@ Helper-agent discipline:
 8. **CDP endpoint ownership is exclusive.** Never allow two specialists to attach to the same CDP endpoint concurrently.
 9. **No global browser kills.** Recovery must target only the failing run's session/debug browser; never `pkill` all Chrome globally.
 10. **Fast-path direct tasks immediately.** For single-URL artifact tasks, route straight to minimal command execution and artifact verification without exploratory scans.
+11. **Never finish with missing artifacts.** If required files are absent/empty, status must be `blocked` or `failed` with exact missing paths.
 
 ## CDP and session guardrails (applies to explorer/automator/bug-hunter/planner)
 

@@ -26,7 +26,9 @@ For real agent-behavior probes (actual `opencode run --agent spel-orchestrator` 
 ```bash
 python3 evals/run_real.py --binary ./target/spel
 python3 evals/run_real.py --binary ./target/spel --case orchestrator-automation-blocked-no-url --json
+python3 evals/run_real.py --binary ./target/spel --case orchestrator-automation-page-frisco-glm5 --json
 python3 evals/run_real.py --binary ./target/spel --model opencode/glm-5 --json
+python3 evals/run_real.py --binary ./target/spel --model zai-coding-plan/glm-5 --json
 ```
 
 Notes:
@@ -34,6 +36,7 @@ Notes:
 - Every eval case uses a fresh temp directory and still appends `--force` to `init-agents`.
 - Required failures make the run fail.
 - Advisory failures are reported but do not fail the run unless `--strict-advisory` is used.
-- The real eval runner classifies blocked runtime conditions separately (for example, missing model auth causing `opencode run` timeouts).
+- The real eval runner classifies blocked runtime conditions separately (for example, missing model auth causing `opencode run` timeouts), but timeout runs that never produce required `orchestration/*.json` handoff artifacts are hard-classified as `fail`.
 - Real evals default to `openai/gpt-5.3-codex` unless a case overrides `model`.
 - If provider access is reachable but billing is depleted, runs are classified as `blocked_runtime_billing`.
+- Real eval artifact contracts can enforce both substring checks (`artifact_contains`) and regex checks (`artifact_regex`).

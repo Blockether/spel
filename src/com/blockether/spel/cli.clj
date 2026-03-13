@@ -1088,6 +1088,23 @@
       "Examples:"
       "  spel connect ws://localhost:9222"])
 
+   "cdp"
+   (str/join \newline
+     ["cdp - Manage temporary CDP connection lifecycle"
+      ""
+      "Usage:"
+      "  spel cdp disconnect"
+      "  spel cdp reconnect [url]"
+      ""
+      "Subcommands:"
+      "  disconnect        Temporarily disconnect current CDP session"
+      "  reconnect [url]   Reconnect to last --cdp URL or provided URL"
+      ""
+      "Examples:"
+      "  spel cdp disconnect"
+      "  spel cdp reconnect"
+      "  spel cdp reconnect ws://localhost:9222"])
+
    "find-free-port"
    (str/join \newline
      ["find-free-port - Return an available local TCP port"
@@ -1489,9 +1506,10 @@
      "Sessions:"
      "  session                 Manage browser sessions"
      ""
-     "Connection:"
-     "  connect                 Connect via CDP"
-     "  find-free-port          Print an available local TCP port"
+      "Connection:"
+      "  connect                 Connect via CDP"
+      "  cdp                     CDP disconnect/reconnect helpers"
+      "  find-free-port          Print an available local TCP port"
      ""
      "Search:"
      "  search <query>          Google search (web, images, news)"
@@ -2440,6 +2458,13 @@
 
           ;; Connect CDP
             "connect"  {:action "connect" :url (first cmd-args)}
+
+          ;; CDP lifecycle
+            "cdp"      (let [sub (first cmd-args)]
+                          (case sub
+                            "disconnect" {:action "cdp_disconnect"}
+                            "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
+                            {:error (str "Unknown cdp command: " sub)}))
 
           ;; Utility: free local TCP port
             "find-free-port" {:action "find_free_port"}

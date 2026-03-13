@@ -1083,8 +1083,8 @@
         (try
           (let [resp (json/read-json
                        (#'daemon/process-command
-                         (json/write-json-str {"action" "navigate"
-                                               "url" (str *test-server-url* "/test-page")})))]
+                        (json/write-json-str {"action" "navigate"
+                                              "url" (str *test-server-url* "/test-page")})))]
             (expect (= false (get resp "success")))
             (expect (= "cdp_route_lock" (get resp "error_code")))
             (expect (= owner-session (get resp "owner_session")))
@@ -1198,6 +1198,24 @@
       (let [r (cmd "close" {})]
         (expect (true? (:closed r)))
         (expect (true? (:shutdown r)))))))
+
+(defdescribe cdp-lifecycle-integration-test
+  "Integration tests for cdp disconnect/reconnect command behavior"
+
+  (describe "cdp disconnect/reconnect"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "cdp_disconnect is safe when session is not CDP-connected"
+      (nav! "/test-page")
+      (let [r (cmd "cdp_disconnect" {})]
+        (expect (= false (:disconnected r)))))
+
+    (it "process-command reports clear error when cdp_reconnect has no URL"
+      (let [resp (json/read-json
+                   (#'daemon/process-command
+                    (json/write-json-str {"action" "cdp_reconnect"})))]
+        (expect (= false (get resp "success")))
+        (expect (str/includes? (get resp "error") "No CDP URL available"))))))
 
 ;; =============================================================================
 ;; 37. Default (unknown action)
@@ -1666,6 +1684,34 @@
     (it "exposes java.net.URLDecoder in SCI"
       (let [r (cmd "sci_eval" {"code" "(java.net.URLDecoder/decode \"a%2Bb%3D1\" \"UTF-8\")"})]
         (expect (= "\"a+b=1\"" (:result r)))))
+
+    (it "exposes short URLDecoder class alias in SCI"
+      (let [r (cmd "sci_eval" {"code" "(URLDecoder/decode \"a%2Bb%3D1\" \"UTF-8\")"})]
+        (expect (= "\"a+b=1\"" (:result r)))))
+
+    (it "exposes java.net.URLEncoder in SCI"
+      (let [r (cmd "sci_eval" {"code" "(java.net.URLEncoder/encode \"a+b=1\" \"UTF-8\")"})]
+        (expect (= "\"a%2Bb%3D1\"" (:result r)))))
+
+    (it "exposes short URLEncoder class alias in SCI"
+      (let [r (cmd "sci_eval" {"code" "(URLEncoder/encode \"a+b=1\" \"UTF-8\")"})]
+        (expect (= "\"a%2Bb%3D1\"" (:result r)))))
+
+    (it "exposes spel/url-encode convenience helper in SCI"
+      (let [r (cmd "sci_eval" {"code" "(spel/url-encode \"a+b=1 &x y\")"})]
+        (expect (= "\"a%2Bb%3D1+%26x+y\"" (:result r)))))
+
+    (it "exposes spel/url-decode convenience helper in SCI"
+      (let [r (cmd "sci_eval" {"code" "(spel/url-decode \"a%2Bb%3D1+%26x+y\")"})]
+        (expect (= "\"a+b=1 &x y\"" (:result r)))))
+
+    (it "exposes global url-encode convenience binding in SCI"
+      (let [r (cmd "sci_eval" {"code" "(url-encode \"a+b=1 &x y\")"})]
+        (expect (= "\"a%2Bb%3D1+%26x+y\"" (:result r)))))
+
+    (it "exposes global url-decode convenience binding in SCI"
+      (let [r (cmd "sci_eval" {"code" "(url-decode \"a%2Bb%3D1+%26x+y\")"})]
+        (expect (= "\"a+b=1 &x y\"" (:result r)))))
 
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})

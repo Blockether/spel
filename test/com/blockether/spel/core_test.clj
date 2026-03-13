@@ -49,6 +49,19 @@
         (with-open [^ServerSocket verify (ServerSocket. port 50 (InetAddress/getByName "127.0.0.1"))]
           (expect (= port (.getLocalPort verify))))))))
 
+(defdescribe url-codec-test
+  "Tests for URL encoding and decoding convenience helpers"
+
+  (it "encodes query text with UTF-8"
+    (expect (= "a%2Bb%3D1+%26x+y" (sut/url-encode "a+b=1 &x y"))))
+
+  (it "decodes query text with UTF-8"
+    (expect (= "a+b=1 &x y" (sut/url-decode "a%2Bb%3D1+%26x+y"))))
+
+  (it "round-trips UTF-8 text"
+    (let [raw "żółć i kawa"]
+      (expect (= raw (sut/url-decode (sut/url-encode raw)))))))
+
 (defdescribe with-playwright-test
   "Tests for with-playwright macro"
 

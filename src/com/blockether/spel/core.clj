@@ -20,10 +20,11 @@
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.options :as opts])
   (:import
-   [java.io File]
-   [java.net InetAddress ServerSocket]
-   [java.nio.file Path]
-   [java.util UUID]
+    [java.io File]
+    [java.net InetAddress ServerSocket URLDecoder URLEncoder]
+    [java.nio.charset StandardCharsets]
+    [java.nio.file Path]
+    [java.util UUID]
    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
@@ -152,6 +153,32 @@
     (with-open [^ServerSocket socket (ServerSocket. 0 50 (InetAddress/getByName "127.0.0.1"))]
       (.setReuseAddress socket true)
       (.getLocalPort socket))))
+
+(defn url-encode
+  "Encodes text for use in URL query strings using UTF-8.
+
+   Space characters are encoded as `+` and reserved characters are percent-encoded.
+
+   Params:
+   `s` - Any value coercible to string.
+
+   Returns:
+   URL-encoded string."
+  [s]
+  (URLEncoder/encode (str s) StandardCharsets/UTF_8))
+
+(defn url-decode
+  "Decodes URL-encoded text using UTF-8.
+
+   Decodes `%XX` escapes and `+` back to spaces.
+
+   Params:
+   `s` - Any value coercible to string.
+
+   Returns:
+   Decoded string."
+  [s]
+  (URLDecoder/decode (str s) StandardCharsets/UTF_8))
 
 (defn close!
   "Closes a Playwright instance and releases all resources.

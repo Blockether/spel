@@ -971,6 +971,20 @@
   []
   (throw-if-anomaly (core/find-free-port)))
 
+(defn sci-url-encode
+  "Encodes text for use in URL query strings using UTF-8.
+
+   Delegates to core/url-encode."
+  [s]
+  (core/url-encode s))
+
+(defn sci-url-decode
+  "Decodes URL-encoded text using UTF-8.
+
+   Delegates to core/url-decode."
+  [s]
+  (core/url-decode s))
+
 ;; =============================================================================
 ;; Help
 ;; =============================================================================
@@ -1605,6 +1619,8 @@
                   ;; Info & Help
                   ['info           sci-info]
                   ['find-free-port sci-find-free-port]
+                  ['url-encode     sci-url-encode]
+                  ['url-decode     sci-url-decode]
                   ['help           sci-help]
                   ['source         sci-source]
                   ;; Snapshot + Ref-based actions
@@ -1910,6 +1926,8 @@
                     ['close-context!  core/close-context!]
                     ['close-page!     core/close-page!]
                     ['anomaly?        core/anomaly?]
+                    ['url-encode      core/url-encode]
+                    ['url-decode      core/url-decode]
                     ['browser-connected? core/browser-connected?]
                     ['browser-version    core/browser-version]
                     ['browser-contexts   core/browser-contexts]
@@ -2415,9 +2433,11 @@
                      ;; Dynamic vars exposed to eval scripts
                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        :bindings   {'slurp     slurp
-                    'spit      spit
-                    'iteration iteration
-                    'sleep     sci-thread-sleep}
+                     'spit      spit
+                     'iteration iteration
+                     'sleep     sci-thread-sleep
+                     'url-encode sci-url-encode
+                     'url-decode sci-url-decode}
        :classes    {'Page              Page
                     'Browser           Browser
                     'BrowserContext    BrowserContext

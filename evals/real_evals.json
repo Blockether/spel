@@ -131,6 +131,53 @@
           "done"
         ]
       }
+    },
+    {
+      "id": "orchestrator-automation-page-frisco-glm5",
+      "description": "Run a real automation+audit eval through orchestrator on https://frisco.pl using GLM-5 and require cookies/postcode handling, multi-product coverage, and a spel report.",
+      "loop": "opencode",
+      "only": "core",
+      "agent": "spel-orchestrator",
+      "model": "zai-coding-plan/glm-5",
+      "message": "Use spel CLI to evaluate https://frisco.pl with STRICT FAST-PATH execution (no planning-only turn, no helper-agent detours). Execute this flow in order: (1) open frisco.pl and handle cookie consent panel, (2) immediately run a full `spel snapshot` (not only `snapshot -i`) and resolve postcode modal state before any product clicks: if modal wrapper/overlay is present then either close it (for example modal close button) or fill postcode input (for example 00-001 or 31-564) and submit, (3) visit 5-6 distinct product pages via user-like navigation, (4) run full page quality audit (`spel audit`) on the homepage and at least one product page, (5) write required artifacts using bash/python (do not use apply_patch). COMMAND HYGIENE: every bash tool call must be only executable shell command text (no prose/comments inside command). RECOVERY RULE: if click fails due to overlay interception, run fresh `spel snapshot` and resolve modal before retrying product clicks. REQUIRED ARTIFACTS: eval-artifacts/frisco-products.json with keys site, visited_count, product_urls, cookies_handled, postcode_handled, audit_ran; eval-artifacts/frisco-spel-report.md with sections exactly '## Cookie and Postcode Flow', '## Product Page Coverage', '## Full Audit Findings'; orchestration/automation-pipeline.json with status completed and next_step done. Before finishing, run explicit checks `test -s eval-artifacts/frisco-products.json && test -s eval-artifacts/frisco-spel-report.md && test -s orchestration/automation-pipeline.json`; if any check fails, create/fix missing artifacts before ending. Also verify visited_count is at least 5.",
+      "timeout_seconds": 900,
+      "expected_artifacts": [
+        "eval-artifacts/frisco-products.json",
+        "eval-artifacts/frisco-spel-report.md",
+        "orchestration/automation-pipeline.json"
+      ],
+      "artifact_contains": {
+        "eval-artifacts/frisco-products.json": [
+          "site",
+          "visited_count",
+          "product_urls",
+          "cookies_handled",
+          "postcode_handled",
+          "audit_ran",
+          "frisco.pl"
+        ],
+        "eval-artifacts/frisco-spel-report.md": [
+          "## Cookie and Postcode Flow",
+          "## Product Page Coverage",
+          "## Full Audit Findings",
+          "frisco.pl"
+        ],
+        "orchestration/automation-pipeline.json": [
+          "completed",
+          "done"
+        ]
+      },
+      "artifact_regex": {
+        "eval-artifacts/frisco-products.json": [
+          "\\\"visited_count\\\"\\s*:\\s*([5-9]|[1-9][0-9]+)",
+          "\\\"product_urls\\\"\\s*:\\s*\\[(?:[\\s\\S]*?frisco\\.pl){5,}[\\s\\S]*?\\]"
+        ],
+        "eval-artifacts/frisco-spel-report.md": [
+          "(?m)^## Cookie and Postcode Flow$",
+          "(?m)^## Product Page Coverage$",
+          "(?m)^## Full Audit Findings$"
+        ]
+      }
     }
   ]
 }

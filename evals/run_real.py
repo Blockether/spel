@@ -158,6 +158,7 @@ def inspect_artifacts(workdir: Path, case):
     findings = []
     all_present = True
     contains_ok = True
+    regex_ok = True
     for artifact in case.get("expected_artifacts", []):
         path = workdir / artifact
         exists = path.exists()
@@ -166,6 +167,7 @@ def inspect_artifacts(workdir: Path, case):
             "path": artifact,
             "exists": exists,
             "contains": {},
+            "regex": {},
         }
         if exists and path.is_file():
             content = path.read_text(encoding="utf-8")
@@ -173,19 +175,35 @@ def inspect_artifacts(workdir: Path, case):
                 ok = needle in content
                 entry["contains"][needle] = ok
                 contains_ok = contains_ok and ok
+            for pattern in case.get("artifact_regex", {}).get(artifact, []):
+                try:
+                    ok = bool(re.search(pattern, content, flags=re.MULTILINE))
+                except re.error:
+                    ok = False
+                entry["regex"][pattern] = ok
+                regex_ok = regex_ok and ok
         else:
             for needle in case.get("artifact_contains", {}).get(artifact, []):
                 entry["contains"][needle] = False
                 contains_ok = False
+            for pattern in case.get("artifact_regex", {}).get(artifact, []):
+                entry["regex"][pattern] = False
+                regex_ok = False
         findings.append(entry)
-    return findings, all_present, contains_ok
+    return findings, all_present, contains_ok, regex_ok
 
 
-def classify_result(auth_state, opencode_run, artifacts_present, contains_ok):
+def classify_result(
+    auth_state, opencode_run, artifacts, artifacts_present, contains_ok, regex_ok
+):
+    missing_pipeline_handoff = any(
+        (entry.get("path", "").startswith("orchestration/") and not entry.get("exists"))
+        for entry in artifacts
+    )
     combined_output = (
         opencode_run.get("stdout", "") + "\n" + opencode_run.get("stderr", "")
     ).lower()
-    if artifacts_present and contains_ok:
+    if artifacts_present and contains_ok and regex_ok:
         return "pass"
     if "insufficient balance" in combined_output or "creditserror" in combined_output:
         return "blocked_runtime_billing"
@@ -212,6 +230,8 @@ def classify_result(auth_state, opencode_run, artifacts_present, contains_ok):
         and "tool_use" not in combined_output
     ):
         return "blocked_runtime_auth"
+    if opencode_run["status"] == "timeout" and missing_pipeline_handoff:
+        return "fail"
     if opencode_run["status"] == "timeout":
         return "blocked_runtime_timeout"
     return "fail"
@@ -227,8 +247,12 @@ def run_case(
 ):
     workdir, scaffold = scaffold_workspace(repo_root, binary, case)
     opencode_run = run_opencode_case(workdir, case, model_override=model_override)
-    artifacts, artifacts_present, contains_ok = inspect_artifacts(workdir, case)
-    status = classify_result(auth_state, opencode_run, artifacts_present, contains_ok)
+    artifacts, artifacts_present, contains_ok, regex_ok = inspect_artifacts(
+        workdir, case
+    )
+    status = classify_result(
+        auth_state, opencode_run, artifacts, artifacts_present, contains_ok, regex_ok
+    )
 
     result = {
         "id": case["id"],
