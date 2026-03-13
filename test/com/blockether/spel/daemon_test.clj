@@ -165,7 +165,7 @@
           (#'sut/handle-cmd "cdp_reconnect" {})
           (expect false)
           (catch clojure.lang.ExceptionInfo e
-            (expect (str/includes? (.getMessage e) "No CDP URL available"))))))))
+            (expect (str/includes? (.getMessage e) "No previous CDP connection found"))))))))
 
 (defdescribe click-diagnostics-test
   "Unit tests for click error diagnostics helpers"
