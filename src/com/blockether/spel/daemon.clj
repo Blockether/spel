@@ -37,7 +37,7 @@
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
    [java.util Base64]
-   [java.util.concurrent ExecutorService Executors]))
+   [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -253,6 +253,24 @@
   "Submits a task to the virtual thread executor."
   [^Runnable f]
   (.submit !vthread-executor f))
+
+;; --- CDP idle timeout ---
+;; After explicit cdp_disconnect, auto-shutdown the daemon if no reconnect
+;; occurs within the configured window. Default 30 minutes.
+;; Set SPEL_CDP_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
+(defonce ^:private !cdp-idle-timeout-ms
+  (atom (let [env-val (System/getenv "SPEL_CDP_IDLE_TIMEOUT")]
+          (if (str/blank? env-val)
+            1800000
+            (Long/parseLong env-val)))))
+(defonce ^:private ^ScheduledExecutorService !cdp-idle-scheduler
+  (Executors/newSingleThreadScheduledExecutor
+    (reify java.util.concurrent.ThreadFactory
+      (newThread [_ r]
+        (doto (Thread. ^Runnable r "spel-cdp-idle-timer")
+          (.setDaemon true))))))
+(defonce ^:private !cdp-idle-future (atom nil))
+
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
@@ -2340,11 +2358,40 @@
    :title      (try (page/title (pg)) (catch Exception _ nil))
    :refs_count (:counter @!state)})
 
+;; --- CDP idle timeout scheduling ---
+
+(defn- cancel-cdp-idle-shutdown!
+  "Cancels any pending CDP idle shutdown timer."
+  []
+  (when-let [^ScheduledFuture fut @!cdp-idle-future]
+    (.cancel fut false)
+    (reset! !cdp-idle-future nil)))
+
+(defn- schedule-cdp-idle-shutdown!
+  "Schedules daemon auto-shutdown after CDP idle timeout.
+   Called when CDP disconnects. Cancelled on reconnect, close, or manual cancel.
+   Does nothing if timeout is 0 (disabled) or if there was no active CDP connection."
+  []
+  (cancel-cdp-idle-shutdown!)
+  (let [timeout-ms (long @!cdp-idle-timeout-ms)]
+    (when (pos? timeout-ms)
+      (let [fut (.schedule !cdp-idle-scheduler
+                  ^Runnable (fn cdp-idle-shutdown []
+                              (binding [*out* *err*]
+                                (println (str "spel: CDP idle timeout ("
+                                           (quot timeout-ms 60000)
+                                           " min) — no reconnect, shutting down daemon")))
+                              (stop-daemon!))
+                  timeout-ms
+                  TimeUnit/MILLISECONDS)]
+        (reset! !cdp-idle-future fut)))))
+
 ;; --- Phase 5: Connect CDP ---
 
 (defn- connect-cdp!
   "Connects daemon state to a CDP endpoint and returns connection payload."
   [^String url]
+  (cancel-cdp-idle-shutdown!)
   (when (str/blank? url)
     (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
   (let [warning-payload (cdp-route-lock-warning url)
@@ -2389,6 +2436,9 @@
         (try (core/close! pw) (catch Exception e (warn "cdp-disconnect-close-playwright" e))))
       (release-cdp-route-lock-if-owned!))
     (swap! !state assoc :pw nil :browser nil :context nil :page nil :cdp-connected false)
+    ;; Start idle shutdown timer only when we actually disconnected a CDP session
+    (when cdp-connected
+      (schedule-cdp-idle-shutdown!))
     {:disconnected (boolean cdp-connected)
      :cdp cdp-url}))
 
@@ -2451,7 +2501,14 @@
     (reset! sci-env/!device (:device st)))
   ;; Install CDP handlers so eval-sci scripts can call (spel/cdp-disconnect) / (spel/cdp-reconnect)
   (reset! sci-env/!cdp-disconnect-handler sci-cdp-disconnect-handler)
-  (reset! sci-env/!cdp-reconnect-handler sci-cdp-reconnect-handler))
+  (reset! sci-env/!cdp-reconnect-handler sci-cdp-reconnect-handler)
+  ;; Sync CDP idle timeout value and setter
+  (reset! sci-env/!cdp-idle-timeout-ms @!cdp-idle-timeout-ms)
+  (reset! sci-env/!set-cdp-idle-timeout-handler
+    (fn set-cdp-idle-timeout-handler [ms]
+      (reset! !cdp-idle-timeout-ms ms)
+      (reset! sci-env/!cdp-idle-timeout-ms ms)
+      ms)))
 
 (defn- sync-sci-to-state!
   "After SCI eval, syncs SCI atoms back to daemon state in case user code
@@ -2738,6 +2795,8 @@
    a fresh daemon. Only deletes PID/socket files if they still belong to
    THIS process (prevents nuking a replacement daemon's files)."
   []
+  ;; 0. Cancel CDP idle timer (prevents re-entry if shutdown is called manually)
+  (cancel-cdp-idle-shutdown!)
   (let [session (:session @!state)]
     ;; 1. Close server socket — reject new connections immediately
     (when-let [server @!server]

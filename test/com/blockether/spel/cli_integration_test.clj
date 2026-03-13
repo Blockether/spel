@@ -1730,6 +1730,17 @@
         ;; No previous CDP connection — clear error guiding the user
         (expect (clojure.string/includes? (:result r) "No previous CDP connection found"))))
 
+    (it "cdp-idle-timeout returns current timeout value in SCI"
+      (let [r (cmd "sci_eval" {"code" "(number? (spel/cdp-idle-timeout))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "set-cdp-idle-timeout! changes the timeout from SCI"
+      (let [_  (cmd "sci_eval" {"code" "(spel/set-cdp-idle-timeout! 120000)"})
+            r  (cmd "sci_eval" {"code" "(spel/cdp-idle-timeout)"})]
+        (expect (= "120000" (:result r)))
+        ;; Restore default
+        (cmd "sci_eval" {"code" "(spel/set-cdp-idle-timeout! 1800000)"})))
+
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})

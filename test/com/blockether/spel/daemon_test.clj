@@ -167,6 +167,74 @@
           (catch clojure.lang.ExceptionInfo e
             (expect (str/includes? (.getMessage e) "No previous CDP connection found"))))))))
 
+(defdescribe cdp-idle-timeout-test
+  "Unit tests for CDP idle auto-shutdown timer"
+
+  (describe "schedule and cancel"
+    (it "schedules a future on disconnect when cdp-connected is true"
+      (let [state-atom (deref #'sut/!state)
+            future-atom (deref #'sut/!cdp-idle-future)
+            timeout-atom (deref #'sut/!cdp-idle-timeout-ms)]
+        ;; Use short timeout for testing
+        (reset! timeout-atom 60000)
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "idle-schedule-test"
+                            :cdp-connected true
+                            :launch-flags {"cdp" "ws://test"}})
+        (with-redefs [sut/release-cdp-route-lock-if-owned! (fn [])]
+          (#'sut/disconnect-cdp!))
+        ;; Future should be scheduled
+        (let [fut @future-atom]
+          (expect (some? fut))
+          (expect (not (.isCancelled ^java.util.concurrent.ScheduledFuture fut)))
+          ;; Clean up
+          (.cancel ^java.util.concurrent.ScheduledFuture fut false)
+          (reset! future-atom nil))))
+
+    (it "does not schedule when cdp-connected was false"
+      (let [state-atom (deref #'sut/!state)
+            future-atom (deref #'sut/!cdp-idle-future)
+            timeout-atom (deref #'sut/!cdp-idle-timeout-ms)]
+        (reset! timeout-atom 60000)
+        (reset! future-atom nil)
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "idle-no-schedule-test"
+                            :cdp-connected false
+                            :launch-flags {}})
+        (#'sut/disconnect-cdp!)
+        ;; No future scheduled — wasn't a CDP session
+        (expect (nil? @future-atom))))
+
+    (it "does not schedule when timeout is 0 (disabled)"
+      (let [state-atom (deref #'sut/!state)
+            future-atom (deref #'sut/!cdp-idle-future)
+            timeout-atom (deref #'sut/!cdp-idle-timeout-ms)]
+        (reset! timeout-atom 0)
+        (reset! future-atom nil)
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "idle-disabled-test"
+                            :cdp-connected true
+                            :launch-flags {"cdp" "ws://test"}})
+        (with-redefs [sut/release-cdp-route-lock-if-owned! (fn [])]
+          (#'sut/disconnect-cdp!))
+        (expect (nil? @future-atom))))
+
+    (it "cancels scheduled future on connect"
+      (let [future-atom (deref #'sut/!cdp-idle-future)
+            timeout-atom (deref #'sut/!cdp-idle-timeout-ms)]
+        (reset! timeout-atom 60000)
+        ;; Pre-schedule a dummy future
+        (#'sut/schedule-cdp-idle-shutdown!)
+        (let [fut @future-atom]
+          (expect (some? fut))
+          ;; Cancel via connect path
+          (#'sut/cancel-cdp-idle-shutdown!)
+          (expect (.isCancelled ^java.util.concurrent.ScheduledFuture fut))
+          (expect (nil? @future-atom)))))))
+
 (defdescribe click-diagnostics-test
   "Unit tests for click error diagnostics helpers"
 

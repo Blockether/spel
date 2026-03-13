@@ -106,6 +106,12 @@
 (defonce !cdp-disconnect-handler (atom nil))
 (defonce !cdp-reconnect-handler (atom nil))
 
+;; CDP idle timeout — daemon auto-shuts down after this many ms of CDP disconnection.
+;; Injected by daemon from SPEL_CDP_IDLE_TIMEOUT env var (default 30 min).
+;; Exposed to SCI as (spel/cdp-idle-timeout) and (spel/set-cdp-idle-timeout! ms).
+(defonce !cdp-idle-timeout-ms (atom nil))
+(defonce !set-cdp-idle-timeout-handler (atom nil))
+
 ;; Default action timeout for Playwright operations (ms).
 ;; Set via --timeout flag in eval-sci mode. nil = Playwright default (30s).
 (defonce !default-timeout (atom nil))
@@ -1035,6 +1041,28 @@
      (handler url)
      (throw (ex-info "cdp-reconnect requires daemon mode (start via: spel open/connect)" {})))))
 
+(defn sci-cdp-idle-timeout
+  "Returns the current CDP idle timeout in milliseconds.
+
+   After CDP disconnect, the daemon auto-shuts down if no reconnect occurs
+   within this window. 0 means disabled. Default: 1800000 (30 min).
+   Set SPEL_CDP_IDLE_TIMEOUT env var or call (spel/set-cdp-idle-timeout! ms)."
+  []
+  (or @!cdp-idle-timeout-ms 0))
+
+(defn sci-set-cdp-idle-timeout!
+  "Sets the CDP idle timeout in milliseconds.
+
+   0 disables auto-shutdown. Takes effect on the next CDP disconnect.
+
+   Example:
+     (spel/set-cdp-idle-timeout! 60000)   ; 1 minute
+     (spel/set-cdp-idle-timeout! 0)       ; disable"
+  [ms]
+  (if-let [handler @!set-cdp-idle-timeout-handler]
+    (handler ms)
+    (reset! !cdp-idle-timeout-ms ms)))
+
 ;; =============================================================================
 ;; Help
 ;; =============================================================================
@@ -1652,6 +1680,8 @@
                   ;; CDP disconnect/reconnect
                   ['cdp-disconnect sci-cdp-disconnect]
                   ['cdp-reconnect  sci-cdp-reconnect]
+                  ['cdp-idle-timeout       sci-cdp-idle-timeout]
+                  ['set-cdp-idle-timeout!  sci-set-cdp-idle-timeout!]
                   ;; Tracing
                   ['trace-start!     sci-trace-start!]
                   ['trace-stop!      sci-trace-stop!]
