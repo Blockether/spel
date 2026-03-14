@@ -1727,11 +1727,11 @@
                 (= "--no-persist" arg)
                 (recur (rest args) (assoc flags :no-persist true) remaining)
 
-                (= "--cdp" arg)
+                (or (= "--cdp" arg) (= "--cdp-url" arg))
                 (recur (drop 2 args) (assoc flags :cdp (second args)) remaining)
 
-                (str/starts-with? arg "--cdp=")
-                (recur (rest args) (assoc flags :cdp (subs arg 6)) remaining)
+                (or (str/starts-with? arg "--cdp=") (str/starts-with? arg "--cdp-url="))
+                (recur (rest args) (assoc flags :cdp (subs arg (if (str/starts-with? arg "--cdp-url=") 10 6))) remaining)
 
                 (= "--timeout" arg)
                 (recur (drop 2 args) (assoc flags :timeout (parse-long (second args))) remaining)

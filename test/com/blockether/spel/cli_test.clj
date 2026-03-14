@@ -841,6 +841,14 @@
 
     (it "supports --cdp=value syntax"
       (let [f (flags ["--cdp=http://localhost:9222" "open" "http://x.com"])]
+        (expect (= "http://localhost:9222" (:cdp f)))))
+
+    (it "supports --cdp-url alias"
+      (let [f (flags ["--cdp-url" "http://localhost:9222" "open" "http://x.com"])]
+        (expect (= "http://localhost:9222" (:cdp f)))))
+
+    (it "supports --cdp-url=value syntax"
+      (let [f (flags ["--cdp-url=http://localhost:9222" "open" "http://x.com"])]
         (expect (= "http://localhost:9222" (:cdp f))))))
 
   (describe "--allow-file-access flag"

@@ -170,6 +170,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `locator` | [page selector] | Creates a Locator for finding elements on the page. |
 | `main-frame` | [page] | Returns the main frame of the page. |
 | `navigate` | [page url] \| [page url nav-opts] | Navigates the page to a URL. |
+| `off-dialog` | [page handler] | Removes a previously registered dialog handler. |
 | `on-close` | [page handler] | Registers a handler for page close. |
 | `on-console` | [page handler] | Registers a handler for console messages. |
 | `on-dialog` | [page handler] | Registers a handler for dialogs. |
@@ -738,6 +739,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/assert-visible` | [sel] \| [sel opts] | Asserts the locator is visible. |
 | `spel/audit` | [] | Discovers page structure - header, nav, main, footer, aside sections. |
 | `spel/audit-screenshot` | [caption] \| [caption opts] | Takes a screenshot with a caption bar at the bottom. |
+| `spel/auto-accept-dialogs!` | [] \| [prompt-text] | Registers a persistent dialog handler that auto-accepts all dialogs. |
+| `spel/auto-dismiss-dialogs!` | [] | Registers a persistent dialog handler that auto-dismisses all dialogs. |
 | `spel/blur` | [sel] | Blurs (removes focus from) the element. |
 | `spel/bounding-box` | [sel] | Returns the bounding box of the element. |
 | `spel/bring-to-front` | [] | Brings page to front (activates tab). |
@@ -747,11 +750,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
 | `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/cdp-disconnect` | [] | Temporarily disconnects from the CDP endpoint. |
+| `spel/cdp-idle-timeout` | [] | Returns the current CDP idle timeout in milliseconds. |
 | `spel/cdp-reconnect` | [] \| [url] | Reconnects to the CDP endpoint after a disconnect. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
 | `spel/clear` | [sel] | Clears input field content. |
 | `spel/clear-action-log!` | [] | Clears the action log, resetting the counter and start time. |
+| `spel/clear-dialog-handler!` | [] | Removes the current auto-accept/auto-dismiss dialog handler. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
 | `spel/click` | [sel] \| [sel opts] | Clicks an element. |
 | `spel/clipboard-copy` | [text] | Writes text to the browser clipboard. |
@@ -777,6 +782,11 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/count-of` | [sel] | Returns the number of elements matching the locator. |
 | `spel/dblclick` | [sel] \| [sel opts] | Double-clicks an element. |
 | `spel/debug` | [] | Collects page diagnostics: performance timing, failed resources, DOM stats, dimensions. |
+| `spel/dialog-accept!` | [dialog] \| [dialog prompt-text] | Accepts the dialog. Optional prompt-text for prompt dialogs. |
+| `spel/dialog-default-value` | [dialog] | Returns the default value for prompt dialogs. |
+| `spel/dialog-dismiss!` | [dialog] | Dismisses the dialog. |
+| `spel/dialog-message` | [dialog] | Returns the dialog message text. |
+| `spel/dialog-type` | [dialog] | Returns the dialog type (alert, confirm, prompt, beforeunload). |
 | `spel/disabled?` | [sel] | Returns whether the element is disabled. |
 | `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
 | `spel/drag-by` | [sel dx dy] \| [sel dx dy opts] | Drags an element by pixel offset using mouse events. |
@@ -846,6 +856,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/navigate` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
 | `spel/nth-element` | [sel n] | Returns the nth element matching the locator. |
+| `spel/off-dialog` | [handler] | Removes a previously registered dialog handler. |
 | `spel/on-close` | [handler] | Registers a handler for page close. |
 | `spel/on-console` | [handler] | Registers a handler for console messages. |
 | `spel/on-dialog` | [handler] | Registers a handler for dialogs. |
@@ -876,6 +887,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
 | `spel/select-option` | [sel values] | Selects options in a select element. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
+| `spel/set-cdp-idle-timeout!` | [ms] | Sets the CDP idle timeout in milliseconds. |
 | `spel/set-content!` | [html] \| [html opts] | Sets the HTML content of the page. |
 | `spel/set-default-navigation-timeout!` | [ms] | Sets the default navigation timeout. |
 | `spel/set-default-timeout!` | [ms] | Sets the default timeout for page operations. |
