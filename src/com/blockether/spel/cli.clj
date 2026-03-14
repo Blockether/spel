@@ -2863,7 +2863,8 @@
           (println (:html data))
 
           (:markdown data)
-          (print (:markdown data))
+          (do (print (:markdown data))
+              (.flush *out*))
 
           ;; Boolean results
           (contains? data :visible)
@@ -3088,17 +3089,30 @@
               (ensure-daemon! session flags)
               (let [flag-keys (dissoc flags :session :headless :json)
                     html      (when-not url (if file (slurp (io/file file)) input))
-                    nav-url   (or url
+                    ;; Auto-prepend https:// for protocol-less URLs (issue #86)
+                    effective-url (when url
+                                    (let [lower (str/lower-case url)]
+                                      (if (or (str/starts-with? lower "http://")
+                                            (str/starts-with? lower "https://")
+                                            (str/starts-with? lower "file://")
+                                            (str/starts-with? lower "data:"))
+                                        url
+                                        (str "https://" url))))
+                    nav-url   (or effective-url
                                 (str "data:text/html;base64,"
                                   (.encodeToString (java.util.Base64/getEncoder)
                                     (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
                     nav-cmd   (cond-> {:action "navigate" :url nav-url}
                                 (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
-                    _         (send-command! session nav-cmd (or (:timeout flags) 30000))
+                    timeout   (or (:timeout flags) 30000)
+                    _         (send-command! session nav-cmd timeout)
+                    ;; Extra wait-for-load to handle redirects (issue #86)
+                    _         (when effective-url
+                                (send-command! session {:action "wait" :state "load"} timeout))
                     resp      (send-command! session (cond-> {:action "markdownify"}
                                                        (contains? command :title) (assoc :title title)
                                                        (contains? command :readable) (assoc :readable readable))
-                                (or (:timeout flags) 30000))]
+                                timeout)]
                 (print-result resp json?)
                 (System/exit (if (:success resp) 0 1)))
               (finally

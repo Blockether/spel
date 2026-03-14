@@ -1477,7 +1477,13 @@
       (let [result (cmd "markdownify" {})]
         (expect (string? (:markdown result)))
         (expect (str/includes? (:markdown result) "# Test Page"))
-        (expect (str/includes? (:markdown result) "Submit")))))
+        (expect (str/includes? (:markdown result) "Submit"))))
+
+    (it "returns markdown after 301 redirect (issue #86)"
+      (cmd "navigate" {"url" (str *test-server-url* "/redirect-page")})
+      (let [result (cmd "markdownify" {})]
+        (expect (string? (:markdown result)))
+        (expect (str/includes? (:markdown result) "Test Page")))))
 
   (describe "routes"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}

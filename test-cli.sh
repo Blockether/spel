@@ -1680,6 +1680,14 @@ assert_jq "markdownify --no-title → omits title heading" "$OUT" '(.markdown | 
 OUT=$("$SPEL" --json markdownify --input '<html><head><title>DocTitle</title></head><body><article><h1>Main</h1></article><footer>Footer Noise</footer></body></html>' --full 2>&1)
 assert_jq_contains "markdownify --full → keeps footer content" "$OUT" '.markdown' 'Footer Noise'
 
+# markdownify --url with file:// path (issue #86 — --url path works)
+MD_URL_FILE=/tmp/test-cli-markdownify-url.html
+TEMP_FILES+=("$MD_URL_FILE")
+printf '%s' '<html><head><title>URL Test</title></head><body><h1>Via URL</h1><p>Content here.</p></body></html>' > "$MD_URL_FILE"
+OUT=$("$SPEL" --json markdownify --url "file://$MD_URL_FILE" 2>&1)
+assert_jq_contains "markdownify --url file:// → heading" "$OUT" '.markdown' '# Via URL'
+assert_jq_contains "markdownify --url file:// → content" "$OUT" '.markdown' 'Content here.'
+
 OUT=$("$SPEL" --json routes 2>&1)
 assert_jq "routes → has links" "$OUT" '.links | type == "array"'
 assert_jq "routes → has count" "$OUT" '.count >= 0'

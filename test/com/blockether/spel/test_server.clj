@@ -132,6 +132,12 @@
                             "}")]
             (send-response exchange 200 resp-body "application/json"))
 
+          (and (= "GET" method) (= "/redirect-page" path))
+          (let [headers (.getResponseHeaders exchange)]
+            (.set headers "Location" (str "http://localhost:" (.getPort (.getLocalAddress exchange)) "/test-page"))
+            (.sendResponseHeaders exchange 301 -1)
+            (.close (.getResponseBody exchange)))
+
           (.startsWith path "/status/")
           (let [code (Integer/parseInt (subs path 8))]
             (send-response exchange code
