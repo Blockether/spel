@@ -540,6 +540,57 @@
       (let [r (cmd "scrollintoview" {"selector" "#scroll-anchor"})]
         (expect (= "#scroll-anchor" (:scrolled_into_view r)))))))
 
+;; =============================================================================
+;; Scrollable Discovery + Scroll Position (issue #90)
+;; =============================================================================
+
+(defdescribe scrollable-integration-test
+  "Integration tests for scrollable element discovery (issue #90)"
+
+  (describe "find_scrollable command"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "finds scrollable elements on page"
+      (nav! "/scrollable-page")
+      (let [r (cmd "find_scrollable" {})]
+        (expect (vector? (:elements r)))
+        (expect (pos? (count (:elements r))))))
+
+    (it "returns elements with scroll metadata"
+      (nav! "/scrollable-page")
+      (let [r    (cmd "find_scrollable" {})
+            els  (:elements r)
+            auto (first (filter #(= "auto-scroll" (:id %)) els))]
+        (expect (some? auto))
+        (expect (number? (:scroll-height auto)))
+        (expect (number? (:client-height auto)))
+        (expect (> (:scroll-height auto) (:client-height auto)))))
+
+    (it "excludes overflow:hidden elements"
+      (nav! "/scrollable-page")
+      (let [r   (cmd "find_scrollable" {})
+            ids (set (map :id (:elements r)))]
+        (expect (not (contains? ids "hidden-overflow")))))))
+
+(defdescribe scroll-position-integration-test
+  "Integration tests for scroll position (issue #90)"
+
+  (describe "scroll_position command"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "returns zero on fresh page"
+      (nav! "/scrollable-page")
+      (let [r (cmd "scroll_position" {})]
+        (expect (= 0 (:x r)))
+        (expect (= 0 (:y r)))))
+
+    (it "reflects position after scrolling"
+      (nav! "/scrollable-page")
+      (cmd "scroll" {"direction" "down" "amount" 500})
+      (let [r (cmd "scroll_position" {})]
+        (expect (= 0 (:x r)))
+        (expect (= 500 (:y r)))))))
+
 (defdescribe drag-integration-test
   "Integration tests for drag and drag-by"
 
@@ -1903,6 +1954,32 @@
       (cmd "sci_eval" {"code" "(spel/press \"#key-input\" \"a\")"})
       (let [r (cmd "sci_eval" {"code" "(spel/input-value \"#key-input\")"})]
         (expect (= "\"a\"" (:result r)))))
+
+    (it "scrollable finds scrollable elements via SCI (issue #90)"
+      (nav! "/scrollable-page")
+      (let [r (cmd "sci_eval" {"code" "(let [els (spel/scrollable)] (mapv :id els))"})]
+        ;; SCI returns pr-str'd vector; should contain auto-scroll and y-scroll
+        (expect (clojure.string/includes? (:result r) "auto-scroll"))
+        (expect (clojure.string/includes? (:result r) "y-scroll"))
+        (expect (not (clojure.string/includes? (:result r) "hidden-overflow")))))
+
+    (it "scroll-position returns current position via SCI (issue #90)"
+      (nav! "/scrollable-page")
+      (let [r (cmd "sci_eval" {"code" "(spel/scroll-position)"})]
+        (expect (clojure.string/includes? (:result r) ":x 0"))
+        (expect (clojure.string/includes? (:result r) ":y 0"))))
+
+    (it "smooth-scroll-to scrolls and updates position via SCI (issue #90)"
+      (nav! "/scrollable-page")
+      (cmd "sci_eval" {"code" "(spel/smooth-scroll-to 600)"})
+      (let [r (cmd "sci_eval" {"code" "(:y (spel/scroll-position))"})]
+        (expect (= "600" (:result r)))))
+
+    (it "smooth-scroll-by scrolls relative via SCI (issue #90)"
+      (nav! "/scrollable-page")
+      (cmd "sci_eval" {"code" "(spel/smooth-scroll-by 300)"})
+      (let [r (cmd "sci_eval" {"code" "(:y (spel/scroll-position))"})]
+        (expect (= "300" (:result r)))))
 
     (it "start! is a no-op when daemon has page"
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]

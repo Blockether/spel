@@ -388,3 +388,136 @@
     (it "returns nil on success"
       (sut/set-content! *page* "<div>empty</div>")
       (expect (nil? (sut/keyboard-press *page* "Escape"))))))
+
+;; =============================================================================
+;; Scrollable Discovery (issue #90)
+;; =============================================================================
+
+(def ^:private scrollable-test-html
+  "<style>
+     body { margin: 0; padding: 0; height: 3000px; }
+     .scroll-box { width: 200px; height: 100px; overflow: auto; }
+     .scroll-y   { width: 200px; height: 100px; overflow-y: scroll; overflow-x: hidden; }
+     .hidden-box { width: 200px; height: 100px; overflow: hidden; }
+     .no-scroll  { width: 200px; height: 100px; overflow: visible; }
+     .tall { height: 500px; }
+   </style>
+   <div id='auto-box' class='scroll-box'><div class='tall'>overflow auto</div></div>
+   <div id='y-box' class='scroll-y'><div class='tall'>overflow-y scroll</div></div>
+   <div id='hidden-box' class='hidden-box'><div class='tall'>hidden</div></div>
+   <div id='no-box' class='no-scroll'><p>fits</p></div>")
+
+(defdescribe find-scrollable-test
+  "Tests for scrollable element discovery (issue #90)"
+
+  (describe "find-scrollable"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "finds elements with overflow:auto that actually overflow"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        (expect (contains? ids "auto-box"))))
+
+    (it "finds elements with overflow-y:scroll"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        (expect (contains? ids "y-box"))))
+
+    (it "excludes overflow:hidden elements"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        (expect (not (contains? ids "hidden-box")))))
+
+    (it "excludes elements where content fits (no actual overflow)"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        (expect (not (contains? ids "no-box")))))
+
+    (it "finds at least the two scrollable div containers"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        ;; Must find both overflow:auto and overflow-y:scroll divs
+        (expect (contains? ids "auto-box"))
+        (expect (contains? ids "y-box"))
+        (expect (>= (count results) 2))))
+
+    (it "returns scroll dimension metadata"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            auto-el (first (filter #(= "auto-box" (:id %)) results))]
+        (expect (some? auto-el))
+        (expect (number? (:scroll-height auto-el)))
+        (expect (number? (:client-height auto-el)))
+        (expect (> (:scroll-height auto-el) (:client-height auto-el)))
+        (expect (string? (:overflow-y auto-el)))))
+
+    (it "returns a vector"
+      (sut/set-content! *page* scrollable-test-html)
+      (expect (vector? (sut/find-scrollable *page*))))))
+
+;; =============================================================================
+;; Scroll Position (issue #90)
+;; =============================================================================
+
+(defdescribe scroll-position-test
+  "Tests for scroll position queries (issue #90)"
+
+  (describe "scroll-position"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "returns zero position on fresh page"
+      (sut/set-content! *page* "<body style='height:3000px'>tall</body>")
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 0 (:x pos)))
+        (expect (= 0 (:y pos)))))
+
+    (it "reflects position after scrolling"
+      (sut/set-content! *page* "<body style='height:3000px'>tall</body>")
+      (sut/evaluate *page* "window.scrollTo(0, 500)")
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 0 (:x pos)))
+        (expect (= 500 (:y pos)))))))
+
+;; =============================================================================
+;; Smooth Scroll (issue #90)
+;; =============================================================================
+
+(defdescribe smooth-scroll-test
+  "Tests for smooth scroll functions (issue #90)"
+
+  (describe "smooth-scroll-to"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "scrolls to an absolute Y position"
+      (sut/set-content! *page* "<body style='height:5000px'>tall</body>")
+      (sut/smooth-scroll-to *page* 800)
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 800 (:y pos)))))
+
+    (it "scrolls to zero (top)"
+      (sut/set-content! *page* "<body style='height:5000px'>tall</body>")
+      (sut/evaluate *page* "window.scrollTo(0, 1000)")
+      (sut/smooth-scroll-to *page* 0)
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 0 (:y pos))))))
+
+  (describe "smooth-scroll-by"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "scrolls down by a positive delta"
+      (sut/set-content! *page* "<body style='height:5000px'>tall</body>")
+      (sut/smooth-scroll-by *page* 400)
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 400 (:y pos)))))
+
+    (it "scrolls up by a negative delta"
+      (sut/set-content! *page* "<body style='height:5000px'>tall</body>")
+      (sut/evaluate *page* "window.scrollTo(0, 1000)")
+      (sut/smooth-scroll-by *page* -300)
+      (let [pos (sut/scroll-position *page*)]
+        (expect (= 700 (:y pos)))))))

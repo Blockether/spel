@@ -66,6 +66,63 @@
   </script>
 </body></html>")
 
+(def ^:private scrollable-page-html
+  "<!DOCTYPE html>
+<html><head><title>Scrollable Test Page</title>
+<style>
+  body { margin: 0; padding: 20px; height: 3000px; }
+  .scroll-auto { width: 300px; height: 200px; overflow: auto; border: 1px solid #ccc; }
+  .scroll-y    { width: 300px; height: 150px; overflow-y: scroll; overflow-x: hidden; border: 1px solid #aaa; }
+  .no-overflow { width: 300px; height: 200px; overflow: hidden; border: 1px solid #eee; }
+  .no-scroll   { width: 300px; height: 200px; overflow: visible; border: 1px solid #ddd; }
+  .tall-content { height: 800px; }
+  .wide-content { width: 600px; }
+  #nested-outer { width: 400px; height: 300px; overflow: auto; border: 2px solid blue; }
+  #nested-inner { width: 350px; height: 200px; overflow: auto; border: 2px solid green; margin: 10px; }
+</style>
+</head>
+<body>
+  <h1>Scrollable Test</h1>
+
+  <!-- Scrollable: overflow:auto with tall content -->
+  <div id=\"auto-scroll\" class=\"scroll-auto\" role=\"region\" aria-label=\"Auto Scroll\">
+    <div class=\"tall-content\">Auto scroll content that overflows vertically</div>
+  </div>
+
+  <!-- Scrollable: overflow-y:scroll -->
+  <div id=\"y-scroll\" class=\"scroll-y\">
+    <div class=\"tall-content\">Y-scroll content that overflows</div>
+  </div>
+
+  <!-- NOT scrollable: overflow:hidden -->
+  <div id=\"hidden-overflow\" class=\"no-overflow\">
+    <div class=\"tall-content\">Hidden overflow — NOT scrollable</div>
+  </div>
+
+  <!-- NOT scrollable: no overflow, content fits -->
+  <div id=\"no-overflow\" class=\"no-scroll\">
+    <p>Short content that fits</p>
+  </div>
+
+  <!-- Nested scrollable containers -->
+  <div id=\"nested-outer\">
+    <div class=\"tall-content\">
+      <div id=\"nested-inner\">
+        <div class=\"tall-content\">Nested inner scrollable content</div>
+      </div>
+      Outer scrollable content
+    </div>
+  </div>
+
+  <!-- Scroll position tracker -->
+  <div id=\"scroll-pos\">0</div>
+  <script>
+    window.addEventListener('scroll', function() {
+      document.getElementById('scroll-pos').textContent = Math.round(window.scrollY);
+    });
+  </script>
+</body></html>")
+
 (def ^:private keyboard-page-html
   "<!DOCTYPE html>
 <html><head><title>Keyboard Test Page</title></head>
@@ -137,6 +194,9 @@
 
           (and (= "GET" method) (= "/keyboard-page" path))
           (send-response exchange 200 keyboard-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/scrollable-page" path))
+          (send-response exchange 200 scrollable-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/health" path))
           (send-response exchange 200 "{\"status\":\"ok\"}" "application/json")
