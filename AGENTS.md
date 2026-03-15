@@ -70,6 +70,57 @@ Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect`
 | `native.clj` (new CLI command) | `test-cli.sh` — add section with `assert_jq` / `assert_contains` assertions |
 | `native.clj` (tool command, e.g. stitch/codegen) | `test-cli.sh` — at minimum `--help` smoke test |
 | Everything else | Corresponding `*_test.clj` (e.g. `page.clj` → `page_test.clj`) |
+
+### clojure.test support (alternative to Lazytest)
+
+SPEL also supports standard `clojure.test` with Allure reporting via `allure-ct-reporter`.
+Tests live in `test/com/blockether/spel/ct/`. Use `ct-fixture` to bridge Lazytest fixtures
+into `clojure.test/use-fixtures`:
+
+```clojure
+(ns my-app.test
+  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+            [com.blockether.spel.allure :as allure]
+            [com.blockether.spel.test-fixtures
+             :refer [*page* with-playwright with-browser with-traced-page ct-fixture]]))
+
+(use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
+(use-fixtures :each (ct-fixture with-traced-page))
+
+(deftest my-test
+  (allure/epic "My Epic")
+  (testing "something" (is (= 1 1))))
+```
+
+Run with: `clojure -M:test-ct` (activates via `-Dallure.clojure-test.enabled=true`).
+
+### HTML test pages (`test_server.clj`)
+
+Integration tests run against a local HTTP test server (`test/com/blockether/spel/test_server.clj`).
+To add a new test page:
+
+1. Define the HTML as a `def ^:private` string in `test_server.clj`
+2. Add a route in `make-handler`'s `cond`: `(and (= "GET" method) (= "/my-page" path))`
+3. Navigate in tests with `(nav! "/my-page")` or `(page/navigate *page* (str *test-server-url* "/my-page"))`
+
+**Available test server routes:**
+
+| Route | Purpose |
+|---|---|
+| `/test-page` | General form elements (inputs, checkboxes, dropdowns, buttons) |
+| `/keyboard-page` | Keyboard event capture (`keydown` → `#last-key`, `#key-log` divs) |
+| `/dialog-page` | Alert, confirm, prompt dialogs |
+| `/second-page` | Navigation target (back link to test-page) |
+| `/iframe-page` | IFrame container embedding test-page |
+| `/redirect-page` | 301 redirect to test-page |
+| `/echo` | Echo request back as JSON (method, path, query, body) |
+| `/health` | Health check (GET → `{"status":"ok"}`, HEAD → 200) |
+| `/status/N` | Return HTTP status code N |
+| `/slow` | 2-second delayed response |
+
+**Always verify behavior, not just "no error"** — use dedicated HTML pages with observable
+DOM state (event listeners, visible output elements) instead of testing return values only.
+
 ### CLI bash regression (`test-cli.sh`)
 When adding a new CLI command or daemon action:
 - Add a new `section "Name (N)"` block in `test-cli.sh` before the SUMMARY section
@@ -91,6 +142,13 @@ make validate-safe-graal     # check for reflection/boxed-math warnings
 make gen-docs                # regenerate references/FULL_API.md from source (run BEFORE install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
 make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 8 agents)
+clojure -M:test-ct           # clojure.test suite with Allure reporting (test/ct/ directory)
+```
+
+Single test namespace / var:
+```bash
+clojure -M:test -n <ns>                  # e.g. com.blockether.spel.core-test
+clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ```
 
 ## Agent Scaffolding
@@ -128,12 +186,6 @@ Valid values: `opencode` (default), `claude`. The `vscode` value is **deprecated
 spel init-agents --loop=opencode   # OpenCode (default)
 spel init-agents --loop=claude     # Claude Code
 # spel init-agents --loop=vscode   # DEPRECATED — exits with error
-```
-
-Single test namespace / var:
-```bash
-clojure -M:test -n <ns>                  # e.g. com.blockether.spel.core-test
-clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
 ```
 
 ## Verification
@@ -242,6 +294,24 @@ SCI-exposed functions must be named `defn`s with docstrings. Inline `(fn ...)` l
 
 Always reproduce the issue first to confirm it exists and understand the root cause. Document
 the reproduction steps so future developers can verify the fix works against the original failure.
+
+### SCI eval test results are pr-str'd
+
+When testing SCI functions via `cmd "sci_eval"`, string results come back **double-quoted**
+because the daemon serializes them with `pr-str`. This is a common gotcha:
+
+```clojure
+;; WRONG — will fail:
+(let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.title\")"})]
+  (expect (= "My Title" (:result r))))
+;; (:result r) is actually "\"My Title\"", not "My Title"
+
+;; CORRECT:
+(let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.title\")"})]
+  (expect (= "\"My Title\"" (:result r))))
+```
+
+Daemon `cmd "evaluate"` returns raw values (no quoting). Only `cmd "sci_eval"` wraps strings.
 
 ## Key References
 
