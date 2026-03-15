@@ -1014,6 +1014,29 @@
     (Thread/sleep 600)
     nil))
 
+(defn sci-scrollable
+  "Finds all scrollable elements on the current page.
+   Returns a vector of maps with scroll metadata (tag, id, scroll dimensions, overflow)."
+  []
+  (page/find-scrollable (require-page!)))
+
+(defn sci-scroll-position
+  "Returns the current scroll position of the page as {:x N :y N}."
+  []
+  (page/scroll-position (require-page!)))
+
+(defn sci-smooth-scroll-to
+  "Smoothly scrolls the page to an absolute Y position.
+   Waits for the scroll animation to complete."
+  [y]
+  (throw-if-anomaly (page/smooth-scroll-to (require-page!) (long y))))
+
+(defn sci-smooth-scroll-by
+  "Smoothly scrolls the page by a relative delta (positive=down, negative=up).
+   Waits for the scroll animation to complete."
+  [delta-y]
+  (throw-if-anomaly (page/smooth-scroll-by (require-page!) (long delta-y))))
+
 (defn sci-human-pause
   "Pauses for a random duration between min-ms and max-ms (default: 300-700ms).
    Simulates natural human pacing for smoother video recordings.
@@ -1799,6 +1822,10 @@
                   ['export-srt             sci-export-srt]
                   ['clear-action-log!      sci-clear-action-log!]
                   ['smooth-scroll          sci-smooth-scroll]
+                  ['smooth-scroll-to       sci-smooth-scroll-to]
+                  ['smooth-scroll-by       sci-smooth-scroll-by]
+                  ['scrollable             sci-scrollable]
+                  ['scroll-position        sci-scroll-position]
                   ['human-pause            sci-human-pause]
                   ;; Network
                   ['last-response  sci-last-response]

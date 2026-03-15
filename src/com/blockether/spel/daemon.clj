@@ -1835,6 +1835,14 @@
   (snapshot-after-action!)
   {:scrolled_into_view selector})
 
+(defmethod handle-cmd "find_scrollable" [_ _params]
+  (ensure-page-loaded!)
+  {:elements (page/find-scrollable (pg))})
+
+(defmethod handle-cmd "scroll_position" [_ _params]
+  (ensure-page-loaded!)
+  (page/scroll-position (pg)))
+
 (defmethod handle-cmd "drag" [_ {:strs [source target force steps timeout
                                         source-position target-position]}]
   (ensure-page-loaded!)
