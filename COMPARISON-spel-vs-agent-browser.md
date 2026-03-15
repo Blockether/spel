@@ -157,7 +157,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 | Category | Commands | Why it matters |
 |---|---|---|
-| **Annotations** | `annotate`, `unannotate` with `--scope`, `--no-badges` | Visual debugging overlays on any page |
+| **Annotation overlays** | `annotate`, `unannotate` with `--scope`, `--no-badges`, custom styles | Full visual overlay control (AB has `--annotate` flag for numbered labels, but no programmatic overlay/unannotate/scope) |
 | **Stitch** | `stitch <imgs...>` | Combine screenshots into one image |
 | **Google search** | `search <query>` | Built-in Google search from CLI |
 | **Codegen** | `codegen record`, `codegen [file]` | Record → Clojure replay scripts |
@@ -166,7 +166,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 | **Inspector** | `inspector [url]`, `show-trace` | Playwright Inspector + Trace Viewer |
 | **Chrome cookie export** | `state export` | Extract cookies from Chrome/Edge/Brave profiles |
 | **Scrollable discovery** | `find-scrollable`, `scroll-position`, `smooth-scroll-to`, `smooth-scroll-by` | Discover and interact with scrollable containers |
-| **Page-level keyboard** | `keyboard-press` | Press keys at page level (not just locator-level) |
+
 
 ### Commands agent-browser has that spel doesn't (at CLI level)
 
@@ -177,16 +177,16 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 | **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | ✅ Truly missing | Snapshot Myers diff, pixel comparison, URL comparison |
 | **Auth vault** | `auth save/login/list/delete/show` | ✅ Truly missing | AES-256-GCM encrypted credential store with auto-login |
 | **Computed styles** | `get styles <sel>` | ⚡ Library/SCI | `snapshot -S --styles` (--minimal/default/--max); computed CSS styles in snapshot output |
-| **Clipboard** | `clipboard read/write/copy/paste` | ✅ Truly missing | Clipboard operations with auto permission grant |
+| **Clipboard** | `clipboard read/write/copy/paste` | ⚡ CLI exists | spel has `clipboard copy`, `clipboard read`, `clipboard paste` as CLI commands |
 | **Action policy** | `confirm`, `deny`, `--allowed-domains` | ✅ Truly missing | Safety guardrails for AI agents |
-| **Screencast** | `screencast start/stop` | ✅ Truly missing | WebSocket live browser streaming |
-| **Input injection** | `input_mouse`, `input_keyboard`, `input_touch` | ✅ Truly missing | CDP-level pair-browsing / remote control |
+| **WebSocket streaming** | `AGENT_BROWSER_STREAM_PORT` env var | ✅ Truly missing | WebSocket live browser streaming (env-var activated, no CLI command) |
+| ~~**Input injection**~~ | ~~`input_mouse`, `input_keyboard`, `input_touch`~~ | ❓ Removed | Was in 0.15.x, not in 0.20.11 `--help` — likely removed in Rust rewrite |
 | **Profiler** | `profiler start/stop` | ✅ Truly missing | Chrome DevTools performance profiling |
 | **Config file** | `agent-browser.json` | ✅ Truly missing | Cascading configuration |
 | **iOS Simulator** | `-p ios`, `swipe`, `device list` | ✅ Truly missing | Real mobile Safari testing via Appium |
 | **Cloud browsers** | `-p browserbase/kernel/browseruse` | ✅ Truly missing | Serverless browser instances |
-| **Window management** | `window new` | ✅ Truly missing | Open new browser window (not just tab) |
-| **DevTools inspect** | `inspect` | ✅ Truly missing | Open Chrome DevTools panel |
+| ~~**Window management**~~ | ~~`window new`~~ | ❓ Removed | Was in 0.15.x, not in 0.20.11 `--help` — likely folded into tab management |
+| **DevTools inspect** | `inspect` | 🟡 Different | AB opens Chrome DevTools for the active page; spel has `inspector` which launches Playwright Inspector (locator picker / recorder) — different tools |
 | **CDP URL** | `get cdp-url` | ✅ Truly missing | Expose CDP endpoint for external tools |
 | **Screenshot options** | `--dir`, `--quality`, `--format` | ✅ Truly missing | Screenshot output directory, JPEG quality, format selection |
 | **Alternative engine** | `--engine lightpanda` | ✅ Truly missing | Lightweight headless browser engine option |
@@ -213,7 +213,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 ### Shared (both have)
 
-open, click, dblclick, type, fill, press, keydown/keyup, hover, focus, check/uncheck, select, drag, upload, scroll, scrollintoview, wait (selector/timeout/text/url/load/fn), screenshot, pdf, snapshot (-i/-c/-d/-s/--flat), eval, connect (CDP), close, sessions, viewport, device emulation, proxy, user-agent, stealth, JSON output, `--headed` mode, dialog accept/dismiss, frame switch/main/list, tab new/switch/close/list, mouse move/down/up/wheel, cookies get/set/clear, storage local/session get/set/clear, state save/load/list/show/rename/clear/clean, set media/geo/offline/headers/credentials, network route/unroute/requests/clear, get text/html/value/attr/url/title/count/box, is visible/enabled/checked, find role/text/label/placeholder/alt/title/testid/first/last/nth, trace start/stop, console/errors, highlight, download, --extension, --profile, back/forward/reload.
+open, click, dblclick, type, fill, press (page-level), keyboard type/inserttext, keydown/keyup, hover, focus, check/uncheck, select, drag, upload, scroll, scrollintoview, wait (selector/timeout/text/url/load/fn), screenshot, pdf, snapshot (-i/-c/-d/-s/--flat), eval, connect (CDP), close, sessions, viewport, device emulation, proxy, user-agent, stealth, JSON output, `--headed` mode, dialog accept/dismiss, frame switch/main/list, tab new/switch/close/list, mouse move/down/up/wheel, cookies get/set/clear, storage local/session get/set/clear, state save/load/list/show/rename/clear/clean, set media/geo/offline/headers/credentials, network route/unroute/requests/clear, get text/html/value/attr/url/title/count/box, is visible/enabled/checked, find role/text/label/placeholder/alt/title/testid/first/last/nth, trace start/stop, console/errors, highlight, download, clipboard read/write/paste, --extension, --profile, back/forward/reload.
 
 ---
 
@@ -453,7 +453,7 @@ As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright ent
 3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
 4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — truly missing, worth implementing
 5. ~~**Computed styles**~~ — ✅ Done in spel 0.7.2 (`snapshot -S --styles` with `--minimal`/default/`--max`)
-6. **Clipboard** — `clipboard read/write/copy/paste` with auto permission grant — truly missing, moderate value
+6. ~~**Clipboard**~~ — ✅ Done in spel (`clipboard copy`, `clipboard read`, `clipboard paste` CLI commands)
 7. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
 8. ~~**`download` command**~~ — ✅ Done in spel 0.5.0
 9. ~~**Better error propagation**~~ — ✅ Done in spel 0.5.0
@@ -508,7 +508,7 @@ As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright ent
 | **Error messages** | Tie | Both now propagate errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The genuine gaps are diff tooling (snapshot/pixel/URL comparison) and clipboard CLI. Computed styles is now done (`snapshot -S --styles`).
+**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The genuine gap is diff tooling (snapshot/pixel/URL comparison). Computed styles (`snapshot -S --styles`), clipboard (`clipboard copy/read/paste`), and scrollable discovery (`find-scrollable`) are all done.
 
 The competitive landscape shifted in March 2026. agent-browser's v0.20.0 rewrite to native Rust was a significant leap — it's no longer a "Node.js wrapper" and the install story is dramatically better (7MB, no dependencies). The performance gap narrowed from 9–17× to 2.4–31×. The binary size gap widened against spel (10× now vs roughly equal before when you counted node_modules).
 
