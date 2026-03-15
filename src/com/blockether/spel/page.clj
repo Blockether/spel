@@ -381,6 +381,148 @@
        (Thread/sleep (min (long (* amount 0.8)) 800)))
      {:scrolled dir :amount amount :smooth smooth?})))
 
+(defn scroll-position
+  "Returns the current scroll position of the page.
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   Map with :x and :y (both longs, pixels)."
+  [^Page page]
+  (let [result (safe (.evaluate page "() => ({x: Math.round(window.scrollX), y: Math.round(window.scrollY)})"))]
+    (if (instance? java.util.Map result)
+      {:x (long (or (.get ^java.util.Map result "x") 0))
+       :y (long (or (.get ^java.util.Map result "y") 0))}
+      result)))
+
+(defn smooth-scroll-to
+  "Smoothly scrolls the page to an absolute Y position.
+   Uses CSS smooth scroll behavior and waits for completion.
+
+   Params:
+   `page` - Page instance.
+   `y`    - Target Y position in pixels.
+
+   Returns:
+   Map with :scrolled-to y."
+  [^Page page ^long y]
+  (safe (.evaluate page (str "window.scrollTo({top: " y ", behavior: 'smooth'})")))
+  (safe (.evaluate page (str "new Promise(r => { const check = () => { if (Math.round(window.scrollY) === " y ") r(); else requestAnimationFrame(check); }; check(); })")))
+  {:scrolled-to y})
+
+(defn smooth-scroll-by
+  "Smoothly scrolls the page by a relative delta.
+   Uses CSS smooth scroll behavior and waits for completion.
+
+   Params:
+   `page`    - Page instance.
+   `delta-y` - Pixels to scroll (positive = down, negative = up).
+
+   Returns:
+   Map with :scrolled-by delta-y."
+  [^Page page ^long delta-y]
+  (let [target (safe (.evaluate page (str "() => { const t = Math.round(window.scrollY) + " delta-y "; window.scrollTo({top: t, behavior: 'smooth'}); return t; }")))]
+    (when (number? target)
+      (safe (.evaluate page (str "new Promise(r => { const check = () => { if (Math.round(window.scrollY) === " (long target) ") r(); else requestAnimationFrame(check); }; check(); })"))))
+    {:scrolled-by delta-y}))
+
+(defn find-scrollable
+  "Finds all scrollable elements on the page.
+
+   Returns a vector of maps, each containing:
+     :tag           - Element tag name (e.g. \"DIV\", \"BODY\")
+     :id            - Element id attribute (empty string if none)
+     :role          - ARIA role if present
+     :selector      - CSS selector for the element
+     :scroll-height - Total scrollable content height (px)
+     :scroll-width  - Total scrollable content width (px)
+     :client-height - Visible height (px)
+     :client-width  - Visible width (px)
+     :scroll-top    - Current vertical scroll position
+     :scroll-left   - Current horizontal scroll position
+     :overflow-x    - Computed overflow-x CSS value
+     :overflow-y    - Computed overflow-y CSS value
+     :overflows?    - True if content actually overflows the container
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   Vector of maps or anomaly map on failure."
+  [^Page page]
+  (let [js "() => {
+    const results = [];
+    const scrollable = new Set(['auto', 'scroll']);
+
+    function check(el) {
+      const style = window.getComputedStyle(el);
+      const ox = style.overflowX;
+      const oy = style.overflowY;
+      const hasOverflowStyle = scrollable.has(ox) || scrollable.has(oy);
+      const overflowsV = el.scrollHeight > el.clientHeight;
+      const overflowsH = el.scrollWidth > el.clientWidth;
+      if (hasOverflowStyle && (overflowsV || overflowsH)) {
+        let selector = el.tagName.toLowerCase();
+        if (el.id) selector = '#' + el.id;
+        else if (el.className && typeof el.className === 'string')
+          selector = el.tagName.toLowerCase() + '.' + el.className.trim().split(/\\s+/).join('.');
+        results.push({
+          tag: el.tagName,
+          id: el.id || '',
+          role: el.getAttribute('role') || '',
+          selector: selector,
+          scrollHeight: el.scrollHeight,
+          scrollWidth: el.scrollWidth,
+          clientHeight: el.clientHeight,
+          clientWidth: el.clientWidth,
+          scrollTop: Math.round(el.scrollTop),
+          scrollLeft: Math.round(el.scrollLeft),
+          overflowX: ox,
+          overflowY: oy,
+          overflows: overflowsV || overflowsH
+        });
+      }
+    }
+
+    // Document element and body are always scrollable if content overflows viewport
+    const docEl = document.documentElement;
+    if (docEl.scrollHeight > docEl.clientHeight || docEl.scrollWidth > docEl.clientWidth) {
+      results.push({
+        tag: docEl.tagName, id: docEl.id || '', role: '', selector: 'html',
+        scrollHeight: docEl.scrollHeight, scrollWidth: docEl.scrollWidth,
+        clientHeight: docEl.clientHeight, clientWidth: docEl.clientWidth,
+        scrollTop: Math.round(docEl.scrollTop || window.scrollY),
+        scrollLeft: Math.round(docEl.scrollLeft || window.scrollX),
+        overflowX: 'auto', overflowY: 'auto', overflows: true
+      });
+    }
+
+    // Walk all elements
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) check(walker.currentNode);
+
+    return results;
+  }"
+        result (safe (.evaluate page js))]
+    (if (instance? java.util.List result)
+      (mapv (fn [^java.util.Map m]
+              {:tag           (.get m "tag")
+               :id            (.get m "id")
+               :role          (.get m "role")
+               :selector      (.get m "selector")
+               :scroll-height (long (or (.get m "scrollHeight") 0))
+               :scroll-width  (long (or (.get m "scrollWidth") 0))
+               :client-height (long (or (.get m "clientHeight") 0))
+               :client-width  (long (or (.get m "clientWidth") 0))
+               :scroll-top    (long (or (.get m "scrollTop") 0))
+               :scroll-left   (long (or (.get m "scrollLeft") 0))
+               :overflow-x    (.get m "overflowX")
+               :overflow-y    (.get m "overflowY")
+               :overflows?    (boolean (.get m "overflows"))})
+        result)
+      (or result []))))
+
 ;; =============================================================================
 ;; Screenshots & PDF
 ;; =============================================================================
