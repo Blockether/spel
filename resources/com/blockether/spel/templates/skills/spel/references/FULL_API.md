@@ -153,6 +153,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `file-chooser-is-multiple?` | [fc] | Returns whether the file chooser accepts multiple files. |
 | `file-chooser-page` | [fc] | Returns the page the file chooser belongs to. |
 | `file-chooser-set-files!` | [fc files] | Sets the files for the file chooser. |
+| `find-scrollable` | [page] | Finds all scrollable elements on the page. |
 | `frame-by-name` | [page name] | Returns a frame by its name attribute. |
 | `frame-by-url` | [page pattern] | Returns a frame by matching URL pattern. |
 | `frames` | [page] | Returns all frames in the page. |
@@ -194,11 +195,14 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `route-web-socket!` | [page pattern handler] | Registers a handler for WebSocket connections matching a URL pattern. |
 | `screenshot` | [page] \| [page ss-opts] | Takes a screenshot of the page. |
 | `scroll` | [page] \| [page direction] \| [page direction opts] | Scrolls the page by the given amount in the given direction. |
+| `scroll-position` | [page] | Returns the current scroll position of the page. |
 | `set-content!` | [page html] \| [page html set-opts] | Sets the HTML content of the page. |
 | `set-default-navigation-timeout!` | [page timeout] | Sets the default navigation timeout. |
 | `set-default-timeout!` | [page timeout] | Sets the default timeout for page operations. |
 | `set-extra-http-headers!` | [page headers] | Sets extra HTTP headers for all requests on this page. |
 | `set-viewport-size!` | [page width height] | Sets the viewport size. |
+| `smooth-scroll-by` | [page delta-y] | Smoothly scrolls the page by a relative delta. |
+| `smooth-scroll-to` | [page y] | Smoothly scrolls the page to an absolute Y position. |
 | `title` | [page] | Returns the page title. |
 | `unroute!` | [page pattern] | Removes a route handler. |
 | `url` | [page] | Returns the current page URL. |
@@ -887,6 +891,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/screenshot` | [] \| [path-or-opts] | Takes a screenshot of the page. |
 | `spel/scroll` | [] \| [direction] \| [direction opts] | Scrolls the page or a specific element. |
 | `spel/scroll-into-view` | [sel] | Scrolls element into view. |
+| `spel/scroll-position` | [] | Returns the current scroll position of the page as {:x N :y N}. |
+| `spel/scrollable` | [] | Finds all scrollable elements on the current page. |
 | `spel/select-option` | [sel values] | Selects options in a select element. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
 | `spel/set-cdp-idle-timeout!` | [ms] | Sets the CDP idle timeout in milliseconds. |
@@ -898,6 +904,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
 | `spel/sleep` | [ms] | Plain JVM thread sleep (ms). Does NOT interact with browser event loop. |
 | `spel/smooth-scroll` | [y-or-opts] | Smooth-scrolls the page to the given Y position (or by a delta). |
+| `spel/smooth-scroll-by` | [delta-y] | Smoothly scrolls the page by a relative delta (positive=down, negative=up). |
+| `spel/smooth-scroll-to` | [y] | Smoothly scrolls the page to an absolute Y position. |
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |

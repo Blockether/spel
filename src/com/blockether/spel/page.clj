@@ -433,6 +433,7 @@
    Returns a vector of maps, each containing:
      :tag           - Element tag name (e.g. \"DIV\", \"BODY\")
      :id            - Element id attribute (empty string if none)
+     :ref           - SPEL snapshot ref (e.g. \"e04a3f\") — usable as @e04a3f
      :role          - ARIA role if present
      :selector      - CSS selector for the element
      :scroll-height - Total scrollable content height (px)
@@ -454,52 +455,64 @@
   (let [js "() => {
     const results = [];
     const scrollable = new Set(['auto', 'scroll']);
+    const usedRefs = {};
+
+    function fnv1a(str) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return h;
+    }
+
+    function assignRef(el) {
+      if (el.dataset && el.dataset.pwRef) return el.dataset.pwRef;
+      const tag = el.tagName.toLowerCase();
+      const id = el.id;
+      const role = el.getAttribute('role') || '';
+      const base = id ? ('id:' + id.trim()) : (role + '|' + tag);
+      let ref = 'e' + (fnv1a(base) >>> 8).toString(36).padStart(5, '0');
+      let probe = 0;
+      while (usedRefs[ref] && probe < 100) {
+        probe++;
+        ref = 'e' + (fnv1a(base + '#' + probe) >>> 8).toString(36).padStart(5, '0');
+      }
+      usedRefs[ref] = true;
+      el.setAttribute('data-pw-ref', ref);
+      return ref;
+    }
+
+    function push(el, ox, oy) {
+      let selector = el.tagName.toLowerCase();
+      if (el.id) selector = '#' + el.id;
+      else if (el.className && typeof el.className === 'string' && el.className.trim())
+        selector = el.tagName.toLowerCase() + '.' + el.className.trim().split(/\\s+/).join('.');
+      results.push({
+        tag: el.tagName, id: el.id || '', ref: assignRef(el),
+        role: el.getAttribute('role') || '', selector: selector,
+        scrollHeight: el.scrollHeight, scrollWidth: el.scrollWidth,
+        clientHeight: el.clientHeight, clientWidth: el.clientWidth,
+        scrollTop: Math.round(el.scrollTop), scrollLeft: Math.round(el.scrollLeft),
+        overflowX: ox, overflowY: oy, overflows: true
+      });
+    }
 
     function check(el) {
       const style = window.getComputedStyle(el);
       const ox = style.overflowX;
       const oy = style.overflowY;
-      const hasOverflowStyle = scrollable.has(ox) || scrollable.has(oy);
-      const overflowsV = el.scrollHeight > el.clientHeight;
-      const overflowsH = el.scrollWidth > el.clientWidth;
-      if (hasOverflowStyle && (overflowsV || overflowsH)) {
-        let selector = el.tagName.toLowerCase();
-        if (el.id) selector = '#' + el.id;
-        else if (el.className && typeof el.className === 'string')
-          selector = el.tagName.toLowerCase() + '.' + el.className.trim().split(/\\s+/).join('.');
-        results.push({
-          tag: el.tagName,
-          id: el.id || '',
-          role: el.getAttribute('role') || '',
-          selector: selector,
-          scrollHeight: el.scrollHeight,
-          scrollWidth: el.scrollWidth,
-          clientHeight: el.clientHeight,
-          clientWidth: el.clientWidth,
-          scrollTop: Math.round(el.scrollTop),
-          scrollLeft: Math.round(el.scrollLeft),
-          overflowX: ox,
-          overflowY: oy,
-          overflows: overflowsV || overflowsH
-        });
-      }
+      if ((scrollable.has(ox) || scrollable.has(oy)) &&
+          (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth))
+        push(el, ox, oy);
     }
 
-    // Document element and body are always scrollable if content overflows viewport
     const docEl = document.documentElement;
-    if (docEl.scrollHeight > docEl.clientHeight || docEl.scrollWidth > docEl.clientWidth) {
-      results.push({
-        tag: docEl.tagName, id: docEl.id || '', role: '', selector: 'html',
-        scrollHeight: docEl.scrollHeight, scrollWidth: docEl.scrollWidth,
-        clientHeight: docEl.clientHeight, clientWidth: docEl.clientWidth,
-        scrollTop: Math.round(docEl.scrollTop || window.scrollY),
-        scrollLeft: Math.round(docEl.scrollLeft || window.scrollX),
-        overflowX: 'auto', overflowY: 'auto', overflows: true
-      });
-    }
+    if (docEl.scrollHeight > docEl.clientHeight || docEl.scrollWidth > docEl.clientWidth)
+      push(docEl, 'auto', 'auto');
 
-    // Walk all elements
-    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_ELEMENT);
+    const walker = document.createTreeWalker(
+      document.body || document.documentElement, NodeFilter.SHOW_ELEMENT);
     while (walker.nextNode()) check(walker.currentNode);
 
     return results;
@@ -509,6 +522,7 @@
       (mapv (fn [^java.util.Map m]
               {:tag           (.get m "tag")
                :id            (.get m "id")
+               :ref           (.get m "ref")
                :role          (.get m "role")
                :selector      (.get m "selector")
                :scroll-height (long (or (.get m "scrollHeight") 0))

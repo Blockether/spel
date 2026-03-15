@@ -456,6 +456,23 @@
         (expect (> (:scroll-height auto-el) (:client-height auto-el)))
         (expect (string? (:overflow-y auto-el)))))
 
+    (it "returns SPEL snapshot refs for each element"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            auto-el (first (filter #(= "auto-box" (:id %)) results))]
+        (expect (some? auto-el))
+        (expect (string? (:ref auto-el)))
+        (expect (clojure.string/starts-with? (:ref auto-el) "e"))
+        (expect (>= (count (:ref auto-el)) 5))))
+
+    (it "assigns data-pw-ref attribute to DOM elements"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            auto-el (first (filter #(= "auto-box" (:id %)) results))
+            ref     (:ref auto-el)
+            dom-ref (sut/evaluate *page* (str "document.getElementById('auto-box').getAttribute('data-pw-ref')"))]
+        (expect (= ref dom-ref))))
+
     (it "returns a vector"
       (sut/set-content! *page* scrollable-test-html)
       (expect (vector? (sut/find-scrollable *page*))))))
