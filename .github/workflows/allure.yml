@@ -17,7 +17,7 @@ concurrency:
 env:
   PAGES_BASE_URL: https://blockether.github.io/spel
   MAX_REPORTS: 15
-  MAX_PR_REPORTS: 3
+  MAX_PR_REPORTS: 50
 
 jobs:
   report:
@@ -81,9 +81,21 @@ jobs:
           echo "ci_passed=${{ github.event.workflow_run.conclusion == 'success' }}" >> $GITHUB_OUTPUT
 
           if [ "$CI_EVENT" = "pull_request" ]; then
+            # Primary: use workflow_run.pull_requests (fast, no API call)
             PR_JSON='${{ toJSON(github.event.workflow_run.pull_requests) }}'
-            PR_NUM=$(echo "$PR_JSON" | jq '.[0].number')
-            if [ "$PR_NUM" != "null" ] && [ -n "$PR_NUM" ]; then
+            PR_NUM=$(echo "$PR_JSON" | jq '.[0].number // empty')
+
+            # Fallback: workflow_run.pull_requests is often empty (known GitHub limitation).
+            # Use the head branch to find the associated PR via gh CLI.
+            if [ -z "$PR_NUM" ]; then
+              HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+              if [ -n "$HEAD_BRANCH" ]; then
+                PR_NUM=$(gh pr list --head "$HEAD_BRANCH" --state all --json number --jq '.[0].number' 2>/dev/null || true)
+                [ -z "$PR_NUM" ] && echo "::warning::PR detection fallback failed for branch $HEAD_BRANCH"
+              fi
+            fi
+
+            if [ -n "$PR_NUM" ] && [ "$PR_NUM" != "null" ]; then
               PR_DATA=$(gh pr view "$PR_NUM" --json number,title,author,headRefName,headRefOid,url 2>/dev/null || echo '{}')
               if [ -n "$(echo "$PR_DATA" | jq -r '.number // empty')" ]; then
                 # Only set is_pr=true if we have a valid PR
