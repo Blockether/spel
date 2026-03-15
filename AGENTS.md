@@ -182,6 +182,67 @@ Done. The workflow (.github/workflows/release.yml) automatically:
 - Bump SPEL_VERSION for a release (workflow does it)
 - Upload binaries to a release
 
+## Reproduction Steps (Issue #89: Missing keyboard press API)
+
+### Reproduction
+
+Before commit `f91ea05`, the SCI `spel/press` function only accepted two arguments `(selector key)`.
+Attempting a page-level keyboard press threw an arity error:
+
+```clojure
+(spel/press "Escape")           ;; => Wrong number of args (1) passed to: sci-press
+(spel/keyboard-press "Escape")  ;; => Could not resolve symbol: spel/keyboard-press
+(-> (spel/page) (.keyboard) (.press "Escape"))  ;; => No matching method press found taking 1 args
+```
+
+### Root cause
+
+`sci-press` was bound with only `([sel key] ...)` and `([sel key opts] ...)` arities — a locator-level
+press. There was no page-level keyboard press function at any layer (library, SCI, or CLI).
+
+### Fix (Library -> SCI -> CLI)
+
+1. **Library** (`page.clj`): Added `keyboard-press` wrapping `Page.keyboard().press(key)`.
+2. **SCI** (`sci_env.clj`): Added `sci-keyboard-press` (named `defn`, not lambda). Made `sci-press`
+   multi-arity: `([key])` delegates to `sci-keyboard-press`, `([sel key])` and `([sel key opts])`
+   remain locator-level. Exposed `keyboard-press` binding.
+3. **CLI/Daemon** (`daemon.clj`): `handle-cmd "press"` already had the no-selector branch using raw
+   interop; no change needed.
+
+### Verification
+
+Tests use a dedicated `/keyboard-page` HTML page with `keydown` listeners that write captured keys to
+`#last-key` and `#key-log` divs. Tests verify **actual DOM state** after pressing — not just that the
+function returns without error.
+
+## Learnings
+
+### Always use HTML test pages with observable behavior
+
+Tests that only check "no error thrown" (e.g. `(spel/press "Escape") "ok"`) give false confidence.
+A function can silently do nothing and the test still passes. Instead:
+
+1. Create a dedicated test HTML page in `test_server.clj` with JavaScript event listeners
+2. After performing the action, read DOM state to verify the action had the expected effect
+3. Example: keyboard tests use a `keydown` listener that writes `e.key` to `#last-key`,
+   then the test reads `#last-key` to confirm the key was actually received
+
+### Follow the three-layer pattern
+
+New features MUST go Library -> SCI -> CLI (see "Feature Development Order" in Critical Rules).
+The library layer is the source of truth. SCI and CLI reuse library fns. Never reimplement logic
+at a higher layer.
+
+### Named defns for SCI bindings, never lambdas
+
+SCI-exposed functions must be named `defn`s with docstrings. Inline `(fn ...)` lambdas break
+`gen-docs` introspection, hide functions from `FULL_API.md`, and make debugging impossible.
+
+### Reproduce before fixing
+
+Always reproduce the issue first to confirm it exists and understand the root cause. Document
+the reproduction steps so future developers can verify the fix works against the original failure.
+
 ## Key References
 
 | Resource | Location |
