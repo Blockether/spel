@@ -550,27 +550,44 @@
   (describe "find_scrollable command"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
-    (it "finds scrollable elements on page"
-      (nav! "/scrollable-page")
-      (let [r (cmd "find_scrollable" {})]
-        (expect (vector? (:elements r)))
-        (expect (pos? (count (:elements r))))))
-
-    (it "returns elements with scroll metadata"
+    (it "finds scrollable elements with refs and metadata"
       (nav! "/scrollable-page")
       (let [r    (cmd "find_scrollable" {})
             els  (:elements r)
+            ids  (set (map :id els))
             auto (first (filter #(= "auto-scroll" (:id %)) els))]
+        ;; Finds the right elements
+        (expect (contains? ids "auto-scroll"))
+        (expect (contains? ids "y-scroll"))
+        ;; Each has metadata
         (expect (some? auto))
-        (expect (number? (:scroll-height auto)))
-        (expect (number? (:client-height auto)))
-        (expect (> (:scroll-height auto) (:client-height auto)))))
+        (expect (> (:scroll-height auto) (:client-height auto)))
+        ;; Each has a ref
+        (expect (string? (:ref auto)))
+        (expect (clojure.string/starts-with? (:ref auto) "e"))))
+
+    (it "finds nested containers (both outer and inner)"
+      (nav! "/scrollable-page")
+      (let [ids (set (map :id (:elements (cmd "find_scrollable" {}))))]
+        (expect (contains? ids "nested-outer"))
+        (expect (contains? ids "nested-inner"))))
 
     (it "excludes overflow:hidden elements"
       (nav! "/scrollable-page")
-      (let [r   (cmd "find_scrollable" {})
-            ids (set (map :id (:elements r)))]
-        (expect (not (contains? ids "hidden-overflow")))))))
+      (let [ids (set (map :id (:elements (cmd "find_scrollable" {}))))]
+        (expect (not (contains? ids "hidden-overflow")))))
+
+    (it "scrolls a discovered element via its ref"
+      (nav! "/scrollable-page")
+      (let [els  (:elements (cmd "find_scrollable" {}))
+            auto (first (filter #(= "auto-scroll" (:id %)) els))
+            ref  (:ref auto)
+            sel  (str "[data-pw-ref='" ref "']")]
+        ;; Scroll the discovered element down 200px via evaluate
+        (cmd "evaluate" {"script" (str "document.querySelector(\"" sel "\").scrollTop = 200")})
+        ;; Verify scroll took effect
+        (let [r (cmd "evaluate" {"script" (str "document.querySelector(\"" sel "\").scrollTop")})]
+          (expect (= 200 (long (:result r)))))))))
 
 (defdescribe scroll-position-integration-test
   "Integration tests for scroll position (issue #90)"
@@ -1955,13 +1972,25 @@
       (let [r (cmd "sci_eval" {"code" "(spel/input-value \"#key-input\")"})]
         (expect (= "\"a\"" (:result r)))))
 
-    (it "scrollable finds scrollable elements via SCI (issue #90)"
+    (it "scrollable finds scrollable elements with refs via SCI (issue #90)"
       (nav! "/scrollable-page")
       (let [r (cmd "sci_eval" {"code" "(let [els (spel/scrollable)] (mapv :id els))"})]
-        ;; SCI returns pr-str'd vector; should contain auto-scroll and y-scroll
         (expect (clojure.string/includes? (:result r) "auto-scroll"))
         (expect (clojure.string/includes? (:result r) "y-scroll"))
+        (expect (clojure.string/includes? (:result r) "nested-outer"))
+        (expect (clojure.string/includes? (:result r) "nested-inner"))
         (expect (not (clojure.string/includes? (:result r) "hidden-overflow")))))
+
+    (it "scrollable returns refs usable for scrolling via SCI (issue #90)"
+      (nav! "/scrollable-page")
+      (cmd "sci_eval" {"code" "
+        (let [els (spel/scrollable)
+              auto (first (filter #(= \"auto-scroll\" (:id %)) els))
+              sel (str \"[data-pw-ref='\" (:ref auto) \"']\")]
+          (spel/evaluate (str \"document.querySelector(\\\"\" sel \"\\\").scrollTop = 200\")))
+        "})
+      (let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.getElementById('auto-scroll').scrollTop\")"})]
+        (expect (= "200" (:result r)))))
 
     (it "scroll-position returns current position via SCI (issue #90)"
       (nav! "/scrollable-page")

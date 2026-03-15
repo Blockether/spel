@@ -398,84 +398,139 @@
      body { margin: 0; padding: 0; height: 3000px; }
      .scroll-box { width: 200px; height: 100px; overflow: auto; }
      .scroll-y   { width: 200px; height: 100px; overflow-y: scroll; overflow-x: hidden; }
+     .scroll-x   { width: 200px; height: 50px; overflow-x: auto; overflow-y: hidden; }
      .hidden-box { width: 200px; height: 100px; overflow: hidden; }
      .no-scroll  { width: 200px; height: 100px; overflow: visible; }
      .tall { height: 500px; }
+     .wide { width: 600px; white-space: nowrap; }
+     .nest-outer { width: 250px; height: 150px; overflow: auto; }
+     .nest-inner { width: 220px; height: 100px; overflow: auto; margin: 10px; }
    </style>
-   <div id='auto-box' class='scroll-box'><div class='tall'>overflow auto</div></div>
+   <div id='auto-box' class='scroll-box' role='region' aria-label='Auto Region'>
+     <div class='tall'>overflow auto</div></div>
    <div id='y-box' class='scroll-y'><div class='tall'>overflow-y scroll</div></div>
+   <div id='x-box' class='scroll-x'><div class='wide'>wide horizontal content that overflows</div></div>
    <div id='hidden-box' class='hidden-box'><div class='tall'>hidden</div></div>
-   <div id='no-box' class='no-scroll'><p>fits</p></div>")
+   <div id='no-box' class='no-scroll'><p>fits</p></div>
+   <div id='nest-outer' class='nest-outer'>
+     <div class='tall'>
+       <div id='nest-inner' class='nest-inner'>
+         <div class='tall'>nested inner scrollable</div>
+       </div>
+       outer content
+     </div>
+   </div>")
 
 (defdescribe find-scrollable-test
   "Tests for scrollable element discovery (issue #90)"
 
-  (describe "find-scrollable"
+  (describe "discovery"
     {:context [with-playwright with-browser with-page]}
 
-    (it "finds elements with overflow:auto that actually overflow"
+    (it "finds overflow:auto, overflow-y:scroll, and overflow-x:auto elements"
       (sut/set-content! *page* scrollable-test-html)
       (let [results (sut/find-scrollable *page*)
             ids     (set (map :id results))]
-        (expect (contains? ids "auto-box"))))
-
-    (it "finds elements with overflow-y:scroll"
-      (sut/set-content! *page* scrollable-test-html)
-      (let [results (sut/find-scrollable *page*)
-            ids     (set (map :id results))]
-        (expect (contains? ids "y-box"))))
-
-    (it "excludes overflow:hidden elements"
-      (sut/set-content! *page* scrollable-test-html)
-      (let [results (sut/find-scrollable *page*)
-            ids     (set (map :id results))]
-        (expect (not (contains? ids "hidden-box")))))
-
-    (it "excludes elements where content fits (no actual overflow)"
-      (sut/set-content! *page* scrollable-test-html)
-      (let [results (sut/find-scrollable *page*)
-            ids     (set (map :id results))]
-        (expect (not (contains? ids "no-box")))))
-
-    (it "finds at least the two scrollable div containers"
-      (sut/set-content! *page* scrollable-test-html)
-      (let [results (sut/find-scrollable *page*)
-            ids     (set (map :id results))]
-        ;; Must find both overflow:auto and overflow-y:scroll divs
         (expect (contains? ids "auto-box"))
         (expect (contains? ids "y-box"))
-        (expect (>= (count results) 2))))
+        (expect (contains? ids "x-box"))))
 
-    (it "returns scroll dimension metadata"
+    (it "excludes overflow:hidden and content-fits elements"
       (sut/set-content! *page* scrollable-test-html)
       (let [results (sut/find-scrollable *page*)
-            auto-el (first (filter #(= "auto-box" (:id %)) results))]
+            ids     (set (map :id results))]
+        (expect (not (contains? ids "hidden-box")))
+        (expect (not (contains? ids "no-box")))))
+
+    (it "finds both nested scrollable containers (outer and inner)"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [results (sut/find-scrollable *page*)
+            ids     (set (map :id results))]
+        (expect (contains? ids "nest-outer"))
+        (expect (contains? ids "nest-inner"))))
+
+    (it "returns empty vector on page with no scrollable elements"
+      (sut/set-content! *page* "<div style='height:50px'>short</div>")
+      (let [results (sut/find-scrollable *page*)]
+        (expect (vector? results))
+        (expect (zero? (count results))))))
+
+  (describe "metadata"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "returns scroll dimensions with scrollHeight > clientHeight for vertical overflow"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [auto-el (first (filter #(= "auto-box" (:id %)) (sut/find-scrollable *page*)))]
         (expect (some? auto-el))
-        (expect (number? (:scroll-height auto-el)))
-        (expect (number? (:client-height auto-el)))
         (expect (> (:scroll-height auto-el) (:client-height auto-el)))
-        (expect (string? (:overflow-y auto-el)))))
+        (expect (= 0 (:scroll-top auto-el)))))
 
-    (it "returns SPEL snapshot refs for each element"
+    (it "returns scrollWidth > clientWidth for horizontal overflow"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [x-el (first (filter #(= "x-box" (:id %)) (sut/find-scrollable *page*)))]
+        (expect (some? x-el))
+        (expect (> (:scroll-width x-el) (:client-width x-el)))
+        (expect (= 0 (:scroll-left x-el)))))
+
+    (it "captures role and overflow-y CSS value"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [auto-el (first (filter #(= "auto-box" (:id %)) (sut/find-scrollable *page*)))]
+        (expect (= "region" (:role auto-el)))
+        (expect (= "auto" (:overflow-y auto-el))))))
+
+  (describe "refs"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "assigns unique refs to each scrollable element"
       (sut/set-content! *page* scrollable-test-html)
       (let [results (sut/find-scrollable *page*)
-            auto-el (first (filter #(= "auto-box" (:id %)) results))]
-        (expect (some? auto-el))
-        (expect (string? (:ref auto-el)))
-        (expect (clojure.string/starts-with? (:ref auto-el) "e"))
-        (expect (>= (count (:ref auto-el)) 5))))
+            refs    (map :ref results)]
+        (expect (every? string? refs))
+        (expect (every? #(str/starts-with? % "e") refs))
+        ;; All refs must be unique
+        (expect (= (count refs) (count (set refs))))))
 
-    (it "assigns data-pw-ref attribute to DOM elements"
+    (it "assigns data-pw-ref DOM attribute matching returned ref"
       (sut/set-content! *page* scrollable-test-html)
-      (let [results (sut/find-scrollable *page*)
-            auto-el (first (filter #(= "auto-box" (:id %)) results))
+      (let [auto-el (first (filter #(= "auto-box" (:id %)) (sut/find-scrollable *page*)))
+            dom-ref (sut/evaluate *page* "document.getElementById('auto-box').getAttribute('data-pw-ref')")]
+        (expect (= (:ref auto-el) dom-ref)))))
+
+  (describe "scrolling discovered elements via ref"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "scrolls a discovered element by evaluating scrollTop via ref"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [auto-el (first (filter #(= "auto-box" (:id %)) (sut/find-scrollable *page*)))
             ref     (:ref auto-el)
-            dom-ref (sut/evaluate *page* (str "document.getElementById('auto-box').getAttribute('data-pw-ref')"))]
-        (expect (= ref dom-ref))))
+            sel     (str "[data-pw-ref='" ref "']")]
+        ;; Scroll the element down 200px
+        (sut/evaluate *page* (str "document.querySelector(\"" sel "\").scrollTop = 200"))
+        ;; Read back scroll position
+        (let [new-top (sut/evaluate *page* (str "document.querySelector(\"" sel "\").scrollTop"))]
+          (expect (= 200 (long new-top))))))
 
-    (it "returns a vector"
+    (it "scrolls nested inner container independently of outer"
       (sut/set-content! *page* scrollable-test-html)
-      (expect (vector? (sut/find-scrollable *page*))))))
+      (let [results   (sut/find-scrollable *page*)
+            outer-el  (first (filter #(= "nest-outer" (:id %)) results))
+            inner-el  (first (filter #(= "nest-inner" (:id %)) results))
+            outer-sel (str "[data-pw-ref='" (:ref outer-el) "']")
+            inner-sel (str "[data-pw-ref='" (:ref inner-el) "']")]
+        ;; Scroll inner down 100px — outer should stay at 0
+        (sut/evaluate *page* (str "document.querySelector(\"" inner-sel "\").scrollTop = 100"))
+        (let [inner-top (sut/evaluate *page* (str "document.querySelector(\"" inner-sel "\").scrollTop"))
+              outer-top (sut/evaluate *page* (str "document.querySelector(\"" outer-sel "\").scrollTop"))]
+          (expect (= 100 (long inner-top)))
+          (expect (= 0 (long outer-top))))))
+
+    (it "scrolls horizontal container via ref"
+      (sut/set-content! *page* scrollable-test-html)
+      (let [x-el (first (filter #(= "x-box" (:id %)) (sut/find-scrollable *page*)))
+            sel  (str "[data-pw-ref='" (:ref x-el) "']")]
+        (sut/evaluate *page* (str "document.querySelector(\"" sel "\").scrollLeft = 150"))
+        (let [new-left (sut/evaluate *page* (str "document.querySelector(\"" sel "\").scrollLeft"))]
+          (expect (= 150 (long new-left))))))))
 
 ;; =============================================================================
 ;; Scroll Position (issue #90)
