@@ -238,21 +238,42 @@
 ;; =============================================================================
 
 (defdescribe press-integration-test
-  "Integration tests for press"
+  "Integration tests for press (issue #89)"
 
   (describe "press key"
     {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
-    (it "press Tab without selector"
-      (nav! "/test-page")
+    (it "press Tab without selector captures keydown on page"
+      (nav! "/keyboard-page")
       (let [r (cmd "press" {"key" "Tab"})]
-        (expect (= "Tab" (:pressed r)))))
+        (expect (= "Tab" (:pressed r))))
+      ;; Verify the page's keydown listener actually captured the key
+      (let [r (cmd "evaluate" {"script" "document.getElementById('last-key').textContent"})]
+        (expect (= "Tab" (:result r)))))
 
-    (it "press with selector"
-      (nav! "/test-page")
-      (cmd "click" {"selector" "#text-input"})
-      (let [r (cmd "press" {"key" "a" "selector" "#text-input"})]
-        (expect (= "a" (:pressed r)))))))
+    (it "press Escape without selector captures keydown on page"
+      (nav! "/keyboard-page")
+      (let [r (cmd "press" {"key" "Escape"})]
+        (expect (= "Escape" (:pressed r))))
+      (let [r (cmd "evaluate" {"script" "document.getElementById('last-key').textContent"})]
+        (expect (= "Escape" (:result r)))))
+
+    (it "press with selector types into element"
+      (nav! "/keyboard-page")
+      (cmd "click" {"selector" "#key-input"})
+      (let [r (cmd "press" {"key" "a" "selector" "#key-input"})]
+        (expect (= "a" (:pressed r))))
+      ;; Verify the input actually received the character
+      (let [r (cmd "get_value" {"selector" "#key-input"})]
+        (expect (= "a" (:value r)))))
+
+    (it "multiple presses accumulate in key-log"
+      (nav! "/keyboard-page")
+      (cmd "press" {"key" "Tab"})
+      (cmd "press" {"key" "Enter"})
+      (cmd "press" {"key" "Escape"})
+      (let [r (cmd "evaluate" {"script" "document.getElementById('key-log').textContent"})]
+        (expect (= "Tab,Enter,Escape" (:result r)))))))
 
 ;; =============================================================================
 ;; 6. Hover, Focus
@@ -1865,16 +1886,23 @@
         (expect (= "true" (:result over-r)))))
 
     (it "press with single arg does page-level keyboard press (issue #89)"
-      (nav! "/test-page")
-      (cmd "sci_eval" {"code" "(spel/click \"#name\")"})
-      (cmd "sci_eval" {"code" "(spel/fill \"#name\" \"hello\")"})
-      (let [r (cmd "sci_eval" {"code" "(spel/press \"Escape\") \"ok\""})]
-        (expect (= "\"ok\"" (:result r)))))
+      (nav! "/keyboard-page")
+      (cmd "sci_eval" {"code" "(spel/press \"Escape\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.getElementById('last-key').textContent\")"})]
+        (expect (= "\"Escape\"" (:result r)))))
 
     (it "keyboard-press sends key to page (issue #89)"
-      (nav! "/test-page")
-      (let [r (cmd "sci_eval" {"code" "(spel/keyboard-press \"Tab\") \"ok\""})]
-        (expect (= "\"ok\"" (:result r)))))
+      (nav! "/keyboard-page")
+      (cmd "sci_eval" {"code" "(spel/keyboard-press \"Tab\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.getElementById('last-key').textContent\")"})]
+        (expect (= "\"Tab\"" (:result r)))))
+
+    (it "press two-arg form presses on specific element (issue #89)"
+      (nav! "/keyboard-page")
+      (cmd "sci_eval" {"code" "(spel/click \"#key-input\")"})
+      (cmd "sci_eval" {"code" "(spel/press \"#key-input\" \"a\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/input-value \"#key-input\")"})]
+        (expect (= "\"a\"" (:result r)))))
 
     (it "start! is a no-op when daemon has page"
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]

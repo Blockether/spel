@@ -333,3 +333,58 @@
         ;; Clipboard paste may fail on about:blank (no secure context)
         ;; Just verify the function returns a map without crashing
         (expect (map? result))))))
+
+;; =============================================================================
+;; Keyboard Press (issue #89)
+;; =============================================================================
+
+(defdescribe keyboard-press-test
+  "Tests for page-level keyboard press (issue #89)"
+
+  (describe "keyboard-press"
+    {:context [with-playwright with-browser with-page]}
+
+    (it "presses Escape and page captures the keydown event"
+      (sut/set-content! *page*
+        "<div id='last-key'>none</div>
+         <script>document.addEventListener('keydown', function(e) {
+           document.getElementById('last-key').textContent = e.key;
+         });</script>")
+      (sut/keyboard-press *page* "Escape")
+      (let [result (locator/text-content (sut/locator *page* "#last-key"))]
+        (expect (= "Escape" result))))
+
+    (it "presses Enter key"
+      (sut/set-content! *page*
+        "<div id='last-key'>none</div>
+         <script>document.addEventListener('keydown', function(e) {
+           document.getElementById('last-key').textContent = e.key;
+         });</script>")
+      (sut/keyboard-press *page* "Enter")
+      (let [result (locator/text-content (sut/locator *page* "#last-key"))]
+        (expect (= "Enter" result))))
+
+    (it "presses Tab key"
+      (sut/set-content! *page*
+        "<div id='last-key'>none</div>
+         <script>document.addEventListener('keydown', function(e) {
+           document.getElementById('last-key').textContent = e.key;
+         });</script>")
+      (sut/keyboard-press *page* "Tab")
+      (let [result (locator/text-content (sut/locator *page* "#last-key"))]
+        (expect (= "Tab" result))))
+
+    (it "presses key combination Control+a"
+      (sut/set-content! *page*
+        "<div id='last-key'>none</div>
+         <script>document.addEventListener('keydown', function(e) {
+           if (e.ctrlKey && e.key === 'a')
+             document.getElementById('last-key').textContent = 'Control+a';
+         });</script>")
+      (sut/keyboard-press *page* "Control+a")
+      (let [result (locator/text-content (sut/locator *page* "#last-key"))]
+        (expect (= "Control+a" result))))
+
+    (it "returns nil on success"
+      (sut/set-content! *page* "<div>empty</div>")
+      (expect (nil? (sut/keyboard-press *page* "Escape"))))))

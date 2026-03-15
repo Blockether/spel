@@ -66,6 +66,23 @@
   </script>
 </body></html>")
 
+(def ^:private keyboard-page-html
+  "<!DOCTYPE html>
+<html><head><title>Keyboard Test Page</title></head>
+<body>
+  <h1>Keyboard Test</h1>
+  <div id=\"last-key\">none</div>
+  <div id=\"key-log\"></div>
+  <input type=\"text\" id=\"key-input\" placeholder=\"Type here\" />
+  <script>
+    document.addEventListener('keydown', function(e) {
+      document.getElementById('last-key').textContent = e.key;
+      var log = document.getElementById('key-log');
+      log.textContent = (log.textContent ? log.textContent + ',' : '') + e.key;
+    });
+  </script>
+</body></html>")
+
 (def ^:private dialog-page-html
   "<!DOCTYPE html>
 <html><head><title>Dialog Page</title></head>
@@ -117,6 +134,9 @@
 
           (and (= "GET" method) (= "/iframe-page" path))
           (send-response exchange 200 iframe-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/keyboard-page" path))
+          (send-response exchange 200 keyboard-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/health" path))
           (send-response exchange 200 "{\"status\":\"ok\"}" "application/json")
