@@ -727,6 +727,32 @@
       return html;
     }
 
+    // --- Hash routing ---
+    function parseHash() {
+      var h = location.hash.replace(/^#\/?/, '');
+      var parts = h.split('?');
+      var path = parts[0] || 'builds';
+      var params = {};
+      if (parts[1]) {
+        parts[1].split('&').forEach(function(p) {
+          var kv = p.split('=');
+          if (kv[0]) params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
+        });
+      }
+      return { tab: (path === 'prs' ? 'prs' : 'builds'), q: params.q || '', filter: params.filter || 'all' };
+    }
+    function updateHash(skipPush) {
+      var parts = [];
+      if (searchQuery) parts.push('q=' + encodeURIComponent(searchQuery));
+      if (activeFilter !== 'all') parts.push('filter=' + encodeURIComponent(activeFilter));
+      var h = '#/' + currentTab + (parts.length ? '?' + parts.join('&') : '');
+      if (skipPush) {
+        history.replaceState(null, '', h);
+      } else if (location.hash !== h) {
+        history.pushState(null, '', h);
+      }
+    }
+
     // --- Tab management ---
     var mainBuilds = [];
     var prBuilds = [];
@@ -734,14 +760,14 @@
     var searchQuery = '';
     var activeFilter = 'all';
 
-    function switchTab(tab) {
+    function switchTab(tab, fromHash) {
       currentTab = tab;
-      localStorage.setItem('spel-tab', tab);
       document.getElementById('tabBuilds').classList.toggle('active', tab === 'builds');
       document.getElementById('tabPRs').classList.toggle('active', tab === 'prs');
       updateFilterPills();
-      restoreSearchState();
+      if (!fromHash) restoreSearchState();
       renderCurrentTab();
+      if (!fromHash) updateHash();
     }
 
     function renderList(data) {
@@ -845,6 +871,7 @@
         p.classList.toggle('active', p.getAttribute('data-filter') === filter);
       });
       renderCurrentTab();
+      updateHash();
     }
 
     function clearSearch() {
@@ -855,6 +882,7 @@
       document.getElementById('searchKbd').style.display = '';
       __spelRemoveItem('search-' + currentTab);
       renderCurrentTab();
+      updateHash();
       input.focus();
     }
 
@@ -869,20 +897,14 @@
 
     function updateFilterPills() {
       var c = document.getElementById('filterPills');
-      if (currentTab === 'prs') {
-        c.innerHTML = '<button class="filter-pill active" data-filter="all" onclick="setFilter(\'all\')">All</button>'
-          + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
-          + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
-          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>'
-          + '<button class="filter-pill" data-filter="merged" onclick="setFilter(\'merged\')">Merged</button>'
-          + '<button class="filter-pill" data-filter="cancelled" onclick="setFilter(\'cancelled\')">Cancelled</button>';
-      } else {
-        c.innerHTML = '<button class="filter-pill active" data-filter="all" onclick="setFilter(\'all\')">All</button>'
-          + '<button class="filter-pill" data-filter="passed" onclick="setFilter(\'passed\')">Passed</button>'
-          + '<button class="filter-pill" data-filter="failed" onclick="setFilter(\'failed\')">Failed</button>'
-          + '<button class="filter-pill" data-filter="in_progress" onclick="setFilter(\'in_progress\')">In Progress</button>'
-          + '<button class="filter-pill" data-filter="cancelled" onclick="setFilter(\'cancelled\')">Cancelled</button>';
-      }
+      var filters = ['all', 'passed', 'failed', 'in_progress'];
+      if (currentTab === 'prs') filters.push('merged');
+      filters.push('cancelled');
+      var labels = { all: 'All', passed: 'Passed', failed: 'Failed', in_progress: 'In Progress', merged: 'Merged', cancelled: 'Cancelled' };
+      c.innerHTML = filters.map(function(f) {
+        var cls = 'filter-pill' + (f === activeFilter ? ' active' : '');
+        return '<button class="' + cls + '" data-filter="' + f + '" onclick="setFilter(\'' + f + '\')">' + labels[f] + '</button>';
+      }).join('');
     }
 
     function restoreSearchState() {
@@ -912,14 +934,25 @@
       var badge = document.getElementById('prBadge');
       if (openCount > 0) badge.textContent = openCount;
 
-      // Restore last tab
-      var savedTab = localStorage.getItem('spel-tab') || 'builds';
-      if (savedTab === 'prs' && prBuilds.length > 0) {
-        switchTab('prs');
-      } else {
-        switchTab('builds');
-      }
+      // Hash takes priority, then localStorage fallback
+      applyHashState();
     }).catch(function() { document.getElementById('empty').classList.add('show'); });
+
+    function applyHashState() {
+      var state = parseHash();
+      var tab = state.tab;
+      if (tab === 'prs' && prBuilds.length === 0) tab = 'builds';
+      searchQuery = state.q;
+      activeFilter = state.filter;
+      var input = document.getElementById('searchInput');
+      input.value = searchQuery;
+      document.getElementById('searchClear').style.display = searchQuery ? 'flex' : 'none';
+      document.getElementById('searchKbd').style.display = searchQuery ? 'none' : '';
+      switchTab(tab, true);
+      updateHash(true);
+    }
+
+    window.addEventListener('hashchange', function() { applyHashState(); });
     // --- Search event listeners ---
     (function() {
       var input = document.getElementById('searchInput');
@@ -936,6 +969,7 @@
             __spelRemoveItem('search-' + currentTab);
           }
           renderCurrentTab();
+          updateHash();
         }, 150);
       });
       input.addEventListener('keydown', function(e) {
