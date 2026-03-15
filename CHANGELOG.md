@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.2] - 2026-03-15
+
+### Changed
+- docs: point README links to specific reference files instead of generic SKILL.md
+- docs: add computed styles for visual comparison to SELECTORS_SNAPSHOTS.md (#92)
+- test: harden find-scrollable tests with nested, horizontal, ref-based scrolling (#90)
+- feat(page): add SPEL snapshot refs to find-scrollable results (#90)
+- docs: add scrollable-page route and Java type gotcha to AGENTS.md
+- test: add scrollable discovery and smooth scroll tests (#90)
+- feat(sci,daemon): expose scrollable discovery and smooth scroll (#90)
+- feat(page): add scrollable discovery, scroll-position, and smooth scroll (#90)
+- docs: update skill/agent templates with keyboard-press and allure-ct-reporter (#89, #91)
+- docs: expand AGENTS.md testing section with clojure.test, HTML pages, and gotchas
+- docs: add issue #89 reproduction steps and learnings to AGENTS.md
+- test: add behavioral keyboard press tests with dedicated HTML page (#89)
+- fix: expose aria-disabled in snapshots and add single-arg keyboard press (#88, #89)
+- release: update version files for v0.7.1, bump to next dev version
+
+
 ## [v0.7.1] - 2026-03-14
 
 ### Changed
@@ -1310,7 +1329,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.2...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1358,3 +1377,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.6.10]: https://github.com/Blockether/spel/releases/tag/v0.6.10
 [v0.7.0]: https://github.com/Blockether/spel/releases/tag/v0.7.0
 [v0.7.1]: https://github.com/Blockether/spel/releases/tag/v0.7.1
+[v0.7.2]: https://github.com/Blockether/spel/releases/tag/v0.7.2
