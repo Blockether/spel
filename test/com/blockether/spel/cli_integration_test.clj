@@ -2010,6 +2010,15 @@
       (let [r (cmd "sci_eval" {"code" "(:y (spel/scroll-position))"})]
         (expect (= "300" (:result r)))))
 
+    (it "snapshot with styles includes scroll metrics for overflow containers via SCI (issue #96)"
+      (nav! "/scrollable-page")
+      (let [r (cmd "sci_eval" {"code" "
+              (let [snap (spel/capture-snapshot {:styles true})
+                    refs (vals (:refs snap))
+                    with-scroll (filter #(get-in % [:styles \"scroll-height\"]) refs)]
+                (count with-scroll))"})]
+        (expect (pos? (parse-long (:result r))))))
+
     (it "start! is a no-op when daemon has page"
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]
         (expect (= ":started" (:result r)))))
@@ -3104,6 +3113,52 @@
       (nav! "/test-page")
       (let [r (cmd "snapshot" {})]
         (expect (every? (comp nil? :styles) (vals (:refs r))))))))
+
+(defdescribe snapshot-scroll-metrics-integration-test
+  "Integration tests for scroll metrics in snapshot -S output (issue #96)"
+
+  (describe "scroll metrics in styled snapshot"
+    {:context [with-playwright with-browser with-test-server with-daemon-state]}
+
+    (it "includes scroll metrics in refs for overflow:auto elements"
+      (nav! "/scrollable-page")
+      (let [r     (cmd "snapshot" {"styles" true})
+            refs  (vals (:refs r))
+            styled-with-scroll (filter #(get-in % [:styles "scroll-height"]) refs)]
+        (expect (pos? (count styled-with-scroll)))
+        (doseq [ref styled-with-scroll]
+          (let [sh (parse-long (str/replace (get-in ref [:styles "scroll-height"]) "px" ""))
+                ch (parse-long (str/replace (get-in ref [:styles "client-height"]) "px" ""))]
+            (expect (pos? sh))
+            (expect (pos? ch))
+            (expect (> sh ch))))))
+
+    (it "does not include scroll metrics for non-overflowing elements"
+      (nav! "/scrollable-page")
+      (let [r    (cmd "snapshot" {"styles" true})
+            refs (vals (:refs r))
+            all-scroll (filter #(get-in % [:styles "scroll-height"]) refs)
+            all-styled (filter :styles refs)]
+        (expect (< (count all-scroll) (count all-styled)))))
+
+    (it "includes scroll metrics in snapshot tree text"
+      (nav! "/scrollable-page")
+      (let [r (cmd "snapshot" {"styles" true})]
+        (expect (str/includes? (:snapshot r) "scroll-height:"))
+        (expect (str/includes? (:snapshot r) "client-height:"))))
+
+    (it "does not include scroll metrics without -S flag"
+      (nav! "/scrollable-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (not (str/includes? (:snapshot r) "scroll-height:")))
+        (expect (every? (comp nil? :styles) (vals (:refs r))))))
+
+    (it "scroll metrics work with minimal style tier"
+      (nav! "/scrollable-page")
+      (let [r     (cmd "snapshot" {"styles" true "styles_detail" "minimal"})
+            refs  (vals (:refs r))
+            with-scroll (filter #(get-in % [:styles "scroll-height"]) refs)]
+        (expect (pos? (count with-scroll)))))))
 
 (defdescribe device-tracking-integration-test
   "Integration tests for device tracking in snapshot responses"

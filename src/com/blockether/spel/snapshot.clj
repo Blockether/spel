@@ -445,6 +445,17 @@
         full[kk] = v;
         if (!isDefaultStyle(k, v)) { compact[kk] = compactVal(k, v); has = true; }
       }
+      var ox = s.overflowX, oy = s.overflowY;
+      var scrollable = ox==='auto'||ox==='scroll'||oy==='auto'||oy==='scroll';
+      if (scrollable && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)) {
+        var sh = el.scrollHeight+'px', sw = el.scrollWidth+'px';
+        var ch = el.clientHeight+'px', cw = el.clientWidth+'px';
+        full['scroll-height'] = sh; full['client-height'] = ch;
+        full['scroll-width'] = sw; full['client-width'] = cw;
+        compact['scroll-height'] = sh; compact['client-height'] = ch;
+        compact['scroll-width'] = sw; compact['client-width'] = cw;
+        has = true;
+      }
       return {compact: has ? compact : null, full: full};
     } catch(e) { return null; }
   }
@@ -660,9 +671,9 @@
                (str "[" (name k) "=" v "]")))
         attrs))))
 
-(def ^:private style-display-order
+  (def ^:private style-display-order
   "Display order for CSS style keys in tree output.
-   Layout → box → visual → typography → text → border → misc."
+   Layout → box → visual → typography → text → border → scroll → misc."
   ["display" "position" "top" "left" "right" "bottom" "flex-direction" "justify-content" "align-items" "gap"
    "width" "height" "max-width" "max-height" "min-width" "min-height"
    "padding" "margin" "overflow"
@@ -671,6 +682,7 @@
    "font-size" "font-weight" "font-family" "line-height" "text-align"
    "text-decoration" "text-transform" "letter-spacing" "white-space" "text-overflow"
    "border" "border-radius" "box-shadow" "outline"
+   "scroll-height" "client-height" "scroll-width" "client-width"
    "z-index" "cursor" "pointer-events"])
 
 (defn- format-styles
