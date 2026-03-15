@@ -47,14 +47,33 @@ Use `FrameLocator` when you know the iframe selector upfront. For dynamic frames
   (frame/fl-nth fl 0))
 ```
 
-## Input devices
+## Keyboard press (high-level)
 
-Low-level keyboard, mouse, and touch events. Most interactions should go through `spel/click`, `spel/fill`, etc. Use these only when you need precise control over timing or event sequences.
+For most keyboard interactions, use the high-level `keyboard-press` / `press` functions:
+
+```clojure
+;; Page-level keyboard press (no selector needed)
+(page/keyboard-press pg "Escape")
+(page/keyboard-press pg "Enter")
+(page/keyboard-press pg "Tab")
+(page/keyboard-press pg "Control+a")
+
+;; SCI / eval-sci equivalents:
+(spel/press "Escape")              ;; page-level keyboard press
+(spel/keyboard-press "Tab")        ;; explicit alias
+
+;; Locator-level press (on a specific element)
+(spel/press "#my-input" "Enter")   ;; two-arg form presses on element
+```
+
+## Input devices (low-level)
+
+Low-level keyboard, mouse, and touch events. Most interactions should go through `spel/click`, `spel/fill`, `spel/press`, etc. Use these only when you need precise control over timing or event sequences.
 
 ```clojure
 (require '[com.blockether.spel.input :as input])
 
-;; Keyboard
+;; Keyboard (low-level — prefer spel/press or page/keyboard-press instead)
 (let [kb (page/page-keyboard pg)]
   (input/key-press kb "Enter")
   (input/key-press kb "Control+a")

@@ -219,6 +219,64 @@ Source path resolution uses the `PLAYWRIGHT_JAVA_SRC` environment variable (auto
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
+## clojure.test Allure reporter (`allure-ct-reporter`)
+
+SPEL includes a clojure.test reporter that produces identical Allure results. Activate it via
+JVM property or env var — works with **any test runner** (Kaocha, Cognitect test-runner, plain
+`clojure.test/run-tests`).
+
+### Activation
+
+```bash
+# JVM property
+clojure -J-Dallure.clojure-test.enabled=true -M:test
+
+# Environment variable
+ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
+```
+
+### Usage
+
+```clojure
+(ns my-app.test
+  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+            [com.blockether.spel.allure :as allure]
+            [com.blockether.spel.test-fixtures
+             :refer [*page* with-playwright with-browser with-traced-page ct-fixture]]))
+
+;; ct-fixture bridges Lazytest around hooks into clojure.test use-fixtures
+(use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
+(use-fixtures :each (ct-fixture with-traced-page))
+
+(deftest login-test
+  (allure/epic "Auth")
+  (allure/feature "Login")
+  (testing "loads login page"
+    (page/navigate *page* "https://example.com/login")
+    (is (= "Login" (page/title *page*)))))
+```
+
+For API-only tests (no browser), require the reporter explicitly:
+
+```clojure
+(ns my-app.api-test
+  (:require [clojure.test :refer [deftest testing is]]
+            [com.blockether.spel.allure :as allure]
+            [com.blockether.spel.allure-ct-reporter]  ;; explicit require
+            [com.blockether.spel.core :as api]))
+```
+
+### Configuration
+
+| Property | Env Var | Default |
+|---|---|---|
+| `allure.clojure-test.enabled` | `ALLURE_CLOJURE_TEST_ENABLED` | `false` |
+| `allure.clojure-test.output` | `ALLURE_CLOJURE_TEST_OUTPUT` | `allure-results` |
+| `allure.clojure-test.report` | `ALLURE_CLOJURE_TEST_REPORT` | `true` |
+| `allure.clojure-test.clean` | `ALLURE_CLOJURE_TEST_CLEAN` | `true` |
+
+`with-allure-context` is auto-injected as the outermost `:each` fixture — test files never reference it directly.
+
 ## JUnit XML reporter
 
 Produces JUnit XML output compatible with GitHub Actions, Jenkins, GitLab CI, and any CI system that consumes JUnit XML.

@@ -120,6 +120,16 @@ In `eval-sci` mode, function names match the library. The only difference is imp
 (spel/navigate url)
 (spel/locator "#login")
 (spel/click "#login")
+
+;; Keyboard press (page-level, no selector needed)
+(spel/press "Escape")
+(spel/press "Enter")
+(spel/press "Tab")
+(spel/press "Control+a")
+(spel/keyboard-press "Escape")    ;; explicit alias
+
+;; Locator-level press (on specific element)
+(spel/press "#my-input" "Enter")
 ```
 
 When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or `spel/stop!` needed.

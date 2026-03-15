@@ -167,6 +167,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `go-back` | [page] \| [page nav-opts] | Navigates back in history. |
 | `go-forward` | [page] \| [page nav-opts] | Navigates forward in history. |
 | `is-closed?` | [page] | Returns true if the page has been closed. |
+| `keyboard-press` | [page key] | Presses a key or key combination on the page keyboard. |
 | `locator` | [page selector] | Creates a Locator for finding elements on the page. |
 | `main-frame` | [page] | Returns the main frame of the page. |
 | `navigate` | [page url] \| [page url nav-opts] | Navigates the page to a URL. |
@@ -836,7 +837,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
 | `spel/input-value` | [sel] | Returns the input value of an input element. |
 | `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles - the 'agent view'. |
-| `spel/keyboard` | [] | Returns the Keyboard for this page. |
+| `spel/keyboard` | [] | Presses a key or key combination on the page keyboard. |
+| `spel/keyboard-press` | [key] | Presses a key on the page keyboard (no selector needed). |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |
 | `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
 | `spel/layout-check` | [] | Checks page layout for common rendering integrity issues (overflow, offscreen, overlap). |
@@ -870,7 +872,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/page` | [] | Returns the current Page instance. |
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
 | `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
-| `spel/press` | [sel key] \| [sel key opts] | Presses a key or key combination. |
+| `spel/press` | [key] \| [sel key] \| [sel key opts] | Presses a key. Single-arg form does a page-level keyboard press. |
 | `spel/reload` | [] | Reloads the page. |
 | `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `spel/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
