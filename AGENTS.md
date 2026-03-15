@@ -117,6 +117,7 @@ To add a new test page:
 | `/health` | Health check (GET → `{"status":"ok"}`, HEAD → 200) |
 | `/status/N` | Return HTTP status code N |
 | `/slow` | 2-second delayed response |
+| `/scrollable-page` | Nested scrollable containers (overflow:auto, scroll, hidden, visible) |
 
 **Always verify behavior, not just "no error"** — use dedicated HTML pages with observable
 DOM state (event listeners, visible output elements) instead of testing return values only.
@@ -312,6 +313,23 @@ because the daemon serializes them with `pr-str`. This is a common gotcha:
 ```
 
 Daemon `cmd "evaluate"` returns raw values (no quoting). Only `cmd "sci_eval"` wraps strings.
+
+### Playwright evaluate returns Java types, not Clojure types
+
+`page/evaluate` returns Java `ArrayList`, `LinkedHashMap`, etc. — NOT Clojure vectors/maps.
+`map?`, `vector?`, `sequential?` all return `false` on these. Use Java interop:
+
+```clojure
+;; WRONG:
+(when (map? result) (:x result))       ;; map? fails on LinkedHashMap
+(when (sequential? result) (mapv ...))  ;; sequential? fails on ArrayList
+
+;; CORRECT:
+(when (instance? java.util.Map result)
+  (.get ^java.util.Map result "x"))    ;; use .get with string keys
+(when (instance? java.util.List result)
+  (mapv (fn [^java.util.Map m] ...) result))
+```
 
 ## Key References
 
