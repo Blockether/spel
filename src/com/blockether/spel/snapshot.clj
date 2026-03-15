@@ -671,7 +671,7 @@
                (str "[" (name k) "=" v "]")))
         attrs))))
 
-  (def ^:private style-display-order
+(def ^:private style-display-order
   "Display order for CSS style keys in tree output.
    Layout → box → visual → typography → text → border → scroll → misc."
   ["display" "position" "top" "left" "right" "bottom" "flex-direction" "justify-content" "align-items" "gap"

@@ -1,7 +1,7 @@
 # spel vs agent-browser — Comprehensive Comparison
 
-> **Date**: March 1, 2026 (updated from Feb 26 comparison)
-> **Versions**: spel 0.5.0 (Playwright 1.58.0) · agent-browser 0.15.1 (Playwright via Node.js)
+> **Date**: March 16, 2026 (updated from March 1 comparison)
+> **Versions**: spel 0.7.2 (Playwright 1.50.0) · agent-browser 0.20.11 (100% native Rust, direct CDP)
 > **Method**: Hands-on dogfood of github.com + benchmarks on example.org
 > **Platform**: macOS (Apple Silicon)
 
@@ -11,9 +11,11 @@
 
 **spel is a browser automation _platform_. agent-browser is a browser automation _platform too_ now.**
 
-Both tools wrap Playwright behind a shell-friendly interface designed for AI agents. Since the last comparison (Feb 2026), agent-browser has grown from ~30 commands to ~143 — adding diff engine, auth vault, profiler, screencast, and more. spel has grown from ~90 to ~120+ CLI commands (plus ~460 SCI functions and full Clojure library), fixing all P0 bugs and adding extension loading, download command, flat snapshots, link URLs in snapshots, structured refs in JSON, and Edge/Chrome profile support.
+Both tools provide shell-friendly browser automation designed for AI agents. Since the last comparison (March 1, 2026), the biggest change is agent-browser's architecture: v0.20.0 (March 14, 2026) dropped Node.js and Playwright entirely, rewriting to 100% native Rust with direct CDP communication. Install size dropped from 710MB to 7MB. Memory from 143MB to 8MB. They also added a native daemon, so the process-per-command overhead is largely gone.
 
-spel wins on speed, programmability, testing/CI infrastructure, and total API coverage (most agent-browser features already exist in spel's library/SCI layer). agent-browser leads in diff tooling, auth vault, and mobile. The apparent CLI command count gap (~120 vs ~143) is misleading — spel covers ~120/143 features when you count its library and `eval-sci` scripting layer.
+spel 0.7.2 added: `find-scrollable` (scrollable element discovery), `scroll-position`, `smooth-scroll-to`/`smooth-scroll-by`, page-level `keyboard-press`, `allure-ct-reporter` for `clojure.test`, and `snapshot -S --styles` for computed CSS styles (fixing a gap from the last comparison).
+
+spel still wins on per-command speed, programmability, testing/CI infrastructure, and total API coverage. agent-browser now leads on install size, binary footprint, and ease of setup. The performance gap narrowed significantly — from 9-17× to 2.4-31× depending on command — because AB's native daemon eliminated most of the Node.js startup overhead. The remaining gap is IPC latency vs CDP round-trip latency.
 
 ---
 
@@ -21,19 +23,20 @@ spel wins on speed, programmability, testing/CI infrastructure, and total API co
 
 | Dimension | spel | agent-browser |
 |---|---|---|
-| Language | Clojure → GraalVM native image | Rust CLI shell → Node.js Playwright |
-| Binary size | 71 MB (self-contained) | 4.4 MB node_modules (requires Node.js) |
-| CLI commands | ~120+ | ~143 |
-| Architecture | Long-running daemon (IPC) | Process-per-command |
+| Language | Clojure → GraalVM native image | 100% native Rust daemon (direct CDP) |
+| Binary size | 71 MB (self-contained) | 7 MB (self-contained, no Node.js) |
+| CLI commands | ~149 | ~160+ |
+| Architecture | Long-running daemon (IPC) | Long-running daemon (CDP) |
 | Programmability | Full Clojure scripting (`eval-sci`) | JS `eval` only |
 | Testing framework | Built-in (Allure, assertions, codegen) | None |
 | CI tooling | `ci-assemble`, `merge-reports`, `init-agents` | None |
 | Diff engine | ❌ | ✅ (snapshot diff, pixel diff, URL diff) |
 | Auth vault | ❌ | ✅ (AES-256-GCM encrypted) |
 | Chrome extensions | ✅ `--extension` | ✅ `--extension` |
-| Chrome profile | ✅ `--profile` (Edge/Chrome/Brave) | ✅ `--profile` |
+| Chrome profile | ✅ `--profile` (Edge/Chrome/Brave) | ✅ `--profile` (Brave auto-discovery) |
 | iOS support | ❌ | ✅ (Appium + Xcode) |
-| Cloud browsers | ❌ | ✅ (BrowserBase, Kernel, BrowserUse) |
+| Cloud browsers | ❌ | ✅ (BrowserBase, Kernel, BrowserUse, browserless.io) |
+| Requires Node.js | No | No (dropped in 0.20.0) |
 | License | Source-available | Apache-2.0 |
 
 ---
@@ -42,39 +45,29 @@ spel wins on speed, programmability, testing/CI infrastructure, and total API co
 
 Tested on `https://example.org` — cold start (first `open`) then sequential commands.
 
-### Cold Start (version check)
+### Version check + First `open`
 
-| Tool | Time |
-|---|---|
-| spel | **24ms** |
-| agent-browser | 61ms |
+| Command | spel | agent-browser 0.20.11 | Speedup |
+|---|---|---|---|
+| Version check | **6ms** | 2ms | AB 3× faster |
+| First open (cold) | **~1.0s** | 1.8s | spel 1.8× faster |
 
-spel is 2.5× faster for the trivial case (native binary vs Node.js startup).
-
-### First `open` (browser launch + navigation)
-
-| Tool | Time |
-|---|---|
-| spel | **1.034s** |
-| agent-browser | 1.140s |
-
-Nearly identical — dominated by Chromium launch time.
+Version check favors AB — their native Rust binary starts faster than spel's GraalVM image. First open favors spel — AB's CDP setup adds overhead on cold start.
 
 ### Subsequent Commands (after browser is open)
 
-This is where the daemon architecture crushes process-per-command:
-
-| Command | spel | agent-browser | Speedup |
+| Command | spel | agent-browser 0.20.11 | Speedup |
 |---|---|---|---|
-| `snapshot -i --json` | **18ms** | 237ms | **13×** |
-| `screenshot` | **26ms** | 229ms | **9×** |
-| `get title` | **13ms** | 210ms | **16×** |
-| `get url` | **12ms** | 210ms | **17×** |
-| `close` | **14ms** | 238ms | **17×** |
+| `snapshot -i --json` | **68ms** | 166ms | **spel 2.4×** |
+| `screenshot` | **43ms** | 195ms | **spel 4.5×** |
+| `get title` | **8ms** | 155ms | **spel 19×** |
+| `get url` | **5ms** | 154ms | **spel 31×** |
 
-**spel is 9–17× faster per command** after the browser is open. The daemon keeps a persistent connection; agent-browser spawns a new Node.js process, reconnects to the browser, executes, and exits — every single time.
+**spel is 2.4–31× faster per command** after the browser is open. The gap narrowed significantly from the previous comparison (9–17×) — agent-browser's native daemon eliminated most of the Node.js startup overhead. The remaining gap is IPC latency (spel's Unix socket) vs CDP round-trip latency (AB's direct CDP).
 
-For a 20-command dogfood session, this means ~0.3s total overhead for spel vs ~4.7s for agent-browser. For a 200-command E2E test suite, it's 3s vs 47s of pure overhead.
+The `get title`/`get url` gap (19–31×) is larger than `snapshot` (2.4×) because those are pure metadata reads — spel returns them from in-process state, while AB still needs a CDP round-trip.
+
+For a 20-command session: ~1.3s total overhead for spel vs ~3.3s for agent-browser. For a 200-command E2E test suite: ~13s vs ~33s of pure overhead. Meaningful, but no longer the order-of-magnitude difference it was.
 
 ---
 
@@ -172,6 +165,8 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 | **Allure reporting** | Built-in test reporting framework | Structured test results with screenshots |
 | **Inspector** | `inspector [url]`, `show-trace` | Playwright Inspector + Trace Viewer |
 | **Chrome cookie export** | `state export` | Extract cookies from Chrome/Edge/Brave profiles |
+| **Scrollable discovery** | `find-scrollable`, `scroll-position`, `smooth-scroll-to`, `smooth-scroll-by` | Discover and interact with scrollable containers |
+| **Page-level keyboard** | `keyboard-press` | Press keys at page level (not just locator-level) |
 
 ### Commands agent-browser has that spel doesn't (at CLI level)
 
@@ -181,8 +176,8 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 |---|---|---|---|
 | **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | ✅ Truly missing | Snapshot Myers diff, pixel comparison, URL comparison |
 | **Auth vault** | `auth save/login/list/delete/show` | ✅ Truly missing | AES-256-GCM encrypted credential store with auto-login |
-| **Computed styles** | `get styles <sel>` | ✅ Truly missing | Computed CSS styles (fontSize, color, etc.) |
-| **Clipboard** | `clipboard copy/paste/read` | ✅ Truly missing | Clipboard operations with auto permission grant |
+| **Computed styles** | `get styles <sel>` | ⚡ Library/SCI | `snapshot -S --styles` (--minimal/default/--max); computed CSS styles in snapshot output |
+| **Clipboard** | `clipboard read/write/copy/paste` | ✅ Truly missing | Clipboard operations with auto permission grant |
 | **Action policy** | `confirm`, `deny`, `--allowed-domains` | ✅ Truly missing | Safety guardrails for AI agents |
 | **Screencast** | `screencast start/stop` | ✅ Truly missing | WebSocket live browser streaming |
 | **Input injection** | `input_mouse`, `input_keyboard`, `input_touch` | ✅ Truly missing | CDP-level pair-browsing / remote control |
@@ -191,6 +186,13 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 | **iOS Simulator** | `-p ios`, `swipe`, `device list` | ✅ Truly missing | Real mobile Safari testing via Appium |
 | **Cloud browsers** | `-p browserbase/kernel/browseruse` | ✅ Truly missing | Serverless browser instances |
 | **Window management** | `window new` | ✅ Truly missing | Open new browser window (not just tab) |
+| **DevTools inspect** | `inspect` | ✅ Truly missing | Open Chrome DevTools panel |
+| **CDP URL** | `get cdp-url` | ✅ Truly missing | Expose CDP endpoint for external tools |
+| **Screenshot options** | `--dir`, `--quality`, `--format` | ✅ Truly missing | Screenshot output directory, JPEG quality, format selection |
+| **Alternative engine** | `--engine lightpanda` | ✅ Truly missing | Lightweight headless browser engine option |
+| **Brave auto-discovery** | Automatic Brave detection | ✅ Truly missing | Finds Brave binary without explicit path |
+| **Linux musl** | `spel-linux-musl` binary | ✅ Truly missing | Alpine Linux / musl libc support |
+| **browserless.io** | `-p browserless` | ✅ Truly missing | Cloud browser via browserless.io provider |
 | **HAR recording** | `har start/stop` | ⚡ Library/SCI | `:record-har-path` context opt, `route-from-har!`, auto-included in `with-traced-page` |
 | **Permissions** | `permissions` grant/revoke | ⚡ Library/SCI | `context-grant-permissions!`, `context-clear-permissions!` in library+SCI |
 | **Timezone** | `timezone <tz>` | ⚡ Library | `:timezone-id` context option at launch |
@@ -271,7 +273,7 @@ This works, but you're limited to what bash can do. No structured data manipulat
 | ~~**Generic error messages**~~ | ✅ Fixed in 0.5.0 | `spel click @nonexistent` now propagates full Playwright error context including call log, selector, and reason. |
 | ~~**No link URLs in snapshots**~~ | ✅ Fixed in 0.5.0 | Links now show `[url=https://...]` inline in snapshot tree. |
 | ~~**No structured refs in JSON**~~ | ✅ Fixed in 0.5.0 | JSON snapshot now includes full `refs` map with role/name/url per ref, plus `pages`, `network`, `console` metadata. |
-| **91MB binary** | 🟡 Medium | Large for a CLI tool. GraalVM native image trade-off. |
+| **71MB binary** | 🟡 Medium | Large for a CLI tool. GraalVM native image trade-off. Gap widened against spel — AB is now 7MB vs spel's 71MB (10× difference). |
 | **Snapshot verbosity** | 🟡 Medium | More tokens for LLMs than agent-browser’s flat format. Mitigated by `--flat`, `-c`, `-d` flags. |
 | **Ref format less LLM-friendly** | 🟠 Low | `[@e2yrjz]` (6 random chars) vs `[ref=e1]` (sequential). Sequential is easier for LLMs to reference. |
 | ~~**Video save-as bug**~~ | ✅ Fixed in 0.5.0 | Video `save-as` now correctly closes page/context before `saveAs`. |
@@ -281,14 +283,18 @@ This works, but you're limited to what bash can do. No structured data manipulat
 
 ### agent-browser Pitfalls
 
-> **Note**: agent-browser 0.15.1 has fixed several issues from the 0.9.0 comparison. The table below reflects remaining issues and notes what changed.
+> **Note**: agent-browser 0.20.11 fixed the biggest issue from the 0.15.1 comparison — the Node.js dependency and process-per-command overhead are gone. The table below reflects remaining issues and notes what changed.
 
 | Issue | Severity | Details |
 |---|---|---|
-| **Still no daemon — slower per command** | 🟡 Medium | Still process-per-command architecture. But Rust CLI is faster than before — overhead is ~100-150ms vs spel’s ~15-25ms. |
+| **Still slower per command** | 🟡 Medium | Native daemon helps a lot, but CDP round-trips are still 2.4–31× slower than spel's IPC. Metadata reads (`get title`, `get url`) are the worst case. |
 | **No test/assertion framework** | 🟡 Medium | Still no built-in way to assert page state. Must build from scratch. |
 | **No CI tooling** | 🟠 Low | No report generation, no CI assembly, no report merging. |
-| **Requires Node.js runtime** | 🟠 Low | Not self-contained. Needs Node.js installed. |
+| **No codegen** | 🟠 Low | No record-and-replay code generation. |
+| ✅ Now 100% native Rust — no Node.js | | Dropped Node.js + Playwright in v0.20.0 (March 14, 2026). Direct CDP. |
+| ✅ Install size: 710MB → 7MB | | Massive improvement. Was the biggest practical complaint. |
+| ✅ Memory: 143MB → 8MB | | Idle memory footprint dropped dramatically. |
+| ✅ Now has native daemon | | No more process-per-command. Daemon persists between commands. |
 | ✅ Now has network interception | | `route/unroute/requests` added since 0.9.0 |
 | ✅ Now has cookie/storage management | | Full CRUD for cookies and localStorage/sessionStorage |
 | ✅ Now has trace recording | | `trace start/stop` added |
@@ -331,11 +337,13 @@ We ran the same dogfood scenario — systematic exploration of github.com — wi
 
 ### Why agent-browser stalled
 
+> **Note**: This dogfood was run against agent-browser 0.15.1 (Node.js-based). The architecture has since changed significantly in 0.20.0. Points 1-4 remain valid; point 5 is partially addressed by the native daemon.
+
 1. **Video recording was broken** — `record start` appeared to succeed but the video directory remained empty
 2. **`--annotate` timed out** — couldn't use visual annotations on github.com
 3. **No transcript capability** — no way to generate structured output during a session
 4. **No reporting** — no HTML template, no findings format, no structured output
-5. **Slowness** — each command taking 200ms+ made the workflow painfully slow for 12-page exploration
+5. **Slowness** — each command taking 200ms+ made the workflow painfully slow for 12-page exploration (native daemon in 0.20.0 reduces this to ~155-195ms, still slower than spel's 5-68ms)
 
 ### What agent-browser did well
 
@@ -364,12 +372,12 @@ We ran the same dogfood scenario — systematic exploration of github.com — wi
 
 | Aspect | spel | agent-browser | Notes |
 |---|---|---|---|
-| **Installation** | `make install-local` (build from source) | `bun install -g agent-browser` | AB is trivially installable |
-| **Learning curve** | Steeper (120+ commands, Clojure eval) | Steeper now too (143 commands, JS eval) | Both are complex tools now |
+| **Installation** | `make install-local` (build from source) | Single 7MB binary, no dependencies | AB is trivially installable; gap widened in AB's favor |
+| **Learning curve** | Steeper (149+ commands, Clojure eval) | Steeper now too (160+ commands, JS eval) | Both are complex tools now |
 | **Documentation** | Excellent `--help`, FULL_API.md | Good `--help` | Both adequate |
 | **Debugging** | Trace viewer, console, errors, inspector | None | spel by a mile |
 | **Power ceiling** | Very high (full scripting, CI, reporting) | Low (shell piping only) | spel for serious work |
-| **Setup overhead** | GraalVM build chain, Clojure ecosystem | npm/bun install | AB wins on simplicity |
+| **Setup overhead** | GraalVM build chain, Clojure ecosystem | Download single binary, run | AB wins on simplicity |
 
 ### For Test Engineers
 
@@ -392,25 +400,25 @@ We ran the same dogfood scenario — systematic exploration of github.com — wi
 
 ```
 [CLI binary] --IPC--> [daemon process] --persistent--> [Chromium]
-   24ms                  always running                  always open
+    6ms                  always running                  always open
 ```
 
-The first `spel open` launches a daemon that stays alive. Subsequent commands are near-instant IPC calls (12-26ms). The browser stays open between commands. State (cookies, localStorage) auto-persists.
+The first `spel open` launches a daemon that stays alive. Subsequent commands are near-instant IPC calls (5-68ms depending on command). The browser stays open between commands. State (cookies, localStorage) auto-persists.
 
 **Pros**: Blazing fast subsequent commands, persistent state, rich error context.
 **Cons**: Daemon must be managed (start/stop), 71MB binary, occasional stale state.
 
-### agent-browser: Process-per-Command
+### agent-browser: Native Rust Daemon (direct CDP)
 
 ```
-[CLI binary] --spawn--> [Node.js] --reconnect--> [Chromium]
-   ~50ms                  ~100ms                   ~50ms
+[CLI binary] --CDP--> [Rust daemon] --CDP--> [Chromium]
+    2ms                 always running          always open
 ```
 
-Every command spawns a new Node.js process that connects to an existing browser (via `--session`). The browser persists, but the Node.js orchestration layer does not.
+As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright entirely. It's now a 100% native Rust binary that speaks Chrome DevTools Protocol directly. A daemon process persists between commands, keeping the browser connection alive. Install size dropped from 710MB to 7MB; idle memory from 143MB to 8MB.
 
-**Pros**: Simple model, no daemon to manage, small footprint, crash-isolated.
-**Cons**: 200ms+ overhead per command, no persistent server-side state, no streaming.
+**Pros**: Tiny footprint (7MB), no Node.js dependency, native daemon, crash-isolated, fast cold start.
+**Cons**: CDP round-trips are still slower than spel's Unix socket IPC (155ms vs 5-8ms for metadata reads). No persistent server-side state beyond what CDP provides.
 
 ---
 
@@ -420,7 +428,7 @@ Every command spawns a new Node.js process that connects to an existing browser 
 - Building E2E test suites (Allure, assertions, codegen)
 - Running CI pipelines (report assembly, merging)
 - Complex automation (network mocking, state management, multi-tab)
-- Performance matters (daemon = 10× faster per command)
+- Performance matters (daemon = 2.4–31× faster per command depending on command type)
 - You need programmability (Clojure scripting)
 - Debugging is important (traces, console, inspector)
 - You're already in the Clojure ecosystem
@@ -428,10 +436,11 @@ Every command spawns a new Node.js process that connects to an existing browser 
 ### Use agent-browser when:
 - Quick LLM agent integration (simpler snapshot format, sequential refs)
 - iOS mobile testing (Appium integration)
-- Cloud browser instances (BrowserBase, Kernel)
-- Minimal setup needed (npm install, done)
+- Cloud browser instances (BrowserBase, Kernel, browserless.io)
+- Minimal setup needed (download 7MB binary, done — no Node.js, no build chain)
 - Simple linear automation (open → click → screenshot)
 - Token efficiency matters (compact snapshots)
+- Binary footprint matters (7MB vs 71MB)
 - You want the simplest possible browser CLI
 
 ---
@@ -443,8 +452,8 @@ Every command spawns a new Node.js process that connects to an existing browser 
 2. ~~**Link URLs in snapshots**~~ — ✅ Done in spel 0.5.0 (`[url=https://...]` inline)
 3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
 4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — truly missing, worth implementing
-5. **Computed styles** — `get styles` returns fontSize, color, etc. — truly missing, worth implementing
-6. **Clipboard** — copy/paste/read with auto permission grant — truly missing, moderate value
+5. ~~**Computed styles**~~ — ✅ Done in spel 0.7.2 (`snapshot -S --styles` with `--minimal`/default/`--max`)
+6. **Clipboard** — `clipboard read/write/copy/paste` with auto permission grant — truly missing, moderate value
 7. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
 8. ~~**`download` command**~~ — ✅ Done in spel 0.5.0
 9. ~~**Better error propagation**~~ — ✅ Done in spel 0.5.0
@@ -460,9 +469,10 @@ Every command spawns a new Node.js process that connects to an existing browser 
 19. ~~**Wait for download**~~ — ✅ Already in spel library+SCI (`page/wait-for-download`)
 20. ~~**Bring to front**~~ — ✅ Already in spel library+SCI (`page/bring-to-front`)
 21. **Auth vault** — encrypted credential store — low priority, `state save/load` covers 80%
+22. ~~**Scrollable discovery**~~ — ✅ Done in spel 0.7.2 (`find-scrollable`, `scroll-position`, `smooth-scroll-to`, `smooth-scroll-by`)
 
 ### agent-browser should consider adopting from spel:
-1. **Daemon architecture** — still 5-10× slower per command
+1. ~~**Daemon architecture**~~ — ✅ Done in AB 0.20.0 (native Rust daemon, direct CDP)
 2. ~~**Network interception**~~ — ✅ Done in AB 0.15
 3. ~~**Cookie/storage CRUD**~~ — ✅ Done in AB 0.15
 4. ~~**Dialog handling**~~ — ✅ Done in AB 0.15
@@ -480,8 +490,9 @@ Every command spawns a new Node.js process that connects to an existing browser 
 
 | Category | Winner | Margin |
 |---|---|---|
-| **Raw performance** | spel | Large (5-10× per command, daemon architecture) |
-| **Command breadth** | Tie | Both ~120-143 CLI commands. spel has ~460 SCI functions + full Clojure library on top |
+| **Raw performance (per command)** | spel | Medium (2.4–31× depending on command; was 9–17×) |
+| **Cold start** | agent-browser | Small (1.8s vs ~1.0s for first open; 2ms vs 6ms for version check) |
+| **Command breadth** | Tie | Both ~149-160+ CLI commands. spel has ~460 SCI functions + full Clojure library on top |
 | **Programmability** | spel | Massive (full Clojure vs JS eval) |
 | **Testing/CI** | spel | Total (AB still has nothing) |
 | **Debugging** | spel | spel has Inspector + Trace Viewer + HAR (via library). AB has profiler (CDP-only) |
@@ -489,17 +500,23 @@ Every command spawns a new Node.js process that connects to an existing browser 
 | **Auth management** | agent-browser | Medium (encrypted vault vs state save/load — state files cover 80%) |
 | **LLM snapshot ergonomics** | Tie | Both have link URLs and structured refs. AB is more compact; spel has richer metadata |
 | **Safety/policy** | agent-browser | Total (action confirmation, domain allowlist) |
-| **Ease of installation** | agent-browser | Large (npm vs build from source) |
-| **Learning curve** | Tie | Both grew to 120-143 CLI commands; neither is simple anymore |
+| **Ease of installation** | agent-browser | Large (7MB self-contained binary vs build from source; gap widened in AB's favor) |
+| **Binary footprint** | agent-browser | Large (7MB vs 71MB — 10× difference; was 4.4MB+node_modules vs 71MB) |
+| **Learning curve** | Tie | Both at ~149-160+ CLI commands; neither is simple anymore |
 | **Mobile testing** | agent-browser | Total (iOS support) |
-| **Cloud browsers** | agent-browser | Total (3 providers) |
-| **Error messages** | Tie | Both now propagate Playwright errors well |
+| **Cloud browsers** | agent-browser | Total (4 providers including browserless.io) |
+| **Error messages** | Tie | Both now propagate errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The only genuine gaps are diff tooling (snapshot/pixel/URL comparison), computed styles, and clipboard CLI. agent-browser's CLI command count is slightly higher (~143 vs ~120), but spel's library layer covers most of those "missing" commands — accessible via `eval-sci` or Clojure code.
+**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The genuine gaps are diff tooling (snapshot/pixel/URL comparison) and clipboard CLI. Computed styles is now done (`snapshot -S --styles`).
 
-The competitive landscape is now: **spel = testing platform + speed + full Playwright API coverage. agent-browser = simpler CLI surface + diff tooling + auth vault.** The "breadth gap" that appeared when agent-browser grew to 143 commands is largely illusory — most of those features already exist in spel's library, just not as standalone CLI commands.
+The competitive landscape shifted in March 2026. agent-browser's v0.20.0 rewrite to native Rust was a significant leap — it's no longer a "Node.js wrapper" and the install story is dramatically better (7MB, no dependencies). The performance gap narrowed from 9–17× to 2.4–31×. The binary size gap widened against spel (10× now vs roughly equal before when you counted node_modules).
+
+**spel = testing platform + per-command speed + full Playwright API coverage + Clojure programmability.**
+**agent-browser = tiny footprint + easy install + diff tooling + auth vault + mobile/cloud.**
+
+The "breadth gap" is still largely illusory — most AB features exist in spel's library, just not as standalone CLI commands. But the "ease of adoption" gap is real and widened. For teams that just want a browser CLI without a build chain, agent-browser is now a more compelling choice than it was six months ago.
 
 ---
 
-*Updated March 1, 2026. Original comparison: February 26, 2026.*
+*Updated March 16, 2026. Previous update: March 1, 2026. Original comparison: February 26, 2026.*
