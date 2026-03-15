@@ -333,7 +333,7 @@ Pass an opts map for device emulation:
   (page/navigate pg "https://example.org"))
 ```
 
-For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
+For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](resources/com/blockether/spel/templates/skills/spel/references/FULL_API.md) and [browser options](resources/com/blockether/spel/templates/skills/spel/references/BROWSER_OPTIONS.md).
 
 ### API Testing & Writing Tests
 
@@ -369,7 +369,7 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
 
 > **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
 
-See [SKILL.md for fixtures, steps, and attachments](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
+See [Allure reporting](resources/com/blockether/spel/templates/skills/spel/references/ALLURE_REPORTING.md) for fixtures, steps, and attachments. For API testing details, see [API testing](resources/com/blockether/spel/templates/skills/spel/references/API_TESTING.md).
 
 ### Native CLI
 
@@ -440,7 +440,7 @@ Record browser sessions as WebM files for debugging and CI artifacts.
 (def ctx (core/new-context browser {:record-video-dir "videos"}))
 ```
 
-See [recording options and test fixtures](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
+See [PDF, stitch, and video options](resources/com/blockether/spel/templates/skills/spel/references/PDF_STITCH_VIDEO.md).
 
 ## Test Generation (Codegen)
 
@@ -451,7 +451,7 @@ spel codegen record -o recording.jsonl https://example.org
 spel codegen recording.jsonl > my_test.clj
 ```
 
-See [full actions and output formats](https://github.com/Blockether/spel/blob/main/resources/com/blockether/spel/templates/skills/spel/SKILL.md).
+See [codegen CLI reference](resources/com/blockether/spel/templates/skills/spel/references/CODEGEN_CLI.md) for full actions and output formats.
 
 ## Building from Source
 
