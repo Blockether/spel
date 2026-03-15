@@ -188,6 +188,40 @@ The `:bbox` gives pixel coordinates relative to the page, useful for annotation 
 
 If you've moved to a new page since the last snapshot, refs are stale. Take a fresh snapshot.
 
+### Computed styles for visual comparison
+
+When two elements have **identical geometry** (`[pos:X,Y W×H]`) but look visually different, the mismatch is caused by child-level styles (padding, font-size, min-height). Use `-S` / `--styles` to surface computed CSS per element:
+
+```bash
+# Compare toolbar controls with computed styles
+spel snapshot -i -S --minimal -s "[data-component='ComponentA'] > div:first-child"
+spel snapshot -i -S --minimal -s "[data-component='ComponentB'] > div:first-child"
+```
+
+Output includes style data inline:
+```
+- button "Sync Now" [@e8nh6a] [pos:346,112 32×28] {height:28px;padding:6px 12px;font-size:14px}
+- combobox [@e65fyp] [pos:252,112 86×34] {height:34px;padding:6px 8px;font-size:14px}
+```
+
+This immediately reveals: button is 28px vs select 34px, button has wider padding (12px vs 8px).
+
+**Style detail levels:**
+
+| Flag | Properties | Use when |
+|---|---|---|
+| `--minimal` | 16 props (height, padding, font-size, gap, border) | Quick visual weight comparison |
+| *(default)* | 31 props (+ colors, display, position, overflow) | Layout debugging |
+| `--max` | 44 props (+ transforms, transitions, z-index) | Full style audit |
+
+**When to use styles vs geometry:**
+
+| Question | Tool |
+|---|---|
+| Are elements the same size? | `snapshot -i` (check `[pos:W×H]`) |
+| Why do same-size elements look different? | `snapshot -i -S --minimal` (compare padding, font, min-height) |
+| Full visual regression baseline | `snapshot -i -S` (default 31 props) |
+
 ## Annotations
 
 Annotations inject visual overlays onto the page: bounding boxes, ref badges, and dimension labels. Everything is rendered in the browser via CSS/JS. No external image processing needed.
