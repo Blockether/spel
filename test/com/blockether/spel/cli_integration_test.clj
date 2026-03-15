@@ -174,7 +174,13 @@
       (Thread/sleep 500) ;; wait for iframe to load
       (let [r (cmd "snapshot" {"all" true})]
         (expect (string? (:snapshot r)))
-        (expect (pos? (:refs_count r)))))))
+        (expect (pos? (:refs_count r)))))
+
+    (it "snapshot shows [disabled] for aria-disabled elements (issue #88)"
+      (nav! "/test-page")
+      (let [r (cmd "snapshot" {})]
+        (expect (str/includes? (:snapshot r) "[disabled]"))
+        (expect (str/includes? (:snapshot r) "Disabled Option"))))))
 
 ;; =============================================================================
 ;; 3. Click & Double-click
@@ -1857,6 +1863,18 @@
         (expect (= "true" (:result routes-r)))
         (expect (= "true" (:result inspect-r)))
         (expect (= "true" (:result over-r)))))
+
+    (it "press with single arg does page-level keyboard press (issue #89)"
+      (nav! "/test-page")
+      (cmd "sci_eval" {"code" "(spel/click \"#name\")"})
+      (cmd "sci_eval" {"code" "(spel/fill \"#name\" \"hello\")"})
+      (let [r (cmd "sci_eval" {"code" "(spel/press \"Escape\") \"ok\""})]
+        (expect (= "\"ok\"" (:result r)))))
+
+    (it "keyboard-press sends key to page (issue #89)"
+      (nav! "/test-page")
+      (let [r (cmd "sci_eval" {"code" "(spel/keyboard-press \"Tab\") \"ok\""})]
+        (expect (= "\"ok\"" (:result r)))))
 
     (it "start! is a no-op when daemon has page"
       (let [r (cmd "sci_eval" {"code" "(spel/start!)"})]

@@ -341,7 +341,7 @@
     const level = headingLevel(el);
     if (level) attrs.level = level;
     if (el.checked) attrs.checked = true;
-    if (el.disabled) attrs.disabled = true;
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') attrs.disabled = true;
     if (el.required) attrs.required = true;
     if (el.readOnly) attrs.readonly = true;
     const expanded = el.getAttribute('aria-expanded');

@@ -337,7 +337,15 @@
 (defn sci-type-text
   ([sel text]      (throw-if-anomaly (locator/type-text (sci-$ sel) text)))
   ([sel text opts] (throw-if-anomaly (locator/type-text (sci-$ sel) text opts))))
+(defn sci-keyboard-press
+  "Presses a key on the page keyboard (no selector needed)."
+  [key]
+  (throw-if-anomaly (page/keyboard-press (require-page!) key)))
+
 (defn sci-press
+  "Presses a key. Single-arg form does a page-level keyboard press.
+   Two-arg form presses on a specific element (locator)."
+  ([key]          (sci-keyboard-press key))
   ([sel key]      (throw-if-anomaly (locator/press (sci-$ sel) key)))
   ([sel key opts] (throw-if-anomaly (locator/press (sci-$ sel) key opts))))
 (defn sci-clear   [sel] (throw-if-anomaly (locator/clear (sci-$ sel))))
@@ -1601,6 +1609,7 @@
                   ['fill          sci-fill]
                   ['type-text     sci-type-text]
                   ['press         sci-press]
+                  ['keyboard-press sci-keyboard-press]
                   ['clear         sci-clear]
                   ['check         sci-check]
                   ['uncheck       sci-uncheck]

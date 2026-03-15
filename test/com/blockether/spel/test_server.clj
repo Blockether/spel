@@ -55,6 +55,7 @@
     </form>
     <button id=\"hidden-btn\" style=\"display:none\">Hidden</button>
     <button id=\"disabled-btn\" disabled>Disabled</button>
+    <ul role=\"listbox\"><li role=\"option\" id=\"aria-disabled-opt\" aria-disabled=\"true\">Disabled Option</li><li role=\"option\" id=\"aria-enabled-opt\">Enabled Option</li></ul>
     <div id=\"hover-target\" title=\"Hover tooltip\">Hover Me</div>
     <div id=\"scroll-anchor\" style=\"margin-top:2000px\">Scroll Target</div>
     <img id=\"logo\" alt=\"Test Logo\" src=\"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7\" />

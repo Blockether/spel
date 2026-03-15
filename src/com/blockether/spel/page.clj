@@ -321,6 +321,18 @@
   ([^Page page ^String expression arg]
    (safe (.evaluate page expression arg))))
 
+(defn keyboard-press
+  "Presses a key or key combination on the page keyboard.
+
+   Params:
+   `page` - Page instance.
+   `key`  - String. Key to press (e.g. \"Enter\", \"Escape\", \"Tab\", \"Control+a\").
+
+   Returns:
+   nil or anomaly map on failure."
+  [^Page page ^String key]
+  (safe (.press (.keyboard page) key)))
+
 (defn evaluate-handle
   "Like evaluate, but returns a JSHandle.
    
