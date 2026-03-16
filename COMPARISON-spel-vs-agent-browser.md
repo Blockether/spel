@@ -174,7 +174,7 @@ Snapshots are the primary way AI agents "see" a page. This is arguably the most 
 
 | Category | Commands | CLI-only? | Why it matters |
 |---|---|---|---|
-| **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | ✅ Truly missing | Snapshot Myers diff, pixel comparison, URL comparison |
+| **Diff engine** | `diff snapshot`, `diff screenshot`, `diff url` | ⚡ CLI exists | spel has `diff snapshot --baseline` (text diff) and `diff screenshot --baseline` (pixel comparison with threshold + diff image). Only `diff url` (compare two URLs) is missing |
 | **Auth vault** | `auth save/login/list/delete/show` | ✅ Truly missing | AES-256-GCM encrypted credential store with auto-login |
 | **Computed styles** | `get styles <sel>` | ⚡ Library/SCI | `snapshot -S --styles` (--minimal/default/--max); computed CSS styles in snapshot output |
 | **Clipboard** | `clipboard read/write/copy/paste` | ⚡ CLI exists | spel has `clipboard copy`, `clipboard read`, `clipboard paste` as CLI commands |
@@ -277,7 +277,7 @@ This works, but you're limited to what bash can do. No structured data manipulat
 | **Snapshot verbosity** | 🟡 Medium | More tokens for LLMs than agent-browser’s flat format. Mitigated by `--flat`, `-c`, `-d` flags. |
 | **Ref format less LLM-friendly** | 🟠 Low | `[@e2yrjz]` (6 random chars) vs `[ref=e1]` (sequential). Sequential is easier for LLMs to reference. |
 | ~~**Video save-as bug**~~ | ✅ Fixed in 0.5.0 | Video `save-as` now correctly closes page/context before `saveAs`. |
-| **No diff engine** | 🟡 Medium | No snapshot diff or pixel comparison. agent-browser added Myers diff + pixel diff in 0.15.x. |
+| ~~**No diff engine**~~ | ✅ Done | spel has `diff snapshot --baseline` and `diff screenshot --baseline` (pixel comparison with threshold + diff image output). |
 | **No auth vault** | 🟠 Low | No encrypted credential store. agent-browser has AES-256-GCM auth vault. |
 | **No iOS/cloud browser support** | 🟠 Low | Missing for teams that need real mobile testing or serverless browsers. |
 
@@ -451,7 +451,7 @@ As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright ent
 1. ~~**Sequential refs**~~ — ❌ Rejected — hash refs are stable across snapshots; sequential refs break cross-snapshot reference in multi-step agent workflows
 2. ~~**Link URLs in snapshots**~~ — ✅ Done in spel 0.5.0 (`[url=https://...]` inline)
 3. ~~**Structured refs in JSON**~~ — ✅ Done in spel 0.5.0 (full `refs` map with role/name/url + `pages`, `network`, `console`)
-4. **Diff engine** — snapshot diff (Myers), pixel diff, URL comparison — truly missing, worth implementing
+4. ~~**Diff engine**~~ — ✅ Done in spel (`diff snapshot --baseline`, `diff screenshot --baseline` with threshold + diff image; library: `visual-diff/compare-screenshots`, `snapshot/diff-snapshots`). Only `diff url` (two-URL comparison) is missing
 5. ~~**Computed styles**~~ — ✅ Done in spel 0.7.2 (`snapshot -S --styles` with `--minimal`/default/`--max`)
 6. ~~**Clipboard**~~ — ✅ Done in spel (`clipboard copy`, `clipboard read`, `clipboard paste` CLI commands)
 7. ~~**Extension loading**~~ — ✅ Done in spel 0.5.0 (`--extension`)
@@ -496,7 +496,7 @@ As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright ent
 | **Programmability** | spel | Massive (full Clojure vs JS eval) |
 | **Testing/CI** | spel | Total (AB still has nothing) |
 | **Debugging** | spel | spel has Inspector + Trace Viewer + HAR (via library). AB has profiler (CDP-only) |
-| **Diff tooling** | agent-browser | Total (spel has nothing) |
+| **Diff tooling** | Tie | Both have snapshot diff and pixel diff. AB also has `diff url` (two-URL comparison) |
 | **Auth management** | agent-browser | Medium (encrypted vault vs state save/load — state files cover 80%) |
 | **LLM snapshot ergonomics** | Tie | Both have link URLs and structured refs. AB is more compact; spel has richer metadata |
 | **Safety/policy** | agent-browser | Total (action confirmation, domain allowlist) |
@@ -508,7 +508,7 @@ As of v0.20.0 (March 14, 2026), agent-browser dropped Node.js and Playwright ent
 | **Error messages** | Tie | Both now propagate errors well |
 | **Documentation** | Tie | Both have good --help |
 
-**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). The genuine gap is diff tooling (snapshot/pixel/URL comparison). Computed styles (`snapshot -S --styles`), clipboard (`clipboard copy/read/paste`), and scrollable discovery (`find-scrollable`) are all done.
+**Overall: spel has near-complete feature parity** when you count its 3 layers (CLI + SCI + library). Diff tooling (`diff snapshot`, `diff screenshot`), computed styles (`snapshot -S --styles`), clipboard (`clipboard copy/read/paste`), and scrollable discovery (`find-scrollable`) are all done. The only remaining CLI gap is `diff url` (two-URL comparison).
 
 The competitive landscape shifted in March 2026. agent-browser's v0.20.0 rewrite to native Rust was a significant leap — it's no longer a "Node.js wrapper" and the install story is dramatically better (7MB, no dependencies). The performance gap narrowed from 9–17× to 2.4–31×. The binary size gap widened against spel (10× now vs roughly equal before when you counted node_modules).
 
