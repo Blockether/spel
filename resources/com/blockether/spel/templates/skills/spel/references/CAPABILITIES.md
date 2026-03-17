@@ -49,7 +49,7 @@ Primary references:
 ## Automation and CDP
 
 - Browser profiles and persistent auth
-- Explicit CDP attach, auto-connect, session ownership rules
+- Explicit CDP attach, auto-connect, auto-launch, session ownership rules
 - Network routing and response inspection
 
 Primary references:

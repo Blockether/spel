@@ -95,12 +95,13 @@ Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome:/
 
 ## Daemon launch modes
 
-The daemon has two launch modes:
+The daemon has three launch modes:
 
 | Mode | Trigger | What Happens | Use Case |
 |------|---------|-------------|----------|
 | Mode 1: persistent profile | `--profile <dir>` | Uses Playwright `launchPersistentContext` on the directory | Local automation with session persistence |
-| Mode 2: normal / CDP | No `--profile` | Standard `launch` + `new-context`, or `--cdp` / `--auto-connect` for CDP | One-off automation, CI, connecting to existing Chrome |
+| Mode 2: auto-launch | `--auto-launch` | Launches browser with `--remote-debugging-port` on a unique port, connects via CDP | Per-session isolated browser for AI agents |
+| Mode 3: normal / CDP | No `--profile` or `--auto-launch` | Standard `launch` + `new-context`, or `--cdp` / `--auto-connect` for CDP | One-off automation, CI, connecting to existing Chrome |
 
 ### Mode 1 details (persistent profile)
 
@@ -110,7 +111,23 @@ Playwright creates/manages browser data in the given directory:
 - Session isolation per directory — don't share between concurrent processes
 - Supports `--channel` for Edge, Chrome Canary, etc.
 
-### Mode 2 details (normal / CDP)
+### Mode 2 details (auto-launch)
+
+Launches a dedicated browser with `--remote-debugging-port` and a temp `--user-data-dir`, then connects via CDP. Each session gets its own browser on a unique port (9222, 9223, ...).
+
+```bash
+spel --auto-launch --session test1 open https://example.com
+spel --auto-launch --channel msedge --session test2 open https://example.com
+```
+
+Key properties:
+- **Per-session isolation**: each session gets its own browser process on its own port
+- **User's browser untouched**: uses a temp profile directory, never kills existing browsers
+- **Auto-cleanup**: browser process is killed and temp dir deleted on `spel close`
+- **Port allocation**: scans 9222-9321, uses lock files to avoid cross-session collisions
+- Trade-off: fresh profile means no existing auth cookies (use `--profile` for that)
+
+### Mode 3 details (normal / CDP)
 
 Normal: Standard Playwright launch — fresh context every time. Use `--load-state` to inject pre-saved cookies.
 
@@ -123,6 +140,8 @@ All modes support stealth (on by default), `--channel`, and `--interactive`.
 ## CDP auto-connect
 
 Connect to a running Chrome or Edge instance via Chrome DevTools Protocol (CDP). This lets spel control your actual browser with its real login sessions, cookies, and tabs.
+
+> **Simpler alternative**: If you don't need to connect to an existing browser, use `--auto-launch` instead. It handles browser launch, port allocation, and CDP connection automatically with per-session isolation. See [Mode 2: auto-launch](#mode-2-details-auto-launch) above.
 
 ### Setup (Chrome/Edge 136+ security change)
 
@@ -190,6 +209,7 @@ spel click @eXXXX                                # still connected
 |----------|---------|
 | `SPEL_CDP` | CDP endpoint URL (same as `--cdp`) |
 | `SPEL_AUTO_CONNECT` | Enable auto-connect (any value, same as `--auto-connect`) |
+| `SPEL_AUTO_LAUNCH` | Enable auto-launch (any value, same as `--auto-launch`) |
 
 ### Limitations
 

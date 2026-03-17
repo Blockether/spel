@@ -54,6 +54,8 @@ spel install --with-deps
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
 | `SPEL_CDP` | `--cdp` | Connect to existing browser via Chrome DevTools Protocol URL |
+| `SPEL_AUTO_CONNECT` | `--auto-connect` | Auto-discover running Chrome/Edge CDP endpoint (any value) |
+| `SPEL_AUTO_LAUNCH` | `--auto-launch` | Launch browser with debug port, per-session isolation (any value) |
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
 | `SPEL_DEBUG` | `--debug` | Set to `true` for verbose debug logging |
 

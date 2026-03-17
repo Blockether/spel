@@ -41,7 +41,21 @@ When using CDP, treat one named session as the single owner of one CDP endpoint.
 - Do **not** attach multiple agent sessions to the same CDP browser endpoint concurrently.
 - Never run broad browser kills (`pkill -f "Google Chrome"`, `pkill -f "chrome"`) as a normal recovery step — this can kill the user's browser and other agent runs.
 
-Recommended pattern:
+Recommended pattern (auto-launch — simplest):
+
+```bash
+SESSION="exp-$(date +%s)"
+
+# Auto-launch handles browser launch, port allocation, and CDP connection
+spel --session $SESSION --auto-launch open https://example.com
+spel --session $SESSION snapshot -i
+spel --session $SESSION click @eXXXXX
+
+# Teardown only your session (kills the auto-launched browser)
+spel --session $SESSION close
+```
+
+Alternative pattern (manual CDP — when you need a specific browser or profile):
 
 ```bash
 SESSION="exp-$(date +%s)"

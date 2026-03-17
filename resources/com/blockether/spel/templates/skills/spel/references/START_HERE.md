@@ -36,6 +36,12 @@ spel --session exp-$(date +%s) eval-sci '(spel/title)'
 ```
 
 ```bash
-spel --session auto-$(date +%s) --cdp http://127.0.0.1:9222 open https://example.com
-spel --session auto-$(date +%s) --cdp http://127.0.0.1:9222 snapshot -i
+spel --session auto-$(date +%s) --auto-launch open https://example.com
+spel --session auto-$(date +%s) --auto-launch snapshot -i
+```
+
+```bash
+# Or with explicit CDP endpoint:
+spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 open https://example.com
+spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 snapshot -i
 ```

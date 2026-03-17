@@ -309,6 +309,7 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
 | `SPEL_AUTO_CONNECT` | `--auto-connect` | Set to any value to auto-discover Chrome CDP |
+| `SPEL_AUTO_LAUNCH` | `--auto-launch` | Set to any value to auto-launch browser with debug port (per-session isolation) |
 | `SPEL_CDP` | `--cdp` | Connect via Chrome DevTools Protocol URL |
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
 | `SPEL_DRIVER_DIR` | — | Override Playwright browser driver directory |

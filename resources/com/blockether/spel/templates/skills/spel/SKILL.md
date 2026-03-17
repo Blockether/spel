@@ -58,6 +58,7 @@ Proven navigation playbook:
 |---------|---------|
 | `spel --help` | CLI help |
 | `spel open <url>` | Open URL (stealth mode is ON by default) |
+| `spel --auto-launch open <url>` | Launch isolated browser with CDP debug port (per-session) |
 | `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge and open URL via CDP |
 | `CDP_PORT=$(spel find-free-port) && spel --session agent-$(date +%s) --cdp http://127.0.0.1:$CDP_PORT open <url>` | Connect to Chrome/Edge via explicit CDP endpoint (ephemeral port + named session) |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
@@ -283,7 +284,7 @@ Start with `references/START_HERE.md` for the shortest orientation path and `ref
 |-----|-------|
 | `references/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
 | `references/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `references/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect, storage state, agent scaffolding |
+| `references/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect/auto-launch, storage state, agent scaffolding |
 
 ### Agent shared patterns
 | Ref | Topic |
