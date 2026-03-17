@@ -1763,6 +1763,15 @@ assert_jq "real evals smoke → case count" "$OUT" '.summary.case_count == 1'
 assert_jq "real evals smoke → no hard fail" "$OUT" '.summary.fail == 0'
 assert_jq "real evals smoke → classified status" "$OUT" '(.cases[0].status == "pass") or (.cases[0].status == "blocked_runtime_billing") or (.cases[0].status == "blocked_runtime_auth") or (.cases[0].status == "blocked_runtime_timeout")'
 
+# =============================================================================
+# AUTO-LAUNCH (47)
+# =============================================================================
+section "Auto-Launch (47)"
+
+# 1. --help mentions auto-launch
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help mentions auto-launch" "$OUT" "auto-launch"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

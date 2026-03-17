@@ -1551,6 +1551,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--args <args>` | Browser args (comma-separated) |
 | `--cdp <url>` | Connect via CDP endpoint |
 | `--auto-connect` | Auto-discover running Chrome/Edge CDP endpoint |
+| `--auto-launch` | Launch browser with debug port (per-session isolation) |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
 | `--no-stealth` | Disable stealth mode (stealth is ON by default) |

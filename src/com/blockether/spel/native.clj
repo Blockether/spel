@@ -240,6 +240,9 @@
   (println "  --auto-connect            Auto-discover running Chrome/Edge CDP endpoint")
   (println "                            Chrome/Edge 136+ requires --user-data-dir for debug port")
   (println "                            See: chrome://inspect/#remote-debugging (M144+)")
+  (println "  --auto-launch             Launch browser with debug port (per-session isolation)")
+  (println "                            Each session gets its own browser on a unique port (9222+)")
+  (println "                            Uses temp profile; user's existing browser stays untouched")
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
   (println "  --no-stealth              Disable stealth mode (stealth is ON by default)")
@@ -488,7 +491,7 @@
   [args]
   (loop [remaining (normalize-args args)
          cmd-args  []
-         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :auto-connect (some? (System/getenv "SPEL_AUTO_CONNECT")) :browser (System/getenv "SPEL_BROWSER") :channel (System/getenv "SPEL_CHANNEL") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
+         opts      {:timeout-ms nil :debug? false :json? false :autoclose? false :interactive? false :session nil :load-state nil :auto-connect (some? (System/getenv "SPEL_AUTO_CONNECT")) :auto-launch (some? (System/getenv "SPEL_AUTO_LAUNCH")) :browser (System/getenv "SPEL_BROWSER") :channel (System/getenv "SPEL_CHANNEL") :profile (System/getenv "SPEL_PROFILE") :cdp (System/getenv "SPEL_CDP")}]
     (if-not (seq remaining)
       (assoc opts :command-args cmd-args)
       (let [arg (first remaining)]
@@ -588,6 +591,10 @@
           (= "--auto-connect" arg)
           (recur (rest remaining) cmd-args (assoc opts :auto-connect true))
 
+          ;; --auto-launch
+          (= "--auto-launch" arg)
+          (recur (rest remaining) cmd-args (assoc opts :auto-launch true))
+
           ;; --channel=<name>
           (and (string? arg) (str/starts-with? arg "--channel="))
           (recur (rest remaining) cmd-args
@@ -638,7 +645,8 @@
                        (:browser global) (assoc "browser" (:browser global))
                        (:channel global) (assoc "channel" (:channel global))
                        (:profile global) (assoc "profile" (:profile global))
-                       (:cdp global)     (assoc "cdp" (:cdp global)))
+                       (:cdp global)     (assoc "cdp" (:cdp global))
+                       (:auto-launch global) (assoc "auto-launch" true))
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)

@@ -1536,6 +1536,9 @@
      "  --auto-connect          Auto-discover running Chrome/Edge CDP endpoint"
      "                          Chrome/Edge 136+ requires --user-data-dir for debug port"
      "                          Or use chrome://inspect/#remote-debugging (M144+)"
+     "  --auto-launch           Launch browser with debug port (per-session isolation)"
+     "                          Each session gets its own browser on a unique port (9222+)"
+     "                          Uses temp profile; user's existing browser stays untouched"
      "  --ignore-https-errors   Ignore HTTPS certificate errors"
      "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
@@ -1632,7 +1635,9 @@
                        (System/getenv "SPEL_ARGS")
                        (assoc :args (System/getenv "SPEL_ARGS"))
                        (System/getenv "SPEL_TIMEOUT")
-                       (assoc :timeout (parse-long (System/getenv "SPEL_TIMEOUT"))))
+                       (assoc :timeout (parse-long (System/getenv "SPEL_TIMEOUT")))
+                       (some? (System/getenv "SPEL_AUTO_LAUNCH"))
+                       (assoc :auto-launch true))
 
         ;; Extract global flags first
         {:keys [flags remaining]}
@@ -1753,6 +1758,9 @@
 
                 (= "--auto-connect" arg)
                 (recur (rest args) (assoc flags :auto-connect true) remaining)
+
+                (= "--auto-launch" arg)
+                (recur (rest args) (assoc flags :auto-launch true) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))

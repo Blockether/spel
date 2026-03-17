@@ -773,3 +773,107 @@
       (let [response (json/read-json (#'sut/process-command "invalid json!!!"))]
         (expect (false? (get response "success")))
         (expect (str/includes? (get response "error") "Parse error"))))))
+
+;; =============================================================================
+;; Unit Tests — Auto-Launch Port Allocation
+;; =============================================================================
+
+(defdescribe find-free-cdp-port-test
+  "Unit tests for find-free-cdp-port"
+
+  (describe "returns a port number"
+    (it "returns a number >= 9222"
+      (let [port (sut/find-free-cdp-port)]
+        (expect (integer? port))
+        (expect (>= port 9222)))))
+
+  (describe "returns different ports when locks are held"
+    (it "skips ports with active lock files"
+      (let [session  (str "port-test-" (System/currentTimeMillis))
+            pid      (.pid (java.lang.ProcessHandle/current))
+            ;; Create a lock for port 9222 owned by a session with current PID
+            ;; (so it looks alive)
+            _        (#'sut/write-auto-launch-lock! 9222 session pid)
+            ;; Also write a PID file so daemon-running? returns true
+            pid-path (sut/pid-file-path session)]
+        (try
+          (java.nio.file.Files/writeString pid-path (str pid)
+            (into-array java.nio.file.OpenOption []))
+          (let [port (sut/find-free-cdp-port)]
+            (expect (> port 9222)))
+          (finally
+            (#'sut/clear-auto-launch-lock! 9222)
+            (java.nio.file.Files/deleteIfExists pid-path)))))))
+
+;; =============================================================================
+;; Unit Tests — resolve-browser-binary
+;; =============================================================================
+
+(defdescribe resolve-browser-binary-test
+  "Unit tests for resolve-browser-binary"
+
+  (describe "throws for unknown channel"
+    (it "throws ex-info for invalid channel name"
+      (try
+        (sut/resolve-browser-binary "netscape-navigator")
+        (expect false "Should have thrown")
+        (catch clojure.lang.ExceptionInfo e
+          (expect (str/includes? (.getMessage e) "Unknown browser channel"))
+          (expect (= "netscape-navigator" (:channel (ex-data e))))))))
+
+  (describe "returns a string path for known channels"
+    (it "returns a string for chrome channel (may not exist on CI)"
+      ;; We test the path resolution, not whether the binary exists
+      ;; since CI may not have Chrome installed.
+      ;; Just verify the function doesn't throw for format issues.
+      (let [os-name (str/lower-case (System/getProperty "os.name"))
+            linux?  (str/includes? os-name "linux")]
+        (when linux?
+          ;; On Linux, the binary name is just a command name
+          ;; which may or may not be on PATH. Test that the function
+          ;; either returns a string or throws with a clear message.
+          (try
+            (let [path (sut/resolve-browser-binary "chrome")]
+              (expect (string? path))
+              (expect (= "google-chrome" path)))
+            (catch clojure.lang.ExceptionInfo e
+              ;; Expected if Chrome is not installed
+              (expect (str/includes? (.getMessage e) "Browser binary not found")))))))))
+
+;; =============================================================================
+;; Unit Tests — Auto-Launch Lock Files
+;; =============================================================================
+
+(defdescribe auto-launch-lock-test
+  "Unit tests for auto-launch lock file management"
+
+  (describe "write and read lock"
+    (it "creates a lock file that can be read back"
+      (let [port 19222
+            session "lock-test-session"
+            pid 12345]
+        (try
+          (#'sut/write-auto-launch-lock! port session pid)
+          (let [lock (#'sut/read-auto-launch-lock port)]
+            (expect (some? lock))
+            (expect (= session (get lock "session")))
+            (expect (= port (get lock "port")))
+            (expect (= pid (get lock "browser_pid"))))
+          (finally
+            (#'sut/clear-auto-launch-lock! port))))))
+
+  (describe "clear lock"
+    (it "removes the lock file"
+      (let [port 19223]
+        (#'sut/write-auto-launch-lock! port "test" 99999)
+        (#'sut/clear-auto-launch-lock! port)
+        (expect (nil? (#'sut/read-auto-launch-lock port))))))
+
+  (describe "stale lock cleanup"
+    (it "clears lock when owning session is not running"
+      (let [port 19224]
+        (#'sut/write-auto-launch-lock! port "dead-session-99999" 99999)
+        ;; dead-session-99999 has no PID file, so daemon-running? returns false
+        (expect (not (#'sut/auto-launch-lock-active? port)))
+        ;; Lock should have been cleaned up
+        (expect (nil? (#'sut/read-auto-launch-lock port)))))))

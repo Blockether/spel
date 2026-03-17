@@ -33,6 +33,7 @@
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
    [java.io BufferedReader File InputStreamReader OutputStreamWriter]
+   [java.lang ProcessBuilder$Redirect]
    [java.net HttpURLConnection StandardProtocolFamily UnixDomainSocketAddress URL]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
@@ -229,6 +230,257 @@
                    {:browser-candidates browser-candidates
                     :pw-cache           pw-cache
                     :probed-ports       [9222 9229]})))))))
+
+;; =============================================================================
+;; Auto-Launch: browser lifecycle for --auto-launch
+;; =============================================================================
+
+(def ^:private ^:const auto-launch-base-port
+  "Base port for auto-launched browser debug ports. Each session gets a unique
+   port starting from this value."
+  9222)
+
+(def ^:private ^:const auto-launch-port-range
+  "Maximum number of ports to scan when looking for a free CDP port."
+  100)
+
+(defn- auto-launch-lock-path
+  "Returns the lock file path for an auto-launched browser on a given port.
+   Used to track port<->session ownership so other sessions avoid collisions."
+  ^Path [^long port]
+  (Path/of (str (System/getProperty "java.io.tmpdir")
+             File/separator
+             "spel-auto-launch-" port ".json")
+    (into-array String [])))
+
+(defn- read-auto-launch-lock
+  "Reads the auto-launch lock for a port. Returns map or nil."
+  [^long port]
+  (let [path (auto-launch-lock-path port)]
+    (when (Files/exists path (into-array java.nio.file.LinkOption []))
+      (try
+        (json/read-json (String. (Files/readAllBytes path)))
+        (catch Exception _ nil)))))
+
+(defn- write-auto-launch-lock!
+  "Writes a lock file claiming a CDP port for a session."
+  [^long port ^String session ^long browser-pid]
+  (let [payload {:session session
+                 :port port
+                 :browser_pid browser-pid
+                 :created_at (System/currentTimeMillis)}]
+    (Files/writeString (auto-launch-lock-path port)
+      (json/write-json-str payload)
+      (into-array java.nio.file.OpenOption []))))
+
+(defn- clear-auto-launch-lock!
+  "Deletes the auto-launch lock file for a port. Best-effort."
+  [^long port]
+  (try
+    (Files/deleteIfExists (auto-launch-lock-path port))
+    (catch Exception e (warn "clear-auto-launch-lock" e))))
+
+(defn- port-in-use?
+  "Checks if a TCP port is in use by attempting to connect to it."
+  [^long port]
+  (try
+    (with-open [^java.net.Socket sock (java.net.Socket.)]
+      (.connect sock (java.net.InetSocketAddress. "127.0.0.1" (int port)) 500)
+      true)
+    (catch Exception _ false)))
+
+(defn- auto-launch-lock-active?
+  "Returns true if the lock file exists AND the owning daemon is still alive."
+  [^long port]
+  (when-let [lock (read-auto-launch-lock port)]
+    (let [owner (get lock "session")]
+      (if (and owner (daemon-running? owner))
+        true
+        (do (clear-auto-launch-lock! port) false)))))
+
+(defn find-free-cdp-port
+  "Finds an available CDP port starting from 9222. Checks both the OS-level port
+   availability and spel auto-launch lock files to avoid collisions with other
+   sessions. Returns the port number or throws if none found."
+  []
+  (let [base  (long auto-launch-base-port)
+        range (long auto-launch-port-range)]
+    (loop [port base
+           tried 0]
+      (if (>= tried range)
+        (throw (ex-info (str "No free CDP port found in range "
+                          base "-" (+ base range -1))
+                 {:base-port base :range range}))
+        (if (or (port-in-use? port) (auto-launch-lock-active? port))
+          (recur (inc port) (inc tried))
+          port)))))
+
+(defn resolve-browser-binary
+  "Resolves the filesystem path to a Chrome/Edge binary based on the channel name.
+   Supports: chrome, msedge, chrome-beta, chrome-canary, msedge-beta, msedge-dev.
+   Falls back to 'chrome' if channel is nil.
+   Returns the binary path string, or throws if not found."
+  [channel]
+  (let [os-name (str/lower-case (System/getProperty "os.name"))
+        mac?    (str/includes? os-name "mac")
+        win?    (str/includes? os-name "windows")
+        ch      (or channel "chrome")
+        path
+        (cond
+          mac?
+          (case ch
+            "chrome"        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            "chrome-beta"   "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta"
+            "chrome-canary" "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
+            "msedge"        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+            "msedge-beta"   "/Applications/Microsoft Edge Beta.app/Contents/MacOS/Microsoft Edge Beta"
+            "msedge-dev"    "/Applications/Microsoft Edge Dev.app/Contents/MacOS/Microsoft Edge Dev"
+            "chromium"      "/Applications/Chromium.app/Contents/MacOS/Chromium"
+            (throw (ex-info (str "Unknown browser channel: " ch)
+                     {:channel ch :os "macos"})))
+
+          win?
+          (let [pf      (System/getenv "PROGRAMFILES")
+                pf-x86  (System/getenv "PROGRAMFILES(X86)")
+                local   (System/getenv "LOCALAPPDATA")]
+            (case ch
+              "chrome"        (str pf "\\Google\\Chrome\\Application\\chrome.exe")
+              "chrome-beta"   (str pf "\\Google\\Chrome Beta\\Application\\chrome.exe")
+              "chrome-canary" (str local "\\Google\\Chrome SxS\\Application\\chrome.exe")
+              "msedge"        (str pf-x86 "\\Microsoft\\Edge\\Application\\msedge.exe")
+              "msedge-beta"   (str pf-x86 "\\Microsoft\\Edge Beta\\Application\\msedge.exe")
+              "msedge-dev"    (str pf-x86 "\\Microsoft\\Edge Dev\\Application\\msedge.exe")
+              (throw (ex-info (str "Unknown browser channel: " ch)
+                       {:channel ch :os "windows"}))))
+
+          :else ;; Linux
+          (case ch
+            "chrome"        "google-chrome"
+            "chrome-beta"   "google-chrome-beta"
+            "chrome-canary" "google-chrome-unstable"
+            "msedge"        "microsoft-edge"
+            "msedge-beta"   "microsoft-edge-beta"
+            "msedge-dev"    "microsoft-edge-dev"
+            "chromium"      "chromium-browser"
+            (throw (ex-info (str "Unknown browser channel: " ch)
+                     {:channel ch :os "linux"}))))
+
+        exists? (if (or mac? win?)
+                  (.exists (java.io.File. ^String path))
+                  ;; On Linux, check if command is on PATH
+                  (try
+                    (let [^java.util.List which-cmd (doto (java.util.ArrayList.) (.add "which") (.add path))
+                          pb (ProcessBuilder. which-cmd)
+                          p  (.start pb)]
+                      (zero? (.waitFor p)))
+                    (catch Exception _ false)))]
+    (when-not exists?
+      (throw (ex-info (str "Browser binary not found: " path
+                        "\nInstall " ch " or specify a different --channel.")
+               {:channel ch :path path})))
+    path))
+
+(defn auto-launch-browser!
+  "Launches a browser with --remote-debugging-port on a free port.
+   Uses a temp user-data-dir so the user's existing browser stays untouched.
+
+   Params:
+     `channel`  - Browser channel (e.g. 'chrome', 'msedge'). Defaults to 'chrome'.
+     `session`  - Session name, used for lock file ownership.
+     `headless` - Boolean, whether to launch headless.
+
+   Returns a map:
+     :cdp-url      - CDP endpoint URL (http://127.0.0.1:<port>)
+     :port         - The allocated port
+     :browser-pid  - PID of the launched browser process
+     :tmp-dir      - Path to the temp user-data-dir (for cleanup)"
+  [{:keys [channel session headless]
+    :or {channel "chrome" session "default" headless true}}]
+  (let [port      (find-free-cdp-port)
+        binary    (resolve-browser-binary channel)
+        tmp-dir   (str (Files/createTempDirectory "spel-auto-launch-"
+                         (into-array java.nio.file.attribute.FileAttribute [])))
+        browser-args
+        (cond-> [(str "--remote-debugging-port=" port)
+                 (str "--user-data-dir=" tmp-dir)
+                 "--no-first-run"
+                 "--no-default-browser-check"]
+          headless (conj "--headless=new"))
+        ;; On macOS we need to use the binary path directly (not `open -a`)
+        ;; because `open` spawns in background and we can't get the PID
+        cmd       (into [binary] browser-args)
+        _         (binding [*out* *err*]
+                    (println (str "spel: auto-launch: starting " channel " on port " port))
+                    (println (str "spel: auto-launch: temp profile: " tmp-dir)))
+        pb        (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
+                    (.redirectOutput ProcessBuilder$Redirect/DISCARD)
+                    (.redirectErrorStream true))
+        process   (.start pb)
+        pid       (.pid process)]
+    ;; Write lock file immediately to claim the port
+    (write-auto-launch-lock! port session pid)
+    ;; Wait for the CDP endpoint to be ready (up to 15s)
+    (loop [attempts 0]
+      (cond
+        (>= attempts 150)
+        (do
+          ;; Cleanup on failure
+          (.destroyForcibly process)
+          (clear-auto-launch-lock! port)
+          (throw (ex-info (str "Auto-launched browser did not start within 15 seconds on port " port)
+                   {:port port :channel channel :pid pid})))
+
+        (not (.isAlive process))
+        (do
+          (clear-auto-launch-lock! port)
+          (throw (ex-info (str "Auto-launched browser process exited immediately (exit code: "
+                            (.exitValue process) "). Binary: " binary)
+                   {:port port :channel channel :exit-code (.exitValue process)})))
+
+        (probe-http-cdp port 500)
+        (do
+          (binding [*out* *err*]
+            (println (str "spel: auto-launch: " channel " ready on port " port " (PID " pid ")")))
+          {:cdp-url     (str "http://127.0.0.1:" port)
+           :port        port
+           :browser-pid pid
+           :tmp-dir     tmp-dir})
+
+        :else
+        (do (Thread/sleep 100)
+            (recur (inc attempts)))))))
+
+(defn kill-auto-launched-browser!
+  "Kills an auto-launched browser process and cleans up its lock file and temp dir."
+  [{:keys [^long port ^long browser-pid ^String tmp-dir]}]
+  (when browser-pid
+    (try
+      (when-let [ph (.orElse (java.lang.ProcessHandle/of browser-pid) nil)]
+        (when (.isAlive ^java.lang.ProcessHandle ph)
+          (binding [*out* *err*]
+            (println (str "spel: auto-launch: killing browser PID " browser-pid)))
+          ;; Kill the process tree (browser + child processes)
+          (.descendants ^java.lang.ProcessHandle ph)
+          (run! (fn [^java.lang.ProcessHandle child]
+                  (try (.destroyForcibly child) (catch Exception _)))
+            (iterator-seq (.iterator (.descendants ^java.lang.ProcessHandle ph))))
+          (.destroyForcibly ^java.lang.ProcessHandle ph)))
+      (catch Exception e (warn "kill-auto-launched-browser" e))))
+  (when port
+    (clear-auto-launch-lock! port))
+  (when tmp-dir
+    (try
+      (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
+        (when (Files/exists tmp-path (into-array java.nio.file.LinkOption []))
+          (java.nio.file.Files/walkFileTree tmp-path
+            (proxy [java.nio.file.SimpleFileVisitor] []
+              (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
+                (java.nio.file.Files/deleteIfExists file)
+                java.nio.file.FileVisitResult/CONTINUE)
+              (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
+                (java.nio.file.Files/deleteIfExists dir)
+                java.nio.file.FileVisitResult/CONTINUE)))))
+      (catch Exception e (warn "cleanup-auto-launch-tmp-dir" e)))))
 
 ;; =============================================================================
 ;; State
@@ -726,9 +978,10 @@
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
-   Two modes:
+   Three modes:
    1. --profile with directory → Playwright launchPersistentContext
-   2. Normal → Playwright launch (or --cdp connect)
+   2. --auto-launch → launch browser with debug port, connect via CDP
+   3. Normal → Playwright launch (or --cdp connect)
 
    Auto-loads persisted session state unless --no-persist is set."
   []
@@ -794,10 +1047,47 @@
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
             :persistent-profile true))
 
-        ;; ── Mode 2: Normal launch or CDP connect ─────────────────────────
+        ;; ── Mode 2: --auto-launch → launch browser + CDP connect ─────────
+        (get flags "auto-launch")
+        (let [_       (binding [*out* *err*]
+                        (println "spel: [Mode 2] Auto-launch browser with CDP"))
+              channel (get flags "channel" "chrome")
+              session (:session @!state)
+              result  (auto-launch-browser!
+                        {:channel  channel
+                         :session  session
+                         :headless (:headless @!state)})
+              cdp-url (:cdp-url result)
+              _       (binding [*out* *err*]
+                        (println (str "spel: auto-launch: connecting via CDP to " cdp-url)))
+              browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
+              contexts (.contexts ^com.microsoft.playwright.Browser browser)
+              context  (if (seq contexts)
+                         (first contexts)
+                         (check-anomaly!
+                           (core/new-context browser)
+                           "Auto-launch: failed to create browser context"))
+              pages    (.pages ^com.microsoft.playwright.BrowserContext context)
+              pg-inst  (if (seq pages)
+                         (first pages)
+                         (check-anomaly!
+                           (core/new-page-from-context context)
+                           "Auto-launch: failed to create page"))]
+          ;; Store CDP URL in launch flags so subsequent commands know we're CDP-connected
+          (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
+          (persist-launch-flags!)
+          ;; Track auto-launch info for cleanup on stop-daemon!
+          (swap! !state assoc
+            :pw pw :browser browser :context context :page pg-inst
+            :cdp-connected true
+            :auto-launch-info {:port        (:port result)
+                               :browser-pid (:browser-pid result)
+                               :tmp-dir     (:tmp-dir result)}))
+
+        ;; ── Mode 3: Normal launch or CDP connect ─────────────────────────
         :else
         (let [_       (binding [*out* *err*]
-                        (println (str "spel: [Mode 2] "
+                        (println (str "spel: [Mode 3] "
                                    (if (get flags "cdp")
                                      (str "CDP connect: " (get flags "cdp"))
                                      "Standard launch"))))
@@ -2830,7 +3120,10 @@
                 (java.nio.file.Files/deleteIfExists dir)
                 java.nio.file.FileVisitResult/CONTINUE))))
         (catch Exception e (warn "cleanup-tmp-profile" e))))
-    ;; 3c. Release shared CDP route lock if we own it
+    ;; 3c. Kill auto-launched browser process if one was started
+    (when-let [auto-info (:auto-launch-info @!state)]
+      (kill-auto-launched-browser! auto-info))
+    ;; 3d. Release shared CDP route lock if we own it
     (release-cdp-route-lock-if-owned!)
     ;; 4. Only delete files if they still belong to US (a new daemon may
     ;;    have already replaced them during our slow browser cleanup)
