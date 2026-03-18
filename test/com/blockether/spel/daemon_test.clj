@@ -241,52 +241,68 @@
   (describe "schedule and cancel"
     (it "schedules a future when timeout is positive"
       (let [future-atom (deref #'sut/!session-idle-future)
-            timeout-atom (deref #'sut/!session-idle-timeout-ms)]
+            timeout-atom (deref #'sut/!session-idle-timeout-ms)
+            orig @timeout-atom]
         (reset! timeout-atom 60000)
         (reset! future-atom nil)
-        (#'sut/schedule-session-idle-shutdown!)
-        (let [fut @future-atom]
-          (expect (some? fut))
-          (expect (not (.isCancelled ^java.util.concurrent.ScheduledFuture fut)))
-          ;; Clean up
-          (.cancel ^java.util.concurrent.ScheduledFuture fut false)
-          (reset! future-atom nil))))
+        (try
+          (#'sut/schedule-session-idle-shutdown!)
+          (let [fut @future-atom]
+            (expect (some? fut))
+            (expect (not (.isCancelled ^java.util.concurrent.ScheduledFuture fut)))
+            ;; Clean up
+            (.cancel ^java.util.concurrent.ScheduledFuture fut false)
+            (reset! future-atom nil))
+          (finally
+            (reset! timeout-atom orig)))))
 
     (it "does not schedule when timeout is 0 (disabled)"
       (let [future-atom (deref #'sut/!session-idle-future)
-            timeout-atom (deref #'sut/!session-idle-timeout-ms)]
+            timeout-atom (deref #'sut/!session-idle-timeout-ms)
+            orig @timeout-atom]
         (reset! timeout-atom 0)
         (reset! future-atom nil)
-        (#'sut/schedule-session-idle-shutdown!)
-        (expect (nil? @future-atom))))
+        (try
+          (#'sut/schedule-session-idle-shutdown!)
+          (expect (nil? @future-atom))
+          (finally
+            (reset! timeout-atom orig)))))
 
     (it "reschedule cancels previous future"
       (let [future-atom (deref #'sut/!session-idle-future)
-            timeout-atom (deref #'sut/!session-idle-timeout-ms)]
+            timeout-atom (deref #'sut/!session-idle-timeout-ms)
+            orig @timeout-atom]
         (reset! timeout-atom 60000)
-        (#'sut/schedule-session-idle-shutdown!)
-        (let [fut1 @future-atom]
-          (expect (some? fut1))
-          ;; Reschedule — previous future should be cancelled
+        (try
           (#'sut/schedule-session-idle-shutdown!)
-          (expect (.isCancelled ^java.util.concurrent.ScheduledFuture fut1))
-          (let [fut2 @future-atom]
-            (expect (some? fut2))
-            (expect (not= fut1 fut2))
-            ;; Clean up
-            (.cancel ^java.util.concurrent.ScheduledFuture fut2 false)
-            (reset! future-atom nil)))))
+          (let [fut1 @future-atom]
+            (expect (some? fut1))
+            ;; Reschedule — previous future should be cancelled
+            (#'sut/schedule-session-idle-shutdown!)
+            (expect (.isCancelled ^java.util.concurrent.ScheduledFuture fut1))
+            (let [fut2 @future-atom]
+              (expect (some? fut2))
+              (expect (not= fut1 fut2))
+              ;; Clean up
+              (.cancel ^java.util.concurrent.ScheduledFuture fut2 false)
+              (reset! future-atom nil)))
+          (finally
+            (reset! timeout-atom orig)))))
 
     (it "cancel-session-idle-shutdown! clears the future"
       (let [future-atom (deref #'sut/!session-idle-future)
-            timeout-atom (deref #'sut/!session-idle-timeout-ms)]
+            timeout-atom (deref #'sut/!session-idle-timeout-ms)
+            orig @timeout-atom]
         (reset! timeout-atom 60000)
-        (#'sut/schedule-session-idle-shutdown!)
-        (let [fut @future-atom]
-          (expect (some? fut))
-          (#'sut/cancel-session-idle-shutdown!)
-          (expect (.isCancelled ^java.util.concurrent.ScheduledFuture fut))
-          (expect (nil? @future-atom)))))))
+        (try
+          (#'sut/schedule-session-idle-shutdown!)
+          (let [fut @future-atom]
+            (expect (some? fut))
+            (#'sut/cancel-session-idle-shutdown!)
+            (expect (.isCancelled ^java.util.concurrent.ScheduledFuture fut))
+            (expect (nil? @future-atom)))
+          (finally
+            (reset! timeout-atom orig)))))))
 
 (defdescribe click-diagnostics-test
   "Unit tests for click error diagnostics helpers"
