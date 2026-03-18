@@ -819,7 +819,7 @@
             body         (try (.text r) (catch Throwable _ nil))
             ct           (get resp-headers "content-type")
             req-method   (or (:method request-meta) "GET")
-            req-url      (or (:url request-meta) url)
+            req-url      (or url (:url request-meta))
             req-headers  (:request-headers request-meta)
             req-body     (:request-body request-meta)]
         (attach "HTTP"
