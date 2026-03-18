@@ -892,12 +892,12 @@
           (when (instance? Page pg) (close-page! pg))
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))
-               (catch Exception _))
+            (catch Exception _))
           ;; Close context (writes HAR file) before attaching, so both
           ;; trace and HAR are fully written when we copy them.
           (let [t (doto (Thread. (fn []
                                    (try (close-context! ctx)
-                                        (catch Exception _))))
+                                     (catch Exception _))))
                     (.setDaemon true)
                     (.start))]
             (.join t 5000))
@@ -923,7 +923,7 @@
    Returns [active?-fn vars-map]."
   []
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
-                     (catch Exception _ (constantly false)))]
+                  (catch Exception _ (constantly false)))]
     [active?
      {:page        (resolve 'com.blockether.spel.allure/*page*)
       :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
@@ -1772,9 +1772,9 @@
            (api-response->map result)))
        (finally
          (try (api-dispose! ctx)
-              (catch Exception e
-                (binding [*out* *err*]
-                  (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
+           (catch Exception e
+             (binding [*out* *err*]
+               (println (str "spel: warn: api-dispose failed: " (.getMessage e)))))))))))
 
 ;; =============================================================================
 ;; Retry
@@ -1800,6 +1800,7 @@
                    (or (anomaly/anomaly? result)
                      (and (map? result)
                        (contains? result :status)
+                       (number? (:status result))
                        (>= (long (:status result)) 500))))})
 
 (defn- compute-delay
@@ -1870,7 +1871,7 @@
    (with-retry {:max-attempts 5
                 :delay-ms     500
                 :backoff      :linear
-                :retry-when   (fn [r] (and (map? r) (>= (:status r) 500)))}
+                :retry-when   (fn [r] (and (map? r) (number? (:status r)) (>= (:status r) 500)))}
      (api-post ctx \"/idempotent-endpoint\"
        {:json {:action \"process\"}}))
 
@@ -1988,10 +1989,10 @@
               (finally
                 (try (.stop tracing (doto (Tracing$StopOptions.)
                                       (.setPath (.toPath trace-file))))
-                     (catch Exception _))
+                  (catch Exception _))
                 (let [t (doto (Thread. (fn []
                                          (try (close-context! ctx)
-                                              (catch Exception _))))
+                                           (catch Exception _))))
                           (.setDaemon true)
                           (.start))]
                   (.join t 5000))
@@ -2099,7 +2100,7 @@
           (f ctx)))
       (finally
         (try (close! pw)
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 (defmacro with-page-api
   "Create an APIRequestContext from a Page with custom options.
