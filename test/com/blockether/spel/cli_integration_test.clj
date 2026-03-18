@@ -1164,8 +1164,8 @@
             owner-pid     (daemon/pid-file-path owner-session)
             lock-path      (#'daemon/cdp-route-lock-path cdp-url)
             ;; Set short wait/poll so test doesn't take 120s
-            orig-wait (deref #'daemon/!cdp-lock-wait-s)
-            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+            orig-wait @(deref #'daemon/!cdp-lock-wait-s)
+            orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
         (reset! (deref #'daemon/!cdp-lock-wait-s) 2)
         (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
         (swap! state-a assoc
@@ -1204,8 +1204,8 @@
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
             lock-path      (#'daemon/cdp-route-lock-path cdp-url)
-            orig-wait (deref #'daemon/!cdp-lock-wait-s)
-            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+            orig-wait @(deref #'daemon/!cdp-lock-wait-s)
+            orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
         (reset! (deref #'daemon/!cdp-lock-wait-s) 10)
         (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
         (swap! state-a assoc
@@ -1244,8 +1244,8 @@
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
             lock-path      (#'daemon/cdp-route-lock-path cdp-url)
-            orig-wait (deref #'daemon/!cdp-lock-wait-s)
-            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+            orig-wait @(deref #'daemon/!cdp-lock-wait-s)
+            orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
         (reset! (deref #'daemon/!cdp-lock-wait-s) 2)
         (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
         (swap! state-a assoc
