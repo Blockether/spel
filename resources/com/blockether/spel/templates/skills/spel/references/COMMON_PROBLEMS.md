@@ -363,3 +363,29 @@ spel --profile /tmp/fresh-profile open https://example.com
 - Use named sessions in automation: `spel --session agent-$(date +%s) open <url>` to avoid collision with default session
 - Don't share profiles between concurrent processes, since Chromium locks the directory
 - Check `spel session list` before starting if you suspect a stale daemon
+
+## 18. ClassCastException in `with-retry` / `retry`
+
+`with-retry` crashes with `ClassCastException: class clojure.lang.Keyword cannot be cast to class java.lang.Number` when the retried function returns a map with a non-numeric `:status` key (e.g. `{:status :created}`).
+
+**Fixed in v0.7.7.** The default `:retry-when` now guards with `(number? (:status result))` before casting. If you're on an older version, provide an explicit `:retry-when`:
+
+```clojure
+(spel/with-retry {:retry-when (fn [r] (and (map? r) (number? (:status r)) (>= (:status r) 500)))}
+  (api-get ctx "/users"))
+```
+
+## 19. Retry doesn't catch exceptions
+
+Prior to v0.7.7, `retry` / `with-retry` did not catch exceptions thrown by the retried function — they bubbled up immediately. Now exceptions are caught and retried automatically, re-thrown only on the last attempt.
+
+## 20. Polling until a condition is met
+
+Use `retry-guard` to create a `:retry-when` that retries until your predicate passes:
+
+```clojure
+;; Retry until the job is ready (up to 10 attempts, 1s apart)
+(spel/with-retry {:max-attempts 10 :delay-ms 1000 :backoff :fixed
+                  :retry-when (spel/retry-guard #(= "ready" (:status %)))}
+  (spel/api-get ctx "/job/123"))
+```

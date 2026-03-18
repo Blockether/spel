@@ -254,7 +254,7 @@ Start with `references/START_HERE.md` for the shortest orientation path and `ref
 | `references/TESTING_CONVENTIONS.md` | Test framework conventions, fixtures, running tests (flavour-specific) |
 | `references/ASSERTIONS_EVENTS.md` | Playwright assertions, events/signals, file input |
 | `references/SNAPSHOT_TESTING.md` | Snapshot testing patterns |
-| `references/API_TESTING.md` | API testing context, HTTP methods, hooks, retry |
+| `references/API_TESTING.md` | API testing context, HTTP methods, hooks, retry, `retry-guard` |
 
 ### Reporting & CI
 | Ref | Topic |

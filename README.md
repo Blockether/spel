@@ -379,6 +379,19 @@ For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/
     (core/api-get ctx "/me")))
 ```
 
+**Retry with backoff** — built-in retry logic with exponential/linear/fixed backoff. Catches exceptions automatically.
+
+```clojure
+;; Default: 3 attempts, exponential backoff, retries on errors + 5xx + exceptions
+(core/with-retry {}
+  (core/api-get ctx "/flaky-endpoint"))
+
+;; Poll until a condition is met with retry-guard
+(core/with-retry {:max-attempts 10 :delay-ms 1000 :backoff :fixed
+                  :retry-when (core/retry-guard #(= "ready" (:status %)))}
+  (core/api-get ctx "/job/123"))
+```
+
 > **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
 
 See [Allure reporting](resources/com/blockether/spel/templates/skills/spel/references/ALLURE_REPORTING.md) for fixtures, steps, and attachments. For API testing details, see [API testing](resources/com/blockether/spel/templates/skills/spel/references/API_TESTING.md).

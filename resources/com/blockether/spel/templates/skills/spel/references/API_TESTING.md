@@ -115,18 +115,62 @@ Intercept requests and responses with hooks for logging, modification, or testin
 
 ## Retry with Backoff
 
-Retry failed requests with configurable backoff strategies.
+Retry failed requests with configurable backoff strategies. Exceptions thrown by `f` are automatically caught and retried (re-thrown on the last attempt).
+
+### Default behavior
+
+`retry` / `with-retry` default to 3 attempts with exponential backoff. Retries on:
+- Anomalies (error maps from `safe` wrapper)
+- HTTP responses with numeric `:status` >= 500
+- Any exception thrown by the retried function
+
+### Options
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `:max-attempts` | `3` | Total attempts |
+| `:delay-ms` | `200` | Initial delay in ms |
+| `:backoff` | `:exponential` | `:fixed`, `:linear`, or `:exponential` |
+| `:max-delay-ms` | `10000` | Ceiling on delay |
+| `:retry-when` | anomaly/5xx/exception | `(fn [result] -> truthy)` to retry |
+
+### Basic retry
 
 ```clojure
-;; Function-based retry
+;; Library layer
 (core/retry #(core/api-get ctx "/flaky")
   {:max-attempts 5 :delay-ms 1000 :backoff :linear
    :retry-when (fn [r] (= 429 (:status (core/api-response->map r))))})
 
-;; Macro-based retry
+;; Macro form
 (core/with-retry {:max-attempts 3 :delay-ms 200}
   (core/api-post ctx "/endpoint" {:json {:action "process"}}))
+
+;; SCI / eval-sci
+(spel/with-retry {:max-attempts 3}
+  (spel/api-get ctx "/flaky-endpoint"))
 ```
+
+### retry-guard — poll until a condition is met
+
+`retry-guard` creates a `:retry-when` predicate that retries until your predicate returns truthy. It also inherits the default error/anomaly retry behavior.
+
+```clojure
+;; Library layer — retry until job is ready
+(core/with-retry {:retry-when (core/retry-guard #(= "ready" (:status %)))}
+  (core/api-get ctx "/job/123"))
+
+;; SCI / eval-sci — retry until queue has items
+(spel/with-retry {:retry-when (spel/retry-guard #(> (:count %) 0))}
+  (spel/api-get ctx "/queue/stats"))
+
+;; Retry until a page element appears (non-API use case)
+(spel/with-retry {:max-attempts 10 :delay-ms 500
+                  :retry-when (spel/retry-guard #(:visible %))}
+  (spel/inspect))
+```
+
+> **Note**: `retry-guard` retries when the predicate returns falsy OR throws. It also retries on anomalies and 5xx responses (same as default). Use it for polling/eventual-consistency scenarios.
 
 ## Standalone Request
 
