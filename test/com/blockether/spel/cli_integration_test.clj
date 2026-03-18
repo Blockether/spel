@@ -483,7 +483,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -502,7 +502,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -1157,12 +1157,17 @@
       (let [r (cmd "network_unroute" {})]
         (expect (true? (:all_routes_removed r)))))
 
-    (it "process-command fails fast when another CDP session owns route lock"
+    (it "process-command queues then times out when another CDP session owns route lock"
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path      (#'daemon/cdp-route-lock-path cdp-url)]
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            ;; Set short wait/poll so test doesn't take 120s
+            orig-wait (deref #'daemon/!cdp-lock-wait-s)
+            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+        (reset! (deref #'daemon/!cdp-lock-wait-s) 2)
+        (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
         (swap! state-a assoc
           :session "integ-test"
           :cdp-connected true
@@ -1183,11 +1188,87 @@
             (expect (= false (get resp "success")))
             (expect (= "cdp_route_lock" (get resp "error_code")))
             (expect (= owner-session (get resp "owner_session")))
-            (expect (str/includes? (get resp "error") "active network routes"))
+            (expect (str/includes? (get resp "error") "Timed out"))
             ;; lock guard must still allow close/session cleanup commands
             (let [close-resp (json/read-json (#'daemon/process-command (json/write-json-str {"action" "close"})))]
               (expect (= true (get close-resp "success")))))
           (finally
+            (reset! (deref #'daemon/!cdp-lock-wait-s) orig-wait)
+            (reset! (deref #'daemon/!cdp-lock-poll-interval-s) orig-poll)
+            (Files/deleteIfExists owner-pid)
+            (Files/deleteIfExists lock-path)))))
+
+    (it "process-command acquires lock when released during wait"
+      (let [state-a       (deref #'daemon/!state)
+            cdp-url       "http://127.0.0.1:9222"
+            owner-session (str "owner-" (System/currentTimeMillis))
+            owner-pid     (daemon/pid-file-path owner-session)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            orig-wait (deref #'daemon/!cdp-lock-wait-s)
+            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+        (reset! (deref #'daemon/!cdp-lock-wait-s) 10)
+        (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
+        (swap! state-a assoc
+          :session "integ-test"
+          :cdp-connected true
+          :launch-flags {"cdp" cdp-url})
+        (Files/writeString owner-pid
+          (str (.pid (java.lang.ProcessHandle/current)))
+          (into-array java.nio.file.OpenOption []))
+        (Files/writeString lock-path
+          (json/write-json-str {"session" owner-session
+                                "cdp" cdp-url
+                                "updated_at" (System/currentTimeMillis)})
+          (into-array java.nio.file.OpenOption []))
+        ;; Delete the lock file after 2s in a background thread
+        (future
+          (Thread/sleep 2000)
+          (Files/deleteIfExists lock-path)
+          (Files/deleteIfExists owner-pid))
+        (try
+          ;; navigate should succeed because lock clears within the wait window
+          (let [resp (json/read-json
+                       (#'daemon/process-command
+                        (json/write-json-str {"action" "navigate"
+                                              "url" (str *test-server-url* "/test-page")})))]
+            (expect (= true (get resp "success"))))
+          (finally
+            (reset! (deref #'daemon/!cdp-lock-wait-s) orig-wait)
+            (reset! (deref #'daemon/!cdp-lock-poll-interval-s) orig-poll)
+            (Files/deleteIfExists owner-pid)
+            (Files/deleteIfExists lock-path)))))
+
+    (it "exempt actions skip lock queue entirely"
+      (let [state-a       (deref #'daemon/!state)
+            cdp-url       "http://127.0.0.1:9222"
+            owner-session (str "owner-" (System/currentTimeMillis))
+            owner-pid     (daemon/pid-file-path owner-session)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            orig-wait (deref #'daemon/!cdp-lock-wait-s)
+            orig-poll (deref #'daemon/!cdp-lock-poll-interval-s)]
+        (reset! (deref #'daemon/!cdp-lock-wait-s) 2)
+        (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
+        (swap! state-a assoc
+          :session "integ-test"
+          :cdp-connected true
+          :launch-flags {"cdp" cdp-url})
+        (Files/writeString owner-pid
+          (str (.pid (java.lang.ProcessHandle/current)))
+          (into-array java.nio.file.OpenOption []))
+        (Files/writeString lock-path
+          (json/write-json-str {"session" owner-session
+                                "cdp" cdp-url
+                                "updated_at" (System/currentTimeMillis)})
+          (into-array java.nio.file.OpenOption []))
+        (try
+          ;; url and title should pass through immediately (exempt)
+          (let [url-resp (json/read-json (#'daemon/process-command (json/write-json-str {"action" "url"})))
+                title-resp (json/read-json (#'daemon/process-command (json/write-json-str {"action" "title"})))]
+            (expect (= true (get url-resp "success")))
+            (expect (= true (get title-resp "success"))))
+          (finally
+            (reset! (deref #'daemon/!cdp-lock-wait-s) orig-wait)
+            (reset! (deref #'daemon/!cdp-lock-poll-interval-s) orig-poll)
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))
 
@@ -1938,6 +2019,17 @@
         ;; Restore default
         (cmd "sci_eval" {"code" "(spel/set-cdp-idle-timeout! 1800000)"})))
 
+    (it "cdp-lock-wait returns current lock wait timeout in SCI"
+      (let [r (cmd "sci_eval" {"code" "(number? (spel/cdp-lock-wait))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "set-cdp-lock-wait! changes the lock wait timeout from SCI"
+      (let [_  (cmd "sci_eval" {"code" "(spel/set-cdp-lock-wait! 60)"})
+            r  (cmd "sci_eval" {"code" "(spel/cdp-lock-wait)"})]
+        (expect (= "60" (:result r)))
+        ;; Restore default
+        (cmd "sci_eval" {"code" "(spel/set-cdp-lock-wait! 120)"})))
+
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})
@@ -2487,7 +2579,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---

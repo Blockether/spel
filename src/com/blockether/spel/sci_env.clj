@@ -112,6 +112,12 @@
 (defonce !cdp-idle-timeout-ms (atom nil))
 (defonce !set-cdp-idle-timeout-handler (atom nil))
 
+;; CDP route lock wait — how long to queue before failing when another session holds the lock.
+;; Injected by daemon from SPEL_CDP_LOCK_WAIT env var (default 120s).
+;; Exposed to SCI as (spel/cdp-lock-wait) and (spel/set-cdp-lock-wait! s).
+(defonce !cdp-lock-wait-s (atom nil))
+(defonce !set-cdp-lock-wait-handler (atom nil))
+
 ;; Default action timeout for Playwright operations (ms).
 ;; Set via --timeout flag in eval-sci mode. nil = Playwright default (30s).
 (defonce !default-timeout (atom nil))
@@ -230,19 +236,19 @@
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -1177,6 +1183,29 @@
     (handler ms)
     (reset! !cdp-idle-timeout-ms ms)))
 
+(defn sci-cdp-lock-wait
+  "Returns the current CDP route lock wait timeout in seconds.
+
+   When another session holds the CDP route lock, the daemon waits up to
+   this many seconds for the lock to be released before failing.
+   0 means fail immediately. Default: 120 (2 minutes).
+   Set SPEL_CDP_LOCK_WAIT env var or call (spel/set-cdp-lock-wait! s)."
+  []
+  (or @!cdp-lock-wait-s 0))
+
+(defn sci-set-cdp-lock-wait!
+  "Sets the CDP route lock wait timeout in seconds.
+
+   0 disables waiting (fail-fast). Takes effect on the next lock conflict.
+
+   Example:
+     (spel/set-cdp-lock-wait! 60)    ; wait up to 1 minute
+     (spel/set-cdp-lock-wait! 0)     ; fail immediately"
+  [s]
+  (if-let [handler @!set-cdp-lock-wait-handler]
+    (handler s)
+    (reset! !cdp-lock-wait-s s)))
+
 ;; =============================================================================
 ;; Help
 ;; =============================================================================
@@ -1808,6 +1837,8 @@
                   ['cdp-reconnect  sci-cdp-reconnect]
                   ['cdp-idle-timeout       sci-cdp-idle-timeout]
                   ['set-cdp-idle-timeout!  sci-set-cdp-idle-timeout!]
+                  ['cdp-lock-wait          sci-cdp-lock-wait]
+                  ['set-cdp-lock-wait!     sci-set-cdp-lock-wait!]
                   ;; Tracing
                   ['trace-start!     sci-trace-start!]
                   ['trace-stop!      sci-trace-stop!]

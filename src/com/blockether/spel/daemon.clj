@@ -448,7 +448,7 @@
 
         :else
         (do (Thread/sleep 100)
-            (recur (inc attempts)))))))
+          (recur (inc attempts)))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -523,6 +523,21 @@
           (.setDaemon true))))))
 (defonce ^:private !cdp-idle-future (atom nil))
 
+;; --- CDP route lock wait ---
+;; When another session holds the CDP route lock, wait instead of failing fast.
+;; Mirrors browser-lock's queuing behavior: poll every 2s, up to 120s.
+;; Set SPEL_CDP_LOCK_WAIT (seconds) and SPEL_CDP_LOCK_POLL_INTERVAL (seconds) to override; 0 disables wait.
+(defonce ^:private !cdp-lock-wait-s
+  (atom (let [env-val (System/getenv "SPEL_CDP_LOCK_WAIT")]
+          (if (str/blank? env-val)
+            120
+            (Long/parseLong env-val)))))
+(defonce ^:private !cdp-lock-poll-interval-s
+  (atom (let [env-val (System/getenv "SPEL_CDP_LOCK_POLL_INTERVAL")]
+          (if (str/blank? env-val)
+            2
+            (Long/parseLong env-val)))))
+
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
@@ -532,14 +547,25 @@
 
 (def ^:private cdp-route-lock-exempt-actions
   "Actions allowed even when another session owns route interception lock.
-   Keep this minimal so page-driving commands fail fast instead of hanging."
+   These are read-only queries, session management, or local buffer operations
+   that don't drive the page and should never queue."
   #{"close" "session_info" "session_list"
     "cdp_disconnect" "cdp_reconnect"
     "network_list" "network_requests" "network_get_ref"
     "console_list" "console_get_ref"
     "pages_list" "pages_get_ref"
     "network_unroute"
-    "action_log" "action_log_srt" "action_log_clear"})
+    "action_log" "action_log_srt" "action_log_clear"
+    ;; Read-only page queries — safe, and should not queue for 120s
+    "url" "title"
+    "tab_list"
+    "find_free_port"
+    ;; Local buffer reads/clears — no browser interaction
+    "console_get" "console_clear"
+    "errors_get" "errors_clear"
+    "network_clear"
+    ;; State file operations — filesystem only
+    "state_list" "state_show" "state_rename" "state_clear" "state_clean"})
 
 (defn- current-cdp-url
   "Returns currently configured CDP URL from daemon launch flags, if any."
@@ -581,6 +607,45 @@
           (when (and owner (not= owner session))
             {:owner-session owner
              :cdp-url cdp-url}))))))
+
+(defn- await-cdp-route-lock
+  "Waits for the CDP route lock to be released by another session.
+   Polls every `!cdp-lock-poll-interval-s` seconds up to `!cdp-lock-wait-s` seconds.
+   Returns nil when lock is cleared (or was never held), or a conflict map on timeout.
+   If wait is 0, returns conflict immediately (fail-fast)."
+  [^String action]
+  (let [max-wait-s  (long @!cdp-lock-wait-s)
+        poll-s      (long @!cdp-lock-poll-interval-s)
+        poll-ms     (* poll-s 1000)]
+    (if-let [conflict (cdp-route-lock-conflict action)]
+      (if (zero? max-wait-s)
+        ;; Fail-fast mode
+        conflict
+        ;; Queue mode — poll until lock clears or timeout
+        (let [session (:session @!state)]
+          (binding [*out* *err*]
+            (println (str "spel: CDP lock held by session '" (:owner-session conflict)
+                       "' — waiting (0/" max-wait-s "s)...")))
+          (loop [waited 0]
+            (if (>= waited max-wait-s)
+              ;; Timeout — return conflict for error response
+              (do
+                (binding [*out* *err*]
+                  (println (str "spel: CDP lock timeout after " max-wait-s
+                             "s — blocking action '" action "'")))
+                conflict)
+              (do
+                (Thread/sleep poll-ms)
+                (let [waited' (+ waited poll-s)]
+                  (if-let [still-locked (cdp-route-lock-conflict action)]
+                    (recur waited')
+                    ;; Lock cleared!
+                    (do
+                      (binding [*out* *err*]
+                        (println (str "spel: CDP lock acquired after " waited' "s wait")))
+                      nil))))))))
+      ;; No conflict
+      nil)))
 
 (defn- cdp-route-lock-warning
   "Returns a warning payload when another session owns active CDP route lock.
@@ -1017,7 +1082,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -1201,10 +1266,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                     (catch Exception _ nil)))
+                  (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                     (catch Exception _ nil)))}))
+                  (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -1922,15 +1987,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -1941,11 +2006,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -2208,13 +2273,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "click"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "fill"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -2361,7 +2426,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -2439,15 +2504,15 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        (when (empty? @!routes)
-          (release-cdp-route-lock-if-owned!))
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      (when (empty? @!routes)
+        (release-cdp-route-lock-if-owned!))
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        (release-cdp-route-lock-if-owned!)
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      (release-cdp-route-lock-if-owned!)
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -2569,7 +2634,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -2807,6 +2872,13 @@
       (reset! !cdp-idle-timeout-ms ms)
       (reset! sci-env/!cdp-idle-timeout-ms ms)
       ms)))
+  ;; Sync CDP lock wait value and setter
+(reset! sci-env/!cdp-lock-wait-s @!cdp-lock-wait-s)
+(reset! sci-env/!set-cdp-lock-wait-handler
+  (fn set-cdp-lock-wait-handler [s]
+    (reset! !cdp-lock-wait-s s)
+    (reset! sci-env/!cdp-lock-wait-s s)
+    s))
 
 (defn- sync-sci-to-state!
   "After SCI eval, syncs SCI atoms back to daemon state in case user code
@@ -2962,12 +3034,12 @@
       (when (seq flags)
         (swap! !state update :launch-flags merge flags)
         (persist-launch-flags!))
-      (if-let [{:keys [owner-session cdp-url]} (cdp-route-lock-conflict action)]
+      (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
         (json/write-json-str
           {:success false
            :error (str "CDP endpoint is currently controlled by session '" owner-session
-                    "' with active network routes. Blocking action '" action
-                    "' in session '" (:session @!state) "' to prevent command hangs.")
+                    "' with active network routes. Timed out waiting for lock release — blocking action '" action
+                    "' in session '" (:session @!state) "'.")
            :hint (str "Use one session per --cdp endpoint when routes are active. "
                    "Either run `spel --session " owner-session " network unroute all` "
                    "or close that session before retrying.")
