@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.6] - 2026-03-18
+
+### Changed
+- fix(allure): pretty-print JSON bodies in cURL and remove 500-char truncation
+- release: update version files for v0.7.5, bump to next dev version
+
+
 ## [v0.7.5] - 2026-03-18
 
 ### Changed
@@ -1361,7 +1368,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.6...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1413,3 +1420,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.3]: https://github.com/Blockether/spel/releases/tag/v0.7.3
 [v0.7.4]: https://github.com/Blockether/spel/releases/tag/v0.7.4
 [v0.7.5]: https://github.com/Blockether/spel/releases/tag/v0.7.5
+[v0.7.6]: https://github.com/Blockether/spel/releases/tag/v0.7.6
