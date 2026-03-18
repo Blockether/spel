@@ -1803,6 +1803,35 @@
                        (number? (:status result))
                        (>= (long (:status result)) 500))))})
 
+(defn retry-guard
+  "Creates a :retry-when predicate that retries until `pred` is satisfied.
+
+   `pred` is a function (fn [result] -> truthy). Retries while `pred` returns
+   falsy. Stops when `pred` returns truthy. Also retries on anomalies and
+   exceptions thrown by `pred` itself.
+
+   Use with `retry` / `with-retry` to poll until a condition is met:
+
+   ;; Retry until job status is 'ready'
+   (with-retry {:retry-when (retry-guard #(= \"ready\" (:status %)))}
+     (api-get ctx \"/job/123\"))
+
+   ;; Combine with default error retry
+   (with-retry {:retry-when (retry-guard #(> (:count %) 0))}
+     (api-get ctx \"/queue/stats\"))
+
+   The returned predicate retries when:
+   - result is an anomaly (same as default)
+   - result is a 5xx HTTP response (same as default)
+   - `pred` returns falsy for the result
+   - `pred` throws an exception"
+  [pred]
+  (let [default-retry (:retry-when default-retry-opts)]
+    (fn [result]
+      (or (default-retry result)
+        (try (not (pred result))
+          (catch Throwable _ true))))))
+
 (defn- compute-delay
   "Compute delay in ms for the given attempt number (0-based)."
   ^long [backoff ^long delay-ms ^long max-delay-ms ^long attempt]
@@ -1823,10 +1852,11 @@
      :delay-ms      - Initial delay in ms (default: 200).
      :backoff       - :fixed, :linear, or :exponential (default).
      :max-delay-ms  - Max delay ceiling in ms (default: 10000).
-     :retry-when    - (fn [result]) → truthy to retry.
+     :retry-when    - (fn [result]) → truthy to retry. Exceptions are always retried.
 
    Returns:
-   The result of the last attempt.
+   The result of the last successful attempt.
+   Throws the last exception if all attempts fail with exceptions.
 
    Examples:
    ;; Retry a flaky endpoint
@@ -1846,18 +1876,24 @@
          delay-ms     (long delay-ms)
          max-delay-ms (long max-delay-ms)]
      (loop [attempt 0]
-       (let [result (f)]
+       (let [result (try (f) (catch Throwable t t))]
          (if (and (< (inc attempt) max-attempts)
-               (retry-when result))
+               (or (instance? Throwable result)
+                 (retry-when result)))
            (let [sleep-ms (compute-delay backoff delay-ms max-delay-ms attempt)]
              (fire-hook :on-retry nil
                {:attempt      (inc attempt)
                 :max-attempts max-attempts
                 :delay-ms     sleep-ms
-                :result       result})
+                :result       (if (instance? Throwable result)
+                                {:error (.getMessage ^Throwable result)}
+                                result)})
              (Thread/sleep sleep-ms)
              (recur (inc attempt)))
-           result))))))
+           ;; Last attempt or retry-when returned false — return or re-throw
+           (if (instance? Throwable result)
+             (throw result)
+             result)))))))
 
 (defmacro with-retry
   "Execute body with retry logic.

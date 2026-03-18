@@ -2257,6 +2257,7 @@
                     ['request!         core/request!]
                     ['default-retry-opts core/default-retry-opts]
                     ['retry            core/retry]
+                    ['retry-guard      core/retry-guard]
                     ;; API — Page/context API access
                     ['page-api         core/page-api]
                     ['context-api      core/context-api]

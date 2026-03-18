@@ -80,6 +80,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `request-options` | [opts] | Creates RequestOptions from a map. |
 | `retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
+| `retry-guard` | [pred] | Creates a :retry-when predicate that retries until `pred` is satisfied. |
 | `run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
 | `run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
 | `run-with-testing-page` | [opts f] | Functional core of `with-testing-page`. Sets up a complete Playwright stack |
@@ -1226,6 +1227,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `core/request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `core/request-options` | [opts] | Creates RequestOptions from a map. |
 | `core/retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
+| `core/retry-guard` | [pred] | Creates a :retry-when predicate that retries until `pred` is satisfied. |
 | `core/run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
 | `core/run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
 | `core/url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
