@@ -1,2 +1,0 @@
-[viewport: 800x600]
-- button "Move Me" [@e8ji5u] [pos:400,300 120×40]
