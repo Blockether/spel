@@ -1333,6 +1333,11 @@
 (defn new-api-context
   "Creates a new APIRequestContext.
 
+   Thread-safe: serializes .newContext calls per APIRequest instance via locking.
+   Playwright Java's Connection internals are not thread-safe (plain HashMap,
+   non-atomic message IDs). Concurrent .newContext calls on the same APIRequest
+   corrupt internal state, causing silent anomaly maps instead of real contexts.
+
    Params:
    `api-req` - APIRequest instance (from `api-request`).
    `opts`    - Map, optional. Context options:
@@ -1354,27 +1359,29 @@
       :extra-http-headers {\"Authorization\" \"Bearer token\"}
       :timeout 10000})"
   (^APIRequestContext [^APIRequest api-req]
-   (safe (.newContext api-req)))
+   (locking api-req
+     (safe (.newContext api-req))))
   (^APIRequestContext [^APIRequest api-req opts]
-   (safe
-     (let [co (APIRequest$NewContextOptions.)]
-       (when-let [v (:base-url opts)]
-         (.setBaseURL co ^String v))
-       (when-let [v (:extra-http-headers opts)]
-         (.setExtraHTTPHeaders co ^java.util.Map v))
-       (when (contains? opts :ignore-https-errors)
-         (.setIgnoreHTTPSErrors co (boolean (:ignore-https-errors opts))))
-       (when-let [v (:timeout opts)]
-         (.setTimeout co (double v)))
-       (when-let [v (:user-agent opts)]
-         (.setUserAgent co ^String v))
-       (when-let [v (:max-redirects opts)]
-         (.setMaxRedirects co (long v)))
-       (when (contains? opts :fail-on-status-code)
-         (.setFailOnStatusCode co (boolean (:fail-on-status-code opts))))
-       (when-let [v (:storage-state opts)]
-         (.setStorageState co ^String v))
-       (.newContext api-req co)))))
+   (locking api-req
+     (safe
+       (let [co (APIRequest$NewContextOptions.)]
+         (when-let [v (:base-url opts)]
+           (.setBaseURL co ^String v))
+         (when-let [v (:extra-http-headers opts)]
+           (.setExtraHTTPHeaders co ^java.util.Map v))
+         (when (contains? opts :ignore-https-errors)
+           (.setIgnoreHTTPSErrors co (boolean (:ignore-https-errors opts))))
+         (when-let [v (:timeout opts)]
+           (.setTimeout co (double v)))
+         (when-let [v (:user-agent opts)]
+           (.setUserAgent co ^String v))
+         (when-let [v (:max-redirects opts)]
+           (.setMaxRedirects co (long v)))
+         (when (contains? opts :fail-on-status-code)
+           (.setFailOnStatusCode co (boolean (:fail-on-status-code opts))))
+         (when-let [v (:storage-state opts)]
+           (.setStorageState co ^String v))
+         (.newContext api-req co))))))
 
 (defn api-dispose!
   "Disposes the APIRequestContext and all responses.
