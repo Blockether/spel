@@ -135,6 +135,14 @@ CDP Connect (`--cdp <url>` or `--auto-connect`): Connects to an already-running 
 
 All modes support stealth (on by default), `--channel`, and `--interactive`.
 
+### Daemon lifecycle & timeouts
+
+The daemon auto-shuts down to free resources:
+
+- **Session idle timeout** (default 30 min): If no command is received, the daemon shuts down. Set `SPEL_SESSION_IDLE_TIMEOUT` (ms) to override, `0` disables. Runtime: `(spel/set-session-idle-timeout! ms)`.
+- **CDP idle timeout** (default 30 min): After `cdp_disconnect`, if no reconnect occurs, the daemon shuts down. Set `SPEL_CDP_IDLE_TIMEOUT` (ms) to override, `0` disables.
+- **CDP route lock wait** (default 120s): When another session holds the CDP route lock, commands queue and poll every 2s instead of failing immediately. Set `SPEL_CDP_LOCK_WAIT` (seconds) and `SPEL_CDP_LOCK_POLL_INTERVAL` (seconds) to override.
+
 ---
 
 ## CDP auto-connect

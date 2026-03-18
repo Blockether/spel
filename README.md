@@ -304,6 +304,15 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | `SPEL_INTERACTIVE` | — | Set to `true` for headed mode in test fixtures |
 | `SPEL_SLOW_MO` | — | Slow motion delay in ms for test fixtures |
 
+**Daemon Lifecycle**
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
+| `SPEL_SESSION_IDLE_TIMEOUT` | — | Auto-shutdown daemon after this many ms of inactivity (default: `1800000` = 30 min, `0` disables) |
+| `SPEL_CDP_IDLE_TIMEOUT` | — | Auto-shutdown after CDP disconnect if no reconnect (ms, default: `1800000`, `0` disables) |
+| `SPEL_CDP_LOCK_WAIT` | — | Max seconds to wait for CDP route lock release (default: `120`, `0` = fail immediately) |
+| `SPEL_CDP_LOCK_POLL_INTERVAL` | — | Poll interval in seconds when waiting for CDP route lock (default: `2`) |
+
 **Advanced**
 
 | Env Var | CLI equivalent | Description |

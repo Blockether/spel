@@ -756,6 +756,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/cdp-disconnect` | [] | Temporarily disconnects from the CDP endpoint. |
 | `spel/cdp-idle-timeout` | [] | Returns the current CDP idle timeout in milliseconds. |
+| `spel/cdp-lock-wait` | [] | Returns the current CDP route lock wait timeout in seconds. |
 | `spel/cdp-reconnect` | [] \| [url] | Reconnects to the CDP endpoint after a disconnect. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
@@ -894,13 +895,16 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/scroll-position` | [] | Returns the current scroll position of the page as {:x N :y N}. |
 | `spel/scrollable` | [] | Finds all scrollable elements on the current page. |
 | `spel/select-option` | [sel values] | Selects options in a select element. |
+| `spel/session-idle-timeout` | [] | Returns the current session idle timeout in milliseconds. |
 | `spel/set-assertion-timeout!` | [ms] | Sets the default timeout for all assertions. |
 | `spel/set-cdp-idle-timeout!` | [ms] | Sets the CDP idle timeout in milliseconds. |
+| `spel/set-cdp-lock-wait!` | [s] | Sets the CDP route lock wait timeout in seconds. |
 | `spel/set-content!` | [html] \| [html opts] | Sets the HTML content of the page. |
 | `spel/set-default-navigation-timeout!` | [ms] | Sets the default navigation timeout. |
 | `spel/set-default-timeout!` | [ms] | Sets the default timeout for page operations. |
 | `spel/set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests on this page. |
 | `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
+| `spel/set-session-idle-timeout!` | [ms] | Sets the session idle timeout in milliseconds. |
 | `spel/set-viewport-size!` | [width height] | Sets the viewport size. |
 | `spel/sleep` | [ms] | Plain JVM thread sleep (ms). Does NOT interact with browser event loop. |
 | `spel/smooth-scroll` | [y-or-opts] | Smooth-scrolls the page to the given Y position (or by a delta). |
