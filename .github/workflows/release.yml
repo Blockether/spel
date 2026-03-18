@@ -71,9 +71,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
-          fetch-tags: true
+          # Shallow clone — we only need working tree + tags for changelog.
+          # fetch-depth: 0 downloads entire history including gh-pages (hundreds of MB of Allure reports).
+          fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch tags and changelog history (excluding gh-pages)
+        run: |
+          # Fetch all tags
+          git fetch --tags --no-recurse-submodules origin
+          # Deepen to 200 commits — more than enough for any release changelog.
+          # This fetches only main branch history, NOT gh-pages.
+          git fetch --deepen=200 origin main
 
       - uses: DeLaGuardo/setup-clojure@13.5
         with:
