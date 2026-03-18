@@ -6,28 +6,13 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-            artifact: spel-linux-amd64
-          - os: ubuntu-24.04-arm
-            arch: arm64
-            artifact: spel-linux-arm64
-          - os: macos-latest
-            arch: arm64
-            artifact: spel-macos-arm64
-          - os: windows-latest
-            arch: amd64
-            artifact: spel-windows-amd64
-
-    runs-on: ${{ matrix.os }}
-    name: Build ${{ matrix.artifact }}
+  # Only linux-arm64 needs building — the other 3 binaries are reused from CI.
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    name: Build spel-linux-arm64
     defaults:
       run:
         shell: bash
@@ -41,8 +26,7 @@ jobs:
           java-version: '25'
           distribution: 'graalvm'
 
-      - name: Setup Clojure
-        uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.5
         with:
           cli: latest
 
@@ -53,80 +37,33 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
             ~/.clojure/.cpcache
-          key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          key: deps-${{ runner.os }}-arm64-${{ hashFiles('deps.edn') }}
           restore-keys: |
-            deps-${{ runner.os }}-
+            deps-${{ runner.os }}-arm64-
 
       - name: Build uberjar
         run: clojure -T:build uberjar
 
       - name: Build native image
-        run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            "$GRAALVM_HOME/bin/native-image.cmd" -jar target/spel-standalone.jar -o target/spel
-          else
-            native-image -jar target/spel-standalone.jar -o target/spel
-          fi
+        run: native-image -jar target/spel-standalone.jar -o target/spel
 
-      - name: CLI smoke tests (Unix)
-        if: runner.os != 'Windows'
+      - name: CLI smoke tests
         run: |
           chmod +x target/spel
           echo "=== spel --help ==="
           target/spel --help
           echo "=== spel version ==="
           target/spel version
-          echo "=== spel open --help (per-command help) ==="
-          target/spel open --help
-          echo "=== spel snapshot --help ==="
-          target/spel snapshot --help
-          echo "=== spel find --help ==="
-          target/spel find --help
-          echo "=== spel network --help ==="
-          target/spel network --help
           echo "=== All CLI smoke tests passed ==="
 
-      - name: CLI smoke tests (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          echo "=== spel --help ==="
-          target/spel.exe --help
-          echo "=== spel version ==="
-          target/spel.exe version
-          echo "=== spel open --help (per-command help) ==="
-          target/spel.exe open --help
-          echo "=== spel snapshot --help ==="
-          target/spel.exe snapshot --help
-          echo "=== spel find --help ==="
-          target/spel.exe find --help
-          echo "=== spel network --help ==="
-          target/spel.exe network --help
-          echo "=== All CLI smoke tests passed ==="
-
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
-        run: mv target/spel target/${{ matrix.artifact }}
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: mv target/spel.exe target/${{ matrix.artifact }}.exe
-
-      - name: Upload artifact (Unix)
-        if: runner.os != 'Windows'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: target/${{ matrix.artifact }}
-
-      - name: Upload artifact (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: target/${{ matrix.artifact }}.exe
+          name: spel-linux-arm64
+          path: target/spel
 
   release:
-    needs: build
+    needs: build-arm64
     runs-on: ubuntu-latest
     name: Release & Deploy to Clojars
 
@@ -153,6 +90,42 @@ jobs:
           restore-keys: |
             deps-${{ runner.os }}-
 
+      # --- Download linux-arm64 from this release build ---
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: spel-linux-arm64
+          path: artifacts/spel-linux-arm64
+
+      # --- Download 3 binaries from the CI run on the same commit ---
+      - name: Download CI artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMIT_SHA="${GITHUB_SHA}"
+          echo "Looking for CI artifacts on commit $COMMIT_SHA"
+
+          # Find the CI workflow run for this commit
+          RUN_ID=$(gh run list --workflow=ci.yml --commit="$COMMIT_SHA" --status=success \
+            --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "::error::No successful CI run found for commit $COMMIT_SHA"
+            echo "Make sure CI passes before tagging a release."
+            exit 1
+          fi
+
+          echo "Found CI run: $RUN_ID"
+
+          for ARTIFACT in spel-linux-amd64 spel-macos-arm64 spel-windows-amd64; do
+            echo "Downloading $ARTIFACT from CI run $RUN_ID..."
+            mkdir -p "artifacts/$ARTIFACT"
+            gh run download "$RUN_ID" --name "$ARTIFACT" --dir "artifacts/$ARTIFACT"
+          done
+
+          echo "All CI artifacts downloaded successfully"
+          ls -lR artifacts/
+
       # --- Generate changelog (safe, read-only — do FIRST) ---
       - name: Generate changelog
         id: changelog
@@ -174,18 +147,27 @@ jobs:
             echo "**Full Changelog**: https://github.com/Blockether/spel/compare/${PREV_TAG}...${CURRENT_TAG}"
           } > /tmp/release_body.md
 
-      # --- GitHub Release with binaries (reversible — do before Clojars) ---
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Make Unix binaries executable
+      # --- Rename binaries and set permissions ---
+      - name: Prepare binaries
         run: |
-          chmod +x artifacts/spel-linux-amd64/spel-linux-amd64 || true
-          chmod +x artifacts/spel-linux-arm64/spel-linux-arm64 || true
-          chmod +x artifacts/spel-macos-arm64/spel-macos-arm64 || true
+          # CI uploads the binary as just 'spel' (or 'spel.exe') inside the artifact dir
+          # Rename to the artifact name for the release
+          for ARTIFACT in spel-linux-amd64 spel-linux-arm64 spel-macos-arm64; do
+            if [ -f "artifacts/$ARTIFACT/spel" ]; then
+              mv "artifacts/$ARTIFACT/spel" "artifacts/$ARTIFACT/$ARTIFACT"
+            fi
+            chmod +x "artifacts/$ARTIFACT/$ARTIFACT" 2>/dev/null || true
+          done
 
+          # Windows binary
+          if [ -f "artifacts/spel-windows-amd64/spel.exe" ]; then
+            mv "artifacts/spel-windows-amd64/spel.exe" "artifacts/spel-windows-amd64/spel-windows-amd64.exe"
+          fi
+
+          echo "=== Final artifact layout ==="
+          ls -lR artifacts/
+
+      # --- GitHub Release with binaries ---
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

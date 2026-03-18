@@ -16,11 +16,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: spel-dev-linux-amd64
+            artifact: spel-linux-amd64
           - os: macos-latest
-            artifact: spel-dev-macos-arm64
+            artifact: spel-macos-arm64
           - os: windows-latest
-            artifact: spel-dev-windows-amd64
+            artifact: spel-windows-amd64
 
     runs-on: ${{ matrix.os }}
     name: CI (${{ matrix.os }})
