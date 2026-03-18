@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.4] - 2026-03-18
+
+### Changed
+- docs: document session idle timeout, CDP lock wait env vars, and SCI APIs
+- chore: change session idle timeout default from 1 hour to 30 minutes
+- feat(daemon): auto-kill session after 1 hour of inactivity
+- fix(test): deref atom values in route lock tests to prevent Atom-as-Number cascade
+- feat(daemon): queue on CDP route lock instead of fail-fast, inspired by browser-lock (#97)
+- docs: update skills, agent templates, and README for --auto-launch (#97)
+- feat: add --auto-launch flag for per-session browser isolation (#97)
+- docs: fix diff tooling claim — spel has snapshot diff and pixel diff
+- docs: fix 5 factual errors in comparison after deep verification (#90)
+- docs: update comparison with agent-browser 0.20.11 (native Rust rewrite)
+- release: update version files for v0.7.3, bump to next dev version
+
+
 ## [v0.7.3] - 2026-03-15
 
 ### Changed
@@ -1338,7 +1354,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.4...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1388,3 +1404,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.1]: https://github.com/Blockether/spel/releases/tag/v0.7.1
 [v0.7.2]: https://github.com/Blockether/spel/releases/tag/v0.7.2
 [v0.7.3]: https://github.com/Blockether/spel/releases/tag/v0.7.3
+[v0.7.4]: https://github.com/Blockether/spel/releases/tag/v0.7.4
