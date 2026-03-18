@@ -62,9 +62,9 @@
       ([x off len]
        (if (string? x)
          (do (.write local ^String x (int off) (int len))
-             (.write parent ^String x (int off) (int len)))
+           (.write parent ^String x (int off) (int len)))
          (do (.write local ^chars x (int off) (int len))
-             (.write parent ^chars x (int off) (int len))))))
+           (.write parent ^chars x (int off) (int len))))))
     (flush []
       (.flush local)
       (.flush parent))
@@ -683,8 +683,8 @@
                   ;; empty container — keep compact
                   (do (.append sb c) (recur (inc i) d false false))
                   (do (.append sb c) (.append sb \newline)
-                      (dotimes [_ (* 2 d)] (.append sb \space))
-                      (recur (inc i) d false false))))
+                    (dotimes [_ (* 2 d)] (.append sb \space))
+                    (recur (inc i) d false false))))
 
               (or (= c \}) (= c \]))
               (let [d (dec depth)]
@@ -695,12 +695,12 @@
 
               (= c \,)
               (do (.append sb c) (.append sb \newline)
-                  (dotimes [_ (* 2 depth)] (.append sb \space))
-                  (recur (inc i) depth false false))
+                (dotimes [_ (* 2 depth)] (.append sb \space))
+                (recur (inc i) depth false false))
 
               (= c \:)
               (do (.append sb c) (.append sb \space)
-                  (recur (inc i) depth false false))
+                (recur (inc i) depth false false))
 
               (Character/isWhitespace c)
               (recur (inc i) depth false false)
@@ -710,7 +710,8 @@
 
 (defn- build-curl-command
   "Generate a curl command string from request details.
-   URL comes first, then options (method, headers, body)."
+   URL comes first, then options (method, headers, body).
+   JSON bodies are pretty-printed for readability. Full body is always included."
   ^String [{:keys [method url request-headers request-body]}]
   (let [sb (StringBuilder. "curl")]
     (.append sb (str " '" url "'"))
@@ -719,10 +720,12 @@
     (doseq [[k v] (sort (or request-headers {}))]
       (.append sb (str " \\\n  -H '" k ": " v "'")))
     (when (and request-body (pos? (count request-body)))
-      (let [body-preview (if (> (count request-body) 500)
-                           (str (subs request-body 0 500) "...")
-                           request-body)]
-        (.append sb (str " \\\n  -d '" (str/replace body-preview "'" "'\\''") "'"))))
+      (let [body (let [trimmed (str/trim request-body)]
+                   (if (or (str/starts-with? trimmed "{")
+                         (str/starts-with? trimmed "["))
+                     (pretty-json request-body)
+                     request-body))]
+        (.append sb (str " \\\n  -d '" (str/replace body "'" "'\\''") "'"))))
     (str sb)))
 
 ;; ---------------------------------------------------------------------------
