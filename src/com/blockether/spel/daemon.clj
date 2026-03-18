@@ -540,11 +540,11 @@
 
 ;; --- Session idle timeout ---
 ;; Auto-shutdown daemon if no command is received within the configured window.
-;; Default 1 hour. Set SPEL_SESSION_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
+;; Default 30 minutes. Set SPEL_SESSION_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
 (defonce ^:private !session-idle-timeout-ms
   (atom (let [env-val (System/getenv "SPEL_SESSION_IDLE_TIMEOUT")]
           (if (str/blank? env-val)
-            3600000
+            1800000
             (Long/parseLong env-val)))))
 (defonce ^:private ^ScheduledExecutorService !session-idle-scheduler
   (Executors/newSingleThreadScheduledExecutor

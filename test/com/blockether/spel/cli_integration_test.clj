@@ -2035,11 +2035,11 @@
         (expect (= "true" (:result r)))))
 
     (it "set-session-idle-timeout! changes the timeout from SCI"
-      (let [_  (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 1800000)"})
+      (let [_  (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 900000)"})
             r  (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
-        (expect (= "1800000" (:result r)))
+        (expect (= "900000" (:result r)))
         ;; Restore default
-        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 3600000)"})))
+        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 1800000)"})))
 
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
