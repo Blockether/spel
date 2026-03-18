@@ -118,6 +118,12 @@
 (defonce !cdp-lock-wait-s (atom nil))
 (defonce !set-cdp-lock-wait-handler (atom nil))
 
+;; Session idle timeout — auto-shutdown daemon after this many ms of inactivity.
+;; Injected by daemon from SPEL_SESSION_IDLE_TIMEOUT env var (default 1 hour).
+;; Exposed to SCI as (spel/session-idle-timeout) and (spel/set-session-idle-timeout! ms).
+(defonce !session-idle-timeout-ms (atom nil))
+(defonce !set-session-idle-timeout-handler (atom nil))
+
 ;; Default action timeout for Playwright operations (ms).
 ;; Set via --timeout flag in eval-sci mode. nil = Playwright default (30s).
 (defonce !default-timeout (atom nil))
@@ -1206,6 +1212,28 @@
     (handler s)
     (reset! !cdp-lock-wait-s s)))
 
+(defn sci-session-idle-timeout
+  "Returns the current session idle timeout in milliseconds.
+
+   The daemon auto-shuts down if no commands are received within this window.
+   0 means disabled. Default: 3600000 (1 hour).
+   Set SPEL_SESSION_IDLE_TIMEOUT env var or call (spel/set-session-idle-timeout! ms)."
+  []
+  (or @!session-idle-timeout-ms 0))
+
+(defn sci-set-session-idle-timeout!
+  "Sets the session idle timeout in milliseconds.
+
+   0 disables auto-shutdown. Takes effect immediately (resets the timer).
+
+   Example:
+     (spel/set-session-idle-timeout! 1800000)  ; 30 minutes
+     (spel/set-session-idle-timeout! 0)        ; disable"
+  [ms]
+  (if-let [handler @!set-session-idle-timeout-handler]
+    (handler ms)
+    (reset! !session-idle-timeout-ms ms)))
+
 ;; =============================================================================
 ;; Help
 ;; =============================================================================
@@ -1839,6 +1867,9 @@
                   ['set-cdp-idle-timeout!  sci-set-cdp-idle-timeout!]
                   ['cdp-lock-wait          sci-cdp-lock-wait]
                   ['set-cdp-lock-wait!     sci-set-cdp-lock-wait!]
+                  ;; Session idle timeout
+                  ['session-idle-timeout       sci-session-idle-timeout]
+                  ['set-session-idle-timeout!  sci-set-session-idle-timeout!]
                   ;; Tracing
                   ['trace-start!     sci-trace-start!]
                   ['trace-stop!      sci-trace-stop!]

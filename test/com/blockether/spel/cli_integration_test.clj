@@ -2030,6 +2030,17 @@
         ;; Restore default
         (cmd "sci_eval" {"code" "(spel/set-cdp-lock-wait! 120)"})))
 
+    (it "session-idle-timeout returns current timeout value in SCI"
+      (let [r (cmd "sci_eval" {"code" "(number? (spel/session-idle-timeout))"})]
+        (expect (= "true" (:result r)))))
+
+    (it "set-session-idle-timeout! changes the timeout from SCI"
+      (let [_  (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 1800000)"})
+            r  (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
+        (expect (= "1800000" (:result r)))
+        ;; Restore default
+        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 3600000)"})))
+
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})

@@ -538,6 +538,22 @@
             2
             (Long/parseLong env-val)))))
 
+;; --- Session idle timeout ---
+;; Auto-shutdown daemon if no command is received within the configured window.
+;; Default 1 hour. Set SPEL_SESSION_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
+(defonce ^:private !session-idle-timeout-ms
+  (atom (let [env-val (System/getenv "SPEL_SESSION_IDLE_TIMEOUT")]
+          (if (str/blank? env-val)
+            3600000
+            (Long/parseLong env-val)))))
+(defonce ^:private ^ScheduledExecutorService !session-idle-scheduler
+  (Executors/newSingleThreadScheduledExecutor
+    (reify java.util.concurrent.ThreadFactory
+      (newThread [_ r]
+        (doto (Thread. ^Runnable r "spel-session-idle-timer")
+          (.setDaemon true))))))
+(defonce ^:private !session-idle-future (atom nil))
+
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
@@ -2749,6 +2765,34 @@
                   TimeUnit/MILLISECONDS)]
         (reset! !cdp-idle-future fut)))))
 
+;; --- Session idle timeout scheduling ---
+
+(defn- cancel-session-idle-shutdown!
+  "Cancels any pending session idle shutdown timer."
+  []
+  (when-let [^ScheduledFuture fut @!session-idle-future]
+    (.cancel fut false)
+    (reset! !session-idle-future nil)))
+
+(defn- schedule-session-idle-shutdown!
+  "Schedules daemon auto-shutdown after session idle timeout.
+   Called on daemon start and reset on every command.
+   Does nothing if timeout is 0 (disabled)."
+  []
+  (cancel-session-idle-shutdown!)
+  (let [timeout-ms (long @!session-idle-timeout-ms)]
+    (when (pos? timeout-ms)
+      (let [fut (.schedule !session-idle-scheduler
+                  ^Runnable (fn session-idle-shutdown []
+                              (binding [*out* *err*]
+                                (println (str "spel: session idle timeout ("
+                                           (quot timeout-ms 60000)
+                                           " min) — no commands received, shutting down daemon")))
+                              (stop-daemon!))
+                  timeout-ms
+                  TimeUnit/MILLISECONDS)]
+        (reset! !session-idle-future fut)))))
+
 ;; --- Phase 5: Connect CDP ---
 
 (defn- connect-cdp!
@@ -2871,14 +2915,23 @@
     (fn set-cdp-idle-timeout-handler [ms]
       (reset! !cdp-idle-timeout-ms ms)
       (reset! sci-env/!cdp-idle-timeout-ms ms)
-      ms)))
+      ms))
   ;; Sync CDP lock wait value and setter
-(reset! sci-env/!cdp-lock-wait-s @!cdp-lock-wait-s)
-(reset! sci-env/!set-cdp-lock-wait-handler
-  (fn set-cdp-lock-wait-handler [s]
-    (reset! !cdp-lock-wait-s s)
-    (reset! sci-env/!cdp-lock-wait-s s)
-    s))
+  (reset! sci-env/!cdp-lock-wait-s @!cdp-lock-wait-s)
+  (reset! sci-env/!set-cdp-lock-wait-handler
+    (fn set-cdp-lock-wait-handler [s]
+      (reset! !cdp-lock-wait-s s)
+      (reset! sci-env/!cdp-lock-wait-s s)
+      s))
+  ;; Sync session idle timeout value and setter
+  (reset! sci-env/!session-idle-timeout-ms @!session-idle-timeout-ms)
+  (reset! sci-env/!set-session-idle-timeout-handler
+    (fn set-session-idle-timeout-handler [ms]
+      (reset! !session-idle-timeout-ms ms)
+      (reset! sci-env/!session-idle-timeout-ms ms)
+      ;; Reset the timer immediately with the new value
+      (schedule-session-idle-shutdown!)
+      ms)))
 
 (defn- sync-sci-to-state!
   "After SCI eval, syncs SCI atoms back to daemon state in case user code
@@ -3029,6 +3082,8 @@
           action  (get cmd "action")
           flags   (get cmd "_flags")
           params  (dissoc cmd "action" "_flags")]
+      ;; Reset session idle timer — any command counts as activity
+      (schedule-session-idle-shutdown!)
       ;; Store launch flags if present (used by ensure-browser!)
       ;; Persist to disk so CLI can recover them on daemon restart.
       (when (seq flags)
@@ -3165,8 +3220,9 @@
    a fresh daemon. Only deletes PID/socket files if they still belong to
    THIS process (prevents nuking a replacement daemon's files)."
   []
-  ;; 0. Cancel CDP idle timer (prevents re-entry if shutdown is called manually)
+  ;; 0. Cancel idle timers (prevents re-entry if shutdown is called manually)
   (cancel-cdp-idle-shutdown!)
+  (cancel-session-idle-shutdown!)
   (let [session (:session @!state)]
     ;; 1. Close server socket — reject new connections immediately
     (when-let [server @!server]
@@ -3250,6 +3306,9 @@
       ;; Signal handlers
       (let [shutdown-hook (Thread. ^Runnable (fn [] (stop-daemon!)))]
         (.addShutdownHook (Runtime/getRuntime) shutdown-hook))
+
+      ;; Start session idle timer
+      (schedule-session-idle-shutdown!)
 
       ;; Accept connections
       (try
