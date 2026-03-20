@@ -5,9 +5,9 @@
 </p>
 
 <div align="center">
-<i>spel</i> - The Swiss Army Knife browser tool for AI agents and Clojure developers.
+<i>spel</i> - A command-line tool that lets you (or your AI agent) control a browser from the terminal.
 <br/>
-<sub>Browser automation · E2E and API testing · Allure reporting · Accessibility snapshots · Inline Clojure scripting · Record and Generate - one native binary, three browser engines.</sub>
+<sub>Open pages · click buttons · fill forms · take screenshots · scrape content · run E2E tests · generate reports — all from simple shell commands.</sub>
 </div>
 
 <div align="center">
@@ -22,17 +22,17 @@
 <div align="center">
 <h3>
 
-[Rationale](#rationale) • [Quick Start](#quick-start) • [Agent Scaffolding](#agent-scaffolding)
+[What is spel?](#what-is-spel) • [Quick Start](#quick-start) • [CLI Examples](#cli-examples) • [AI Agent Prompts](#ready-made-prompts-for-ai-coding-agents)
 
 </h3>
 </div>
 
 <table>
 <tr>
-<td width="25%" align="center"><b>Accessibility Snapshots</b></td>
-<td width="25%" align="center"><b>Inline&nbsp;Clojure&nbsp;via&nbsp;eval-sci</b></td>
+<td width="25%" align="center"><b>Page Snapshots</b></td>
+<td width="25%" align="center"><b>Inline&nbsp;Scripting</b></td>
 <td width="25%" align="center"><b>Visual Annotations</b></td>
-<td width="25%" align="center"><b>Agent Scaffolding</b></td>
+<td width="25%" align="center"><b>AI Agent Prompts</b></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/cli-snapshot.png" alt="spel snapshot demo"/></td>
@@ -42,20 +42,58 @@
 </tr>
 </table>
 
+## What is spel?
+
+**spel is a command-line tool that controls a real browser.** You type commands in your terminal, and spel opens pages, clicks buttons, fills forms, takes screenshots, reads page content, and more. Think of it as a remote control for Chrome/Firefox/WebKit that works from the shell.
+
+**Concrete example** — scrape a page and get its content as Markdown:
+
+```bash
+spel open https://news.ycombinator.com
+spel markdownify                          # page content as clean Markdown
+spel screenshot front-page.png            # take a screenshot
+spel close
+```
+
+**Why not just use Puppeteer / Playwright directly?**
+
+- **No Node.js, no `node_modules`, no 100 MB binary downloads.** spel is a single self-contained binary (~71 MB). It uses Playwright Java under the hood, but you don't need to set up a Node project, manage npm dependencies, or deal with binary downloads on every `npm install`.
+- **Persistent browser session.** spel runs a background daemon — your browser stays open between commands. This makes it fast for interactive use and for AI agents that need to issue many commands in sequence.
+- **Works as a CLI, not just a library.** You don't need to write a script to automate a browser. Just type `spel open`, `spel click`, `spel fill` in your terminal (or let your AI agent do it).
+
+**Why not just use Claude Code's `--chrome` / browser MCP tools?**
+
+You can! If Claude Code's built-in browser works for you, keep using it. spel offers more when you need:
+
+- **Persistent sessions** across multiple agent commands (the browser stays open)
+- **Accessibility snapshots** — a structured, numbered view of the page that's better than raw HTML for AI agents
+- **E2E test generation** — record a browser session and turn it into a test
+- **Allure reports** — detailed test reports with traces, screenshots, and network inspection
+- **CI integration** — run the same tests headlessly in CI with proper reporting
+- **Three browser engines** — Chromium, Firefox, and WebKit
+
+**Who is this for?**
+
+| You want to... | spel gives you... |
+|----------------|-------------------|
+| Automate a browser from the terminal | `spel open`, `spel click`, `spel fill`, `spel screenshot` |
+| Scrape page content | `spel markdownify`, `spel snapshot`, `spel get text` |
+| Write E2E tests | Clojure test framework with Allure reports, or record-and-generate |
+| Let an AI agent control a browser | CLI commands + accessibility snapshots that agents can reason about |
+| Run browser tests in CI | Headless mode + Allure reporting + video recording |
+
 ## Rationale
 
-Playwright's Java API is imperative and verbose — option builders, checked exceptions, manual resource cleanup. Clojure deserves better. And AI agents deserve more than a shell wrapper.
+spel wraps Playwright Java with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation.
 
-spel wraps Playwright Java with idiomatic Clojure: maps for options, anomaly maps for errors, `with-*` macros for lifecycle, and a native CLI binary for instant browser automation. It does everything a modern agentic workflow needs — in one tool.
-
-- **Swiss Army Knife for agents**: Browser automation, API testing, test reporting, agentic search and verification, accessibility snapshots, inline code execution, and test generation — all in a single native binary. No stitching tools together.
-- **Agentic by design**: Accessibility snapshots with numbered refs let AI agents see the page as a structured document, not raw HTML. Persistent daemon, `eval-sci` scripting, and zero brittle CSS selectors — agents reason and act in a loop without restarting.
-- **Inline Clojure execution**: Run arbitrary Clojure expressions in the browser context via `eval-sci` — mix business logic with automation, call any GraalVM-bound function, compose scripts on the fly. No other browser tool lets an agent write and execute real code mid-session.
-- **Record, then generate**: Capture any browser session to JSONL and auto-generate idiomatic Clojure tests or reusable scripts. Record once, replay forever.
-- **Allure reports with network inspection**: Full Allure reporting with embedded Playwright traces, network request/response visualization (method, status, headers, JSON body), and visual diffs. Debug failures from the report, not from logs.
-- **API testing built in**: Intercept, assert, and inspect HTTP traffic in the same tool as your browser tests — no separate client needed.
-- **Native CLI binary**: GraalVM native image, zero JVM startup, persistent daemon — fast enough for interactive agentic loops and CI alike.
-- **Not a port**: Wraps Playwright Java directly — full API coverage, all three engines (Chromium, Firefox, WebKit).
+- **Single binary, no ecosystem baggage**: One download, no `node_modules`, no npm, no transitive dependency surprises. Install the binary, install browsers, done.
+- **Persistent daemon**: First command auto-starts a background browser. Subsequent commands reuse it. No cold-start on every invocation — fast enough for interactive loops and AI agents.
+- **Accessibility snapshots**: Pages are represented as structured, numbered documents (not raw HTML). AI agents can read them like text and reference elements by number — no brittle CSS selectors.
+- **Record, then generate**: Capture any browser session to JSONL and auto-generate idiomatic Clojure tests or reusable scripts.
+- **Allure reports with network inspection**: Full Allure reporting with Playwright traces, network visualization (method, status, headers, body), and visual diffs.
+- **API testing built in**: Intercept, assert, and inspect HTTP traffic in the same tool as your browser tests.
+- **Three browser engines**: Chromium, Firefox, and WebKit — full Playwright API coverage.
+- **Inline Clojure scripting**: Run arbitrary Clojure expressions mid-session via `eval-sci` — not just shell commands, but real code.
 
 ## Quick Start
 
@@ -326,7 +364,53 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 
 </details>
 
-### Browser Automation
+### CLI Examples
+
+The CLI is the primary way to use spel. The first command auto-starts a background browser daemon; subsequent commands reuse the same browser session.
+
+**Navigate and interact:**
+
+```bash
+spel open https://example.org             # open a page
+spel click "text=More information"        # click a link by text
+spel fill "#search" "browser automation"  # fill an input field
+spel press Enter                          # press a key
+spel screenshot result.png                # take a screenshot
+spel close                                # close the session
+```
+
+**Read page content:**
+
+```bash
+spel get title                            # page title
+spel get text                             # all visible text
+spel get html                             # full HTML
+spel markdownify                          # page as clean Markdown
+spel snapshot -i                          # accessibility snapshot with numbered refs
+```
+
+**Multiple sessions in parallel:**
+
+```bash
+spel --session shop open https://shop.example.com
+spel --session docs open https://docs.example.com
+spel --session shop screenshot shop.png
+spel --session docs screenshot docs.png
+```
+
+**Use your real Chrome profile** (with extensions, saved passwords, etc.):
+
+```bash
+export SPEL_CHANNEL=chrome
+export SPEL_PROFILE="$HOME/.config/google-chrome/Default"
+spel open https://github.com    # opens with your logged-in session
+```
+
+Run `spel --help` for the full command list (~150 commands covering navigation, interaction, content extraction, network interception, cookies, tabs, frames, debugging, and more).
+
+### Clojure Library
+
+spel is also a Clojure library for writing browser automation and tests programmatically:
 
 ```clojure
 (require '[com.blockether.spel.core :as core]
@@ -338,124 +422,145 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 ;; => "Example Domain"
 ```
 
-Pass an opts map for device emulation:
+Device emulation:
 
 ```clojure
 (core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [pg]
   (page/navigate pg "https://example.org"))
 ```
 
-For explicit lifecycle control, `with-playwright`/`with-browser`/`with-context`/`with-page` nesting is available. See the [full API reference](resources/com/blockether/spel/templates/skills/spel/references/FULL_API.md) and [browser options](resources/com/blockether/spel/templates/skills/spel/references/BROWSER_OPTIONS.md).
-
-### API Testing & Writing Tests
-
-**Browser testing:**
+Combined browser + API testing (shared Playwright trace):
 
 ```clojure
 (core/with-testing-page [pg]
-  (page/navigate pg "https://example.org")
-  (page/title pg))
+  (page/navigate pg "https://example.org/login")
+  (core/api-get (core/page-api pg) "/api/me"))
 ```
 
-**API testing:**
+### API Testing & Playwright-Style Tests
+
+**Write browser and API tests side-by-side:**
+spel lets you write browser tests (open pages, click buttons, verify DOM) and API tests (call endpoints, check responses) using the same framework. You get full Playwright traces for both.
+
+**API testing on its own:**
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]
   (core/api-get ctx "/users"))
 ```
 
-**Combined UI + API** — use `page-api` or `with-page-api` to share a single Playwright trace:
+**Combine browser + API for a single trace:**
+You can link UI and API actions within the same test, ensuring one trace covers front-end and back-end steps:
 
 ```clojure
-;; page-api: same context, same trace
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.org/login")
   (core/api-get (core/page-api pg) "/api/me"))
 
-;; with-page-api: same context, different base-url
 (core/with-testing-page [pg]
   (page/navigate pg "https://example.org/login")
   (core/with-page-api pg {:base-url "https://api.example.org"} [ctx]
     (core/api-get ctx "/me")))
 ```
 
-**Retry with backoff** — built-in retry logic with exponential/linear/fixed backoff. Catches exceptions automatically.
+**Retry/polling logic built in:**
+To handle flaky endpoints or wait for backend jobs:
 
 ```clojure
-;; Default: 3 attempts, exponential backoff, retries on errors + 5xx + exceptions
 (core/with-retry {}
   (core/api-get ctx "/flaky-endpoint"))
 
-;; Poll until a condition is met with retry-guard
 (core/with-retry {:max-attempts 10 :delay-ms 1000 :backoff :fixed
                   :retry-when (core/retry-guard #(= "ready" (:status %)))}
   (core/api-get ctx "/job/123"))
 ```
 
-> **Important:** Do NOT nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context — you get two separate traces instead of one. Use `page-api`/`with-page-api` to combine UI and API testing under a single trace.
+> **Important:** Do not nest `with-testing-page` inside `with-testing-api` (or vice versa). Each creates its own Playwright instance, browser, and context, so you end up with separate traces. Use `page-api` or `with-page-api` when you want UI and API steps in one trace.
 
-See [Allure reporting](resources/com/blockether/spel/templates/skills/spel/references/ALLURE_REPORTING.md) for fixtures, steps, and attachments. For API testing details, see [API testing](resources/com/blockether/spel/templates/skills/spel/references/API_TESTING.md).
+**Allure reporting:**
+Browser and API tests can feed the same Allure report with traces, screenshots, steps, and network inspection, so one run tells the whole story.
 
-### Native CLI
+See the [full API reference](resources/com/blockether/spel/templates/skills/spel/references/FULL_API.md), [browser options](resources/com/blockether/spel/templates/skills/spel/references/BROWSER_OPTIONS.md), [Allure reporting](resources/com/blockether/spel/templates/skills/spel/references/ALLURE_REPORTING.md), and [API testing](resources/com/blockether/spel/templates/skills/spel/references/API_TESTING.md).
 
-spel compiles to a native binary via GraalVM - no JVM startup, instant execution. The CLI provides commands for browser automation (`open`, `screenshot`, `snapshot`, `annotate`), a persistent browser daemon, session recording (`codegen`), PDF generation, and an `eval-sci` mode for inline Clojure scripting via SCI. Run `spel --help` for the full command list.
+## Ready-made Prompts for AI Coding Agents
 
-## Agent Scaffolding
+**What this does:** `spel init-agents` generates pre-written prompt files that teach your AI coding agent (Claude Code, OpenCode, etc.) how to use spel. After running this command, your agent knows all spel commands, best practices, and can write E2E tests, automate browsers, or find bugs — without you having to explain spel's API yourself.
 
-Point your AI agent at spel and let it write your E2E tests.
+**Think of it like this:** instead of copy-pasting documentation into your AI agent's context, `init-agents` drops the right instruction files into your project so the agent picks them up automatically.
 
 ```bash
-spel init-agents                              # all 8 agents (default)
-spel init-agents --loop=claude                # Claude Code
-spel init-agents --only=test                  # test agents only
-spel init-agents --only=automation            # browser automation agents only
-spel init-agents --only=visual                # visual QA agents only
-spel init-agents --only=bugfind              # adversarial bug-finding agents only
-spel init-agents --only=orchestrator          # orchestrator agent only
-spel init-agents --only=test,visual           # combine groups with commas
-spel init-agents --only=discovery             # product discovery agents only
-spel init-agents --only=core                  # simplified 6-agent core setup
-spel init-agents --simplified                 # alias for --only=core
+# Generate prompt files for Claude Code:
+spel init-agents --loop=claude
+
+# Generate prompt files for OpenCode (default):
+spel init-agents
+```
+
+**What gets created:**
+
+| What | Where | Purpose |
+|------|-------|---------|
+| Agent prompt files | `.claude/agents/` or `.opencode/agents/` | Teach the AI agent how to use spel's commands |
+| API reference | `.claude/skills/spel/` | Complete command reference the agent can look up |
+| Seed test file | `test-e2e/` | A starter test file for the agent to build on |
+| Workflow prompts | `.claude/prompts/` | Step-by-step workflows the agent can follow |
+
+**After setup, you can ask your AI agent things like:**
+
+- "Test the login page" — the agent opens the browser, navigates, interacts, and writes assertions
+- "Find bugs on the checkout flow" — the agent explores the UI systematically, looking for issues
+- "Scrape product data from this page" — the agent uses spel commands to extract content
+
+<details>
+<summary>Full init-agents options</summary>
+
+```bash
+spel init-agents                              # all 8 prompt sets (default)
+spel init-agents --loop=claude                # Claude Code format
+spel init-agents --only=test                  # only test-writing prompts
+spel init-agents --only=automation            # only browser automation prompts
+spel init-agents --only=visual                # only visual QA prompts
+spel init-agents --only=bugfind              # only bug-finding prompts
+spel init-agents --only=orchestrator          # only the orchestrator prompt
+spel init-agents --only=test,visual           # combine groups
+spel init-agents --only=discovery             # only product discovery prompts
+spel init-agents --only=core                  # simplified 6-prompt core setup
+spel init-agents --simplified                 # same as --only=core
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
-spel init-agents --no-tests                   # all agents, skip seed test + specs
+spel init-agents --no-tests                   # skip seed test and specs directory
 ```
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
-| `--only GROUPS` | — | Scaffold only specific agent groups (comma-separated): `test`, `automation`, `visual`, `bugfind`, `orchestrator`, `discovery`, `core` |
-| `--simplified` | — | Use simplified 6-agent setup (equivalent to `--only=core`) |
+| `--loop TARGET` | `opencode` | Which AI coding agent: `opencode` or `claude` |
+| `--only GROUPS` | — | Only generate specific prompt groups (comma-separated) |
+| `--simplified` | — | Simplified 6-prompt setup (alias for `--only=core`) |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
-| `--no-tests` | — | Skip seed test and specs directory — scaffold agents + SKILL only |
-| `--learnings` | — | Inject learnings contracts; agents create/update `LEARNINGS.md` lazily on first write |
-| `--dry-run` | — | Preview files without writing |
+| `--no-tests` | — | Skip seed test and specs directory |
+| `--learnings` | — | Agents will maintain a `LEARNINGS.md` file where they record gotchas and patterns they discover while working (useful for building up project-specific knowledge over time) |
+| `--dry-run` | — | Preview what files would be created without writing them |
 | `--force` | — | Overwrite existing files |
-| `--test-dir DIR` | `test-e2e` | E2E test output directory |
-| `--specs-dir DIR` | `test-e2e/specs` | Test plans directory |
+| `--test-dir DIR` | `test-e2e` | Where to put E2E test files |
+| `--specs-dir DIR` | `test-e2e/specs` | Where to put test plan files |
 
-### Orchestrator Agents
+</details>
 
-Orchestrators are smart entry points that route your request to the right specialist pipeline:
+<details>
+<summary>Available prompt groups</summary>
 
-| Agent | Purpose |
-|-------|---------|
-| `@spel-orchestrator` | **Meta-orchestrator** — analyzes your request and routes to the right pipeline |
+| Group | What the agent can do | Included prompts |
+|-------|----------------------|------------------|
+| `test` | Plan and write E2E tests | test-planner, test-writer |
+| `automation` | Explore UIs and automate browser flows | explorer, automator |
+| `visual` | Generate visual content and slides | presenter |
+| `bugfind` | Systematically find bugs and visual regressions | bug-hunter |
+| `orchestrator` | Smart routing — analyzes your request and picks the right workflow | orchestrator |
+| `discovery` | Inventory product features and audit UX coherence | product-analyst |
 
-Just say `@spel-orchestrator test the login page` and it handles the rest.
+The **orchestrator** is a good default entry point — tell it what you want and it delegates to the right specialist. In Claude Code: `@spel-orchestrator test the login page`.
 
-Orchestrators are artifact-first: they should stop at explicit user-review gates and leave machine-readable handoff manifests in `orchestration/*.json` between pipeline stages.
-
-### Subagent Groups
-
-| Group | Agents | Use for |
-|-------|--------|---------|
-| `test` | planner, writer | E2E test writing |
-| `automation` | explorer, automator | Browser automation |
-| `visual` | presenter | Visual content |
-| `bugfind` | bug-hunter | Adversarial bug finding |
-| `orchestrator` | orchestrator | Smart routing |
-| `discovery` | product-analyst | Product feature inventory + coherence audit |
+</details>
 
 ## Video Recording
 
