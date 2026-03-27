@@ -567,8 +567,9 @@
 (defdescribe scrollable-integration-test
   "Integration tests for scrollable element discovery (issue #90)"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "find_scrollable command"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "finds scrollable elements with refs and metadata"
       (nav! "/scrollable-page")
@@ -612,8 +613,9 @@
 (defdescribe scroll-position-integration-test
   "Integration tests for scroll position (issue #90)"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "scroll_position command"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns zero on fresh page"
       (nav! "/scrollable-page")
@@ -1382,8 +1384,9 @@
 (defdescribe dialog-sci-integration-test
   "Integration tests for dialog manipulation via SCI eval (issue #85)"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "dialog SCI functions"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "auto-accept-dialogs! accepts alert and returns nil"
       (nav! "/dialog-page")
@@ -1515,8 +1518,9 @@
 (defdescribe cdp-lifecycle-integration-test
   "Integration tests for cdp disconnect/reconnect command behavior"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "cdp disconnect/reconnect"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "cdp_disconnect is safe when session is not CDP-connected"
       (nav! "/test-page")
@@ -1690,7 +1694,6 @@
         (expect (nil? (:fonts result))))))
 
   (describe "markdownify"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns markdown for current page"
       (cmd "navigate" {"url" (str *test-server-url* "/test-page")})
@@ -3283,8 +3286,9 @@
 (defdescribe snapshot-scroll-metrics-integration-test
   "Integration tests for scroll metrics in snapshot -S output (issue #96)"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "scroll metrics in styled snapshot"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "includes scroll metrics in refs for overflow:auto elements"
       (nav! "/scrollable-page")
