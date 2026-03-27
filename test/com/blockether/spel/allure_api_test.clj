@@ -11,13 +11,11 @@
    Also tests ui-step (before/after screenshots) and api-step
    (auto-attach HTTP response metadata) macros."
   (:require
+   [com.blockether.spel.core :as core]
    [clojure.string :as str]
-   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.core :as api]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it around]]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures
-    :refer [*pw* *page* with-playwright with-browser with-page]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]))
 
@@ -27,6 +25,7 @@
 
 (defdescribe allure-metadata-test
   "Tests for Allure metadata API"
+  (around [f] (core/with-testing-browser (f)))
 
   (it "enriches test with epic, feature, story, severity, owner, tag"
     (allure/epic "E2E Testing")
@@ -84,35 +83,37 @@
 
 (defdescribe allure-screenshot-test
   "Tests for Allure screenshot API"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "with browser"
-    {:context [with-playwright with-browser with-page]}
 
     (it "captures screenshot and attaches to report"
-      (allure/epic "E2E Testing")
-      (allure/feature "Screenshots")
-      (allure/severity :normal)
+      (core/with-testing-page [pg]
+        (allure/epic "E2E Testing")
+        (allure/feature "Screenshots")
+        (allure/severity :normal)
 
-      (allure/step "Navigate to test page"
-        (page/set-content! *page* "<h1>Allure Screenshot Test</h1><p>Hello from spel!</p>"))
+        (allure/step "Navigate to test page"
+          (page/set-content! pg "<h1>Allure Screenshot Test</h1><p>Hello from spel!</p>"))
 
-      (allure/step "Capture screenshot"
-        (allure/screenshot *page* "Test Page"))
+        (allure/step "Capture screenshot"
+          (allure/screenshot pg "Test Page"))
 
-      (allure/step "Verify page title"
-        (let [title (page/title *page*)]
-          (allure/parameter "title" title)
-          (expect true))))
+        (allure/step "Verify page title"
+          (let [title (page/title pg)]
+            (allure/parameter "title" title)
+            (expect true)))))
 
     (it "compares baseline screenshot and returns diff stats"
-      (page/set-content! *page* "<h1>Visual Baseline</h1><p>before</p>")
-      (let [baseline (page/screenshot *page*)]
-        (page/set-content! *page* "<h1>Visual Baseline</h1><p>after</p>")
-        (let [r (allure/visual-diff *page* baseline "Visual Diff")]
-          (expect (map? r))
-          (expect (contains? r :matched))
-          (expect (number? (:diff-count r)))
-          (expect (nil? (:diff-image r))))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Visual Baseline</h1><p>before</p>")
+        (let [baseline (page/screenshot pg)]
+          (page/set-content! pg "<h1>Visual Baseline</h1><p>after</p>")
+          (let [r (allure/visual-diff pg baseline "Visual Diff")]
+            (expect (map? r))
+            (expect (contains? r :matched))
+            (expect (number? (:diff-count r)))
+            (expect (nil? (:diff-image r)))))))))
 
 ;; =============================================================================
 ;; ui-step — before/after screenshots
@@ -120,9 +121,10 @@
 
 (defdescribe allure-ui-step-test
   "Tests for ui-step macro"
+  (around [f] (core/with-testing-browser (f)))
 
-  (describe "without browser (no *page*)"
-    (it "ui-step executes body and returns result without *page*"
+  (describe "without browser (no pg)"
+    (it "ui-step executes body and returns result without pg"
       (let [result (allure/ui-step "Compute something"
                      (+ 1 2 3))]
         (expect (= 6 result))))
@@ -141,29 +143,31 @@
         (expect (= :inner-result result)))))
 
   (describe "with browser"
-    {:context [with-playwright with-browser with-page]}
 
     (it "ui-step executes body with page bound"
-      (page/set-content! *page* "<h1>UI Step Test</h1>")
-      (let [result (allure/ui-step "Check heading"
-                     (let [title (page/title *page*)]
-                       (expect (some? title))
-                       :checked))]
-        (expect (= :checked result))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>UI Step Test</h1>")
+        (let [result (allure/ui-step "Check heading"
+                       (let [title (page/title pg)]
+                         (expect (some? title))
+                         :checked))]
+          (expect (= :checked result)))))
 
     (it "ui-step captures before/after screenshots (no error)"
-      (page/set-content! *page* "<h1>Before/After Test</h1><p>Content here</p>")
-      ;; This should complete without error — screenshots are captured
-      ;; as child steps (visible in Allure report, no-op without reporter)
-      (allure/ui-step "Navigate and verify"
-        (let [h1 (locator/text-content (page/locator *page* "h1"))]
-          (expect (= "Before/After Test" h1)))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Before/After Test</h1><p>Content here</p>")
+        ;; This should complete without error — screenshots are captured
+        ;; as child steps (visible in Allure report, no-op without reporter)
+        (allure/ui-step "Navigate and verify"
+          (let [h1 (locator/text-content (page/locator pg "h1"))]
+            (expect (= "Before/After Test" h1))))))
 
     (it "ui-step returns the body value"
-      (page/set-content! *page* "<p>42</p>")
-      (let [result (allure/ui-step "Read paragraph"
-                     (locator/text-content (page/locator *page* "p")))]
-        (expect (= "42" result))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<p>42</p>")
+        (let [result (allure/ui-step "Read paragraph"
+                       (locator/text-content (page/locator pg "p")))]
+          (expect (= "42" result)))))))
 
 ;; =============================================================================
 ;; api-step — auto-attach HTTP response metadata
@@ -171,6 +175,8 @@
 
 (defdescribe allure-api-step-test
   "Tests for api-step macro"
+  (around [f] (core/with-testing-browser (f)))
+  (around [f] ((:around with-test-server) f))
 
   (describe "without Allure reporter (no-op mode)"
     (it "api-step executes body and returns non-APIResponse result"
@@ -189,43 +195,38 @@
         (expect (nil? result)))))
 
   (describe "with real HTTP response"
-    {:context [with-playwright with-test-server]}
 
     (it "api-step returns the APIResponse"
-      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                   {:base-url *test-server-url*})]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/api-step "GET health check"
-                     (api/api-get ctx "/health"))]
+                     (core/api-get ctx "/health"))]
           (expect (instance? com.microsoft.playwright.APIResponse resp))
-          (expect (= 200 (api/api-response-status resp))))))
+          (expect (= 200 (core/api-response-status resp))))))
 
     (it "api-step with POST returns response"
-      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                   {:base-url *test-server-url*})]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/api-step "POST to echo"
-                     (api/api-post ctx "/echo"
+                     (core/api-post ctx "/echo"
                        {:data "{\"action\":\"test\"}"
                         :headers {"Content-Type" "application/json"}}))]
           (expect (instance? com.microsoft.playwright.APIResponse resp))
-          (expect (= 200 (api/api-response-status resp)))
+          (expect (= 200 (core/api-response-status resp)))
           (expect (str/includes?
-                    (api/api-response-text resp) "POST")))))
+                    (core/api-response-text resp) "POST")))))
 
     (it "api-step with non-200 response still works"
-      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                   {:base-url *test-server-url*})]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/api-step "GET 404 endpoint"
-                     (api/api-get ctx "/status/404"))]
-          (expect (= 404 (api/api-response-status resp)))
-          (expect (false? (api/api-response-ok? resp))))))
+                     (core/api-get ctx "/status/404"))]
+          (expect (= 404 (core/api-response-status resp)))
+          (expect (false? (core/api-response-ok? resp))))))
 
     (it "api-step nested in regular step"
-      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                   {:base-url *test-server-url*})]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (allure/step "API test flow"
           (let [resp (allure/api-step "Health check"
-                       (api/api-get ctx "/health"))]
-            (expect (= 200 (api/api-response-status resp)))))))))
+                       (core/api-get ctx "/health"))]
+            (expect (= 200 (core/api-response-status resp)))))))))
 
 ;; =============================================================================
 ;; Unified step with opts — composable behaviors
@@ -233,6 +234,8 @@
 
 (defdescribe unified-step-opts-test
   "Tests for unified step macro with opts map"
+  (around [f] (core/with-testing-browser (f)))
+  (around [f] ((:around with-test-server) f))
 
   (describe "step with empty/no opts behaves like plain step"
     (it "step with no opts executes body"
@@ -245,17 +248,17 @@
       (expect true)))
 
   (describe "step with {:screenshots? true} (ui-step equivalent)"
-    (it "works without *page* bound"
+    (it "works without pg bound"
       (let [result (allure/step "Screenshot step no page" {:screenshots? true}
                      (+ 1 2 3))]
         (expect (= 6 result))))
 
-    (it "works with *page* bound"
-      {:context [with-playwright with-browser with-page]}
-      (page/set-content! *page* "<h1>Opts Screenshot</h1>")
-      (let [result (allure/step "Screenshot step with page" {:screenshots? true}
-                     (locator/text-content (page/locator *page* "h1")))]
-        (expect (= "Opts Screenshot" result)))))
+    (it "works with pg bound"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Opts Screenshot</h1>")
+        (let [result (allure/step "Screenshot step with page" {:screenshots? true}
+                       (locator/text-content (page/locator pg "h1")))]
+          (expect (= "Opts Screenshot" result))))))
 
   (describe "step with {:http? true} (api-step equivalent)"
     (it "works with non-response result"
@@ -264,13 +267,11 @@
         (expect (= {:some "data"} result))))
 
     (it "works with API response"
-      {:context [with-playwright with-test-server]}
-      (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                   {:base-url *test-server-url*})]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/step "GET via step opts" {:http? true}
-                     (api/api-get ctx "/health"))]
+                     (core/api-get ctx "/health"))]
           (expect (instance? com.microsoft.playwright.APIResponse resp))
-          (expect (= 200 (api/api-response-status resp)))))))
+          (expect (= 200 (core/api-response-status resp)))))))
 
   (describe "step with {:screenshots? true :http? true} (both)"
     (it "works without browser"
@@ -279,14 +280,13 @@
         (expect (= 42 result))))
 
     (it "works with browser and API"
-      {:context [with-playwright with-browser with-page with-test-server]}
-      (page/set-content! *page* "<h1>Combined</h1>")
-      (let [resp (allure/step "Combined step" {:screenshots? true :http? true}
-                   (api/with-api-context [ctx (api/new-api-context (api/api-request *pw*)
-                                                {:base-url *test-server-url*})]
-                     (api/api-get ctx "/health")))]
-        (expect (instance? com.microsoft.playwright.APIResponse resp))
-        (expect (= 200 (api/api-response-status resp))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Combined</h1>")
+        (let [resp (allure/step "Combined step" {:screenshots? true :http? true}
+                     (core/with-testing-api {:base-url *test-server-url*} [ctx]
+                       (core/api-get ctx "/health")))]
+          (expect (instance? com.microsoft.playwright.APIResponse resp))
+          (expect (= 200 (core/api-response-status resp)))))))
 
   (describe "step with :opts keyword (runtime opts)"
     (it "supports runtime opts expression"

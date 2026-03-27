@@ -2,13 +2,14 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :as sut]
-   [com.blockether.spel.test-fixtures :as tf :refer [*pw* *browser* with-playwright with-browser]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
+   [com.blockether.spel.core :as core]
+   [com.blockether.spel.allure :refer [around defdescribe describe expect expect-it it]])
   (:import
    [java.net InetAddress ServerSocket]
    [com.microsoft.playwright Browser BrowserContext BrowserType
     Page Playwright]))
+
+(alias 'sut 'com.blockether.spel.core)
 
 ;; =============================================================================
 ;; Playwright Lifecycle
@@ -18,12 +19,13 @@
   "Tests for Playwright creation"
 
   (describe "create and close"
-    {:context [with-playwright]}
     (it "creates a valid Playwright instance"
-      (expect (instance? Playwright *pw*)))
+      (sut/with-playwright [pw (sut/create)]
+        (expect (instance? Playwright pw))))
 
     (expect-it "close! returns nil"
-      (nil? (sut/close! *pw*))))
+      (sut/with-playwright [pw (sut/create)]
+        (nil? (sut/close! pw)))))
 
   (describe "close! edge cases"
     (expect-it "close! with nil is safe"
@@ -31,6 +33,8 @@
 
 (defdescribe find-free-port-test
   "Tests for finding an available local TCP port"
+
+  (around [f] (core/with-testing-browser (f)))
 
   (it "returns a valid TCP port number"
     (let [port (sut/find-free-port)]
@@ -65,6 +69,8 @@
 (defdescribe with-playwright-test
   "Tests for with-playwright macro"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "resource management"
     (it "binds and cleans up Playwright"
       (let [result (sut/with-playwright [pw (sut/create)]
@@ -79,20 +85,21 @@
 (defdescribe browser-type-test
   "Tests for browser type accessors"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "browser type names"
-    {:context [with-playwright]}
     (it "returns chromium browser type"
-      (let [bt (sut/chromium *pw*)]
+      (let [bt (sut/chromium core/*testing-pw*)]
         (expect (instance? BrowserType bt))
         (expect (= "chromium" (sut/browser-type-name bt)))))
 
     (it "returns firefox browser type"
-      (let [bt (sut/firefox *pw*)]
+      (let [bt (sut/firefox core/*testing-pw*)]
         (expect (instance? BrowserType bt))
         (expect (= "firefox" (sut/browser-type-name bt)))))
 
     (it "returns webkit browser type"
-      (let [bt (sut/webkit *pw*)]
+      (let [bt (sut/webkit core/*testing-pw*)]
         (expect (instance? BrowserType bt))
         (expect (= "webkit" (sut/browser-type-name bt)))))))
 
@@ -103,17 +110,17 @@
 (defdescribe launch-test
   "Tests for browser launching"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "launch-chromium"
-    {:context [with-playwright with-browser]}
     (it "launches and closes chromium browser"
-      (expect (instance? Browser *browser*))
-      (expect (sut/browser-connected? *browser*))
-      (expect (string? (sut/browser-version *browser*)))))
+      (expect (instance? Browser core/*testing-browser*))
+      (expect (sut/browser-connected? core/*testing-browser*))
+      (expect (string? (sut/browser-version core/*testing-browser*)))))
 
   (describe "launch with default opts"
-    {:context [with-playwright]}
     (it "launch with default opts is headless"
-      (sut/with-browser [browser (sut/launch-chromium *pw*)]
+      (sut/with-browser [browser (sut/launch-chromium core/*testing-pw*)]
         (expect (sut/browser-connected? browser))))))
 
 ;; =============================================================================
@@ -123,21 +130,23 @@
 (defdescribe interactive-test
   "Tests for interactive? fixture helper"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "interactive? without env or property"
     (it "returns false by default"
-      (expect (not (tf/interactive?)))))
+      (expect (not (core/testing-interactive?)))))
 
   (describe "interactive? with system property"
     (it "returns true when spel.interactive is set"
       (try
         (System/setProperty "spel.interactive" "true")
-        (expect (tf/interactive?))
+        (expect (core/testing-interactive?))
         (finally
           (System/clearProperty "spel.interactive")))))
 
   (describe "interactive? after clearing property"
     (it "returns false again"
-      (expect (not (tf/interactive?))))))
+      (expect (not (core/testing-interactive?))))))
 
 ;; =============================================================================
 ;; Slow-Mo
@@ -146,21 +155,23 @@
 (defdescribe slow-mo-test
   "Tests for slow-mo fixture helper"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "slow-mo without env or property"
     (it "returns 0 by default"
-      (expect (= 0 (tf/slow-mo)))))
+      (expect (= 0 (core/testing-slow-mo)))))
 
   (describe "slow-mo with system property"
     (it "returns parsed value when spel.slow-mo is set"
       (try
         (System/setProperty "spel.slow-mo" "500")
-        (expect (= 500 (tf/slow-mo)))
+        (expect (= 500 (core/testing-slow-mo)))
         (finally
           (System/clearProperty "spel.slow-mo")))))
 
   (describe "slow-mo after clearing property"
     (it "returns 0 again"
-      (expect (= 0 (tf/slow-mo))))))
+      (expect (= 0 (core/testing-slow-mo))))))
 
 ;; =============================================================================
 ;; Browser Engine
@@ -169,28 +180,30 @@
 (defdescribe browser-engine-test
   "Tests for browser-engine fixture helper"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "browser-engine without env or property"
     (it "returns :chromium by default"
-      (expect (= :chromium (tf/browser-engine)))))
+      (expect (= :chromium (core/testing-browser-engine)))))
 
   (describe "browser-engine with system property"
     (it "returns :firefox when spel.browser=firefox"
       (try
         (System/setProperty "spel.browser" "firefox")
-        (expect (= :firefox (tf/browser-engine)))
+        (expect (= :firefox (core/testing-browser-engine)))
         (finally
           (System/clearProperty "spel.browser"))))
 
     (it "returns :webkit when spel.browser=webkit"
       (try
         (System/setProperty "spel.browser" "webkit")
-        (expect (= :webkit (tf/browser-engine)))
+        (expect (= :webkit (core/testing-browser-engine)))
         (finally
           (System/clearProperty "spel.browser")))))
 
   (describe "browser-engine after clearing property"
     (it "returns :chromium again"
-      (expect (= :chromium (tf/browser-engine))))))
+      (expect (= :chromium (core/testing-browser-engine))))))
 
 ;; =============================================================================
 ;; Browser Context
@@ -199,38 +212,36 @@
 (defdescribe context-test
   "Tests for browser context operations"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "new-context"
-    {:context [with-playwright with-browser]}
     (it "creates a browser context"
-      (sut/with-context [ctx (sut/new-context *browser*)]
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*)]
         (expect (instance? BrowserContext ctx))
-        (expect (= *browser* (sut/context-browser ctx)))))
+        (expect (= core/*testing-browser* (sut/context-browser ctx)))))
 
     (it "creates context with options"
-      (sut/with-context [ctx (sut/new-context *browser*
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*
                                {:viewport {:width 800 :height 600}
                                 :user-agent "test-agent"})]
         (expect (instance? BrowserContext ctx)))))
 
   (describe "context-pages"
-    {:context [with-playwright with-browser]}
     (it "returns empty list for new context"
-      (sut/with-context [ctx (sut/new-context *browser*)]
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*)]
         (expect (empty? (sut/context-pages ctx))))))
 
   (describe "context-storage-state"
-    {:context [with-playwright with-browser]}
     (it "returns storage state as JSON string"
-      (sut/with-context [ctx (sut/new-context *browser*)]
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*)]
         (let [state (sut/context-storage-state ctx)]
           (expect (string? state))
           (expect (str/includes? state "cookies"))
           (expect (str/includes? state "origins"))))))
 
   (describe "context-save-storage-state!"
-    {:context [with-playwright with-browser]}
     (it "saves storage state to a file"
-      (sut/with-context [ctx (sut/new-context *browser*)]
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*)]
         (let [tmp-file (java.io.File/createTempFile "spel-storage" ".json")
               path     (.getAbsolutePath tmp-file)]
           (try
@@ -250,22 +261,22 @@
 (defdescribe page-test
   "Tests for page operations"
 
+  (around [f] (core/with-testing-browser (f)))
+
   (describe "new-page"
-    {:context [with-playwright with-browser]}
     (it "creates a page from browser"
-      (sut/with-page [page (sut/new-page *browser*)]
+      (sut/with-page [page (sut/new-page core/*testing-browser*)]
         (expect (instance? Page page))))
 
     (it "creates a page from context"
-      (sut/with-context [ctx (sut/new-context *browser*)]
+      (sut/with-context [ctx (sut/new-context core/*testing-browser*)]
         (let [page (sut/new-page-from-context ctx)]
           (expect (instance? Page page))
           (expect (= 1 (count (sut/context-pages ctx))))))))
 
   (describe "close-page"
-    {:context [with-playwright with-browser]}
     (it "closes a page"
-      (let [page (sut/new-page *browser*)]
+      (let [page (sut/new-page core/*testing-browser*)]
         (sut/close-page! page)
         ;; Page is still an instance, just closed
         (expect (instance? Page page))))))
@@ -276,6 +287,8 @@
 
 (defdescribe error-handling-test
   "Tests for anomaly-based error handling"
+
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "wrap-error categories"
     (it "wraps TimeoutError as busy anomaly"

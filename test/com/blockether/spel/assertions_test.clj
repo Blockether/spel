@@ -1,10 +1,10 @@
 (ns com.blockether.spel.assertions-test
   "Tests for the assertions namespace - LocatorAssertions, PageAssertions."
   (:require
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.assertions :as sut]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it throws? before-each]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it throws? around]])
   (:import
    [com.microsoft.playwright.assertions LocatorAssertions PageAssertions]))
 
@@ -30,25 +30,24 @@
 
 (defdescribe assert-that-test
   "Tests for assert-that entry point"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "with Locator"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "returns LocatorAssertions for Locator"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (instance? LocatorAssertions la)))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (instance? LocatorAssertions la))))))
 
   (describe "with Page"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "returns PageAssertions for Page"
-      (let [pa (sut/assert-that *page*)]
-        (expect (instance? PageAssertions pa)))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [pa (sut/assert-that pg)]
+          (expect (instance? PageAssertions pa))))))
 
   (describe "with invalid type"
     (it "throws IllegalArgumentException for non-Playwright object"
@@ -61,38 +60,41 @@
 
 (defdescribe locator-text-assertions-test
   "Tests for has-text, contains-text"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "has-text"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when text matches"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/has-text la "Click Me")))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/has-text la "Click Me"))))))
 
     (it "throws on text mismatch (AssertionFailedError extends Error, not Exception)"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (throws? org.opentest4j.AssertionFailedError
-                  #(sut/has-text la "Wrong Text" {:timeout 1000}))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (throws? org.opentest4j.AssertionFailedError
+                    #(sut/has-text la "Wrong Text" {:timeout 1000})))))))
 
   (describe "contains-text"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when text is contained"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/contains-text la "Click")))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/contains-text la "Click"))))))
 
     (it "throws on text not contained (AssertionFailedError extends Error)"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (throws? org.opentest4j.AssertionFailedError
-                  #(sut/contains-text la "Wrong" {:timeout 1000})))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (throws? org.opentest4j.AssertionFailedError
+                    #(sut/contains-text la "Wrong" {:timeout 1000}))))))))
 
 ;; =============================================================================
 ;; Locator Attribute Assertions
@@ -100,16 +102,16 @@
 
 (defdescribe locator-attribute-assertions-test
   "Tests for has-attribute"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "has-attribute"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when attribute exists with value"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/has-attribute la "class" "btn primary")))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/has-attribute la "class" "btn primary"))))))))
 
 ;; =============================================================================
 ;; Locator Count Assertions
@@ -117,16 +119,16 @@
 
 (defdescribe locator-count-assertions-test
   "Tests for has-count"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "has-count"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when count matches"
-      (let [loc (page/locator *page* ".item")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/has-count la 2)))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg ".item")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/has-count la 2))))))))
 
 ;; =============================================================================
 ;; Locator State Assertions
@@ -134,46 +136,43 @@
 
 (defdescribe locator-state-assertions-test
   "Tests for is-visible, is-hidden, is-enabled, is-disabled"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "is-visible"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes for visible element"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/is-visible la))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/is-visible la)))))))
 
   (describe "is-hidden"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes for hidden element"
-      (let [loc (page/locator *page* "#hidden")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/is-hidden la))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#hidden")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/is-hidden la)))))))
 
   (describe "is-enabled"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes for enabled element"
-      (let [loc (page/locator *page* "#btn1")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/is-enabled la))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn1")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/is-enabled la)))))))
 
   (describe "is-disabled"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes for disabled element"
-      (let [loc (page/locator *page* "#btn2")
-            la (sut/assert-that loc)]
-        (expect (nil? (sut/is-disabled la)))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#btn2")
+              la (sut/assert-that loc)]
+          (expect (nil? (sut/is-disabled la))))))))
 
 ;; =============================================================================
 ;; Page Assertions
@@ -181,25 +180,24 @@
 
 (defdescribe page-assertions-test
   "Tests for has-title, has-url"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "has-title"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when title matches"
-      (let [pa (sut/assert-that *page*)]
-        (expect (nil? (sut/has-title pa "Assertion Test Page"))))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [pa (sut/assert-that pg)]
+          (expect (nil? (sut/has-title pa "Assertion Test Page")))))))
 
   (describe "has-url"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "passes when URL contains expected text"
-      (let [_pa (sut/assert-that *page*)]
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [_pa (sut/assert-that pg)]
         ;; The URL will be a data: URL or about:blank
-        (expect (string? (page/url *page*)))))))
+          (expect (string? (page/url pg))))))))
 
 ;; =============================================================================
 ;; Negation
@@ -207,15 +205,15 @@
 
 (defdescribe negation-test
   "Tests for loc-not negation"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "loc-not"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "negates is-visible assertion"
-      (let [loc (page/locator *page* "#hidden")
-            la (sut/assert-that loc)
-            negated (sut/loc-not la)]
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [loc (page/locator pg "#hidden")
+              la (sut/assert-that loc)
+              negated (sut/loc-not la)]
         ;; Hidden element is NOT visible
-        (expect (nil? (sut/is-visible negated)))))))
+          (expect (nil? (sut/is-visible negated))))))))

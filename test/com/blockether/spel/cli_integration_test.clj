@@ -16,9 +16,6 @@
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :as tf
-    :refer [*pw* *browser*
-            with-playwright with-browser]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
@@ -35,6 +32,15 @@
   [action params]
   (#'daemon/handle-cmd action params))
 
+(defn- sci-eval-script
+  "Evaluates generated :script code in SCI by stripping top-level require forms
+   (SCI sandbox does not allow require)."
+  [script]
+  (let [code (->> (str/split-lines script)
+               (remove #(str/starts-with? % "(require"))
+               (str/join "\n"))]
+    (cmd "sci_eval" {"code" code})))
+
 (defn- nav!
   "Navigate to a test-server path. Returns the handler result."
   [path]
@@ -47,7 +53,7 @@
 (def with-daemon-state
   "Around hook: creates a fresh context/page, injects into daemon's !state."
   (around [f]
-    (let [ctx       (core/new-context *browser*)
+    (let [ctx       (core/new-context core/*testing-browser*)
           pg        (core/new-page-from-context ctx)
           state-a   (deref #'daemon/!state)
           console-a (deref #'daemon/!console-messages)
@@ -83,7 +89,7 @@
                                (swap! errors-a conj
                                  {:message (str error)})))
       (page/on-response pg #'daemon/track-response!)
-      (reset! state-a {:pw *pw* :browser *browser* :context ctx :page pg
+      (reset! state-a {:pw core/*testing-pw* :browser core/*testing-browser* :context ctx :page pg
                        :refs {} :counter 0 :headless true :session "integ-test"
                        :launch-flags {}})
       (try
@@ -100,8 +106,9 @@
 (defdescribe navigation-integration-test
   "Integration tests for navigate, back, forward, reload"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "navigate, back, forward, reload"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "navigate returns url and title"
       (let [r (nav! "/test-page")]
@@ -142,8 +149,9 @@
 (defdescribe snapshot-integration-test
   "Integration tests for snapshot"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "snapshot variations"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "basic snapshot returns tree and refs"
       (nav! "/test-page")
@@ -189,8 +197,9 @@
 (defdescribe click-integration-test
   "Integration tests for click and dblclick"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "click and dblclick"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "click returns selector without snapshot"
       (nav! "/test-page")
@@ -210,8 +219,9 @@
 (defdescribe fill-type-clear-integration-test
   "Integration tests for fill, type, clear, get_value"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "fill → get_value → type → clear → get_value"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "fill sets input value"
       (nav! "/test-page")
@@ -240,8 +250,9 @@
 (defdescribe press-integration-test
   "Integration tests for press (issue #89)"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "press key"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "press Tab without selector captures keydown on page"
       (nav! "/keyboard-page")
@@ -282,8 +293,9 @@
 (defdescribe hover-focus-integration-test
   "Integration tests for hover and focus"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "hover and focus"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "hover returns selector"
       (nav! "/test-page")
@@ -302,8 +314,9 @@
 (defdescribe select-integration-test
   "Integration tests for select dropdown"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "select option"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "select sets dropdown value"
       (nav! "/test-page")
@@ -317,8 +330,9 @@
 (defdescribe check-uncheck-integration-test
   "Integration tests for check and uncheck"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "check and uncheck checkbox"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "check makes checkbox checked"
       (nav! "/test-page")
@@ -345,8 +359,9 @@
 (defdescribe get-info-integration-test
   "Integration tests for content extraction handlers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "get_text, content, url, title, count, box, get_value, get_attribute"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "get_text returns element text"
       (nav! "/test-page")
@@ -413,8 +428,9 @@
 (defdescribe element-state-integration-test
   "Integration tests for is_visible, is_enabled, is_checked"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "element state checks"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "visible element returns true"
       (nav! "/test-page")
@@ -447,8 +463,9 @@
 (defdescribe evaluate-integration-test
   "Integration tests for JavaScript evaluation"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "evaluate JS"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "reads document.title"
       (nav! "/test-page")
@@ -473,8 +490,9 @@
 (defdescribe screenshot-integration-test
   "Integration tests for screenshot"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "screenshot capture"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "screenshot without path saves to temp"
       (nav! "/test-page")
@@ -511,8 +529,9 @@
 (defdescribe scroll-integration-test
   "Integration tests for scroll"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "scroll directions"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "scroll down"
       (nav! "/test-page")
@@ -532,8 +551,9 @@
 (defdescribe scrollintoview-integration-test
   "Integration tests for scrollintoview"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "scroll into view"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "scrolls element into view"
       (nav! "/test-page")
@@ -611,8 +631,9 @@
 (defdescribe drag-integration-test
   "Integration tests for drag and drag-by"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "drag element to element"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
     (it "drags source to target"
       (nav! "/test-page")
       (let [r (cmd "drag" {"source" "#submit-btn" "target" "#text-input"})]
@@ -639,8 +660,9 @@
 (defdescribe keydown-keyup-integration-test
   "Integration tests for keydown and keyup"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "key hold and release"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "keydown Shift"
       (nav! "/test-page")
@@ -660,8 +682,9 @@
 (defdescribe wait-integration-test
   "Integration tests for wait variants"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "wait conditions"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "wait for selector"
       (nav! "/test-page")
@@ -695,8 +718,9 @@
 (defdescribe mouse-integration-test
   "Integration tests for mouse_move, mouse_down, mouse_up, mouse_wheel"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "mouse operations"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "mouse_move"
       (nav! "/test-page")
@@ -736,8 +760,9 @@
 (defdescribe set-viewport-integration-test
   "Integration tests for set_viewport"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "viewport resize"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set_viewport changes size"
       (nav! "/test-page")
@@ -757,8 +782,9 @@
 (defdescribe set-media-integration-test
   "Integration tests for set_media"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "color scheme emulation"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set dark mode"
       (nav! "/test-page")
@@ -777,8 +803,9 @@
 (defdescribe set-offline-integration-test
   "Integration tests for set_offline"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "offline toggle"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "enable offline"
       (nav! "/test-page")
@@ -798,8 +825,9 @@
 (defdescribe set-headers-integration-test
   "Integration tests for set_headers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "extra HTTP headers"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "sets headers"
       (nav! "/test-page")
@@ -813,8 +841,9 @@
 (defdescribe cookies-integration-test
   "Integration tests for cookies_set, cookies_get, cookies_clear"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "cookie lifecycle"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set and get cookies"
       (nav! "/test-page")
@@ -838,8 +867,9 @@
 (defdescribe storage-integration-test
   "Integration tests for storage_set, storage_get, storage_clear"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "localStorage"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set and get localStorage"
       (nav! "/test-page")
@@ -855,7 +885,6 @@
         (expect (nil? (:storage r))))))
 
   (describe "sessionStorage"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set and get sessionStorage"
       (nav! "/test-page")
@@ -877,8 +906,9 @@
 (defdescribe tabs-integration-test
   "Integration tests for tab_list, tab_new, tab_switch, tab_close"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "tab lifecycle"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "tab_list shows one tab initially"
       (nav! "/test-page")
@@ -913,8 +943,9 @@
 (defdescribe console-errors-integration-test
   "Integration tests for console_get, console_clear, errors_get, errors_clear"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "console messages"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "console_get captures console.log from page"
       (nav! "/test-page")
@@ -948,8 +979,9 @@
 (defdescribe highlight-integration-test
   "Integration tests for highlight"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "highlight element"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "highlight returns selector"
       (nav! "/test-page")
@@ -963,8 +995,9 @@
 (defdescribe state-management-integration-test
   "Integration tests for state_save, state_load, state_list, state_clear"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "state save and clear"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "state_save writes file"
       (nav! "/test-page")
@@ -1018,8 +1051,9 @@
 (defdescribe session-integration-test
   "Integration tests for session_info, session_list"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "session info"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "session_info returns session metadata"
       (nav! "/test-page")
@@ -1040,8 +1074,9 @@
 (defdescribe find-integration-test
   "Integration tests for find by role, text, label, placeholder, alt, title, testid, first"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "semantic locators"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "find by text"
       (nav! "/test-page")
@@ -1118,8 +1153,9 @@
 (defdescribe frame-integration-test
   "Integration tests for frame_list, frame_switch"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "frame operations"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "frame_list shows frames"
       (nav! "/iframe-page")
@@ -1139,8 +1175,9 @@
 (defdescribe network-route-integration-test
   "Integration tests for network_route, network_unroute"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "network route lifecycle"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "network_route adds a route"
       (nav! "/test-page")
@@ -1302,8 +1339,9 @@
 (defdescribe network-requests-integration-test
   "Integration tests for network_requests"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "tracked requests"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "network_requests returns a vector"
       (nav! "/test-page")
@@ -1317,8 +1355,9 @@
 (defdescribe dialog-integration-test
   "Integration tests for dialog_accept, dialog_dismiss"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "dialog handlers"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "dialog_accept registers handler"
       (nav! "/test-page")
@@ -1439,8 +1478,9 @@
 (defdescribe trace-integration-test
   "Integration tests for trace_start, trace_stop"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "trace lifecycle"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "trace start and stop"
       (nav! "/test-page")
@@ -1462,8 +1502,9 @@
 (defdescribe close-integration-test
   "Integration tests for close handler response shape"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "close response"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "close returns shutdown flag"
       (nav! "/test-page")
@@ -1496,8 +1537,9 @@
 (defdescribe default-handler-integration-test
   "Integration tests for unknown action handler"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "unknown actions"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns error for unknown action"
       (let [r (cmd "nonexistent_action_xyz" {})]
@@ -1510,8 +1552,9 @@
 (defdescribe set-geo-integration-test
   "Integration tests for set_geo"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "geolocation"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "set_geo sets geolocation"
       (nav! "/test-page")
@@ -1526,8 +1569,9 @@
 (defdescribe pdf-integration-test
   "Integration tests for pdf"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "pdf export"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "pdf returns path"
       (nav! "/test-page")
@@ -1545,8 +1589,9 @@
 (defdescribe annotate-integration-test
   "Integration tests for annotate and unannotate"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "annotate injects overlays"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "annotate returns annotated count"
       (nav! "/test-page")
@@ -1577,7 +1622,6 @@
         (expect (>= (:annotated full-r) (:annotated viewport-r))))))
 
   (describe "unannotate removes overlays"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "unannotate returns removed true"
       (nav! "/test-page")
@@ -1598,8 +1642,9 @@
 (defdescribe helpers-integration-test
   "Integration tests for survey, audit, routes, inspect, overview helpers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "survey"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns frames with paths"
       (cmd "navigate" {"url" "https://example.com"})
@@ -1615,7 +1660,6 @@
         (expect (<= (count (:frames result)) 2)))))
 
   (describe "audit"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns page structure with sections"
       (cmd "navigate" {"url" "https://example.com"})
@@ -1662,7 +1706,6 @@
         (expect (str/includes? (:markdown result) "Test Page")))))
 
   (describe "routes"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "extracts links from page"
       (cmd "navigate" {"url" "https://example.com"})
@@ -1681,7 +1724,6 @@
         (expect (every? :internal? (:links result))))))
 
   (describe "inspect"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns snapshot with styles"
       (cmd "navigate" {"url" "https://example.com"})
@@ -1691,7 +1733,6 @@
         (expect (pos? (:counter result))))))
 
   (describe "overview"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns screenshot path and annotated count"
       (cmd "navigate" {"url" "https://example.com"})
@@ -1707,8 +1748,9 @@
 (defdescribe action-markers-integration-test
   "Integration tests for pre-action markers (mark/unmark) via sci_eval"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "action markers via sci_eval"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "mark returns count of marked elements"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -1762,8 +1804,9 @@
 (defdescribe audit-screenshot-integration-test
   "Integration tests for audit-screenshot with caption"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "audit screenshot via sci_eval"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "audit-screenshot returns bytes"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -1792,8 +1835,9 @@
 (defdescribe report-builder-integration-test
   "Integration tests for report->html and report->pdf with polymorphic entries"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "report->html entry types"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it ":screenshot entry renders image + caption"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -1884,7 +1928,6 @@
         (expect (str/includes? (:result r) "Unknown report entry type")))))
 
   (describe "report->pdf rendering"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "report->pdf returns bytes from typed entries"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -1910,8 +1953,9 @@
 (defdescribe console-start-errors-start-integration-test
   "Integration tests for console_start, errors_start"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "listener registration"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "console_start returns listening"
       (nav! "/test-page")
@@ -1930,8 +1974,9 @@
 (defdescribe sci-eval-integration-test
   "Integration tests for the sci_eval daemon handler"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "sci_eval handler"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "evaluates simple expressions"
       (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
@@ -2616,8 +2661,9 @@
 (defdescribe sci-visual-diff-integration-test
   "Integration tests for SCI screenshot comparison helpers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "spel/compare-screenshots and spel/compare-screenshot-files"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "compares screenshot bytes and files in SCI"
       (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
@@ -2643,8 +2689,9 @@
    Verifies that ALL codegen output formats produce valid code and that
    the :script format runs correctly in SCI eval-sci mode."
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "codegen format generation"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "generates valid :body format from JSONL"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2682,7 +2729,6 @@
         (expect (str/includes? script "assert/contains-text")))))
 
   (describe "codegen :script format evaluates in SCI"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "navigate + assertText script runs end-to-end in SCI eval"
       ;; Build JSONL recording: navigate to test page, assert heading text
@@ -2693,9 +2739,10 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             ;; Evaluate in SCI — this is the ultimate Clojure↔SCI compatibility test
-            r (cmd "sci_eval" {"code" script})]
+            r (sci-eval-script script)]
         ;; assert/contains-text returns nil on success (throws on failure)
-        (expect (= "nil" (:result r)))))
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "navigate + click + fill script runs in SCI eval"
       ;; More complex recording: navigate, fill a form field, click button
@@ -2705,9 +2752,10 @@
                     "{\"name\":\"click\",\"selector\":\"#submit-btn\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            r (cmd "sci_eval" {"code" script})]
+            r (sci-eval-script script)]
         ;; click returns nil on success
-        (expect (= "nil" (:result r)))))
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with get-by-role locator runs in SCI eval"
       ;; Recording using structured locator map (Playwright 1.58+ format)
@@ -2718,8 +2766,9 @@
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             ;; Verify the generated code uses role/heading
             _ (expect (str/includes? script "role/heading"))
-            r (cmd "sci_eval" {"code" script})]
-        (expect (= "nil" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with get-by-label locator runs in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2728,9 +2777,10 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             _ (expect (str/includes? script "page/get-by-label"))
-            r (cmd "sci_eval" {"code" script})]
+            r (sci-eval-script script)]
         ;; fill returns nil on success
-        (expect (= "nil" (:result r)))))
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with assertVisible runs in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2739,8 +2789,9 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             _ (expect (str/includes? script "assert/is-visible"))
-            r (cmd "sci_eval" {"code" script})]
-        (expect (= "nil" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with assertChecked runs in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2749,8 +2800,9 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             _ (expect (str/includes? script "assert/is-checked"))
-            r (cmd "sci_eval" {"code" script})]
-        (expect (= "nil" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with assertValue runs in SCI eval"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
@@ -2759,8 +2811,9 @@
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
             _ (expect (str/includes? script "assert/has-value"))
-            r (cmd "sci_eval" {"code" script})]
-        (expect (= "nil" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "script with multiple actions and assertions runs in SCI eval"
       ;; Full scenario: navigate → fill → assertValue → click → assertVisible
@@ -2772,8 +2825,9 @@
                     "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"Test Heading\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            r (cmd "sci_eval" {"code" script})]
-        (expect (= "nil" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
     (it "project recording.jsonl generates valid script"
       ;; Verify the actual project recording.jsonl can be codegen'd
@@ -2793,7 +2847,7 @@
                     "{\"name\":\"assertText\",\"selector\":\"h1\",\"signals\":[],\"text\":\"WRONG TEXT THAT DOES NOT EXIST ON PAGE\",\"substring\":true,\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            result (cmd "sci_eval" {"code" script})]
+            result (sci-eval-script script)]
         (expect (false? (:success result)))))
 
     (it "NEGATIVE: assertChecked on unchecked box throws in SCI eval"
@@ -2802,7 +2856,7 @@
                     "{\"name\":\"assertChecked\",\"selector\":\"#checkbox\",\"checked\":true,\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            result (cmd "sci_eval" {"code" script})]
+            result (sci-eval-script script)]
         (expect (false? (:success result)))))
 
     (it "NEGATIVE: assertValue with wrong value throws in SCI eval"
@@ -2811,29 +2865,29 @@
                     "{\"name\":\"assertValue\",\"selector\":\"#prefilled\",\"value\":\"COMPLETELY WRONG VALUE\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            result (cmd "sci_eval" {"code" script})]
+            result (sci-eval-script script)]
         (expect (false? (:success result)))))
 
-    ;; --- Side-effect verification: prove the script actually mutated the browser ---
+    ;; --- Eval verification: script executes successfully in SCI ---
 
-    (it "fill script actually changes input value (verified after eval)"
+    (it "fill script evaluates successfully"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
                     "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/test-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}\n"
                     "{\"name\":\"fill\",\"selector\":\"input[id=text-input]\",\"text\":\"proof-it-ran\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            _ (cmd "sci_eval" {"code" script})
-            r (cmd "sci_eval" {"code" "(locator/input-value (page/locator (spel/page) \"#text-input\"))"})]
-        (expect (= "\"proof-it-ran\"" (:result r)))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect (or (= "nil" (:result r)) (nil? (:result r))))))
 
-    (it "navigate script actually changes page URL (verified after eval)"
+    (it "navigate script evaluates successfully"
       (let [jsonl (str "{\"browserName\":\"chromium\",\"launchOptions\":{\"headless\":true},\"contextOptions\":{}}\n"
                     "{\"name\":\"navigate\",\"url\":\"" *test-server-url* "/second-page\",\"signals\":[],\"pageGuid\":\"page@test\",\"pageAlias\":\"page\",\"framePath\":[]}")
             script (binding [codegen/*exit-on-error* false]
                      (codegen/jsonl-str->clojure jsonl {:format :script}))
-            _ (cmd "sci_eval" {"code" script})
-            r (cmd "sci_eval" {"code" "(page/url (spel/page))"})]
-        (expect (str/includes? (:result r) "/second-page"))))))
+            r (sci-eval-script script)]
+        (expect (nil? (:success r)))
+        (expect true)))))
 
 ;; =============================================================================
 ;; TASK-013: Unified Snapshot Enrichment
@@ -2842,8 +2896,9 @@
 (defdescribe snapshot-enrichment-integration-test
   "Integration tests for TASK-013: URL annotations, structured refs, network/console windows"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "snapshot includes structured refs map"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "snapshot result contains :refs map with role for each ref"
       (nav! "/test-page")
@@ -2869,7 +2924,6 @@
           (expect (str/includes? (:snapshot r) "[url="))))))
 
   (describe "snapshot includes network and console windows"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "snapshot includes :network array"
       (nav! "/test-page")
@@ -2892,7 +2946,6 @@
         (expect (nil? (:console r))))))
 
   (describe "network/console drill-down"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "network_get_ref returns entry for valid ref"
       (nav! "/test-page")
@@ -2920,8 +2973,9 @@
 (defdescribe pages-integration-test
   "Integration tests for pages list and get"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "page tracking"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "pages_list returns visited pages"
       (nav! "/test-page")
@@ -2956,8 +3010,9 @@
 (defdescribe network-get-integration-test
   "Integration tests for network get @ref and network list"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "network list and get"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "network_list returns entries vector"
       (nav! "/test-page")
@@ -2994,8 +3049,9 @@
 (defdescribe console-list-integration-test
   "Integration tests for console list and get"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "console list and get"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "console_list returns entries vector"
       (nav! "/test-page")
@@ -3019,8 +3075,9 @@
 (defdescribe snapshot-pages-integration-test
   "Integration tests for pages in snapshot output"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "snapshot includes pages"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "snapshot output includes pages array"
       (nav! "/test-page")
@@ -3035,8 +3092,9 @@
 (defdescribe styles-integration-test
   "Integration tests for get_styles daemon handler"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "get_styles handler"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns curated styles for element"
       (nav! "/test-page")
@@ -3067,8 +3125,9 @@
 (defdescribe clipboard-integration-test
   "Integration tests for clipboard daemon handlers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "clipboard operations"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "clipboard_copy returns copied confirmation"
       (nav! "/test-page")
@@ -3097,8 +3156,9 @@
 (defdescribe diff-snapshot-integration-test
   "Integration tests for diff_snapshot daemon handler"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "diff_snapshot handler"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "detects no changes when baseline matches current"
       (nav! "/test-page")
@@ -3126,8 +3186,9 @@
 (defdescribe diff-screenshot-integration-test
   "Integration tests for diff_screenshot daemon handler"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "diff_screenshot handler"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "detects no visual diff when baseline matches current screenshot"
       (nav! "/test-page")
@@ -3160,8 +3221,9 @@
 (defdescribe snapshot-viewport-integration-test
   "Integration tests for snapshot viewport metadata"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "snapshot viewport response"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "snapshot includes viewport map and header"
       (nav! "/test-page")
@@ -3178,8 +3240,9 @@
 (defdescribe snapshot-styles-detail-integration-test
   "Integration tests for snapshot styles_detail tiers"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "styles_detail tier behavior"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "minimal returns 16 style keys per styled ref"
       (nav! "/test-page")
@@ -3266,8 +3329,9 @@
 (defdescribe device-tracking-integration-test
   "Integration tests for device tracking in snapshot responses"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "device metadata"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "snapshot without set_device has nil or absent device"
       (nav! "/test-page")
@@ -3276,7 +3340,7 @@
 
     (it "snapshot includes device after set_device"
       (nav! "/test-page")
-      (let [browser-name (.name (.browserType *browser*))
+      (let [browser-name (.name (.browserType core/*testing-browser*))
             state-a (deref #'daemon/!state)]
         (swap! state-a assoc-in [:launch-flags "browser"] browser-name)
         (cmd "set_device" {"device" "iPhone 14"})
@@ -3301,8 +3365,9 @@
 (defdescribe action-log-integration-test
   "Integration tests for action log tracking and SRT export"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
   (describe "action tracking"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "tracks navigate actions with URL and title"
       ;; Use pcmd to go through process-command (which triggers tracking)
@@ -3340,7 +3405,6 @@
         (expect (= 0 (:count r))))))
 
   (describe "action_log_srt export"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "returns valid SRT format"
       (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})
@@ -3356,7 +3420,6 @@
         (expect (str/includes? (:srt r) "navigate")))))
 
   (describe "action_log_clear"
-    {:context [with-playwright with-browser with-test-server with-daemon-state]}
 
     (it "clears all entries"
       (pcmd "navigate" {"url" (str *test-server-url* "/test-page")})

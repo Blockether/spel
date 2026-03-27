@@ -7,17 +7,18 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :as sut]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :as tf
-    :refer [*pw* *page* *browser-context*
-            with-playwright with-browser with-page]]
    [com.blockether.spel.test-server :as ts
     :refer [*test-server-url* with-test-server test-server-requests]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it]])
+   [com.blockether.spel.allure :refer [around defdescribe describe expect expect-it it]])
   (:import
    [com.microsoft.playwright APIRequest APIRequestContext APIResponse]
    [com.microsoft.playwright.options FormData RequestOptions]))
+
+(alias 'sut 'com.blockether.spel.core)
+
+(declare pg)
 
 ;; =============================================================================
 ;; Helpers
@@ -52,6 +53,8 @@
 (defdescribe form-data-test
   "Tests for FormData creation and manipulation"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (expect-it "form-data creates a FormData instance"
     (instance? FormData (sut/form-data)))
 
@@ -84,6 +87,8 @@
 
 (defdescribe request-options-test
   "Tests for RequestOptions creation from Clojure maps"
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
 
   (expect-it "returns a RequestOptions instance"
     (instance? RequestOptions (sut/request-options {})))
@@ -174,28 +179,29 @@
 (defdescribe api-request-test
   "Tests for APIRequest accessor"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "api-request"
-    {:context [with-playwright]}
     (it "returns an APIRequest from Playwright instance"
-      (let [req (sut/api-request *pw*)]
+      (let [req (sut/api-request core/*testing-pw*)]
         (expect (instance? APIRequest req))))))
 
 (defdescribe new-api-context-test
   "Tests for APIRequestContext creation"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "without options"
-    {:context [with-playwright]}
     (it "creates an APIRequestContext"
-      (let [ctx (sut/new-api-context (sut/api-request *pw*))]
+      (let [ctx (sut/new-api-context (sut/api-request core/*testing-pw*))]
         (try
           (expect (instance? APIRequestContext ctx))
           (finally
             (sut/api-dispose! ctx))))))
 
   (describe "with options"
-    {:context [with-playwright with-test-server]}
     (it "creates context with base-url"
-      (let [ctx (sut/new-api-context (sut/api-request *pw*)
+      (let [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                   {:base-url *test-server-url*})]
         (try
           (expect (instance? APIRequestContext ctx))
@@ -203,7 +209,7 @@
             (sut/api-dispose! ctx)))))
 
     (it "creates context with multiple options"
-      (let [ctx (sut/new-api-context (sut/api-request *pw*)
+      (let [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                   {:base-url *test-server-url*
                    :extra-http-headers {"X-Test" "true"}
                    :timeout 15000
@@ -221,12 +227,13 @@
 (defdescribe with-api-context-test
   "Tests for with-api-context lifecycle macro"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "lifecycle"
-    {:context [with-playwright with-test-server]}
 
     (it "binds context and executes body"
       (let [result (sut/with-api-context [ctx (sut/new-api-context
-                                                (sut/api-request *pw*)
+                                                (sut/api-request core/*testing-pw*)
                                                 {:base-url *test-server-url*})]
                      (expect (instance? APIRequestContext ctx))
                      :done)]
@@ -234,7 +241,7 @@
 
     (it "returns body value"
       (let [result (sut/with-api-context [ctx (sut/new-api-context
-                                                (sut/api-request *pw*)
+                                                (sut/api-request core/*testing-pw*)
                                                 {:base-url *test-server-url*})]
                      (sut/api-response-status (sut/api-get ctx "/health")))]
         (expect (= 200 result))))
@@ -242,7 +249,7 @@
     (it "disposes context after body (context unusable after)"
       (let [ctx-ref (atom nil)]
         (sut/with-api-context [ctx (sut/new-api-context
-                                     (sut/api-request *pw*)
+                                     (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (reset! ctx-ref ctx)
           (expect (instance? APIRequestContext ctx)))
@@ -257,14 +264,15 @@
 (defdescribe with-api-contexts-test
   "Tests for with-api-contexts multi-context lifecycle macro"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "multiple contexts"
-    {:context [with-playwright with-test-server]}
 
     (it "binds multiple contexts and executes body"
       (let [result (sut/with-api-contexts
-                     [ctx1 (sut/new-api-context (sut/api-request *pw*)
+                     [ctx1 (sut/new-api-context (sut/api-request core/*testing-pw*)
                              {:base-url *test-server-url*})
-                      ctx2 (sut/new-api-context (sut/api-request *pw*)
+                      ctx2 (sut/new-api-context (sut/api-request core/*testing-pw*)
                              {:base-url *test-server-url*})]
                      (expect (instance? APIRequestContext ctx1))
                      (expect (instance? APIRequestContext ctx2))
@@ -273,9 +281,9 @@
 
     (it "each context can make independent requests"
       (sut/with-api-contexts
-        [ctx1 (sut/new-api-context (sut/api-request *pw*)
+        [ctx1 (sut/new-api-context (sut/api-request core/*testing-pw*)
                 {:base-url *test-server-url*})
-         ctx2 (sut/new-api-context (sut/api-request *pw*)
+         ctx2 (sut/new-api-context (sut/api-request core/*testing-pw*)
                 {:base-url *test-server-url*})]
         (let [r1 (sut/api-get ctx1 "/health")
               r2 (sut/api-get ctx2 "/health")]
@@ -285,9 +293,9 @@
     (it "disposes all contexts after body"
       (let [refs (atom [])]
         (sut/with-api-contexts
-          [ctx1 (sut/new-api-context (sut/api-request *pw*)
+          [ctx1 (sut/new-api-context (sut/api-request core/*testing-pw*)
                   {:base-url *test-server-url*})
-           ctx2 (sut/new-api-context (sut/api-request *pw*)
+           ctx2 (sut/new-api-context (sut/api-request core/*testing-pw*)
                   {:base-url *test-server-url*})]
           (swap! refs conj ctx1 ctx2)
           :ok)
@@ -307,11 +315,12 @@
 (defdescribe api-get-test
   "Tests for api-get"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "GET requests"
-    {:context [with-playwright with-test-server]}
 
     (it "GET /health returns 200"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")]
           (expect (instance? APIResponse resp))
@@ -319,14 +328,14 @@
           (expect (sut/api-response-ok? resp)))))
 
     (it "GET /health body contains status ok"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               body (sut/api-response-text resp)]
           (expect (str/includes? body "ok")))))
 
     (it "GET with query params"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/echo" {:params {:foo "bar" :n "42"}})
               body (sut/api-response-text resp)]
@@ -334,20 +343,20 @@
           (expect (str/includes? body "foo")))))
 
     (it "GET with custom headers"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/echo" {:headers {"X-Custom" "test-value"}})]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "GET /status/404 returns 404"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/status/404")]
           (expect (= 404 (sut/api-response-status resp)))
           (expect (not (sut/api-response-ok? resp))))))
 
     (it "GET /status/500 returns 500"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/status/500")]
           (expect (= 500 (sut/api-response-status resp)))
@@ -356,11 +365,12 @@
 (defdescribe api-post-test
   "Tests for api-post"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "POST requests"
-    {:context [with-playwright with-test-server]}
 
     (it "POST /echo with string data"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-post ctx "/echo"
                      {:data "{\"name\":\"Alice\"}"
@@ -371,7 +381,7 @@
           (expect (str/includes? body "Alice")))))
 
     (it "POST /echo with :json and *json-encoder*"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (binding [sut/*json-encoder* simple-json-encode]
           (let [resp (sut/api-post ctx "/echo" {:json {:name "Bob"}})
@@ -380,7 +390,7 @@
             (expect (str/includes? body "Bob"))))))
 
     (it "POST /echo with form data"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-post ctx "/echo"
                      {:form (sut/map->form-data {:user "admin" :pass "secret"})})
@@ -389,7 +399,7 @@
           (expect (str/includes? body "POST")))))
 
     (it "POST without opts"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-post ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp))))))))
@@ -397,18 +407,19 @@
 (defdescribe api-put-test
   "Tests for api-put"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "PUT requests"
-    {:context [with-playwright with-test-server]}
 
     (it "PUT /echo returns 200"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-put ctx "/echo" {:data "{\"update\":true}"})]
           (expect (= 200 (sut/api-response-status resp)))
           (expect (str/includes? (sut/api-response-text resp) "PUT")))))
 
     (it "PUT without opts"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-put ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp))))))))
@@ -416,11 +427,12 @@
 (defdescribe api-patch-test
   "Tests for api-patch"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "PATCH requests"
-    {:context [with-playwright with-test-server]}
 
     (it "PATCH /echo returns 200"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-patch ctx "/echo" {:data "{\"patch\":true}"})]
           (expect (= 200 (sut/api-response-status resp)))
@@ -429,11 +441,12 @@
 (defdescribe api-delete-test
   "Tests for api-delete"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "DELETE requests"
-    {:context [with-playwright with-test-server]}
 
     (it "DELETE /echo returns 200"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-delete ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp)))
@@ -442,17 +455,18 @@
 (defdescribe api-head-test
   "Tests for api-head"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "HEAD requests"
-    {:context [with-playwright with-test-server]}
 
     (it "HEAD /health returns 200"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-head ctx "/health")]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "HEAD /health with opts"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-head ctx "/health" {:timeout 5000})]
           (expect (= 200 (sut/api-response-status resp))))))))
@@ -460,17 +474,18 @@
 (defdescribe api-fetch-test
   "Tests for api-fetch"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "FETCH requests"
-    {:context [with-playwright with-test-server]}
 
     (it "fetch with default method hits the endpoint"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-fetch ctx "/echo")]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "fetch with explicit :method"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-fetch ctx "/echo" {:method "PATCH"})
               body (sut/api-response-text resp)]
@@ -484,11 +499,12 @@
 (defdescribe api-response-accessors-test
   "Tests for APIResponse accessor functions"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "response accessors"
-    {:context [with-playwright with-test-server]}
 
     (it "api-response-url returns the request URL"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               url  (sut/api-response-url resp)]
@@ -496,30 +512,30 @@
           (expect (str/includes? url "/health")))))
 
     (it "api-response-status returns integer status"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")]
           (expect (= 200 (sut/api-response-status resp))))))
 
     (it "api-response-status-text returns status text"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               text (sut/api-response-status-text resp)]
           (expect (string? text)))))
 
     (it "api-response-ok? returns true for 2xx"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (expect (true? (sut/api-response-ok? (sut/api-get ctx "/health"))))))
 
     (it "api-response-ok? returns false for 4xx"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (expect (false? (sut/api-response-ok? (sut/api-get ctx "/status/404"))))))
 
     (it "api-response-headers returns a map"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp    (sut/api-get ctx "/health")
               headers (sut/api-response-headers resp)]
@@ -527,7 +543,7 @@
           (expect (contains? headers "content-type")))))
 
     (it "api-response-headers-array returns vector of maps"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               arr  (sut/api-response-headers-array resp)]
@@ -540,7 +556,7 @@
             (expect (string? (:value first-h)))))))
 
     (it "api-response-text returns body as string"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               text (sut/api-response-text resp)]
@@ -548,7 +564,7 @@
           (expect (str/includes? text "ok")))))
 
     (it "api-response-body returns bytes"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp  (sut/api-get ctx "/health")
               bytes (sut/api-response-body resp)]
@@ -562,11 +578,12 @@
 (defdescribe api-response-map-test
   "Tests for api-response->map"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "response map shape"
-    {:context [with-playwright with-test-server]}
 
     (it "returns a map with all expected keys"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [resp (sut/api-get ctx "/health")
               m    (sut/api-response->map resp)]
@@ -579,7 +596,7 @@
           (expect (contains? m :body)))))
 
     (it "has correct types for each key"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [m (sut/api-response->map (sut/api-get ctx "/health"))]
           (expect (integer? (:status m)))
@@ -590,7 +607,7 @@
           (expect (string? (:body m))))))
 
     (it "status is 200 for /health"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [m (sut/api-response->map (sut/api-get ctx "/health"))]
           (expect (= 200 (:status m)))
@@ -598,14 +615,14 @@
           (expect (str/includes? (:body m) "ok")))))
 
     (it "status is 404 for /status/404"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [m (sut/api-response->map (sut/api-get ctx "/status/404"))]
           (expect (= 404 (:status m)))
           (expect (false? (:ok? m))))))
 
     (it "url contains the endpoint path"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (let [m (sut/api-response->map (sut/api-get ctx "/health"))]
           (expect (str/includes? (:url m) "/health")))))))
@@ -617,40 +634,41 @@
 (defdescribe request-bang-test
   "Tests for request! standalone HTTP calls"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "standalone requests"
-    {:context [with-playwright with-test-server]}
 
     (it "GET returns a response map"
-      (let [m (sut/request! *pw* :get (str *test-server-url* "/health"))]
+      (let [m (sut/request! core/*testing-pw* :get (str *test-server-url* "/health"))]
         (expect (map? m))
         (expect (= 200 (:status m)))
         (expect (true? (:ok? m)))
         (expect (str/includes? (:body m) "ok"))))
 
     (it "POST with data returns response map"
-      (let [m (sut/request! *pw* :post (str *test-server-url* "/echo")
+      (let [m (sut/request! core/*testing-pw* :post (str *test-server-url* "/echo")
                 {:data "{\"x\":1}"
                  :headers {"Content-Type" "application/json"}})]
         (expect (= 200 (:status m)))
         (expect (str/includes? (:body m) "POST"))))
 
     (it "returns response map for non-2xx status"
-      (let [m (sut/request! *pw* :get (str *test-server-url* "/status/503"))]
+      (let [m (sut/request! core/*testing-pw* :get (str *test-server-url* "/status/503"))]
         (expect (= 503 (:status m)))
         (expect (false? (:ok? m)))))
 
     (it "GET without opts"
-      (let [m (sut/request! *pw* :get (str *test-server-url* "/health"))]
+      (let [m (sut/request! core/*testing-pw* :get (str *test-server-url* "/health"))]
         (expect (= 200 (:status m)))))
 
     (it "PUT returns response map"
-      (let [m (sut/request! *pw* :put (str *test-server-url* "/echo")
+      (let [m (sut/request! core/*testing-pw* :put (str *test-server-url* "/echo")
                 {:data "update-data"})]
         (expect (= 200 (:status m)))
         (expect (str/includes? (:body m) "PUT"))))
 
     (it "DELETE returns response map"
-      (let [m (sut/request! *pw* :delete (str *test-server-url* "/echo"))]
+      (let [m (sut/request! core/*testing-pw* :delete (str *test-server-url* "/echo"))]
         (expect (= 200 (:status m)))
         (expect (str/includes? (:body m) "DELETE"))))))
 
@@ -661,15 +679,16 @@
 (defdescribe hooks-on-request-test
   "Tests for :on-request hook"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic invocation"
-    {:context [with-playwright with-test-server]}
 
     (it ":on-request is called with method, url, opts"
       (let [called (atom nil)]
         (sut/with-hooks {:on-request (fn [method url opts]
                                        (reset! called {:method method :url url :opts opts})
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health" {:timeout 5000})))
         (expect (some? @called))
@@ -682,7 +701,7 @@
         (sut/with-hooks {:on-request (fn [method _ opts]
                                        (reset! called method)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-post ctx "/echo" {})))
         (expect (= :post @called))))
@@ -692,7 +711,7 @@
         (sut/with-hooks {:on-request (fn [method _ opts]
                                        (reset! called method)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-put ctx "/echo" {})))
         (expect (= :put @called))))
@@ -702,7 +721,7 @@
         (sut/with-hooks {:on-request (fn [method _ opts]
                                        (reset! called method)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-patch ctx "/echo" {})))
         (expect (= :patch @called))))
@@ -712,7 +731,7 @@
         (sut/with-hooks {:on-request (fn [method _ opts]
                                        (reset! called method)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-delete ctx "/echo" {})))
         (expect (= :delete @called))))
@@ -722,7 +741,7 @@
         (sut/with-hooks {:on-request (fn [method _ opts]
                                        (reset! called method)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-head ctx "/health" {})))
         (expect (= :head @called))))
@@ -732,7 +751,7 @@
         (sut/with-hooks {:on-request (fn [_ _ opts]
                                        (swap! counter inc)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health" {})
             (sut/api-get ctx "/echo" {})
@@ -740,12 +759,11 @@
         (expect (= 3 @counter)))))
 
   (describe "request transformation"
-    {:context [with-playwright with-test-server]}
 
     (it ":on-request can inject headers"
       (sut/with-hooks {:on-request (fn [_ _ opts]
                                      (assoc-in opts [:headers "X-Injected"] "yes"))}
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (sut/api-get ctx "/echo" {:headers {"X-Original" "true"}})))
       (let [reqs (test-server-requests)
@@ -755,7 +773,7 @@
     (it ":on-request can add query params"
       (sut/with-hooks {:on-request (fn [_ _ opts]
                                      (assoc-in opts [:params :injected] "true"))}
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-get ctx "/echo" {:params {:original "yes"}})
                 body (sut/api-response-text resp)]
@@ -764,7 +782,7 @@
 
     (it ":on-request returning nil keeps original opts"
       (sut/with-hooks {:on-request (fn [_ _ _opts] nil)}
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-get ctx "/health" {:timeout 5000})]
             (expect (= 200 (sut/api-response-status resp)))))))
@@ -772,7 +790,7 @@
     (it ":on-request can replace opts entirely"
       (sut/with-hooks {:on-request (fn [_ _ _opts]
                                      {:params {:replaced "true"}})}
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-get ctx "/echo" {:params {:original "yes"}})
                 body (sut/api-response-text resp)]
@@ -783,7 +801,7 @@
         (sut/with-hooks {:on-request (fn [_ _ opts]
                                        (swap! counter inc)
                                        opts)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")))
         ;; No opts passed → on-request should NOT be called
@@ -796,8 +814,9 @@
 (defdescribe hooks-on-response-test
   "Tests for :on-response hook"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic invocation"
-    {:context [with-playwright with-test-server]}
 
     (it ":on-response is called with method, url, response"
       (let [called (atom nil)]
@@ -805,7 +824,7 @@
                                         (reset! called {:method method
                                                         :status (.status ^APIResponse resp)})
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")))
         (expect (some? @called))
@@ -817,7 +836,7 @@
         (sut/with-hooks {:on-response (fn [method _ resp]
                                         (swap! methods conj method)
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")
             (sut/api-post ctx "/echo")
@@ -833,7 +852,7 @@
                                         (swap! statuses conj
                                           (.status ^APIResponse resp))
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")
             (sut/api-get ctx "/status/201")
@@ -844,7 +863,7 @@
     (it ":on-response returning nil keeps original response"
       (let [resp-ref (atom nil)]
         (sut/with-hooks {:on-response (fn [_ _ _resp] nil)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (let [resp (sut/api-get ctx "/health")]
               (reset! resp-ref resp))))
@@ -857,7 +876,7 @@
         (sut/with-hooks {:on-response (fn [_ _ resp]
                                         (swap! counter inc)
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (dotimes [_ 7]
               (sut/api-get ctx "/health"))))
@@ -870,15 +889,16 @@
 (defdescribe hooks-on-error-test
   "Tests for :on-error hook"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "error hook invocation"
-    {:context [with-playwright with-test-server]}
 
     (it ":on-error is called on anomaly result"
       (let [called (atom nil)]
         (sut/with-hooks {:on-error (fn [method _url anomaly]
                                      (reset! called {:method method :anomaly anomaly})
                                      anomaly)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*
                                         :fail-on-status-code true})]
             (sut/api-get ctx "/status/404")))
@@ -890,7 +910,7 @@
     (it ":on-error returning nil keeps original anomaly"
       (let [result (sut/with-hooks {:on-error (fn [_ _ _anomaly] nil)}
                      (sut/with-api-context [ctx (sut/new-api-context
-                                                  (sut/api-request *pw*)
+                                                  (sut/api-request core/*testing-pw*)
                                                   {:base-url *test-server-url*
                                                    :fail-on-status-code true})]
                        (sut/api-get ctx "/status/500")))]
@@ -901,7 +921,7 @@
         (sut/with-hooks {:on-error (fn [_ _ anomaly]
                                      (swap! counter inc)
                                      anomaly)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")))
         (expect (= 0 @counter))))))
@@ -913,8 +933,9 @@
 (defdescribe hooks-merging-test
   "Tests for with-hooks scoping and merging behavior"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "merging semantics"
-    {:context [with-playwright with-test-server]}
 
     (it "inner with-hooks merges with outer"
       (let [outer-calls (atom 0)
@@ -925,7 +946,7 @@
           (sut/with-hooks {:on-request (fn [_ _ opts]
                                          (swap! inner-calls inc)
                                          opts)}
-            (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+            (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                          {:base-url *test-server-url*})]
               (sut/api-get ctx "/health" {}))))
         (expect (= 1 @inner-calls))
@@ -940,7 +961,7 @@
           (sut/with-hooks {:on-response (fn [_ _ resp]
                                           (swap! inner-calls inc)
                                           resp)}
-            (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+            (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                          {:base-url *test-server-url*})]
               (sut/api-get ctx "/health"))))
         ;; Inner replaces outer for :on-response
@@ -952,7 +973,7 @@
         (sut/with-hooks {:on-response (fn [_ _ resp]
                                         (swap! counter inc)
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             ;; Request inside hook scope
             (sut/api-get ctx "/health")
@@ -971,7 +992,7 @@
             (sut/with-hooks {:on-retry (fn [_]
                                          (swap! log conj :inner))}
               ;; All three hook types should be active
-              (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+              (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                            {:base-url *test-server-url*})]
                 (sut/api-get ctx "/health" {})))))
         ;; :on-request from outer, :on-response from middle — both fired
@@ -980,7 +1001,7 @@
 
     (it "with-hooks with empty map is a no-op"
       (sut/with-hooks {}
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-get ctx "/health")]
             (expect (= 200 (sut/api-response-status resp))))))))
@@ -1007,6 +1028,8 @@
 
 (defdescribe hooks-on-retry-test
   "Tests for :on-retry hook"
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
 
   (it ":on-retry receives retry metadata"
     (let [retry-log (atom [])]
@@ -1083,8 +1106,9 @@
 (defdescribe hooks-combined-test
   "Tests for multiple hooks working together"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "full lifecycle"
-    {:context [with-playwright with-test-server]}
 
     (it "all four hooks fire in a retry scenario"
       (let [log     (atom [])
@@ -1100,7 +1124,7 @@
                                         anomaly)
                          :on-retry    (fn [_]
                                         (swap! log conj :retry))}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/retry
               (fn []
@@ -1122,7 +1146,7 @@
                                        (swap! req-count inc)
                                        (assoc-in opts [:headers "Authorization"]
                                          "Bearer test-token-123"))}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/echo" {})
             (sut/api-post ctx "/echo" {:data "body"})
@@ -1141,7 +1165,7 @@
                                             (swap! metrics update :ok inc)
                                             (swap! metrics update :error inc)))
                                         resp)}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/api-get ctx "/health")
             (sut/api-get ctx "/health")
@@ -1157,7 +1181,7 @@
         (sut/with-hooks {:on-response (fn [_ _ resp]
                                         (reset! called true)
                                         resp)}
-          (sut/request! *pw* :get (str *test-server-url* "/health")))
+          (sut/request! core/*testing-pw* :get (str *test-server-url* "/health")))
         (expect (true? @called))))))
 
 ;; =============================================================================
@@ -1166,6 +1190,8 @@
 
 (defdescribe retry-test
   "Tests for retry function"
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
 
   (it "succeeds on first attempt without retry"
     (let [counter (atom 0)
@@ -1381,6 +1407,8 @@
 (defdescribe with-retry-test
   "Tests for with-retry macro"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (it "wraps body with default retry"
     (let [counter (atom 0)
           result  (sut/with-retry {}
@@ -1424,8 +1452,9 @@
 (defdescribe retry-http-integration-test
   "Integration tests for retry with real HTTP calls"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "retry with test server"
-    {:context [with-playwright with-test-server]}
 
     (it "retry with request! on flaky endpoint simulation"
       (let [counter (atom 0)
@@ -1433,7 +1462,7 @@
                       (fn []
                         (let [n (swap! counter inc)
                               path (if (< n 3) "/status/500" "/health")]
-                          (sut/request! *pw* :get (str *test-server-url* path))))
+                          (sut/request! core/*testing-pw* :get (str *test-server-url* path))))
                       {:delay-ms 10
                        :retry-when (fn [r] (and (map? r) (>= (:status r) 500)))})]
         (expect (= 200 (:status result)))
@@ -1450,7 +1479,7 @@
                                         resp)
                          :on-retry    (fn [_]
                                         (swap! hook-calls update :retries inc))}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/retry
               (fn []
@@ -1470,7 +1499,7 @@
         (sut/with-hooks {:on-request  (fn [_ _ opts] (swap! log conj :req) opts)
                          :on-response (fn [_ _ resp] (swap! log conj :resp) resp)
                          :on-retry    (fn [_] (swap! log conj :retry))}
-          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+          (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                        {:base-url *test-server-url*})]
             (sut/retry
               (fn []
@@ -1492,12 +1521,13 @@
 (defdescribe json-encoding-test
   "Tests for *json-encoder* and :json option"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "encoder binding"
-    {:context [with-playwright with-test-server]}
 
     (it "json with bound encoder sends encoded body"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo" {:json {:name "Alice" :age 30}})
                 body (sut/api-response-text resp)]
@@ -1506,7 +1536,7 @@
 
     (it "json with nested data encodes correctly"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo"
                        {:json {:user {:name "Bob" :roles ["admin" "user"]}}})
@@ -1516,35 +1546,35 @@
 
     (it "json with string value encodes correctly"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo" {:json "hello"})]
             (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "json with vector value"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo" {:json [1 2 3]})]
             (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "json with null value"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo" {:json nil})]
             (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "json encoder can use pr-str as encoder"
       (binding [sut/*json-encoder* pr-str]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           (let [resp (sut/api-post ctx "/echo" {:json {:key "value"}})]
             (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "json with additional headers preserves user headers"
       (binding [sut/*json-encoder* simple-json-encode]
-        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                      {:base-url *test-server-url*})]
           ;; User sets X-Request-Id alongside :json — both should work
           (let [resp (sut/api-post ctx "/echo"
@@ -1559,11 +1589,12 @@
 (defdescribe test-server-logging-test
   "Tests that the test server logs requests properly"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "request logging"
-    {:context [with-playwright with-test-server]}
 
     (it "logs requests to the test server"
-      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request *pw*)
+      (sut/with-api-context [ctx (sut/new-api-context (sut/api-request core/*testing-pw*)
                                    {:base-url *test-server-url*})]
         (sut/api-get ctx "/health")
         (sut/api-post ctx "/echo" {:data "hello"})
@@ -1581,32 +1612,37 @@
 (defdescribe page-api-test
   "Tests for page-api: extracting APIRequestContext from a Page"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "page-api"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (expect-it "returns an APIRequestContext instance"
-      (instance? APIRequestContext (sut/page-api *page*)))
+      (core/with-testing-page [pg]
+        (instance? APIRequestContext (sut/page-api pg))))
 
     (it "makes GET requests that share the page's browser context"
-      (let [api-ctx (sut/page-api *page*)
-            resp    (sut/api-get api-ctx (str *test-server-url* "/health"))]
-        (expect (= 200 (sut/api-response-status resp)))))
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/page-api pg)
+              resp    (sut/api-get api-ctx (str *test-server-url* "/health"))]
+          (expect (= 200 (sut/api-response-status resp))))))
 
     (it "shares cookies with the browser session"
+      (core/with-testing-page [pg]
       ;; Navigate to set a cookie, then verify API sees it
-      (page/navigate *page* (str *test-server-url* "/set-cookie?name=session&value=abc123"))
-      (let [api-ctx (sut/page-api *page*)
-            resp    (sut/api-get api-ctx (str *test-server-url* "/echo"))]
-        (expect (= 200 (sut/api-response-status resp)))
-        (let [body (sut/api-response-text resp)]
-          (expect (some? body)))))
+        (page/navigate pg (str *test-server-url* "/set-cookie?name=session&value=abc123"))
+        (let [api-ctx (sut/page-api pg)
+              resp    (sut/api-get api-ctx (str *test-server-url* "/echo"))]
+          (expect (= 200 (sut/api-response-status resp)))
+          (let [body (sut/api-response-text resp)]
+            (expect (some? body))))))
 
     (it "supports POST with data"
-      (let [api-ctx (sut/page-api *page*)
-            resp    (sut/api-post api-ctx (str *test-server-url* "/echo")
-                      {:data "{\"action\":\"test\"}"
-                       :headers {"Content-Type" "application/json"}})]
-        (expect (= 200 (sut/api-response-status resp)))))))
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/page-api pg)
+              resp    (sut/api-post api-ctx (str *test-server-url* "/echo")
+                        {:data "{\"action\":\"test\"}"
+                         :headers {"Content-Type" "application/json"}})]
+          (expect (= 200 (sut/api-response-status resp))))))))
 
 ;; =============================================================================
 ;; context-api — APIRequestContext from BrowserContext
@@ -1615,33 +1651,37 @@
 (defdescribe context-api-test
   "Tests for context-api: extracting APIRequestContext from a BrowserContext"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "context-api"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (expect-it "returns an APIRequestContext instance"
-      (instance? APIRequestContext (sut/context-api *browser-context*)))
+      (core/with-testing-page [pg]
+        (instance? APIRequestContext (sut/context-api (.context pg)))))
 
     (it "makes GET requests through the browser context"
-      (let [api-ctx (sut/context-api *browser-context*)
-            resp    (sut/api-get api-ctx (str *test-server-url* "/health"))]
-        (expect (= 200 (sut/api-response-status resp)))))
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/context-api (.context pg))
+              resp    (sut/api-get api-ctx (str *test-server-url* "/health"))]
+          (expect (= 200 (sut/api-response-status resp))))))
 
     (it "supports all HTTP methods"
-      (let [api-ctx (sut/context-api *browser-context*)]
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/context-api (.context pg))]
         ;; GET
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-get api-ctx (str *test-server-url* "/health")))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-get api-ctx (str *test-server-url* "/health")))))
         ;; POST
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-post api-ctx (str *test-server-url* "/echo")
-                           {:data "test"}))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-post api-ctx (str *test-server-url* "/echo")
+                             {:data "test"}))))
         ;; PUT
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-put api-ctx (str *test-server-url* "/echo")
-                           {:data "test"}))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-put api-ctx (str *test-server-url* "/echo")
+                             {:data "test"}))))
         ;; DELETE
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-delete api-ctx (str *test-server-url* "/echo")))))))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-delete api-ctx (str *test-server-url* "/echo"))))))))))
 
 ;; =============================================================================
 ;; with-testing-api — All-in-one API testing macro
@@ -1650,8 +1690,9 @@
 (defdescribe with-testing-api-test
   "Tests for with-testing-api: zero-ceremony API testing macro"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic usage"
-    {:context [with-test-server]}
 
     (it "creates a working API context with base-url"
       (sut/with-testing-api {:base-url *test-server-url*} [ctx]
@@ -1680,7 +1721,6 @@
         (expect (instance? APIRequestContext @ctx-ref)))))
 
   (describe "HTTP methods"
-    {:context [with-test-server]}
 
     (it "supports GET"
       (sut/with-testing-api {:base-url *test-server-url*} [ctx]
@@ -1709,7 +1749,6 @@
                          (sut/api-delete ctx "/echo")))))))
 
   (describe "json-encoder"
-    {:context [with-test-server]}
 
     (it "binds *json-encoder* when :json-encoder is provided"
       (sut/with-testing-api {:base-url     *test-server-url*
@@ -1726,7 +1765,6 @@
           (expect (= 200 (sut/api-response-status resp)))))))
 
   (describe "context options"
-    {:context [with-test-server]}
 
     (it "passes extra-http-headers to all requests"
       ;; extra-http-headers is a context option that adds headers to every request
@@ -1743,7 +1781,6 @@
         (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health")))))))
 
   (describe "error handling"
-    {:context [with-test-server]}
 
     (it "handles non-2xx responses gracefully"
       (sut/with-testing-api {:base-url *test-server-url*} [ctx]
@@ -1763,136 +1800,149 @@
 (defdescribe with-page-api-test
   "Tests for with-page-api: API context from page with custom base-url"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic usage"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "creates an APIRequestContext with custom base-url"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-get ctx "/health")]
-          (expect (instance? APIResponse resp))
-          (expect (= 200 (sut/api-response-status resp))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-get ctx "/health")]
+            (expect (instance? APIResponse resp))
+            (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "returns the body expression value"
-      (let [result (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-                     (sut/api-response-status (sut/api-get ctx "/health")))]
-        (expect (= 200 result))))
+      (core/with-testing-page [pg]
+        (let [result (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+                       (sut/api-response-status (sut/api-get ctx "/health")))]
+          (expect (= 200 result)))))
 
     (it "shares cookies from the page's browser context"
+      (core/with-testing-page [pg]
       ;; Navigate to set a cookie via the page
-      (page/navigate *page* (str *test-server-url* "/set-cookie?name=session&value=abc123"))
+        (page/navigate pg (str *test-server-url* "/set-cookie?name=session&value=abc123"))
       ;; API context should have the same cookies
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-get ctx "/echo")]
-          (expect (= 200 (sut/api-response-status resp)))))))
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-get ctx "/echo")]
+            (expect (= 200 (sut/api-response-status resp))))))))
 
   (describe "HTTP methods"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "supports GET"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health"))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health")))))))
 
     (it "supports POST with data"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-post ctx "/echo"
-                     {:data "{\"name\":\"Alice\"}"
-                      :headers {"Content-Type" "application/json"}})]
-          (expect (= 200 (sut/api-response-status resp))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-post ctx "/echo"
+                       {:data "{\"name\":\"Alice\"}"
+                        :headers {"Content-Type" "application/json"}})]
+            (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "supports PUT"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-put ctx "/echo" {:data "update"}))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-put ctx "/echo" {:data "update"})))))))
 
     (it "supports DELETE"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-delete ctx "/echo"))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-delete ctx "/echo")))))))
 
     (it "supports PATCH"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-patch ctx "/echo" {:data "patch"}))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-patch ctx "/echo" {:data "patch"})))))))
 
     (it "supports HEAD"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-head ctx "/health")]
-          (expect (= 200 (sut/api-response-status resp)))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-head ctx "/health")]
+            (expect (= 200 (sut/api-response-status resp))))))))
 
   (describe "json-encoder"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "binds *json-encoder* when :json-encoder is provided"
-      (sut/with-page-api *page* {:base-url     *test-server-url*
-                                 :json-encoder simple-json-encode} [ctx]
-        (let [resp (sut/api-post ctx "/echo" {:json {:name "Alice" :age 30}})]
-          (expect (= 200 (sut/api-response-status resp)))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url     *test-server-url*
+                               :json-encoder simple-json-encode} [ctx]
+          (let [resp (sut/api-post ctx "/echo" {:json {:name "Alice" :age 30}})]
+            (expect (= 200 (sut/api-response-status resp))))))))
 
   (describe "cleanup"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "disposes the API context after body completes"
+      (core/with-testing-page [pg]
       ;; Just verify no exception is thrown and body executes
-      (let [executed? (atom false)]
-        (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-          (reset! executed? true)
-          (sut/api-get ctx "/health"))
-        (expect (true? @executed?)))))
+        (let [executed? (atom false)]
+          (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+            (reset! executed? true)
+            (sut/api-get ctx "/health"))
+          (expect (true? @executed?))))))
 
   (describe "context options"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "accepts extra-http-headers"
-      (sut/with-page-api *page* {:base-url           *test-server-url*
-                                 :extra-http-headers {"X-Test" "value"}} [ctx]
-        (let [resp (sut/api-get ctx "/echo")]
-          (expect (= 200 (sut/api-response-status resp))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url           *test-server-url*
+                               :extra-http-headers {"X-Test" "value"}} [ctx]
+          (let [resp (sut/api-get ctx "/echo")]
+            (expect (= 200 (sut/api-response-status resp)))))))
 
     (it "accepts ignore-https-errors"
-      (sut/with-page-api *page* {:base-url            *test-server-url*
-                                 :ignore-https-errors true} [ctx]
-        (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health")))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url            *test-server-url*
+                               :ignore-https-errors true} [ctx]
+          (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health"))))))))
 
   (describe "error handling"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "handles 404 responses"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-get ctx "/status/404")]
-          (expect (= 404 (sut/api-response-status resp)))
-          (expect (false? (sut/api-response-ok? resp))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-get ctx "/status/404")]
+            (expect (= 404 (sut/api-response-status resp)))
+            (expect (false? (sut/api-response-ok? resp)))))))
 
     (it "handles 500 responses"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-get ctx "/status/500")]
-          (expect (= 500 (sut/api-response-status resp)))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-get ctx "/status/500")]
+            (expect (= 500 (sut/api-response-status resp))))))))
 
   (describe "response inspection"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "can read response text"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp (sut/api-get ctx "/health")
-              body (sut/api-response-text resp)]
-          (expect (some? body))
-          (expect (str/includes? body "ok")))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp (sut/api-get ctx "/health")
+                body (sut/api-response-text resp)]
+            (expect (some? body))
+            (expect (str/includes? body "ok"))))))
 
     (it "can read response headers"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp     (sut/api-get ctx "/health")
-              headers  (sut/api-response-headers resp)
-              ct       (get headers "content-type")]
-          (expect (some? ct))
-          (expect (str/includes? ct "application/json")))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp     (sut/api-get ctx "/health")
+                headers  (sut/api-response-headers resp)
+                ct       (get headers "content-type")]
+            (expect (some? ct))
+            (expect (str/includes? ct "application/json"))))))
 
     (it "can convert response to map"
-      (sut/with-page-api *page* {:base-url *test-server-url*} [ctx]
-        (let [resp  (sut/api-get ctx "/health")
-              m     (sut/api-response->map resp)]
-          (expect (= 200 (:status m)))
-          (expect (true? (:ok? m)))
-          (expect (some? (:body m)))
-          (expect (some? (:headers m))))))))
+      (core/with-testing-page [pg]
+        (sut/with-page-api pg {:base-url *test-server-url*} [ctx]
+          (let [resp  (sut/api-get ctx "/health")
+                m     (sut/api-response->map resp)]
+            (expect (= 200 (:status m)))
+            (expect (true? (:ok? m)))
+            (expect (some? (:body m)))
+            (expect (some? (:headers m)))))))))
 
 ;; =============================================================================
 ;; run-with-page-api — function variant
@@ -1901,21 +1951,24 @@
 (defdescribe run-with-page-api-test
   "Tests for run-with-page-api: functional variant"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic usage"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "works with function argument"
-      (let [result (sut/run-with-page-api *page* {:base-url *test-server-url*}
-                     (fn [ctx]
-                       (sut/api-response-status (sut/api-get ctx "/health"))))]
-        (expect (= 200 result))))
+      (core/with-testing-page [pg]
+        (let [result (sut/run-with-page-api pg {:base-url *test-server-url*}
+                       (fn [ctx]
+                         (sut/api-response-status (sut/api-get ctx "/health"))))]
+          (expect (= 200 result)))))
 
     (it "returns nil for side-effect-only body"
-      (let [result (sut/run-with-page-api *page* {:base-url *test-server-url*}
-                     (fn [ctx]
-                       (sut/api-get ctx "/health")
-                       nil))]
-        (expect (nil? result))))))
+      (core/with-testing-page [pg]
+        (let [result (sut/run-with-page-api pg {:base-url *test-server-url*}
+                       (fn [ctx]
+                         (sut/api-get ctx "/health")
+                         nil))]
+          (expect (nil? result)))))))
 
 ;; =============================================================================
 ;; run-with-testing-api — function variant
@@ -1924,8 +1977,9 @@
 (defdescribe run-with-testing-api-test
   "Tests for run-with-testing-api: functional variant"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "basic usage"
-    {:context [with-test-server]}
 
     (it "works with function argument"
       (let [result (sut/run-with-testing-api {:base-url *test-server-url*}
@@ -1955,38 +2009,44 @@
 (defdescribe page-api-edge-cases-test
   "Additional edge case tests for page-api"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "multiple calls"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "returns same context instance on repeated calls"
-      (let [ctx1 (sut/page-api *page*)
-            ctx2 (sut/page-api *page*)]
-        (expect (identical? ctx1 ctx2))))
+      (core/with-testing-page [pg]
+        (let [ctx1 (sut/page-api pg)
+              ctx2 (sut/page-api pg)]
+          (expect (identical? ctx1 ctx2)))))
 
     (it "can make multiple requests with same context"
-      (let [api-ctx (sut/page-api *page*)]
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-get api-ctx (str *test-server-url* "/health")))))
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-get api-ctx (str *test-server-url* "/echo")))))))))
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/page-api pg)]
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-get api-ctx (str *test-server-url* "/health")))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-get api-ctx (str *test-server-url* "/echo"))))))))))
 
 (defdescribe context-api-edge-cases-test
   "Additional edge case tests for context-api"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "multiple calls"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "returns same context instance on repeated calls"
-      (let [ctx1 (sut/context-api *browser-context*)
-            ctx2 (sut/context-api *browser-context*)]
-        (expect (identical? ctx1 ctx2))))
+      (core/with-testing-page [pg]
+        (let [ctx1 (sut/context-api (.context pg))
+              ctx2 (sut/context-api (.context pg))]
+          (expect (identical? ctx1 ctx2)))))
 
     (it "can make multiple requests with same context"
-      (let [api-ctx (sut/context-api *browser-context*)]
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-get api-ctx (str *test-server-url* "/health")))))
-        (expect (= 200 (sut/api-response-status
-                         (sut/api-post api-ctx (str *test-server-url* "/echo") {:data "test"}))))))))
+      (core/with-testing-page [pg]
+        (let [api-ctx (sut/context-api (.context pg))]
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-get api-ctx (str *test-server-url* "/health")))))
+          (expect (= 200 (sut/api-response-status
+                           (sut/api-post api-ctx (str *test-server-url* "/echo") {:data "test"})))))))))
 
 ;; =============================================================================
 ;; with-testing-api — additional edge cases
@@ -1995,8 +2055,9 @@
 (defdescribe with-testing-api-edge-cases-test
   "Additional edge case tests for with-testing-api"
 
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
   (describe "query parameters"
-    {:context [with-test-server]}
 
     (it "passes query params correctly"
       (sut/with-testing-api {:base-url *test-server-url*} [ctx]
@@ -2006,11 +2067,10 @@
           (expect (str/includes? body "foo=bar"))))))
 
   (describe "nested bindings"
-    {:context [with-playwright with-test-server]}
 
     (it "can nest with-api-context inside with-testing-api"
       (sut/with-testing-api {:base-url *test-server-url*} [ctx]
-        (sut/with-api-context [ctx2 (sut/new-api-context (sut/api-request *pw*)
+        (sut/with-api-context [ctx2 (sut/new-api-context (sut/api-request core/*testing-pw*)
                                       {:base-url *test-server-url*})]
           (expect (= 200 (sut/api-response-status (sut/api-get ctx "/health"))))
           (expect (= 200 (sut/api-response-status (sut/api-get ctx2 "/health")))))))))

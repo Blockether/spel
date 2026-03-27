@@ -4,7 +4,7 @@
  {com.microsoft.playwright/playwright {:mvn/version "1.58.0"}
   com.blockether/anomaly              {:mvn/version "1.0.1"}
   org.babashka/sci                    {:mvn/version "0.8.43"}
-  com.cnuernber/charred                {:mvn/version "1.038"}
+  com.cnuernber/charred               {:mvn/version "1.038"}
   io.github.noahtheduke/lazytest      {:mvn/version "1.9.1"}}
 
  :aliases
@@ -29,8 +29,11 @@
            :main-opts   ["-m" "lazytest.main" "--dir" "test-e2e"]}
 
   :test-ct  {:extra-paths ["test"]
+             :extra-deps  {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
              :jvm-opts    ["-Dallure.clojure-test.enabled=true"]
-             :main-opts   ["-e" "(require 'com.blockether.spel.ct.smoke-test 'com.blockether.spel.ct.markdown-test 'com.blockether.spel.ct.data-test 'com.blockether.spel.ct.testing-page-test) (let [{:keys [fail error]} (clojure.test/run-tests 'com.blockether.spel.ct.smoke-test 'com.blockether.spel.ct.markdown-test 'com.blockether.spel.ct.data-test 'com.blockether.spel.ct.testing-page-test)] (when (pos? (+ fail error)) (System/exit 1)))"]}
+             :main-opts   ["-m" "cognitect.test-runner"
+                           "--dir" "test"
+                           "--namespace-regex" "com\\.blockether\\.spel\\.ct\\..*"]}
 
   :native {:extra-deps {com.github.clj-easy/graal-build-time {:mvn/version "1.0.5"}}
            :jvm-opts   ["-Dclojure.compiler.direct-linking=true"]}}}

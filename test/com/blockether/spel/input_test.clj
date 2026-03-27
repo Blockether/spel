@@ -1,11 +1,11 @@
 (ns com.blockether.spel.input-test
   "Tests for the input namespace - keyboard and mouse operations."
   (:require
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.input :as sut]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.test-fixtures :refer [*page* with-playwright with-browser with-page]]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it before-each]])
+   [com.blockether.spel.allure :refer [defdescribe describe expect it around]])
   (:import
    [com.microsoft.playwright Keyboard Mouse]))
 
@@ -26,43 +26,41 @@
 
 (defdescribe keyboard-test
   "Tests for keyboard operations (key-type, key-press)"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "keyboard instance"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "page-keyboard returns Keyboard instance"
-      (let [kb (page/page-keyboard *page*)]
-        (expect (instance? Keyboard kb)))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [kb (page/page-keyboard pg)]
+          (expect (instance? Keyboard kb))))))
 
   (describe "key-type"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "types text into a focused input"
-      (let [input (page/locator *page* "#text-input")
-            kb (page/page-keyboard *page*)]
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [input (page/locator pg "#text-input")
+              kb (page/page-keyboard pg)]
         ;; Click to focus the input
-        (locator/click input)
+          (locator/click input)
         ;; Type text
-        (sut/key-type kb "Hello World")
+          (sut/key-type kb "Hello World")
         ;; Verify input value
-        (expect (= "Hello World" (locator/input-value input))))))
+          (expect (= "Hello World" (locator/input-value input)))))))
 
   (describe "key-press"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "presses Enter key"
-      (let [input (page/locator *page* "#text-input")
-            kb (page/page-keyboard *page*)]
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [input (page/locator pg "#text-input")
+              kb (page/page-keyboard pg)]
         ;; Click to focus the input
-        (locator/click input)
+          (locator/click input)
         ;; Press Enter (no error means success)
-        (expect (nil? (sut/key-press kb "Enter")))))))
+          (expect (nil? (sut/key-press kb "Enter"))))))))
 
 ;; =============================================================================
 ;; Mouse Tests
@@ -70,30 +68,29 @@
 
 (defdescribe mouse-test
   "Tests for mouse operations (mouse-click)"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "mouse instance"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "page-mouse returns Mouse instance"
-      (let [mouse (page/page-mouse *page*)]
-        (expect (instance? Mouse mouse)))))
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [mouse (page/page-mouse pg)]
+          (expect (instance? Mouse mouse))))))
 
   (describe "mouse-click"
-    {:context [with-playwright with-browser with-page]}
-    (before-each
-      (page/set-content! *page* test-html))
 
     (it "clicks at coordinates"
-      (let [btn      (page/locator *page* "#click-btn")
-            mouse    (page/page-mouse *page*)
-            bb       (locator/bounding-box btn)
-            center-x (+ (:x bb) (/ (:width bb) 2))
-            center-y (+ (:y bb) (/ (:height bb) 2))]
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (let [btn      (page/locator pg "#click-btn")
+              mouse    (page/page-mouse pg)
+              bb       (locator/bounding-box btn)
+              center-x (+ (:x bb) (/ (:width bb) 2))
+              center-y (+ (:y bb) (/ (:height bb) 2))]
         ;; Click at the center of the button
-        (sut/mouse-click mouse center-x center-y)
+          (sut/mouse-click mouse center-x center-y)
         ;; Wait a bit for the click to take effect
-        (page/wait-for-timeout *page* 100)
+          (page/wait-for-timeout pg 100)
         ;; Verify the click had an effect
-        (expect (= "clicked" (locator/text-content (page/locator *page* "#result"))))))))
+          (expect (= "clicked" (locator/text-content (page/locator pg "#result")))))))))

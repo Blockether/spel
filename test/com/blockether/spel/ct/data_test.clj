@@ -3,42 +3,36 @@
 
    Demonstrates clojure.test + Playwright browser lifecycle + Allure
    reporting working together."
-  #_{:clj-kondo/ignore [:unused-namespace]}
   (:require
    [clojure.datafy :refer [datafy]]
-   [clojure.test :refer [deftest testing is use-fixtures]]
+   [clojure.test :refer [deftest testing is]]
    [com.blockether.spel.core :as core] ;; auto-loads data.clj
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures :refer [*page* *browser* with-playwright
-                                              with-browser with-page
-                                              ct-fixture]])
+   [com.blockether.spel.page :as page])
   (:import
    [com.microsoft.playwright PlaywrightException TimeoutError]))
 
-;; Playwright + browser shared across all tests
-;; ct-fixture extracts the plain fn from Lazytest around hooks
-(use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
-
-;; Fresh page per test (with-allure-context injected automatically by run-ct-tests!)
-(use-fixtures :each (ct-fixture with-page))
+(clojure.test/use-fixtures :once (fn [f] (core/with-testing-browser (f))))
 
 (deftest datafy-page-test
   (testing "Page datafy returns expected keys"
-    (page/set-content! *page* "<title>CT Test</title><body>hello</body>")
-    (let [d (datafy *page*)]
-      (is (= :page (:playwright/type d)))
-      (is (string? (:page/url d)))
-      (is (= "CT Test" (:page/title d)))
-      (is (false? (:page/closed? d)))
-      (is (map? (:page/viewport d))))))
+    (core/with-testing-page [pg]
+      (page/set-content! pg "<title>CT Test</title><body>hello</body>")
+      (let [d (datafy pg)]
+        (is (= :page (:playwright/type d)))
+        (is (string? (:page/url d)))
+        (is (= "CT Test" (:page/title d)))
+        (is (false? (:page/closed? d)))
+        (is (map? (:page/viewport d)))))))
 
 (deftest datafy-browser-test
   (testing "Browser datafy returns expected keys"
-    (let [d (datafy *browser*)]
-      (is (= :browser (:playwright/type d)))
-      (is (string? (:browser/version d)))
-      (is (true? (:browser/connected? d)))
-      (is (= "chromium" (:browser/type d))))))
+    (core/with-testing-page [pg]
+      (let [browser (.browser (.context pg))
+            d (datafy browser)]
+        (is (= :browser (:playwright/type d)))
+        (is (string? (:browser/version d)))
+        (is (true? (:browser/connected? d)))
+        (is (= "chromium" (:browser/type d)))))))
 
 (deftest datafy-exception-test
   (testing "PlaywrightException datafy"

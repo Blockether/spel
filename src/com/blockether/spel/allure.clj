@@ -30,6 +30,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [clojure.test :as ct]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.visual-diff :as visual-diff-core]
@@ -1378,3 +1379,111 @@
    :steps       []
    :step-stack  []
    :description nil})
+
+;; =============================================================================
+;; clojure.test Re-exports — single-require with auto Allure steps
+;; =============================================================================
+;;
+;; Re-exports clojure.test primitives with automatic Allure step injection.
+;; Test files that prefer clojure.test can use:
+;;
+;;   (:require [com.blockether.spel.allure :refer [deftest testing is are]])
+;;
+;; and get the same nested step hierarchy as Lazytest users.
+;;
+;; `testing` blocks become named Allure steps (nesting supported).
+;; `is` assertions become individual pass/fail steps.
+;;
+;; When not running under the Allure reporter (*context* is nil), all wrappers
+;; delegate directly to clojure.test with zero overhead.
+
+(defmacro deftest
+  "Like `clojure.test/deftest` — defines a test function.
+
+   No extra Allure step is injected: the test name is already visible
+   as the top-level test case in the Allure report."
+  {:arglists '([name & body])}
+  [name & body]
+  `(ct/deftest ~name ~@body))
+
+(defmacro testing
+  "Like `clojure.test/testing` with automatic Allure step nesting.
+
+   Wraps the body in an Allure step named after the doc string.
+   Nested `testing` blocks produce nested steps automatically.
+
+   When not running under the Allure reporter, the step call is a
+   no-op — just `(clojure.test/testing str body)` — so there is zero
+   runtime overhead."
+  {:arglists '([string & body])}
+  [string & body]
+  (let [loc-line (-> &form meta :line)]
+    `(ct/testing ~string
+       (step* ~string (fn [] ~@body)
+         {:file ~*file* :line ~loc-line}))))
+
+(defmacro is
+  "Like `clojure.test/is` with automatic Allure step wrapping.
+
+   Each assertion renders as a named step in the Allure report with its
+   own pass/fail status. The step name is derived from the source
+   expression (or the custom message when provided).
+
+   When `is` fails, clojure.test reports the failure normally and the
+   Allure step is marked 'failed'. When not running under the Allure
+   reporter, delegates directly to `clojure.test/is` with zero overhead.
+
+   With custom message:
+
+     (is (= 1 2) \"numbers should be equal\")
+     ;; Step name: \"expect: numbers should be equal\""
+  ([form]
+   (let [form-str (pr-str form)
+         loc-line (-> &form meta :line)]
+     `(if-not *context*
+        (ct/is ~form)
+        (try
+          (step* ~(str "expect: " form-str)
+            (fn []
+              (let [result# (ct/is ~form)]
+                (when-not result#
+                  (throw (ex-info "Assertion failed" {::ct-assertion-step true})))
+                result#))
+            {:file ~*file* :line ~loc-line})
+          (catch clojure.lang.ExceptionInfo e#
+            (if (::ct-assertion-step (ex-data e#))
+              nil
+              (throw e#)))))))
+  ([form msg]
+   (let [form-str (pr-str form)
+         loc-line (-> &form meta :line)]
+     `(if-not *context*
+        (ct/is ~form ~msg)
+        (let [msg# ~msg]
+          (try
+            (step* (if msg# (str "expect: " msg#) ~(str "expect: " form-str))
+              (fn []
+                (let [result# (ct/is ~form msg#)]
+                  (when-not result#
+                    (throw (ex-info "Assertion failed" {::ct-assertion-step true})))
+                  result#))
+              {:file ~*file* :line ~loc-line})
+            (catch clojure.lang.ExceptionInfo e#
+              (if (::ct-assertion-step (ex-data e#))
+                nil
+                (throw e#)))))))))
+
+(defmacro are
+  "Like `clojure.test/are` — tabular assertion macro.
+
+   Note: `are` generates `clojure.test/is` calls internally, so
+   individual assertions do NOT produce allure steps. Wrap in a
+   `testing` block for named grouping in the Allure report:
+
+     (testing \"boundary values\"
+       (are [x y] (= x y)
+         1 1
+         2 2))"
+  {:arglists '([argv expr & args])}
+  [argv expr & args]
+  `(ct/are ~argv ~expr ~@args))

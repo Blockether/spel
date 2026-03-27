@@ -1,10 +1,10 @@
-(ns com.blockether.spel.allure-ct-reporter-test
-  "Tests for allure-ct-reporter parity functions."
+(ns com.blockether.spel.allure-reporter-ct-test
+  "Tests for allure-reporter clojure.test parity functions."
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.allure-ct-reporter :as ct-reporter])
+   [com.blockether.spel.allure-reporter :as reporter])
   (:import
    [java.io File]
    [java.nio.file Files]
@@ -14,10 +14,10 @@
 ;; Private fn accessors
 ;; =============================================================================
 
-(def ^:private common-testing-context @#'ct-reporter/common-testing-context)
-(def ^:private build-display-name @#'ct-reporter/build-display-name)
-(def ^:private build-labels @#'ct-reporter/build-labels)
-(def ^:private write-environment-properties! @#'ct-reporter/write-environment-properties!)
+(def ^:private common-testing-context @#'reporter/common-testing-context)
+(def ^:private build-display-name @#'reporter/ct-build-display-name)
+(def ^:private build-labels @#'reporter/ct-build-labels)
+(def ^:private write-environment-properties! @#'reporter/write-environment-properties!)
 
 ;; =============================================================================
 ;; Helpers

@@ -931,9 +931,133 @@
       :har         (resolve 'com.blockether.spel.allure/*har-path*)
       :title       (resolve 'com.blockether.spel.allure/*test-title*)}]))
 
+;; =============================================================================
+;; Shared Testing Browser
+;; =============================================================================
+
+(def ^:dynamic *testing-pw*
+  "Dynamic var holding a shared Playwright instance created by `with-testing-browser`.
+   Bound automatically — do not bind manually."
+  nil)
+
+(def ^:dynamic *testing-browser*
+  "Dynamic var holding a shared Browser instance created by `with-testing-browser`.
+   When bound, `with-testing-page` reuses this browser instead of launching a new one.
+   Bound automatically — do not bind manually."
+  nil)
+
+(defn testing-interactive?
+  "Returns true when tests should run in interactive (headed) mode.
+   Checks system property `spel.interactive` first, then env var `SPEL_INTERACTIVE`.
+   Any truthy string value (e.g. \"true\", \"1\", \"yes\") enables interactive mode.
+
+   Usage:
+     clojure -J-Dspel.interactive=true -M:test
+     SPEL_INTERACTIVE=true clojure -M:test"
+  []
+  (some? (or (System/getProperty "spel.interactive")
+           (System/getenv "SPEL_INTERACTIVE"))))
+
+(defn testing-slow-mo
+  "Returns the slow-mo delay in milliseconds for browser actions.
+   Checks system property `spel.slow-mo` first, then env var `SPEL_SLOW_MO`.
+   Returns 0 when unset.
+
+   Usage:
+     clojure -J-Dspel.slow-mo=500 -J-Dspel.interactive=true -M:test
+     SPEL_SLOW_MO=500 SPEL_INTERACTIVE=true clojure -M:test"
+  []
+  (let [v (or (System/getProperty "spel.slow-mo")
+            (System/getenv "SPEL_SLOW_MO"))]
+    (if v (parse-long v) 0)))
+
+(defn testing-browser-engine
+  "Returns the browser engine keyword to launch.
+   Checks system property `spel.browser` first, then env var `SPEL_BROWSER`.
+   Returns :chromium when unset. Supported: :chromium, :firefox, :webkit.
+
+   Usage:
+     clojure -J-Dspel.browser=firefox -M:test
+     SPEL_BROWSER=webkit clojure -M:test"
+  []
+  (let [v (or (System/getProperty "spel.browser")
+            (System/getenv "SPEL_BROWSER"))]
+    (if v (keyword v) :chromium)))
+
+(defn run-with-testing-browser
+  "Functional core of `with-testing-browser`. Creates a Playwright instance and
+   launches a browser, then calls `(f)` with both bound to dynamic vars.
+
+   Opts (merged with env-var defaults):
+     :browser-type    - :chromium (default), :firefox, or :webkit
+     :headless        - Boolean (default: true, or false when SPEL_INTERACTIVE is set)
+     :slow-mo         - Millis to slow down operations (default from SPEL_SLOW_MO)
+     :args            - Vector of additional browser launch args
+     :executable-path - String. Path to browser executable.
+     :channel         - String. Browser channel (e.g. \"chrome\", \"msedge\").
+     :timeout         - Double. Max time in ms to wait for browser launch.
+     :chromium-sandbox - Boolean. Enable Chromium sandbox."
+  [opts f]
+  (let [;; Merge env-var defaults under explicit opts
+        effective (merge {:browser-type (testing-browser-engine)
+                         :headless     (not (testing-interactive?))}
+                   (when (pos? (long (testing-slow-mo)))
+                     {:slow-mo (testing-slow-mo)})
+                   opts)
+        launch-opts (resolve-launch-opts effective)
+        launch-fn   (resolve-launcher (:browser-type effective))]
+    (with-playwright [pw]
+      (let [browser (ensure-not-anomaly!
+                      (if (seq launch-opts)
+                        (launch-fn pw launch-opts)
+                        (launch-fn pw)))]
+        (try
+          (binding [*testing-pw*      pw
+                    *testing-browser* browser]
+            (f))
+          (finally
+            (close-browser! browser)))))))
+
+(defmacro with-testing-browser
+  "All-in-one macro that creates a shared Playwright + Browser for a group of tests.
+
+   When active, `with-testing-page` reuses the browser instead of launching a new
+   one per test — giving you fast per-test page isolation with shared browser.
+
+   Respects env-var / system-property defaults:
+     SPEL_INTERACTIVE / spel.interactive — headed mode
+     SPEL_SLOW_MO    / spel.slow-mo     — action delay in ms
+     SPEL_BROWSER    / spel.browser     — chromium|firefox|webkit
+
+   Usage:
+     ;; Lazytest: shared browser per namespace
+     (defdescribe my-tests
+       (around [f] (core/with-testing-browser (f)))
+       (it \"test\"
+         (core/with-testing-page [pg]
+           (page/navigate pg \"https://example.org\"))))
+
+     ;; clojure.test: shared browser per namespace
+     (use-fixtures :once (fn [f] (core/with-testing-browser (f))))
+     (deftest my-test
+       (core/with-testing-page [pg]
+         (page/navigate pg \"https://example.org\")))
+
+     ;; With custom opts
+     (core/with-testing-browser {:headless false :slow-mo 100}
+       body...)"
+  [maybe-opts & body]
+  (if (map? maybe-opts)
+    `(run-with-testing-browser ~maybe-opts (fn [] ~@body))
+    `(run-with-testing-browser {} (fn [] ~maybe-opts ~@body))))
+
 (defn run-with-testing-page
   "Functional core of `with-testing-page`. Sets up a complete Playwright stack
    and calls `(f page)`.
+
+   When `*testing-browser*` is bound (from `with-testing-browser`), reuses that
+   browser — only creating a fresh context + page. This gives per-test isolation
+   with shared browser startup cost.
 
    Two modes:
    - **Normal** (no :profile): playwright → launch browser → new-context → page
@@ -966,43 +1090,56 @@
   [opts f]
   (let [[allure-active? allure-vars] (resolve-allure-vars)
         profile      (:profile opts)
-        launch-opts  (resolve-launch-opts opts)
         ctx-opts     (resolve-context-opts opts)]
-    (with-playwright [pw]
-      (if profile
-        ;; Persistent context mode: launch-persistent-context returns BrowserContext directly
-        (let [bt-fn    (resolve-browser-type (:browser-type opts))
-              bt       (bt-fn pw)
-              combined (merge launch-opts ctx-opts)
+    (if (and *testing-browser* (not profile))
+      ;; Reuse shared browser from with-testing-browser
+      (if (allure-active?)
+        (let [har-file (File/createTempFile "pw-har-" ".har")
               ctx      (ensure-not-anomaly!
-                         (if (allure-active?)
-                           (let [har-file (File/createTempFile "pw-har-" ".har")]
-                             (launch-persistent-context bt profile
-                               (merge combined
-                                 {:record-har-path (str har-file)
-                                  :record-har-mode :full})))
-                           (if (seq combined)
-                             (launch-persistent-context bt profile combined)
-                             (launch-persistent-context bt profile))))]
-          (if (allure-active?)
-            (run-traced-page ctx allure-vars f)
-            (run-plain-page ctx (:page allure-vars) f)))
-        ;; Normal mode: launch browser → new-context → page
-        (let [launch-fn (resolve-launcher (:browser-type opts))]
-          (with-browser [browser (ensure-not-anomaly!
-                                   (if (seq launch-opts)
-                                     (launch-fn pw launch-opts)
-                                     (launch-fn pw)))]
-            (if (allure-active?)
-              (let [har-file (File/createTempFile "pw-har-" ".har")
-                    ctx      (ensure-not-anomaly!
-                               (new-context browser
-                                 (merge ctx-opts
-                                   {:record-har-path (str har-file)
-                                    :record-har-mode :full})))]
-                (run-traced-page ctx allure-vars f))
-              (let [ctx (ensure-not-anomaly! (new-context browser (or ctx-opts {})))]
-                (run-plain-page ctx (:page allure-vars) f)))))))))
+                         (new-context *testing-browser*
+                           (merge ctx-opts
+                             {:record-har-path (str har-file)
+                              :record-har-mode :full})))]
+          (run-traced-page ctx allure-vars f))
+        (let [ctx (ensure-not-anomaly! (new-context *testing-browser* (or ctx-opts {})))]
+          (run-plain-page ctx (:page allure-vars) f)))
+      ;; Standalone: create full stack
+      (let [launch-opts (resolve-launch-opts opts)]
+        (with-playwright [pw]
+          (if profile
+            ;; Persistent context mode
+            (let [bt-fn    (resolve-browser-type (:browser-type opts))
+                  bt       (bt-fn pw)
+                  combined (merge launch-opts ctx-opts)
+                  ctx      (ensure-not-anomaly!
+                             (if (allure-active?)
+                               (let [har-file (File/createTempFile "pw-har-" ".har")]
+                                 (launch-persistent-context bt profile
+                                   (merge combined
+                                     {:record-har-path (str har-file)
+                                      :record-har-mode :full})))
+                               (if (seq combined)
+                                 (launch-persistent-context bt profile combined)
+                                 (launch-persistent-context bt profile))))]
+              (if (allure-active?)
+                (run-traced-page ctx allure-vars f)
+                (run-plain-page ctx (:page allure-vars) f)))
+            ;; Normal standalone mode
+            (let [launch-fn (resolve-launcher (:browser-type opts))]
+              (with-browser [browser (ensure-not-anomaly!
+                                       (if (seq launch-opts)
+                                         (launch-fn pw launch-opts)
+                                         (launch-fn pw)))]
+                (if (allure-active?)
+                  (let [har-file (File/createTempFile "pw-har-" ".har")
+                        ctx      (ensure-not-anomaly!
+                                   (new-context browser
+                                     (merge ctx-opts
+                                       {:record-har-path (str har-file)
+                                        :record-har-mode :full})))]
+                    (run-traced-page ctx allure-vars f))
+                  (let [ctx (ensure-not-anomaly! (new-context browser (or ctx-opts {})))]
+                    (run-plain-page ctx (:page allure-vars) f)))))))))))
 
 (defmacro with-testing-page
   "All-in-one macro for quick browser testing with automatic resource management.

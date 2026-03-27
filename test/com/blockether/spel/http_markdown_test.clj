@@ -11,12 +11,10 @@
    - `flush-network-steps!` creates markdown attachments
    - Network auto-capture through with-page fixture"
   (:require
+   [com.blockether.spel.core :as core]
    [clojure.string :as str]
-   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.core :as api]
+   [com.blockether.spel.allure :as allure :refer [defdescribe describe expect it around]]
    [com.blockether.spel.page :as page]
-   [com.blockether.spel.test-fixtures
-    :refer [*page* *browser-api* with-browser with-page with-playwright]]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]))
 
@@ -26,6 +24,7 @@
 
 (defdescribe render-http-markdown-test
   "Tests for render-http-markdown output"
+  (around [f] (core/with-testing-browser (f)))
 
   (describe "full exchange with all sections"
 
@@ -226,26 +225,26 @@
 
 (defdescribe api-step-markdown-test
   "Integration: api-step attaches Markdown for API requests"
+  (around [f] (core/with-testing-browser (f)))
+  (around [f] ((:around with-test-server) f))
 
   (describe "API GET with api-step"
-    {:context [with-playwright with-test-server]}
 
     (it "api-step returns the APIResponse"
-      (api/with-testing-api {:base-url *test-server-url*} [ctx]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/api-step "GET /health"
-                     (api/api-get ctx "/health"))]
-          (expect (= 200 (api/api-response-status resp))))))
+                     (core/api-get ctx "/health"))]
+          (expect (= 200 (core/api-response-status resp))))))
 
     (it "api-step with POST returns the APIResponse"
-      (api/with-testing-api {:base-url *test-server-url*} [ctx]
+      (core/with-testing-api {:base-url *test-server-url*} [ctx]
         (let [resp (allure/api-step "POST /echo"
-                     (api/api-post ctx "/echo"
+                     (core/api-post ctx "/echo"
                        {:data    "{\"hello\":\"world\"}"
                         :headers {"Content-Type" "application/json"}}))]
-          (expect (= 200 (api/api-response-status resp)))))))
+          (expect (= 200 (core/api-response-status resp)))))))
 
   (describe "api-step with non-response result"
-    {:context [with-playwright with-test-server]}
 
     (it "api-step with non-response body is a no-op for attachment"
       (let [result (allure/api-step "Compute something"
@@ -258,15 +257,17 @@
 
 (defdescribe api-step-browser-response-test
   "Integration: api-step attaches Markdown for browser network Response"
+  (around [f] (core/with-testing-browser (f)))
+  (around [f] ((:around with-test-server) f))
 
   (describe "browser Response with api-step"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "api-step captures browser Response"
-      (let [resp (allure/api-step "Navigate to health"
-                   (page/wait-for-response *page* "**/health"
-                     #(page/navigate *page* (str *test-server-url* "/health"))))]
-        (expect (= 200 (.status resp)))))))
+      (core/with-testing-page [pg]
+        (let [resp (allure/api-step "Navigate to health"
+                     (page/wait-for-response pg "**/health"
+                       #(page/navigate pg (str *test-server-url* "/health"))))]
+          (expect (= 200 (.status resp))))))))
 
 ;; =============================================================================
 ;; Integration tests — flush-network-steps!
@@ -274,6 +275,7 @@
 
 (defdescribe flush-network-steps-markdown-test
   "Tests for flush-network-steps! with Markdown attachments"
+  (around [f] (core/with-testing-browser (f)))
 
   (it "is a no-op when *network-log* is nil"
     (binding [allure/*network-log* nil]
@@ -306,19 +308,22 @@
 
 (defdescribe network-capture-integration-markdown-test
   "Integration: with-page fixture auto-captures network calls"
+  (around [f] (core/with-testing-browser (f)))
+  (around [f] ((:around with-test-server) f))
 
   (describe "auto-capture with with-page"
-    {:context [with-playwright with-browser with-page with-test-server]}
 
     (it "navigating to a page captures network activity"
-      (page/navigate *page* (str *test-server-url* "/health"))
-      (page/wait-for-load-state *page*)
-      ;; Verify the *network-log* dynamic var is bound
-      ;; (bound to an atom when allure reporter is active,
-      ;;  nil when not active — both are valid)
-      (expect true))
+      (core/with-testing-page [pg]
+        (page/navigate pg (str *test-server-url* "/health"))
+        (page/wait-for-load-state pg)
+        ;; Verify the *network-log* dynamic var is bound
+        ;; (bound to an atom when allure reporter is active,
+        ;;  nil when not active — both are valid)
+        (expect true)))
 
-    (it "API calls through *browser-api* work correctly"
-      (let [resp (api/api-get *browser-api*
-                   (str *test-server-url* "/health"))]
-        (expect (= 200 (api/api-response-status resp)))))))
+    (it "API calls through (.request (.context pg)) work correctly"
+      (core/with-testing-page [pg]
+        (let [resp (core/api-get (.request (.context pg))
+                     (str *test-server-url* "/health"))]
+          (expect (= 200 (core/api-response-status resp))))))))
