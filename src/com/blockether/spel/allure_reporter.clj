@@ -1060,11 +1060,17 @@
     (catch Exception _ false)))
 
 (defn- run-proc!
-  "Run a command with inherited IO and return the exit code."
+  "Run a command with inherited IO and return the exit code.
+   When SPEL_ALLURE_CWD is set, uses it as the working directory for the process.
+   Useful on read-only filesystems (e.g. AWS Lambda) where allure plugins
+   try to write to CWD."
   [cmd]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (vec cmd)) (.inheritIO))
-        proc (.start pb)]
-    (.waitFor proc)))
+  (let [pb (doto (ProcessBuilder. ^java.util.List (vec cmd)) (.inheritIO))]
+    (when-let [cwd (or (System/getProperty "spel.allure.cwd")
+                       (System/getenv "SPEL_ALLURE_CWD"))]
+      (.directory pb (java.io.File. cwd)))
+    (let [proc (.start pb)]
+      (.waitFor proc))))
 
 (defn- resolve-allure-cmd!
   "Determine how to invoke the Allure CLI.  Tries in order:
