@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.9] - 2026-03-29
+
+### Changed
+- docs: document SPEL_ALLURE_CWD env var for read-only filesystems
+- fix: support SPEL_ALLURE_CWD for allure on read-only filesystems
+- release: update version files for v0.7.8, bump to next dev version
+
+
 ## [v0.7.8] - 2026-03-29
 
 ### Changed
@@ -1392,7 +1400,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.8...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.9...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1447,3 +1455,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.6]: https://github.com/Blockether/spel/releases/tag/v0.7.6
 [v0.7.7]: https://github.com/Blockether/spel/releases/tag/v0.7.7
 [v0.7.8]: https://github.com/Blockether/spel/releases/tag/v0.7.8
+[v0.7.9]: https://github.com/Blockether/spel/releases/tag/v0.7.9
