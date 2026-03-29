@@ -341,6 +341,7 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 |---------|---------------|-------------|
 | `SPEL_INTERACTIVE` | — | Set to `true` for headed mode in test fixtures |
 | `SPEL_SLOW_MO` | — | Slow motion delay in ms for test fixtures |
+| `SPEL_ALLURE_CWD` | — | Working directory for Allure CLI process (set to `/tmp` on read-only filesystems like AWS Lambda) |
 
 **Daemon Lifecycle**
 

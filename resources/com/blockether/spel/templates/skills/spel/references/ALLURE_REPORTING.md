@@ -162,6 +162,7 @@ clojure -M:test --output nested \
 | `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto: "spel vX.Y.Z")_ | Report title (shown in header and history) |
 | `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history |
 | `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
+| `spel.allure.cwd` | `SPEL_ALLURE_CWD` | _(inherit)_ | Working directory for Allure CLI process (set to `/tmp` on read-only filesystems like AWS Lambda) |
 
 ### Version in build listings
 
