@@ -9,6 +9,8 @@
   (:import
    [com.microsoft.playwright APIRequestContext]))
 
+(clojure.test/use-fixtures :each ts/with-test-server)
+
 ;; page-api
 
 (deftest page-api-basic-test
