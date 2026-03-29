@@ -2,8 +2,9 @@
   "Allure 3 reporter for Lazytest with embedded Playwright trace viewer.
 
    Writes JSON result files to allure-results/, then automatically generates
-   the full HTML report to allure-report/ using Allure 3 CLI (pinned to 3.2.0
-   via npx). The report embeds a local Playwright trace viewer so trace
+   the full HTML report to allure-report/ using Allure 3 CLI (prefers a global
+   install, falls back to npx with pinned 3.2.0). The report embeds a local
+   Playwright trace viewer so trace
    attachments load instantly without trace.playwright.dev.
 
    Usage:
@@ -1067,25 +1068,25 @@
 
 (defn- resolve-allure-cmd!
   "Determine how to invoke the Allure CLI.  Tries in order:
-     1. npx with pinned version  (preferred — reproducible)
-     2. Global `allure` binary   (fallback — version may differ)
+     1. Global `allure` binary   (preferred — no npx overhead, works on read-only FS)
+     2. npx with pinned version  (fallback — reproducible version)
      3. Install via npm globally (last resort)
    Returns a vector of command parts, or nil when unavailable."
   []
   (cond
-    ;; 1. npx available → always use the pinned version
+    ;; 1. Global allure on PATH — fast, no npx cache writes (works on read-only FS)
+    (cmd-exists? "allure")
+    (do (println "  Using globally installed allure")
+        ["allure"])
+
+    ;; 2. npx available → use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
         ["npx" "--yes" allure-npm-pkg])
 
-    ;; 2. Global allure on PATH
-    (cmd-exists? "allure")
-    (do (println "  Using globally installed allure (version may differ from pinned)")
-        ["allure"])
-
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
-    (do (println (str "  Neither npx nor allure found. Installing " allure-npm-pkg " globally..."))
+    (do (println (str "  Neither allure nor npx found. Installing " allure-npm-pkg " globally..."))
         (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
           (do (println (str "  Installed " allure-npm-pkg " successfully."))
               ["allure"])
@@ -1094,7 +1095,7 @@
 
     ;; 4. Nothing available
     :else
-    (do (println "  x Cannot generate report: npx, allure, and npm are all missing.")
+    (do (println "  x Cannot generate report: allure, npx, and npm are all missing.")
         (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
         nil)))
 
