@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.8] - 2026-03-29
+
+### Changed
+- fix: prefer globally installed allure CLI over npx
+- fix: add missing with-test-server fixture to ct/api_test
+- fix: compose around hooks correctly in cli integration tests
+- refactor: unify allure reporters and migrate tests to with-testing-page
+- docs: rewrite README for clarity and restore testing coverage
+- ci(release): shallow clone + targeted fetch to skip gh-pages download
+- ci: reuse CI native image artifacts in release — only build linux-arm64
+- fix(test): restore session idle timeout after daemon_test to prevent mid-test daemon kill
+- release: update version files for v0.7.7, bump to next dev version
+
+
 ## [v0.7.7] - 2026-03-18
 
 ### Changed
@@ -1378,7 +1392,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.7...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.8...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1432,3 +1446,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.5]: https://github.com/Blockether/spel/releases/tag/v0.7.5
 [v0.7.6]: https://github.com/Blockether/spel/releases/tag/v0.7.6
 [v0.7.7]: https://github.com/Blockether/spel/releases/tag/v0.7.7
+[v0.7.8]: https://github.com/Blockether/spel/releases/tag/v0.7.8
