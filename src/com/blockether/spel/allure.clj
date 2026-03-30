@@ -436,7 +436,7 @@
    checking directories listed in PLAYWRIGHT_JAVA_SRC. Falls back to the original
    path when the file cannot be found in any source directory."
   ^String [^String classpath-file]
-  (let [src-dirs (str/split (or (System/getenv "PLAYWRIGHT_JAVA_SRC") "src:test:dev")
+  (let [src-dirs (str/split (or (System/getenv "PLAYWRIGHT_JAVA_SRC") "src:test:dev:src/clj:test/clj:src/cljc:test/cljc")
                    #"[;:]")]
     (or (some (fn [dir]
                 (let [full (str dir "/" classpath-file)]

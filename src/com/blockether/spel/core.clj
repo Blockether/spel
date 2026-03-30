@@ -110,7 +110,8 @@
   "Auto-detects Clojure source directories that exist in the working directory.
    Returns a platform-separated path string (e.g. \"src:test:dev\") or nil."
   []
-  (let [candidates ["src" "test" "test-e2e" "dev"]
+  (let [candidates ["src" "test" "test-e2e" "dev"
+                     "src/clj" "test/clj" "src/cljc" "test/cljc"]
         existing   (filterv #(.isDirectory (File. ^String %)) candidates)]
     (when (seq existing)
       (String/join ^CharSequence File/pathSeparator ^Iterable existing))))
