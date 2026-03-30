@@ -220,11 +220,11 @@ Source path resolution uses the `PLAYWRIGHT_JAVA_SRC` environment variable (auto
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
-## clojure.test Allure reporter (`allure-ct-reporter`)
+## clojure.test Allure reporter
 
-SPEL includes a clojure.test reporter that produces identical Allure results. Activate it via
-JVM property or env var — works with **any test runner** (Kaocha, Cognitect test-runner, plain
-`clojure.test/run-tests`).
+SPEL includes a clojure.test reporter (integrated in `allure-reporter`) that produces identical
+Allure results. Activate it via JVM property or env var — works with **any test runner**
+(Kaocha, Cognitect test-runner, plain `clojure.test/run-tests`).
 
 ### Activation
 
@@ -240,21 +240,18 @@ ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
 
 ```clojure
 (ns my-app.test
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require [clojure.test :refer [deftest testing is]]
             [com.blockether.spel.allure :as allure]
-            [com.blockether.spel.test-fixtures
-             :refer [*page* with-playwright with-browser with-traced-page ct-fixture]]))
-
-;; ct-fixture bridges Lazytest around hooks into clojure.test use-fixtures
-(use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
-(use-fixtures :each (ct-fixture with-traced-page))
+            [com.blockether.spel.core :as core]
+            [com.blockether.spel.page :as page]))
 
 (deftest login-test
   (allure/epic "Auth")
   (allure/feature "Login")
   (testing "loads login page"
-    (page/navigate *page* "https://example.com/login")
-    (is (= "Login" (page/title *page*)))))
+    (core/with-testing-page [pg]
+      (page/navigate pg "https://example.com/login")
+      (is (= "Login" (page/title pg))))))
 ```
 
 For API-only tests (no browser), require the reporter explicitly:
@@ -263,7 +260,7 @@ For API-only tests (no browser), require the reporter explicitly:
 (ns my-app.api-test
   (:require [clojure.test :refer [deftest testing is]]
             [com.blockether.spel.allure :as allure]
-            [com.blockether.spel.allure-ct-reporter]  ;; explicit require
+            [com.blockether.spel.allure-reporter]  ;; explicit require
             [com.blockether.spel.core :as api]))
 ```
 

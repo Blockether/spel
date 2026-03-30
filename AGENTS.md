@@ -73,23 +73,20 @@ Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect`
 
 ### clojure.test support (alternative to Lazytest)
 
-SPEL also supports standard `clojure.test` with Allure reporting via `allure-ct-reporter`.
-Tests live in `test/com/blockether/spel/ct/`. Use `ct-fixture` to bridge Lazytest fixtures
-into `clojure.test/use-fixtures`:
+SPEL also supports standard `clojure.test` with Allure reporting via the integrated `allure-reporter`.
+Tests live in `test/com/blockether/spel/ct/`. Use `with-testing-page` for browser tests:
 
 ```clojure
 (ns my-app.test
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require [clojure.test :refer [deftest testing is]]
             [com.blockether.spel.allure :as allure]
-            [com.blockether.spel.test-fixtures
-             :refer [*page* with-playwright with-browser with-traced-page ct-fixture]]))
-
-(use-fixtures :once (ct-fixture with-playwright) (ct-fixture with-browser))
-(use-fixtures :each (ct-fixture with-traced-page))
+            [com.blockether.spel.core :as core]))
 
 (deftest my-test
   (allure/epic "My Epic")
-  (testing "something" (is (= 1 1))))
+  (testing "something"
+    (core/with-testing-page [pg]
+      (is (= 1 1)))))
 ```
 
 Run with: `clojure -M:test-ct` (activates via `-Dallure.clojure-test.enabled=true`).
@@ -101,7 +98,7 @@ To add a new test page:
 
 1. Define the HTML as a `def ^:private` string in `test_server.clj`
 2. Add a route in `make-handler`'s `cond`: `(and (= "GET" method) (= "/my-page" path))`
-3. Navigate in tests with `(nav! "/my-page")` or `(page/navigate *page* (str *test-server-url* "/my-page"))`
+3. Navigate in tests with `(nav! "/my-page")` (Lazytest) or `(page/navigate pg (str ts/*test-server-url* "/my-page"))` (clojure.test)
 
 **Available test server routes:**
 

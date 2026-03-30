@@ -3,7 +3,7 @@
 
    Writes JSON result files to allure-results/, then automatically generates
    the full HTML report to allure-report/ using Allure 3 CLI (prefers a global
-   install, falls back to npx with pinned 3.2.0). The report embeds a local
+   install, falls back to npx with pinned 3.3.1). The report embeds a local
    Playwright trace viewer so trace
    attachments load instantly without trace.playwright.dev.
 

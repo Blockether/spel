@@ -163,10 +163,10 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 |------|---------|
 | Assertions | Exact string matching — NEVER substring unless explicitly `contains-text` |
 | Roles | Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`) |
-| Fixtures | Use `:context` hooks from `test-fixtures`, NEVER nest manually inside `it`/`deftest` blocks |
-| Default fixture | Always use `with-traced-page` — enables tracing/HAR on every run for debugging |
+| Fixtures | Use `core/with-testing-page` or `core/with-testing-api`, NEVER nest manually inside `it`/`deftest` blocks |
+| Default fixture | Always use `with-testing-page` — enables tracing/HAR on every run for debugging |
 | Error handling | All errors return anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
-| Lifecycle | Use `with-*` macros (`with-playwright`, `with-browser`, `with-page`) — resources auto-cleaned |
+| Lifecycle | Use `with-testing-page` (recommended) or low-level `with-playwright`, `with-browser`, `with-context`, `with-page` — resources auto-cleaned |
 | Screenshots | After visual/UI changes, ALWAYS take and display a screenshot as proof |
 
 ## Examples
