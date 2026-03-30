@@ -1043,7 +1043,7 @@
 
 (def ^:private allure-version
   "Pinned Allure CLI version — this library owns the versioning."
-  "3.2.0")
+  "3.3.1")
 
 (def ^:private allure-npm-pkg
   (str "allure@" allure-version))
