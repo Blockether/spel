@@ -1,5 +1,0 @@
-171:## Position annotations in snapshot refs
-191:## Selector strategy: snapshot refs first
-235:## Cookie consent and first-visit popups
-278:## Mandatory viewport audit
-302:## Mandatory exploratory pass

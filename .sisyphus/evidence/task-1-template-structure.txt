@@ -1,4 +1,0 @@
-276 /tmp/spel-agent-consolidation/resources/com/blockether/spel/templates/agents/spel-test-writer.md
-3:description: "Generates Clojure Playwright E2E tests from approved specs, then self-heals failing tests through iterative diagnosis and fixes. Use when user says 'write tests from this plan', 'generate and fix tests', or 'implement and stabilize E2E coverage'. Do NOT use for initial test planning or non-test automation."
-68:## Phase 1: Generate
-149:## Phase 2: Self-Heal

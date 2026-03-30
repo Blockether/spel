@@ -1,9 +1,0 @@
-resources/com/blockether/spel/templates/agents/spel-automator.md
-resources/com/blockether/spel/templates/agents/spel-bug-hunter.md
-resources/com/blockether/spel/templates/agents/spel-explorer.md
-resources/com/blockether/spel/templates/agents/spel-orchestrator.md
-resources/com/blockether/spel/templates/agents/spel-presenter.md
-resources/com/blockether/spel/templates/agents/spel-product-analyst.md
-resources/com/blockether/spel/templates/agents/spel-test-planner.md
-resources/com/blockether/spel/templates/agents/spel-test-writer-ct.md
-resources/com/blockether/spel/templates/agents/spel-test-writer.md
