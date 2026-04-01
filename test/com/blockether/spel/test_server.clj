@@ -167,6 +167,18 @@
   <iframe id=\"test-iframe\" name=\"test-frame\" src=\"/test-page\" width=\"800\" height=\"600\"></iframe>
 </body></html>")
 
+(def ^:private markdown-layout-page-html
+  "<!DOCTYPE html>
+<html><head><title>Markdown Layout Page</title></head>
+<body>
+  <center>
+    <table>
+      <tr><td><a href=\"https://example.com/1\">First Story</a></td></tr>
+      <tr><td><a href=\"https://example.com/2\">Second Story</a></td></tr>
+    </table>
+  </center>
+</body></html>")
+
 (defn- make-handler ^HttpHandler []
   (reify HttpHandler
     (handle [_ exchange]
@@ -192,6 +204,9 @@
           (and (= "GET" method) (= "/iframe-page" path))
           (send-response exchange 200 iframe-page-html "text/html; charset=UTF-8")
 
+          (and (= "GET" method) (= "/markdown-layout-page" path))
+          (send-response exchange 200 markdown-layout-page-html "text/html; charset=UTF-8")
+
           (and (= "GET" method) (= "/keyboard-page" path))
           (send-response exchange 200 keyboard-page-html "text/html; charset=UTF-8")
 
@@ -203,7 +218,7 @@
 
           (and (= "HEAD" method) (= "/health" path))
           (do (.sendResponseHeaders exchange 200 -1)
-              (.close (.getResponseBody exchange)))
+            (.close (.getResponseBody exchange)))
 
           (= "/echo" path)
           (let [resp-body (str "{\"method\":\"" method "\""
@@ -227,7 +242,7 @@
 
           (= "/slow" path)
           (do (Thread/sleep 2000)
-              (send-response exchange 200 "{\"slow\":true}" "application/json"))
+            (send-response exchange 200 "{\"slow\":true}" "application/json"))
 
           :else
           (send-response exchange 404

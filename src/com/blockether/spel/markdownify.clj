@@ -1,8 +1,10 @@
 (ns com.blockether.spel.markdownify
   "Convert HTML documents into readable Markdown using the browser runtime."
   (:require
+   [com.blockether.anomaly.core :as anomaly]
    [clojure.string :as str]
-   [com.blockether.spel.page :as page]))
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot]))
 
 (def ^:private html->markdown-js
   (str/join
@@ -13,7 +15,7 @@
      "  const readableOnly = !!(arg && arg[2]);"
      "  const parser = new DOMParser();"
      "  const doc = parser.parseFromString(html, 'text/html');"
-     "  const blocks = new Set(['article','aside','blockquote','body','div','dl','dt','dd','fieldset','figcaption','figure','footer','form','header','main','nav','ol','p','pre','section','table','tbody','td','tfoot','th','thead','tr','ul']);"
+     "  const blocks = new Set(['article','aside','blockquote','body','center','div','dl','dt','dd','fieldset','figcaption','figure','footer','form','header','main','nav','ol','p','pre','section','table','tbody','td','tfoot','th','thead','tr','ul']);"
      "  const skip = new Set(['script','style','noscript','iframe','svg','canvas']);"
      "  function collapse(text) { return String(text || '').replace(/\\s+/g, ' ').trim(); }"
      "  function scoreNode(el) {"
@@ -96,7 +98,14 @@
      "      }).join('') + '\\n';"
      "    }"
      "    if (tag === 'table') {"
-     "      const rows = Array.from(node.querySelectorAll('tr')).map((tr) => Array.from(tr.querySelectorAll('th,td')).map((td) => collapse(td.textContent))).filter((row) => row.length);"
+     "      const rowEls = Array.from(node.rows || []);"
+     "      if (!rowEls.length) return '';"
+     "      const hasHeader = rowEls.some((tr) => Array.from(tr.cells || []).some((cell) => cell.tagName && cell.tagName.toLowerCase() === 'th'));"
+     "      if (!hasHeader) {"
+     "        const lines = rowEls.map((tr) => collapse(Array.from(tr.cells || []).map((cell) => inline(cell)).join(' '))).filter(Boolean);"
+     "        return lines.length ? lines.join('\\n\\n') + '\\n\\n' : '';"
+     "      }"
+     "      const rows = rowEls.map((tr) => Array.from(tr.cells || []).map((cell) => collapse(cell.textContent || ''))).filter((row) => row.length);"
      "      if (!rows.length) return '';"
      "      const header = rows[0];"
      "      const body = rows.slice(1);"
@@ -106,7 +115,13 @@
      "      body.forEach((row) => out.push('| ' + row.join(' | ') + ' |'));"
      "      return out.join('\\n') + '\\n\\n';"
      "    }"
-     "    const children = Array.from(node.childNodes).map((child) => blocks.has(tag) ? render(child, depth) : inline(child)).join(blocks.has(tag) ? '' : ' ');"
+     "    const children = Array.from(node.childNodes).map((child) => {"
+     "      if (child && child.nodeType === Node.ELEMENT_NODE) {"
+     "        const childTag = child.tagName.toLowerCase();"
+     "        if (blocks.has(childTag)) return render(child, depth);"
+     "      }"
+     "      return blocks.has(tag) ? render(child, depth) : inline(child);"
+     "    }).join(blocks.has(tag) ? '' : ' ');"
      "    return children;"
      "  }"
      "  const parts = [];"
@@ -122,12 +137,97 @@
      "  return out ? out + '\\n' : '';"
      "}"]))
 
+(defn- normalize-text
+  [s]
+  (-> (or s "")
+    (str/replace #"\s+" " ")
+    str/trim))
+
+(defn- heading-line->markdown
+  [line]
+  (when-let [[_ raw-name] (re-matches #"-\s+heading\s+\"(.*)\"\s+\[@[^\]]+\].*" line)]
+    (let [name  (normalize-text raw-name)
+          level (or (some-> (re-find #"\[level=([1-6])\]" line) second parse-long)
+                  2)]
+      (when (seq name)
+        (str (apply str (repeat (long level) \#)) " " name)))))
+
+(defn- link-line->markdown
+  [line]
+  (when-let [[_ raw-name url] (re-matches #"-\s+link\s+\"(.*)\"\s+\[@[^\]]+\]\s+\[url=([^\]]+)\].*" line)]
+    (let [name (normalize-text raw-name)]
+      (when (seq name)
+        (str "[" name "](" url ")")))))
+
+(defn- button-line->markdown
+  [line]
+  (when-let [[_ raw-name] (re-matches #"-\s+button\s+\"(.*)\"\s+\[@[^\]]+\].*" line)]
+    (let [name (normalize-text raw-name)]
+      (when (seq name)
+        (str "**" name "**")))))
+
+(defn- a11y-tree->markdown
+  [tree]
+  (let [add-line (fn [acc line]
+                   (if (or (str/blank? line)
+                         (= line (peek acc)))
+                     acc
+                     (conj acc line)))]
+    (->> (or tree "")
+      str/split-lines
+      (map str/trim)
+      (reduce (fn [acc line]
+                (cond
+                  (or (str/blank? line)
+                    (str/starts-with? line "["))
+                  acc
+
+                  :else
+                  (or (some-> (heading-line->markdown line) (->> (add-line acc)))
+                    (some-> (link-line->markdown line) (->> (add-line acc)))
+                    (some-> (button-line->markdown line) (->> (add-line acc)))
+                    acc)))
+        [])
+      (str/join "\n"))))
+
+(defn page->markdown
+  "Converts the current page into Markdown using the accessibility snapshot.
+
+   Options:
+   - :title? include document title as a top-level heading (default true)"
+  ([pg] (page->markdown pg {}))
+  ([pg {:keys [title?] :or {title? true}}]
+   (let [snap (snapshot/capture-snapshot pg)]
+     (if (anomaly/anomaly? snap)
+       snap
+       (let [title (when title? (normalize-text (page/title pg)))
+             body  (str/trim (or (a11y-tree->markdown (:tree snap)) ""))
+             parts (cond-> []
+                     (seq title) (conj (str "# " title))
+                     (seq body)  (conj body))]
+         (if (seq parts)
+           (str (str/join "\n\n" parts) "\n")
+           ""))))))
+
 (defn html->markdown
   "Converts an HTML string into Markdown using an existing Playwright page.
 
    Options:
    - :title? include document title as a top-level heading (default true)
-   - :readable? prefer main content over full page chrome (default true)"
+   - :readable? prefer main content over full page chrome (default true)
+   - :a11y? use accessibility-based extraction when HTML is the current page content (default true)"
   ([pg html] (html->markdown pg html {}))
-  ([pg html {:keys [title? readable?] :or {title? true readable? true}}]
-   (page/evaluate pg html->markdown-js [html title? readable?])))
+  ([pg html {:keys [title? readable? a11y?] :or {title? true readable? true a11y? true}}]
+   (let [same-as-page? (try
+                         (= (str html) (page/content pg))
+                         (catch Exception _
+                           false))
+         use-a11y?     (and a11y? readable? same-as-page?)
+         md            (if use-a11y?
+                         (page->markdown pg {:title? title?})
+                         (page/evaluate pg html->markdown-js [html title? readable?]))]
+     (if (and use-a11y?
+           (string? md)
+           (str/blank? md))
+       (page/evaluate pg html->markdown-js [html title? readable?])
+       md))))

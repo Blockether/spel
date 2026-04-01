@@ -21,27 +21,27 @@
   (describe "returns bbox for existing ref"
     (it "extracts bbox map from refs"
 
-      (core/with-testing-page [pg] (let [refs {"e1" {:role "button" :name "Submit"
-                                                     :bbox {:x 10 :y 20 :width 80 :height 30}}
-                                               "e2" {:role "link" :name "Home"
-                                                     :bbox {:x 0 :y 0 :width 100 :height 20}}}]
-                                     (expect (= {:x 10 :y 20 :width 80 :height 30}
-                                               (sut/ref-bounding-box refs "e1")))
-                                     (expect (= {:x 0 :y 0 :width 100 :height 20}
-                                               (sut/ref-bounding-box refs "e2")))))))
+      (core/with-testing-page [_pg] (let [refs {"e1" {:role "button" :name "Submit"
+                                                      :bbox {:x 10 :y 20 :width 80 :height 30}}
+                                                "e2" {:role "link" :name "Home"
+                                                      :bbox {:x 0 :y 0 :width 100 :height 20}}}]
+                                      (expect (= {:x 10 :y 20 :width 80 :height 30}
+                                                (sut/ref-bounding-box refs "e1")))
+                                      (expect (= {:x 0 :y 0 :width 100 :height 20}
+                                                (sut/ref-bounding-box refs "e2")))))))
 
   (describe "returns nil for missing ref"
     (it "returns nil when ref not in map"
 
-      (core/with-testing-page [pg] (let [refs {"e1" {:role "button" :name "Submit"
-                                                     :bbox {:x 10 :y 20 :width 80 :height 30}}}]
-                                     (expect (nil? (sut/ref-bounding-box refs "e99")))
-                                     (expect (nil? (sut/ref-bounding-box refs "nonexistent")))))))
+      (core/with-testing-page [_pg] (let [refs {"e1" {:role "button" :name "Submit"
+                                                      :bbox {:x 10 :y 20 :width 80 :height 30}}}]
+                                      (expect (nil? (sut/ref-bounding-box refs "e99")))
+                                      (expect (nil? (sut/ref-bounding-box refs "nonexistent")))))))
 
   (describe "handles empty refs map"
     (it "returns nil for empty map"
 
-      (core/with-testing-page [pg] (expect (nil? (sut/ref-bounding-box {} "e1")))))))
+      (core/with-testing-page [_pg] (expect (nil? (sut/ref-bounding-box {} "e1")))))))
 
 ;; =============================================================================
 ;; Integration Tests — capture-snapshot
@@ -743,41 +743,41 @@
   (describe "identical snapshots"
     (it "returns zero changes"
 
-      (core/with-testing-page [pg] (let [text "line1\nline2\nline3"
-                                         result (sut/diff-snapshots text text)]
-                                     (expect (= 0 (:added result)))
-                                     (expect (= 0 (:removed result)))
-                                     (expect (= 0 (:changed result)))
-                                     (expect (= 3 (:unchanged result)))))))
+      (core/with-testing-page [_pg] (let [text "line1\nline2\nline3"
+                                          result (sut/diff-snapshots text text)]
+                                      (expect (= 0 (:added result)))
+                                      (expect (= 0 (:removed result)))
+                                      (expect (= 0 (:changed result)))
+                                      (expect (= 3 (:unchanged result)))))))
 
   (describe "changed lines"
     (it "detects modified lines"
 
-      (core/with-testing-page [pg] (let [baseline "line1\noriginal\nline3"
-                                         current  "line1\nmodified\nline3"
-                                         result   (sut/diff-snapshots baseline current)]
-                                     (expect (= 1 (:changed result)))
-                                     (expect (= 2 (:unchanged result)))
-                                     (expect (some #(str/starts-with? % "- ") (:diff result)))
-                                     (expect (some #(str/starts-with? % "+ ") (:diff result)))))))
+      (core/with-testing-page [_pg] (let [baseline "line1\noriginal\nline3"
+                                          current  "line1\nmodified\nline3"
+                                          result   (sut/diff-snapshots baseline current)]
+                                      (expect (= 1 (:changed result)))
+                                      (expect (= 2 (:unchanged result)))
+                                      (expect (some #(str/starts-with? % "- ") (:diff result)))
+                                      (expect (some #(str/starts-with? % "+ ") (:diff result)))))))
 
   (describe "added lines"
     (it "detects new lines at the end"
 
-      (core/with-testing-page [pg] (let [baseline "line1\nline2"
-                                         current  "line1\nline2\nline3"
-                                         result   (sut/diff-snapshots baseline current)]
-                                     (expect (= 1 (:added result)))
-                                     (expect (= 2 (:unchanged result)))))))
+      (core/with-testing-page [_pg] (let [baseline "line1\nline2"
+                                          current  "line1\nline2\nline3"
+                                          result   (sut/diff-snapshots baseline current)]
+                                      (expect (= 1 (:added result)))
+                                      (expect (= 2 (:unchanged result)))))))
 
   (describe "removed lines"
     (it "detects removed lines"
 
-      (core/with-testing-page [pg] (let [baseline "line1\nline2\nline3"
-                                         current  "line1\nline2"
-                                         result   (sut/diff-snapshots baseline current)]
-                                     (expect (= 1 (:removed result)))
-                                     (expect (= 2 (:unchanged result))))))))
+      (core/with-testing-page [_pg] (let [baseline "line1\nline2\nline3"
+                                          current  "line1\nline2"
+                                          result   (sut/diff-snapshots baseline current)]
+                                      (expect (= 1 (:removed result)))
+                                      (expect (= 2 (:unchanged result))))))))
 
 (defdescribe snapshot-styles-test
   "Integration tests for capture-snapshot styles and viewport"
@@ -840,19 +840,19 @@
   (describe "format-styles output"
     (it "formats style map with semicolon separator and display order"
 
-      (core/with-testing-page [pg] (let [styles {"color" "rgb(0, 0, 0)" "display" "block"}
-                                         out    (#'com.blockether.spel.snapshot/format-styles styles)]
-                                     (expect (= "{display:block;color:rgb(0, 0, 0)}" out))
-                                     (expect (str/includes? out ";"))
-                                     (expect (not (str/includes? out "; ")))
-                                     (expect (< (.indexOf ^String out "display:block")
-                                               (.indexOf ^String out "color:rgb(0, 0, 0)"))))))
+      (core/with-testing-page [_pg] (let [styles {"color" "rgb(0, 0, 0)" "display" "block"}
+                                          out    (#'com.blockether.spel.snapshot/format-styles styles)]
+                                      (expect (= "{display:block;color:rgb(0, 0, 0)}" out))
+                                      (expect (str/includes? out ";"))
+                                      (expect (not (str/includes? out "; ")))
+                                      (expect (< (.indexOf ^String out "display:block")
+                                                (.indexOf ^String out "color:rgb(0, 0, 0)"))))))
 
     (it "filters out nil style values"
 
-      (core/with-testing-page [pg] (let [out (#'com.blockether.spel.snapshot/format-styles
-                                              {"display" "block" "color" nil "font-size" nil})]
-                                     (expect (= "{display:block}" out)))))))
+      (core/with-testing-page [_pg] (let [out (#'com.blockether.spel.snapshot/format-styles
+                                               {"display" "block" "color" nil "font-size" nil})]
+                                      (expect (= "{display:block}" out)))))))
 
 ;; =============================================================================
 ;; Integration Tests — Event Listener Detection

@@ -1706,7 +1706,15 @@
       (cmd "navigate" {"url" (str *test-server-url* "/redirect-page")})
       (let [result (cmd "markdownify" {})]
         (expect (string? (:markdown result)))
-        (expect (str/includes? (:markdown result) "Test Page")))))
+        (expect (str/includes? (:markdown result) "Test Page"))))
+
+    (it "separates links for layout-table pages via a11y default"
+      (cmd "navigate" {"url" (str *test-server-url* "/markdown-layout-page")})
+      (let [result (cmd "markdownify" {})
+            md     (:markdown result)]
+        (expect (string? md))
+        (expect (some? (re-find #"\[First Story\]\(https://example.com/1\)\n+\[Second Story\]\(https://example.com/2\)" md)))
+        (expect (not (str/includes? md "[First Story](https://example.com/1) [Second Story](https://example.com/2)"))))))
 
   (describe "routes"
 

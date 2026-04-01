@@ -638,7 +638,7 @@
         ;; Fail-fast mode
         conflict
         ;; Queue mode — poll until lock clears or timeout
-        (let [session (:session @!state)]
+        (do
           (binding [*out* *err*]
             (println (str "spel: CDP lock held by session '" (:owner-session conflict)
                        "' — waiting (0/" max-wait-s "s)...")))
@@ -653,7 +653,7 @@
               (do
                 (Thread/sleep poll-ms)
                 (let [waited' (+ waited poll-s)]
-                  (if-let [still-locked (cdp-route-lock-conflict action)]
+                  (if-let [_still-locked (cdp-route-lock-conflict action)]
                     (recur waited')
                     ;; Lock cleared!
                     (do
@@ -1825,8 +1825,14 @@
                              true)
                 :readable? (if (contains? params "readable")
                              (boolean (get params "readable"))
-                             true)}]
-    {:markdown (unwrap-anomaly! (markdownify/html->markdown (pg) (page/content (pg)) opts))}))
+                             true)
+                :a11y?     (if (contains? params "a11y")
+                             (boolean (get params "a11y"))
+                             true)}
+        md     (if (and (:readable? opts) (:a11y? opts))
+                 (markdownify/page->markdown (pg) {:title? (:title? opts)})
+                 (markdownify/html->markdown (pg) (page/content (pg)) opts))]
+    {:markdown (unwrap-anomaly! md)}))
 
 (defmethod handle-cmd "routes" [_ params]
   (ensure-browser!)
