@@ -166,6 +166,20 @@
       (when (seq name)
         (str "**" name "**")))))
 
+(defn- paragraph-line->markdown
+  [line]
+  (when-let [[_ raw-name] (re-matches #"-\s+paragraph\s+\"(.*)\"\s+\[@[^\]]+\].*" line)]
+    (let [name (normalize-text raw-name)]
+      (when (seq name)
+        name))))
+
+(defn- listitem-line->markdown
+  [line]
+  (when-let [[_ raw-name] (re-matches #"-\s+listitem\s+\"(.*)\"\s+\[@[^\]]+\].*" line)]
+    (let [name (normalize-text raw-name)]
+      (when (seq name)
+        (str "- " name)))))
+
 (defn- a11y-tree->markdown
   [tree]
   (let [add-line (fn [acc line]
@@ -186,6 +200,8 @@
                   (or (some-> (heading-line->markdown line) (->> (add-line acc)))
                     (some-> (link-line->markdown line) (->> (add-line acc)))
                     (some-> (button-line->markdown line) (->> (add-line acc)))
+                    (some-> (paragraph-line->markdown line) (->> (add-line acc)))
+                    (some-> (listitem-line->markdown line) (->> (add-line acc)))
                     acc)))
         [])
       (str/join "\n"))))
