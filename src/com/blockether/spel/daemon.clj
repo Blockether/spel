@@ -153,27 +153,15 @@
         (.listFiles parent)))))
 
 (defn- probe-http-cdp
-  "Probes an HTTP endpoint for CDP. Returns the port on success, nil on failure.
-   Checks response code — M144+ returns 404 for /json/version (WebSocket-only)."
+  "Probes an HTTP endpoint for CDP. Returns the port on success, nil on failure."
   [port timeout-ms]
   (try
     (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
           conn (doto (.openConnection url)
                  (.setConnectTimeout (int timeout-ms))
                  (.setReadTimeout (int timeout-ms))
-                 (.connect))
-          code (.getResponseCode ^HttpURLConnection conn)]
+                 (.connect))]
       (.disconnect ^HttpURLConnection conn)
-      (when (<= 200 code 299) port))
-    (catch Exception _ nil)))
-
-(defn- probe-tcp-port
-  "Probes a TCP port. Returns port if open, nil if closed or timeout."
-  [port timeout-ms]
-  (try
-    (let [ch (java.net.Socket.)]
-      (.connect ch (java.net.InetSocketAddress. "127.0.0.1" port) (int timeout-ms))
-      (.close ch)
       port)
     (catch Exception _ nil)))
 
@@ -222,15 +210,10 @@
             (str "ws://127.0.0.1:" port ws-path)
             (str "http://127.0.0.1:" port))))
       ;; No DevToolsActivePort — probe common ports
-      ;; Try HTTP CDP endpoint first (pre-M144), then TCP fallback for M144+ WebSocket-only
-      (let [http-port (some #(probe-http-cdp % 1000) [9222 9229])]
-        (if http-port
-          (str "http://127.0.0.1:" http-port)
-          (let [tcp-port (some #(probe-tcp-port % 500) [9222 9229])]
-            (if tcp-port
-              ;; M144+ WebSocket-only mode: no HTTP JSON endpoints, connect via ws://
-              (str "ws://127.0.0.1:" tcp-port)
-              (throw (ex-info (str "No running browser with remote debugging found.\n\n"
+      (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
+        (if found
+          (str "http://127.0.0.1:" found)
+          (throw (ex-info (str "No running browser with remote debugging found.\n\n"
                             "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
                             "Option 1 — Launch browser with debug port:\n"
                             "  " (if mac?
