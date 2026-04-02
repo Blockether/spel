@@ -489,7 +489,23 @@
         (catch clojure.lang.ExceptionInfo e
           ;; If no Chrome is running, we get a descriptive error
           (expect (str/includes? (.getMessage e) "No running browser"))
-          (expect (contains? (ex-data e) :probed-ports))))))
+          (expect (contains? (ex-data e) :probed-ports)))))
+
+    (it "falls back to ws URL when DevToolsActivePort has ws-path and HTTP probe fails"
+      (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
+                                                          {:port 9222 :ws-path "/devtools/browser/ws-id"})
+                       #'sut/scan-playwright-devtools    (fn [_] nil)
+                       #'sut/probe-http-cdp              (fn [& _] nil)}
+        #(expect (= "ws://127.0.0.1:9222/devtools/browser/ws-id"
+                   (sut/discover-cdp-endpoint)))))
+
+    (it "falls back to http URL when ws-path is missing"
+      (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
+                                                          {:port 9222 :ws-path nil})
+                       #'sut/scan-playwright-devtools    (fn [_] nil)
+                       #'sut/probe-http-cdp              (fn [& _] nil)}
+        #(expect (= "http://127.0.0.1:9222"
+                   (sut/discover-cdp-endpoint))))))
 
   (describe "parse-devtools-active-port"
     (it "parses a valid DevToolsActivePort file"
@@ -529,7 +545,41 @@
 
   (describe "probe-http-cdp"
     (it "returns nil for ports not listening"
-      (expect (nil? (#'sut/probe-http-cdp 19999 500))))))
+      (expect (nil? (#'sut/probe-http-cdp 19999 500))))
+
+    (it "returns nil when endpoint responds non-200"
+      (let [server (com.sun.net.httpserver.HttpServer/create
+                     (java.net.InetSocketAddress. "127.0.0.1" 0)
+                     0)]
+        (try
+          (.createContext server "/json/version"
+            (reify com.sun.net.httpserver.HttpHandler
+              (handle [_ exchange]
+                (.sendResponseHeaders exchange 404 -1)
+                (.close (.getResponseBody exchange)))))
+          (.start server)
+          (let [port (.getPort (.getAddress server))]
+            (expect (nil? (#'sut/probe-http-cdp port 1000))))
+          (finally
+            (.stop server 0)))))
+
+    (it "returns port when endpoint responds 200"
+      (let [server (com.sun.net.httpserver.HttpServer/create
+                     (java.net.InetSocketAddress. "127.0.0.1" 0)
+                     0)]
+        (try
+          (.createContext server "/json/version"
+            (reify com.sun.net.httpserver.HttpHandler
+              (handle [_ exchange]
+                (let [body (.getBytes "{}" java.nio.charset.StandardCharsets/UTF_8)]
+                  (.sendResponseHeaders exchange 200 (alength body))
+                  (with-open [os (.getResponseBody exchange)]
+                    (.write os body))))))
+          (.start server)
+          (let [port (.getPort (.getAddress server))]
+            (expect (= port (#'sut/probe-http-cdp port 1000))))
+          (finally
+            (.stop server 0)))))))
 
 ;; =============================================================================
 ;; Unit Tests — process-command with _flags

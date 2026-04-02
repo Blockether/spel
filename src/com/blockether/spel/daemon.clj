@@ -153,7 +153,8 @@
         (.listFiles parent)))))
 
 (defn- probe-http-cdp
-  "Probes an HTTP endpoint for CDP. Returns the port on success, nil on failure."
+  "Probes an HTTP endpoint for CDP. Returns the port only when /json/version is HTTP 200.
+   Returns nil for non-200 (e.g. M144 websocket-only 404) or connection failures."
   [port timeout-ms]
   (try
     (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
@@ -161,8 +162,11 @@
                  (.setConnectTimeout (int timeout-ms))
                  (.setReadTimeout (int timeout-ms))
                  (.connect))]
-      (.disconnect ^HttpURLConnection conn)
-      port)
+      (try
+        (when (= 200 (.getResponseCode ^HttpURLConnection conn))
+          port)
+        (finally
+          (.disconnect ^HttpURLConnection conn))))
     (catch Exception _ nil)))
 
 (defn discover-cdp-endpoint
@@ -213,17 +217,18 @@
       (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
         (if found
           (let [http-url (str "http://127.0.0.1:" found)
-                ;; M144+ returns 404 for /json/version (WebSocket-only).
-                ;; If /json/version returns non-200, fall back to raw ws:// URL.
+                 ;; M144+ returns 404 for /json/version (WebSocket-only).
+                 ;; If /json/version returns non-200, fall back to raw ws:// URL.
                 ws? (try
                       (let [url  (URL. (str http-url "/json/version"))
                             conn (doto (.openConnection url)
                                    (.setConnectTimeout 1000)
                                    (.setReadTimeout 1000)
-                                   (.connect))
-                            status (.getResponseCode ^HttpURLConnection conn)
-                            (.disconnect conn)
-                            (not= 200 status))
+                                   (.connect))]
+                        (try
+                          (not= 200 (.getResponseCode ^HttpURLConnection conn))
+                          (finally
+                            (.disconnect ^HttpURLConnection conn))))
                       (catch Exception _ true))]
             (if ws?
               (str "ws://127.0.0.1:" found)
@@ -463,7 +468,7 @@
 
         :else
         (do (Thread/sleep 100)
-          (recur (inc attempts)))))))
+            (recur (inc attempts)))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -1113,7 +1118,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                              (catch Exception _ {})))
+                                                                 (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
           pw          (core/create)]
       (cond
@@ -1297,10 +1302,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                  (catch Exception _ nil)))
+                     (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                  (catch Exception _ nil)))}))
+                     (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -2024,15 +2029,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -2043,11 +2048,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -2310,13 +2315,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (snapshot-after-action!)
-                  {:found by :value value :action "click"})
+                    (snapshot-after-action!)
+                    {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                  (snapshot-after-action!)
-                  {:found by :value value :action "fill"})
+                    (snapshot-after-action!)
+                    {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -2463,7 +2468,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -2541,15 +2546,15 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      (when (empty? @!routes)
-        (release-cdp-route-lock-if-owned!))
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        (when (empty? @!routes)
+          (release-cdp-route-lock-if-owned!))
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      (release-cdp-route-lock-if-owned!)
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        (release-cdp-route-lock-if-owned!)
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -2671,7 +2676,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
