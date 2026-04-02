@@ -1,0 +1,11 @@
+content-encoding: gzip
+server: cloudflare
+age: 13298
+content-type: text/html
+allow: GET, HEAD
+expires: Thu, 02 Apr 2026 14:03:13 GMT
+cf-cache-status: HIT
+cf-ray: 9e5f00a2d85c5c18-SJC
+date: Thu, 02 Apr 2026 10:03:13 GMT
+last-modified: Tue, 24 Mar 2026 22:07:32 GMT
+cache-control: public, max-age=14400
