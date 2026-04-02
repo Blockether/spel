@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.11] - 2026-04-02
+
+### Changed
+- chore: remove temporary test-e2e seed scaffolding files
+- test: add e2e seed scaffolding and apply formatting updates
+- fix: treat non-200 CDP probe responses as unavailable endpoints
+- fix: M144+ WebSocket-only fallback when /json/version returns 404
+- Revert "Fix CDP discovery on Chrome/Edge M144+ WebSocket-only mode"
+- Fix CDP discovery on Chrome/Edge M144+ WebSocket-only mode
+- fix: render paragraph and listitem in a11y-tree->markdown
+- fix: default markdownify to a11y snapshot output and preserve readable line breaks
+- release: update version files for v0.7.10, bump to next dev version
+
+
 ## [v0.7.10] - 2026-03-30
 
 ### Changed
@@ -1411,7 +1425,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.10...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.11...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1468,3 +1482,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.8]: https://github.com/Blockether/spel/releases/tag/v0.7.8
 [v0.7.9]: https://github.com/Blockether/spel/releases/tag/v0.7.9
 [v0.7.10]: https://github.com/Blockether/spel/releases/tag/v0.7.10
+[v0.7.11]: https://github.com/Blockether/spel/releases/tag/v0.7.11
