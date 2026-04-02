@@ -212,7 +212,22 @@
       ;; No DevToolsActivePort — probe common ports
       (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
         (if found
-          (str "http://127.0.0.1:" found)
+          (let [http-url (str "http://127.0.0.1:" found)
+                ;; M144+ returns 404 for /json/version (WebSocket-only).
+                ;; If /json/version returns non-200, fall back to raw ws:// URL.
+                ws? (try
+                      (let [url  (URL. (str http-url "/json/version"))
+                            conn (doto (.openConnection url)
+                                   (.setConnectTimeout 1000)
+                                   (.setReadTimeout 1000)
+                                   (.connect))
+                            status (.getResponseCode ^HttpURLConnection conn)
+                            (.disconnect conn)
+                            (not= 200 status))
+                      (catch Exception _ true))]
+            (if ws?
+              (str "ws://127.0.0.1:" found)
+              http-url))
           (throw (ex-info (str "No running browser with remote debugging found.\n\n"
                             "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
                             "Option 1 — Launch browser with debug port:\n"
