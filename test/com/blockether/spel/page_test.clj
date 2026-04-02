@@ -296,19 +296,19 @@
 
     (it "throws for invalid single-word domain"
       (let [err (try (sut/validate-url "https://not-a-url") nil
-                  (catch clojure.lang.ExceptionInfo e e))]
+                     (catch clojure.lang.ExceptionInfo e e))]
         (expect (some? err))
         (expect (str/includes? (.getMessage err) "Invalid URL"))))
 
     (it "throws for invalid single word"
       (let [err (try (sut/validate-url "https://invalid") nil
-                  (catch clojure.lang.ExceptionInfo e e))]
+                     (catch clojure.lang.ExceptionInfo e e))]
         (expect (some? err))
         (expect (str/includes? (.getMessage err) "Invalid URL"))))
 
     (it "error message includes raw input"
       (let [err (try (sut/validate-url "https://notaurl" "notaurl") nil
-                  (catch clojure.lang.ExceptionInfo e e))]
+                     (catch clojure.lang.ExceptionInfo e e))]
         (expect (some? err))
         (expect (str/includes? (.getMessage err) "notaurl"))))))
 

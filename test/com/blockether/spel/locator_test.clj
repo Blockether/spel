@@ -122,8 +122,8 @@
       (core/with-testing-page [pg]
         (page/set-content! pg drag-test-html)
         (let [threw? (try (sut/drag-by ^Page pg (page/locator pg "#hidden-el") 200 0)
-                       false
-                       (catch Exception _ true))]
+                          false
+                          (catch Exception _ true))]
           (expect threw?))))))
 
 ;; =============================================================================

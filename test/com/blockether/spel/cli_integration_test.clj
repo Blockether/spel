@@ -501,7 +501,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))
+             (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -520,7 +520,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -2646,7 +2646,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                     (catch Exception _ true))]
+                        (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---

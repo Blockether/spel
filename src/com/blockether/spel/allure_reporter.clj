@@ -1067,7 +1067,7 @@
   [cmd]
   (let [pb (doto (ProcessBuilder. ^java.util.List (vec cmd)) (.inheritIO))]
     (when-let [cwd (or (System/getProperty "spel.allure.cwd")
-                       (System/getenv "SPEL_ALLURE_CWD"))]
+                     (System/getenv "SPEL_ALLURE_CWD"))]
       (.directory pb (java.io.File. cwd)))
     (let [proc (.start pb)]
       (.waitFor proc))))
