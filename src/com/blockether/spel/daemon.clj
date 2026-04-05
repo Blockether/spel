@@ -24,11 +24,13 @@
    [com.blockether.spel.markdownify :as markdownify]
    [com.blockether.spel.network :as network]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.profile :as profile]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.options :as options]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.security :as security]
    [com.blockether.spel.stealth :as stealth]
+   [com.blockether.spel.vault :as vault]
    [com.blockether.spel.visual-diff :as visual-diff])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
@@ -1038,7 +1040,18 @@
         ;; Close current page and context, re-create with saved state
         (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-        (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})
+        ;; Merge launch-flag opts into the reloaded context so device emulation,
+        ;; user-agent overrides, etc. survive state-restore. Without this, any
+        ;; --device or --user-agent flag passed to the CLI gets silently dropped
+        ;; when a persisted state file exists.
+        (let [flags      (get @!state :launch-flags {})
+              device-preset (when-let [dn (get flags "device")]
+                              (devices/resolve-device-by-name dn))
+              ctx-opts   (cond-> (or device-preset {})
+                           true                       (assoc :storage-state-path state-path)
+                           (get flags "user-agent")   (assoc :user-agent (get flags "user-agent"))
+                           (get flags "ignore-https-errors") (assoc :ignore-https-errors true))
+              new-ctx (core/new-context (:browser @!state) ctx-opts)
               new-pg  (core/new-page-from-context new-ctx)]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
           ;; Re-register console, error, and request listeners on new page
@@ -1121,7 +1134,36 @@
   []
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
-          profile-dir (get flags "profile")
+          ;; --profile can be either a filesystem path (existing behavior) or
+          ;; a Chrome profile display name like "Default" / "Work". A name is
+          ;; resolved to the user's real Chrome profile directory and cloned
+          ;; to a temp dir, so the persistent context launches with existing
+          ;; cookies/sessions without mutating the user's live profile.
+          profile-arg (get flags "profile")
+          ;; --profile accepts either a filesystem path (existing behavior) or
+          ;; a Chrome profile name/display-name. For names, clone the live
+          ;; profile into a fresh temp user-data dir AND capture the resolved
+          ;; profile-directory — the caller must pass that to Chrome via
+          ;; --profile-directory=<dir> so Chrome picks the right subdir from
+          ;; the clone (without this, Chrome always defaults to 'Default').
+          profile-clone   (when (and profile-arg (profile/name? profile-arg))
+                            (let [result (profile/clone-profile! profile-arg)]
+                              (binding [*out* *err*]
+                                (println (str "spel: [profile] cloned Chrome profile '"
+                                           profile-arg "' (dir="
+                                           (:profile-directory result) ") → "
+                                           (:user-data-dir result))))
+                              ;; Track the temp clone so `close` can delete it.
+                              (swap! !state assoc :profile-temp-dir (:user-data-dir result))
+                              result))
+          profile-dir (cond
+                        profile-clone (:user-data-dir profile-clone)
+                        ;; Path case: expand `~/foo` so Chrome can find it.
+                        profile-arg   (profile/expand-tilde profile-arg)
+                        :else         nil)
+          ;; Chrome arg to select the profile subdir from the clone.
+          profile-directory-arg (when profile-clone
+                                  (str "--profile-directory=" (:profile-directory profile-clone)))
           extensions  (get flags "extensions")
           _           (when (seq extensions)
                         (doseq [ext extensions]
@@ -1145,14 +1187,34 @@
                         (update :args (fnil conj [])
                           (str "--load-extension=" (str/join "," extensions)))
                         (seq extensions)
-                        (update :ignore-default-args (fnil conj []) "--disable-extensions"))
-          ctx-opts    (cond-> {}
+                        (update :ignore-default-args (fnil conj []) "--disable-extensions")
+                        ;; --profile <name> Chrome profile clone: tell Chrome
+                        ;; which subdir to use inside the cloned user-data dir.
+                        profile-directory-arg
+                        (update :args (fnil conj []) profile-directory-arg))
+          ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
+          ;; The preset contributes viewport, device-scale-factor, is-mobile,
+          ;; has-touch, and user-agent — all merged into ctx-opts. If the user
+          ;; also passes --user-agent, their override wins because it comes
+          ;; after in the cond->.
+          device-preset (when-let [device-name (get flags "device")]
+                          (or (devices/resolve-device-by-name device-name)
+                            (throw (ex-info
+                                     (str "Unknown device: " device-name
+                                       ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
+                                     {:device device-name}))))
+          browser-type  (get flags "browser" "chromium")
+          device-opts   (if (= "firefox" browser-type)
+                          ;; Firefox rejects :is-mobile / :has-touch
+                          (dissoc device-preset :is-mobile :has-touch)
+                          device-preset)
+          ctx-opts    (cond-> (or device-opts {})
                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
                                                                  (catch Exception _ {})))
-                        (get flags "storage-state")       (assoc :storage-state (get flags "storage-state")))
+                        (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state")))
           pw          (core/create)]
       (cond
         ;; ── Mode 1: --profile with directory → Playwright persistent ──────
@@ -1370,39 +1432,46 @@
    2) refresh snapshot once if missing
    3) fail fast with diagnostics when still missing
 
-   For non-ref selectors, still performs preflight diagnostics before click."
-  [^String selector]
-  (let [ref-selector? (and selector (ref? selector))
-        ref-id        (when ref-selector? (str/replace selector #"^@" ""))
-        loc           (if ref-selector?
-                        (let [refs          (:refs @!state)
-                              ref-present?  (contains? refs ref-id)
-                              fresh-snap    (when-not ref-present? (refresh-snapshot!))
-                              fresh-present (if fresh-snap
-                                              (contains? (:refs fresh-snap) ref-id)
-                                              ref-present?)]
-                          (when-not fresh-present
-                            (throw (ex-info
-                                     (str "Ref " ref-id " not found.\n"
-                                       "Click failed for " selector "\n"
-                                       "  - Element found: No\n"
-                                       "  - Suggestion: run 'snapshot -i' and retry click.")
-                                     {:selector selector :found false :stale-ref true})))
-                          (snapshot/resolve-ref (pg) ref-id))
-                        (resolve-selector selector))
-        diag (locator-diagnostics loc)]
-    (when-not (:found diag)
-      (throw (ex-info
-               (str "Selector not found: " selector "\n"
-                 "Click failed for " selector "\n"
-                 "  - Element found: No\n"
-                 "  - Suggestion: run 'snapshot -i' and retry click.")
-               {:selector selector :found false})))
-    (try
-      ;; Keep click failures fast in automation/CDP scenarios.
-      (unwrap-anomaly! (locator/click loc {:timeout 5000}))
-      (catch Throwable t
-        (throw-click-error! selector (locator-diagnostics loc) t)))))
+   For non-ref selectors, still performs preflight diagnostics before click.
+
+   `opts` (optional map) is passed through to `locator/click`. Commonly used
+   keys: `:modifiers` (e.g. `[:meta]` for cmd-click → opens link in new tab),
+   `:button`, `:position`. The default `:timeout 5000` is merged in unless the
+   caller overrides it."
+  ([^String selector] (click-with-ref-recovery! selector nil))
+  ([^String selector opts]
+   (let [ref-selector? (and selector (ref? selector))
+         ref-id        (when ref-selector? (str/replace selector #"^@" ""))
+         loc           (if ref-selector?
+                         (let [refs          (:refs @!state)
+                               ref-present?  (contains? refs ref-id)
+                               fresh-snap    (when-not ref-present? (refresh-snapshot!))
+                               fresh-present (if fresh-snap
+                                               (contains? (:refs fresh-snap) ref-id)
+                                               ref-present?)]
+                           (when-not fresh-present
+                             (throw (ex-info
+                                      (str "Ref " ref-id " not found.\n"
+                                        "Click failed for " selector "\n"
+                                        "  - Element found: No\n"
+                                        "  - Suggestion: run 'snapshot -i' and retry click.")
+                                      {:selector selector :found false :stale-ref true})))
+                           (snapshot/resolve-ref (pg) ref-id))
+                         (resolve-selector selector))
+         diag (locator-diagnostics loc)]
+     (when-not (:found diag)
+       (throw (ex-info
+                (str "Selector not found: " selector "\n"
+                  "Click failed for " selector "\n"
+                  "  - Element found: No\n"
+                  "  - Suggestion: run 'snapshot -i' and retry click.")
+                {:selector selector :found false})))
+     (try
+      ;; Keep click failures fast in automation/CDP scenarios. Caller-supplied
+      ;; opts (e.g. :modifiers [:meta]) are merged on top of the default timeout.
+       (unwrap-anomaly! (locator/click loc (merge {:timeout 5000} opts)))
+       (catch Throwable t
+         (throw-click-error! selector (locator-diagnostics loc) t))))))
 
 (defn- describe-element
   "Returns a short human-readable description of the element behind a locator.
@@ -1688,13 +1757,25 @@
       (not no-network?)           (assoc :network @!network-window)
       (not no-console?)           (assoc :console @!console-window))))
 
-(defmethod handle-cmd "click" [_ {:strs [selector]}]
+(defn- new-tab-modifier
+  "Returns the keyboard modifier that opens a link in a new tab on the current
+   host OS. macOS uses Cmd (:meta), everywhere else uses Ctrl (:control)."
+  []
+  (if (str/includes? (str/lower-case (or (System/getProperty "os.name") "")) "mac")
+    :meta
+    :control))
+
+(defmethod handle-cmd "click" [_ {:strs [selector] :as params}]
   (ensure-page-loaded!)
   (when (str/blank? (str selector))
     (throw (ex-info "click requires a selector or @ref" {})))
-  (click-with-ref-recovery! selector)
+  (let [new-tab? (boolean (get params "new-tab"))
+        opts     (cond-> {}
+                   new-tab? (assoc :modifiers [(new-tab-modifier)]))]
+    (click-with-ref-recovery! selector opts))
   (snapshot-after-action!)
-  {:clicked selector})
+  (cond-> {:clicked selector}
+    (get params "new-tab") (assoc :new-tab true)))
 
 (defmethod handle-cmd "download" [_ {:strs [selector save-path timeout-ms]}]
   (ensure-page-loaded!)
@@ -2233,6 +2314,53 @@
       :total_lines (max (count (str/split-lines baseline))
                      (count (str/split-lines current-snap))))))
 
+(defmethod handle-cmd "diff_url" [_ {:strs [url1 url2 selector wait-until screenshot threshold]}]
+  (ensure-browser!)
+  (when (or (str/blank? (str url1)) (str/blank? (str url2)))
+    (throw (ex-info "diff url requires two URLs" {})))
+  (let [wait-state  (or wait-until "load")
+        _           (page/navigate (pg) url1)
+        _           (page/wait-for-load-state (pg) wait-state)
+        snap1       (snapshot/capture-snapshot (pg)
+                      (cond-> {:interactive? true}
+                        selector (assoc :scope selector)))
+        shot1-bytes (when screenshot (page/screenshot (pg) {:full-page true}))
+        _           (page/navigate (pg) url2)
+        _           (page/wait-for-load-state (pg) wait-state)
+        snap2       (snapshot/capture-snapshot (pg)
+                      (cond-> {:interactive? true}
+                        selector (assoc :scope selector)))
+        shot2-bytes (when screenshot (page/screenshot (pg) {:full-page true}))
+        snapshot-diff (snapshot/diff-snapshots
+                        (str/trim (str (:tree snap1)))
+                        (str/trim (str (:tree snap2))))
+        base-result {:url1 url1
+                     :url2 url2
+                     :snapshot_diff snapshot-diff
+                     :total_lines (max (count (str/split-lines (str (:tree snap1))))
+                                    (count (str/split-lines (str (:tree snap2)))))}]
+    (if (and shot1-bytes shot2-bytes)
+      (let [threshold-val (if threshold
+                            (Double/parseDouble (str/replace (str threshold) #"," "."))
+                            0.1)
+            pixel-result  (visual-diff/compare-screenshots shot1-bytes shot2-bytes
+                            :threshold threshold-val
+                            :current-refs (:refs snap2))
+            diff-path     (str (System/getProperty "java.io.tmpdir")
+                            java.io.File/separator
+                            "spel-diff-url-" (System/currentTimeMillis) ".png")
+            _             (java.nio.file.Files/write
+                            (java.nio.file.Path/of ^String diff-path (into-array String []))
+                            ^bytes (:diff-image pixel-result)
+                            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
+        (assoc base-result
+          :screenshot_diff {:matched      (:matched pixel-result)
+                            :diff_percent (:diff-percent pixel-result)
+                            :diff_count   (:diff-count pixel-result)
+                            :total_pixels (:total-pixels pixel-result)
+                            :diff_path    diff-path}))
+      base-result)))
+
 (defmethod handle-cmd "diff_screenshot" [_ {:strs [baseline path threshold]}]
   (ensure-browser!)
   (ensure-page-loaded!)
@@ -2618,6 +2746,87 @@
       (write-cdp-route-lock! (current-cdp-url) (:session @!state)))
     {:route_added url}))
 
+(defn- recreate-context-with-opts!
+  "Closes the current browser context and recreates it with merged opts,
+   preserving storage state and navigating back to the current URL. Used by
+   HAR start/stop and other features that require context-level options.
+
+   Returns the new page instance.
+
+   `extra-opts` is merged on top of the existing base ctx-opts derived from
+   launch-flags."
+  [extra-opts]
+  (let [current-url  (try (page/url (pg)) (catch Exception _ nil))
+        flags        (get @!state :launch-flags {})
+        browser      (:browser @!state)
+        base-opts    (cond-> {}
+                       (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
+                       (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
+                       (get flags "headers")             (assoc :extra-http-headers
+                                                           (try (json/read-json (get flags "headers"))
+                                                                (catch Exception _ {}))))
+        ctx-opts     (merge base-opts extra-opts)]
+    ;; Save in-flight trace + storage state before teardown
+    (save-inflight-trace!)
+    (let [storage-state (try (.storageState ^BrowserContext (:context @!state))
+                             (catch Exception _ nil))]
+      (when-let [p (:page @!state)]
+        (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
+      (when-let [c (:context @!state)]
+        (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
+      (let [ctx-opts-with-state (cond-> ctx-opts
+                                  storage-state (assoc :storage-state storage-state))
+            new-ctx (check-anomaly!
+                      (core/new-context browser ctx-opts-with-state)
+                      "Failed to recreate browser context")
+            new-pg  (check-anomaly!
+                      (core/new-page-from-context new-ctx)
+                      "Failed to create page in recreated context")]
+        (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
+        (reset! !console-messages [])
+        (page/on-console new-pg (fn [^ConsoleMessage msg]
+                                  (swap! !console-messages conj
+                                    {:type (.type msg) :text (.text msg)})))
+        (reset! !page-errors [])
+        (page/on-page-error new-pg (fn [error]
+                                     (swap! !page-errors conj {:message (str error)})))
+        (reset! !tracked-requests [])
+        (page/on-response new-pg track-response!)
+        (when current-url (page/navigate new-pg current-url))
+        new-pg))))
+
+(defmethod handle-cmd "har_start" [_ {:strs [path mode omit-content url-filter]}]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (when (:har-recording? @!state)
+    (throw (ex-info (str "HAR recording already active. Call 'har stop' first. Current: "
+                      (:har-path @!state))
+             {})))
+  (let [har-path (or path
+                   (str (System/getProperty "java.io.tmpdir")
+                     java.io.File/separator
+                     "spel-" (or (:session @!state) "default") "-"
+                     (System/currentTimeMillis) ".har"))
+        opts     (cond-> {:record-har-path har-path}
+                   mode         (assoc :record-har-mode (keyword mode))
+                   omit-content (assoc :record-har-omit-content true)
+                   url-filter   (assoc :record-har-url-filter url-filter))]
+    (recreate-context-with-opts! opts)
+    (swap! !state assoc :har-recording? true :har-path har-path)
+    {:recording true :path har-path}))
+
+(defmethod handle-cmd "har_stop" [_ _params]
+  (ensure-browser!)
+  (when-not (:har-recording? @!state)
+    (throw (ex-info "No HAR recording in progress. Start one with 'har start'." {})))
+  (let [har-path (:har-path @!state)]
+    ;; Closing the context flushes the HAR file to disk. Recreate a fresh
+    ;; context without recordHar so the session stays usable.
+    (recreate-context-with-opts! {})
+    (swap! !state assoc :har-recording? false :har-path nil)
+    (let [size (try (.length (java.io.File. ^String har-path)) (catch Exception _ -1))]
+      {:recording false :path har-path :size size})))
+
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
@@ -2745,7 +2954,7 @@
     (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (let [new-ctx (core/new-context (:browser @!state) {:storage-state state-path})]
+    (let [new-ctx (core/new-context (:browser @!state) {:storage-state-path state-path})]
       (if (anomaly/anomaly? new-ctx)
         {:error (str "Failed to load state: " (:anomaly/message new-ctx))}
         (let [new-pg (core/new-page-from-context new-ctx)]
@@ -2950,6 +3159,107 @@
     {:disconnected (boolean cdp-connected)
      :cdp cdp-url}))
 
+(defn- cdp-http-base
+  "Converts a CDP WebSocket URL like `ws://localhost:9222/devtools/browser/abc`
+   into the HTTP base `http://localhost:9222`. Returns nil if the URL cannot
+   be parsed."
+  [^String ws-url]
+  (when ws-url
+    (try
+      (let [uri  (java.net.URI. ws-url)
+            host (.getHost uri)
+            port (.getPort uri)]
+        (when (and host (pos? port))
+          (str "http://" host ":" port)))
+      (catch Exception _ nil))))
+
+(defmethod handle-cmd "auth_save" [_ {:strs [name url username password]}]
+  ;; No browser needed — pure filesystem write. The LLM driving the CLI never
+  ;; sees the password because it's read from stdin CLI-side and sent here
+  ;; already-opaque.
+  (when (str/blank? (str name))    (throw (ex-info "auth save requires a name"     {})))
+  (when (str/blank? (str url))     (throw (ex-info "auth save requires --url"      {})))
+  (when (str/blank? (str username)) (throw (ex-info "auth save requires --username" {})))
+  (when (str/blank? (str password)) (throw (ex-info "auth save requires a password (pipe via --password-stdin)" {})))
+  (let [path (vault/save-credential! {:name name :url url :username username :password password})]
+    {:saved name :path path}))
+
+(defmethod handle-cmd "auth_list" [_ _params]
+  {:credentials (vault/list-credentials)})
+
+(defmethod handle-cmd "auth_delete" [_ {:strs [name]}]
+  (when (str/blank? (str name))
+    (throw (ex-info "auth delete requires a name" {})))
+  {:deleted name :existed (boolean (vault/delete-credential! name))})
+
+(defmethod handle-cmd "auth_login" [_ {:strs [name]}]
+  (ensure-browser!)
+  (when (str/blank? (str name))
+    (throw (ex-info "auth login requires a name" {})))
+  (let [record   (vault/load-credential name)
+        url      (:url record)
+        username (:username record)
+        password (:password record)
+        _        (page/navigate (pg) url)
+        _        (page/wait-for-load-state (pg) "load")
+        ;; Heuristic form detection: pick the first visible text/email input for
+        ;; username and the first password input for password. Works for the
+        ;; vast majority of login forms without custom selectors.
+        user-loc (locator/first-element
+                   (page/locator (pg) "input[type=email], input[type=text], input[type=tel], input[autocomplete*=username]"))
+        pass-loc (locator/first-element
+                   (page/locator (pg) "input[type=password]"))]
+    (locator/fill user-loc username)
+    (locator/fill pass-loc password)
+    ;; Submit: press Enter on the password field. This works for almost every
+    ;; login form and avoids flaky "find the submit button by label" heuristics.
+    (locator/press pass-loc "Enter")
+    (page/wait-for-load-state (pg) "load")
+    {:logged_in name :url (page/url (pg)) :username username}))
+
+(defmethod handle-cmd "profiles" [_ _params]
+  ;; No browser required — purely filesystem inspection.
+  {:root     (profile/chrome-user-data-root)
+   :profiles (profile/list-profiles)})
+
+(defmethod handle-cmd "devtools" [_ _params]
+  (ensure-browser!)
+  (ensure-page-loaded!)
+  (let [cdp-ws    (current-cdp-url)
+        http-base (cdp-http-base cdp-ws)
+        current   (try (page/url (pg)) (catch Exception _ nil))]
+    (cond
+      (nil? cdp-ws)
+      {:error "devtools requires a CDP-connected browser. Restart with --auto-launch or --cdp <url>."
+       :hint  "Example: spel close && spel --auto-launch open https://example.com && spel devtools"}
+
+      (nil? http-base)
+      {:error (str "Could not derive HTTP base from CDP URL: " cdp-ws)}
+
+      :else
+      (let [list-url (str http-base "/json/list")
+            body     (try
+                       (let [conn (doto ^HttpURLConnection (.openConnection ^URL (URL. list-url))
+                                    (.setRequestMethod "GET")
+                                    (.setConnectTimeout 2000)
+                                    (.setReadTimeout 2000))]
+                         (with-open [is (.getInputStream conn)]
+                           (slurp is)))
+                       (catch Exception e
+                         (throw (ex-info (str "Failed to reach CDP endpoint " list-url ": " (.getMessage e)) {}))))
+            entries  (try (json/read-json body) (catch Exception _ []))
+            targets  (filter #(= "page" (get % "type")) entries)
+            ;; Prefer the target whose URL matches our current page; fall back
+            ;; to the first page target.
+            chosen   (or (some #(when (= current (get % "url")) %) targets)
+                       (first targets))]
+        (if chosen
+          {:devtools_url (get chosen "devtoolsFrontendUrl")
+           :page_url     (get chosen "url")
+           :title        (get chosen "title")
+           :cdp_ws       (get chosen "webSocketDebuggerUrl")}
+          {:error "No page targets found at CDP endpoint"})))))
+
 (defmethod handle-cmd "connect" [_ {:strs [url]}]
   (connect-cdp! url))
 
@@ -3109,6 +3419,13 @@
 (defmethod handle-cmd "close" [_ _]
   ;; Auto-save session state (unless --no-persist)
   (auto-save-session-state!)
+  ;; If `--profile <name>` cloned a Chrome profile into a temp dir, delete it
+  ;; now so we don't leak it. Best-effort; failures are logged but not fatal.
+  (when-let [tmp (:profile-temp-dir @!state)]
+    (try
+      (profile/delete-tree! tmp)
+      (swap! !state dissoc :profile-temp-dir)
+      (catch Exception e (warn "profile-temp-cleanup" e))))
   ;; Note: in-flight trace is saved by stop-daemon! (called after this returns)
   (cond-> {:closed true :shutdown true}
     (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))

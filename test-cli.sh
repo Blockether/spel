@@ -951,6 +951,69 @@ assert_jq "batch --bail → stopped early" "$OUT" '.results | length <= 2'
 "$SPEL" close >/dev/null 2>&1
 
 # =============================================================================
+# AGENT-BROWSER PARITY II (iOS, new-tab, devtools, profiles, diff url, HAR, auth) (18)
+# =============================================================================
+section "Agent-Browser Parity II (18)"
+
+"$SPEL" close >/dev/null 2>&1
+
+# --device emulates iPhone 14 — verify user agent contains "iPhone"
+OUT=$(timeout 20 "$SPEL" --json --device "iPhone 14" open https://example.com 2>&1)
+assert_jq_eq "--device iPhone 14 → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 10 "$SPEL" --json eval-js "navigator.userAgent" 2>&1)
+assert_jq_contains "--device iPhone 14 → navigator.userAgent contains iPhone" "$OUT" '.result' 'iPhone'
+
+# --device viewport is mobile-sized (iPhone 14 = 390x844)
+OUT=$(timeout 10 "$SPEL" --json eval-js "window.innerWidth" 2>&1)
+assert_jq_eq "--device iPhone 14 → viewport.width=390" "$OUT" '.result' '390'
+
+"$SPEL" close >/dev/null 2>&1
+
+# spel profiles — lists available Chrome profiles (may be empty on CI)
+OUT=$("$SPEL" --json profiles 2>&1)
+assert_jq "profiles → has .profiles array" "$OUT" 'has("profiles")'
+
+# spel devtools requires CDP mode — returns error otherwise
+"$SPEL" open https://example.com >/dev/null 2>&1
+OUT=$("$SPEL" --json devtools 2>&1)
+assert_jq_contains "devtools without CDP → error mentions --auto-launch" "$OUT" '.error' 'auto-launch'
+
+# diff url v1 v2 — navigates both, returns snapshot diff
+OUT=$(timeout 30 "$SPEL" --json diff url https://example.com https://example.org 2>&1)
+assert_jq_eq "diff url → .url1" "$OUT" '.url1' 'https://example.com'
+assert_jq_eq "diff url → .url2" "$OUT" '.url2' 'https://example.org'
+assert_jq "diff url → has snapshot_diff" "$OUT" 'has("snapshot_diff")'
+
+# network har start/stop — records HAR file
+HAR_PATH="/tmp/spel-test-cli.har"
+TEMP_FILES+=("$HAR_PATH")
+OUT=$("$SPEL" --json network har start "$HAR_PATH" 2>&1)
+assert_jq_contains "network har start → .path" "$OUT" '.path' 'spel-test-cli.har'
+"$SPEL" open https://example.com >/dev/null 2>&1
+OUT=$("$SPEL" --json network har stop 2>&1)
+assert_jq "network har stop → .recording=false" "$OUT" '.recording == false'
+assert_jq_gt "network har stop → .size > 0" "$OUT" '.size' 0
+
+"$SPEL" close >/dev/null 2>&1
+
+# Auth vault — save, list, delete roundtrip (no browser needed)
+# Unique test name so concurrent runs can't collide
+AUTH_NAME="spel-cli-test-$$"
+echo "test-password-123" | "$SPEL" --json auth save "$AUTH_NAME" \
+  --url https://test.example --username tester --password-stdin >/dev/null 2>&1
+OUT=$("$SPEL" --json auth list 2>&1)
+assert_jq_contains "auth list → contains saved name" "$OUT" ".credentials[] | select(.name == \"$AUTH_NAME\") | .name" "$AUTH_NAME"
+# Verify password is NEVER in the list output
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"test-password-123"* ]]; then
+  pass "auth list → password never in output (security invariant)"
+else
+  fail "auth list → password never in output" "password leaked to stdout"
+fi
+OUT=$("$SPEL" --json auth delete "$AUTH_NAME" 2>&1)
+assert_jq "auth delete → .existed=true" "$OUT" '.existed == true'
+
+# =============================================================================
 # UTILITY (5)
 # =============================================================================
 section "Utility (5)"

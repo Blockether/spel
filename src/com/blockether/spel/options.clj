@@ -299,7 +299,9 @@
      :is-mobile       - Boolean.
      :has-touch       - Boolean.
      :base-url        - String.
-     :storage-state   - String (path or JSON).
+     :storage-state   - String. Inline storage-state JSON (starts with `{`).
+                        For a filesystem path, use `:storage-state-path` instead.
+     :storage-state-path - String. Filesystem path to a storage-state JSON file.
      :accept-downloads - Boolean.
      :offline         - Boolean.
      :extra-http-headers - Map of string->string.
@@ -343,10 +345,10 @@
       (.setHasTouch co (boolean (:has-touch opts))))
     (when-let [v (:base-url opts)]
       (.setBaseURL co ^String v))
+    (when-let [v (:storage-state-path opts)]
+      (.setStorageStatePath co (->path v)))
     (when-let [v (:storage-state opts)]
-      (if (or (.contains ^String v "/") (.contains ^String v "\\") (.endsWith ^String v ".json"))
-        (.setStorageStatePath co (->path v))
-        (.setStorageState co ^String v)))
+      (.setStorageState co ^String v))
     (when (contains? opts :accept-downloads)
       (.setAcceptDownloads co (boolean (:accept-downloads opts))))
     (when (contains? opts :offline)
@@ -1525,10 +1527,10 @@
       (.setHasTouch npo (boolean (:has-touch opts))))
     (when-let [v (:base-url opts)]
       (.setBaseURL npo ^String v))
+    (when-let [v (:storage-state-path opts)]
+      (.setStorageStatePath npo (->path v)))
     (when-let [v (:storage-state opts)]
-      (if (or (.contains ^String v "/") (.contains ^String v "\\") (.endsWith ^String v ".json"))
-        (.setStorageStatePath npo (->path v))
-        (.setStorageState npo ^String v)))
+      (.setStorageState npo ^String v))
     (when (contains? opts :accept-downloads)
       (.setAcceptDownloads npo (boolean (:accept-downloads opts))))
     (when (contains? opts :offline)

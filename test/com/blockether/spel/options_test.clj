@@ -89,6 +89,90 @@
         (expect (instance? Browser$NewContextOptions co))))))
 
 ;; =============================================================================
+;; Storage State — dual-key split (:storage-state vs :storage-state-path)
+;; =============================================================================
+
+(defn- read-field
+  "Reflectively reads a public field value from an options object. Used to
+   verify that the right Playwright setter was called without a live browser."
+  [obj ^String field-name]
+  (-> obj .getClass (.getField field-name) (.get obj)))
+
+(defdescribe storage-state-split-test
+  "Regression tests for the `:storage-state` / `:storage-state-path` split.
+
+   Before the split, the library used a single `:storage-state` key with a
+   fragile heuristic (`contains '/'` → path, else JSON). The heuristic
+   mis-classified inline JSON strings like `{\"cookies\":[{\"path\":\"/\"}]}`
+   as paths — which caused HAR recording to silently break because the
+   `.storageState()` roundtrip embeds `/` characters in every cookie. The fix:
+   use an explicit key for each mode, no heuristic at all."
+
+  (describe ":storage-state-path → setStorageStatePath"
+
+    (it "writes only the path field (not the inline JSON field)"
+      (let [co (sut/->new-context-options {:storage-state-path "/tmp/some-state.json"})
+            path-val (read-field co "storageStatePath")
+            state-val (read-field co "storageState")]
+        (expect (some? path-val))
+        (expect (nil? state-val))))
+
+    (it "works for Paths with JSON-like substrings"
+      ;; Pathological path that contains `{` and `:` but is still a path
+      (let [co (sut/->new-context-options {:storage-state-path "/tmp/weird/file.json"})]
+        (expect (some? (read-field co "storageStatePath")))
+        (expect (nil? (read-field co "storageState"))))))
+
+  (describe ":storage-state → setStorageState (inline JSON)"
+
+    (it "writes only the inline JSON field (not the path field)"
+      (let [json-payload "{\"cookies\":[],\"origins\":[]}"
+            co (sut/->new-context-options {:storage-state json-payload})
+            state-val (read-field co "storageState")
+            path-val (read-field co "storageStatePath")]
+        (expect (= json-payload state-val))
+        (expect (nil? path-val))))
+
+    (it "handles JSON containing cookie paths (the bug that motivated this split)"
+      ;; BEFORE the fix: the heuristic saw `/` inside the JSON and called
+      ;; setStorageStatePath with a massive JSON blob, which made Playwright
+      ;; try to open it as a file path and silently fail.
+      (let [json-payload (str "{\"cookies\":[{"
+                           "\"name\":\"session\","
+                           "\"value\":\"abc/xyz+/ok\","
+                           "\"domain\":\".example.com\","
+                           "\"path\":\"/\","
+                           "\"expires\":1234567890}]}")
+            co (sut/->new-context-options {:storage-state json-payload})]
+        ;; The JSON payload must land in storageState (inline), NOT in
+        ;; storageStatePath.
+        (expect (= json-payload (read-field co "storageState")))
+        (expect (nil? (read-field co "storageStatePath")))))
+
+    (it "handles JSON with escaped slashes and URLs"
+      (let [json-payload "{\"origins\":[{\"origin\":\"https://api.example.com\",\"localStorage\":[]}]}"
+            co (sut/->new-context-options {:storage-state json-payload})]
+        (expect (= json-payload (read-field co "storageState")))
+        (expect (nil? (read-field co "storageStatePath"))))))
+
+  (describe "both keys together"
+
+    (it "allows both keys simultaneously (Playwright keeps whichever was set last internally)"
+      ;; This is unusual but not an error. The two setters are independent.
+      (let [co (sut/->new-context-options
+                 {:storage-state-path "/tmp/a.json"
+                  :storage-state      "{\"cookies\":[]}"})]
+        (expect (some? (read-field co "storageStatePath")))
+        (expect (some? (read-field co "storageState"))))))
+
+  (describe "neither key"
+
+    (it "leaves both fields nil when neither key is present"
+      (let [co (sut/->new-context-options {:headless true})]
+        (expect (nil? (read-field co "storageState")))
+        (expect (nil? (read-field co "storageStatePath")))))))
+
+;; =============================================================================
 ;; Launch Persistent Context Options
 ;; =============================================================================
 

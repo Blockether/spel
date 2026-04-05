@@ -1394,7 +1394,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `snapshot -S --minimal` | Styles: 16 essential properties |
 | `snapshot -S --max` | Styles: all 44 tracked properties |
 | `snapshot -s \"#main\"` | Scoped to selector |
-| `screenshot [path]` | Take screenshot (-f full page) |
+| `screenshot [path]` | Take screenshot (-f full, -a annotated) |
+| `batch [--bail] [--json]` | Run a JSON array of commands from stdin |
 | `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
 | `annotate` | Show annotation overlays (visible elements) |
 | `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |

@@ -1763,10 +1763,13 @@
         (expect (= "inspector" (:action c)))
         (expect (= ["-b" "firefox" "https://example.org"] (:cli-args c)))))
 
-    (it "parses inspector with device flag"
-      (let [c (cmd ["inspector" "--device" "iPhone 14" "https://example.org"])]
+    (it "parses inspector with target flag"
+      ;; NOTE: `--device` cannot be used here — it is now a spel global flag
+      ;; consumed during pre-parse, never reaching the inspector passthrough.
+      ;; Use a neutral flag name to exercise the passthrough semantics.
+      (let [c (cmd ["inspector" "--target" "chromium" "https://example.org"])]
         (expect (= "inspector" (:action c)))
-        (expect (= ["--device" "iPhone 14" "https://example.org"] (:cli-args c))))))
+        (expect (= ["--target" "chromium" "https://example.org"] (:cli-args c))))))
 
   (describe "show-trace command"
     (it "parses show-trace"

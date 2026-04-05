@@ -1586,6 +1586,9 @@
      "  --allowed-domains LIST  Comma-separated hostnames; blocks navigation AND"
      "                          sub-resource fetches outside the list. Wildcards:"
      "                          \"*.example.com\" matches example.com + subdomains"
+     "  --device NAME           Device emulation preset (\"iPhone 14\", \"Pixel 7\","
+     "                          \"iPad Pro\", \"Galaxy S23\", ...) — sets viewport,"
+     "                          user-agent, device-scale-factor, is-mobile, has-touch"
      ""
      "Environment Variables (CLI flags take priority):"
      "  SPEL_BROWSER             Browser engine: chromium (default), firefox, webkit"
@@ -1685,7 +1688,9 @@
                        (System/getenv "SPEL_MAX_OUTPUT")
                        (assoc :max-output (parse-long (System/getenv "SPEL_MAX_OUTPUT")))
                        (System/getenv "SPEL_ALLOWED_DOMAINS")
-                       (assoc :allowed-domains (System/getenv "SPEL_ALLOWED_DOMAINS")))
+                       (assoc :allowed-domains (System/getenv "SPEL_ALLOWED_DOMAINS"))
+                       (System/getenv "SPEL_DEVICE")
+                       (assoc :device (System/getenv "SPEL_DEVICE")))
 
         ;; Extract global flags first
         {:keys [flags remaining]}
@@ -1846,6 +1851,15 @@
                   (assoc flags :allowed-domains (subs arg 18))
                   remaining)
 
+                ;; Device emulation at browser launch (e.g. "iPhone 14",
+                ;; "Pixel 7"). Resolves to a viewport + user-agent preset via
+                ;; devices/resolve-device-by-name in the daemon.
+                (= "--device" arg)
+                (recur (drop 2 args) (assoc flags :device (second args)) remaining)
+
+                (str/starts-with? arg "--device=")
+                (recur (rest args) (assoc flags :device (subs arg 9)) remaining)
+
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
 
@@ -1965,7 +1979,9 @@
                            (assoc :console true)))
 
           ;; Click
-            "click"    {:action "click" :selector (first cmd-args)}
+            "click"    (cond-> {:action "click"
+                                :selector (first (remove #(str/starts-with? % "-") cmd-args))}
+                         (some #{"--new-tab"} cmd-args) (assoc :new-tab true))
             "dblclick"  {:action "dblclick" :selector (first cmd-args)}
 
           ;; Download
@@ -2241,6 +2257,39 @@
 ;; PDF
             "pdf"      {:action "pdf" :path (resolve-path (or (first cmd-args) "page.pdf"))}
 
+          ;; DevTools — print the Chrome DevTools URL for the active page so
+          ;; the user can open it in a browser (CDP mode only).
+            "devtools" {:action "devtools"}
+
+          ;; Profiles — list available Chrome profiles on this machine so the
+          ;; user can pick one for `--profile <name>`.
+            "profiles" {:action "profiles"}
+
+          ;; Auth vault — encrypted credential store with form-fill login.
+          ;; `auth save NAME --url URL --username USER --password-stdin`
+          ;; `auth login NAME` / `auth list` / `auth delete NAME`
+            "auth"     (let [sub  (first cmd-args)
+                             name (second cmd-args)
+                             args-v (vec cmd-args)
+                             flag-val (fn [flag]
+                                        (let [i (.indexOf ^java.util.List args-v flag)]
+                                          (when (>= i 0) (nth args-v (inc i) nil))))]
+                         (case sub
+                           "save"   (let [stdin? (some #{"--password-stdin"} cmd-args)
+                                          password (when stdin? (str/trim (slurp *in*)))]
+                                      (when-not stdin?
+                                        (throw (ex-info "auth save requires --password-stdin (read password from stdin)" {})))
+                                      {:action   "auth_save"
+                                       :name     name
+                                       :url      (flag-val "--url")
+                                       :username (flag-val "--username")
+                                       :password password})
+                           "login"  {:action "auth_login" :name name}
+                           "list"   {:action "auth_list"}
+                           "delete" {:action "auth_delete" :name name}
+                           {:error (str "Unknown auth command: " (or sub "<none>")
+                                     ". Use: save | login | list | delete")}))
+
           ;; Batch (multi-command flow from stdin JSON). The action is handled
           ;; specially in run-cli! — this parse result is a marker carrying the
           ;; flags (--bail), not a daemon command.
@@ -2462,6 +2511,23 @@
                                             (flag-val "--method") (assoc :method (flag-val "--method"))
                                             (flag-val "--status") (assoc :status (flag-val "--status"))))
                              "clear"    {:action "network_clear"}
+                             ;; `network har start [path]` / `network har stop`.
+                             ;; Uses context recreation to apply recordHar at
+                             ;; context-create time (Playwright constraint).
+                             "har"      (let [har-sub  (second cmd-args)
+                                              rest-args (drop 2 cmd-args)
+                                              positional (filterv #(not (str/starts-with? % "-")) rest-args)]
+                                          (case har-sub
+                                            "start" (cond-> {:action "har_start"}
+                                                      (first positional) (assoc :path (resolve-path (first positional)))
+                                                      (some #{"--omit-content"} rest-args) (assoc :omit-content true)
+                                                      (let [idx (.indexOf ^java.util.List (vec rest-args) "--url-filter")]
+                                                        (and (>= idx 0) (nth rest-args (inc idx) nil)))
+                                                      (assoc :url-filter
+                                                        (let [idx (.indexOf ^java.util.List (vec rest-args) "--url-filter")]
+                                                          (nth rest-args (inc idx) nil))))
+                                            "stop"  {:action "har_stop"}
+                                            {:error (str "Unknown network har command: " (or har-sub "<none>"))}))
                              {:error (str "Unknown network command: " sub)})))
 
           ;; Frames
@@ -2615,6 +2681,25 @@
                                          :path (let [args (rest cmd-args)
                                                      idx (.indexOf ^java.util.List (vec args) "-o")]
                                                  (resolve-path (when (>= idx 0) (nth args (inc idx)))))}
+                           ;; `diff url V1 V2 [--screenshot] [--wait-until STATE] [--selector SEL]`
+                           ;; Orchestrates two navigations + snapshot diff in one call.
+                           "url" (let [rest-args  (vec (rest cmd-args))
+                                       positional (filterv #(not (str/starts-with? % "-")) rest-args)
+                                       wait-idx   (.indexOf ^java.util.List rest-args "--wait-until")
+                                       sel-idx    (.indexOf ^java.util.List rest-args "--selector")
+                                       thr-idx    (.indexOf ^java.util.List rest-args "--threshold")]
+                                   (cond
+                                     (< (count positional) 2)
+                                     {:error "diff url requires two URLs: spel diff url <v1> <v2>"}
+
+                                     :else
+                                     (cond-> {:action "diff_url"
+                                              :url1 (nth positional 0)
+                                              :url2 (nth positional 1)}
+                                       (some #{"--screenshot"} rest-args) (assoc :screenshot true)
+                                       (>= wait-idx 0) (assoc :wait-until (nth rest-args (inc wait-idx) nil))
+                                       (>= sel-idx 0)  (assoc :selector (nth rest-args (inc sel-idx) nil))
+                                       (>= thr-idx 0)  (assoc :threshold (nth rest-args (inc thr-idx) nil)))))
                            {:error (str "Unknown diff command: " sub)}))
 
           ;; Close (+ aliases)
@@ -2912,6 +2997,41 @@
                 (println (str "  Title: " (:title data))))
               (when (:description data)
                 (println (str "  Description: " (:description data)))))
+
+          ;; Auth vault — list of credentials (never shows passwords)
+          (:credentials data)
+          (let [creds (:credentials data)]
+            (if (empty? creds)
+              (println "No stored credentials. Use `spel auth save NAME --url ... --username ... --password-stdin`.")
+              (do
+                (println (format "  %-20s %-45s %s" "NAME" "URL" "USERNAME"))
+                (println (str "  " (apply str (repeat 80 "─"))))
+                (doseq [{:keys [name url username]} creds]
+                  (println (format "  %-20s %-45s %s"
+                             (str name) (str url) (str username)))))))
+
+          ;; Profiles list — for `spel profiles`
+          (contains? data :profiles)
+          (let [profiles (:profiles data)]
+            (if (empty? profiles)
+              (println "No Chrome profiles found. Chrome may not be installed, or the user-data directory is missing.")
+              (do
+                (when-let [r (:root data)]
+                  (println (str "Chrome user-data: " r)))
+                (println (format "  %-30s %-20s %s" "NAME" "DIRECTORY" "USER"))
+                (println (str "  " (apply str (repeat 70 "─"))))
+                (doseq [{:keys [name dir user-name]} profiles]
+                  (println (format "  %-30s %-20s %s"
+                             (str name) (str dir) (or user-name "")))))))
+
+          ;; DevTools URL — for `spel devtools`
+          (:devtools_url data)
+          (do (println "DevTools:")
+              (println (str "  Page:  " (:page_url data)))
+              (when (:title data)
+                (println (str "  Title: " (:title data))))
+              (println (str "  Open:  " (:devtools_url data)))
+              (println (str "  CDP:   " (:cdp_ws data))))
 
           ;; Screenshot
           (:base64 data)
