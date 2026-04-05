@@ -83,10 +83,14 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `retry-guard` | [pred] | Creates a :retry-when predicate that retries until `pred` is satisfied. |
 | `run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
 | `run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
+| `run-with-testing-browser` | [opts f] | Functional core of `with-testing-browser`. Creates a Playwright instance and |
 | `run-with-testing-page` | [opts f] | Functional core of `with-testing-page`. Sets up a complete Playwright stack |
 | _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
 | `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
 | `selectors-register!` | [sels name script] | Registers a custom selector engine. |
+| `testing-browser-engine` | [] | Returns the browser engine keyword to launch. |
+| `testing-interactive?` | [] | Returns true when tests should run in interactive (headed) mode. |
+| `testing-slow-mo` | [] | Returns the slow-mo delay in milliseconds for browser actions. |
 | `tracing-start!` | [tracing] \| [tracing trace-opts] | Starts tracing. |
 | `tracing-stop!` | [tracing] \| [tracing stop-opts] | Stops tracing and saves the trace file. |
 | `url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
@@ -108,6 +112,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `with-playwright` | [binding-vec & body] | Binds a Playwright instance and ensures cleanup. |
 | _(macro)_ `with-retry` | [opts-or-body & body] | Execute body with retry logic. |
 | _(macro)_ `with-testing-api` | [opts-or-binding & args] | All-in-one macro for API testing with automatic resource management. |
+| _(macro)_ `with-testing-browser` | [maybe-opts & body] | All-in-one macro that creates a shared Playwright + Browser for a group of tests. |
 | _(macro)_ `with-testing-page` | [opts-or-binding & args] | All-in-one macro for quick browser testing with automatic resource management. |
 | `wrap-error` | [e] | Wraps Playwright exceptions into anomaly maps. |
 
@@ -448,6 +453,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `after` | [& body] | Re-export of `lazytest.core/after`. |
 | _(macro)_ `after-each` | [& body] | Re-export of `lazytest.core/after-each`. |
 | _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
+| _(macro)_ `are` | [argv expr & args] | Like `clojure.test/are` — tabular assertion macro. |
 | _(macro)_ `around` | [[f] & body] | Re-export of `lazytest.core/around`. |
 | `attach` | [att-name content content-type] | Attach string content to the test report. |
 | `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
@@ -460,6 +466,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `causes?` | [c f] | Re-export of `lazytest.core/causes?`. |
 | _(macro)_ `context` | [doc & children] \| [doc attr-map? & children] | Alias for `describe` — includes automatic Allure step nesting. |
 | _(macro)_ `defdescribe` | [test-name & children] \| [test-name doc? attr-map? & children] | Re-export of `lazytest.core/defdescribe`. |
+| _(macro)_ `deftest` | [name & body] | Like `clojure.test/deftest` — defines a test function. |
 | _(macro)_ `describe` | [doc & children] \| [doc attr-map? & children] | Like `lazytest.core/describe` with automatic Allure step nesting. |
 | `description` | [text] | Set the test description (markdown supported). |
 | `epic` | [value] | Set the epic label for this test. |
@@ -468,6 +475,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `feature` | [value] | Set the feature label for this test. |
 | `flush-network-steps!` | [] | Create allure steps from buffered network responses. Call after the |
 | `install-network-capture!` | [pg] | Register a page on-response listener that buffers responses for later |
+| _(macro)_ `is` | [form] \| [form msg] | Like `clojure.test/is` with automatic Allure step wrapping. |
 | `issue` | [name url] | Add an issue link. |
 | _(macro)_ `it` | [doc & body] \| [doc attr-map? & body] | Like `lazytest.core/it` with automatic Allure step wrapping. |
 | `link` | [name url] | Add a link to the test report. |
@@ -488,6 +496,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `step**` | [step-name f loc-map opts] | Unified step runner. Wraps `step*` with optional screenshot and HTTP |
 | `story` | [value] | Set the story label for this test. |
 | `tag` | [value] | Add a tag label. |
+| _(macro)_ `testing` | [string & body] | Like `clojure.test/testing` with automatic Allure step nesting. |
 | `throws-with-msg?` | [c re f] | Re-export of `lazytest.core/throws-with-msg?`. |
 | `throws?` | [c f] | Re-export of `lazytest.core/throws?`. |
 | `tms` | [name url] | Add a test management system link. |
@@ -517,6 +526,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `filter-annotatable` | [refs] | Filters refs to only those worth rendering as overlays. |
 | `inject-action-markers!` | [page ref-ids] | Injects prominent pre-action markers on specific snapshot refs. |
 | `inject-overlays!` | [page refs] \| [page refs opts] | Injects annotation overlays into the page DOM for visible elements only. |
+| `refs->entries` | [refs] | Converts a refs map to a sorted list of entry maps. |
 | `remove-action-markers!` | [page] | Removes all pre-action markers from the page DOM. |
 | `remove-containers` | [refs] | Removes refs whose bbox fully contains another ref's bbox. |
 | `remove-overlays!` | [page] | Removes all annotation overlays from the page DOM. |

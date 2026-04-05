@@ -27,6 +27,7 @@
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.options :as options]
    [com.blockether.spel.sci-env :as sci-env]
+   [com.blockether.spel.security :as security]
    [com.blockether.spel.stealth :as stealth]
    [com.blockether.spel.visual-diff :as visual-diff])
   (:import
@@ -1076,6 +1077,38 @@
              (:playwright/exception result)))
     result))
 
+(defn- install-allowed-domains!
+  "Installs a page-level request listener that closes the page (aborts the
+   navigation) when a request targets a non-allowed host.
+
+   Uses a REQUEST event listener rather than Playwright routing because we
+   want the policy to apply to every future page created in the context, and
+   event listeners run reliably in native-image. The listener runs in-process
+   and synchronously inspects each request's URL.
+
+   Blocks: navigation and sub-resources. Non-HTTP(S) URLs (data:, blob:,
+   about:, chrome-extension:) always pass through.
+
+   No-op when `csv` is nil or blank."
+  [^Page page ^String csv]
+  (when-not (or (nil? csv) (str/blank? csv))
+    (let [allowed?  (security/compile-domain-patterns csv)
+          ;; Direct reify keeps the closure visible to native-image's
+          ;; ahead-of-time analysis and mirrors the idiom used by the
+          ;; network_route handler (which is exercised by test-cli.sh).
+          consumer  (reify java.util.function.Consumer
+                      (accept [_ route]
+                        (try
+                          (let [^com.microsoft.playwright.Route r route
+                                req (.request r)
+                                url (.url ^Request req)]
+                            (if (security/request-allowed? allowed? url)
+                              (.resume r)
+                              (.abort r "blockedbyclient")))
+                          (catch Exception _
+                            nil))))]
+      (.route ^Page page "**/*" consumer))))
+
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
@@ -1557,9 +1590,25 @@
 
 (defmulti ^:private handle-cmd (fn [action _params] action))
 
+(defn- ensure-allowed-domains-installed!
+  "Installs the allowed-domains route handler on the current page if the flag
+   is set and the install hasn't already happened for this browser session.
+
+   Called from navigation handlers rather than ensure-browser! because route
+   handlers must be installed on a page that is ready to receive requests —
+   registering on the blank initial page does not survive the first navigation
+   cleanly across all Playwright states."
+  []
+  (let [flags (get @!state :launch-flags {})]
+    (when-let [csv (get flags "allowed-domains")]
+      (when-not (:allowed-domains-installed @!state)
+        (install-allowed-domains! (pg) csv)
+        (swap! !state assoc :allowed-domains-installed true)))))
+
 (defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path raw-input
                                             viewport-width viewport-height]}]
   (ensure-browser!)
+  (ensure-allowed-domains-installed!)
   (page/validate-url url (or raw-input url))
   ;; Set viewport before navigation so the page renders at the requested size.
   (when (and viewport-width viewport-height)
@@ -1733,51 +1782,77 @@
 (defmethod handle-cmd "screenshot" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  (let [path-str       (get params "path")
-        full-page?     (get params "fullPage" false)
-        crop-content?  (get params "cropToContent" false)
-        sel            (get params "selector")
+  ;; --annotate flag: delegate to helpers/overview! which injects ref labels
+  ;; onto the page, captures a full-page screenshot, then cleans up. Returns
+  ;; {:path :size :annotated {:count :entries}} so the caller can map visual
+  ;; labels back to snapshot refs for subsequent interactions.
+  (if (get params "annotate")
+    (let [path-str (get params "path")
+          opts     (cond-> {}
+                     path-str                              (assoc :path path-str)
+                     (contains? params "show-badges")      (assoc :show-badges (get params "show-badges"))
+                     (contains? params "show-dimensions")  (assoc :show-dimensions (get params "show-dimensions"))
+                     (contains? params "show-boxes")       (assoc :show-boxes (get params "show-boxes"))
+                     (get params "scope")                  (assoc :scope (get params "scope"))
+                     (get params "all")                    (assoc :all-frames? true))
+          result   (helpers/overview! (pg) opts)]
+      (if (:bytes result)
+        (let [tmp-path (str (System/getProperty "java.io.tmpdir")
+                         java.io.File/separator
+                         "spel-screenshot-"
+                         (System/currentTimeMillis) ".png")
+              _        (Files/write
+                         (Path/of ^String tmp-path (into-array String []))
+                         ^bytes (:bytes result)
+                         ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
+          {:path tmp-path :size (alength ^bytes (:bytes result)) :annotated (:annotated result)})
+        {:path (:path result) :size (:size result) :annotated (:annotated result)}))
+    ;; Plain (non-annotated) screenshot path
+    (let [path-str       (get params "path")
+          full-page?     (get params "fullPage" false)
+          crop-content?  (get params "cropToContent" false)
+          sel            (get params "selector")
         ;; Skip crop-to-content when a selector is given — locator screenshots
         ;; capture only the element, so viewport resize is pointless.
-        crop?          (and crop-content? (not sel))
+          crop?          (and crop-content? (not sel))
         ;; When --crop-to-content: resize viewport to content height, take normal
         ;; screenshot, then restore. Uses try/finally to guarantee viewport restore
         ;; even if the screenshot throws (timeout, etc.).
-        original-vp    (when crop? (page/viewport-size (pg)))
-        _              (when crop?
-                         (let [content-h (check-anomaly!
-                                           (page/evaluate (pg) "Math.min(document.body.scrollHeight, Math.max(document.body.offsetHeight, document.body.clientHeight))")
-                                           "Failed to evaluate content height")
-                               vp-w      (:width original-vp)]
-                           (page/set-viewport-size! (pg) (long vp-w) (max 1 (long content-h)))))
-        ^bytes ss-bytes (if crop?
+          original-vp    (when crop? (page/viewport-size (pg)))
+          _              (when crop?
+                           (let [content-h (check-anomaly!
+                                             (page/evaluate (pg) "Math.min(document.body.scrollHeight, Math.max(document.body.offsetHeight, document.body.clientHeight))")
+                                             "Failed to evaluate content height")
+                                 vp-w      (:width original-vp)]
+                             (page/set-viewport-size! (pg) (long vp-w) (max 1 (long content-h)))))
+          ^bytes ss-bytes (if crop?
                           ;; try/finally guarantees viewport restore on any exception
-                          (try
-                            (page/screenshot (pg))
-                            (finally
-                              (when original-vp
-                                (page/set-viewport-size! (pg) (long (:width original-vp)) (long (:height original-vp))))))
+                            (try
+                              (page/screenshot (pg))
+                              (finally
+                                (when original-vp
+                                  (page/set-viewport-size! (pg) (long (:width original-vp)) (long (:height original-vp))))))
                           ;; Normal path (no crop) — no viewport to restore
-                          (if sel
-                            (locator/locator-screenshot (resolve-selector sel))
-                            (page/screenshot (pg) (cond-> {}
-                                                    full-page? (assoc :full-page true)))))]
-    (if path-str
-      (let [out-path (Path/of ^String path-str (into-array String []))]
-        (when-let [parent (.getParent out-path)]
-          (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
-        (Files/write out-path ss-bytes
-          ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-        {:path path-str :size (alength ss-bytes)})
-      (let [tmp-path (str (System/getProperty "java.io.tmpdir")
-                       java.io.File/separator
-                       "spel-screenshot-"
-                       (System/currentTimeMillis) ".png")]
-        (java.nio.file.Files/write
-          (Path/of ^String tmp-path (into-array String []))
-          ss-bytes
-          ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-        {:path tmp-path :size (alength ss-bytes)}))))
+                            (if sel
+                              (locator/locator-screenshot (resolve-selector sel))
+                              (page/screenshot (pg) (cond-> {}
+                                                      full-page? (assoc :full-page true)))))]
+      (if path-str
+        (let [out-path (Path/of ^String path-str (into-array String []))]
+          (when-let [parent (.getParent out-path)]
+            (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
+          (Files/write out-path ss-bytes
+            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+          {:path path-str :size (alength ss-bytes)})
+        (let [tmp-path (str (System/getProperty "java.io.tmpdir")
+                         java.io.File/separator
+                         "spel-screenshot-"
+                         (System/currentTimeMillis) ".png")]
+          (java.nio.file.Files/write
+            (Path/of ^String tmp-path (into-array String []))
+            ss-bytes
+            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+          {:path tmp-path :size (alength ss-bytes)})))))
 
 (defmethod handle-cmd "annotate" [_ params]
   (ensure-browser!)
@@ -1791,12 +1866,12 @@
                (contains? params "show-dimensions") (assoc :show-dimensions (get params "show-dimensions"))
                (contains? params "show-boxes")      (assoc :show-boxes (get params "show-boxes")))
         ;; Capture fresh snapshot for refs
-        _    (snapshot-after-action!)
-        refs (:refs @!state)
-        n    (if (seq refs)
-               (annotate/inject-overlays! (pg) refs opts)
-               0)]
-    {:annotated n :refs_total (:counter @!state)}))
+        _         (snapshot-after-action!)
+        refs      (:refs @!state)
+        annotated (if (seq refs)
+                    (annotate/inject-overlays! (pg) refs opts)
+                    {:count 0 :entries []})]
+    {:annotated annotated :refs_total (:counter @!state)}))
 
 (defmethod handle-cmd "unannotate" [_ _params]
   (ensure-browser!)
@@ -1898,8 +1973,8 @@
                        (Path/of ^String tmp-path (into-array String []))
                        ^bytes (:bytes result)
                        ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
-        {:path tmp-path :size (alength ^bytes (:bytes result)) :refs_annotated (:refs-annotated result)})
-      {:path (:path result) :size (:size result) :refs_annotated (:refs-annotated result)})))
+        {:path tmp-path :size (alength ^bytes (:bytes result)) :annotated (:annotated result)})
+      {:path (:path result) :size (:size result) :annotated (:annotated result)})))
 
 (defmethod handle-cmd "debug" [_ params]
   (ensure-browser!)
@@ -1981,9 +2056,9 @@
                            ^bytes (:bytes ov-result)
                            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
             {:device device-name :preset (:preset result)
-             :path tmp-path :size (alength ^bytes (:bytes ov-result)) :refs_annotated (:refs-annotated ov-result)})
+             :path tmp-path :size (alength ^bytes (:bytes ov-result)) :annotated (:annotated ov-result)})
           {:device device-name :preset (:preset result)
-           :path (:path ov-result) :size (:size ov-result) :refs_annotated (:refs-annotated ov-result)})))))
+           :path (:path ov-result) :size (:size ov-result) :annotated (:annotated ov-result)})))))
 
 (defmethod handle-cmd "evaluate" [_ {:strs [script base64]}]
   (ensure-page-loaded!)

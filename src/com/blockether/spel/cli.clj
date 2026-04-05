@@ -17,7 +17,8 @@
    [charred.api :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [com.blockether.spel.daemon :as daemon])
+   [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.security :as security])
   (:import
    [java.io BufferedReader InputStreamReader OutputStreamWriter]
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
@@ -416,6 +417,26 @@
       "Flags:"
       "  --timeout <ms>            Download timeout in milliseconds"])
 
+   "batch"
+   (str/join \newline
+     ["batch - Execute a JSON array of sub-commands against one daemon session"
+      ""
+      "Usage:"
+      "  echo '[[\"open\",\"URL\"],[\"snapshot\",\"-i\"],[\"click\",\"@e1\"]]' | spel batch [--json] [--bail]"
+      "  spel batch [--json] [--bail] < commands.json"
+      ""
+      "Each inner array is one sub-command with the same syntax as a normal"
+      "invocation. All sub-commands share the same session (and global flags)."
+      "Paying the CLI cold-start cost once for many commands."
+      ""
+      "Flags:"
+      "  --json    JSON output with per-command success + data + error"
+      "  --bail    Stop on first failing sub-command (exit 1)"
+      ""
+      "Examples:"
+      "  echo '[[\"open\",\"example.com\"],[\"snapshot\",\"-i\"]]' | spel batch --json"
+      "  spel batch --bail < ./flow.json"])
+
    "screenshot"
    (str/join \newline
      ["screenshot - Take a screenshot"
@@ -428,10 +449,17 @@
       "  spel screenshot page.png"
       "  spel screenshot -f full.png"
       "  spel screenshot --crop-to-content cropped.png"
+      "  spel screenshot -a                     # Annotated full-page with ref labels"
+      "  spel screenshot --annotate shot.png    # Same, saved to path"
       ""
       "Flags:"
       "  -f, --full-page, --full    Capture full page (not just viewport)"
-      "  --crop-to-content          Crop screenshot to actual content height"])
+      "  --crop-to-content          Crop screenshot to actual content height"
+      "  -a, --annotate             Overlay ref labels ([ref role]) on visible"
+      "                             elements before capturing (LLM-friendly)"
+      "  --no-badges                (with --annotate) Hide element type badges"
+      "  --no-dimensions, --no-dims (with --annotate) Hide dimension overlays"
+      "  --no-boxes                 (with --annotate) Hide bounding boxes"])
 
    "annotate"
    (str/join \newline
@@ -1456,6 +1484,9 @@
      "JavaScript:"
      "  eval-js                 Evaluate JavaScript"
      ""
+     "Flow:"
+     "  batch                   Execute a JSON array of sub-commands from stdin"
+     ""
      "Wait:"
      "  wait                    Wait for condition"
      ""
@@ -1547,6 +1578,15 @@
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
      ""
+     "Agent Safety (opt-in, all three work together or independently):"
+     "  --content-boundaries    Wrap stdout in <untrusted-content> delimiters"
+     "                          (prompt-injection safety for LLM consumers)"
+     "  --max-output N          Truncate output to N characters (context window"
+     "                          protection for long pages/snapshots)"
+     "  --allowed-domains LIST  Comma-separated hostnames; blocks navigation AND"
+     "                          sub-resource fetches outside the list. Wildcards:"
+     "                          \"*.example.com\" matches example.com + subdomains"
+     ""
      "Environment Variables (CLI flags take priority):"
      "  SPEL_BROWSER             Browser engine: chromium (default), firefox, webkit"
      "  SPEL_CHANNEL             Chromium channel (e.g. \"chrome\", \"msedge\", \"chrome-beta\")"
@@ -1637,7 +1677,15 @@
                        (System/getenv "SPEL_TIMEOUT")
                        (assoc :timeout (parse-long (System/getenv "SPEL_TIMEOUT")))
                        (some? (System/getenv "SPEL_AUTO_LAUNCH"))
-                       (assoc :auto-launch true))
+                       (assoc :auto-launch true)
+                       ;; Agent safety env vars (mirror --content-boundaries,
+                       ;; --max-output, --allowed-domains)
+                       (= "true" (System/getenv "SPEL_CONTENT_BOUNDARIES"))
+                       (assoc :content-boundaries true)
+                       (System/getenv "SPEL_MAX_OUTPUT")
+                       (assoc :max-output (parse-long (System/getenv "SPEL_MAX_OUTPUT")))
+                       (System/getenv "SPEL_ALLOWED_DOMAINS")
+                       (assoc :allowed-domains (System/getenv "SPEL_ALLOWED_DOMAINS")))
 
         ;; Extract global flags first
         {:keys [flags remaining]}
@@ -1761,6 +1809,42 @@
 
                 (= "--auto-launch" arg)
                 (recur (rest args) (assoc flags :auto-launch true) remaining)
+
+                ;; ── Agent safety (opt-in) ──────────────────────────────────
+                ;; Wrap output in <untrusted-content> delimiters so LLMs can
+                ;; distinguish tool output from page content (prompt-injection
+                ;; safety). See security.clj.
+                (= "--content-boundaries" arg)
+                (recur (rest args) (assoc flags :content-boundaries true) remaining)
+
+                (= "--no-content-boundaries" arg)
+                (recur (rest args) (assoc flags :content-boundaries false) remaining)
+
+                ;; Truncate long text output to N characters to protect the
+                ;; agent's context window.
+                (= "--max-output" arg)
+                (recur (drop 2 args)
+                  (assoc flags :max-output (parse-long (or (second args) "0")))
+                  remaining)
+
+                (str/starts-with? arg "--max-output=")
+                (recur (rest args)
+                  (assoc flags :max-output (parse-long (subs arg 13)))
+                  remaining)
+
+                ;; Comma-separated allowlist of domains. Wildcards like
+                ;; `*.example.com` match the bare domain AND subdomains.
+                ;; Applied by the daemon as a context-level Playwright route
+                ;; that aborts any request to a non-matching host.
+                (= "--allowed-domains" arg)
+                (recur (drop 2 args)
+                  (assoc flags :allowed-domains (second args))
+                  remaining)
+
+                (str/starts-with? arg "--allowed-domains=")
+                (recur (rest args)
+                  (assoc flags :allowed-domains (subs arg 18))
+                  remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
@@ -2025,7 +2109,19 @@
                              (some #{"-f" "--full-page" "--full"} cmd-args)
                              (assoc :fullPage true)
                              (some #{"--crop-to-content"} cmd-args)
-                             (assoc :cropToContent true)))
+                             (assoc :cropToContent true)
+                             ;; --annotate: full-page screenshot with ref-labeled
+                             ;; overlays. Returns :annotated {:count :entries} so
+                             ;; the caller can map visual labels back to snapshot
+                             ;; refs for subsequent interactions.
+                             (some #{"-a" "--annotate"} cmd-args)
+                             (assoc :annotate true)
+                             (some #{"--no-badges"} cmd-args)
+                             (assoc :show-badges false)
+                             (some #{"--no-dimensions" "--no-dims"} cmd-args)
+                             (assoc :show-dimensions false)
+                             (some #{"--no-boxes"} cmd-args)
+                             (assoc :show-boxes false)))
 
           ;; Annotate (inject overlays onto the page for visible elements)
             "annotate" (cond-> {:action "annotate"}
@@ -2144,6 +2240,12 @@
 
 ;; PDF
             "pdf"      {:action "pdf" :path (resolve-path (or (first cmd-args) "page.pdf"))}
+
+          ;; Batch (multi-command flow from stdin JSON). The action is handled
+          ;; specially in run-cli! — this parse result is a marker carrying the
+          ;; flags (--bail), not a daemon command.
+            "batch"    {:action "batch"
+                        :bail (boolean (some #{"--bail"} cmd-args))}
 
           ;; JavaScript
             "eval-js"  (let [base64?  (some #{"-b" "--base64"} cmd-args)
@@ -2782,10 +2884,9 @@
   (when (and snapshot (not (str/blank? (str snapshot))))
     (println (str/trim (str snapshot)))))
 
-(defn- print-result
-  "Pretty-prints a daemon response to the terminal.
-   Default mode: human-friendly strings and tables (never EDN).
-   JSON mode (--json): clean JSON of just the data (no envelope)."
+(defn- print-result*
+  "Inner renderer — writes the raw (pre-security) output to *out*. Do not
+   call directly; use `print-result` which layers security transforms on top."
   [response json-mode?]
   (if json-mode?
     ;; --json: output just the data payload (success) or error object (failure)
@@ -2815,6 +2916,23 @@
           ;; Screenshot
           (:base64 data)
           (println (str "Screenshot captured (" (:size data) " bytes)"))
+
+          ;; Annotated screenshot (screenshot --annotate / overview / emulate) —
+          ;; print path + a deterministic list of labeled refs so the user (or
+          ;; downstream LLM) can match visual labels back to ref IDs.
+          (:annotated data)
+          (let [entries  (get-in data [:annotated :entries] [])
+                cnt      (get-in data [:annotated :count] (count entries))
+                max-role (reduce max 6 (map #(count (str (:role %))) entries))
+                max-ref  (reduce max 6 (map #(count (str (:ref %))) entries))]
+            (println (str "Saved: " (:path data)
+                       (when (:size data)
+                         (str " (" (:size data) " bytes, " cnt " refs annotated)"))))
+            (doseq [{:keys [ref role name]} entries]
+              (println (format (str "  @%-" max-ref "s  %-" max-role "s  %s")
+                         (str ref)
+                         (str role)
+                         (if (str/blank? (str name)) "" (str "\"" name "\""))))))
 
           ;; State save/load
           (:state data)
@@ -2987,6 +3105,33 @@
           (when-let [hint (:hint response)]
             (println (str "Hint: " hint))))))))
 
+(defn- print-result
+  "Pretty-prints a daemon response, applying agent-safety transforms on top
+   of the raw renderer.
+
+   Transforms (all opt-in via global flags):
+   - `:content-boundaries` — wraps stdout in `<untrusted-content>` delimiters
+     so downstream LLMs distinguish tool output from scraped page content.
+   - `:max-output`         — truncates overly long output to protect the
+     agent's context window.
+
+   Errors still go to *err* and are NOT wrapped or truncated — agents need
+   to see error details in full. Only the success-path stdout is transformed."
+  [response flags]
+  (let [json-mode? (:json flags)
+        boundaries? (:content-boundaries flags)
+        max-chars  (:max-output flags)
+        ;; Capture stdout from the inner renderer so we can post-process it.
+        ;; stderr (error path) is untouched and streams directly.
+        rendered   (with-out-str (print-result* response json-mode?))
+        trimmed    (if (str/ends-with? rendered "\n")
+                     (subs rendered 0 (dec (count rendered)))
+                     rendered)
+        truncated  (security/truncate max-chars trimmed)
+        wrapped    (security/wrap-boundaries boundaries? truncated)]
+    (when-not (str/blank? wrapped)
+      (println wrapped))))
+
 ;; =============================================================================
 ;; Entry Point
 ;; =============================================================================
@@ -3080,11 +3225,76 @@
         (into-array String (into ["show-trace"] (:cli-args command))))
       (System/exit 0))
 
+    ;; Batch — execute a JSON array of sub-commands against one daemon session.
+    ;; Each inner array is parsed through the same parser as a normal invocation,
+    ;; so every command in the batch supports the same flags and aliases. This
+    ;; reuses the existing warm JVM/daemon socket and pays the CLI cold-start
+    ;; cost only once.
+    (when (= "batch" (:action command))
+      (let [bail?    (boolean (:bail command))
+            json?    (:json flags)
+            ;; Read whole stdin as a JSON array of [cmd & args] vectors
+            stdin    (slurp *in*)
+            batch    (try
+                       (json/read-json stdin)
+                       (catch Exception e
+                         (binding [*out* *err*]
+                           (println (str "batch: invalid JSON on stdin: " (.getMessage e))))
+                         (System/exit 1)))
+            _        (when-not (sequential? batch)
+                       (binding [*out* *err*]
+                         (println "batch: stdin must be a JSON array of [cmd & args] arrays"))
+                       (System/exit 1))
+            session  (or (:session flags) "default")
+            _        (ensure-daemon! session flags)
+            flag-keys (dissoc flags :session :headless :json)
+            timeout  (or (:timeout flags) 30000)
+            results  (loop [remaining (seq batch)
+                            acc       []]
+                       (if (empty? remaining)
+                         acc
+                         (let [entry       (first remaining)
+                               sub-args    (mapv str entry)
+                               parsed      (try (parse-args sub-args)
+                                                (catch Exception e
+                                                  {:command {:error (str "parse error: " (.getMessage e))}}))
+                               sub-command (:command parsed)]
+                           (if-let [err (:error sub-command)]
+                             (let [result {:cmd sub-args :success false :error err}]
+                               (if (and bail? (not (:success result)))
+                                 (conj acc result)
+                                 (recur (rest remaining) (conj acc result))))
+                             (let [cmd-with-flags (if (seq flag-keys)
+                                                    (assoc sub-command :_flags
+                                                      (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
+                                                    sub-command)
+                                   resp           (send-command! session cmd-with-flags timeout)
+                                   result         {:cmd     sub-args
+                                                   :success (boolean (:success resp))
+                                                   :data    (:data resp)
+                                                   :error   (:error resp)}]
+                               (if (and bail? (not (:success result)))
+                                 (conj acc result)
+                                 (recur (rest remaining) (conj acc result))))))))
+            all-ok?  (every? :success results)
+            summary  {:count   (count results)
+                      :success all-ok?
+                      :results results}]
+        (if json?
+          (println (json/write-json-str summary :escape-slash false))
+          (do (println (str "Batch: " (count (filter :success results)) "/" (count results) " succeeded"))
+              (doseq [[i r] (map-indexed vector results)]
+                (let [idx     (long i)
+                      mark    (if (:success r) "✓" "✗")
+                      cmd-str (str/join " " (:cmd r))
+                      tail    (if-let [e (:error r)] (str " — " e) "")]
+                  (println (format "  [%d] %s %s%s" (inc idx) mark cmd-str tail))))))
+        (System/exit (if all-ok? 0 1))))
+
     ;; Markdownify — hybrid local/temporary-session command
     (when (= "markdownify" (:action command))
       (let [{:keys [url file input title readable]} command
-            input-count (count (remove nil? [url file input]))
-            json? (:json flags)]
+            input-count (count (remove nil? [url file input]))]
         (cond
           (> input-count 1)
           (do (binding [*out* *err*]
@@ -3121,7 +3331,7 @@
                                                        (contains? command :title) (assoc :title title)
                                                        (contains? command :readable) (assoc :readable readable))
                                 timeout)]
-                (print-result resp json?)
+                (print-result resp flags)
                 (System/exit (if (:success resp) 0 1)))
               (finally
                 (close-session! session))))
@@ -3200,7 +3410,7 @@
             (spit output-file content)
             (println (str "Written to: " output-file))
             (System/exit 0))
-          (do (print-result response (:json flags))
+          (do (print-result response flags)
               (System/exit (if (:success response) 0 1))))
         (do (binding [*out* *err*]
               (println "Error: Could not connect to daemon"))

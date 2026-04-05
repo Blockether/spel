@@ -299,10 +299,14 @@ Verdict:  [REGRESSION / INTENTIONAL]
 Capture annotated screenshots to show context around changed elements:
 
 ```bash
-# Annotated screenshot with ref overlays (shows which elements changed)
+# One-liner: full-page screenshot with ref overlays AND a printed ref list
+# that maps visual labels → @refs (LLM-friendly, multimodal reasoning).
+spel screenshot -a report/current-annotated.png
+
+# Equivalent SCI form when you need programmatic access to the entries:
 spel eval-sci '
   (def snap (spel/capture-snapshot))
-  (spel/save-annotated-screenshot! (:refs snap) "report/current-annotated.png")'
+  (annotate/save-annotated-screenshot! (:refs snap) "report/current-annotated.png")'
 ```
 ;; The :tree includes [pos:X,Y W×H] screen coordinates for each ref'd element.
 ;; Use position data for layout verification and element overlap detection.
@@ -328,7 +332,7 @@ For formal sign-off, generate a PDF report combining screenshots and observation
 | Capture current (pixel) | `spel screenshot current.png` |
 | Pixel diff (ImageMagick) | `compare -metric AE baseline.png current.png diff.png` |
 | Disable animations | `spel eval-sci '(spel/add-style-tag {:content "* { animation-duration: 0s !important; }"})' ` |
-| Annotated screenshot | `spel eval-sci '(spel/save-annotated-screenshot! (:refs (spel/capture-snapshot)) "out.png")'` |
+| Annotated screenshot | `spel screenshot -a out.png` (full-page + ref overlays + printed `@ref role "name"` list) |
 
 ### Style tiers at a glance
 

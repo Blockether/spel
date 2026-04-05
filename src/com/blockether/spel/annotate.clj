@@ -449,6 +449,26 @@
 ;; Public API
 ;; =============================================================================
 
+(defn refs->entries
+  "Converts a refs map to a sorted list of entry maps.
+
+   Entries are sorted top→down, left→right (by bbox y then x) for natural
+   reading order. Each entry has :ref, :role, :name, :bbox.
+
+   Used by inject-overlays! and helpers/overview! to produce a deterministic,
+   LLM-friendly listing of annotated elements."
+  [refs]
+  (->> refs
+    (map (fn [[ref-id info]]
+           {:ref   ref-id
+            :role  (:role info)
+            :name  (:name info)
+            :bbox  (:bbox info)}))
+    (sort-by (fn [{:keys [bbox]}]
+               [(double (or (:y bbox) 0.0))
+                (double (or (:x bbox) 0.0))]))
+    vec))
+
 (defn inject-overlays!
   "Injects annotation overlays into the page DOM for visible elements only.
 
@@ -473,7 +493,9 @@
       :show-badges     - Boolean (default true). Show compact labels.
       :show-boxes      - Boolean (default true). Show bounding box outlines.
 
-    Returns: count of annotated elements (long)."
+    Returns: {:count N :entries [{:ref :role :name :bbox} ...]} where entries
+    are sorted top→down, left→right (natural reading order). The :ref field is
+    the bare ref ID (no @ prefix). An empty result is {:count 0 :entries []}."
   ([^Page page refs]
    (inject-overlays! page refs {}))
   ([^Page page refs opts]
@@ -489,7 +511,8 @@
          visible     (select-keys in-viewport visible-ids)]
      (when (seq visible)
        (page/evaluate page (build-inject-js visible opts)))
-     (count visible))))
+     {:count   (count visible)
+      :entries (refs->entries visible)})))
 
 (defn remove-overlays!
   "Removes all annotation overlays from the page DOM.
@@ -518,16 +541,19 @@
       :full-page       - Boolean (default false). Capture full scrollable page.
 
    Returns:
-   byte[] of the annotated PNG."
+   {:bytes byte[] :annotated {:count N :entries [...]}}. The :annotated value
+   is the same shape as inject-overlays! — a deterministic list of actually-
+   drawn elements, sorted top→down, left→right."
   ([^Page page refs]
    (annotated-screenshot page refs {}))
   ([^Page page refs opts]
-   (inject-overlays! page refs (dissoc opts :full-page))
-   (try
-     (page/screenshot page (cond-> {}
-                             (:full-page opts) (assoc :full-page true)))
-     (finally
-       (remove-overlays! page)))))
+   (let [annotated (inject-overlays! page refs (dissoc opts :full-page))
+         ^bytes ss (try
+                     (page/screenshot page (cond-> {}
+                                             (:full-page opts) (assoc :full-page true)))
+                     (finally
+                       (remove-overlays! page)))]
+     {:bytes ss :annotated annotated})))
 
 (defn save-annotated-screenshot!
   "Takes an annotated screenshot and saves it to a file.
@@ -539,16 +565,18 @@
    `opts` - Map, optional. Same as annotated-screenshot (supports :scope).
 
    Returns:
-   nil."
+   {:path path :size N :annotated {:count :entries}}."
   ([^Page page refs ^String path]
    (save-annotated-screenshot! page refs path {}))
   ([^Page page refs ^String path opts]
-   (let [^bytes bytes (annotated-screenshot page refs opts)]
+   (let [{:keys [^bytes bytes annotated]} (annotated-screenshot page refs opts)]
      (java.nio.file.Files/write
        (java.nio.file.Paths/get path (into-array String []))
        bytes
        ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-     nil)))
+     {:path      path
+      :size      (alength bytes)
+      :annotated annotated})))
 
 ;; =============================================================================
 ;; Pre-action markers (highlight specific refs before interactions)

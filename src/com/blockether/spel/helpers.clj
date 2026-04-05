@@ -412,8 +412,14 @@
                         frames including iframes, not just the main frame.
 
    Returns:
-   If :path is set: {:path \"...\" :size N :refs-annotated N}
-   If no :path: {:bytes <byte[]> :refs-annotated N}"
+   If :path is set: {:path \"...\" :size N :annotated {:count N :entries [...]}}
+   If no :path:    {:bytes <byte[]>  :annotated {:count N :entries [...]}}
+
+   The :annotated value is a deterministic, top→down/left→right-sorted list of
+   actually-drawn elements (after role + container + visibility filtering). Each
+   entry is {:ref :role :name :bbox}. This is the LLM-friendly mapping between
+   labels on the image and snapshot refs that can be used for subsequent
+   interactions (e.g., `spel click @e2yrjz`)."
   ([^Page page]
    (overview! page {}))
   ([^Page page opts]
@@ -428,7 +434,7 @@
                          (contains? opts :show-badges)     (assoc :show-badges (:show-badges opts))
                          (contains? opts :show-boxes)      (assoc :show-boxes (:show-boxes opts))
                          (:scope opts)                     (assoc :scope (:scope opts)))
-         n-annotated  (annotate/inject-overlays! page refs annotate-opts)
+         annotated    (annotate/inject-overlays! page refs annotate-opts)
          ;; Take full-page screenshot
          ss-bytes     (try
                         (page/screenshot page {:full-page true})
@@ -436,8 +442,8 @@
                           (annotate/remove-overlays! page)))]
      (if-let [path (:path opts)]
        (do (save-bytes! ss-bytes path)
-           {:path path :size (alength ^bytes ss-bytes) :refs-annotated n-annotated})
-       {:bytes ss-bytes :refs-annotated n-annotated}))))
+           {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
+       {:bytes ss-bytes :annotated annotated}))))
 
 ;; =============================================================================
 ;; debug! — Page diagnostic snapshot

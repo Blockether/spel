@@ -1597,33 +1597,55 @@
 
   (describe "annotate injects overlays"
 
-    (it "annotate returns annotated count"
+    (it "annotate returns {:annotated {:count :entries}} with ref entries"
       (nav! "/test-page")
       (let [r (cmd "annotate" {})]
-        (expect (some? (:annotated r)))
-        (expect (number? (:annotated r)))
-        (expect (some? (:refs_total r)))))
+        (expect (map? (:annotated r)))
+        (expect (number? (get-in r [:annotated :count])))
+        (expect (vector? (get-in r [:annotated :entries])))
+        (expect (some? (:refs_total r)))
+        (when (pos? (get-in r [:annotated :count]))
+          (let [e (first (get-in r [:annotated :entries]))]
+            (expect (string? (:ref e)))
+            (expect (string? (:role e)))))))
 
     (it "annotate only annotates visible elements"
       (nav! "/test-page")
       (let [r (cmd "annotate" {})]
         ;; annotated count should be <= total refs
-        (expect (<= (:annotated r) (:refs_total r)))))
+        (expect (<= (get-in r [:annotated :count]) (:refs_total r)))))
 
     (it "annotate with options disabled still returns count"
       (nav! "/test-page")
       (let [r (cmd "annotate" {"show-badges" false
                                "show-dimensions" false
                                "show-boxes" false})]
-        (expect (number? (:annotated r)))))
+        (expect (number? (get-in r [:annotated :count])))))
 
     (it "annotate --full annotates at least as many as viewport-only"
       (nav! "/test-page")
       (let [viewport-r (cmd "annotate" {})
             _          (cmd "unannotate" {})
             full-r     (cmd "annotate" {"full-page" true})]
-        (expect (number? (:annotated full-r)))
-        (expect (>= (:annotated full-r) (:annotated viewport-r))))))
+        (expect (number? (get-in full-r [:annotated :count])))
+        (expect (>= (get-in full-r [:annotated :count])
+                  (get-in viewport-r [:annotated :count])))))
+
+    (it "screenshot --annotate returns path + annotated entries (issue: vercel-labs/agent-browser parity)"
+      (nav! "/test-page")
+      (let [r (cmd "screenshot" {"annotate" true})]
+        (expect (string? (:path r)))
+        (expect (pos? (:size r)))
+        (expect (map? (:annotated r)))
+        (expect (number? (get-in r [:annotated :count])))
+        (expect (vector? (get-in r [:annotated :entries])))
+        ;; Entries are sorted top→down by bbox.y so downstream LLMs see
+        ;; natural reading order
+        (let [entries (get-in r [:annotated :entries])]
+          (doseq [[a b] (partition 2 1 entries)]
+            (let [ya (double (or (get-in a [:bbox :y]) 0))
+                  yb (double (or (get-in b [:bbox :y]) 0))]
+              (expect (<= ya yb))))))))
 
   (describe "unannotate removes overlays"
 
@@ -1745,12 +1767,14 @@
 
   (describe "overview"
 
-    (it "returns screenshot path and annotated count"
+    (it "returns screenshot path and :annotated {:count :entries}"
       (cmd "navigate" {"url" "https://example.com"})
       (let [result (cmd "overview" {})]
         (expect (string? (:path result)))
         (expect (pos? (:size result)))
-        (expect (number? (:refs_annotated result)))))))
+        (expect (map? (:annotated result)))
+        (expect (number? (get-in result [:annotated :count])))
+        (expect (vector? (get-in result [:annotated :entries])))))))
 
 ;; =============================================================================
 ;; 41a. Pre-action Markers (mark/unmark)

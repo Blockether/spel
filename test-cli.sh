@@ -363,6 +363,28 @@ OUT=$("$SPEL" --json pdf "$PDF_PATH" 2>&1)
 assert_jq_contains "pdf → .path" "$OUT" '.path' 'test-cli-page.pdf'
 
 # =============================================================================
+# SCREENSHOT ANNOTATE (5) — vercel-labs/agent-browser parity
+# =============================================================================
+section "Screenshot Annotate (5)"
+
+# Annotated screenshot writes a non-empty PNG and returns the ref mapping
+OUT=$("$SPEL" --json screenshot -a 2>&1)
+assert_jq_gt "screenshot -a → .size > 0" "$OUT" '.size' 0
+assert_jq_gt "screenshot -a → .annotated.count > 0" "$OUT" '.annotated.count' 0
+assert_jq_gt "screenshot -a → .annotated.entries | length > 0" "$OUT" '.annotated.entries | length' 0
+
+# --annotate long-form writes to an explicit path
+ANNOT_PATH="/tmp/test-cli-annot.png"
+TEMP_FILES+=("$ANNOT_PATH")
+OUT=$("$SPEL" --json screenshot --annotate "$ANNOT_PATH" 2>&1)
+assert_jq_contains "screenshot --annotate (named) → .path" "$OUT" '.path' 'test-cli-annot.png'
+
+# Plain (non-JSON) text output shows the ref→label list so LLMs can map visual
+# labels back to @refs for subsequent interactions (e.g. spel click @e2yrjz)
+OUT=$("$SPEL" screenshot -a 2>&1)
+assert_contains "screenshot -a (plain text) → 'refs annotated'" "$OUT" "refs annotated"
+
+# =============================================================================
 # JAVASCRIPT (2)
 # =============================================================================
 section "JavaScript (2)"
@@ -853,6 +875,82 @@ OUT=$(timeout 10 "$SPEL" --json --session roundtrip close 2>/dev/null) || true
 assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
 # =============================================================================
+# AGENT SAFETY + BATCH (12) — vercel-labs/agent-browser parity
+# =============================================================================
+section "Agent Safety + Batch (12)"
+
+# Ensure we're on a known page for text-producing commands
+"$SPEL" open https://example.com >/dev/null 2>&1
+
+# --content-boundaries wraps plain-text stdout in <untrusted-content> tags
+OUT=$("$SPEL" --content-boundaries snapshot -i 2>&1)
+assert_contains "--content-boundaries → open delimiter" "$OUT" "<untrusted-content>"
+assert_contains "--content-boundaries → close delimiter" "$OUT" "</untrusted-content>"
+
+# No delimiters by default (feature is opt-in)
+OUT=$("$SPEL" snapshot -i 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"<untrusted-content>"* ]]; then
+  pass "no --content-boundaries → no delimiters"
+else
+  fail "no --content-boundaries → no delimiters" "unexpected delimiter in output"
+fi
+
+# --max-output truncates long output with informative suffix
+OUT=$("$SPEL" --max-output 200 snapshot 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if (( ${#OUT} <= 220 )); then
+  pass "--max-output 200 → output <= 220 chars"
+else
+  fail "--max-output 200 → output <= 220 chars" "got ${#OUT} chars"
+fi
+assert_contains "--max-output → 'truncated' suffix" "$OUT" "truncated"
+
+# Short output passes through unchanged when below threshold
+OUT=$("$SPEL" --max-output 100000 url 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"truncated"* ]]; then
+  pass "--max-output (large N) → no truncation for short output"
+else
+  fail "--max-output (large N) → no truncation for short output" "unexpected truncation"
+fi
+
+# --allowed-domains: close session first, then open with allowlist that
+# blocks example.com — navigation must fail. Then allow-list example.com
+# explicitly and verify it passes.
+"$SPEL" close >/dev/null 2>&1
+
+OUT=$(timeout 15 "$SPEL" --json --allowed-domains "only-this.example" open https://example.com 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if echo "$OUT" | jq -e '.error' >/dev/null 2>&1 || echo "$OUT" | grep -qi "blockedbyclient\|block\|error"; then
+  pass "--allowed-domains blocks non-allowed navigation"
+else
+  fail "--allowed-domains blocks non-allowed navigation" "expected error, got: $(echo "$OUT" | head -c 200)"
+fi
+"$SPEL" close >/dev/null 2>&1
+
+OUT=$(timeout 15 "$SPEL" --json --allowed-domains "example.com,*.example.com" open https://example.com 2>&1)
+assert_jq_eq "--allowed-domains allows matching domain" "$OUT" '.url' 'https://example.com/'
+
+# batch command: multiple sub-commands in one JSON array.
+# "get url" and "get title" are CLI sub-commands (not top-level), so the
+# inner arrays mirror how a user would type them.
+BATCH_JSON='[["get","url"],["get","title"]]'
+OUT=$(echo "$BATCH_JSON" | "$SPEL" --json batch 2>&1)
+assert_jq_eq "batch → .count" "$OUT" '.count' '2'
+assert_jq "batch → .success (all ok)" "$OUT" '.success == true'
+assert_jq_gt "batch → .results | length" "$OUT" '.results | length' 1
+
+# batch --bail stops on first error
+BATCH_JSON_FAIL='[["get","url"],["click","@e_nonexistent_ref"],["get","title"]]'
+OUT=$(echo "$BATCH_JSON_FAIL" | "$SPEL" --json batch --bail 2>&1)
+assert_jq "batch --bail → .success false" "$OUT" '.success == false'
+# With --bail, results length should be <= 2 (first failure stops the loop)
+assert_jq "batch --bail → stopped early" "$OUT" '.results | length <= 2'
+
+"$SPEL" close >/dev/null 2>&1
+
+# =============================================================================
 # UTILITY (5)
 # =============================================================================
 section "Utility (5)"
@@ -1008,11 +1106,11 @@ section "Annotate & Unannotate (4)"
 "$SPEL" open https://example.com >/dev/null 2>&1
 
 OUT=$("$SPEL" --json annotate 2>&1)
-assert_jq_gt "annotate → .annotated > 0" "$OUT" '.annotated' 0
+assert_jq_gt "annotate → .annotated.count > 0" "$OUT" '.annotated.count' 0
 
-VIEWPORT_COUNT=$(echo "$OUT" | jq -r '.annotated' 2>/dev/null)
+VIEWPORT_COUNT=$(echo "$OUT" | jq -r '.annotated.count' 2>/dev/null)
 OUT=$("$SPEL" --json annotate --full 2>&1)
-FULL_COUNT=$(echo "$OUT" | jq -r '.annotated' 2>/dev/null)
+FULL_COUNT=$(echo "$OUT" | jq -r '.annotated.count' 2>/dev/null)
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ "$FULL_COUNT" =~ ^[0-9]+$ ]] && [[ "$VIEWPORT_COUNT" =~ ^[0-9]+$ ]] && (( FULL_COUNT >= VIEWPORT_COUNT )); then
   pass "annotate --full → count >= viewport-only count"
@@ -1703,7 +1801,7 @@ assert_jq "overview → has size" "$OUT" '.size > 0'
 OUT=$("$SPEL" --json overview --all 2>&1)
 assert_jq "overview --all → has path" "$OUT" '.path'
 assert_jq "overview --all → has size" "$OUT" '.size > 0'
-assert_jq "overview --all → has refs_annotated" "$OUT" '.refs_annotated >= 0'
+assert_jq "overview --all → has annotated.count" "$OUT" '.annotated.count >= 0'
 
 OUT=$("$SPEL" --json debug 2>&1)
 assert_jq "debug → has url" "$OUT" '.url'

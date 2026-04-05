@@ -448,25 +448,49 @@
 
   (describe "annotated-screenshot with real page"
 
-    (it "returns valid PNG bytes with annotations"
+    (it "returns {:bytes :annotated} with a valid PNG and ref entries"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
         (let [snap   (snapshot/capture-snapshot pg)
-              result (sut/annotated-screenshot pg (:refs snap))]
-          (expect (bytes? result))
-          (expect (pos? (alength result)))
-        ;; Verify it's a valid PNG
-          (let [img (ImageIO/read (ByteArrayInputStream. result))]
+              result (sut/annotated-screenshot pg (:refs snap))
+              ^bytes png (:bytes result)]
+          (expect (bytes? png))
+          (expect (pos? (alength png)))
+          ;; :annotated is the LLM-friendly ref→label mapping
+          (expect (map? (:annotated result)))
+          (expect (number? (get-in result [:annotated :count])))
+          (expect (vector? (get-in result [:annotated :entries])))
+          ;; Entries carry ref + role + bbox so downstream tooling can map
+          ;; visual labels back to @refs
+          (when (pos? (get-in result [:annotated :count]))
+            (let [e (first (get-in result [:annotated :entries]))]
+              (expect (string? (:ref e)))
+              (expect (string? (:role e)))
+              (expect (map? (:bbox e)))))
+          ;; Verify it's a valid PNG
+          (let [img (ImageIO/read (ByteArrayInputStream. png))]
             (expect (some? img))
             (expect (pos? (.getWidth img)))
             (expect (pos? (.getHeight img)))))))
 
+    (it "entries are sorted top→down, left→right"
+
+      (core/with-testing-page [pg] (page/navigate pg "https://example.org")
+        (let [snap    (snapshot/capture-snapshot pg)
+              result  (sut/annotated-screenshot pg (:refs snap))
+              entries (get-in result [:annotated :entries])]
+          ;; y coordinate is non-decreasing in reading order
+          (doseq [[a b] (partition 2 1 entries)]
+            (let [ya (double (or (get-in a [:bbox :y]) 0))
+                  yb (double (or (get-in b [:bbox :y]) 0))]
+              (expect (<= ya yb)))))))
+
     (it "annotated is larger than raw screenshot"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
-        (let [snap      (snapshot/capture-snapshot pg)
-              raw       (page/screenshot pg)
-              annotated (sut/annotated-screenshot pg (:refs snap))]
+        (let [snap             (snapshot/capture-snapshot pg)
+              raw              (page/screenshot pg)
+              ^bytes annotated (:bytes (sut/annotated-screenshot pg (:refs snap)))]
           (expect (> (alength annotated) (alength raw))))))))
 
 ;; =============================================================================
@@ -479,19 +503,22 @@
 
   (describe "save to file"
 
-    (it "writes a non-empty PNG file"
+    (it "writes a non-empty PNG file and returns {:path :size :annotated}"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
         (let [snap     (snapshot/capture-snapshot pg)
               tmp-file (File/createTempFile "annotate-test-" ".png")
               path     (.getAbsolutePath tmp-file)]
           (try
-            (sut/save-annotated-screenshot! pg (:refs snap) path)
-            (expect (.exists tmp-file))
-            (expect (pos? (.length tmp-file)))
-          ;; Verify it's a valid image
-            (let [img (ImageIO/read tmp-file)]
-              (expect (some? img)))
+            (let [result (sut/save-annotated-screenshot! pg (:refs snap) path)]
+              (expect (.exists tmp-file))
+              (expect (pos? (.length tmp-file)))
+              (expect (= path (:path result)))
+              (expect (pos? (:size result)))
+              (expect (number? (get-in result [:annotated :count])))
+              ;; Verify it's a valid image
+              (let [img (ImageIO/read tmp-file)]
+                (expect (some? img))))
             (finally
               (.delete tmp-file))))))))
 
@@ -508,22 +535,23 @@
     (it "annotates fewer elements when scoped to a subtree"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
-        (let [snap      (snapshot/capture-snapshot pg)
-              refs      (:refs snap)
-              full-n    (sut/inject-overlays! pg refs)
-              _         (sut/remove-overlays! pg)
+        (let [snap     (snapshot/capture-snapshot pg)
+              refs     (:refs snap)
+              full-n   (:count (sut/inject-overlays! pg refs))
+              _        (sut/remove-overlays! pg)
             ;; Scope to just the body > div (inner content container)
-              scoped-n  (sut/inject-overlays! pg refs {:scope "div > p"})]
+              scoped-n (:count (sut/inject-overlays! pg refs {:scope "div > p"}))]
           (sut/remove-overlays! pg)
         ;; Scoped should annotate fewer (or equal) elements
           (expect (<= scoped-n full-n)))))
 
-    (it "returns 0 when scope selector matches nothing"
+    (it "returns {:count 0 :entries []} when scope selector matches nothing"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
-        (let [snap (snapshot/capture-snapshot pg)
-              n    (sut/inject-overlays! pg (:refs snap) {:scope "#nonexistent-element"})]
-          (expect (= 0 n))))))
+        (let [snap   (snapshot/capture-snapshot pg)
+              result (sut/inject-overlays! pg (:refs snap) {:scope "#nonexistent-element"})]
+          (expect (= 0 (:count result)))
+          (expect (= [] (:entries result)))))))
 
   (describe "scoped snapshot via capture-snapshot :scope"
 
@@ -548,9 +576,11 @@
     (it "produces valid PNG with scoped annotations"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
-        (let [snap   (snapshot/capture-snapshot pg)
-              result (sut/annotated-screenshot pg (:refs snap) {:scope "body"})]
-          (expect (bytes? result))
-          (expect (pos? (alength result)))
-          (let [img (ImageIO/read (ByteArrayInputStream. result))]
+        (let [snap       (snapshot/capture-snapshot pg)
+              result     (sut/annotated-screenshot pg (:refs snap) {:scope "body"})
+              ^bytes png (:bytes result)]
+          (expect (bytes? png))
+          (expect (pos? (alength png)))
+          (expect (map? (:annotated result)))
+          (let [img (ImageIO/read (ByteArrayInputStream. png))]
             (expect (some? img))))))))

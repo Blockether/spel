@@ -81,8 +81,10 @@ Proven navigation playbook:
 | `spel click @eXXXXX` | Click element by snapshot ref |
 | `spel fill @eXXXXX "text"` | Fill input by snapshot ref |
 | `spel screenshot name.png` | Take screenshot |
-| `spel annotate` | Inject visual overlays on elements |
+| `spel screenshot -a` | **Annotated** full-page screenshot: overlays ref labels on every visible element AND prints a sorted list `@ref role "name"` that maps visual labels → clickable refs (LLM-friendly, one call) |
+| `spel annotate` | Inject visual overlays on the live page (no screenshot). Returns `{:count :entries [{:ref :role :name :bbox}]}` — entries are sorted top→down/left→right |
 | `spel unannotate` | Remove visual overlays |
+| `spel batch [--bail] [--json]` | Run a JSON array of sub-commands from stdin (one warm daemon session, pays CLI cold-start once) |
 | `spel wait --text "..."` | Wait for text to appear |
 | `spel wait --load load` | Wait for page load |
 | `spel close` | Close browser session |
@@ -169,6 +171,33 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 | Lifecycle | Use `with-testing-page` (recommended) or low-level `with-playwright`, `with-browser`, `with-context`, `with-page` — resources auto-cleaned |
 | Screenshots | After visual/UI changes, ALWAYS take and display a screenshot as proof |
 
+## Agent Safety (opt-in, combinable)
+
+Three independent global flags protect LLM-driven browser deployments against
+prompt injection, context-window flooding, and unauthorized navigation. They
+compose cleanly — enable one, two, or all three per invocation or via env vars.
+
+| Flag | Purpose | Env var |
+|------|---------|---------|
+| `--content-boundaries` | Wrap tool stdout in `<untrusted-content>...</untrusted-content>` delimiters so the agent can reject instructions embedded in scraped page content | `SPEL_CONTENT_BOUNDARIES=true` |
+| `--max-output N` | Truncate stdout to N characters with a suffix showing the original size. Protects the agent's context window from runaway pages (e.g. a 2MB snapshot) | `SPEL_MAX_OUTPUT=50000` |
+| `--allowed-domains LIST` | Comma-separated hostnames. Blocks navigation **and** sub-resource fetches (scripts, images, fetch, XHR) outside the list. Supports `*.example.com` wildcards that match the bare domain plus subdomains. Applied at browser launch via a context-level Playwright route. Non-HTTP schemes (`data:`, `blob:`, `about:`) always pass through | `SPEL_ALLOWED_DOMAINS` |
+
+```bash
+# Sandboxed agent run: only example.com + CDN, output capped, delimited
+spel \
+  --content-boundaries \
+  --max-output 50000 \
+  --allowed-domains "example.com,*.example.com,*.cloudfront.net" \
+  open https://example.com
+```
+
+**Security notes**
+- These features are **opt-in**. Default behavior is unchanged (no wrapping, no truncation, no allowlist).
+- `--allowed-domains` is sticky per session — close the session to lift the restriction. A navigation attempt to a blocked domain returns an anomaly with `blockedbyclient`.
+- Errors (stderr) are **never** wrapped or truncated — agents need full error details.
+- Wildcards guard against suffix-attack domains: `*.example.com` does **not** match `notexample.com` or `example.com.evil.org`.
+
 ## Examples
 
 Example 1: Write E2E tests
@@ -202,6 +231,47 @@ Actions:
 2. `spel wait --load load`
 3. `spel screenshot example.png`
 Result: Screenshot saved to `example.png`
+
+Example 5: Multimodal reasoning — see the page AND get refs in one call
+User says: "Open the checkout page and click the primary CTA"
+Actions:
+1. `spel open https://shop.example.com/checkout`
+2. `spel screenshot -a` — returns a PNG with ref labels drawn on every visible
+   element **plus** a deterministic list `@ref role "name"` in reading order
+3. Reason over the image + list to pick the target ref (e.g. `@e2yrjz`)
+4. `spel click @e2yrjz`
+Result: One round-trip gives the model vision + addressability. No separate
+`snapshot -i` + `screenshot` + mental mapping step. Use this when a pure text
+snapshot is ambiguous (icon-only buttons, canvas, custom widgets).
+
+Example 6: Deterministic multi-step flow via `batch`
+User says: "Navigate, search, screenshot — as one atomic sequence"
+Actions:
+```bash
+echo '[
+  ["open", "https://example.com"],
+  ["wait", "--load", "load"],
+  ["screenshot", "-a", "shot.png"]
+]' | spel batch --json --bail
+```
+Result: `{"count":3,"success":true,"results":[...]}`. Pays CLI cold-start
+once, shares one daemon session, stops on first failure when `--bail` is set.
+Use for atomic flows where each step depends on the previous one.
+
+Example 7: Sandboxed agent run with full security stack
+User says: "Let the LLM browse example.com without being able to escape it"
+```bash
+spel \
+  --content-boundaries \
+  --max-output 50000 \
+  --allowed-domains "example.com,*.example.com" \
+  open https://example.com
+# Any attempt to navigate or fetch resources outside example.com
+# fails with anomaly `blockedbyclient`. Page content returned to the agent
+# is wrapped in <untrusted-content> so prompt injection embedded in the
+# HTML is quarantined. Output is capped at 50k chars.
+```
+Result: The agent operates inside a sealed perimeter. Prompt-injection, sidetracked navigation, and context-window explosions are all contained.
 
 ## Troubleshooting
 
