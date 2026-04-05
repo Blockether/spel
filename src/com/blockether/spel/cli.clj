@@ -17,6 +17,7 @@
    [charred.api :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [com.blockether.spel.config :as spel-config]
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.security :as security])
   (:import
@@ -1643,8 +1644,30 @@
    :command is the action map to send to the daemon.
    :flags contains global options like :session, :json."
   [args]
-  (let [;; Read environment variable defaults
-        env-defaults (cond-> {:session "default" :headless true :json false :stealth true}
+  (let [;; Pre-scan argv for --config <path> or SPEL_CONFIG env. This has to
+        ;; happen BEFORE the normal flag loop because the config may itself
+        ;; define defaults that the loop later overrides.
+        cli-config-path (or (loop [a args]
+                              (cond
+                                (empty? a) nil
+                                (= "--config" (first a)) (second a)
+                                (and (string? (first a))
+                                  (str/starts-with? ^String (first a) "--config="))
+                                (subs ^String (first a) 9)
+                                :else (recur (rest a))))
+                          (System/getenv "SPEL_CONFIG"))
+        ;; Load merged config layers (user + project OR explicit --config).
+        ;; Missing files are silent, except an explicit --config path that
+        ;; cannot be read — that is a hard error so typos get caught.
+        config-defaults (try (spel-config/load-config cli-config-path)
+                             (catch Exception e
+                               (binding [*out* *err*]
+                                 (println (str "spel: " (.getMessage e))))
+                               (System/exit 1)
+                               {}))
+        ;; Read environment variable defaults (env wins over config file)
+        env-defaults (cond-> (merge {:session "default" :headless true :json false :stealth true}
+                               config-defaults)
                        (System/getenv "SPEL_SESSION")
                        (assoc :session (System/getenv "SPEL_SESSION"))
                        (= "true" (System/getenv "SPEL_JSON"))
@@ -1690,7 +1713,15 @@
                        (System/getenv "SPEL_ALLOWED_DOMAINS")
                        (assoc :allowed-domains (System/getenv "SPEL_ALLOWED_DOMAINS"))
                        (System/getenv "SPEL_DEVICE")
-                       (assoc :device (System/getenv "SPEL_DEVICE")))
+                       (assoc :device (System/getenv "SPEL_DEVICE"))
+                       (System/getenv "SPEL_SCREENSHOT_FORMAT")
+                       (assoc :screenshot-format (System/getenv "SPEL_SCREENSHOT_FORMAT"))
+                       (System/getenv "SPEL_SCREENSHOT_QUALITY")
+                       (assoc :screenshot-quality (parse-long (System/getenv "SPEL_SCREENSHOT_QUALITY")))
+                       (System/getenv "SPEL_SCREENSHOT_DIR")
+                       (assoc :screenshot-dir (System/getenv "SPEL_SCREENSHOT_DIR"))
+                       (System/getenv "SPEL_CONFIRM_ACTIONS")
+                       (assoc :confirm-actions (System/getenv "SPEL_CONFIRM_ACTIONS")))
 
         ;; Extract global flags first
         {:keys [flags remaining]}
@@ -1859,6 +1890,65 @@
 
                 (str/starts-with? arg "--device=")
                 (recur (rest args) (assoc flags :device (subs arg 9)) remaining)
+
+                ;; Screenshot output customization (type/quality/default dir).
+                ;; Applied by the daemon's `screenshot` handler when present.
+                (= "--screenshot-format" arg)
+                (recur (drop 2 args) (assoc flags :screenshot-format (second args)) remaining)
+
+                (str/starts-with? arg "--screenshot-format=")
+                (recur (rest args) (assoc flags :screenshot-format (subs arg 20)) remaining)
+
+                (= "--screenshot-quality" arg)
+                (recur (drop 2 args)
+                  (assoc flags :screenshot-quality (parse-long (or (second args) "80")))
+                  remaining)
+
+                (str/starts-with? arg "--screenshot-quality=")
+                (recur (rest args)
+                  (assoc flags :screenshot-quality (parse-long (subs arg 21)))
+                  remaining)
+
+                (= "--screenshot-dir" arg)
+                (recur (drop 2 args) (assoc flags :screenshot-dir (second args)) remaining)
+
+                (str/starts-with? arg "--screenshot-dir=")
+                (recur (rest args) (assoc flags :screenshot-dir (subs arg 17)) remaining)
+
+                ;; Interactive confirmation gate for dangerous action categories
+                ;; (e.g. eval, download, close). Comma-separated list. When a
+                ;; matching action is about to be dispatched, the CLI asks y/n
+                ;; on stdin. Non-TTY stdin → auto-deny (protects LLM agents).
+                (= "--confirm-actions" arg)
+                (recur (drop 2 args) (assoc flags :confirm-actions (second args)) remaining)
+
+                (str/starts-with? arg "--confirm-actions=")
+                (recur (rest args) (assoc flags :confirm-actions (subs arg 18)) remaining)
+
+                ;; Dialog handling policy. By default the daemon auto-accepts
+                ;; `alert` and `beforeunload` dialogs; --no-auto-dialog queues
+                ;; every dialog for explicit `dialog accept`/`dismiss`.
+                (= "--no-auto-dialog" arg)
+                (recur (rest args) (assoc flags :no-auto-dialog true) remaining)
+
+                ;; `--config <path>` has already been pre-scanned and consumed
+                ;; into config-defaults; just eat it here so the command
+                ;; parser does not see it as a positional arg.
+                (= "--config" arg)
+                (recur (drop 2 args) flags remaining)
+
+                (str/starts-with? arg "--config=")
+                (recur (rest args) flags remaining)
+
+                ;; Browser engine selection. `chrome` (default) uses the
+                ;; existing Playwright Chromium launch path; `lightpanda` runs
+                ;; the Zig-based Lightpanda binary as a CDP server and
+                ;; connects over the wire.
+                (= "--engine" arg)
+                (recur (drop 2 args) (assoc flags :engine (second args)) remaining)
+
+                (str/starts-with? arg "--engine=")
+                (recur (rest args) (assoc flags :engine (subs arg 9)) remaining)
 
                 :else
                 (recur (rest args) flags (conj remaining arg))))))
@@ -2543,6 +2633,7 @@
                          (case sub
                            "accept"  {:action "dialog_accept" :text (second cmd-args)}
                            "dismiss" {:action "dialog_dismiss"}
+                           "status"  {:action "dialog_status"}
                            {:error (str "Unknown dialog command: " sub)}))
 
           ;; Debug: trace, console, errors
@@ -3495,8 +3586,25 @@
           ;; Extract output-file directive (CLI-side, not sent to daemon)
           output-file (:_output_file command)
           command     (dissoc command :_output_file)
+          ;; Interactive action-confirmation gate. When --confirm-actions is
+          ;; set, any matching action must be approved on stdin. Non-TTY stdin
+          ;; auto-denies — this is the agent-safety guarantee.
+          confirm-cats (security/parse-categories (:confirm-actions flags))
+          action-name  (name (:action command))
+          _ (when (and (seq confirm-cats)
+                    (security/action-requires-confirm? confirm-cats action-name)
+                    (not (security/confirm-prompt! action-name
+                           (or (get {"evaluate" "eval" "sci_eval" "eval"
+                                     "download" "download" "close" "close"
+                                     "state_save" "state" "state_load" "state"
+                                     "click" "click" "dblclick" "click"}
+                                 action-name)
+                             "action"))))
+              (binding [*out* *err*]
+                (println (str "spel: action '" action-name "' denied by --confirm-actions policy")))
+              (System/exit 2))
           ;; Send command with global flags for daemon to use
-          flag-keys (dissoc flags :session :headless :json)
+          flag-keys (dissoc flags :session :headless :json :confirm-actions)
           cmd-with-flags (if (seq flag-keys)
                            (assoc command :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
                            command)

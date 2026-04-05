@@ -148,3 +148,76 @@
           suffix (format truncation-suffix-fmt total)
           head   (subs text 0 (max 0 (- (long max-chars) (count suffix))))]
       (str head suffix))))
+
+;; =============================================================================
+;; Interactive action confirmation
+;; =============================================================================
+
+(def ^:private action->category
+  "Maps daemon command names (the `:action` strings sent over the socket) to
+   high-level risk categories. Users enable `--confirm-actions <cat1,cat2>` to
+   gate everything in a category with an interactive y/n prompt.
+
+   Categories (agent-browser parity):
+   - `eval`     — arbitrary JavaScript execution (prompt-injection risk)
+   - `download` — filesystem writes from the browser
+   - `close`    — session teardown
+   - `state`    — reading/writing persisted browser state to disk
+   - `click`    — UI interactions (off by default because it would be noisy)"
+  {"evaluate"          "eval"
+   "sci_eval"          "eval"
+   "download"          "download"
+   "close"             "close"
+   "state_save"        "state"
+   "state_load"        "state"
+   "click"             "click"
+   "dblclick"          "click"})
+
+(defn parse-categories
+  "Parses `--confirm-actions \"eval,download\"` into a set of category strings.
+   Trims whitespace, drops blanks. Nil/empty input → empty set (no gating)."
+  [csv]
+  (if (or (nil? csv) (str/blank? csv))
+    #{}
+    (->> (str/split csv #",")
+      (map str/trim)
+      (remove str/blank?)
+      set)))
+
+(defn action-requires-confirm?
+  "Returns true if the given daemon action falls into one of the enabled
+   confirmation categories."
+  [enabled-categories ^String action]
+  (boolean
+    (when-let [cat (action->category action)]
+      (contains? enabled-categories cat))))
+
+(defn tty?
+  "Returns true if the current process stdin is a TTY (interactive terminal).
+   Used to decide whether to actually prompt the user — on non-TTY stdin
+   (pipes, agent runners, CI), we must auto-deny because there is no human
+   available to approve the action."
+  []
+  (boolean (System/console)))
+
+(defn confirm-prompt!
+  "Prints a yes/no prompt to stderr and reads a single line from stdin.
+   Returns true on `y`/`yes` (case-insensitive), false otherwise.
+
+   When stdin is NOT a TTY, immediately returns false without prompting AND
+   writes a clear rejection message to stderr — this is the agent-safety
+   guarantee: an LLM driving the CLI over a pipe can never bypass the gate.
+
+   `action`   — the daemon action string (e.g. \"evaluate\")
+   `category` — the resolved category (e.g. \"eval\")"
+  [^String action ^String category]
+  (if-not (tty?)
+    (do (binding [*out* *err*]
+          (println (str "spel: [confirm] " action " (" category
+                     ") blocked — --confirm-actions is active and stdin is not a TTY.")))
+        false)
+    (do (binding [*out* *err*]
+          (print (str "spel: confirm " action " (" category ")? [y/N] "))
+          (flush))
+        (let [line (try (read-line) (catch Exception _ ""))]
+          (boolean (and line (re-matches #"(?i)y|yes" (str/trim line))))))))

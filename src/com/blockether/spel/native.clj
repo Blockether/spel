@@ -294,6 +294,140 @@
 (defn- print-version []
   (println (str "spel " (spel-version))))
 
+;; =============================================================================
+;; Self-upgrade (`spel upgrade [--check]`)
+;; =============================================================================
+
+(def ^:private upgrade-release-api
+  "https://api.github.com/repos/Blockether/spel/releases/latest")
+
+(defn- os-tag
+  "Returns the release asset tag for the current host (macos-arm64,
+   macos-amd64, linux-amd64, linux-arm64, windows-amd64). Matches the naming
+   used by spel's GitHub Release assets."
+  []
+  (let [os   (str/lower-case (or (System/getProperty "os.name") ""))
+        arch (str/lower-case (or (System/getProperty "os.arch") ""))
+        os-key (cond
+                 (str/includes? os "mac")   "macos"
+                 (str/includes? os "win")   "windows"
+                 :else                       "linux")
+        arch-key (cond
+                   (or (= arch "aarch64") (= arch "arm64")) "arm64"
+                   :else                                     "amd64")]
+    (str os-key "-" arch-key)))
+
+(defn- fetch-latest-release
+  "Hits the GitHub Releases API and returns a map with :tag (e.g. \"v0.7.11\"),
+   :version (\"0.7.11\" — leading `v` stripped), and :assets (vector of
+   {:name :url}). Returns nil on network failure so callers can degrade
+   gracefully."
+  []
+  (try
+    (let [conn (doto ^java.net.HttpURLConnection
+                (.openConnection ^java.net.URL (java.net.URL. upgrade-release-api))
+                 (.setRequestMethod "GET")
+                 (.setRequestProperty "Accept" "application/vnd.github+json")
+                 (.setRequestProperty "User-Agent" "spel-upgrade")
+                 (.setConnectTimeout 5000)
+                 (.setReadTimeout 10000))
+          body (with-open [is (.getInputStream conn)] (slurp is))
+          raw  (charred.api/read-json body)
+          tag  (get raw "tag_name")
+          assets (->> (get raw "assets" [])
+                   (mapv (fn [a]
+                           {:name (get a "name")
+                            :url  (get a "browser_download_url")})))]
+      (when tag
+        {:tag     tag
+         :version (if (str/starts-with? tag "v") (subs tag 1) tag)
+         :assets  assets}))
+    (catch Exception _ nil)))
+
+(defn- compare-versions
+  "Naive semver comparison on dot-separated numeric strings. Returns 1 if `a`
+   is newer than `b`, -1 if older, 0 if equal. Non-numeric segments compare
+   lexically. Suffixes like `-rc1` are ignored."
+  [a b]
+  (let [parse (fn [s]
+                (->> (str/split (first (str/split (str s) #"-")) #"\.")
+                  (mapv #(try (Integer/parseInt %) (catch Exception _ 0)))))
+        av    (parse a)
+        bv    (parse b)
+        len   (max (count av) (count bv))
+        pad   (fn [v] (into v (repeat (- len (count v)) 0)))]
+    (compare (pad av) (pad bv))))
+
+(defn- detect-install-method
+  "Inspects the current binary path and returns one of :brew :cargo :local
+   :unknown. Used to pick the right `exec`-style upgrade command."
+  []
+  (let [path (or (System/getenv "SPEL_BINARY_PATH")
+               (when-let [pwd (System/getenv "_")]
+                 pwd)
+               "spel")]
+    (cond
+      (or (str/includes? path "/Cellar/")
+        (str/includes? path "/opt/homebrew/")
+        (str/includes? path "/usr/local/Cellar/"))
+      :brew
+
+      (str/includes? path ".cargo/bin")
+      :cargo
+
+      (str/includes? path ".local/bin")
+      :local
+
+      :else :unknown)))
+
+(defn handle-upgrade!
+  "Implements `spel upgrade [--check]`. Prints the current version and the
+   latest GitHub release version. With `--check`, exits without making
+   changes. Without `--check`, tells the user which command to run to
+   upgrade based on the detected install method (brew/cargo/manual). A fully
+   automatic in-place overwrite is intentionally out of scope — replacing a
+   running native binary safely across macOS/Linux/Windows deserves its own
+   hardening pass."
+  [args]
+  (let [check-only? (some #{"--check"} args)
+        current     (spel-version)
+        latest      (fetch-latest-release)]
+    (cond
+      (nil? latest)
+      (do (println (str "spel " current))
+          (println "spel: unable to reach GitHub Releases API (network error). Try again later.")
+          (System/exit 1))
+
+      (zero? (long (compare-versions current (:version latest))))
+      (do (println (str "spel " current " — up to date."))
+          (System/exit 0))
+
+      (pos? (long (compare-versions current (:version latest))))
+      (do (println (str "spel " current " is ahead of the latest release (" (:version latest) ")."))
+          (System/exit 0))
+
+      :else
+      (let [method (detect-install-method)
+            os-key (os-tag)
+            asset  (some #(when (str/includes? (str (:name %)) os-key) %) (:assets latest))]
+        (println (str "spel " current " → " (:version latest) " available"))
+        (when asset
+          (println (str "  asset: " (:name asset))))
+        (if check-only?
+          (do (println "Run `spel upgrade` to install.")
+              (System/exit 0))
+          (do (case method
+                :brew    (println "Upgrade via Homebrew:\n  brew upgrade spel")
+                :cargo   (println "Upgrade via Cargo:\n  cargo install --force spel")
+                :local   (do (println "Upgrade manually (local install):")
+                             (when asset
+                               (println (str "  curl -L -o ~/.local/bin/spel " (:url asset)))
+                               (println "  chmod +x ~/.local/bin/spel")))
+                :unknown (do (println "Upgrade manually:")
+                             (when asset
+                               (println (str "  " (:url asset))))))
+              (System/exit 0)))))))
+
 (defn- driver-cli-path
   "Returns the path to the Playwright Node.js CLI entry point.
    The driver must already be downloaded via driver/ensure-driver!."
@@ -923,6 +1057,12 @@
       (= "install" first-arg)
       (do (driver/ensure-driver!)
           (run-install! (rest cmd-args)))
+
+      ;; Self-upgrade — compares SPEL_VERSION to the latest GitHub release and
+      ;; prints the command to run (brew/cargo/manual curl). `--check` reports
+      ;; without mutating anything.
+      (= "upgrade" first-arg)
+      (handle-upgrade! (rest cmd-args))
 
       ;; Inspector — launch Playwright Inspector (wraps `playwright open`)
       (= "inspector" first-arg)

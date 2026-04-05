@@ -403,6 +403,79 @@
                {:channel ch :path path})))
     path))
 
+(defn- which-binary
+  "Returns the absolute path to an executable named `bin-name` found in PATH,
+   or nil if none is found. Used by --engine lightpanda to locate the binary
+   before trying to spawn a subprocess (so we fail with a clear error rather
+   than a cryptic ProcessBuilder exception)."
+  ^String [^String bin-name]
+  (let [path-entries (str/split (or (System/getenv "PATH") "") #":")
+        exe-name     (if (str/includes? (str/lower-case (or (System/getProperty "os.name") "")) "win")
+                       (str bin-name ".exe")
+                       bin-name)]
+    (some (fn [dir]
+            (let [f (java.io.File. ^String dir ^String exe-name)]
+              (when (and (.isFile f) (.canExecute f))
+                (.getAbsolutePath f))))
+      path-entries)))
+
+(defn launch-lightpanda!
+  "Spawns a Lightpanda subprocess in CDP-server mode and returns a map with
+   the CDP URL and child process info, parallel to `auto-launch-browser!` but
+   scoped to the Lightpanda binary.
+
+   Lightpanda is a Zig-based lightweight headless browser that speaks a
+   subset of the CDP. The user must have `lightpanda` on PATH; if not, we
+   throw a clear ex-info with install hints instead of blowing up inside
+   ProcessBuilder.
+
+   Returns:
+     :cdp-url     — WebSocket CDP endpoint (ws://127.0.0.1:<port>)
+     :port        — Allocated port
+     :process     — java.lang.Process for the subprocess
+     :browser-pid — PID of the child"
+  [{:keys [session] :or {session "default"}}]
+  (let [bin  (which-binary "lightpanda")
+        _    (when-not bin
+               (throw (ex-info (str "Lightpanda binary not found in PATH.\n"
+                                 "Install it from https://lightpanda.io/ or pass --engine chrome.")
+                        {:engine "lightpanda"})))
+        port (find-free-cdp-port)
+        cmd  [bin "serve" "--host" "127.0.0.1" "--port" (str port)]
+        _    (binding [*out* *err*]
+               (println (str "spel: [engine] launching Lightpanda on port " port)))
+        pb   (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
+               (.redirectOutput ProcessBuilder$Redirect/DISCARD)
+               (.redirectErrorStream true))
+        proc (.start pb)
+        pid  (.pid proc)]
+    (write-auto-launch-lock! port session pid)
+    ;; Wait up to 15s for the CDP endpoint to come up
+    (loop [attempts 0]
+      (cond
+        (>= attempts 150)
+        (do (.destroyForcibly proc)
+            (clear-auto-launch-lock! port)
+            (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
+                     {:port port :engine "lightpanda" :pid pid})))
+
+        (not (.isAlive proc))
+        (do (clear-auto-launch-lock! port)
+            (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
+                     {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
+
+        (probe-http-cdp port 500)
+        (do (binding [*out* *err*]
+              (println (str "spel: [engine] Lightpanda ready on port " port)))
+            {:cdp-url (str "ws://127.0.0.1:" port)
+             :port port
+             :process proc
+             :browser-pid pid})
+
+        :else
+        (do (Thread/sleep 100)
+            (recur (inc attempts)))))))
+
 (defn auto-launch-browser!
   "Launches a browser with --remote-debugging-port on a free port.
    Uses a temp user-data-dir so the user's existing browser stays untouched.
@@ -580,6 +653,15 @@
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
 (defonce ^:private !dialog-handler (atom nil))
+
+;; Tracks a dialog that is currently blocking the page. The info map holds
+;; :type / :message / :default-value. `dialog_status` reads this atom.
+(defonce ^:private !pending-dialog (atom nil))
+
+;; A promise that the default dialog listener blocks on, waiting for an
+;; explicit response via `dialog_accept` / `dialog_dismiss`. Delivered by those
+;; handlers with a `[action text]` pair.
+(defonce ^:private !pending-dialog-promise (atom nil))
 (defonce ^:private !tracked-requests (atom []))
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
@@ -1090,6 +1172,54 @@
              (:playwright/exception result)))
     result))
 
+(defn- install-default-dialog-handler!
+  "Installs the default Dialog listener on the page. Behavior:
+
+   - `alert` and `beforeunload` are auto-accepted immediately, unless the user
+     passed `--no-auto-dialog`. These dialogs are informational and blocking
+     on them would hang every page navigation.
+   - `confirm` and `prompt` are STORED in `!pending-dialog` and left open.
+     The caller must respond explicitly via `dialog_accept`/`dialog_dismiss`,
+     giving the agent full control over decisions.
+   - When `--no-auto-dialog` is set, EVERY dialog (including alert) goes into
+     `!pending-dialog` and requires explicit handling.
+
+   Responses to other commands while a dialog is pending carry a `:warning`
+   field so the LLM notices the blocked state."
+  [^Page page no-auto?]
+  (reset! !pending-dialog nil)
+  (reset! !pending-dialog-promise nil)
+  (when-let [old @!dialog-handler]
+    (try (.offDialog page old) (catch Exception _ nil)))
+  (let [handler (reify java.util.function.Consumer
+                  (accept [_ dialog]
+                    (let [^Dialog d dialog
+                          dtype   (.type d)
+                          info    {:type    dtype
+                                   :message (.message d)
+                                   :default-value (.defaultValue d)}]
+                      (if (and (not no-auto?)
+                            (contains? #{"alert" "beforeunload"} dtype))
+                        (try (.accept d)
+                             (catch Exception _ nil))
+                        ;; Park until an explicit response arrives on the
+                        ;; promise. Playwright dispatches onDialog on its own
+                        ;; event thread so blocking here is safe.
+                        (let [p (promise)]
+                          (reset! !pending-dialog info)
+                          (reset! !pending-dialog-promise p)
+                          (let [[action text] @p]
+                            (try
+                              (case action
+                                :accept  (.accept d (or text ""))
+                                :dismiss (.dismiss d)
+                                (.dismiss d))
+                              (catch Exception _ nil))
+                            (reset! !pending-dialog nil)
+                            (reset! !pending-dialog-promise nil)))))))]
+    (reset! !dialog-handler handler)
+    (.onDialog page handler)))
+
 (defn- install-allowed-domains!
   "Installs a page-level request listener that closes the page (aborts the
    navigation) when a request targets a non-allowed host.
@@ -1191,7 +1321,12 @@
                         ;; --profile <name> Chrome profile clone: tell Chrome
                         ;; which subdir to use inside the cloned user-data dir.
                         profile-directory-arg
-                        (update :args (fnil conj []) profile-directory-arg))
+                        (update :args (fnil conj []) profile-directory-arg)
+                        ;; --allow-file-access: let file:// URLs read local
+                        ;; files (both args are needed — agent-browser parity).
+                        (get flags "allow-file-access")
+                        (update :args (fnil into [])
+                          ["--allow-file-access-from-files" "--allow-file-access"]))
           ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
           ;; The preset contributes viewport, device-scale-factor, is-mobile,
           ;; has-touch, and user-agent — all merged into ctx-opts. If the user
@@ -1217,6 +1352,37 @@
                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state")))
           pw          (core/create)]
       (cond
+        ;; ── Mode 0: --engine lightpanda → spawn Lightpanda, connect CDP ───
+        ;; Lightpanda is a non-Chromium headless browser; we run it as a
+        ;; CDP server subprocess and then reuse the existing connectOverCDP
+        ;; path to drive it through Playwright. The Lightpanda process is
+        ;; tracked like auto-launch so it gets cleaned up on daemon stop.
+        (= "lightpanda" (get flags "engine"))
+        (let [result  (launch-lightpanda! {:session (:session @!state)})
+              cdp-url (:cdp-url result)
+              _       (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
+              _       (persist-launch-flags!)
+              browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
+              contexts (.contexts ^com.microsoft.playwright.Browser browser)
+              context  (if (seq contexts)
+                         (first contexts)
+                         (check-anomaly!
+                           (core/new-context browser)
+                           "Lightpanda: failed to create context via CDP"))
+              pages   (.pages ^com.microsoft.playwright.BrowserContext context)
+              pg-inst (if (seq pages)
+                        (first pages)
+                        (check-anomaly!
+                          (core/new-page-from-context context)
+                          "Lightpanda: failed to create page"))]
+          (swap! !state assoc
+            :pw pw :browser browser :context context :page pg-inst
+            :cdp-connected true
+            :auto-launch-info {:port        (:port result)
+                               :browser-pid (:browser-pid result)
+                               :tmp-dir     nil
+                               :engine      "lightpanda"}))
+
         ;; ── Mode 1: --profile with directory → Playwright persistent ──────
         ;; Use Playwright's launchPersistentContext for custom profile dirs.
         profile-dir
@@ -1329,6 +1495,9 @@
               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
       ;; Common setup for all paths
       (let [pg-inst (:page @!state)]
+        ;; Default dialog handler: auto-accept alert/beforeunload unless
+        ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
+        (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
         (reset! !console-messages [])
         (page/on-console pg-inst (fn [^ConsoleMessage msg]
                                    (swap! !console-messages conj
@@ -1889,10 +2058,25 @@
           {:path tmp-path :size (alength ^bytes (:bytes result)) :annotated (:annotated result)})
         {:path (:path result) :size (:size result) :annotated (:annotated result)}))
     ;; Plain (non-annotated) screenshot path
-    (let [path-str       (get params "path")
+    (let [launch-flags   (get @!state :launch-flags {})
+          ;; Global --screenshot-format / --screenshot-quality / --screenshot-dir
+          ;; flow through launch-flags and shape both the Playwright screenshot
+          ;; options and the default output directory.
+          fmt            (some-> (get launch-flags "screenshot-format")
+                           str/lower-case
+                           keyword)
+          quality        (some-> (get launch-flags "screenshot-quality") long)
+          default-dir    (or (get launch-flags "screenshot-dir")
+                           (System/getProperty "java.io.tmpdir"))
+          default-ext    (if (= :jpeg fmt) ".jpg" ".png")
+          path-str       (get params "path")
           full-page?     (get params "fullPage" false)
           crop-content?  (get params "cropToContent" false)
           sel            (get params "selector")
+          ss-opts        (cond-> {}
+                           full-page?  (assoc :full-page true)
+                           fmt         (assoc :type fmt)
+                           (and (= :jpeg fmt) quality) (assoc :quality quality))
         ;; Skip crop-to-content when a selector is given — locator screenshots
         ;; capture only the element, so viewport resize is pointless.
           crop?          (and crop-content? (not sel))
@@ -1909,15 +2093,14 @@
           ^bytes ss-bytes (if crop?
                           ;; try/finally guarantees viewport restore on any exception
                             (try
-                              (page/screenshot (pg))
+                              (page/screenshot (pg) ss-opts)
                               (finally
                                 (when original-vp
                                   (page/set-viewport-size! (pg) (long (:width original-vp)) (long (:height original-vp))))))
                           ;; Normal path (no crop) — no viewport to restore
                             (if sel
                               (locator/locator-screenshot (resolve-selector sel))
-                              (page/screenshot (pg) (cond-> {}
-                                                      full-page? (assoc :full-page true)))))]
+                              (page/screenshot (pg) ss-opts)))]
       (if path-str
         (let [out-path (Path/of ^String path-str (into-array String []))]
           (when-let [parent (.getParent out-path)]
@@ -1925,10 +2108,11 @@
           (Files/write out-path ss-bytes
             ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
           {:path path-str :size (alength ss-bytes)})
-        (let [tmp-path (str (System/getProperty "java.io.tmpdir")
+        (let [_ (.mkdirs (java.io.File. ^String default-dir))
+              tmp-path (str default-dir
                          java.io.File/separator
                          "spel-screenshot-"
-                         (System/currentTimeMillis) ".png")]
+                         (System/currentTimeMillis) default-ext)]
           (java.nio.file.Files/write
             (Path/of ^String tmp-path (into-array String []))
             ss-bytes
@@ -2873,24 +3057,50 @@
 ;; --- Phase 4: Dialogs ---
 
 (defmethod handle-cmd "dialog_accept" [_ {:strs [text]}]
-  (when-let [old @!dialog-handler]
-    (.offDialog ^Page (pg) old))
-  (let [handler (reify java.util.function.Consumer
-                  (accept [_ dialog]
-                    (.accept ^Dialog dialog (or text ""))))]
-    (reset! !dialog-handler handler)
-    (.onDialog ^Page (pg) handler))
-  {:dialog_handler "accept" :text text})
+  ;; If a dialog is already pending (parked in the default handler), respond
+  ;; to it via the promise. Otherwise install a one-shot handler for the NEXT
+  ;; dialog — backward compat for callers that call `dialog accept` before the
+  ;; dialog fires.
+  (if-let [p @!pending-dialog-promise]
+    (do (deliver p [:accept text])
+        {:dialog_handler "accept" :text text :pending false})
+    (do (when-let [old @!dialog-handler]
+          (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
+        (let [handler (reify java.util.function.Consumer
+                        (accept [_ dialog]
+                          (try (.accept ^Dialog dialog (or text ""))
+                               (catch Exception _ nil))
+                          (install-default-dialog-handler! (pg)
+                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+          (reset! !dialog-handler handler)
+          (.onDialog ^Page (pg) handler))
+        {:dialog_handler "accept" :text text :pending true})))
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
-  (when-let [old @!dialog-handler]
-    (.offDialog ^Page (pg) old))
-  (let [handler (reify java.util.function.Consumer
-                  (accept [_ dialog]
-                    (.dismiss ^Dialog dialog)))]
-    (reset! !dialog-handler handler)
-    (.onDialog ^Page (pg) handler))
-  {:dialog_handler "dismiss"})
+  (if-let [p @!pending-dialog-promise]
+    (do (deliver p [:dismiss nil])
+        {:dialog_handler "dismiss" :pending false})
+    (do (when-let [old @!dialog-handler]
+          (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
+        (let [handler (reify java.util.function.Consumer
+                        (accept [_ dialog]
+                          (try (.dismiss ^Dialog dialog)
+                               (catch Exception _ nil))
+                          (install-default-dialog-handler! (pg)
+                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+          (reset! !dialog-handler handler)
+          (.onDialog ^Page (pg) handler))
+        {:dialog_handler "dismiss" :pending true})))
+
+(defmethod handle-cmd "dialog_status" [_ _]
+  ;; Reports whether a dialog is currently blocking the page. Agents poll this
+  ;; before issuing actions that would otherwise be silently stalled.
+  (if-let [info @!pending-dialog]
+    {:pending true
+     :type (:type info)
+     :message (:message info)
+     :default_value (:default-value info)}
+    {:pending false}))
 
 ;; --- Phase 4: Debug ---
 
