@@ -1,0 +1,25 @@
+## GET http://localhost:40635/health → 200 OK
+
+### Request Headers
+```
+GET http://localhost:40635/health
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Mon, 06 Apr 2026 01:23:29 GMT
+```
+
+### Response Body
+```json
+{
+  "status": "ok"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:40635/health'
+```
