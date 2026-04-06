@@ -1014,6 +1014,88 @@ OUT=$("$SPEL" --json auth delete "$AUTH_NAME" 2>&1)
 assert_jq "auth delete → .existed=true" "$OUT" '.existed == true'
 
 # =============================================================================
+# AGENT-BROWSER PARITY III — E2E for session 3 + quick wins (16)
+# =============================================================================
+section "Agent-Browser Parity III (16)"
+
+"$SPEL" close >/dev/null 2>&1
+"$SPEL" open https://example.com >/dev/null 2>&1
+
+# keyboard type — types with real keystrokes at current focus
+OUT=$("$SPEL" --json keyboard type "hello" 2>&1)
+assert_jq "keyboard type → .typed" "$OUT" '.typed == "hello"'
+
+# keyboard inserttext — inserts text without key events
+OUT=$("$SPEL" --json keyboard inserttext "world" 2>&1)
+assert_jq "keyboard inserttext → .inserted" "$OUT" '.inserted == "world"'
+
+# window new — creates new page in context
+OUT=$("$SPEL" --json window new 2>&1)
+assert_jq "window new → has .url" "$OUT" 'has("url")'
+
+# Switch back to first tab for remaining tests
+"$SPEL" tab 0 >/dev/null 2>&1
+
+# --screenshot-format jpeg + --screenshot-quality
+JPEG_PATH="/tmp/test-cli-jpeg-$$.jpg"
+TEMP_FILES+=("$JPEG_PATH")
+OUT=$("$SPEL" --json --screenshot-format jpeg --screenshot-quality 50 screenshot "$JPEG_PATH" 2>&1)
+assert_jq_contains "screenshot --format jpeg → .path has .jpg" "$OUT" '.path' '.jpg'
+
+# --screenshot-dir (pathless screenshot goes to custom dir)
+SS_DIR="/tmp/spel-ss-test-$$"
+mkdir -p "$SS_DIR"
+OUT=$("$SPEL" --json --screenshot-dir "$SS_DIR" screenshot 2>&1)
+assert_jq_contains "screenshot --screenshot-dir → .path in custom dir" "$OUT" '.path' "spel-ss-test-$$"
+rm -rf "$SS_DIR" 2>/dev/null
+
+# dialog status (no pending dialog → pending: false)
+OUT=$("$SPEL" --json dialog status 2>&1)
+assert_jq "dialog status → .pending=false" "$OUT" '.pending == false'
+
+# --no-auto-dialog flag is accepted (doesn't error)
+"$SPEL" close >/dev/null 2>&1
+OUT=$(timeout 15 "$SPEL" --json --no-auto-dialog open https://example.com 2>&1)
+assert_jq_eq "--no-auto-dialog open → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$("$SPEL" --json dialog status 2>&1)
+assert_jq "--no-auto-dialog dialog status works" "$OUT" '.pending == false'
+
+# spel.json config file — create temp config, verify it applies
+CONFIG_DIR="/tmp/spel-config-test-$$"
+mkdir -p "$CONFIG_DIR"
+echo '{"maxOutput": 200}' > "$CONFIG_DIR/spel.json"
+OUT=$("$SPEL" --json --config "$CONFIG_DIR/spel.json" snapshot 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+OUTLEN=${#OUT}
+if (( OUTLEN <= 250 )); then
+  pass "config maxOutput=200 → output truncated"
+else
+  fail "config maxOutput=200 → output truncated" "got $OUTLEN chars"
+fi
+rm -rf "$CONFIG_DIR"
+
+# --allow-file-access flag is accepted (doesn't crash)
+"$SPEL" close >/dev/null 2>&1
+OUT=$(timeout 15 "$SPEL" --json --allow-file-access open https://example.com 2>&1)
+assert_jq_eq "--allow-file-access open → .url" "$OUT" '.url' 'https://example.com/'
+
+# upgrade --check (network-dependent but should not crash)
+OUT=$("$SPEL" upgrade --check 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" == *"spel 0."* ]]; then
+  pass "upgrade --check → shows version"
+else
+  fail "upgrade --check → shows version" "got: $(echo "$OUT" | head -c 200)"
+fi
+
+# --engine lightpanda: when binary is NOT in PATH → clear error (not crash)
+"$SPEL" close >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json --engine lightpanda open https://example.com 2>&1) || true
+assert_jq_contains "--engine lightpanda (no binary) → error mentions Lightpanda" "$OUT" '.error' 'Lightpanda'
+
+"$SPEL" close >/dev/null 2>&1
+
+# =============================================================================
 # UTILITY (5)
 # =============================================================================
 section "Utility (5)"
