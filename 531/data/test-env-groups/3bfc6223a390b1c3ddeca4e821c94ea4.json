@@ -1,0 +1,1 @@
+{"id":"3bfc6223a390b1c3ddeca4e821c94ea4","fullName":"com.blockether.spel.security-test.extract-host: URL → hostname string (nil for non-HTTP).WebSocket schemes.extracts host from ws://","name":"extract-host: URL → hostname string (nil for non-HTTP) > WebSocket schemes > extracts host from ws://","status":"passed","testResultsByEnv":{"default":"1508026d4c874ecf0b32cfa4a1d17539"}}
