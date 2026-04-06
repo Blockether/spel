@@ -1349,7 +1349,8 @@
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
                                                                  (catch Exception _ {})))
-                        (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state")))
+                        (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
+                        (get flags "download-path")       (assoc :accept-downloads true))
           pw          (core/create)]
       (cond
         ;; ── Mode 0: --engine lightpanda → spawn Lightpanda, connect CDP ───
@@ -2602,6 +2603,30 @@
   {:path path})
 
 ;; --- Phase 1: Core Gaps ---
+
+(defmethod handle-cmd "keyboard_type" [_ {:strs [text]}]
+  (ensure-page-loaded!)
+  (input/key-type (.keyboard ^Page (pg)) text)
+  {:typed text})
+
+(defmethod handle-cmd "keyboard_inserttext" [_ {:strs [text]}]
+  (ensure-page-loaded!)
+  (input/key-insert-text (.keyboard ^Page (pg)) text)
+  {:inserted text})
+
+(defmethod handle-cmd "window_new" [_ _params]
+  (ensure-browser!)
+  (let [new-pg (check-anomaly!
+                 (core/new-page-from-context (:context @!state))
+                 "Failed to create new window/page")
+        _      (swap! !state assoc :page new-pg)
+        _      (page/on-console new-pg (fn [^ConsoleMessage msg]
+                                         (swap! !console-messages conj
+                                           {:type (.type msg) :text (.text msg)})))
+        _      (page/on-page-error new-pg (fn [error]
+                                            (swap! !page-errors conj {:message (str error)})))
+        _      (page/on-response new-pg track-response!)]
+    {:window "new" :url (try (page/url new-pg) (catch Exception _ "about:blank"))}))
 
 (defmethod handle-cmd "keydown" [_ {:strs [key]}]
   (ensure-page-loaded!)

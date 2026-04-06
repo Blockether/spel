@@ -1721,7 +1721,9 @@
                        (System/getenv "SPEL_SCREENSHOT_DIR")
                        (assoc :screenshot-dir (System/getenv "SPEL_SCREENSHOT_DIR"))
                        (System/getenv "SPEL_CONFIRM_ACTIONS")
-                       (assoc :confirm-actions (System/getenv "SPEL_CONFIRM_ACTIONS")))
+                       (assoc :confirm-actions (System/getenv "SPEL_CONFIRM_ACTIONS"))
+                       (System/getenv "SPEL_DOWNLOAD_PATH")
+                       (assoc :download-path (System/getenv "SPEL_DOWNLOAD_PATH")))
 
         ;; Extract global flags first
         {:keys [flags remaining]}
@@ -1915,6 +1917,13 @@
                 (str/starts-with? arg "--screenshot-dir=")
                 (recur (rest args) (assoc flags :screenshot-dir (subs arg 17)) remaining)
 
+                ;; Default download directory (where `spel download` saves files)
+                (= "--download-path" arg)
+                (recur (drop 2 args) (assoc flags :download-path (second args)) remaining)
+
+                (str/starts-with? arg "--download-path=")
+                (recur (rest args) (assoc flags :download-path (subs arg 16)) remaining)
+
                 ;; Interactive confirmation gate for dangerous action categories
                 ;; (e.g. eval, download, close). Comma-separated list. When a
                 ;; matching action is about to be dispatched, the CLI asks y/n
@@ -2097,6 +2106,21 @@
 
             "keydown"  {:action "keydown" :key (first cmd-args)}
             "keyup"    {:action "keyup" :key (first cmd-args)}
+
+          ;; Keyboard sub-commands (type with real keystrokes / insert text
+          ;; without key events — no selector, acts on current focus)
+            "keyboard" (let [sub (first cmd-args)
+                             txt (str/join " " (rest cmd-args))]
+                         (case sub
+                           "type"       {:action "keyboard_type" :text txt}
+                           "inserttext" {:action "keyboard_inserttext" :text txt}
+                           {:error (str "Unknown keyboard command: " sub)}))
+
+          ;; Window
+            "window"   (let [sub (first cmd-args)]
+                         (case sub
+                           "new" {:action "window_new"}
+                           {:error (str "Unknown window command: " sub)}))
 
           ;; Mouse
             "hover"    {:action "hover" :selector (first cmd-args)}
