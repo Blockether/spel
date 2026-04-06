@@ -31,6 +31,7 @@
    [com.blockether.spel.security :as security]
    [com.blockether.spel.stealth :as stealth]
    [com.blockether.spel.vault :as vault]
+   [com.blockether.spel.dashboard :as dashboard]
    [com.blockether.spel.visual-diff :as visual-diff])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
@@ -671,6 +672,7 @@
    These are read-only queries, session management, or local buffer operations
    that don't drive the page and should never queue."
   #{"close" "session_info" "session_list"
+    "dashboard_start" "dashboard_stop" "dashboard_status"
     "cdp_disconnect" "cdp_reconnect"
     "network_list" "network_requests" "network_get_ref"
     "console_list" "console_get_ref"
@@ -3665,6 +3667,43 @@
   (cond-> {:closed true :shutdown true}
     (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))
 
+;; --- Dashboard ---
+
+(defn dashboard-state
+  "Returns a read-only snapshot of daemon state for the dashboard.
+   Called by the dashboard HTTP server (runs in the same process)."
+  []
+  {:page-fn  pg
+   :state    @!state
+   :console  @!console-messages
+   :errors   @!page-errors
+   :network  @!tracked-requests
+   :activity @sci-env/!action-log})
+
+(defmethod handle-cmd "dashboard_start" [_ {:strs [port]}]
+  (let [p (long (if (string? port) (parse-long port) (or port 4848)))]
+    (if (dashboard/dashboard-running?)
+      {:error "Dashboard already running"
+       :port  (dashboard/dashboard-port)}
+      (do
+        (dashboard/start-dashboard! p dashboard-state)
+        {:dashboard "started"
+         :port      p
+         :url       (str "http://localhost:" p)}))))
+
+(defmethod handle-cmd "dashboard_stop" [_ _]
+  (if (dashboard/dashboard-running?)
+    (do
+      (dashboard/stop-dashboard!)
+      {:dashboard "stopped"})
+    {:error "Dashboard is not running"}))
+
+(defmethod handle-cmd "dashboard_status" [_ _]
+  {:running (dashboard/dashboard-running?)
+   :port    (dashboard/dashboard-port)
+   :url     (when (dashboard/dashboard-running?)
+              (str "http://localhost:" (dashboard/dashboard-port)))})
+
 (defmethod handle-cmd :default [action _]
   {:error (str "Unknown action: " action)})
 
@@ -3873,7 +3912,8 @@
    a fresh daemon. Only deletes PID/socket files if they still belong to
    THIS process (prevents nuking a replacement daemon's files)."
   []
-  ;; 0. Cancel idle timers (prevents re-entry if shutdown is called manually)
+  ;; 0. Stop dashboard & cancel idle timers
+  (when (dashboard/dashboard-running?) (try (dashboard/stop-dashboard!) (catch Exception e (warn "stop-dashboard" e))))
   (cancel-cdp-idle-shutdown!)
   (cancel-session-idle-shutdown!)
   (let [session (:session @!state)]

@@ -251,6 +251,11 @@
   (println "  --debug                   Debug output")
   (println "  --help, -h                Show this help")
   (println "")
+  (println "Dashboard:")
+  (println "  dashboard start [port]    Start observability dashboard (default: 4848)")
+  (println "  dashboard stop            Stop the dashboard")
+  (println "  dashboard status          Check dashboard status")
+  (println "")
   (println "Tools:")
 
   (println "  search <query> [opts]     Google search from the CLI (--help for details)")

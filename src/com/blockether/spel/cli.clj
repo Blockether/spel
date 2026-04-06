@@ -1107,6 +1107,24 @@
       "  spel session list"
       "  spel --session work open https://example.org"])
 
+   "dashboard"
+   (str/join \newline
+     ["dashboard - Observability dashboard"
+      ""
+      "Usage:"
+      "  spel dashboard [subcommand]"
+      ""
+      "Subcommands:"
+      "  start [port]  Start dashboard HTTP server (default port: 4848)"
+      "  stop          Stop the dashboard"
+      "  status        Check if dashboard is running"
+      ""
+      "Examples:"
+      "  spel dashboard start"
+      "  spel dashboard start 9090"
+      "  spel dashboard stop"
+      "  spel dashboard status"])
+
    "connect"
    (str/join \newline
      ["connect - Connect to a browser via Chrome DevTools Protocol"
@@ -2756,6 +2774,16 @@
                            "disconnect" {:action "cdp_disconnect"}
                            "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
                            {:error (str "Unknown cdp command: " sub)}))
+
+          ;; Dashboard
+            "dashboard" (let [sub (first cmd-args)]
+                          (case sub
+                            "start"  {:action "dashboard_start"
+                                      :port   (or (second cmd-args) "4848")}
+                            "stop"   {:action "dashboard_stop"}
+                            "status" {:action "dashboard_status"}
+                            (nil)    {:action "dashboard_status"}
+                            {:error (str "Unknown dashboard command: " sub)}))
 
           ;; Utility: free local TCP port
             "find-free-port" {:action "find_free_port"}
