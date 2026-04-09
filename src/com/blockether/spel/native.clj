@@ -22,7 +22,7 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
-
+   [com.blockether.spel.block-report :as block-report]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -265,6 +265,7 @@
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
   (println "  ci-assemble [opts]        Assemble Allure site for CI deployment (--help for details)")
   (println "  merge-reports [dirs]      Merge N allure-results dirs into one (--help for details)")
+  (println "  report [opts]             Generate Blockether-themed HTML report from allure-results (--help for details)")
   (println "")
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
@@ -963,6 +964,66 @@
           :else
           (recur (rest args) (conj dirs arg) opts))))))
 
+;; =============================================================================
+;; report helpers (Blockether native report)
+;; =============================================================================
+
+(defn- report-help
+  "Help text for the report subcommand."
+  ^String []
+  (str/join \newline
+    ["report - Generate a Blockether-themed HTML report from allure-results"
+     ""
+     "Usage:"
+     "  spel report [options]"
+     ""
+     "Reads allure-results/ JSON files and generates a standalone HTML report"
+     "with the Blockether design system (warm earth tones, no Node.js required)."
+     ""
+     "Options:"
+     "  --results-dir DIR   Allure results directory (default: allure-results)"
+     "  --output-dir DIR    Output directory for HTML report (default: block-report)"
+     "  --title TEXT        Report title (default: \"Test Report\")"
+     "  --help, -h          Show this help"
+     ""
+     "Examples:"
+     "  spel report"
+     "  spel report --results-dir test-results --output-dir my-report"
+     "  spel report --title \"My Project Tests\""]))
+
+(defn- parse-report-args
+  "Parse report CLI arguments into {:opts {...}}."
+  [args]
+  (loop [args args
+         opts {}]
+    (if (empty? args)
+      {:opts opts}
+      (let [arg (first args)]
+        (cond
+          (or (= arg "--help") (= arg "-h"))
+          {:opts (assoc opts :help true)}
+
+          (str/starts-with? arg "--results-dir=")
+          (recur (rest args) (assoc opts :results-dir (subs arg 14)))
+
+          (= arg "--results-dir")
+          (recur (drop 2 args) (assoc opts :results-dir (second args)))
+
+          (str/starts-with? arg "--output-dir=")
+          (recur (rest args) (assoc opts :output-dir (subs arg 13)))
+
+          (= arg "--output-dir")
+          (recur (drop 2 args) (assoc opts :output-dir (second args)))
+
+          (str/starts-with? arg "--title=")
+          (recur (rest args) (assoc opts :title (subs arg 8)))
+
+          (= arg "--title")
+          (recur (drop 2 args) (assoc opts :title (second args)))
+
+          :else
+          (recur (rest args) opts))))))
+
 (defn -main
   "Main entry point for the native-image binary.
 
@@ -1003,6 +1064,16 @@
                   (println "Run 'spel merge-reports --help' for details.")
                   (System/exit 1))
               (allure-reporter/merge-results! dirs opts)))))
+
+      (= "report" first-arg)
+      (let [sub-args (rest cmd-args)]
+        (if (some #{"--help" "-h"} sub-args)
+          (println (report-help))
+          (let [{:keys [opts]} (parse-report-args sub-args)]
+            (block-report/generate!
+              (:results-dir opts "allure-results")
+              (:output-dir opts "block-report")
+              (select-keys opts [:title :results-dir])))))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]

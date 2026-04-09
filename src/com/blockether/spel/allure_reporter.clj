@@ -1295,6 +1295,15 @@
 ;; Merge Results
 ;; =============================================================================
 
+(defn- report-renderer
+  "Which report renderer to use: :allure (npm) or :block (native Clojure).
+   Defaults to :allure for backward compatibility."
+  []
+  (keyword
+    (or (System/getProperty "lazytest.allure.report-renderer")
+      (System/getenv "LAZYTEST_ALLURE_REPORT_RENDERER")
+      "allure")))
+
 (defn- merge-environment-properties
   "Merge multiple environment.properties files. Later values win for
    duplicate keys."
@@ -1391,7 +1400,12 @@
         (println (str "  " result-count " test results"))
         ;; Generate HTML report if requested
         (when report
-          (generate-html-report! output-dir report-dir))
+          (if (= :block (report-renderer))
+            (do
+              (require '[com.blockether.spel.block-report :as block-report])
+              ((resolve 'block-report/generate!) output-dir report-dir
+                                                 {:title (or (report-name) "Test Report")}))
+            (generate-html-report! output-dir report-dir)))
         {:merged @copied
          :results result-count
          :output-dir output-dir}))))
@@ -1478,9 +1492,13 @@
     (write-environment-properties! dir)
     (write-categories-json! dir)
     (println (str "\nAllure results written to " (output-dir) "/ (" n " test cases)"))
-    ;; Generate HTML report with embedded trace viewer
     (when (generate-report?)
-      (generate-html-report! (output-dir) (report-dir)))))
+      (if (= :block (report-renderer))
+        (do
+          (require '[com.blockether.spel.block-report :as block-report])
+          ((resolve 'block-report/generate!) (output-dir) (report-dir)
+                                             {:title (or (report-name) "Test Report")}))
+        (generate-html-report! (output-dir) (report-dir))))))
 
 ;; =============================================================================
 ;; clojure.test Reporter (merged from allure-ct-reporter)
@@ -1812,7 +1830,12 @@
       (write-environment-properties! dir)
       (write-categories-json! dir))
     (when (ct-report?)
-      (generate-html-report! (ct-output-dir-path) (ct-report-dir)))
+      (if (= :block (report-renderer))
+        (do
+          (require '[com.blockether.spel.block-report :as block-report])
+          ((resolve 'block-report/generate!) (ct-output-dir-path) (ct-report-dir)
+                                             {:title (or (report-name) "Test Report")}))
+        (generate-html-report! (ct-output-dir-path) (ct-report-dir))))
     (reset! ct-run-state nil)))
 
 ;; Allure context fixture
