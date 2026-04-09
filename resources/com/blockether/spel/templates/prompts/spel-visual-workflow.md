@@ -4,18 +4,18 @@ description: Visual QA and presentation workflow, regression checks and visual c
 
 # Visual workflow
 
-Orchestrates visual regression testing and visual content creation using spel subagents.
+Visual regression testing + visual content creation via spel subagents.
 
 ## Parameters
 
-- Task: the visual check or presentation to create
-- Target URL: the URL to capture (for visual regression)
+- Task: visual check or presentation to create
+- Target URL: URL to capture (visual regression)
 - Baseline dir (optional): defaults to `baselines/`
 - Output dir (optional): defaults to `$(pwd)/spel-visual/`
 
 ## Pipeline overview
 
-The Bug Hunter handles visual regression when baselines are present. The Presenter creates visual content independently.
+Bug Hunter handles visual regression when baselines present. Presenter creates visual content independently.
 
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
@@ -33,7 +33,7 @@ The Bug Hunter handles visual regression when baselines are present. The Present
 </hunt>
 ```
 
-GATE: Review the diff report and hunter report before proceeding. Verify reported regressions are real and severity is accurate. If this is baseline capture (no prior baseline), confirm the captured state looks correct before it becomes the reference. Do NOT proceed until reviewed.
+GATE: Review diff report + hunter report before proceeding. Verify reported regressions are real, severity accurate. If baseline capture (no prior baseline), confirm captured state looks correct before becoming reference. Do NOT proceed until reviewed.
 
 ## Create visual explanation
 
@@ -44,32 +44,32 @@ GATE: Review the diff report and hunter report before proceeding. Verify reporte
 </present>
 ```
 
-GATE: Review the visual deliverable: HTML file, preview screenshot, and manifest. Verify rendering quality (squint test, swap test, both themes, no overflow). Do NOT approve if Mermaid diagrams have parse errors or labels are unreadable.
+GATE: Review visual deliverable: HTML file, preview screenshot, manifest. Verify rendering quality (squint test, swap test, both themes, no overflow). Do NOT approve if Mermaid diagrams have parse errors or labels unreadable.
 
 ## Composition
 
-- With bugfind workflow: the Hunter already handles visual regression as its Phase 0 when baselines exist.
+- With bugfind workflow: Hunter already handles visual regression as Phase 0 when baselines exist.
 - With test workflow: visual regression snapshots provide regression baselines alongside functional tests.
-- With automation workflow: explorer snapshots provide baseline material for the Hunter's visual regression phase.
-- Presenter standalone: the presentation step can visualize ANY content (architecture diagrams, test reports, bug-finding summaries), not just visual QA output.
+- With automation workflow: explorer snapshots provide baseline material for Hunter's visual regression phase.
+- Presenter standalone: presentation step visualizes ANY content (architecture diagrams, test reports, bug-finding summaries), not visual QA output only.
 
 ## Session isolation
 
-Each agent uses its own named session:
+Each agent uses own named session:
 - Bug Hunter: `hunt-<name>-<timestamp>`
 - Presenter: `pres-<name>-<timestamp>`
 
-Sessions never overlap. Each agent closes its session on completion or error.
+Sessions never overlap. Each agent closes session on completion or error.
 
 ## Usage patterns
 
-- Regression check only: run the bug-hunter with visual regression scope
-- Baseline capture only: run the bug-hunter with no existing baselines (captures initial state)
-- Presentation only: run the second step alone
-- Full visual pipeline: run both steps — Hunter for regression then Presenter for the report
-- Upstream for bugfind: the Hunter’s visual regression is already Phase 0 of the bugfind workflow
+- Regression check only: run bug-hunter with visual regression scope
+- Baseline capture only: run bug-hunter with no existing baselines → captures initial state
+- Presentation only: run step 2 alone
+- Full visual pipeline: run both steps → Hunter for regression, then Presenter for report
+- Upstream for bugfind: Hunter's visual regression = Phase 0 of bugfind workflow
 
 ## Notes
 
-- Every step has a GATE — human review before proceeding
+- Every step has GATE → human review before proceeding
 - Each agent produces machine-readable output for downstream composition

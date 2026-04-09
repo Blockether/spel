@@ -1,16 +1,16 @@
-# Selectors, snapshots, and annotations
+# Selectors, snapshots, annotations
 
-How to find elements, read the page structure, and produce visual overlays. Covers both `eval-sci` mode (implicit page) and library mode (explicit `page` arg).
+Find elements, read page structure, produce visual overlays. Covers `eval-sci` mode (implicit page) + library mode (explicit `page` arg).
 
 ## Selectors
 
-Every `spel/` function that takes a `sel` argument is polymorphic. It accepts:
+Every `spel/` fn taking `sel` is polymorphic. Accepts:
 
-1. CSS selector string like `"#id"`, `".class"`, `"button"`
-2. Snapshot ref string like `"@e2yrjz"` (from `spel/capture-snapshot`, `@` prefix required)
-3. Locator object (pass-through, no resolution needed)
+1. CSS selector string: `"#id"`, `".class"`, `"button"`
+2. Snapshot ref string: `"@e2yrjz"` (from `spel/capture-snapshot`, `@` prefix required)
+3. Locator object (pass-through, no resolution)
 
-So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every other `sel`-accepting function work the same way regardless of how you specify the target.
+`spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, every `sel`-accepting fn works regardless of target type.
 
 ### CSS Selectors
 
@@ -20,13 +20,13 @@ So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every ot
 (spel/locator "div > p")              ;; child combinator
 (spel/locator "input[type=email]")    ;; attribute selector
 
-;; Use directly in actions (no need to call spel/locator first)
+;; Use directly in actions (no spel/locator needed)
 (spel/click "#submit")
 (spel/fill "input[name=email]" "test@example.org")
 (spel/text-content "h1.title")
 ```
 
-`spel/locator` returns a Playwright Locator. You only need it when storing a locator for reuse.
+`spel/locator` returns Playwright Locator. Only needed when storing for reuse.
 
 ### Semantic Selectors
 
@@ -35,7 +35,7 @@ So `spel/click`, `spel/fill`, `spel/text-content`, `spel/visible?`, and every ot
 (spel/get-by-text "Click me")
 (spel/click (spel/get-by-text "Sign in"))
 
-;; By ARIA role (82 constants in the role/ namespace)
+;; By ARIA role (82 constants in role/ namespace)
 (spel/get-by-role role/button)
 (spel/get-by-role role/button {:name "Submit"})
 (spel/get-by-role role/heading {:name "Installation" :exact true})
@@ -64,7 +64,7 @@ Common roles: `role/button`, `role/link`, `role/heading`, `role/textbox`, `role/
 
 ### Snapshot ref selectors
 
-After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID like `@e2yrjz`, `@e9mter`, etc. Use these directly:
+After `(spel/capture-snapshot)`, every interactive element gets ref ID like `@e2yrjz`, `@e9mter`. Use directly:
 
 ```clojure
 (def snap (spel/capture-snapshot))
@@ -72,21 +72,21 @@ After calling `(spel/capture-snapshot)`, every interactive element gets a ref ID
 
 (spel/click "@e2yrjz")              ;; click by ref (@ prefix required)
 (spel/text-content "@e9mter")        ;; get text of ref @e9mter
-(spel/fill "@ea3kf5" "hello")        ;; fill input identified as @ea3kf5
+(spel/fill "@ea3kf5" "hello")        ;; fill input @ea3kf5
 ```
 
-Refs are resolved via the `data-pw-ref` attribute injected during snapshot capture.
+Refs resolved via `data-pw-ref` attribute injected during snapshot capture.
 
 ## Multiple Elements
 
-When a selector matches more than one element, Playwright's strict mode throws. Options:
+Selector matching multiple elements → Playwright strict mode throws. Options:
 
 ```clojure
-;; Get all matches as a vector of Locators
+;; All matches as vector of Locators
 (locator/all (spel/locator "a"))
 (locator/all (spel/locator ".card"))
 
-;; Get all texts at once
+;; All texts at once
 (spel/all-text-contents "a")   ;; => ["Home" "About" "Contact"]
 (spel/all-inner-texts ".item") ;; => ["Item 1" "Item 2" "Item 3"]
 
@@ -99,7 +99,7 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 (spel/nth "li" 2)              ;; third match (0-indexed)
 ```
 
-### Filtering within a locator
+### Filtering within locator
 
 ```clojure
 (spel/loc-locator ".card" "h2")                    ;; sub-selector
@@ -111,29 +111,29 @@ When a selector matches more than one element, Playwright's strict mode throws. 
 (spel/loc-filter ".card" {:has (spel/get-by-text "Buy now")})
 ```
 
-Rule of thumb: if your selector might match multiple elements, make it more specific, use `spel/first`, or use a semantic locator (role + name).
+Rule: selector might match multiple elements → make more specific, use `spel/first`, or use semantic locator (role + name).
 
 ## Accessibility Snapshots
 
-Snapshots give you a structured view of the page, the way a screen reader sees it. Every interactive element gets a numbered ref you can use as a selector.
+Snapshots give structured view of page, as screen reader sees it. Every interactive element gets numbered ref usable as selector.
 
-### Capturing a Snapshot
+### Capturing
 
 ```clojure
 (def snap (spel/capture-snapshot))
 ```
 
-Returns a map with three keys:
+Returns map with three keys:
 
 | Key | Type | Description |
 |-----|------|-------------|
 | `:tree` | String | Human-readable accessibility tree with `[@eN]` annotations |
 | `:refs` | Map | `{"e2yrjz" {:role "heading" :name "Welcome" :tag "h1" :bbox {...}} ...}` |
-| `:counter` | Long | Total number of refs assigned |
+| `:counter` | Long | Total refs assigned |
 
 ### Tree Output
 
-The `:tree` string is a YAML-like indented tree. Real example from a news site:
+`:tree` string is YAML-like indented tree. Real example from a news site:
 
 ```
 - banner:
@@ -155,42 +155,42 @@ The `:tree` string is a YAML-like indented tree. Real example from a news site:
   - link "Terms of Service" [@e8jy4n] [pos:140,500 120×18]
 ```
 
-Each `[@eN]` tag marks an interactive or meaningful element. Structural roles (banner, main, navigation) appear without refs. Attributes like `[level=1]` show ARIA properties. The `[pos:X,Y W×H]` annotation shows the element's screen position (X,Y coordinates) and dimensions (width×height in pixels).
+Each `[@eN]` marks interactive/meaningful element. Structural roles (banner, main, navigation) appear without refs. `[level=1]` shows ARIA properties. `[pos:X,Y W×H]` shows screen position + dimensions.
 
 ### Ref Maps
 
-Each ref in `:refs` contains:
+Each ref in `:refs`:
 
 ```clojure
 {"e2yrjz" {:role "heading" :name "Onet" :tag "h1"
        :bbox {:x 20 :y 10 :width 200 :height 40}}}
 ```
 
-The `:bbox` gives pixel coordinates relative to the page, useful for annotation placement.
+`:bbox` gives pixel coordinates relative to page, useful for annotation placement.
 
-### Scoped and full snapshots
+### Scoped + full snapshots
 
 ```clojure
-;; Scope to a subtree (CSS selector or ref)
+;; Scope to subtree (CSS selector or ref)
 (spel/capture-snapshot {:scope "#main"})
 (spel/capture-snapshot {:scope "@e3pq7r"})
 
-;; Capture all iframes too (refs prefixed: f1_e1, f2_e3, etc.)
+;; Capture all iframes too (refs prefixed: f1_e1, f2_e3)
 (spel/capture-full-snapshot)
 ```
 
-### Resolving and clearing refs
+### Resolving + clearing refs
 
 ```clojure
 (spel/resolve-ref "@e2yrjz")       ;; => Playwright Locator
 (spel/clear-refs!)             ;; remove data-pw-ref attributes from DOM
 ```
 
-If you've moved to a new page since the last snapshot, refs are stale. Take a fresh snapshot.
+Moved to new page since last snapshot → refs stale. Take fresh snapshot.
 
 ### Computed styles for visual comparison
 
-When two elements have **identical geometry** (`[pos:X,Y W×H]`) but look visually different, the mismatch is caused by child-level styles (padding, font-size, min-height). Use `-S` / `--styles` to surface computed CSS per element:
+Two elements with **identical geometry** (`[pos:X,Y W×H]`) but visually different → mismatch caused by child-level styles (padding, font-size, min-height). Use `-S` / `--styles` to surface computed CSS per element:
 
 ```bash
 # Compare toolbar controls with computed styles
@@ -204,7 +204,7 @@ Output includes style data inline:
 - combobox [@e65fyp] [pos:252,112 86×34] {height:34px;padding:6px 8px;font-size:14px}
 ```
 
-This immediately reveals: button is 28px vs select 34px, button has wider padding (12px vs 8px).
+Immediately reveals: button 28px vs select 34px, button wider padding (12px vs 8px).
 
 **Style detail levels:**
 
@@ -214,30 +214,30 @@ This immediately reveals: button is 28px vs select 34px, button has wider paddin
 | *(default)* | 31 props (+ colors, display, position, overflow) | Layout debugging |
 | `--max` | 44 props (+ transforms, transitions, z-index) | Full style audit |
 
-**When to use styles vs geometry:**
+**Styles vs geometry:**
 
 | Question | Tool |
 |---|---|
-| Are elements the same size? | `snapshot -i` (check `[pos:W×H]`) |
+| Same size? | `snapshot -i` (check `[pos:W×H]`) |
 | Why do same-size elements look different? | `snapshot -i -S --minimal` (compare padding, font, min-height) |
 | Full visual regression baseline | `snapshot -i -S` (default 31 props) |
 
 ## Annotations
 
-Annotations inject visual overlays onto the page: bounding boxes, ref badges, and dimension labels. Everything is rendered in the browser via CSS/JS. No external image processing needed.
+Annotations inject visual overlays: bounding boxes, ref badges, dimension labels. Rendered in-browser via CSS/JS. No external image processing.
 
 ### Annotated Screenshots
 
-The most common workflow. Capture a snapshot, then screenshot with overlays:
+Most common workflow. Capture snapshot → screenshot with overlays:
 
 ```clojure
 (def snap (spel/capture-snapshot))
 (spel/save-annotated-screenshot! (:refs snap) "/tmp/annotated.png")
 ```
 
-Injects overlays, takes the screenshot, removes them. Page is left clean.
+Injects overlays → screenshots → removes them. Page left clean.
 
-For bytes instead of a file: `(spel/annotated-screenshot (:refs snap))`
+For bytes instead of file: `(spel/annotated-screenshot (:refs snap))`
 
 Options:
 
@@ -250,7 +250,7 @@ Options:
 
 ### Manual overlay control
 
-Keep overlays visible for headed mode debugging or multiple screenshots:
+Keep overlays visible for headed debugging or multiple screenshots:
 
 ```clojure
 (spel/inject-overlays! (:refs snap))   ;; inject (returns count of annotated elements)
@@ -260,29 +260,29 @@ Keep overlays visible for headed mode debugging or multiple screenshots:
 
 ### Pre-Action Markers
 
-Highlight specific elements before interacting with them. Visually distinct from annotations: bright red/orange pulsing border with a `-> eN` label.
+Highlight elements before interaction. Visually distinct from annotations: bright red/orange pulsing border with `-> eN` label.
 
 ```clojure
-(spel/inject-action-markers! "@e2yrjz" "@ea3kf5")         ;; mark elements you're about to interact with
+(spel/inject-action-markers! "@e2yrjz" "@ea3kf5")         ;; mark elements about to interact with
 (spel/screenshot {:path "/tmp/before-click.png"})
 (spel/click "@ea3kf5")
 (spel/remove-action-markers!)                  ;; clean up
 ```
 
-Markers use `data-spel-action-marker` and don't interfere with annotation overlays. You can have both active at once.
+Markers use `data-spel-action-marker`, don't interfere with annotation overlays. Both can be active at once.
 
 ### Playwright's built-in highlight
 
 ```clojure
-(spel/highlight "@e6t2x4")          ;; Playwright's native highlight (brief flash)
+(spel/highlight "@e6t2x4")          ;; Playwright native highlight (brief flash)
 (spel/highlight "#submit")     ;; works with CSS selectors too
 ```
 
-Unlike annotations, this doesn't persist.
+Unlike annotations, doesn't persist.
 
 ## Audit Screenshots
 
-Screenshots with a caption bar at the bottom. Useful for documenting workflow steps or building visual reports.
+Screenshots with caption bar at bottom. Documenting workflow steps or building visual reports.
 
 ```clojure
 ;; Simple caption
@@ -301,7 +301,7 @@ For bytes: `(spel/audit-screenshot "Caption text")`
 
 ## Snapshot Testing
 
-Assert that an element's accessibility structure matches an expected ARIA snapshot string:
+Assert element's accessibility structure matches expected ARIA snapshot string:
 
 ```clojure
 (spel/assert-matches-aria-snapshot "h1" "- heading \"Welcome\" [level=1]")
@@ -310,7 +310,7 @@ Assert that an element's accessibility structure matches an expected ARIA snapsh
   "- navigation \"Main\":\n  - link \"Home\"\n  - link \"About\"")
 ```
 
-Useful for regression testing. If someone changes the heading level or link text, the assertion fails with a clear diff.
+Regression testing. Changed heading level or link text → assertion fails with clear diff.
 
 Library equivalent:
 
@@ -322,12 +322,12 @@ Library equivalent:
 
 ## Complete workflow example
 
-Open the page, understand its structure, annotate, interact, verify:
+Open page → understand structure → annotate → interact → verify:
 
 ```clojure
 (spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load-state)
-;; 1. Capture the page structure
+;; 1. Capture page structure
 (def snap (spel/capture-snapshot))
 (println (:tree snap))
 (spel/save-annotated-screenshot! (:refs snap) "/tmp/hn-annotated.png")
@@ -336,7 +336,7 @@ Open the page, understand its structure, annotate, interact, verify:
 (spel/remove-action-markers!)
 (spel/click "@e9mter")
 (spel/wait-for-load-state)
-;; 5. Verify we landed on the right page
+;; 5. Verify landed on right page
 (spel/assert-visible "h1")
 (println "Now at:" (spel/url))
 (spel/save-audit-screenshot! "After clicking first link" "/tmp/hn-result.png")

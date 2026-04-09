@@ -2,14 +2,14 @@
 
 - Framework: `clojure.test` (`deftest`, `testing`, `is`, `use-fixtures`)
 - Page setup: `core/with-testing-page` (all-in-one macro: playwright + browser + context + page)
-- API testing: `core/with-testing-api` (all-in-one macro for API request contexts)
+- API testing: `core/with-testing-api` (all-in-one macro for API req contexts)
 - Assertions: exact string matching (NEVER substring unless explicitly `contains-text`)
-- Require: `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles are also available in `eval-sci` mode via the `role/` namespace. See the Enums table in SCI Eval API Reference below.
+- Require: `[com.blockether.spel.roles :as role]` for role-based locators (`role/button`, `role/heading`). All roles available in `eval-sci` via `role/` namespace. See Enums table in SCI Eval API Reference below.
 - Integration tests: live against `example.org`
 
-Each test gets a fresh browser page via `with-testing-page`. The macro handles the full Playwright lifecycle so you don't need to manage playwright, browser, or context objects directly. Assertions use exact string matching by default. Never use substring unless the spec explicitly calls for `contains-text`.
+Each test gets fresh browser page via `with-testing-page`. Macro handles full Playwright lifecycle → no manual playwright/browser/context management. Exact string matching by default. Substring only when spec explicitly calls `contains-text`.
 
-Run the test suite:
+Run test suite:
 
 ```bash
 # Run entire test suite (using Cognitect test-runner or your preferred runner)
@@ -22,7 +22,7 @@ clojure -M:test -n {{ns}}.e2e.seed-test
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 ```
 
-`core/with-testing-page` creates the full Playwright stack (playwright → browser → context → page), binds the page, runs body, and tears everything down. When Allure is active, tracing and HAR are enabled automatically.
+`core/with-testing-page` creates full Playwright stack (playwright → browser → context → page), binds page, runs body, tears down. Allure active → tracing + HAR auto-enabled.
 
 ```clojure
 ;; Basic usage
@@ -39,8 +39,8 @@ clojure -M:test --output nested --output com.blockether.spel.allure-reporter/all
   (page/navigate page "https://app.example.org/dashboard"))
 ```
 
-`core/with-testing-api` is the equivalent for API testing. Creates playwright → browser → context → API request context with automatic tracing.
-Pass an opts map as the first argument to set device, viewport, locale, or load saved auth state. The body receives the page binding and runs inside the managed context.
+`core/with-testing-api` → API equivalent. Creates playwright → browser → context → API req context, auto-tracing.
+Opts map first arg → set device, viewport, locale, load saved auth. Body receives page binding, runs inside managed context.
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]

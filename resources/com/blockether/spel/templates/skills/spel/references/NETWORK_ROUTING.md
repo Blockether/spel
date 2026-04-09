@@ -1,10 +1,10 @@
 # Network & Routing
 
-Intercept, modify, and inspect HTTP requests and responses. Handle WebSocket connections.
+Intercept, modify, inspect HTTP req/res. Handle WebSocket connections.
 
 ## Route Handlers
 
-Register handlers to intercept network requests matching URL patterns. Use glob patterns to match multiple URLs.
+Register handlers to intercept network requests matching URL patterns. Use glob patterns for multiple URLs.
 
 ### Block Images
 
@@ -34,7 +34,7 @@ Register handlers to intercept network requests matching URL patterns. Use glob 
 
 ### Modify Response (Fetch Then Alter)
 
-Fetch the real response, alter it, then fulfill:
+Fetch real response, alter, fulfill:
 
 ```clojure
 (page/route! pg "**/api/data" (fn [route]
@@ -45,7 +45,7 @@ Fetch the real response, alter it, then fulfill:
 
 ### Fallback to Next Handler
 
-Pass control to the next registered handler:
+Pass control to next registered handler:
 
 ```clojure
 (page/route! pg "**/*" (fn [route]
@@ -56,7 +56,7 @@ Pass control to the next registered handler:
 
 ### Remove Route
 
-Unregister a route handler by pattern:
+Unregister route handler by pattern:
 
 ```clojure
 (page/unroute! pg "**/*.{png,jpg}")
@@ -64,7 +64,7 @@ Unregister a route handler by pattern:
 
 ## Request Inspection
 
-Extract information from request objects.
+Extract info from request objects.
 
 ```clojure
 (let [req some-request]
@@ -80,7 +80,7 @@ Extract information from request objects.
 
 ## Response Inspection
 
-Extract information from response objects.
+Extract info from response objects.
 
 ```clojure
 (let [resp some-response]
@@ -96,7 +96,7 @@ Extract information from response objects.
 
 ## Wait for Specific Response
 
-Wait for a response matching a URL pattern while executing an action:
+Wait for response matching URL pattern while executing action:
 
 ```clojure
 (let [resp (page/wait-for-response pg "**/api/users"
@@ -107,7 +107,7 @@ Wait for a response matching a URL pattern while executing an action:
 
 ## WebSocket Handling
 
-Inspect and interact with WebSocket connections.
+Inspect + interact with WebSocket connections.
 
 ```clojure
 (let [ws (first (.webSockets pg))]
@@ -123,11 +123,11 @@ Inspect and interact with WebSocket connections.
 
 | Action | Description |
 |---------|-------------|
-| `net/route-abort!` | Abort the request (optionally with error code) |
-| `net/route-continue!` | Continue the request (optionally modify headers) |
+| `net/route-abort!` | Abort request (optionally with error code) |
+| `net/route-continue!` | Continue request (optionally modify headers) |
 | `net/route-fallback!` | Pass to next registered handler |
-| `net/route-fetch!` | Perform the request and get the response |
-| `net/route-fulfill!` | Fulfill with a custom response |
+| `net/route-fetch!` | Perform request + get response |
+| `net/route-fulfill!` | Fulfill with custom response |
 
 ## Request Functions
 
@@ -139,7 +139,7 @@ Inspect and interact with WebSocket connections.
 | `net/request-post-data` | POST body string or nil |
 | `net/request-resource-type` | "document", "script", "image", "fetch", etc. |
 | `net/request-timing` | Timing map with start/end timestamps |
-| `net/request-is-navigation?` | true if this is a navigation request |
+| `net/request-is-navigation?` | true if navigation request |
 | `net/request-failure` | Failure text or nil if no failure |
 
 ## Response Functions
@@ -153,14 +153,14 @@ Inspect and interact with WebSocket connections.
 | `net/response-headers` | Map of response headers |
 | `net/response-text` | Response body as string |
 | `net/response-body` | Response body as byte array |
-| `net/response-header-value` | Value for a specific header name |
+| `net/response-header-value` | Value for specific header name |
 
 ## WebSocket Functions
 
 | Function | Returns |
 |----------|----------|
 | `net/ws-url` | WebSocket URL string |
-| `net/ws-is-closed?` | true if connection is closed |
+| `net/ws-is-closed?` | true if connection closed |
 | `net/ws-on-message` | Register message handler (receives frame) |
 | `net/ws-on-close` | Register close handler |
 | `net/ws-on-error` | Register error handler |

@@ -1,6 +1,6 @@
 # Capabilities
 
-Compact inventory of the main spel capability areas.
+Compact inventory of main spel capability areas.
 
 ## Browser control
 
@@ -27,7 +27,7 @@ Primary references:
 
 - `eval-sci` execution with implicit page/context state
 - File-based scripts and arg passing
-- Clojure + Java interop in the sandbox
+- Clojure + Java interop in sandbox
 
 Primary references:
 - `references/EVAL_GUIDE.md`

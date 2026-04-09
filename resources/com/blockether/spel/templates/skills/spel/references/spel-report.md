@@ -24,10 +24,10 @@ Verdict: {VERDICT_SUMMARY}
 
 ### Severity meaning
 
-- Critical: blocks core workflow or introduces security/data-loss risk.
+- Critical: blocks core workflow / security/data-loss risk.
 - High: significantly degrades key journey success.
 - Medium: recurring friction with clear user impact.
-- Low: polish or edge-case quality issue.
+- Low: polish / edge-case quality issue.
 
 ## Product Context
 
@@ -143,7 +143,7 @@ Machine-verified quality checks from `spel audit`.
 
 ## Verified Findings
 
-<!-- Duplicate this finding block per issue and replace placeholders -->
+<!-- Duplicate per issue, replace placeholders -->
 
 ### ISSUE-{ISSUE_ID}: {ISSUE_TITLE}
 
@@ -198,7 +198,7 @@ Agent analysis:
 - Hunter score: {HUNTER_SCORE}
 - Verified bugs: {VERIFIED_COUNT} / {REPORTED_COUNT}
 - Disputed bugs: {DISPUTED_COUNT}
-- See `LEARNINGS.md` for full cross-agent learning synthesis and corrective backlog.
+- See `LEARNINGS.md` for full cross-agent learning synthesis + corrective backlog.
 
 ## Appendix
 

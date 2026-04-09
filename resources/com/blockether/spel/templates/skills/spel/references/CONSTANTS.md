@@ -8,11 +8,11 @@ Quick reference for all typed constants in spel's `eval-sci` sandbox and library
 | `role/` | AriaRole constants for role-based selectors | 82 |
 | `device/` | Device preset maps (viewport, UA, scale, touch) | 18 + helpers |
 
-> **Keyword shorthand** is the primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. The `constants/` namespace provides named vars as an alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
+> **Keyword shorthand** is primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. `constants/` namespace provides named vars as alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
 
 ## Keyword Constants (Primary API)
 
-spel functions accept keywords for all Playwright enum values. The options layer converts automatically.
+spel functions accept keywords for all Playwright enum values. Options layer converts automatically.
 
 | Category | Keywords | Used in |
 |----------|----------|---------|
@@ -100,9 +100,9 @@ AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 
 ## Device Presets
 
-Device presets are used via the `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, and user agent.
+Device presets used via `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, user agent.
 
-The `device/` namespace is available in `eval-sci` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. You can also use the `:device` keyword in option maps.
+`device/` namespace available in `eval-sci` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. Can also use `:device` keyword in option maps.
 
 ### All Device Presets
 
@@ -179,7 +179,7 @@ All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop 
 
 ## Java Enum Interop
 
-All Playwright enum classes are registered in `eval-sci`. Direct interop works too:
+All Playwright enum classes registered in `eval-sci`. Direct interop works too:
 
 ```clojure
 LoadState/NETWORKIDLE    WaitUntilState/COMMIT    ColorScheme/DARK

@@ -1,10 +1,10 @@
 # Page locators & composable patterns
 
-How to find elements, chain locators, build reusable page modules, and write clean test code with spel.
+Find elements, chain locators, build reusable page modules, write clean test code.
 
 ## Basic Locators
 
-Every locator strategy returns a Playwright `Locator` that auto-waits and auto-retries.
+Every locator strategy returns Playwright `Locator` — auto-waits, auto-retries.
 
 ### Library Mode (explicit page)
 
@@ -76,14 +76,14 @@ snapshot ref (@ prefix required)
 
 ## Locator Chaining
 
-Narrow results by sub-selecting within a locator or filtering by content.
+Narrow results by sub-selecting within locator or filtering by content.
 
 ### Sub-selection with `loc-locator`
 
 Find elements inside another element:
 
 ```clojure
-;; Library: find buttons inside a specific form
+;; Library: find buttons inside specific form
 (let [form (page/locator pg ".checkout-form")]
   (locator/loc-locator form "button"))
 
@@ -96,11 +96,11 @@ Find elements inside another element:
 
 ### Sub-selection by role/text/label
 
-Locators also have `get-by-*` variants that scope to their subtree:
+Locators have `get-by-*` variants scoping to their subtree:
 
 ```clojure
 (let [dialog (page/locator pg "[role=dialog]")]
-  ;; Find the "Cancel" button inside this dialog only
+  ;; Find "Cancel" button inside this dialog only
   (locator/loc-get-by-role dialog role/button)
   (locator/loc-get-by-text dialog "Cancel")
   (locator/loc-get-by-label dialog "Name")
@@ -109,14 +109,14 @@ Locators also have `get-by-*` variants that scope to their subtree:
 
 ### Filtering with `loc-filter`
 
-Narrow a locator by text content or by the presence of a child:
+Narrow locator by text content or presence of child:
 
 ```clojure
 ;; Rows containing "Overdue"
 (-> (page/locator pg "tr")
     (locator/loc-filter {:has-text "Overdue"}))
 
-;; Rows containing a "Delete" button
+;; Rows containing "Delete" button
 (-> (page/locator pg "tr")
     (locator/loc-filter {:has (page/get-by-role pg role/button {:name "Delete"})}))
 
@@ -124,7 +124,7 @@ Narrow a locator by text content or by the presence of a child:
 (-> (page/locator pg "tr")
     (locator/loc-filter {:has-not-text "Archived"}))
 
-;; Rows without a checkbox
+;; Rows without checkbox
 (-> (page/locator pg "tr")
     (locator/loc-filter {:has-not (page/locator pg "input[type=checkbox]")}))
 
@@ -135,7 +135,7 @@ Narrow a locator by text content or by the presence of a child:
 
 ### Positional Selection
 
-Pick specific elements from a multi-match locator:
+Pick specific elements from multi-match locator:
 
 ```clojure
 (locator/first-element (page/locator pg "li"))    ;; first <li>
@@ -147,7 +147,7 @@ Pick specific elements from a multi-match locator:
 
 ## Page object pattern
 
-Wrap locator creation in plain functions. Each function takes `pg` and returns a `Locator`.
+Wrap locator creation in plain fns. Each takes `pg`, returns `Locator`.
 
 ```clojure
 (ns my-app.pages.login
@@ -156,14 +156,14 @@ Wrap locator creation in plain functions. Each function takes `pg` and returns a
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.roles :as role]))
 
-;; Locator functions
+;; Locator fns
 (defn form [pg]       (page/get-by-test-id pg "login-form"))
 (defn username [pg]   (page/get-by-label pg "Username"))
 (defn password [pg]   (page/get-by-label pg "Password"))
 (defn submit [pg]     (page/get-by-role pg role/button {:name "Log in"}))
 (defn error-msg [pg]  (page/locator pg ".login-error"))
 
-;; Action functions
+;; Action fns
 (defn login! [pg user pass]
   (locator/fill (username pg) user)
   (locator/fill (password pg) pass)
@@ -174,7 +174,7 @@ Wrap locator creation in plain functions. Each function takes `pg` and returns a
   (locator/clear (password pg)))
 ```
 
-Use it in tests:
+Use in tests:
 
 ```clojure
 (ns my-app.login-test
@@ -203,7 +203,7 @@ Use it in tests:
 
 ## Composable Modules
 
-For larger apps, one namespace per page or component. Shared components get their own namespace.
+Larger apps: one namespace per page/component. Shared components get own namespace.
 
 ```clojure
 ;; Shared nav component
@@ -240,10 +240,10 @@ For larger apps, one namespace per page or component. Shared components get thei
 
 ### Composing locators across modules
 
-The key insight: locator functions return `Locator` objects. You can pass them to any `locator/*` function or use them as `:has` / `:has-not` filters.
+Key insight: locator fns return `Locator` objects. Pass to any `locator/*` fn or use as `:has` / `:has-not` filters.
 
 ```clojure
-;; Find cards that contain a "Buy" button
+;; Find cards containing "Buy" button
 (let [buy-btn (page/get-by-role pg role/button {:name "Buy"})]
   (-> (page/locator pg ".product-card")
       (locator/loc-filter {:has buy-btn})
@@ -253,19 +253,19 @@ The key insight: locator functions return `Locator` objects. You can pass them t
 
 ## Snapshot ref traversal
 
-Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive elements. These refs work as selectors.
+Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive elements. These work as selectors.
 
-### The pattern: snapshot, pick, act
+### Pattern: snapshot, pick, act
 
 ```clojure
 ;; SCI/eval mode
 (spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 
-;; 1. Take snapshot, see the tree
+;; 1. Take snapshot, see tree
 (let [snap (spel/capture-snapshot)]
   (println (:tree snap)))
-;; Output includes lines like:
+;; Output includes:
 ;;   - heading "Example Domain" [@e1] [pos:20,50 400×40]
 ;;   - link "More information..." [@e2] [pos:20,100 200×20]
 
@@ -278,11 +278,11 @@ Accessibility snapshots assign numbered refs (`e1`, `e2`, ...) to interactive el
   (locator/hover loc))
 ```
 
-Snapshot refs are ephemeral. They're valid until the next navigation or DOM change. Take a fresh snapshot if the page changes.
+Snapshot refs are ephemeral. Valid until next navigation or DOM change. Fresh snapshot if page changes.
 
 ### Annotated Screenshots
 
-Combine snapshots with visual annotations for debugging:
+Combine snapshots + visual annotations for debugging:
 
 ```clojure
 (let [snap (spel/capture-snapshot)
@@ -290,11 +290,11 @@ Combine snapshots with visual annotations for debugging:
   (spel/save-annotated-screenshot! refs "/tmp/annotated.png"))
 ```
 
-Each ref gets a numbered label overlaid on the screenshot, so you can visually match `e1`, `e2`, etc. to page elements.
+Each ref gets numbered label overlaid on screenshot, visually matching `e1`, `e2`, etc. to page elements.
 
 ## Assertions with Locators
 
-All assertion functions return `nil` on success or an anomaly map on failure. Wrap in `expect` for test assertions.
+All assertion fns return `nil` on success, anomaly map on failure. Wrap in `expect` for test assertions.
 
 ### Element Assertions
 
@@ -321,9 +321,9 @@ All assertion functions return `nil` on success or an anomaly map on failure. Wr
 ### Negation
 
 ```clojure
-;; Assert something is NOT true
+;; Assert something NOT true
 (assert/is-visible (assert/loc-not (assert/assert-that (page/locator pg ".error"))))
-;; ^ asserts .error is NOT visible
+;; ^ asserts .error NOT visible
 ```
 
 ### Page-Level Assertions
@@ -344,7 +344,7 @@ All assertion functions return `nil` on success or an anomaly map on failure. Wr
       (expect (nil? (assert/is-visible (assert/assert-that h1)))))))
 ```
 
-The `nil?` check works because assertion functions return `nil` on success and an anomaly map on failure.
+`nil?` check works because assertion fns return `nil` on success, anomaly map on failure.
 
 ### SCI/Eval Assertions
 
@@ -415,7 +415,7 @@ Build rich HTML or PDF reports from test results using typed entry maps.
 
 ## Tips
 
-Prefer semantic selectors. Role, label, and text locators match how users see the page. They survive CSS refactors.
+Prefer semantic selectors. Role, label, text locators match how users see page. Survive CSS refactors.
 
 ```clojure
 ;; Good: resilient to markup changes
@@ -426,11 +426,11 @@ Prefer semantic selectors. Role, label, and text locators match how users see th
 (page/locator pg "button.btn-primary.submit-form")
 ```
 
-Use test IDs as a fallback. When there's no good role or label, add `data-testid` to the markup and use `get-by-test-id`.
+Use test IDs as fallback. No good role or label → add `data-testid` to markup, use `get-by-test-id`.
 
-Keep locators DRY. Define them once in page object functions. Don't repeat selectors across tests.
+Keep locators DRY. Define once in page object fns. Don't repeat selectors across tests.
 
-Don't over-chain. If a locator expression gets hard to read, break it into named bindings:
+Don't over-chain. Locator expression hard to read → break into named bindings:
 
 ```clojure
 ;; Hard to follow
@@ -449,13 +449,13 @@ Don't over-chain. If a locator expression gets hard to read, break it into named
   (locator/click btn))
 ```
 
-Locators are lazy. Creating a locator doesn't touch the DOM. The lookup happens when you call an action (`click`, `fill`, `text-content`) or assertion. This means you can safely define locators at the top of a test before the page loads.
+Locators are lazy. Creating locator doesn't touch DOM. Lookup happens on action (`click`, `fill`, `text-content`) or assertion. Safe to define locators at test top before page loads.
 
-Iterate with `all`. To loop over matching elements, use `locator/all` to get a vector of individual `Locator` instances:
+Iterate with `all`. Loop over matching elements → use `locator/all` for vector of individual `Locator` instances:
 
 ```clojure
 (doseq [item (locator/all (page/locator pg ".todo-item"))]
   (println (locator/text-content item)))
 ```
 
-Snapshot refs for exploration, selectors for tests. Snapshot refs (`@e2yrjz`) are great for interactive exploration in `eval-sci` mode. For test code, prefer stable selectors (role, label, test-id) that won't shift when the page changes.
+Snapshot refs for exploration, selectors for tests. Snapshot refs (`@e2yrjz`) great for interactive `eval-sci` exploration. For test code, prefer stable selectors (role, label, test-id) that won't shift on page change.

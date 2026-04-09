@@ -1,21 +1,21 @@
 # Visual QA guide
 
-Workflows for catching visual regressions: layout shifts, style changes, and pixel-level differences. This guide covers the full cycle from baseline capture through diff analysis and reporting.
+Workflows for catching visual regressions: layout shifts, style changes, pixel-level diffs. Full cycle from baseline capture through diff analysis + reporting.
 
-For snapshot command syntax and ARIA assertions, see [SELECTORS_SNAPSHOTS.md](SELECTORS_SNAPSHOTS.md).
-For writing snapshot assertions in tests, see [SNAPSHOT_TESTING.md](SNAPSHOT_TESTING.md).
+For snapshot syntax + ARIA assertions → [SELECTORS_SNAPSHOTS.md](SELECTORS_SNAPSHOTS.md).
+For snapshot assertions in tests → [SNAPSHOT_TESTING.md](SNAPSHOT_TESTING.md).
 
 ---
 
 ## When to use visual regression testing
 
-Visual regression testing catches things that unit tests miss:
+Catches what unit tests miss:
 
-- Layout refactors: component restructuring that preserves behavior but shifts elements
-- Design system updates: token changes (colors, spacing, typography) that ripple across pages
-- CSS side effects: a change in one component that unexpectedly affects another
+- Layout refactors: component restructuring preserving behavior but shifting elements
+- Design system updates: token changes (colors, spacing, typography) rippling across pages
+- CSS side effects: change in one component unexpectedly affecting another
 - Responsive breakpoints: layout at specific viewport sizes
-- Third-party widget changes: embedded content you don't control
+- Third-party widget changes: embedded content outside your control
 
 Two complementary approaches:
 
@@ -24,13 +24,13 @@ Two complementary approaches:
 | Structural diff | `spel snapshot -S --json` | Style value changes, missing/added elements, position shifts |
 | Pixel diff | `spel screenshot` + external tool | Rendering differences, font rendering, image changes |
 
-Use both. Structural diffs are fast and CI-friendly. Pixel diffs catch rendering subtleties that structural diffs miss.
+Use both. Structural diffs = fast, CI-friendly. Pixel diffs catch rendering subtleties structural misses.
 
 ---
 
 ## Baseline capture
 
-Capture baselines on a known-good state (main branch, after design review, etc.).
+Capture baselines on known-good state (main branch, post-design-review, etc.).
 
 ### Structural baseline
 
@@ -50,7 +50,7 @@ spel snapshot -S --json > baselines/home-base.json
 spel snapshot -S --max --json > baselines/home-max.json
 ```
 
-Choose one tier per test scenario. MINIMAL is fastest and produces the least noise. MAX catches the most but generates more false positives from minor rendering variation.
+One tier per test scenario. MINIMAL = fastest, least noise. MAX catches most but more false positives.
 
 ### Screenshot baseline
 
@@ -58,7 +58,7 @@ Choose one tier per test scenario. MINIMAL is fastest and produces the least noi
 spel screenshot baselines/home-baseline.png
 ```
 
-For full-page screenshots (captures content below the fold):
+Full-page screenshots (content below fold):
 
 ```bash
 spel eval-sci '(spel/screenshot {:path "baselines/home-full-baseline.png" :full-page true})'
@@ -81,7 +81,7 @@ Examples: `baselines/checkout-desktop.json`, `baselines/checkout-mobile.png`.
 
 ### Mandatory viewport matrix
 
-Baselines and comparisons MUST be captured at all three viewports:
+Baselines + comparisons MUST be captured at all three viewports:
 
 | Viewport | Size | How to set |
 |----------|------|------------|
@@ -89,7 +89,7 @@ Baselines and comparisons MUST be captured at all three viewports:
 | Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
 | Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
 
-Capture workflow for each viewport:
+Capture workflow per viewport:
 ```clojure
 ;; Set viewport
 (spel/set-viewport-size! 768 1024)  ;; tablet
@@ -106,12 +106,12 @@ Capture workflow for each viewport:
   {:refs (:refs snap)})
 ```
 
-Repeat for desktop and mobile. A baseline set is incomplete without all 3 viewports.
+Repeat for desktop + mobile. Baseline set incomplete without all 3 viewports.
 ---
 
 ## Structural diff (JSON comparison)
 
-The `-S` flag attaches computed CSS styles to every ref in the snapshot. Comparing two JSON snapshots tells you exactly which elements changed and how.
+`-S` flag attaches computed CSS styles to every ref. Comparing two JSON snapshots shows exactly which elements changed + how.
 
 ### Capture current state
 
@@ -119,7 +119,7 @@ The `-S` flag attaches computed CSS styles to every ref in the snapshot. Compari
 spel snapshot -S --json > current.json
 ```
 
-Use the same tier as your baseline.
+Use same tier as baseline.
 
 ### Compare with jq
 
@@ -127,7 +127,7 @@ Use the same tier as your baseline.
 # List all ref IDs in baseline
 jq '[.refs | keys[]]' baselines/home-base.json
 
-# Check a specific element's styles
+# Check specific element styles
 jq '.refs["e2yrjz"].styles' baselines/home-base.json
 jq '.refs["e2yrjz"].styles' current.json
 
@@ -144,22 +144,22 @@ jq -n \
 
 ### What to look for
 
-When reviewing a structural diff:
+Reviewing structural diff:
 
-- Changed style values: `font-size: 14px` became `font-size: 16px`
-- Position shifts: `top`, `left`, `right`, `bottom` changed from expected values (MINIMAL tier captures these)
-- Missing elements: a ref present in baseline is absent in current (element removed or hidden)
-- New elements: refs in current that weren't in baseline (new content or revealed elements)
-- Display changes: `display: flex` became `display: block`
-- Duplicate elements: multiple refs with the same role+name (e.g., two `img "Logo"` or two `heading "Site Title"`)
-- Duplicate messages: identical text content appearing in more than one place on the page
-- Content overflow: elements with dimensions larger than their parent container
-- Text truncation: labels or body text cut off with ellipsis where full text should be visible
-- Visual inequality: similar elements (e.g., two cards, two nav items) with different sizes or positions
-- Partially visible elements: meaningful content clipped by overflow:hidden, positioned off-screen, or obscured by overlapping layers
-- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned from their container
-- Visual incoherence: repeated UI patterns (list rows, cards, table rows) with inconsistent internal layout — e.g. status badges that shift position based on content length instead of staying in a fixed column
-- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned from their container
+- Changed style values: `font-size: 14px` → `font-size: 16px`
+- Position shifts: `top`, `left`, `right`, `bottom` diverged from expected (MINIMAL tier)
+- Missing elements: ref in baseline absent in current (removed/hidden)
+- New elements: refs in current not in baseline (new/revealed content)
+- Display changes: `display: flex` → `display: block`
+- Duplicate elements: multiple refs same role+name (two `img "Logo"`, two `heading "Site Title"`)
+- Duplicate messages: identical text in multiple places
+- Content overflow: elements larger than parent container
+- Text truncation: labels/body cut off with ellipsis where full text should show
+- Visual inequality: similar elements (cards, nav items) with different sizes/positions
+- Partially visible: meaningful content clipped by overflow:hidden, off-screen, or obscured
+- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned
+- Visual incoherence: repeated UI patterns (rows, cards) with inconsistent internal layout — badges shifting position by content length instead of fixed column
+- Broken layout: grid columns misaligned, flex rows collapsed, floating elements orphaned
 
 ### Tier selection for regression
 
@@ -167,14 +167,14 @@ When reviewing a structural diff:
 |----------|-----------------|-----|
 | Position/layout regression | MINIMAL (`--minimal`) | Captures top/left/right/bottom, low noise |
 | Typography changes | BASE (default) | Includes font-family, line-height, text-align |
-| Full style audit | MAX (`--max`) | All 36 props, use for thorough one-off audits |
+| Full style audit | MAX (`--max`) | All 36 props, thorough one-off audits |
 | CI speed-sensitive | MINIMAL | Smallest payload, fastest comparison |
 
 ---
 
 ## Screenshot comparison (pixel diff)
 
-Pixel diffs catch rendering differences that structural diffs miss: anti-aliasing, image rendering, font hinting, shadow blur.
+Pixel diffs catch rendering differences structural misses: anti-aliasing, image rendering, font hinting, shadow blur.
 
 ### Capture current screenshot
 
@@ -184,23 +184,23 @@ spel screenshot current.png
 
 ### Pixel diff tools
 
-spel doesn't include a built-in pixel differ. Use one of these:
+spel has no built-in pixel differ. Use:
 
-ImageMagick (available on most CI systems):
+ImageMagick (most CI systems):
 
 ```bash
-# Compare and output diff image
+# Compare + output diff image
 compare -metric AE baseline.png current.png diff.png
 
 # Get pixel difference count
 compare -metric AE baseline.png current.png /dev/null 2>&1
 ```
 
-pixelmatch (Node.js, precise control):
+pixelmatch (Node.js, precise):
 
 ```bash
 npx pixelmatch baseline.png current.png diff.png 0.1
-# Exit code 0 = within threshold, 1 = exceeds threshold
+# Exit 0 = within threshold, 1 = exceeds
 ```
 
 LooksSame (Node.js, anti-aliasing aware):
@@ -213,12 +213,12 @@ npx looks-same baseline.png current.png --tolerance 2
 
 | Context | Acceptable difference | Reason |
 |---------|----------------------|--------|
-| Static content | < 0.1% pixels | Very stable, any change is suspicious |
-| Content with dates or counts | Mask or exclude | Crop to stable regions |
+| Static content | < 0.1% pixels | Very stable, any change suspicious |
+| Content with dates/counts | Mask or exclude | Crop to stable regions |
 | Font rendering across OS | < 1% pixels | Sub-pixel rendering varies |
 | Animations (screenshot mid-state) | Disable animations first | Use `prefers-reduced-motion` |
 
-Disable CSS animations before capturing baselines and current screenshots to avoid false positives:
+Disable CSS animations before capturing baselines + current screenshots:
 
 ```bash
 spel eval-sci '(spel/add-style-tag {:content "*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }"})'
@@ -231,21 +231,19 @@ spel screenshot current.png
 
 ### Storage strategy
 
-Two options, each with tradeoffs:
-
-Commit baselines to git (recommended for small teams):
-- Baselines are versioned alongside code
+Commit baselines to git (recommended, small teams):
+- Baselines versioned alongside code
 - PRs show baseline changes explicitly
-- Works well when baselines are stable
+- Works well when baselines stable
 
-Store baselines externally (recommended for large suites):
-- S3, GCS, or artifact storage
-- Avoids bloating the repo
-- Requires a fetch step in CI
+Store baselines externally (recommended, large suites):
+- S3, GCS, artifact storage
+- Avoids repo bloat
+- Requires fetch step in CI
 
 ### Updating baselines
 
-After an intentional visual change, re-capture:
+After intentional visual change, re-capture:
 
 ```bash
 # Re-capture structural baseline
@@ -255,12 +253,12 @@ spel snapshot -S --json > baselines/home-base.json
 spel screenshot baselines/home-baseline.png
 ```
 
-Commit the updated baselines with a message that explains the intentional change. Reviewers can then verify the diff is expected.
+Commit updated baselines with message explaining intentional change. Reviewers verify diff is expected.
 
 ### CI workflow
 
 ```bash
-# On main branch: capture and store baselines
+# On main branch: capture + store baselines
 spel open https://staging.example.com
 spel snapshot -S --json > baselines/home-base.json
 spel screenshot baselines/home-baseline.png
@@ -280,11 +278,11 @@ compare -metric AE baselines/home-baseline.png current.png diff.png
 
 ## Regression report
 
-A useful regression report answers three questions: what changed, was it intentional, and where is the evidence?
+Useful regression report answers: what changed, intentional?, where's evidence?
 
 ### Structural change report
 
-For each changed element, record:
+Per changed element, record:
 
 ```
 Element: @e2yrjz (heading "Welcome")
@@ -296,26 +294,26 @@ Verdict:  [REGRESSION / INTENTIONAL]
 
 ### Screenshot evidence
 
-Capture annotated screenshots to show context around changed elements:
+Capture annotated screenshots showing context around changed elements:
 
 ```bash
-# One-liner: full-page screenshot with ref overlays AND a printed ref list
-# that maps visual labels → @refs (LLM-friendly, multimodal reasoning).
+# One-liner: full-page screenshot with ref overlays + printed ref list
+# maps visual labels → @refs (LLM-friendly, multimodal reasoning).
 spel screenshot -a report/current-annotated.png
 
-# Equivalent SCI form when you need programmatic access to the entries:
+# Equivalent SCI form for programmatic access:
 spel eval-sci '
   (def snap (spel/capture-snapshot))
   (annotate/save-annotated-screenshot! (:refs snap) "report/current-annotated.png")'
 ```
-;; The :tree includes [pos:X,Y W×H] screen coordinates for each ref'd element.
-;; Use position data for layout verification and element overlap detection.
+;; :tree includes [pos:X,Y W×H] screen coordinates per ref'd element.
+;; Use position data for layout verification + element overlap detection.
 
-Side-by-side comparison: place `baseline.png` and `current.png` next to each other in your report. The diff image from ImageMagick highlights changed pixels in red.
+Side-by-side: place `baseline.png` + `current.png` next to each other. Diff image from ImageMagick highlights changed pixels in red.
 
 ### PDF audit report
 
-For formal sign-off, generate a PDF report combining screenshots and observations. See [SNAPSHOT_TESTING.md](SNAPSHOT_TESTING.md) for the `report->pdf` entry types and usage.
+For formal sign-off, generate PDF combining screenshots + observations. See [SNAPSHOT_TESTING.md](SNAPSHOT_TESTING.md) for `report->pdf` entry types + usage.
 
 ---
 

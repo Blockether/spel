@@ -2,7 +2,7 @@
 
 ## Codegen - Record & Transform
 
-Record browser sessions and transform to idiomatic Clojure.
+Record browser sessions, transform to idiomatic Clojure.
 
 ### Workflow
 
@@ -79,11 +79,11 @@ In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 
 ## CLI
 
-Wraps Playwright CLI commands via the `spel` native binary.
+Wraps Playwright CLI commands via `spel` native binary.
 
-> **Prefer `eval-sci` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) are useful for quick one-off actions, but for anything beyond a single command, use `spel eval-sci '<clojure-code>'` or `spel eval-sci script.clj`. This gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts can be piped via `echo '(code)' | spel eval-sci --stdin`.
+> **Prefer `eval-sci` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) useful for quick one-off actions, but for anything beyond a single command, use `spel eval-sci '<clojure-code>'` or `spel eval-sci script.clj`. Gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts piped via `echo '(code)' | spel eval-sci --stdin`.
 
-> **Note**: `spel install` delegates to `com.microsoft.playwright.CLI`, which is a thin shim that spawns the same Node.js Playwright CLI that `npx playwright` uses. The driver version is pinned to the Playwright Java dependency (1.58.0), so browser versions always match.
+> **Note**: `spel install` delegates to `com.microsoft.playwright.CLI` — thin shim spawning same Node.js Playwright CLI that `npx playwright` uses. Driver version pinned to Playwright Java dependency (1.58.0), so browser versions always match.
 
 ```bash
 spel install                        # Install browsers (Chromium by default)
@@ -95,7 +95,7 @@ spel screenshot URL                 # Take screenshot
 
 #### Corporate Proxy / Custom CA Certificates
 
-Behind a corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
+Behind corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
 
 | Env Var | Format | On missing file | Description |
 |---------|--------|----------------|-------------|
@@ -137,7 +137,7 @@ spel show-trace trace.zip           # Open specific trace file
 spel show-trace --port 8080 trace.zip  # Serve on specific port
 ```
 
-**Inspector options** (all Playwright `open` flags are supported):
+**Inspector options** (all Playwright `open` flags supported):
 
 | Flag | Description |
 |------|-------------|
@@ -161,7 +161,7 @@ spel show-trace --port 8080 trace.zip  # Serve on specific port
 
 ## Page Exploration (spel)
 
-The `spel` CLI provides comprehensive page exploration capabilities without writing code.
+`spel` CLI provides comprehensive page exploration without writing code.
 
 ### Basic Exploration Workflow
 
@@ -178,7 +178,7 @@ spel screenshot page.png
 
 ### Snapshot Command
 
-The primary exploration tool - returns an ARIA accessibility tree with numbered refs:
+Primary exploration tool — returns ARIA accessibility tree with numbered refs:
 
 ```bash
 spel snapshot                           # Full accessibility tree
@@ -301,7 +301,7 @@ spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text: a
 
 ### Console & Errors
 
-Console messages and page errors are auto-captured from the moment a page opens. No `start` command needed.
+Console messages and page errors auto-captured from moment page opens. No `start` command needed.
 
 ```bash
 spel console                           # View captured console messages
@@ -346,7 +346,7 @@ spel close
 
 ## Native Image CLI
 
-The library includes a GraalVM native-image compiled binary for instant-start browser automation via CLI.
+Library includes GraalVM native-image compiled binary for instant-start browser automation via CLI.
 
 ### Build & Run
 
@@ -385,7 +385,7 @@ Global flags apply to all commands and modes:
 
 ### CI Assemble (`spel ci-assemble`)
 
-Assembles Allure report sites for CI/CD deployment. Replaces shell/Python scripts in CI workflows with a single Clojure command.
+Assembles Allure report sites for CI/CD deployment. Replaces shell/Python scripts in CI workflows with single Clojure command.
 
 ```bash
 spel ci-assemble \
@@ -427,7 +427,7 @@ Operations performed (in order):
 
 **In-Progress Build Tracking:**
 
-The CI module supports tracking builds as "in progress" with a yellow animated badge on the landing page:
+CI module supports tracking builds as "in progress" with yellow animated badge on landing page:
 
 ```clojure
 ;; At start of CI run — registers build with yellow "In Progress" badge
@@ -479,7 +479,7 @@ These are **canonical** way to discover and understand the eval API. Prefer `spe
 
 ## CLI Entry Points
 
-The `spel` binary is the primary CLI interface:
+`spel` binary is primary CLI interface:
 
 | Command | Purpose |
 |---------|---------|

@@ -1,6 +1,6 @@
 # GitHub Actions CI/CD Workflows
 
-Reference for the three workflows in this repo: `.github/workflows/ci.yml`, `.github/workflows/allure.yml`, `.github/workflows/release.yml`.
+Reference for three workflows: `.github/workflows/ci.yml`, `.github/workflows/allure.yml`, `.github/workflows/release.yml`.
 
 ## 1) CI (`ci.yml`)
 
@@ -65,14 +65,14 @@ on:
 - **Linux**: runs `make lint`, `make validate-safe-graal`, then two test commands with Allure env wiring:
   - `clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure`
   - `clojure -M:test-ct`
-  - uploads `allure-results` artifact and fails at the explicit gate step if either suite failed.
+  - uploads `allure-results` artifact and fails at explicit gate step if either suite failed.
 - **macOS/Windows**: single plain test step: `clojure -M:test`.
 
 ---
 
 ## 2) Allure Report (`allure.yml`)
 
-Post-CI report workflow. Consumes Linux Allure artifact from CI run, generates HTML report, and deploys to `gh-pages` with per-build directories.
+Post-CI report workflow. Consumes Linux Allure artifact from CI run, generates HTML report, deploys to `gh-pages` with per-build directories.
 
 ### Trigger
 
@@ -143,13 +143,13 @@ on:
 | `/<run-number>/` | Report for each main CI run number |
 | `/latest/` | HTML redirect to newest main report |
 | `/pr/<number>/` | Latest report for each PR |
-| `/builds-meta.json`, `/builds-meta.jsonl`, `/builds.json`, `/pr-builds.json`, `/badge.svg` | metadata and status artifacts used by the landing page |
+| `/builds-meta.json`, `/builds-meta.jsonl`, `/builds.json`, `/pr-builds.json`, `/badge.svg` | metadata and status artifacts used by landing page |
 
 ---
 
 ## 3) Release (`release.yml`)
 
-Tag-driven release pipeline: builds native binaries on 4 targets, publishes GitHub Release, deploys JAR to Clojars, then updates versioning files on `main`.
+Tag-driven release pipeline: builds native binaries on 4 targets, publishes GitHub Release, deploys JAR to Clojars, updates versioning files on `main`.
 
 ### Trigger
 
@@ -219,7 +219,7 @@ on:
 
 ## Running Locally
 
-Common commands that mirror CI/CD checks:
+Common commands mirroring CI/CD checks:
 
 ```bash
 make test

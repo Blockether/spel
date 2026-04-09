@@ -28,8 +28,8 @@ Detailed reference for browser launch options, context options, device/viewport 
 
 ;; Proxy
 (core/launch-chromium pw {:proxy {:server "http://proxy:8080"
-                                   :username "user"
-                                   :password "pass"}})
+                                  :username "user"
+                                  :password "pass"}})
 
 ;; Custom downloads directory
 (core/launch-chromium pw {:downloads-path "/tmp/downloads"})
@@ -119,7 +119,7 @@ Detailed reference for browser launch options, context options, device/viewport 
 
 ## Standalone testing page
 
-For quick tests, scripts, and standalone test cases, `with-testing-page` creates the entire Playwright stack (pw → browser → context → page) in one shot — no nesting required:
+For quick tests, scripts, standalone test cases, `with-testing-page` creates entire Playwright stack (pw → browser → context → page) in one shot — no nesting required:
 
 ```clojure
 (require '[com.blockether.spel.core :as core]
@@ -132,7 +132,7 @@ For quick tests, scripts, and standalone test cases, `with-testing-page` creates
 ;; => "Example Domain"
 ```
 
-Pass an opts map for device emulation, viewport presets, or browser selection:
+Pass opts map for device emulation, viewport presets, or browser selection:
 
 ```clojure
 ;; Device emulation
@@ -176,7 +176,7 @@ Pass an opts map for device emulation, viewport presets, or browser selection:
 | `:chromium-sandbox` | `true`, `false` | — |
 | + any key accepted by `new-context` | `:locale`, `:color-scheme`, `:timezone-id`, `:storage-state`, etc. | — |
 
-When the Allure reporter is active (either Lazytest or clojure.test), tracing (screenshots + DOM snapshots + network) and HAR recording are enabled automatically — zero configuration. Trace and HAR files are attached directly to the Allure test result.
+When Allure reporter active (either Lazytest or clojure.test), tracing (screenshots + DOM snapshots + network) and HAR recording enabled automatically — zero config. Trace and HAR files attached directly to Allure test result.
 
 ### Device presets
 
@@ -291,7 +291,7 @@ Uses `com.blockether.anomaly` instead of throwing exceptions:
 
 ## Page utilities (page namespace)
 
-Functions from the `page` namespace for handling dialogs, downloads, console messages, clock manipulation, workers, file choosers, and web errors.
+Functions from `page` namespace for handling dialogs, downloads, console messages, clock manipulation, workers, file choosers, and web errors.
 ```clojure
 (require '[com.blockether.spel.page :as page]
          '[com.blockether.spel.core :as core])
@@ -413,7 +413,7 @@ Functions from the `page` namespace for handling dialogs, downloads, console mes
 
 ## Device emulation in `eval-sci` mode
 
-There are multiple approaches to device emulation depending on what you need:
+Multiple approaches depending on what you need:
 
 ### Approach 1: viewport only (`spel/set-viewport-size!`)
 Sets width and height but NOT device pixel ratio, user agent, or touch support.
@@ -425,7 +425,7 @@ Sets width and height but NOT device pixel ratio, user agent, or touch support.
 ```
 
 ### Approach 2: full device preset (CLI daemon `set device`)
-Sets viewport + DPR + user agent + touch. Requires the daemon running.
+Sets viewport + DPR + user agent + touch. Requires daemon running.
 ```bash
 # From shell (daemon must be running via spel start)
 spel set device "iPhone 14"

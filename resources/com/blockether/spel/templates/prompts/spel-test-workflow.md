@@ -4,14 +4,14 @@ description: E2E test coverage workflow — plans and writes tests with built-in
 
 # Playwright E2E test coverage workflow
 
-Orchestrates two agents in a pipeline to plan, challenge, generate, and heal E2E tests.
+Two-agent pipeline → plan, challenge, generate, heal E2E tests.
 
-The orchestrator must maintain `orchestration/test-pipeline.json` as the machine-readable handoff for stage status and produced artifacts.
+Orchestrator must maintain `orchestration/test-pipeline.json` as machine-readable handoff for stage status + produced artifacts.
 
 ## Parameters
 
-- Task: the feature or area to test
-- Target URL: the URL of the running application
+- Task: feature or area to test
+- Target URL: running application URL
 - Seed file (optional): defaults to `test-e2e/<ns>/e2e/seed_test.clj`
 - Test plan file (optional): under `test-e2e/specs/` folder
 
@@ -28,9 +28,9 @@ The orchestrator must maintain `orchestration/test-pipeline.json` as the machine
 </plan>
 ```
 
-The planner explores the target, writes a test spec, and optionally self-challenges the spec (checking for missing edge cases, fragile selectors, unrealistic assertions). The self-challenge is built into the planner — no separate agent invocation needed.
+Planner explores target, writes test spec, optionally self-challenges spec (checks missing edge cases, fragile selectors, unrealistic assertions). Self-challenge built into planner → no separate agent invocation needed.
 
-**GATE**: The planner must present the full spec to the user. Do NOT proceed until the spec is reviewed and approved. The spec file at `test-e2e/specs/<feature>-test-plan.md` is the source of truth for all subsequent steps.
+**GATE**: Planner must present full spec to user. Do NOT proceed until spec reviewed + approved. Spec file at `test-e2e/specs/<feature>-test-plan.md` = source of truth for all subsequent steps.
 Required artifacts before this gate:
 - `test-e2e/specs/<feature>-test-plan.md`
 - `test-e2e/specs/<feature>-test-plan.json`
@@ -39,7 +39,7 @@ Required artifacts before this gate:
 
 > Agent: @spel-test-writer
 
-For each test case from the spec (1.1, 1.2, ...), one after another (NOT in parallel):
+For each test case from spec (1.1, 1.2, ...), one after another (NOT parallel):
 
 ```xml
 <generate>
@@ -51,9 +51,9 @@ For each test case from the spec (1.1, 1.2, ...), one after another (NOT in para
 </generate>
 ```
 
-The test writer generates each test, runs it, and self-heals any failures. The generate-and-heal cycle is built into the writer — no separate agent invocation needed.
+Writer generates each test, runs it, self-heals failures. Generate-and-heal cycle built into writer → no separate agent invocation needed.
 
-**GATE**: Review generated tests and run results. The writer's report includes what was generated, what failed, what was healed, and why.
+**GATE**: Review generated tests + run results. Writer's report includes what was generated, what failed, what was healed, and why.
 Required artifacts before this gate:
 - `generation-report.json`
 - `orchestration/test-pipeline.json`
@@ -61,8 +61,8 @@ Required artifacts before this gate:
 ## Notes
 
 - Test style varies by `--flavour` flag: `lazytest` (default) or `clojure-test`
-- Use `spel snapshot -S --json` alongside functional tests to capture visual state for regression detection
-- The planner's self-challenge step is optional but recommended for critical flows
-- Every step has a GATE — human review before proceeding
-- Each agent uses its own named session for browser isolation
-- Missing artifacts fail closed: if a promised JSON file is absent, the step is incomplete
+- Use `spel snapshot -S --json` alongside functional tests → capture visual state for regression detection
+- Planner's self-challenge step optional but recommended for critical flows
+- Every step has GATE → human review before proceeding
+- Each agent uses own named session for browser isolation
+- Missing artifacts fail closed: if promised JSON file absent → step incomplete

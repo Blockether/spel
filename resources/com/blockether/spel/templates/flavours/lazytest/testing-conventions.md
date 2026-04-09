@@ -1,10 +1,10 @@
 ## Testing conventions
 
 - Framework: `spel.allure` (`defdescribe`, `describe`, `it`, `expect`). NOT `lazytest.core`.
-- Page setup: `core/with-testing-page` wraps playwright + browser + context + page in one macro.
-- API testing: `core/with-testing-api` does the same for API request contexts.
+- Page setup: `core/with-testing-page` → wraps playwright + browser + context + page in one macro.
+- API testing: `core/with-testing-api` → same for API req contexts.
 - Assertions: exact string matching. NEVER substring unless explicitly `contains-text`.
-- Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`). All roles work in `eval-sci` mode too via the `role/` namespace. See the Enums table in SCI Eval API Reference below.
+- Require `[com.blockether.spel.roles :as role]` for role-based locators (`role/button`, `role/heading`). All roles work in `eval-sci` via `role/` namespace. See Enums table in SCI Eval API Reference below.
 - Integration tests: live against `example.org`
 
 ### Running tests (Lazytest CLI)
@@ -40,11 +40,11 @@ clojure -M:test --watch
 clojure -M:test -d test/com/blockether/spel
 ```
 
-NOTE: The `-v`/`--var` flag needs fully-qualified symbols (`namespace/var-name`), not bare var names. A bare name throws `IllegalArgumentException: no conversion to symbol`.
+NOTE: `-v`/`--var` needs fully-qualified symbols (`namespace/var-name`), not bare var names. Bare name → `IllegalArgumentException: no conversion to symbol`.
 
 ### with-testing-page
 
-Creates the full Playwright stack (playwright, browser, context, page), binds the page, runs the body, then tears everything down. Tracing and HAR are enabled when Allure is active.
+Creates full Playwright stack (playwright, browser, context, page), binds page, runs body, tears down. Tracing + HAR enabled when Allure active.
 
 ```clojure
 ;; Basic usage
@@ -72,7 +72,7 @@ Creates the full Playwright stack (playwright, browser, context, page), binds th
 
 ### with-testing-api
 
-Creates playwright, browser, context, and API request context. Tracing is on by default.
+Creates playwright, browser, context, API req context. Tracing on by default.
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]

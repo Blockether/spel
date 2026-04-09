@@ -1,16 +1,16 @@
 # LEARNINGS
 
-Use this schema when an agent needs to create `LEARNINGS.md` lazily during a `--learnings` run.
+Schema for `LEARNINGS.md` created lazily during `--learnings` run.
 
 Purpose:
-- Capture what worked, what failed, and what confused each agent.
+- Capture what worked, failed, confused each agent.
 - Preserve exact reproductions for high-level issues.
-- Feed reliable evidence back into template/prompt refinement.
-- Produce concrete corrective actions that can be applied in prompts/skills/templates.
+- Feed evidence back into template/prompt refinement.
+- Produce corrective actions applicable to prompts/skills/templates.
 
 ## High-Level Issues (cross-agent synthesis)
 
-Document only validated cross-cutting issues.
+Validated cross-cutting issues only.
 
 ### ISSUE-001: <short title>
 - Impact: <why this matters>
@@ -27,13 +27,13 @@ Document only validated cross-cutting issues.
 
 ## Agent-Scoped Learnings
 
-Every participating agent appends to its own section.
-Do not overwrite existing sections; append newest entries.
-Write/update agent sections immediately after each completed stage or pipeline, not only at the very end.
+Each agent appends to own section.
+Don't overwrite existing sections → append newest.
+Write/update after each completed stage/pipeline, not only at end.
 
 ### Agent: <agent-name>
 #### What worked
-- <beneficial decisions, patterns, or instructions>
+- <beneficial decisions, patterns, instructions>
 
 #### What went wrong
 - <failures, dead ends, regressions>
@@ -42,9 +42,9 @@ Write/update agent sections immediately after each completed stage or pipeline, 
 - <ambiguous instruction, conflicting guidance, missing context>
 
 #### Root Cause and Corrective Action
-- Root cause hypothesis: <why this failed/confused>
+- Root cause hypothesis: <why failed/confused>
 - Correction proposal (prompt/skill/template): <specific edit>
-- Expected effect of correction: <how behavior should improve>
+- Expected effect: <how behavior should improve>
 
 #### Instruction Confusions (quote exact text)
 - Confusing instruction: "<exact quote>"

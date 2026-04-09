@@ -1,9 +1,9 @@
 
 # CSS patterns for diagrams
 
-Copy-paste CSS for HTML diagrams. Uses the **spel report design system** — warm earth tones, Atkinson Hyperlegible / Manrope / IBM Plex Mono, rounded cards with soft shadows. Both light and dark themes via `prefers-color-scheme`.
+Copy-paste CSS for HTML diagrams. Uses **spel report design system** — warm earth tones, Atkinson Hyperlegible / Manrope / IBM Plex Mono, rounded cards with soft shadows. Light and dark themes via `prefers-color-scheme`.
 
-> **This is the canonical design system.** All presenter output MUST use these fonts, colors, and patterns unless the user explicitly requests a different aesthetic. See `spel-report.html` for the full reference implementation.
+> **Canonical design system.** All presenter output MUST use these fonts, colors, patterns unless user explicitly requests different aesthetic. See `spel-report.html` for full reference implementation.
 
 ## Google Fonts (REQUIRED)
 
@@ -19,7 +19,7 @@ Always include this exact block in `<head>`. No substitutions.
 
 ## Theme setup
 
-Light and dark palettes — copy the whole block.
+Light and dark palettes — copy whole block.
 
 ```css
 :root {

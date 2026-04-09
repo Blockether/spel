@@ -1,32 +1,32 @@
 ---
 name: spel
-description: "com.blockether.spel package - Clojure wrapper for Playwright 1.58.0. Browser automation, testing, assertions, codegen, CLI. Use when user says 'test the login page', 'find bugs on this site', 'automate the checkout flow', 'explore the website', 'take a screenshot', 'write E2E tests', 'run visual regression', 'scrape data from', or asks about Playwright in Clojure. Do NOT use for general web development, backend APIs without browser context, or non-Playwright testing frameworks."
+description: "Clojure Playwright 1.58.0 wrapper. Browser automation, testing, assertions, codegen, CLI. Use for: E2E tests, bug-finding, checkout automation, site exploration, screenshots, scraping, visual regression. NOT for: general web dev, non-browser APIs, non-Playwright frameworks."
 version: "{{version}}"
 license: Apache-2.0
 compatibility: opencode
 ---
 
-# spel - Clojure Playwright wrapper
+# spel — Clojure Playwright wrapper
 
 `com.blockether.spel` wraps Playwright Java 1.58.0 with idiomatic Clojure.
 
 ## Version check
 
-This skill was generated for spel **{{version}}**. Verify compatibility:
+Skill generated for spel **{{version}}**. Verify:
 
 ```bash
 spel version
 ```
 
-If the installed version does not match **{{version}}**:
-1. Show warning: **"spel skill is outdated (skill: {{version}}, installed: <actual version>)."**
-2. Propose reinitialization: **"Run `spel init-agents` to reinitialize the skill for the installed version."**
+Mismatch **{{version}}**:
+1. Warn: **"spel skill outdated (skill: {{version}}, installed: <actual version>)."**
+2. Suggest: **"Run `spel init-agents` to reinitialize."**
 
 ## Quick reference
 
-## Getting started: use the orchestrator
+## Getting started: orchestrator
 
-**NEVER call specialist agents directly.** Use `@spel-orchestrator` — it analyzes your request and routes to the right pipeline automatically.
+**NEVER call specialists directly.** Use `@spel-orchestrator` — analyzes request, routes to correct pipeline.
 
 ```
 @spel-orchestrator test the login page
@@ -34,32 +34,32 @@ If the installed version does not match **{{version}}**:
 @spel-orchestrator automate the checkout flow
 ```
 
-The orchestrator routes to:
-- E2E test writing (`@spel-test-planner` → `@spel-test-writer`) — plan with self-challenge → generate with self-heal
-- Bug finding (`@spel-bug-hunter`) — explore → hunt with visual regression → self-challenge → verdict → HTML + Markdown reports
-- Automation specialists via orchestrator (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — Browser automation (explore/auth → script → document)
+Orchestrator routes:
+- E2E tests (`@spel-test-planner` → `@spel-test-writer`) — plan + self-challenge → generate + self-heal
+- Bug finding (`@spel-bug-hunter`) — explore → hunt + visual regression → self-challenge → verdict → HTML + Markdown reports
+- Automation (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — explore/auth → script → document
 
-Direct specialist invocation is deprecated in this workflow. Prefer `@spel-orchestrator` so gates, artifacts, and sequencing remain consistent.
-Artifact-first rule: if you ask for JSON/report files, the orchestrator must treat those exact paths as required outputs, stop at gates, and keep `orchestration/*-pipeline.json` handoff manifests up to date.
+Direct specialist invocation deprecated. Prefer `@spel-orchestrator` → gates, artifacts, sequencing stay consistent.
+Artifact-first: requesting JSON/report files → orchestrator treats those paths as required outputs, stops at gates, keeps `orchestration/*-pipeline.json` handoffs current.
 
-Runtime note:
-- In a fully scaffolded spel environment, `@spel-orchestrator` coordinates all specialist agents directly.
-- In constrained runtimes where specialist agents are not invokable, fall back to the equivalent workflow directly with spel CLI and `eval-sci`, but keep the same artifact-first contract and write the same `orchestration/*-pipeline.json` handoffs.
+Runtime:
+- Full scaffold: `@spel-orchestrator` coordinates specialists directly.
+- Constrained runtime (specialists unavailable): fall back to spel CLI + `eval-sci`, same artifact-first contract, same `orchestration/*-pipeline.json` handoffs.
 
-Proven navigation playbook:
-- ALWAYS simulate user actions: click links, buttons, and navigation elements like a real human would. NEVER use `spel open <url>` to skip navigation steps — only use it for the initial page load.
-- Prefer split initial load: `spel open <url>` first, then `spel wait --load ...` as a separate command.
+Navigation playbook:
+- ALWAYS simulate user actions: click links, buttons, nav elements like a human. NEVER `spel open <url>` to skip steps — only for initial page load.
+- Prefer split initial load: `spel open <url>` first, then `spel wait --load ...` separately.
 - Default follow-up wait: `spel wait --load load` for traditional multi-page sites.
-- Heavy portal or ad/tracker pages: prefer `spel wait --load domcontentloaded` after clicks and use `spel wait --url <partial>` when the route change matters more than full resource completion.
-- Treat longer click timeouts as a last resort, not the first fix.
+- Heavy portal / ad/tracker pages: prefer `spel wait --load domcontentloaded` after clicks; `spel wait --url <partial>` when route change matters more than full resource completion.
+- Longer click timeouts = last resort, not first fix.
 
 
 | Command | Purpose |
 |---------|---------|
 | `spel --help` | CLI help |
-| `spel open <url>` | Open URL (stealth mode is ON by default) |
+| `spel open <url>` | Open URL (stealth mode ON by default) |
 | `spel --auto-launch open <url>` | Launch isolated browser with CDP debug port (per-session) |
-| `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge and open URL via CDP |
+| `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge, open URL via CDP |
 | `CDP_PORT=$(spel find-free-port) && spel --session agent-$(date +%s) --cdp http://127.0.0.1:$CDP_PORT open <url>` | Connect to Chrome/Edge via explicit CDP endpoint (ephemeral port + named session) |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
@@ -95,7 +95,7 @@ Proven navigation playbook:
 
 ## Google search
 
-Search Google from CLI, SCI, or library — no API key required. Quick example:
+Search Google from CLI, SCI, or library — no API key. Quick example:
 
 ```bash
 spel search "clojure programming"              # table output
@@ -104,14 +104,14 @@ spel search "cats" --images                     # image search
 spel search "query" --open 1                    # navigate to result #1
 ```
 
-For full CLI flags, SCI functions, and library API, see `references/SEARCH_API.md`.
+Full CLI flags, SCI fns, library API → `references/SEARCH_API.md`.
 
 ## ⚠️ SCI eval vs library: key differences
 
-In `eval-sci` mode, function names match the library. The only difference is implicit vs explicit arguments:
+`eval-sci` mode: fn names match library. Only difference = implicit vs explicit args:
 
-- Library (JVM): functions take explicit `page`/`locator` arguments.
-- SCI (`eval-sci`): same function names, but the page/locator is implicit (managed by the daemon or `spel/start!`).
+- Library (JVM): explicit `page`/`locator` args.
+- SCI (`eval-sci`): same fn names, page/locator implicit (managed by daemon or `spel/start!`).
 
 ```clojure
 ;; Library
@@ -135,7 +135,7 @@ In `eval-sci` mode, function names match the library. The only difference is imp
 (spel/press "#my-input" "Enter")
 ```
 
-When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or `spel/stop!` needed.
+Daemon running → `eval-sci` reuses its browser. No `spel/start!` / `spel/stop!` needed.
 
 ## SCI sandbox capabilities
 
@@ -156,8 +156,8 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 
 ### NOT available in SCI
 
-- Arbitrary Java class construction — only registered classes work
-- `require`, `use`, `import` — namespaces are pre-registered, cannot load new ones
+- Arbitrary Java class construction — only registered classes
+- `require`, `use`, `import` — namespaces pre-registered, cannot load new ones
 
 ## Rules
 
@@ -169,19 +169,19 @@ When a daemon is running, `eval-sci` reuses its browser — no `spel/start!` or 
 | Default fixture | Always use `with-testing-page` — enables tracing/HAR on every run for debugging |
 | Error handling | All errors return anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
 | Lifecycle | Use `with-testing-page` (recommended) or low-level `with-playwright`, `with-browser`, `with-context`, `with-page` — resources auto-cleaned |
-| Screenshots | After visual/UI changes, ALWAYS take and display a screenshot as proof |
+| Screenshots | After visual/UI changes, ALWAYS take and display screenshot as proof |
 
 ## Agent Safety (opt-in, combinable)
 
 Three independent global flags protect LLM-driven browser deployments against
-prompt injection, context-window flooding, and unauthorized navigation. They
-compose cleanly — enable one, two, or all three per invocation or via env vars.
+prompt injection, context-window flooding, unauthorized navigation. Compose
+cleanly — enable one, two, or all three per invocation or via env vars.
 
 | Flag | Purpose | Env var |
 |------|---------|---------|
-| `--content-boundaries` | Wrap tool stdout in `<untrusted-content>...</untrusted-content>` delimiters so the agent can reject instructions embedded in scraped page content | `SPEL_CONTENT_BOUNDARIES=true` |
-| `--max-output N` | Truncate stdout to N characters with a suffix showing the original size. Protects the agent's context window from runaway pages (e.g. a 2MB snapshot) | `SPEL_MAX_OUTPUT=50000` |
-| `--allowed-domains LIST` | Comma-separated hostnames. Blocks navigation **and** sub-resource fetches (scripts, images, fetch, XHR) outside the list. Supports `*.example.com` wildcards that match the bare domain plus subdomains. Applied at browser launch via a context-level Playwright route. Non-HTTP schemes (`data:`, `blob:`, `about:`) always pass through | `SPEL_ALLOWED_DOMAINS` |
+| `--content-boundaries` | Wrap tool stdout in `<untrusted-content>...</untrusted-content>` delimiters → agent can reject instructions embedded in scraped page content | `SPEL_CONTENT_BOUNDARIES=true` |
+| `--max-output N` | Truncate stdout to N chars with suffix showing original size. Protects context window from runaway pages (e.g. 2MB snapshot) | `SPEL_MAX_OUTPUT=50000` |
+| `--allowed-domains LIST` | Comma-separated hostnames. Blocks navigation **and** sub-resource fetches (scripts, images, fetch, XHR) outside list. Supports `*.example.com` wildcards matching bare domain + subdomains. Applied at browser launch via context-level Playwright route. Non-HTTP schemes (`data:`, `blob:`, `about:`) always pass through | `SPEL_ALLOWED_DOMAINS` |
 
 ```bash
 # Sandboxed agent run: only example.com + CDN, output capped, delimited
@@ -193,9 +193,9 @@ spel \
 ```
 
 **Security notes**
-- These features are **opt-in**. Default behavior is unchanged (no wrapping, no truncation, no allowlist).
-- `--allowed-domains` is sticky per session — close the session to lift the restriction. A navigation attempt to a blocked domain returns an anomaly with `blockedbyclient`.
-- Errors (stderr) are **never** wrapped or truncated — agents need full error details.
+- **Opt-in**. Default: no wrapping, no truncation, no allowlist.
+- `--allowed-domains` sticky per session → close session to lift. Navigation to blocked domain → anomaly with `blockedbyclient`.
+- Errors (stderr) **never** wrapped or truncated — agents need full error details.
 - Wildcards guard against suffix-attack domains: `*.example.com` does **not** match `notexample.com` or `example.com.evil.org`.
 
 ## Examples
@@ -204,27 +204,27 @@ Example 1: Write E2E tests
 User says: "Test the login page at http://localhost:3000"
 Actions:
 1. @spel-orchestrator routes to test pipeline
-2. @spel-test-planner explores the login page, writes test plan (with self-challenge)
-3. @spel-test-writer generates Clojure E2E tests with assertions and self-heals failures
+2. @spel-test-planner explores login page, writes test plan (with self-challenge)
+3. @spel-test-writer generates Clojure E2E tests with assertions, self-heals failures
 Result: Working E2E test suite in `test-e2e/` with Allure reporting
 
 Example 2: Find bugs on a live site
 User says: "Find bugs on https://example.com"
 Actions:
 1. @spel-orchestrator routes to bug-finding pipeline
-2. @spel-explorer maps the site, captures snapshots
-3. @spel-bug-hunter tests for functional, visual, and UX bugs, self-challenges each finding, and delivers final verdicts
+2. @spel-explorer maps site, captures snapshots
+3. @spel-bug-hunter tests for functional, visual, UX bugs, self-challenges each finding, delivers final verdicts
 Result: HTML + Markdown bug reports with evidence screenshots
 
 Example 3: Automate a browser workflow
 User says: "Automate filling out the registration form"
 Actions:
 1. @spel-orchestrator runs embedded automation pipeline
-2. @spel-explorer maps the form fields and page structure
-3. @spel-automator writes a reusable eval-sci script
+2. @spel-explorer maps form fields + page structure
+3. @spel-automator writes reusable eval-sci script
 Result: Reusable `.clj` automation script with JSON output
 
-Example 4: Take a screenshot and explore
+Example 4: Screenshot + explore
 User says: "Open https://example.com and take a screenshot"
 Actions:
 1. `spel open https://example.com`
@@ -232,20 +232,20 @@ Actions:
 3. `spel screenshot example.png`
 Result: Screenshot saved to `example.png`
 
-Example 5: Multimodal reasoning — see the page AND get refs in one call
+Example 5: Multimodal — see page + get refs in one call
 User says: "Open the checkout page and click the primary CTA"
 Actions:
 1. `spel open https://shop.example.com/checkout`
-2. `spel screenshot -a` — returns a PNG with ref labels drawn on every visible
-   element **plus** a deterministic list `@ref role "name"` in reading order
-3. Reason over the image + list to pick the target ref (e.g. `@e2yrjz`)
+2. `spel screenshot -a` — returns PNG with ref labels on every visible
+   element **plus** deterministic list `@ref role "name"` in reading order
+3. Reason over image + list → pick target ref (e.g. `@e2yrjz`)
 4. `spel click @e2yrjz`
-Result: One round-trip gives the model vision + addressability. No separate
-`snapshot -i` + `screenshot` + mental mapping step. Use this when a pure text
-snapshot is ambiguous (icon-only buttons, canvas, custom widgets).
+Result: One round-trip → vision + addressability. No separate
+`snapshot -i` + `screenshot` + mental mapping. Use when text snapshot
+ambiguous (icon-only buttons, canvas, custom widgets).
 
-Example 6: Deterministic multi-step flow via `batch`
-User says: "Navigate, search, screenshot — as one atomic sequence"
+Example 6: Deterministic multi-step via `batch`
+User says: "Navigate, search, screenshot — one atomic sequence"
 Actions:
 ```bash
 echo '[
@@ -255,50 +255,49 @@ echo '[
 ]' | spel batch --json --bail
 ```
 Result: `{"count":3,"success":true,"results":[...]}`. Pays CLI cold-start
-once, shares one daemon session, stops on first failure when `--bail` is set.
-Use for atomic flows where each step depends on the previous one.
+once, shares one daemon session, stops on first failure with `--bail`.
+Use for atomic flows where each step depends on previous.
 
 Example 7: Sandboxed agent run with full security stack
-User says: "Let the LLM browse example.com without being able to escape it"
+User says: "Let the LLM browse example.com without escaping"
 ```bash
 spel \
   --content-boundaries \
   --max-output 50000 \
   --allowed-domains "example.com,*.example.com" \
   open https://example.com
-# Any attempt to navigate or fetch resources outside example.com
-# fails with anomaly `blockedbyclient`. Page content returned to the agent
-# is wrapped in <untrusted-content> so prompt injection embedded in the
-# HTML is quarantined. Output is capped at 50k chars.
+# Navigation or resource fetch outside example.com
+# → anomaly `blockedbyclient`. Page content wrapped in
+# <untrusted-content> → prompt injection quarantined. Output capped 50k chars.
 ```
-Result: The agent operates inside a sealed perimeter. Prompt-injection, sidetracked navigation, and context-window explosions are all contained.
+Result: Agent operates inside sealed perimeter. Prompt-injection, sidetracked navigation, context-window explosions all contained.
 
 ## Troubleshooting
 
 ### Click times out on SPA / heavy pages
 Cause: Default `load` wait hangs on SPAs that never fully "load" (ad trackers, analytics).
-Solution: Use `spel wait --load domcontentloaded` after clicks. If the click itself times out, try `spel wait --url <partial>` to wait for the route change instead. NEVER skip user actions by navigating directly — always click like a human would.
+Fix: `spel wait --load domcontentloaded` after clicks. Click itself times out → try `spel wait --url <partial>` for route change. NEVER skip user actions by navigating directly — always click like a human.
 
 ### Session conflict / stale daemon
-Cause: Previous session was not closed, or daemon socket is stale.
-Solution: Close with `spel --session $SESSION close`. If that fails, run `spel session list` and kill stale sessions. As a last resort, remove stale socket files.
+Cause: Previous session not closed, or daemon socket stale.
+Fix: `spel --session $SESSION close`. Fails → `spel session list`, kill stale sessions. Last resort: remove stale socket files.
 
 ### Snapshot refs not found after navigation
-Cause: Page content changed after navigation; old refs are invalid.
-Solution: ALWAYS re-run `spel snapshot -i` after any navigation or page state change. Never reuse refs from a previous snapshot.
+Cause: Page content changed after navigation; old refs invalid.
+Fix: ALWAYS re-run `spel snapshot -i` after any navigation or page state change. Never reuse refs from previous snapshot.
 
-For more troubleshooting, see `references/COMMON_PROBLEMS.md`.
+More troubleshooting → `references/COMMON_PROBLEMS.md`.
 
 ## Performance notes
 
-- Take your time to verify selectors and page state thoroughly before writing assertions.
-- Quality is more important than speed — flaky tests cost more than slow generation.
-- Do not skip validation steps (snapshot verification, gate approvals).
-- Prefer fewer, well-verified assertions over many untested ones.
+- Verify selectors + page state thoroughly before writing assertions.
+- Quality > speed — flaky tests cost more than slow generation.
+- Don't skip validation (snapshot verification, gate approvals).
+- Prefer fewer well-verified assertions over many untested ones.
 
 ## Reference documentation
 
-Start with `references/START_HERE.md` for the shortest orientation path and `references/CAPABILITIES.md` for the compact capability map.
+Start with `references/START_HERE.md` for shortest orientation, `references/CAPABILITIES.md` for compact capability map.
 
 ### Core API & patterns
 | Ref | Topic |

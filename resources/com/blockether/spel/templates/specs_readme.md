@@ -1,19 +1,19 @@
 # Test specifications
 
-This directory contains E2E test plans (specs) created by the @spel-test-planner agent.
-Specs are the ground truth for the generator and healer.
+E2E test plans (specs) created by @spel-test-planner.
+Specs = ground truth for generator + healer.
 
-Agents: read this file before creating, generating, or diagnosing tests.
+Agents: read this before creating, generating, or diagnosing tests.
 
 ## Before creating a new spec
 
-1. List existing specs to see what's covered
-2. Find gaps: which flows or features still need coverage
-3. Don't duplicate: if a spec already exists for a feature, update it instead of creating a new one
+1. List existing specs → see coverage
+2. Find gaps: uncovered flows/features
+3. Don't duplicate → update existing spec for same feature
 
 ## Creating a spec: interactive exploration
 
-Always explore the live app before writing a spec. Open the browser so the user can watch:
+Explore live app before writing spec. Open browser so user can watch:
 
 ```bash
 spel open <url> --interactive
@@ -31,7 +31,7 @@ spel screenshot <feature>-annotated.png
 spel unannotate
 ```
 
-Repeat this cycle for every page you explore. Annotated screenshots are your evidence.
+Repeat cycle per page explored. Annotated screenshots = evidence.
 
 ## Creating a spec: scripted exploration with eval-sci
 
@@ -60,14 +60,14 @@ spel --timeout 5000 eval-sci '
 ```
 
 Notes:
-- `spel/start!` and `spel/stop!` are NOT needed. The daemon manages the browser.
-- Use `--timeout` to fail fast on bad selectors
-- Errors throw in `eval-sci` mode. No need to catch them.
-- Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch
+- `spel/start!` and `spel/stop!` NOT needed → daemon manages browser
+- Use `--timeout` → fail fast on bad selectors
+- Errors throw in `eval-sci` mode → no catch needed
+- Use `spel open <url> --interactive` before `eval-sci` if user wants to watch
 
 ## Checking what's actually there
 
-Before writing assertions, check the actual page state. Don't assume:
+Check actual page state before writing assertions. Don't assume:
 
 ```bash
 spel get text @e1
@@ -80,11 +80,12 @@ spel is enabled @e4
 spel is checked @e5
 ```
 
-Document every check. Include the snapshot ref, expected value, and actual value in the spec. The generator needs correct selectors, and the healer needs this to diagnose changes.
+Document every check. Include snapshot ref, expected value, actual value in spec.
+Generator needs correct selectors → healer needs this to diagnose changes.
 
 ## Spec file format
 
-Each spec is a markdown file named `<feature>-test-plan.md`:
+Spec = markdown file named `<feature>-test-plan.md`:
 
 ```markdown
 # <Feature> Test Plan
@@ -126,28 +127,28 @@ Screenshots:
 
 ## Quality checklist
 
-- [ ] All selectors verified against the live app via `spel snapshot`
+- [ ] All selectors verified against live app via `spel snapshot`
 - [ ] Annotated screenshots taken as evidence
 - [ ] Steps clear enough for any agent to follow
 - [ ] Exact text content specified for assertions (never substring)
 - [ ] Error states and validation failures covered
-- [ ] Scenarios are independent and can run in any order
-- [ ] Snapshot refs documented to prove selectors were verified
+- [ ] Scenarios independent → runnable in any order
+- [ ] Snapshot refs documented → proves selectors verified
 
 ## Workflow
 
-1. Planner explores the app and creates specs here: `<feature>-test-plan.md`
-2. User reviews and approves the spec (GATE: do not proceed without approval)
-3. Generator reads specs and creates test code using `spel.allure` (`defdescribe`, `it`, `expect`). It checks selectors against the live app.
-4. Healer reads specs when diagnosing failures to understand what the test was supposed to do.
+1. Planner explores app → creates specs: `<feature>-test-plan.md`
+2. User reviews + approves spec (GATE: don't proceed without approval)
+3. Generator reads specs → creates test code using `spel.allure` (`defdescribe`, `it`, `expect`). Checks selectors against live app.
+4. Healer reads specs when diagnosing failures → understands test intent.
 
 ## product-spec.json
 
-Produced by `@spel-product-analyst`. Contains structured product feature inventory, user role mapping, coherence audit, and navigation map.
+Produced by `@spel-product-analyst`. Structured product feature inventory, user role mapping, coherence audit, navigation map.
 
-Use it to:
-- Inform test planning with feature inventory
+Use for:
+- Inform test planning via feature inventory
 - Focus QA on low-coherence areas
 - Generate role-specific automation scripts
 
-See `PRODUCT_DISCOVERY.md` for the full schema.
+See `PRODUCT_DISCOVERY.md` for full schema.

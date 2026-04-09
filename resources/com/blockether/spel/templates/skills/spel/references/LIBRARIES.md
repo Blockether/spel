@@ -1,7 +1,7 @@
 <!-- Adapted from visual-explainer (MIT License, github.com/nicobailon/visual-explainer) -->
 # External Libraries (CDN)
 
-Optional CDN libraries for cases where pure CSS/HTML isn't enough. Only include what the diagram actually needs.
+Optional CDN libraries for when pure CSS/HTML isn't enough. Only include what diagram actually needs.
 
 ## Mermaid.js — Diagramming Engine
 
@@ -16,7 +16,7 @@ Use for flowcharts, sequence diagrams, ER diagrams, state machines, mind maps, c
 
 ### Deep Theming
 
-Always use `theme: 'base'` — the only theme where all `themeVariables` are fully customizable.
+Always use `theme: 'base'` — only theme where all `themeVariables` fully customizable.
 
 ```html
 <script type="module">
@@ -59,7 +59,7 @@ Always use `theme: 'base'` — the only theme where all `themeVariables` are ful
 
 ### classDef Gotchas
 
-1. **Never set `color:` in classDef** — it hardcodes text color that breaks in opposite color scheme.
+1. **Never set `color:` in classDef** — hardcodes text color, breaks in opposite color scheme.
 2. **Use semi-transparent fills** for node backgrounds:
    ```
    classDef highlight fill:#b5761433,stroke:#b57614,stroke-width:2px
@@ -67,10 +67,10 @@ Always use `theme: 'base'` — the only theme where all `themeVariables` are ful
 
 ### Writing Valid Mermaid
 
-- Use `<br/>` for multi-line labels (not `\n`)
-- Quote labels with special characters: `A["handleRequest(ctx)"]`
+- `<br/>` for multi-line labels (not `\n`)
+- Quote labels with special chars: `A["handleRequest(ctx)"]`
 - Keep IDs simple (alphanumeric, no spaces)
-- Max 10-12 nodes per diagram — use hybrid pattern for more
+- Max 10-12 nodes per diagram — hybrid pattern for more
 - Prefer `flowchart TD` over `flowchart LR` for complex diagrams
 
 ### Layout Direction: TD vs LR
@@ -82,7 +82,7 @@ Always use `theme: 'base'` — the only theme where all `themeVariables` are ful
 
 ### Diagram Type Quick Reference
 
-| You want to show... | Use |
+| Show... | Use |
 |---|---|
 | Process flow, decisions | `graph TD` |
 | Request/response, API calls | `sequenceDiagram` |
@@ -101,7 +101,7 @@ const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 ## Chart.js — Data Visualizations
 
-Use for bar charts, line charts, pie/doughnut charts in dashboard-type diagrams.
+Use for bar charts, line charts, pie/doughnut charts in dashboards.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -144,7 +144,7 @@ Use for bar charts, line charts, pie/doughnut charts in dashboard-type diagrams.
 
 ## anime.js — Orchestrated Animations
 
-Use when a diagram has 10+ elements and you want a choreographed entrance sequence.
+Use when diagram has 10+ elements + you want choreographed entrance sequence.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
@@ -175,7 +175,7 @@ When using anime.js, set initial opacity to 0 in CSS:
 
 Always load with `display=swap`.
 
-**Default (spel brand):** Atkinson Hyperlegible + Manrope + IBM Plex Mono. Use this unless the user explicitly requests a different aesthetic.
+**Default (spel brand):** Atkinson Hyperlegible + Manrope + IBM Plex Mono. Use unless user explicitly requests different aesthetic.
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -195,9 +195,9 @@ Always load with `display=swap`.
 
 **FORBIDDEN as `--font-body`:** Inter, Roboto, Arial, Helvetica, system-ui alone.
 
-### Alternative pairings (for non-default aesthetics only)
+### Alternative pairings (non-default aesthetics only)
 
-### Font Pairings (rotate — never use same pairing twice in a row)
+### Font Pairings (rotate — never same pairing twice in a row)
 
 | Body / Headings | Mono / Labels | Feel |
 |---|---|---|

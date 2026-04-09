@@ -4,7 +4,7 @@ Working with iframes and low-level input (keyboard, mouse, touch).
 
 ## Frame navigation
 
-Use `FrameLocator` when you know the iframe selector upfront. For dynamic frames, grab the frame object from `page/frames` and use frame-specific locator methods.
+Use `FrameLocator` when iframe selector known upfront. For dynamic frames, grab frame object from `page/frames` and use frame-specific locator methods.
 
 ## Frame navigation
 
@@ -49,7 +49,7 @@ Use `FrameLocator` when you know the iframe selector upfront. For dynamic frames
 
 ## Keyboard press (high-level)
 
-For most keyboard interactions, use the high-level `keyboard-press` / `press` functions:
+For most keyboard interactions, use high-level `keyboard-press` / `press` functions:
 
 ```clojure
 ;; Page-level keyboard press (no selector needed)
@@ -68,7 +68,7 @@ For most keyboard interactions, use the high-level `keyboard-press` / `press` fu
 
 ## Input devices (low-level)
 
-Low-level keyboard, mouse, and touch events. Most interactions should go through `spel/click`, `spel/fill`, `spel/press`, etc. Use these only when you need precise control over timing or event sequences.
+Low-level keyboard, mouse, touch events. Most interactions should go through `spel/click`, `spel/fill`, `spel/press`, etc. Use these only when you need precise control over timing or event sequences.
 
 ```clojure
 (require '[com.blockether.spel.input :as input])

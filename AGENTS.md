@@ -3,78 +3,77 @@
 ## Critical Rules
 
 Browser Automation:
-- ALWAYS use `load_skills=["spel"]` for browser tasks. Load skill first: `skill(name="spel")`
-- NEVER use `load_skills=["playwright"]` or `load_skills=["dev-browser"]` — disabled in this project
+- ALWAYS `load_skills=["spel"]` for browser tasks. `skill(name="spel")` first
+- NEVER `load_skills=["playwright"]` or `load_skills=["dev-browser"]` — disabled
 
 Snapshots:
-- ALWAYS use `snapshot -i` (interactive filter) when browsing — shows only clickable/interactive elements
-- Use full `snapshot` only when you need to read text content or page structure
-- `snapshot -i -c` for compact interactive view (removes bare role-only lines)
-- Read the snapshot output BEFORE clicking — never blind eval-js DOM exploration
-- Click by ref: `spel click @eXXXX` — never by CSS selector or eval-js
-- Skip REKLAMA (ad) products in search results — they appear first and are unrelated to the search query
+- ALWAYS `snapshot -i` when browsing — clickable elements only
+- Full `snapshot` only when need text/structure
+- `snapshot -i -c` → compact interactive (drops bare role lines)
+- Read snapshot BEFORE clicking — no blind eval-js
+- Click by ref: `spel click @eXXXX` — no CSS selectors or eval-js
+- Skip REKLAMA in search results — ads, unrelated
 
 SCI Bindings:
-- NEVER use inline `(fn ...)` lambdas for SCI-exposed functions — ALWAYS use `defn` with a docstring
-- Every SCI user-facing function MUST be a named `defn` (e.g. `sci-thread-sleep`, `sci-viewport-size`)
-- Lambdas break `gen-docs` introspection, hide functions from FULL_API.md, and make debugging impossible
-- This applies to: `:bindings` map values, `make-ns-map` entries, `core/` namespace stubs
+- NEVER inline `(fn ...)` lambdas for SCI fns — ALWAYS `defn` + docstring
+- Every SCI fn = named `defn` (e.g. `sci-thread-sleep`, `sci-viewport-size`)
+- Lambdas → break `gen-docs` → hidden from `FULL_API.md` → undebuggable
+- Applies: `:bindings` map values, `make-ns-map` entries, `core/` stubs
 
 Daemon Session Isolation:
-- ALWAYS use a named session when starting a daemon during development/testing — NEVER use the default "default" session
-- Generate a unique session name at task start: `SESSION=agent-$(date +%s)`
-- Use it on every spel command: `spel --session $SESSION open <url>`, `spel --session $SESSION click ...`
-- Teardown at end (or on error): `spel --session $SESSION close` — kills ONLY your session
-- NEVER run `spel close` without `--session` — it kills the default session which may belong to the user
-- Verify isolation: `spel session list` shows active sessions by name
+- ALWAYS named session in dev/test — NEVER default "default"
+- Generate: `SESSION=agent-$(date +%s)`
+- Use on every cmd: `spel --session $SESSION open <url>`
+- Teardown: `spel --session $SESSION close` — kills ONLY your session
+- NEVER `spel close` without `--session` — kills user's default
+- Verify: `spel session list`
 
 Paren Repair:
-- NEVER fix unbalanced parens/brackets by hand — always: `clj-paren-repair path/to/file.clj`
+- NEVER fix unbalanced parens by hand — `clj-paren-repair path/to/file.clj`
 
 Linting:
-- ALWAYS use `lsp_diagnostics` on changed files — `clj-kondo` CLI is NOT installed
-- This is a library — public vars flagged unused are intentional API surface, do NOT remove
+- ALWAYS `lsp_diagnostics` on changed files — `clj-kondo` CLI NOT installed
+- Library — unused public vars = intentional API surface, do NOT remove
 
 Templates:
-- NEVER edit scaffolded files in `.opencode/agents/`, `.opencode/skills/`, `.opencode/prompts/`
-- ALWAYS edit source templates in `resources/com/blockether/spel/templates/` and regenerate
+- NEVER edit `.opencode/agents/`, `.opencode/skills/`, `.opencode/prompts/`
+- ALWAYS edit `resources/com/blockether/spel/templates/` → regenerate
 
 Versioning:
-- Single source of truth: `resources/SPEL_VERSION` (bare semver, no `v` prefix)
-- NEVER hardcode versions — read via `(slurp (io/resource "SPEL_VERSION"))` + `str/trim`
+- Single truth: `resources/SPEL_VERSION` (bare semver, no `v` prefix)
+- NEVER hardcode — `(slurp (io/resource "SPEL_VERSION"))` + `str/trim`
 
 API Policy:
-- Pre-1.0: break old callers freely, no shims, no deprecation periods
+- Pre-1.0: break callers freely, no shims, no deprecation
 
-Feature Development Order (Library → SCI → CLI):
-- ALWAYS implement new functionality in the **library layer first** (e.g. `page.clj`, `input.clj`, `locator.clj`) as pure Clojure fns wrapping Playwright Java
-- Then expose in **SCI** (`sci_env.clj`) — wrap library fns with session-atom convenience (implicit `@!page`, `@!context`) so `eval-sci` users get an interactive, stateful API
-- Then wire into **CLI/Daemon** (`daemon.clj` command dispatch + `cli.clj` arg parsing) as JSON commands over the Unix socket
-- The library layer is the **source of truth** — SCI and CLI must REUSE library fns, never reimplement logic
-- SCI wrappers add interactivity (implicit state, REPL-friendly return values); CLI adds discoverability (help text, flags, JSON output)
+Feature Dev Order (Library → SCI → CLI):
+- ALWAYS **library first** (`page.clj`, `input.clj`, `locator.clj`) — pure Clojure fns wrapping Playwright Java
+- Then **SCI** (`sci_env.clj`) — session-atom convenience (implicit `@!page`, `@!context`) → interactive API
+- Then **CLI/Daemon** (`daemon.clj` dispatch + `cli.clj` args) — JSON over Unix socket
+- Library = **truth** — SCI + CLI REUSE library fns, never reimplement
+- SCI → interactivity; CLI → discoverability (help, flags, JSON)
 
 Screenshots:
-- ALWAYS show screenshots to the user when making visual/UI changes
-- After any change to HTML, CSS, or templates: take a screenshot with spel and display it
-- Never declare a visual change done without showing proof
+- ALWAYS show screenshots for visual/UI changes
+- HTML/CSS/template change → screenshot → display
+- No visual change done without proof
 
 ## Testing
 
-Every code change MUST include tests. Use `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`.
+Every change = tests. `defdescribe`/`describe`/`it`/`expect` from `com.blockether.spel.allure`.
 
-| Source changed | Test location |
+| Source | Test |
 |---|---|
-| `sci_env.clj` | `cli_integration_test.clj` → `sci-eval-integration-test` block |
+| `sci_env.clj` | `cli_integration_test.clj` → `sci-eval-integration-test` |
 | `daemon.clj` | `cli_integration_test.clj` |
 | `cli.clj` | `cli_test.clj` |
-| `native.clj` (new CLI command) | `test-cli.sh` — add section with `assert_jq` / `assert_contains` assertions |
-| `native.clj` (tool command, e.g. stitch/codegen) | `test-cli.sh` — at minimum `--help` smoke test |
-| Everything else | Corresponding `*_test.clj` (e.g. `page.clj` → `page_test.clj`) |
+| `native.clj` (new CLI cmd) | `test-cli.sh` — `assert_jq` / `assert_contains` |
+| `native.clj` (tool cmd) | `test-cli.sh` — minimum `--help` |
+| Other | `*_test.clj` (e.g. `page.clj` → `page_test.clj`) |
 
-### clojure.test support (alternative to Lazytest)
+### clojure.test (alt to Lazytest)
 
-SPEL also supports standard `clojure.test` with Allure reporting via the integrated `allure-reporter`.
-Tests live in `test/com/blockether/spel/ct/`. Use `with-testing-page` for browser tests:
+`clojure.test` + Allure via `allure-reporter`. Tests in `test/com/blockether/spel/ct/`.
 
 ```clojure
 (ns my-app.test
@@ -89,155 +88,148 @@ Tests live in `test/com/blockether/spel/ct/`. Use `with-testing-page` for browse
       (is (= 1 1)))))
 ```
 
-Run with: `clojure -M:test-ct` (activates via `-Dallure.clojure-test.enabled=true`).
+Run: `clojure -M:test-ct`
 
 ### HTML test pages (`test_server.clj`)
 
-Integration tests run against a local HTTP test server (`test/com/blockether/spel/test_server.clj`).
-To add a new test page:
+Local HTTP test server at `test/com/blockether/spel/test_server.clj`.
+New page:
 
-1. Define the HTML as a `def ^:private` string in `test_server.clj`
-2. Add a route in `make-handler`'s `cond`: `(and (= "GET" method) (= "/my-page" path))`
-3. Navigate in tests with `(nav! "/my-page")` (Lazytest) or `(page/navigate pg (str ts/*test-server-url* "/my-page"))` (clojure.test)
-
-**Available test server routes:**
+1. `def ^:private` HTML string in `test_server.clj`
+2. Route in `make-handler` cond: `(and (= "GET" method) (= "/my-page" path))`
+3. Navigate: `(nav! "/my-page")` (Lazytest) or `(page/navigate pg (str ts/*test-server-url* "/my-page"))` (clojure.test)
 
 | Route | Purpose |
 |---|---|
-| `/test-page` | General form elements (inputs, checkboxes, dropdowns, buttons) |
-| `/keyboard-page` | Keyboard event capture (`keydown` → `#last-key`, `#key-log` divs) |
-| `/dialog-page` | Alert, confirm, prompt dialogs |
-| `/second-page` | Navigation target (back link to test-page) |
-| `/iframe-page` | IFrame container embedding test-page |
-| `/redirect-page` | 301 redirect to test-page |
-| `/echo` | Echo request back as JSON (method, path, query, body) |
-| `/health` | Health check (GET → `{"status":"ok"}`, HEAD → 200) |
-| `/status/N` | Return HTTP status code N |
-| `/slow` | 2-second delayed response |
-| `/scrollable-page` | Nested scrollable containers (overflow:auto, scroll, hidden, visible) |
+| `/test-page` | Form elements |
+| `/keyboard-page` | Keyboard events (`keydown` → `#last-key`, `#key-log`) |
+| `/dialog-page` | Alert/confirm/prompt dialogs |
+| `/second-page` | Nav target (back link) |
+| `/iframe-page` | IFrame embedding test-page |
+| `/redirect-page` | 301 → test-page |
+| `/echo` | Echo req as JSON |
+| `/health` | GET → `{"status":"ok"}`, HEAD → 200 |
+| `/status/N` | HTTP status N |
+| `/slow` | 2s delay |
+| `/scrollable-page` | Scrollable containers (overflow:auto/scroll/hidden/visible) |
 
-**Always verify behavior, not just "no error"** — use dedicated HTML pages with observable
-DOM state (event listeners, visible output elements) instead of testing return values only.
+**Verify behavior, not "no error"** — HTML pages with observable DOM state. Never test return values only.
 
-### CLI bash regression (`test-cli.sh`)
-When adding a new CLI command or daemon action:
-- Add a new `section "Name (N)"` block in `test-cli.sh` before the SUMMARY section
-- Use `assert_jq`, `assert_jq_eq`, `assert_jq_contains` for `--json` output
-- Use `assert_contains` for plain text output (e.g. `--help`)
-- Register temp files in `TEMP_FILES+=("path")` for cleanup
-- Quote the binary: always `"$SPEL"`, never `$SPEL`
-- Tool commands (stitch, codegen, init-agents, ci-assemble, merge-reports, show-trace) MUST have at least a `--help` assertion
+### CLI bash (`test-cli.sh`)
+New CLI cmd/daemon action → new section:
+- `section "Name (N)"` before SUMMARY
+- `assert_jq`/`assert_jq_eq`/`assert_jq_contains` for `--json`
+- `assert_contains` for text (e.g. `--help`)
+- `TEMP_FILES+=("path")` for cleanup
+- `"$SPEL"` not `$SPEL`
+- Tool cmds (stitch, codegen, init-agents, ci-assemble, merge-reports, show-trace) MUST have `--help`
 
-## Commands (via Makefile)
+## Commands
 
 ```bash
-make test                    # ALL tests: Clojure (lazytest) + CLI bash regression
-make test-cli                # CLI bash regression tests only
-make test-cli-clj            # CLI Clojure integration tests only
-make format                  # auto-format all source files
-make lint                    # clojure-lsp diagnostics --raw
-make validate-safe-graal     # check for reflection/boxed-math warnings
-make gen-docs                # regenerate references/FULL_API.md from source (run BEFORE install-local)
+make test                    # ALL: lazytest + CLI bash
+make test-cli                # CLI bash only
+make test-cli-clj            # CLI Clojure integration only
+make format                  # auto-format
+make lint                    # clojure-lsp --raw
+make validate-safe-graal     # reflection/boxed-math check
+make gen-docs                # regen FULL_API.md (before install-local)
 make install-local           # uberjar → native-image → ~/.local/bin/spel
-make init-agents ARGS="--ns com.blockether.spel --force"  # regenerate agent scaffolding (all 8 agents)
-clojure -M:test-ct           # clojure.test suite with Allure reporting (test/ct/ directory)
+make init-agents ARGS="--ns com.blockether.spel --force"  # regen 8 agents
+clojure -M:test-ct           # clojure.test + Allure (test/ct/)
 ```
 
-Single test namespace / var:
+Single ns/var:
 ```bash
-clojure -M:test -n <ns>                  # e.g. com.blockether.spel.core-test
-clojure -M:test -v <ns>/<var>            # MUST be fully-qualified
+clojure -M:test -n <ns>      # e.g. com.blockether.spel.core-test
+clojure -M:test -v <ns>/<var>  # MUST be fully-qualified
 ```
 
 ## Agent Scaffolding
 
-`spel init-agents` scaffolds 8 agents across six groups. Use `--only` to scaffold a subset.
+`spel init-agents` → 8 agents, 6 groups. `--only` for subset.
 
 ```bash
-spel init-agents                              # all 8 agents (default)
-spel init-agents --only=test                  # test agents only
-spel init-agents --only=automation            # browser automation agents only
-spel init-agents --only=visual                # visual QA agents only
-spel init-agents --only=bugfind              # adversarial bug-finding agents only
-spel init-agents --only=orchestrator          # orchestrator agent only
-spel init-agents --only=test,visual           # combine groups with commas
+spel init-agents                              # all 8
+spel init-agents --only=test                  # test agents
+spel init-agents --only=automation            # browser automation
+spel init-agents --only=visual                # visual QA
+spel init-agents --only=bugfind               # bug-finding
+spel init-agents --only=orchestrator          # orchestrator
+spel init-agents --only=test,visual           # combine
 ```
-
-### Subagent groups
 
 | Group | Agents | Use for |
 |-------|--------|---------|
-| `test` | spel-test-planner, spel-test-writer | E2E test writing |
+| `test` | spel-test-planner, spel-test-writer | E2E tests |
 | `automation` | spel-explorer, spel-automator | Browser automation |
 | `visual` | spel-presenter | Visual content |
-| `bugfind` | spel-bug-hunter | Adversarial bug finding |
+| `bugfind` | spel-bug-hunter | Bug-finding |
 | `orchestrator` | spel-orchestrator | Smart routing |
-| `discovery` | spel-product-analyst | Product feature inventory + coherence audit |
+| `discovery` | spel-product-analyst | Product inventory + coherence audit |
 
-Individual agent names also work as `--only` values: `explorer`, `automator`, `presenter`, `bug-hunter`, `orchestrator`, `product-analyst`.
+Individual names as `--only`: `explorer`, `automator`, `presenter`, `bug-hunter`, `orchestrator`, `product-analyst`.
 
-### `--loop` flag
+### `--loop`
 
-Valid values: `opencode` (default), `claude`. The `vscode` value is **deprecated** and now exits with an error.
+Valid: `opencode` (default), `claude`. `vscode` **deprecated** → error.
 
 ```bash
-spel init-agents --loop=opencode   # OpenCode (default)
+spel init-agents --loop=opencode   # default
 spel init-agents --loop=claude     # Claude Code
-# spel init-agents --loop=vscode   # DEPRECATED — exits with error
+# spel init-agents --loop=vscode   # DEPRECATED → error
 ```
 
 ## Verification
 
-All verification logic lives in `./verify.sh`. Run it instead of a manual checklist.
+`./verify.sh`. Not manual checklist.
 
 ```bash
-./verify.sh              # Full verification (default) — format, lint, graal, gen-docs, build, test, secrets
-./verify.sh --allure     # Allure-only — format, lint, test-allure (for report rendering changes)
-./verify.sh --quick      # Format + lint only (no build/test)
+./verify.sh              # Full — format, lint, graal, gen-docs, build, test, secrets
+./verify.sh --allure     # Allure — format, lint, test-allure
+./verify.sh --quick      # Format + lint only
 ```
 
-Each step writes logs to `.verification/<step>.log` and exit codes to `.verification/<step>.code`.
-On failure the script stops, shows the last 20 lines of the failing step's log, and tells you where to look.
+Logs → `.verification/<step>.log`, codes → `.verification/<step>.code`.
+Fail → stops, shows 20 lines of failing log.
 
-The script auto-detects regeneration triggers (templates, `sci_env.clj`, `gen_docs.clj`) and skips
-`gen-docs` / `init-agents` when nothing relevant changed.
+Auto-detects regen triggers (templates, `sci_env.clj`, `gen_docs.clj`) → skips when nothing changed.
 
-### Test count sanity check
-`verify.sh --full` validates that the full test suite ran enough cases:
-- Lazytest: **~1268 cases** (fails if <1000)
-- CLI bash: **~179 assertions** (fails if <150)
+### Test count sanity
+`verify.sh --full` validates:
+- Lazytest: **~1268** (fails if <1000)
+- CLI bash: **~179** (fails if <150)
 
-After push: verify GitHub Actions CI is green before declaring done.
+Post-push: verify CI green.
 
-## Release Process
+## Release
 
-**Tag-only. The Release workflow handles everything.**
+**Tag-only. Workflow handles rest.**
 
 ```bash
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-Done. The workflow (.github/workflows/release.yml) automatically:
-- Builds native binaries (linux-amd64, linux-arm64, macos-arm64, windows-amd64)
-- Deploys JAR to Clojars
-- Creates GitHub Release with all binaries attached
-- Updates CHANGELOG.md with commit log
-- Bumps SPEL_VERSION to next patch
-- Commits and pushes version files to main
+Workflow (`.github/workflows/release.yml`):
+- Build natives (linux-amd64/arm64, macos-arm64, windows-amd64)
+- Deploy JAR → Clojars
+- GitHub Release + binaries
+- CHANGELOG.md from commit log
+- Bump SPEL_VERSION → next patch
+- Commit + push to main
 
 **NEVER manually:**
-- Create a release with `gh release create` (conflicts with workflow, GitHub immutable releases break)
-- Edit CHANGELOG.md for a release (workflow generates it)
-- Bump SPEL_VERSION for a release (workflow does it)
-- Upload binaries to a release
+- `gh release create` (conflicts, immutable breaks)
+- Edit CHANGELOG.md for release
+- Bump SPEL_VERSION for release
+- Upload binaries
 
-## Reproduction Steps (Issue #89: Missing keyboard press API)
+## Issue #89: Missing keyboard press API
 
-### Reproduction
+### Repro
 
-Before commit `f91ea05`, the SCI `spel/press` function only accepted two arguments `(selector key)`.
-Attempting a page-level keyboard press threw an arity error:
+Before `f91ea05`, `spel/press` only accepted `(selector key)`. Page-level press → arity error:
 
 ```clojure
 (spel/press "Escape")           ;; => Wrong number of args (1) passed to: sci-press
@@ -247,83 +239,69 @@ Attempting a page-level keyboard press threw an arity error:
 
 ### Root cause
 
-`sci-press` was bound with only `([sel key] ...)` and `([sel key opts] ...)` arities — a locator-level
-press. There was no page-level keyboard press function at any layer (library, SCI, or CLI).
+`sci-press` only `([sel key] ...)` + `([sel key opts] ...)` — locator-only. No page-level press at any layer.
 
-### Fix (Library -> SCI -> CLI)
+### Fix (Library → SCI → CLI)
 
-1. **Library** (`page.clj`): Added `keyboard-press` wrapping `Page.keyboard().press(key)`.
-2. **SCI** (`sci_env.clj`): Added `sci-keyboard-press` (named `defn`, not lambda). Made `sci-press`
-   multi-arity: `([key])` delegates to `sci-keyboard-press`, `([sel key])` and `([sel key opts])`
-   remain locator-level. Exposed `keyboard-press` binding.
-3. **CLI/Daemon** (`daemon.clj`): `handle-cmd "press"` already had the no-selector branch using raw
-   interop; no change needed.
+1. **Library** (`page.clj`): `keyboard-press` wraps `Page.keyboard().press(key)`
+2. **SCI** (`sci_env.clj`): `sci-keyboard-press` (named `defn`). `sci-press` multi-arity: `([key])` → `sci-keyboard-press`, `([sel key])`/`([sel key opts])` stay locator-level. `keyboard-press` binding exposed.
+3. **CLI/Daemon** (`daemon.clj`): `handle-cmd "press"` already had no-selector branch. No change.
 
-### Verification
+### Verify
 
-Tests use a dedicated `/keyboard-page` HTML page with `keydown` listeners that write captured keys to
-`#last-key` and `#key-log` divs. Tests verify **actual DOM state** after pressing — not just that the
-function returns without error.
+Tests use `/keyboard-page` + `keydown` listeners → `#last-key` + `#key-log`. Verify **DOM state** after press — not "no error".
 
 ## Learnings
 
-### Always use HTML test pages with observable behavior
+### Observable HTML test pages
 
-Tests that only check "no error thrown" (e.g. `(spel/press "Escape") "ok"`) give false confidence.
-A function can silently do nothing and the test still passes. Instead:
+"No error" tests = false confidence. Fn silently does nothing → passes. Instead:
 
-1. Create a dedicated test HTML page in `test_server.clj` with JavaScript event listeners
-2. After performing the action, read DOM state to verify the action had the expected effect
-3. Example: keyboard tests use a `keydown` listener that writes `e.key` to `#last-key`,
-   then the test reads `#last-key` to confirm the key was actually received
+1. Dedicated HTML page in `test_server.clj` + JS listeners
+2. Action → read DOM → verify effect
+3. Example: `keydown` listener → `e.key` → `#last-key` → test reads `#last-key`
 
-### Follow the three-layer pattern
+### Three-layer pattern
 
-New features MUST go Library -> SCI -> CLI (see "Feature Development Order" in Critical Rules).
-The library layer is the source of truth. SCI and CLI reuse library fns. Never reimplement logic
-at a higher layer.
+Features → Library → SCI → CLI. Library = truth. SCI + CLI reuse. Never reimplement at higher layer.
 
-### Named defns for SCI bindings, never lambdas
+### Named defns for SCI
 
-SCI-exposed functions must be named `defn`s with docstrings. Inline `(fn ...)` lambdas break
-`gen-docs` introspection, hide functions from `FULL_API.md`, and make debugging impossible.
+SCI fns = named `defn` + docstring. Lambdas → break `gen-docs` → hidden from `FULL_API.md` → undebuggable.
 
-### Reproduce before fixing
+### Reproduce before fix
 
-Always reproduce the issue first to confirm it exists and understand the root cause. Document
-the reproduction steps so future developers can verify the fix works against the original failure.
+Reproduce → confirm → root cause. Document steps → verify fix against original failure.
 
-### SCI eval test results are pr-str'd
+### SCI eval = pr-str'd strings
 
-When testing SCI functions via `cmd "sci_eval"`, string results come back **double-quoted**
-because the daemon serializes them with `pr-str`. This is a common gotcha:
+`cmd "sci_eval"` string results = **double-quoted** (daemon `pr-str`). Gotcha:
 
 ```clojure
-;; WRONG — will fail:
+;; WRONG:
 (let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.title\")"})]
   (expect (= "My Title" (:result r))))
-;; (:result r) is actually "\"My Title\"", not "My Title"
+;; (:result r) = "\"My Title\"", not "My Title"
 
 ;; CORRECT:
 (let [r (cmd "sci_eval" {"code" "(spel/evaluate \"document.title\")"})]
   (expect (= "\"My Title\"" (:result r))))
 ```
 
-Daemon `cmd "evaluate"` returns raw values (no quoting). Only `cmd "sci_eval"` wraps strings.
+`cmd "evaluate"` = raw. Only `cmd "sci_eval"` wraps.
 
-### Playwright evaluate returns Java types, not Clojure types
+### Playwright evaluate → Java types
 
-`page/evaluate` returns Java `ArrayList`, `LinkedHashMap`, etc. — NOT Clojure vectors/maps.
-`map?`, `vector?`, `sequential?` all return `false` on these. Use Java interop:
+`page/evaluate` → `ArrayList`, `LinkedHashMap`. `map?`/`vector?`/`sequential?` all `false`. Java interop:
 
 ```clojure
 ;; WRONG:
-(when (map? result) (:x result))       ;; map? fails on LinkedHashMap
-(when (sequential? result) (mapv ...))  ;; sequential? fails on ArrayList
+(when (map? result) (:x result))
+(when (sequential? result) (mapv ...))
 
 ;; CORRECT:
 (when (instance? java.util.Map result)
-  (.get ^java.util.Map result "x"))    ;; use .get with string keys
+  (.get ^java.util.Map result "x"))
 (when (instance? java.util.List result)
   (mapv (fn [^java.util.Map m] ...) result))
 ```
@@ -332,9 +310,9 @@ Daemon `cmd "evaluate"` returns raw values (no quoting). Only `cmd "sci_eval"` w
 
 | Resource | Location |
 |---|---|
-| API reference (agents) | `.opencode/skills/spel/SKILL.md` |
-| SKILL source (hand-edited) | `resources/.../templates/skills/spel/SKILL.md` |
-| Full API ref (auto-generated) | `resources/.../templates/skills/spel/references/FULL_API.md` |
+| API ref (agents) | `.opencode/skills/spel/SKILL.md` |
+| SKILL source | `resources/.../templates/skills/spel/SKILL.md` |
+| Full API (auto-gen) | `resources/.../templates/skills/spel/references/FULL_API.md` |
 | Project docs | `README.md` |
-| nREPL eval | `clj-nrepl-eval` (eval Clojure against running nREPL) |
+| nREPL eval | `clj-nrepl-eval` |
 | Paren repair | `clj-paren-repair <file>` |

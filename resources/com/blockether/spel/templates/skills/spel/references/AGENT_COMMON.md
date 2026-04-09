@@ -6,7 +6,7 @@ Shared conventions for all spel subagents. Every agent MUST follow these pattern
 
 ## Session management
 
-**NEVER use the default session.** It may belong to the user or another agent. Always use a named session.
+**NEVER use the default session.** May belong to user or another agent. Always use a named session.
 
 ```bash
 SESSION="<agent-short-name>-$(date +%s)"
@@ -20,7 +20,7 @@ spel --session $SESSION eval-sci '(spel/title)'
 spel --session $SESSION close
 ```
 
-If cleanup does not actually remove the session, escalate immediately instead of leaving an orphan behind:
+If cleanup does not remove the session, escalate immediately instead of leaving an orphan:
 
 ```bash
 spel --session $SESSION close
@@ -34,12 +34,12 @@ rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 
 ### Session-first CDP policy (mandatory)
 
-When using CDP, treat one named session as the single owner of one CDP endpoint.
+When using CDP, treat one named session as single owner of one CDP endpoint.
 
-- Create one session and keep reusing it for the whole flow.
-- Do **not** create a new `--session` for every command in the same flow.
-- Do **not** attach multiple agent sessions to the same CDP browser endpoint concurrently.
-- Never run broad browser kills (`pkill -f "Google Chrome"`, `pkill -f "chrome"`) as a normal recovery step — this can kill the user's browser and other agent runs.
+- Create one session, keep reusing it for whole flow.
+- Do **not** create new `--session` for every command in same flow.
+- Do **not** attach multiple agent sessions to same CDP browser endpoint concurrently.
+- Never run broad browser kills (`pkill -f "Google Chrome"`, `pkill -f "chrome"`) as normal recovery step — kills user's browser and other agent runs.
 
 Recommended pattern (auto-launch — simplest):
 
@@ -76,9 +76,9 @@ spel --session $SESSION close
 ```
 
 If CDP attach fails (`TargetClosedError`, `ECONNREFUSED`):
-1. Keep the same session name.
+1. Keep same session name.
 2. Verify endpoint health (`curl http://127.0.0.1:$CDP_PORT/json/version`).
-3. Relaunch only the dedicated debug browser for that session and reattach.
+3. Relaunch only dedicated debug browser for that session and reattach.
 4. Re-snapshot and continue.
 
 Never recover by killing all Chrome processes.
@@ -112,7 +112,7 @@ Use `--only` to run a subset: `spel audit --only contrast,layout`.
 
 ## Input/output contracts
 
-Every agent declares what it reads and what it produces, enabling composition.
+Every agent declares what it reads and produces, enabling composition.
 
 ### Contract format
 
@@ -147,13 +147,13 @@ Outputs:
 
 If an output file is part of your contract, it is not optional in practice.
 
-Before you announce completion or open a GATE:
+Before announcing completion or opening a GATE:
 - Verify every promised file exists and is non-empty
-- Verify JSON outputs parse and match the expected shape
+- Verify JSON outputs parse and match expected shape
 - Verify every referenced evidence path exists on disk
-- If the user explicitly asked for JSON, treat those JSON paths as hard requirements
+- If user explicitly asked for JSON, treat those JSON paths as hard requirements
 
-Missing artifact = incomplete stage. Do not summarize it as done. Go back and produce/fix the file first.
+Missing artifact = incomplete stage. Do not summarize as done. Go back and produce/fix the file first.
 
 ### Pipeline handoff manifests
 
@@ -174,19 +174,19 @@ Orchestrated runs must leave a machine-readable handoff file in `orchestration/`
 }
 ```
 
-Update this file after every stage transition. The next pipeline consumes it as context.
+Update this file after every stage transition. Next pipeline consumes it as context.
 
 ---
 
 ## Gates
 
-A GATE is a mandatory pause where the agent presents results to the user and waits for approval before proceeding.
+A GATE is a mandatory pause where agent presents results to user and waits for approval before proceeding.
 
 ### When to GATE
 
 - After producing a plan/spec: user must review before execution
-- After making changes: user must verify before the next agent consumes the output
-- After finding issues: user must acknowledge before fixes are applied
+- After making changes: user must verify before next agent consumes output
+- After finding issues: user must acknowledge before fixes applied
 - Before destructive actions: user must confirm before overwriting baselines, deleting files, etc.
 
 ### GATE format
@@ -204,18 +204,18 @@ Do NOT continue to the next phase until the user explicitly approves.
 
 ### Embedded vs workflow gates
 
-- Embedded GATE: inside the agent template itself. The agent pauses when invoked standalone.
-- Workflow GATE: in the workflow prompt. The orchestrator pauses between agent invocations.
+- Embedded GATE: inside agent template itself. Agent pauses when invoked standalone.
+- Workflow GATE: in workflow prompt. Orchestrator pauses between agent invocations.
 
-Both are needed. Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
+Both needed. Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
 
 ### Valid gate checklist
 
 A GATE is valid only when all of the following are true:
-- Required artifacts for the stage exist
+- Required artifacts for stage exist
 - Missing artifact list is empty
-- The user sees the exact file paths that were produced
-- The next step is explicitly blocked pending approval
+- User sees exact file paths that were produced
+- Next step is explicitly blocked pending approval
 
 If any required artifact is missing, do not ask for approval yet. Fix the stage first.
 
@@ -235,7 +235,7 @@ If any required artifact is missing, do not ask for approval yet. Fix the stage 
 | CDP endpoint conflict | `TargetClosedError` / `ECONNREFUSED` / attach flake | Use one owner session per CDP endpoint, relaunch only dedicated debug browser, keep user browser untouched. |
 | Edit tool denied by policy | Agent gets tool-permission error when writing artifacts | Write required files with `bash`/`python`, then read them back and verify exact content/paths before gate approval. |
 | Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-explorer for auth bootstrap (Step 0: open headed browser, let user log in, export state), or provide --load-state." |
-| JavaScript errors | Console errors in snapshot | Capture and report. Continue unless the page is non-functional. |
+| JavaScript errors | Console errors in snapshot | Capture and report. Continue unless page is non-functional. |
 | Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |
 
 ### Recovery pattern
@@ -300,13 +300,13 @@ done
 Each ref'd element includes screen position data as `[pos:X,Y W×H]`: pixel coordinates (X,Y from top-left) and dimensions (width×height). Use for:
 - Layout verification: check element positions, alignment, spacing
 - Overlap detection: find elements that overlap or are cut off
-- Viewport fit: verify elements are within the visible viewport
+- Viewport fit: verify elements are within visible viewport
 - Spatial reasoning: understand page layout without screenshots
 - Duplicate detection: spot repeated logos, headings, navigation blocks, or identical message text
 - Visual symmetry: paired elements should match in size and position
 - Clipped content: find meaningful elements partially hidden by overflow, off-screen position, or overlapping layers
 - Broken layout: detect misaligned grid columns, collapsed flex rows, orphaned floats
-- Visual coherence: repeated UI patterns (list rows, cards, table rows) should keep badges, icons, and metadata in the same position regardless of content length
+- Visual coherence: repeated UI patterns (list rows, cards, table rows) should keep badges, icons, metadata in same position regardless of content length
 
 ```
 button "Submit" @e2yrjz [pos:150,200 120×40]
@@ -325,15 +325,15 @@ Choose navigation strategy based on site behavior instead of blindly clicking an
 
 | Situation | Preferred action | Preferred wait | Why |
 |-----------|------------------|----------------|-----|
-| Traditional multi-page site | `spel --session $SESSION open <url>` | `spel --session $SESSION wait --load load` | Full page load is a good readiness signal |
-| Heavy portal / ad-heavy page | Click only if needed | `spel --session $SESSION wait --load domcontentloaded` or `spel --session $SESSION wait --url <partial>` | Full `load` is often delayed by third-party resources |
+| Traditional multi-page site | `spel --session $SESSION open <url>` | `spel --session $SESSION wait --load load` | Full page load is good readiness signal |
+| Heavy portal / ad-heavy page | Click only if needed | `spel --session $SESSION wait --load domcontentloaded` or `spel --session $SESSION wait --url <partial>` | Full `load` often delayed by third-party resources |
 | SPA route already known | Reach route via user-visible interactions (click/keyboard), then use route-aware wait | `spel --session $SESSION wait --url <partial>` then `spel --session $SESSION wait --load domcontentloaded` | Preserves user-like navigation while using reliable SPA readiness checks |
-| SPA route unknown | Snapshot first, then click | `spel --session $SESSION wait --url <partial>` and content wait | URL change is the stable signal, not full resource completion |
+| SPA route unknown | Snapshot first, then click | `spel --session $SESSION wait --url <partial>` and content wait | URL change is stable signal, not full resource completion |
 
 Rules:
 - Prefer split commands: `open` first, `wait` second.
 - Do not solve navigation flakiness by immediately raising timeouts.
-- If a click repeatedly times out on SPA or portal pages, keep user-visible interaction flow, adjust waits (`--url`, `--load domcontentloaded`), and record evidence in artifacts.
+- If a click repeatedly times out on SPA or portal pages, keep user-visible interaction flow, adjust waits (`--url`, `--load domcontentloaded`), record evidence in artifacts.
 
 ### Why refs over CSS selectors
 
@@ -453,7 +453,7 @@ After structured audit of all 6 categories, spend 30-90 seconds on unscripted ex
 5. Resize viewport mid-interaction
 6. Open the same flow in a new tab
 
-Document any unexpected behavior. Unscripted exploration often surfaces the highest-severity bugs.
+Document any unexpected behavior. Unscripted exploration often surfaces highest-severity bugs.
 
 ---
 
@@ -461,11 +461,11 @@ Document any unexpected behavior. Unscripted exploration often surfaces the high
 
 These apply to ALL agents. Reference this doc instead of copy-pasting:
 
-- `spel/start!` and `spel/stop!` are NOT needed. The daemon manages browser lifecycle.
-- Use `--timeout <ms>` to fail fast on bad selectors (default is 30s, which is too long for exploration)
-- Use `--interactive` when the user should see the browser window
-- Errors throw automatically in `eval-sci` mode. No need for explicit error checking unless you want custom recovery.
-- Use `spel open <url> --interactive` before `eval-sci` if the user wants to watch
+- `spel/start!` and `spel/stop!` NOT needed. Daemon manages browser lifecycle.
+- Use `--timeout <ms>` to fail fast on bad selectors (default is 30s, too long for exploration)
+- Use `--interactive` when user should see browser window
+- Errors throw automatically in `eval-sci` mode. No need for explicit error checking unless custom recovery desired.
+- Use `spel open <url> --interactive` before `eval-sci` if user wants to watch
 - ALWAYS `spel --session $SESSION close` when done. Never leave sessions open.
 
 ---
@@ -513,7 +513,7 @@ spel --session $SESSION close
 
 ### SRT transcript (automatic)
 
-The action log generates SRT subtitles automatically:
+Action log generates SRT subtitles automatically:
 
 ```
 1
@@ -529,7 +529,7 @@ click @e123
 fill @e456 "search text"
 ```
 
-The JSON export includes full context (URL, title, snapshot tree) for each action.
+JSON export includes full context (URL, title, snapshot tree) for each action.
 
 ### FFmpeg post-processing (optional)
 
@@ -541,11 +541,11 @@ ffmpeg -i session.webm -vf "subtitles=session.srt" output.mp4
 ffmpeg -i session.webm -vf "mpdecimate,setpts=N/30/TB" -r 30 trimmed.mp4
 ```
 
-See `references/PDF_STITCH_VIDEO.md` for the complete FFmpeg reference.
+See `references/PDF_STITCH_VIDEO.md` for complete FFmpeg reference.
 
 ### Video in QA reports
 
-The QA orchestrator can embed video in the HTML report using the `<video>` element with SRT track. See `references/spel-report.html` for visual structure and `references/spel-report.md` for LLM handoff structure.
+QA orchestrator can embed video in HTML report using `<video>` element with SRT track. See `references/spel-report.html` for visual structure and `references/spel-report.md` for LLM handoff structure.
 
 ---
 
@@ -553,9 +553,9 @@ The QA orchestrator can embed video in the HTML report using the `<video>` eleme
 
 **NEVER read application source code.** Bug-finding agents (Hunter) are black-box testers. They test what users see and experience: UI, behavior, accessibility, network responses.
 
-Reading source code introduces bias: you test what you know is there, miss bugs in the gap between intent and implementation, and skip exploratory paths a real user would try.
+Reading source code introduces bias: you test what you know is there, miss bugs in the gap between intent and implementation, skip exploratory paths a real user would try.
 
-To understand behavior, observe it through the browser. Use snapshots, screenshots, console output, and network logs. Never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
+To understand behavior, observe it through the browser. Use snapshots, screenshots, console output, network logs. Never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
 
 ---
 

@@ -1,21 +1,21 @@
 # Adversarial bug-finding guide
 
-The adversarial bug-finding pipeline uses a single agent (`spel-bug-hunter`) with built-in competing phases to produce a verified bug list with minimal false positives. Based on the Hunter/Skeptic/Referee methodology, now consolidated into one agent with three internal phases.
+Single agent (`spel-bug-hunter`) with three internal competing phases → verified bug list, minimal false positives. Hunter/Skeptic/Referee methodology consolidated into one agent.
 
 ---
 
 ## Why adversarial?
 
-Single-pass bug reviews have two failure modes:
-1. Over-reporting — Aggressive finders report noise. Engineering time wasted on false positives.
-2. Under-reporting — Conservative finders miss real bugs. Defects ship.
+Single-pass bug reviews fail two ways:
+1. Over-reporting — aggressive finders report noise → wasted engineering time on false positives
+2. Under-reporting — conservative finders miss real bugs → defects ship
 
-The adversarial approach solves both:
-- The Hunter is incentivized to over-report (missing a bug scores 0)
-- The Skeptic is incentivized to challenge aggressively but carefully (wrong dismissals cost 2x)
-- The Referee is incentivized to be precise (every wrong judgment costs a point)
+Competing incentives solve both:
+- Hunter incentivized to over-report (missed bug scores 0)
+- Skeptic incentivized to challenge aggressively but carefully (wrong dismissal costs 2x)
+- Referee incentivized to be precise (every wrong judgment costs a point)
 
-Competing incentives break the echo chamber of self-validation.
+Competing incentives → breaks self-validation echo chamber.
 
 ---
 
@@ -29,7 +29,7 @@ Competing incentives break the echo chamber of self-validation.
 | +5 | Medium | Functional issue, broken interaction, a11y gap, UX confusion, perf degradation, layout shift |
 | +10 | Critical | Security vulnerability, data loss risk, crash, complete UX failure, a11y blocker |
 
-Objective: maximize total score. Report anything that *could* be a bug. False positives are acceptable — missing real bugs is not.
+Objective: maximize total score. Report anything that *could* be a bug. False positives acceptable — missing real bugs is not.
 
 ### Skeptic scoring
 
@@ -38,7 +38,7 @@ Objective: maximize total score. Report anything that *could* be a bug. False po
 | Successfully disprove a bug | +[bug's original score] |
 | Wrongly dismiss a real bug | -2x [bug's original score] |
 
-Objective: maximize score. Only DISPROVE when expected value is positive (confidence > 66%).
+Objective: maximize score. DISPROVE only when expected value positive (confidence > 66%).
 
 Risk calculation:
 ```
@@ -160,8 +160,8 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
   - `"snapshot_refs"`: array of `@eXXXX` refs for the affected elements
   - `"screenshot"`: path to an annotated screenshot with action markers highlighting those refs
   - `"description"`: what's wrong, in one sentence
-- The screenshot must be captured with `inject-action-markers!` + `save-audit-screenshot!` so the affected refs are visually highlighted.
-- Every screenshot path must exist in `bugfind-reports/evidence/` and appear in the top-level `artifacts[]`.
+- Screenshot captured with `inject-action-markers!` + `save-audit-screenshot!` so affected refs visually highlighted.
+- Every screenshot path must exist in `bugfind-reports/evidence/` and appear in top-level `artifacts[]`.
 
 **Evidence capture for visual_checks:**
 ```clojure
@@ -176,7 +176,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 ```
 
 **`viewport_checks` rules:**
-- One entry per audited page. Each page has `desktop` (1280x720), `tablet` (768x1024), and `mobile` (375x667).
+- One entry per audited page. Each page has `desktop` (1280x720), `tablet` (768x1024), `mobile` (375x667).
 - Every viewport MUST have:
   - `"screenshot"`: annotated screenshot captured at that viewport via `save-audit-screenshot!`
   - `"snapshot"`: structural snapshot JSON captured at that viewport
@@ -206,7 +206,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 
 ### Self-challenge review (built into hunter report)
 
-The bug-hunter's internal skeptic phase produces challenge records within the hunter report:
+Bug-hunter's internal skeptic phase produces challenge records within the hunter report:
 
 ```json
 {
@@ -230,7 +230,7 @@ The bug-hunter's internal skeptic phase produces challenge records within the hu
 
 ### Final verdict (built into hunter report)
 
-The bug-hunter's internal referee phase produces the final verdict within the same report:
+Bug-hunter's internal referee phase produces final verdict within same report:
 
 ```json
 {
@@ -325,7 +325,7 @@ bugfind-reports/
 
 ## UX architect lens (Hunter Phase 2)
 
-The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy. For every page:
+Hunter applies design quality audit inspired by Jobs/Ive design philosophy. For every page:
 
 | Dimension | Questions |
 |-----------|-----------|
@@ -334,11 +334,11 @@ The Hunter applies a design quality audit inspired by Jobs/Ive design philosophy
 | Typography | Clear hierarchy in type sizes? Too many weights competing? Calm or chaotic? |
 | Color | Used with restraint and purpose? Guides attention? Sufficient contrast? |
 | Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
-| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? Repeated list/card patterns maintain consistent internal layout (badges, icons, metadata in the same position regardless of content length)? |
+| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? Repeated list/card patterns maintain consistent internal layout (badges, icons, metadata in same position regardless of content length)? |
 | Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? Same message text appearing in multiple places? |
 | Responsiveness | Tested at all 3 viewports (desktop 1280x720, tablet 768x1024, mobile 375x667)? Annotated screenshot + snapshot captured at each? Touch targets ≥44x44px on mobile? No horizontal overflow? Navigation usable at every size? |
 
-The Jobs Filter:
+Jobs Filter:
 - "Would a user need to be told this exists?" → UX confusion bug
 - "Can this be removed without losing meaning?" → Density bug
 - "Does this feel inevitable?" → Design inconsistency bug / Visual coherence bug
@@ -352,12 +352,12 @@ The Jobs Filter:
 
 ## Evidence guidelines
 
-1. Every bug needs at least one piece of evidence. No exceptions.
-2. Annotated screenshots with action markers are the gold standard. Mark affected refs with `spel/inject-action-markers!`, then capture with `spel/save-audit-screenshot!` (includes caption + ref overlays + highlighted elements in one image).
-3. Every annotated screenshot must show: (a) the ref labels so the reviewer can cross-reference with the snapshot, and (b) the action markers highlighting exactly which elements are affected.
+1. Every bug needs ≥1 piece of evidence. No exceptions.
+2. Annotated screenshots with action markers = gold standard. Mark affected refs with `spel/inject-action-markers!`, capture with `spel/save-audit-screenshot!` (includes caption + ref overlays + highlighted elements in one image).
+3. Every annotated screenshot must show: (a) ref labels for cross-reference with snapshot, (b) action markers highlighting affected elements.
 4. Snapshot JSON provides structural proof. Style values, ARIA attributes, element hierarchy — all machine-verifiable. Always capture alongside screenshots.
-5. For non-visual bugs, console output or network logs are acceptable, but pair with a screenshot when the bug has any visible effect.
-6. Independent capture is mandatory for Skeptic and Referee. They must capture their OWN evidence in their OWN session. Reusing Hunter's evidence defeats the adversarial purpose.
+5. For non-visual bugs, console output or network logs acceptable, but pair with screenshot when bug has any visible effect.
+6. Independent capture mandatory for Skeptic and Referee. They must capture OWN evidence in OWN session. Reusing Hunter's evidence defeats adversarial purpose.
 
 ---
 

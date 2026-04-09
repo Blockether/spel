@@ -1,10 +1,10 @@
-# PDF generation, image stitching, and video recording
+# PDF generation, image stitching, video recording
 
-Three capabilities for capturing and exporting browser content: page-to-PDF conversion, multi-screenshot stitching, and session video recording.
+Three capabilities: page→PDF, multi-screenshot stitching, session video recording.
 
 ## PDF generation
 
-PDF output works only in Chromium headless mode. Firefox and WebKit don't support it.
+PDF output works only in Chromium headless. Firefox/WebKit don't support it.
 
 ### Basic usage
 
@@ -33,19 +33,19 @@ Library:
 |--------|------|---------|-------------|
 | `:path` | String | nil | Output file path. If nil, returns `byte[]` |
 | `:format` | String | nil | Page format: `"A4"`, `"Letter"`, `"Legal"`, `"Tabloid"` |
-| `:landscape` | Boolean | false | Print in horizontal orientation |
-| `:print-background` | Boolean | false | Include CSS backgrounds and images |
+| `:landscape` | Boolean | false | Horizontal orientation |
+| `:print-background` | Boolean | false | Include CSS backgrounds + images |
 | `:page-ranges` | String | nil | Page range, e.g. `"1-3"`, `"1,3,5"` |
 | `:header-template` | String | nil | HTML template for page header |
 | `:footer-template` | String | nil | HTML template for page footer |
 | `:prefer-css-page-size` | Boolean | false | Use CSS `@page` size over `:format` |
 | `:width` | String | nil | Paper width, e.g. `"8.5in"` |
 | `:height` | String | nil | Paper height, e.g. `"11in"` |
-| `:scale` | Double | 1.0 | Scale of the webpage rendering (0.1 to 2.0) |
+| `:scale` | Double | 1.0 | Webpage rendering scale (0.1 to 2.0) |
 
-> Note: The `:margin` option isn't available on `page/pdf` directly. For margin control, use `report->pdf` (below) or CSS `@page` rules with `:prefer-css-page-size true`.
+> Note: `:margin` not available on `page/pdf` directly. For margin control, use `report->pdf` (below) or CSS `@page` rules with `:prefer-css-page-size true`.
 
-### Example with headers and footers
+### Example with headers + footers
 
 ```clojure
 (spel/pdf {:path "/tmp/report.pdf"
@@ -59,17 +59,17 @@ Library:
            :footer-template "<div style='font-size:10px; text-align:center; width:100%'>Page <span class='pageNumber'></span> of <span class='totalPages'></span></div>"})
 ```
 
-Header/footer templates support these CSS classes: `date`, `title`, `url`, `pageNumber`, `totalPages`.
+Header/footer template CSS classes: `date`, `title`, `url`, `pageNumber`, `totalPages`.
 
 ---
 
-## Custom HTML reports to PDF
+## Custom HTML reports → PDF
 
-The report builder creates structured HTML documents from typed entries, then renders them to PDF. Combine screenshots, text, tables, and observations into a single document.
+Report builder creates structured HTML from typed entries → renders to PDF. Combine screenshots, text, tables, observations into one document.
 
 ### Building HTML
 
-`spel/report->html` takes a sequence of entry maps and returns an HTML string. No browser page needed.
+`spel/report->html` takes entry map seq → returns HTML string. No browser page needed.
 
 ```clojure
 (let [html (spel/report->html
@@ -82,7 +82,7 @@ The report builder creates structured HTML documents from typed entries, then re
 
 ### Rendering to PDF
 
-`spel/report->pdf` loads the HTML into the current page and calls `page.pdf()`. Requires an active browser session.
+`spel/report->pdf` loads HTML into current page → calls `page.pdf()`. Requires active browser session.
 
 ```clojure
 (spel/report->pdf
@@ -107,11 +107,11 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 | `:text` | `:text` | | Paragraph |
 | `:html` | `:content` | | Raw HTML (no escaping) |
 
-### Complete example: screenshots to PDF report
+### Complete example: screenshots → PDF report
 
 ```clojure
-;; eval-sci: capture pages and build a PDF report
-;; Daemon mode: omit start!/stop! — daemon owns the browser
+;; eval-sci: capture pages + build PDF report
+;; Daemon mode: omit start!/stop! — daemon owns browser
 (spel/navigate "https://example.org")
 (spel/wait-for-load-state)
 (let [shot1 (spel/screenshot)  ;; returns byte[] when no :path given
@@ -131,10 +131,10 @@ Library (explicit page): `(annotate/report->pdf pg entries {:path "out.pdf" :tit
 
 ---
 
-## Slide-deck presentations (HTML to PDF)
+## Slide-deck presentations (HTML → PDF)
 
-Generate presentation-quality PDFs from HTML slides using CSS `@page` and `page-break-after`.
-This is the same pattern used by Slidev, Marp, and reveal.js.
+Generate presentation-quality PDFs from HTML slides using CSS `@page` + `page-break-after`.
+Same pattern as Slidev, Marp, reveal.js.
 
 ### CSS template
 
@@ -163,18 +163,18 @@ This is the same pattern used by Slidev, Marp, and reveal.js.
 
 ### Things to know
 
-- Use `(spel/emulate-media! {:media :screen})` before PDF — makes sure gradients and colors render. This is required.
-- CSS animations DO NOT survive PDF — use `* { animation: none !important; }`
+- `(spel/emulate-media! {:media :screen})` before PDF → gradients + colors render. Required.
+- CSS animations DO NOT survive PDF → use `* { animation: none !important; }`
 - GIFs show first frame only in PDF
-- Use `{:print-background true :prefer-css-page-size true}` for exact slide dimensions
+- `{:print-background true :prefer-css-page-size true}` for exact slide dimensions
 
 ---
 
 ## Image stitching
 
-Combine multiple screenshots into one tall image. Useful for virtual-scroll pages, infinite-scroll feeds, or content taller than the viewport.
+Combine multiple screenshots into one tall image. Useful for virtual-scroll pages, infinite-scroll feeds, content taller than viewport.
 
-Stitching uses Playwright internally: base64-encodes each image, renders them as `<img>` tags in HTML, then takes a full-page screenshot. No AWT or ImageIO dependency.
+Stitching uses Playwright internally: base64-encodes each image, renders as `<img>` tags in HTML, takes full-page screenshot. No AWT/ImageIO dependency.
 
 ### Basic vertical stitch
 
@@ -182,11 +182,11 @@ Stitching uses Playwright internally: base64-encodes each image, renders them as
 (stitch/stitch-vertical ["/tmp/top.png" "/tmp/mid.png" "/tmp/bot.png"] "/tmp/full.png")
 ```
 
-Takes a vector of file paths and an output path. Returns the output path.
+Takes vector of file paths + output path. Returns output path.
 
 ### Overlap trimming
 
-When you scroll and screenshot, subsequent images overlap with the previous one. `stitch-vertical-overlap` trims a fixed number of pixels from the top of each image after the first.
+When scrolling + screenshotting, subsequent images overlap. `stitch-vertical-overlap` trims fixed pixels from top of each image after first.
 
 ```clojure
 (stitch/stitch-vertical-overlap
@@ -212,7 +212,7 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
 ### Complete scrolling-stitch workflow
 
 ```clojure
-;; eval-sci: scroll-capture a tall page (daemon manages the browser)
+;; eval-sci: scroll-capture tall page (daemon manages browser)
 (spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load-state)
 
@@ -232,13 +232,13 @@ spel stitch s1.png s2.png s3.png --overlap 50 -o stitched.png
   (println "Stitched" (count paths) "screenshots"))
 ```
 
-Captures the page in viewport-sized chunks, scrolling by `viewport-height - overlap` each time, then stitches with overlap trimming to remove duplicate content at boundaries.
+Captures page in viewport-sized chunks, scrolling by `viewport-height - overlap`, stitches with overlap trimming to remove duplicate content at boundaries.
 
 ---
 
 ## Video recording
 
-Record browser sessions as WebM video files. Useful for debugging test failures, creating demos, and CI artifacts.
+Record browser sessions as WebM. Useful for debugging test failures, demos, CI artifacts.
 
 ### SCI eval mode
 
@@ -251,7 +251,7 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
 ```
 
-`start-video-recording` closes the current context and creates a new one with video enabled. Page state (cookies, localStorage) resets.
+`start-video-recording` closes current context → creates new one with video enabled. Page state (cookies, localStorage) resets.
 
 ### Options
 
@@ -265,7 +265,7 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 | `:video-dir` | String | `"videos"` | Directory for video files |
 | `:video-size` | Map | `{:width 1280 :height 720}` | Video resolution |
 
-### Checking and finishing
+### Checking + finishing
 
 ```clojure
 (spel/video-path)  ;; => "/tmp/videos/abc123.webm" or nil
@@ -274,11 +274,11 @@ Record browser sessions as WebM video files. Useful for debugging test failures,
 (spel/finish-video-recording)                                ;; stop, keep in :video-dir
 ```
 
-`finish-video-recording` closes the context (finalizing the video), then creates a fresh context and page without video. You can keep browsing after stopping.
+`finish-video-recording` closes context (finalizing video) → creates fresh context + page without video. Can keep browsing after stopping.
 
 ### Library mode
 
-Pass `:record-video-dir` when creating a context:
+Pass `:record-video-dir` when creating context:
 
 ```clojure
 (core/with-playwright [pw]
@@ -292,12 +292,12 @@ Pass `:record-video-dir` when creating a context:
         (core/video-save-as! pg "/tmp/recording.webm")))))
 ```
 
-The video file isn't complete until the context closes. Call `video-save-as!` before closing, or retrieve the path after context cleanup.
+Video file incomplete until context closes. Call `video-save-as!` before closing, or retrieve path after context cleanup.
 
 ### Complete recording workflow
 
 ```clojure
-;; eval-sci: record a login flow (daemon manages the browser)
+;; eval-sci: record login flow (daemon manages browser)
 (spel/start-video-recording {:video-dir "/tmp/videos"
                               :video-size {:width 1920 :height 1080}})
 (spel/navigate "https://example.org/login")
@@ -315,12 +315,12 @@ The video file isn't complete until the context closes. Call `video-save-as!` be
 
 ## Video with voiceover
 
-spel records video only. There's no built-in audio capture or text-to-speech. To create narrated videos, combine spel's video output with external audio tools.
+spel records video only. No built-in audio capture or TTS. For narrated videos, combine spel video + external audio tools.
 
-### The process
+### Process
 
-1. Record the browser session with spel, adding deliberate pauses between actions
-2. Generate narration audio using TTS (macOS `say`, Linux `espeak`, or API-based services)
+1. Record browser session with spel, add deliberate pauses between actions
+2. Generate narration via TTS (macOS `say`, Linux `espeak`, API services)
 3. Merge video + audio with ffmpeg
 
 ### Recording with pauses
@@ -337,7 +337,7 @@ spel records video only. There's no built-in audio capture or text-to-speech. To
 (spel/finish-video-recording {:save-as "/tmp/demo.webm"})
 ```
 
-### Generating audio and merging
+### Generating audio + merging
 
 ```bash
 # macOS TTS
@@ -345,7 +345,7 @@ say -o /tmp/narration.aiff "Welcome to the demo. First we open the homepage."
 
 # Linux TTS
 espeak -w /tmp/narration.wav "Welcome to the demo. First we open the homepage."
-# Merge video + audio with ffmpeg (-shortest stops at the shorter stream)
+# Merge video + audio with ffmpeg (-shortest stops at shorter stream)
 ffmpeg -i /tmp/demo.webm -i /tmp/narration.mp3 \
   -c:v copy -c:a aac -shortest \
   /tmp/demo-with-narration.mp4
@@ -374,13 +374,13 @@ ffmpeg -i /tmp/session.webm -i /tmp/narration.aiff \
   -c:v copy -c:a aac -shortest /tmp/final.mp4
 ```
 
-> Tip: Match pause durations to narration length. Three seconds per sentence works well for most TTS voices.
+> Tip: Match pause durations to narration length. ~3s per sentence works for most TTS voices.
 
 ---
 
-## Action log and SRT subtitles
+## Action log + SRT subtitles
 
-The daemon automatically tracks all user-facing browser commands (click, navigate, fill, etc.) with timestamps. Export this log as SRT subtitles for video overlays or as JSON for session replay analysis.
+Daemon automatically tracks all user-facing browser commands (click, navigate, fill, etc.) with timestamps. Export as SRT subtitles for video overlays or JSON for session replay.
 
 ### Action log API
 
@@ -398,7 +398,7 @@ spel action-log --srt
 spel action-log --srt -o session.srt
 spel action-log --json -o session.json
 
-# Clear the log (start fresh)
+# Clear log (start fresh)
 spel action-log --clear
 ```
 
@@ -417,16 +417,16 @@ eval-sci:
 (spel/export-srt)
 ;; => "1\n00:00:00,000 --> 00:00:02,000\nnavigate https://example.org\n\n2\n..."
 
-;; With custom timing options
+;; Custom timing options
 (spel/export-srt {:min-duration-ms 500 :max-duration-ms 8000})
 
-;; Clear the log
+;; Clear log
 (spel/clear-action-log!)
 ```
 
 ### JSON export format
 
-Each entry in the JSON export contains:
+Each entry:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -444,13 +444,13 @@ Each entry in the JSON export contains:
 
 Navigate, click, fill, type, press, hover, check, uncheck, select, dblclick, focus, clear, screenshot, scroll, back, forward, reload, drag, tap, set-input-files.
 
-Read-only commands (snapshot, evaluate, network, console, etc.) are NOT tracked.
+Read-only commands (snapshot, evaluate, network, console, etc.) NOT tracked.
 
 ---
 
 ## Smooth video recording
 
-For natural-looking video recordings, use smooth scrolling and human-like pacing instead of instant jumps.
+For natural-looking video, use smooth scrolling + human-like pacing over instant jumps.
 
 ### Smooth scroll
 
@@ -497,7 +497,7 @@ For natural-looking video recordings, use smooth scrolling and human-like pacing
 
 ## FFmpeg post-processing
 
-FFmpeg is optional but useful for polishing recordings. spel does NOT depend on FFmpeg — use it as an external post-processing step.
+FFmpeg optional, useful for polishing recordings. spel does NOT depend on FFmpeg — use as external post-processing step.
 
 ### Burn in subtitles
 
@@ -513,7 +513,7 @@ ffmpeg -i session.webm \
 
 ### Remove idle frames
 
-When nothing happens on screen (waiting for page load, etc.), trim the dead time:
+When nothing happens on screen, trim dead time:
 
 ```bash
 # Remove duplicate frames, re-encode at 30fps
@@ -530,10 +530,10 @@ ffmpeg -i session.webm -vf "setpts=0.5*PTS" -af "atempo=2.0" fast.mp4
 ffmpeg -i session.webm -vf "setpts=2.0*PTS" -af "atempo=0.5" slow.mp4
 ```
 
-### Concatenate multiple segments
+### Concatenate segments
 
 ```bash
-# Create a file list
+# Create file list
 echo "file 'segment1.mp4'" > list.txt
 echo "file 'segment2.mp4'" >> list.txt
 echo "file 'segment3.mp4'" >> list.txt

@@ -1,10 +1,10 @@
 # Assertions, Events & Signals
 
-Assertions provide test verification for pages, locators, and API responses. Events and signals allow you to handle dialogs, downloads, popups, console messages, page errors, and network activity.
+Assertions provide test verification for pages, locators, API responses. Events and signals handle dialogs, downloads, popups, console messages, page errors, network activity.
 
 ## Assertions
 
-All assertion functions require `assert-that` first. They return `nil` on success, throw on failure.
+All assertion functions require `assert-that` first. Return `nil` on success, throw on failure.
 
 In test `it` blocks, ALWAYS wrap with `(expect (nil? ...))`.
 
@@ -55,7 +55,7 @@ Use `assert/assert-that` with a Locator to get LocatorAssertions.
 
 #### Locator Negation
 
-`assert/loc-not` returns negated LocatorAssertions (expect the opposite).
+`assert/loc-not` returns negated LocatorAssertions (expect opposite).
 
 ```clojure
 (assert/is-visible (assert/loc-not (assert/assert-that (page/locator pg ".hidden"))))
@@ -64,7 +64,7 @@ Use `assert/assert-that` with a Locator to get LocatorAssertions.
 
 #### Page Negation
 
-`assert/page-not` returns negated PageAssertions (expect the opposite).
+`assert/page-not` returns negated PageAssertions (expect opposite).
 
 ```clojure
 (assert/has-title (assert/page-not (assert/assert-that pg)) "Wrong Title")
@@ -73,7 +73,7 @@ Use `assert/assert-that` with a Locator to get LocatorAssertions.
 
 #### API Response Negation
 
-`assert/api-not` returns negated APIResponseAssertions (expect the opposite).
+`assert/api-not` returns negated APIResponseAssertions (expect opposite).
 
 ```clojure
 (assert/is-ok (assert/assert-that api-response))
@@ -91,7 +91,7 @@ In test `it` blocks, ALWAYS wrap with `expect`:
 
 ### Timeout Override
 
-Set the default timeout for all assertions:
+Set default timeout for all assertions:
 
 ```clojure
 (assert/set-default-assertion-timeout! 10000)

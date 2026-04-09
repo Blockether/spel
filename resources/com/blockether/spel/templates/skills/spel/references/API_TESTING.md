@@ -2,7 +2,7 @@
 
 ## Single API Context
 
-Create an isolated API request context with custom base URL and headers.
+Create isolated API request context with custom base URL and headers.
 
 ```clojure
 (require '[com.blockether.spel.core :as core])
@@ -29,7 +29,7 @@ Work with multiple API contexts simultaneously, each with different base URLs.
 
 ## JSON Encoding
 
-MUST bind `*json-encoder*` before using the `:json` option. The encoder converts Clojure maps to JSON strings.
+MUST bind `*json-encoder*` before using `:json` option. Encoder converts Clojure maps to JSON strings.
 
 ```clojure
 (require '[cheshire.core :as json])
@@ -46,7 +46,7 @@ MUST bind `*json-encoder*` before using the `:json` option. The encoder converts
 
 ## HTTP Methods
 
-All standard HTTP methods are supported.
+All standard HTTP methods supported.
 
 ```clojure
 ;; GET with query parameters
@@ -115,14 +115,14 @@ Intercept requests and responses with hooks for logging, modification, or testin
 
 ## Retry with Backoff
 
-Retry failed requests with configurable backoff strategies. Exceptions thrown by `f` are automatically caught and retried (re-thrown on the last attempt).
+Retry failed requests with configurable backoff strategies. Exceptions thrown by `f` auto-caught and retried (re-thrown on last attempt).
 
 ### Default behavior
 
 `retry` / `with-retry` default to 3 attempts with exponential backoff. Retries on:
 - Anomalies (error maps from `safe` wrapper)
 - HTTP responses with numeric `:status` >= 500
-- Any exception thrown by the retried function
+- Any exception thrown by retried function
 
 ### Options
 
@@ -153,7 +153,7 @@ Retry failed requests with configurable backoff strategies. Exceptions thrown by
 
 ### retry-guard — poll until a condition is met
 
-`retry-guard` creates a `:retry-when` predicate that retries until your predicate returns truthy. It also inherits the default error/anomaly retry behavior.
+`retry-guard` creates a `:retry-when` predicate that retries until your predicate returns truthy. Also inherits default error/anomaly retry behavior.
 
 ```clojure
 ;; Library layer — retry until job is ready
@@ -170,11 +170,11 @@ Retry failed requests with configurable backoff strategies. Exceptions thrown by
   (spel/inspect))
 ```
 
-> **Note**: `retry-guard` retries when the predicate returns falsy OR throws. It also retries on anomalies and 5xx responses (same as default). Use it for polling/eventual-consistency scenarios.
+> **Note**: `retry-guard` retries when predicate returns falsy OR throws. Also retries on anomalies and 5xx responses (same as default). Use for polling/eventual-consistency scenarios.
 
 ## Standalone Request
 
-Fire-and-forget requests without context setup. Creates an ephemeral context internally.
+Fire-and-forget requests without context setup. Creates ephemeral context internally.
 
 ```clojure
 ;; Simple GET
@@ -189,7 +189,7 @@ Fire-and-forget requests without context setup. Creates an ephemeral context int
 
 ### Standalone API Testing
 
-Creates a full Playwright stack for API-only testing.
+Creates full Playwright stack for API-only testing.
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]
@@ -198,7 +198,7 @@ Creates a full Playwright stack for API-only testing.
 
 ### API from Page (shared trace)
 
-Share browser cookies and session with API requests from a page. Uses `page-api` to extract the `APIRequestContext` from the page's `BrowserContext` — all API calls appear in the same Playwright trace as the page navigation.
+Share browser cookies and session with API requests from a page. Uses `page-api` to extract `APIRequestContext` from page's `BrowserContext` — all API calls appear in same Playwright trace as page navigation.
 
 ```clojure
 (core/with-testing-page [pg]
@@ -209,7 +209,7 @@ Share browser cookies and session with API requests from a page. Uses `page-api`
 
 ### Page-Bound API with Custom Base-URL (shared trace)
 
-Combine UI navigation with API calls to a different domain, sharing cookies. `with-page-api` creates an `APIRequestContext` bound to the page's context with a custom `:base-url` — same trace, different domain.
+Combine UI navigation with API calls to different domain, sharing cookies. `with-page-api` creates `APIRequestContext` bound to page's context with custom `:base-url` — same trace, different domain.
 
 ```clojure
 (core/with-testing-page [pg]
@@ -223,7 +223,7 @@ Combine UI navigation with API calls to a different domain, sharing cookies. `wi
 
 > **NOTE:** `with-testing-page` and `with-testing-api` each create their own complete
 > Playwright stack (Playwright → Browser → Context). Nesting one inside the other does NOT
-> share a trace — you get two independent Playwright instances, two browsers, two traces.
+> share a trace — two independent Playwright instances, two browsers, two traces.
 
 ```clojure
 ;; BAD: Two separate Playwright instances, two separate traces

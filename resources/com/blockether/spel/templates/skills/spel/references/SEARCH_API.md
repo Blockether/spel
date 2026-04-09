@@ -1,6 +1,6 @@
 # Google Search API
 
-Search Google from the CLI, SCI `eval-sci` mode, or Clojure library — no API key required. Uses Playwright with stealth mode.
+Search Google from CLI, SCI `eval-sci`, or Clojure library — no API key required. Uses Playwright with stealth mode.
 
 ## CLI
 
@@ -66,7 +66,7 @@ spel search "query" --no-stealth                      # disable stealth mode
      (map :title))
 
 ;; Build URL only
-(search/search-url "test" {:type :images :page 2})
+(search/search-url "test" {:type :images :page 2}))
 ```
 
 ## Library API

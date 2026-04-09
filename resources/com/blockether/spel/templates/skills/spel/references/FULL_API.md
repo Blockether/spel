@@ -1576,6 +1576,14 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |
 
+### Dashboard
+
+| Command | Description |
+|---------|-------------|
+| `dashboard start [port]` | Start observability dashboard (default: 4848) |
+| `dashboard stop` | Stop the dashboard |
+| `dashboard status` | Check dashboard status |
+
 ### Tools
 
 | Command | Description |

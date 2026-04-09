@@ -1,13 +1,13 @@
 # Environment Variables Reference
 
-All spel env vars are optional. **CLI flags always take priority over env vars.**
+All spel env vars optional. **CLI flags always take priority over env vars.**
 
 ## Browser Configuration
 
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
 | `SPEL_CHANNEL` | `--channel` | Browser channel: `chrome` (default), `msedge`, `brave` |
-| `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory — gives you extensions, passwords, bookmarks, everything |
+| `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory — extensions, passwords, bookmarks, everything |
 | `SPEL_LOAD_STATE` | `--load-state` | Playwright storage state JSON path (alias: `SPEL_STORAGE_STATE`) — cookies + localStorage from `state export` |
 | `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
 | `SPEL_USER_AGENT` | `--user-agent` | Custom user agent string |

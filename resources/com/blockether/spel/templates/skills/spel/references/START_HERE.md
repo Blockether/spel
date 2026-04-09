@@ -1,31 +1,31 @@
 # Start Here
 
-Use this file first when you need a quick map of the spel skill.
+Quick map of spel skill.
 
-## What spel is for
+## What spel does
 
-- Browser automation with Playwright-native Clojure wrappers
-- `eval-sci` scripting against a live daemon session
-- E2E testing, exploratory QA, visual captures, and browser-driven product analysis
+- Browser automation via Playwright-native Clojure wrappers
+- `eval-sci` scripting against live daemon session
+- E2E testing, exploratory QA, visual captures, browser-driven product analysis
 
 ## Fast routing
 
-- Need the full API surface: `references/FULL_API.md`
-- Need common agent/session rules: `references/AGENT_COMMON.md`
-- Need SCI eval patterns: `references/EVAL_GUIDE.md`
-- Need selectors and snapshots: `references/SELECTORS_SNAPSHOTS.md`
-- Need navigation and wait behavior: `references/NAVIGATION_WAIT.md`
-- Need browser/profile/CDP setup: `references/PROFILES_AGENTS.md` and `references/BROWSER_OPTIONS.md`
-- Need network routing/interception: `references/NETWORK_ROUTING.md`
-- Need test/assertion patterns: `references/ASSERTIONS_EVENTS.md` and `references/TESTING_CONVENTIONS.md`
-- Need product discovery/reporting: `references/PRODUCT_DISCOVERY.md`, `references/spel-report.html`, `references/spel-report.md`
+- Full API surface: `references/FULL_API.md`
+- Common agent/session rules: `references/AGENT_COMMON.md`
+- SCI eval patterns: `references/EVAL_GUIDE.md`
+- Selectors + snapshots: `references/SELECTORS_SNAPSHOTS.md`
+- Navigation + wait behavior: `references/NAVIGATION_WAIT.md`
+- Browser/profile/CDP setup: `references/PROFILES_AGENTS.md` + `references/BROWSER_OPTIONS.md`
+- Network routing/interception: `references/NETWORK_ROUTING.md`
+- Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/TESTING_CONVENTIONS.md`
+- Product discovery/reporting: `references/PRODUCT_DISCOVERY.md`, `references/spel-report.html`, `references/spel-report.md`
 
 ## Critical operating rules
 
-- Always use a named session; never rely on the default session
-- For CDP, one session owns one endpoint; do not attach multiple sessions concurrently
+- Always use named session; never rely on default
+- CDP: one session per endpoint; no concurrent multi-session attach
 - Prefer snapshot refs first for interaction targeting
-- Treat promised output files as hard deliverables, not optional summaries
+- Promised output files = hard deliverables, not optional summaries
 
 ## Typical starting patterns
 
@@ -41,7 +41,7 @@ spel --session auto-$(date +%s) --auto-launch snapshot -i
 ```
 
 ```bash
-# Or with explicit CDP endpoint:
+# Explicit CDP endpoint:
 spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 open https://example.com
 spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 snapshot -i
 ```

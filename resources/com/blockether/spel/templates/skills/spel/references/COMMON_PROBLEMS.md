@@ -1,17 +1,17 @@
 # Common problems and troubleshooting
 
-Real-world issues you'll hit when using spel, with tested fixes.
+Real-world issues, tested fixes.
 
 ## 1. "Session already running"
 
-`(spel/start!)` throws an error saying a session is already active. A previous `spel/start!` call wasn't cleaned up, so the daemon is still holding the browser open.
+`(spel/start!)` throws — previous `spel/start!` wasn't cleaned up, daemon still holding browser open.
 
 ```clojure
 (spel/stop!)
 (spel/start!)
 ```
 
-If that doesn't work, the daemon may be orphaned:
+If that fails, daemon may be orphaned:
 
 ```bash
 # Target only the affected session first
@@ -23,15 +23,15 @@ pkill -f "chrome-headless-shell"
 rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 ```
 
-Do not kill all user Chrome/Edge processes as a default recovery step.
+Do not kill all user Chrome/Edge processes as default recovery step.
 
 Then `(spel/start!)` again.
 
 ## 2. CAPTCHA / bot detection
 
-Sites like Allegro.pl, Cloudflare-protected pages, or banking sites show CAPTCHA challenges or block access entirely. Headless Chromium sends detectable signals (missing GPU, specific user-agent patterns, `navigator.webdriver` flag) that anti-bot systems pick up.
+Sites (Allegro.pl, Cloudflare-protected, banking) show CAPTCHAs or block access. Headless Chromium sends detectable signals (missing GPU, specific UA patterns, `navigator.webdriver` flag) → anti-bot systems catch them.
 
-Stealth mode is ON by default in the CLI, so this should work out of the box. For stubborn sites, try headed mode or combine with real Chrome cookies:
+Stealth mode ON by default in CLI. For stubborn sites, try headed mode or combine with real Chrome cookies:
 
 ```bash
 # Default: stealth is already on
@@ -62,11 +62,11 @@ spel --no-stealth open https://protected-site.com
         (page/navigate pg "https://protected-site.com")))))
 ```
 
-See `references/PROFILES_AGENTS.md` for full details on what stealth patches are applied.
+See `references/PROFILES_AGENTS.md` for full stealth patch details.
 
 ## 3. `assert-url` fails with partial URLs
 
-`(spel/assert-url "example.org/page")` fails even though the URL contains that string. `spel/assert-url` wraps Playwright's `has-url`, which does exact string matching by default but also accepts `java.util.regex.Pattern` for flexible matching.
+`(spel/assert-url "example.org/page")` fails even though URL contains that string. `spel/assert-url` wraps Playwright's `has-url` — exact string matching by default, also accepts `java.util.regex.Pattern`.
 
 ```clojure
 ;; Exact match (uses implicit page)
@@ -81,7 +81,7 @@ See `references/PROFILES_AGENTS.md` for full details on what stealth patches are
 
 ## 4. Snapshot ref not found / stale refs
 
-`(spel/click "@e6t2x4")` throws "element not found" or clicks the wrong thing. Refs from `(spel/capture-snapshot)` are tied to the DOM at capture time. Navigation, AJAX updates, or any DOM mutation invalidates them.
+`(spel/click "@e6t2x4")` throws "element not found" or clicks wrong thing. Refs from `(spel/capture-snapshot)` tied to DOM at capture time. Navigation, AJAX, any DOM mutation invalidates them.
 
 Always re-snapshot after DOM changes:
 
@@ -100,24 +100,24 @@ Always re-snapshot after DOM changes:
 
 ## 5. TimeoutError on navigation
 
-`(spel/navigate "https://slow-site.com")` throws `TimeoutError` after 30 seconds. The default timeout is 30s, and heavy pages with lots of resources or slow APIs can exceed this.
+`(spel/navigate "https://slow-site.com")` throws `TimeoutError` after 30s. Default timeout 30s — heavy pages with lots of resources or slow APIs can exceed this.
 
 ```clojure
-;; Increase the navigation timeout
+;; Increase navigation timeout
 (spel/navigate "https://slow-site.com" {:timeout 60000})
 
-;; Or use a less strict wait condition
+;; Or use less strict wait condition
 (spel/navigate "https://slow-site.com" {:wait-until :domcontentloaded})
 
 ;; For all subsequent navigations
 (spel/set-default-navigation-timeout! 60000)
 ```
 
-Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load` (default) < `:networkidle`.
+Wait states least → most strict: `:commit` < `:domcontentloaded` < `:load` (default) < `:networkidle`.
 
 ## 6. PDF generation fails or produces empty file
 
-`(spel/pdf "output.pdf")` throws an error or creates a 0-byte file. PDF only works in Chromium headless mode. Firefox, WebKit, and headed Chromium don't support it.
+`(spel/pdf "output.pdf")` throws or creates 0-byte file. PDF only works in Chromium headless mode. Firefox, WebKit, headed Chromium don't support it.
 
 ```clojure
 ;; Ensure headless Chromium (the default)
@@ -126,11 +126,11 @@ Wait states from least to most strict: `:commit` < `:domcontentloaded` < `:load`
 (spel/pdf {:path "/tmp/output.pdf"})
 ```
 
-If you started with `{:headless false}`, restart with `(spel/stop!)` then `(spel/start! {:headless true})`.
+If started with `{:headless false}`, restart: `(spel/stop!)` then `(spel/start! {:headless true})`.
 
 ## 7. Snapshot functions in eval
 
-Not sure which snapshot function to use in `eval-sci` mode? Use the same names as the library, but with implicit page:
+Unsure which snapshot fn to use in `eval-sci` mode? Same names as library, with implicit page:
 
 ```clojure
 ;; Eval-mode (implicit page)
@@ -146,7 +146,7 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 
 ## 8. Elements not interactable
 
-`(spel/click "button.submit")` throws "element is not visible" or "element is outside the viewport". The element might be behind a modal/overlay, below the fold, hidden by CSS, or covered by another element (z-index).
+`(spel/click "button.submit")` throws "element is not visible" or "element is outside the viewport". Element may be behind modal/overlay, below fold, hidden by CSS, or covered by another element (z-index).
 
 ```clojure
 ;; Scroll into view first
@@ -163,9 +163,9 @@ When in doubt: `(spel/help "snapshot")` lists all snapshot-related functions.
 
 ## 8a. Click works poorly on SPA or portal navigation
 
-`spel click @eXXXX` hangs or times out on sites that rely on client-side routing or that keep loading third-party resources forever. The click may be valid, but waiting for the wrong readiness signal makes it look broken.
+`spel click @eXXXX` hangs or times out on sites using client-side routing or loading third-party resources forever. Click may be valid, but wrong readiness signal makes it look broken.
 
-Try this in order:
+Try in order:
 
 ```clojure
 ;; Prefer route-aware waiting after clicks
@@ -181,10 +181,10 @@ Try this in order:
 Rules of thumb:
 - Heavy portals: prefer `:domcontentloaded` or `wait-for-url` after interactions.
 - SPAs: use `wait-for-url` after clicks to detect route changes — NEVER skip the click with direct navigation.
-- Raising the timeout helps only after choosing the right wait strategy.
+- Raising timeout helps only after choosing right wait strategy.
 ## 9. File I/O in eval mode
 
-`(require '[clojure.java.io :as io])` throws an error. `require` doesn't work in the SCI sandbox. All namespaces are pre-registered, and `clojure.java.io` is already available as `io`.
+`(require '[clojure.java.io :as io])` throws. `require` doesn't work in SCI sandbox. All namespaces pre-registered, `clojure.java.io` already available as `io`.
 
 ```clojure
 ;; Reading and writing files
@@ -200,9 +200,9 @@ Rules of thumb:
 
 ## 10. Cookie consent / GDPR popups
 
-EU sites show a consent modal that blocks all interaction with the page. The modal sits on top of everything with a high z-index.
+EU sites show consent modal blocking all interaction. Modal sits on top of everything with high z-index.
 
-Dismiss the consent dialog before doing anything else:
+Dismiss consent dialog before anything else:
 
 ```clojure
 (spel/navigate "https://some-eu-site.com")
@@ -216,11 +216,11 @@ Dismiss the consent dialog before doing anything else:
 (spel/click "@e0k8qp")  ;; whatever ref the consent button has
 ```
 
-For repeat visits, use a persistent browser session so consent is remembered.
+For repeat visits, use persistent browser session so consent remembered.
 
 ## 11. Stale browser / "Target closed"
 
-Any command throws "Target closed" or "Browser has been closed". The browser process crashed, was killed externally, or the system ran out of memory.
+Any command throws "Target closed" or "Browser has been closed". Browser process crashed, killed externally, or system ran out of memory.
 
 ```clojure
 (spel/stop!)
@@ -242,7 +242,7 @@ Then `(spel/start!)` again.
 
 ## Debug workflow
 
-When something isn't working and you're not sure why, follow these steps.
+When something isn't working, follow these steps.
 
 ### Check page state
 
@@ -251,7 +251,7 @@ When something isn't working and you're not sure why, follow these steps.
 ;; => {:url "https://..." :title "..." :viewport {:width 1280 :height 720} :closed? false}
 ```
 
-If `:closed?` is `true`, the browser died. Run `(spel/stop!)` then `(spel/start!)`.
+If `:closed?` is `true`, browser died. Run `(spel/stop!)` then `(spel/start!)`.
 
 ### Take a snapshot
 
@@ -259,7 +259,7 @@ If `:closed?` is `true`, the browser died. Run `(spel/stop!)` then `(spel/start!
 (spel/capture-snapshot)
 ```
 
-Shows the accessibility tree with numbered refs. You'll see what elements exist, their roles, and whether the page rendered at all.
+Shows accessibility tree with numbered refs. See what elements exist, their roles, whether page rendered at all.
 
 ### Verify function signatures
 
@@ -276,7 +276,7 @@ Shows the accessibility tree with numbered refs. You'll see what elements exist,
   (spel/save-annotated-screenshot! (:refs snap) "/tmp/debug.png"))
 ```
 
-Produces a screenshot with numbered overlay badges on each interactive element. Compare with the snapshot tree.
+Produces screenshot with numbered overlay badges on each interactive element. Compare with snapshot tree.
 
 ### Check for browser console errors
 
@@ -286,11 +286,11 @@ Produces a screenshot with numbered overlay badges on each interactive element. 
 (spel/on-page-error (fn [err] (println "[page-error]" err)))
 ```
 
-Console messages are also auto-captured in `eval-sci` mode and printed to stderr after evaluation. Check stderr if your script produces unexpected results.
+Console messages auto-captured in `eval-sci` mode and printed to stderr after evaluation. Check stderr if script produces unexpected results.
 
 ### Inspect network activity
 
-From the CLI:
+From CLI:
 
 ```bash
 spel network requests --status 4    # show 4xx errors
@@ -302,13 +302,13 @@ spel network requests --type fetch  # show API calls
 
 ## 12. Daemon hangs / unresponsive browser
 
-spel command appears to hang, doesn't return, or the browser seems frozen.
+spel command hangs, doesn't return, browser seems frozen.
 
 Common causes:
-- Stale daemon from a previous session still running
+- Stale daemon from previous session still running
 - Browser crashed but daemon process didn't exit
-- Persistent context lock (another process holds the profile directory)
-- Edge/Chrome profile migration running in the background on first launch
+- Persistent context lock (another process holds profile directory)
+- Edge/Chrome profile migration running in background on first launch
 
 ### Diagnose
 
@@ -343,7 +343,7 @@ spel --session mysession open https://example.com
 
 ### Profile directory locked
 
-If using `--profile` and getting hangs, the profile dir may be locked by another process:
+If using `--profile` and getting hangs, profile dir may be locked by another process:
 
 ```bash
 # Check for lock files
@@ -360,15 +360,15 @@ spel --profile /tmp/fresh-profile open https://example.com
 ### Prevention
 
 - Always close sessions when done: `spel close` or `spel --session <name> close`
-- Use named sessions in automation: `spel --session agent-$(date +%s) open <url>` to avoid collision with default session
-- Don't share profiles between concurrent processes, since Chromium locks the directory
-- Check `spel session list` before starting if you suspect a stale daemon
+- Use named sessions in automation: `spel --session agent-$(date +%s) open <url>` → avoids collision with default session
+- Don't share profiles between concurrent processes — Chromium locks the directory
+- Check `spel session list` before starting if stale daemon suspected
 
 ## 18. ClassCastException in `with-retry` / `retry`
 
-`with-retry` crashes with `ClassCastException: class clojure.lang.Keyword cannot be cast to class java.lang.Number` when the retried function returns a map with a non-numeric `:status` key (e.g. `{:status :created}`).
+`with-retry` crashes with `ClassCastException: class clojure.lang.Keyword cannot be cast to class java.lang.Number` when retried function returns map with non-numeric `:status` key (e.g. `{:status :created}`).
 
-**Fixed in v0.7.7.** The default `:retry-when` now guards with `(number? (:status result))` before casting. If you're on an older version, provide an explicit `:retry-when`:
+**Fixed in v0.7.7.** Default `:retry-when` now guards with `(number? (:status result))` before casting. On older version, provide explicit `:retry-when`:
 
 ```clojure
 (spel/with-retry {:retry-when (fn [r] (and (map? r) (number? (:status r)) (>= (:status r) 500)))}
@@ -377,11 +377,11 @@ spel --profile /tmp/fresh-profile open https://example.com
 
 ## 19. Retry doesn't catch exceptions
 
-Prior to v0.7.7, `retry` / `with-retry` did not catch exceptions thrown by the retried function — they bubbled up immediately. Now exceptions are caught and retried automatically, re-thrown only on the last attempt.
+Prior to v0.7.7, `retry` / `with-retry` did not catch exceptions thrown by retried function — bubbled up immediately. Now exceptions caught and retried automatically, re-thrown only on last attempt.
 
 ## 20. Polling until a condition is met
 
-Use `retry-guard` to create a `:retry-when` that retries until your predicate passes:
+Use `retry-guard` to create `:retry-when` that retries until your predicate passes:
 
 ```clojure
 ;; Retry until the job is ready (up to 10 attempts, 1s apart)

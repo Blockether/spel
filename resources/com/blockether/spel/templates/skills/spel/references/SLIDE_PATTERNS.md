@@ -1,20 +1,20 @@
 <!-- Adapted from visual-explainer (MIT License, github.com/nicobailon/visual-explainer) -->
 # Slide deck patterns
 
-CSS patterns, JS engine, slide type layouts, transitions, and navigation chrome for self-contained HTML slide presentations.
+CSS patterns, JS engine, slide type layouts, transitions, navigation chrome for self-contained HTML slide presentations.
 
-When to use slides: only when the user explicitly requests them. Never auto-select slide format.
+When to use slides: only when user explicitly requests. Never auto-select slide format.
 
 ## Planning a Deck
 
-Before writing any HTML, follow this process:
+Before writing HTML:
 
-1. Inventory the source: enumerate every section, subsection, table row, decision, specification. Count them.
-2. Map source to slides: every item must appear somewhere. If a section has 6 decisions, all 6 need slides.
-3. Choose layouts: pick a slide type for each planned slide. Vary across the sequence.
-4. Verify before writing: scan the inventory. Is anything unmapped?
+1. Inventory source: enumerate every section, subsection, table row, decision, spec. Count them.
+2. Map source → slides: every item must appear somewhere. 6 decisions → 6 slides.
+3. Choose layouts: pick slide type per planned slide. Vary across sequence.
+4. Verify before writing: scan inventory. Anything unmapped?
 
-The test: after generating the deck, a reader who has never seen the source should be able to reconstruct every major point from the slides alone.
+Test: after generating deck, reader unfamiliar with source should reconstruct every major point from slides alone.
 
 ## Slide engine base
 
@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 ### CSS Pipeline Slide
 
-For simple linear flows where Mermaid would render too small.
+For simple linear flows where Mermaid renders too small.
 
 ```html
 <section class="slide">
@@ -371,10 +371,10 @@ For simple linear flows where Mermaid would render too small.
 </section>
 ```
 
-**When to use Mermaid vs CSS Pipeline in slides:**
-- Use Mermaid for complex graphs: 8+ nodes, branching paths, cycles
-- Use CSS Pipeline for simple linear flows: A to B to C to D sequences
-- Never leave a small Mermaid diagram alone on a slide — pair with content or switch to CSS
+**Mermaid vs CSS Pipeline:**
+- Mermaid: complex graphs — 8+ nodes, branching, cycles
+- CSS Pipeline: simple linear — A → B → C → D
+- Never leave small Mermaid alone on slide — pair with content or switch to CSS
 
 ### Quote Slide
 
@@ -395,22 +395,22 @@ For simple linear flows where Mermaid would render too small.
 
 ## Compositional Variety
 
-Consecutive slides must vary their spatial approach:
-- Centered (title slides, quotes)
-- Left-heavy: content on the left 60%, breathing room on the right
-- Right-heavy: content on the right 60%, visual on the left
-- Edge-aligned: content pushed to bottom or top
-- Split: two distinct panels filling the viewport
+Consecutive slides must vary spatial approach:
+- Centered (title, quotes)
+- Left-heavy: content left 60%, breathing room right
+- Right-heavy: content right 60%, visual left
+- Edge-aligned: content pushed to bottom/top
+- Split: two distinct panels filling viewport
 
 ## Capturing slides with spel
 
-After creating a slide deck, capture individual slides as evidence:
+After creating deck, capture individual slides:
 
 ```bash
-# Open the slide deck
+# Open deck
 spel open $(pwd)/spel-visual/slides.html
 
-# Navigate to a specific slide, then capture
+# Navigate to specific slide, capture
 spel screenshot $(pwd)/spel-visual/slide-01.png
 spel screenshot $(pwd)/spel-visual/slide-02.png
 # etc.
@@ -418,7 +418,7 @@ spel screenshot $(pwd)/spel-visual/slide-02.png
 
 ## Curated Presets
 
-Four starting points — pick one and commit:
+Four starting points — pick one, commit:
 
 ### Midnight Editorial
 ```css

@@ -1,10 +1,10 @@
-# Snapshot testing and visual auditing
+# Snapshot testing & visual auditing
 
-Structural testing with accessibility snapshots, ARIA assertions, ref-based interaction, and visual audit workflows. Covers `eval-sci` (implicit page) and library (explicit `page` arg) modes.
+Structural testing via accessibility snapshots, ARIA assertions, ref-based interaction, visual audit workflows. Covers `eval-sci` (implicit page) + library (explicit `page` arg) modes.
 
 ## Accessibility Snapshots
 
-A snapshot captures the page as a screen reader sees it: roles, names, attributes. Every interactive element gets a numbered ref (`@e2yrjz`, `@e9mter`, ...) usable as a selector (the `@` prefix is required).
+Snapshot captures page as screen reader sees it: roles, names, attributes. Every interactive element gets numbered ref (`@e2yrjz`, `@e9mter`, ...) usable as selector (`@` prefix required).
 
 ```clojure
 ;; eval-sci
@@ -20,11 +20,11 @@ A snapshot captures the page as a screen reader sees it: roles, names, attribute
   refs)
 ```
 
-Scoped and full snapshots:
+Scoped + full snapshots:
 
 ```clojure
 (spel/capture-snapshot {:scope "#main"})        ;; subtree only
-(spel/capture-snapshot {:scope "@e3pq7r"})          ;; scope to a ref
+(spel/capture-snapshot {:scope "@e3pq7r"})          ;; scope to ref
 (spel/capture-full-snapshot)                    ;; includes iframes (refs: f1_e1, f2_e3)
 
 ;; Library equivalents
@@ -34,7 +34,7 @@ Scoped and full snapshots:
 
 ## Ref Traversal
 
-After a snapshot, resolve refs to Locators for interaction:
+After snapshot, resolve refs → Locators for interaction:
 
 ```clojure
 ;; eval-sci — @ prefix required for refs
@@ -57,9 +57,9 @@ After a snapshot, resolve refs to Locators for interaction:
 
 ## ARIA snapshot assertions
 
-Assert the structural shape of a DOM subtree. Checks roles, names, and nesting against a YAML-like string. Not pixel comparison.
+Assert structural shape of DOM subtree. Checks roles, names, nesting against YAML-like string. Not pixel comparison.
 
-### The Format
+### Format
 
 ```
 - navigation "Main":
@@ -68,18 +68,18 @@ Assert the structural shape of a DOM subtree. Checks roles, names, and nesting a
   - link "Contact"
 ```
 
-Two-space indentation for nesting. Colon means "has children." Roles without names match any name. Quoted names must match exactly. You can omit children you don't care about (partial matching).
+Two-space indentation for nesting. Colon = "has children." Roles without names match any name. Quoted names must match exactly. Omit children you don't care about (partial matching).
 
 ### Asserting
 
 ```clojure
-;; eval-sci — takes a selector + expected ARIA string
+;; eval-sci — takes selector + expected ARIA string
 (spel/assert-matches-aria-snapshot "nav"
   "- navigation \"Main\":
      - link \"Home\"
      - link \"About\"")
 
-;; Partial match — only check the heading exists
+;; Partial match — only check heading exists
 (spel/assert-matches-aria-snapshot "body"
   "- heading \"Example Domain\"")
 
@@ -91,13 +91,13 @@ Two-space indentation for nesting. Colon means "has children." Roles without nam
        - link \"About\""))
 ```
 
-Failures produce a clear diff of expected vs. actual structure.
+Failures produce diff of expected vs. actual structure.
 
-Tests structure, not appearance. Verifies role hierarchy, accessible names, ARIA attributes, nesting. Does not test layout, colors, fonts, or pixel positions.
+Tests structure, not appearance. Verifies role hierarchy, accessible names, ARIA attributes, nesting. Does not test layout, colors, fonts, pixel positions.
 
 ## Visual testing workflow
 
-spel has no built-in pixel-diff. Visual testing uses annotated screenshots and audit reports for manual or external comparison.
+spel has no built-in pixel-diff. Visual testing uses annotated screenshots + audit reports for manual/external comparison.
 
 ```clojure
 ;; Baseline screenshot
@@ -121,7 +121,7 @@ spel has no built-in pixel-diff. Visual testing uses annotated screenshots and a
 
 ## PDF Reports
 
-Build multi-page audit reports from typed entries. Renders HTML, converts to PDF via Chromium.
+Build multi-page audit reports from typed entries. Renders HTML → PDF via Chromium.
 
 ```clojure
 ;; eval-sci
@@ -150,7 +150,7 @@ Build multi-page audit reports from typed entries. Renders HTML, converts to PDF
 | `:text` | `:text` | Plain paragraph |
 | `:html` | `:content` | Raw HTML (no escaping) |
 
-Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/report->html entries opts)`.
+Generate HTML without page: `(spel/report->html entries opts)` / `(annotate/report->html entries opts)`.
 
 ## Snapshot testing in tests
 
@@ -190,16 +190,16 @@ Generate HTML without a page: `(spel/report->html entries opts)` / `(annotate/re
                    - link \"More information...\"")))))) 
 ```
 
-### Explore then lock down
+### Explore → lock down
 
-Use snapshots during development to discover structure, then write ARIA assertions to lock it:
+Use snapshots during dev to discover structure → write ARIA assertions to lock it:
 
 ```clojure
 (it "login form has expected structure"
   (core/with-testing-page [page]
     (page/navigate page "https://example.org/login")
     (let [{:keys [tree]} (snapshot/capture-snapshot page)]
-      (println tree))  ;; inspect during development
+      (println tree))  ;; inspect during dev
     (let [la (assert/assert-that (page/locator page "form"))]
       (assert/matches-aria-snapshot la
         "- form:
@@ -272,7 +272,7 @@ Use snapshots during development to discover structure, then write ARIA assertio
 
 ### Library assertion pattern
 
-Wrap a Locator or Page with `assert-that`, call assertion functions. Returns `nil` on success, anomaly map on failure.
+Wrap Locator/Page with `assert-that`, call assertion fns. Returns `nil` on success, anomaly map on failure.
 
 ```clojure
 (let [la (assert/assert-that (page/locator pg "h1"))]

@@ -1,14 +1,14 @@
-# Browser profiles, device emulation, and agent initialization
+# Browser profiles, device emulation, agent initialization
 
 ## Browser profiles
 
-Persistent profiles keep login sessions, cookies, and localStorage across runs. Log in once, reuse that session forever.
+Persistent profiles keep login sessions, cookies, localStorage across runs. Log in once, reuse forever.
 
-The profile path points to a directory. Chromium creates it automatically if it doesn't exist. Everything the browser stores (cookies, localStorage, IndexedDB, service workers) lives there.
+Profile path points to directory. Chromium creates it automatically if missing. Everything browser stores (cookies, localStorage, IndexedDB, service workers) lives there.
 
 ### `eval-sci` / CLI daemon mode
 
-Use the CLI `--profile` flag to launch with a persistent profile:
+Use CLI `--profile` flag:
 
 ```bash
 # First run: log in via script (--interactive opens visible browser)
@@ -22,14 +22,14 @@ spel --profile /tmp/my-chrome-profile --interactive eval-sci '
 ```
 
 ```bash
-# Second run: session is already there
+# Second run: session already there
 spel --profile /tmp/my-chrome-profile eval-sci '
 (spel/navigate "https://myapp.com/dashboard")
 (spel/wait-for-load-state)
 (println "Title:" (spel/title))'
 ```
 
-> Note: `:profile` is NOT a valid option for `spel/start!`. Use the CLI `--profile` flag (shown above) or `core/launch-persistent-context` in library mode.
+> Note: `:profile` NOT valid option for `spel/start!`. Use CLI `--profile` flag (above) or `core/launch-persistent-context` in library mode.
 
 ### Library mode
 
@@ -40,38 +40,36 @@ spel --profile /tmp/my-chrome-profile eval-sci '
   (page/title pg))
 ```
 
-For lower-level control, use `core/launch-persistent-context` on the browser type directly.
+Lower-level: use `core/launch-persistent-context` on browser type directly.
 
 ### When to use profiles
 
-- Authenticated automation: Log in once, run scripts against protected pages
-- Bypassing bot detection: Reusing a real profile looks less suspicious than a fresh browser
-- Development workflows: Keep dev tools settings, extensions, and preferences between runs
+- Authenticated automation: log in once, run scripts against protected pages
+- Bypassing bot detection: reusing real profile looks less suspicious than fresh browser
+- Dev workflows: keep dev tools settings, extensions, preferences between runs
 
-Caveat: Don't share a profile directory between concurrent processes. Chromium locks it.
+Caveat: don't share profile directory between concurrent processes. Chromium locks it.
 
 ---
 
 ## Profile vs load-state: when to use which
 
-spel supports two auth approaches:
-
 | | `--profile` (persistent context) | `--load-state` (portable JSON) |
 |---|---|---|
-| How it works | Launches browser with a user data directory via Playwright `launchPersistentContext` | Loads cookies + localStorage JSON into fresh context |
-| Auth persists | Yes, automatically (in the profile dir) | Snapshot at save time — re-save to refresh |
-| Concurrent use | No (Chromium locks the dir) | Yes (read-only JSON, any number of browsers) |
+| How it works | Launches browser with user data dir via Playwright `launchPersistentContext` | Loads cookies + localStorage JSON into fresh context |
+| Auth persists | Yes, automatically (in profile dir) | Snapshot at save time — re-save to refresh |
+| Concurrent use | No (Chromium locks dir) | Yes (read-only JSON, any number of browsers) |
 | Best for | Local automation, dev workflows, interactive sessions | CI pipelines, cross-platform, parallel runs |
 
 ### Quick decision
 
-- Working locally on your machine? Use `--profile`
+- Working locally? Use `--profile`
 - Need concurrent browser sessions with same auth? Use `--load-state` (profiles lock)
-- Running in CI? Use `--load-state` with a saved storage-state JSON
+- Running in CI? Use `--load-state` with saved storage-state JSON
 
 ### Edge / other Chromium browsers
 
-Use `--channel` to target non-default Chromium browsers:
+Use `--channel` for non-default Chromium browsers:
 
 ```bash
 # Persistent Edge profile
@@ -89,23 +87,23 @@ spel --load-state auth.json open https://example.com
 | Linux | `~/.config/google-chrome/Default` | `~/.config/microsoft-edge/Default` |
 | Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default` | `%LOCALAPPDATA%\Microsoft\Edge\User Data\Default` |
 
-Profiles are numbered: `Default`, `Profile 1`, `Profile 2`, etc. Check `chrome://version` or `edge://version` to find the exact path.
+Profiles numbered: `Default`, `Profile 1`, `Profile 2`. Check `chrome://version` or `edge://version` for exact path.
 
 ---
 
 ## Daemon launch modes
 
-The daemon has three launch modes:
+Three launch modes:
 
 | Mode | Trigger | What Happens | Use Case |
 |------|---------|-------------|----------|
-| Mode 1: persistent profile | `--profile <dir>` | Uses Playwright `launchPersistentContext` on the directory | Local automation with session persistence |
-| Mode 2: auto-launch | `--auto-launch` | Launches browser with `--remote-debugging-port` on a unique port, connects via CDP | Per-session isolated browser for AI agents |
+| Mode 1: persistent profile | `--profile <dir>` | Playwright `launchPersistentContext` on directory | Local automation with session persistence |
+| Mode 2: auto-launch | `--auto-launch` | Launches browser with `--remote-debugging-port` on unique port, connects via CDP | Per-session isolated browser for AI agents |
 | Mode 3: normal / CDP | No `--profile` or `--auto-launch` | Standard `launch` + `new-context`, or `--cdp` / `--auto-connect` for CDP | One-off automation, CI, connecting to existing Chrome |
 
 ### Mode 1 details (persistent profile)
 
-Playwright creates/manages browser data in the given directory:
+Playwright creates/manages browser data in given directory:
 
 - Session data persists between runs (cookies, localStorage, IndexedDB)
 - Session isolation per directory — don't share between concurrent processes
@@ -113,7 +111,7 @@ Playwright creates/manages browser data in the given directory:
 
 ### Mode 2 details (auto-launch)
 
-Launches a dedicated browser with `--remote-debugging-port` and a temp `--user-data-dir`, then connects via CDP. Each session gets its own browser on a unique port (9222, 9223, ...).
+Launches dedicated browser with `--remote-debugging-port` + temp `--user-data-dir`, connects via CDP. Each session gets own browser on unique port (9222, 9223, ...).
 
 ```bash
 spel --auto-launch --session test1 open https://example.com
@@ -121,39 +119,39 @@ spel --auto-launch --channel msedge --session test2 open https://example.com
 ```
 
 Key properties:
-- **Per-session isolation**: each session gets its own browser process on its own port
-- **User's browser untouched**: uses a temp profile directory, never kills existing browsers
-- **Auto-cleanup**: browser process is killed and temp dir deleted on `spel close`
-- **Port allocation**: scans 9222-9321, uses lock files to avoid cross-session collisions
-- Trade-off: fresh profile means no existing auth cookies (use `--profile` for that)
+- **Per-session isolation**: own browser process on own port
+- **User's browser untouched**: temp profile dir, never kills existing browsers
+- **Auto-cleanup**: browser killed + temp dir deleted on `spel close`
+- **Port allocation**: scans 9222-9321, lock files avoid cross-session collisions
+- Trade-off: fresh profile → no existing auth cookies (use `--profile` for that)
 
 ### Mode 3 details (normal / CDP)
 
 Normal: Standard Playwright launch — fresh context every time. Use `--load-state` to inject pre-saved cookies.
 
-CDP Connect (`--cdp <url>` or `--auto-connect`): Connects to an already-running Chrome via Chrome DevTools Protocol. Reuses the browser's existing contexts, pages, and sessions.
+CDP Connect (`--cdp <url>` or `--auto-connect`): Connects to running Chrome via CDP. Reuses browser's existing contexts, pages, sessions.
 
-All modes support stealth (on by default), `--channel`, and `--interactive`.
+All modes support stealth (on by default), `--channel`, `--interactive`.
 
 ### Daemon lifecycle & timeouts
 
-The daemon auto-shuts down to free resources:
+Daemon auto-shuts down to free resources:
 
-- **Session idle timeout** (default 30 min): If no command is received, the daemon shuts down. Set `SPEL_SESSION_IDLE_TIMEOUT` (ms) to override, `0` disables. Runtime: `(spel/set-session-idle-timeout! ms)`.
-- **CDP idle timeout** (default 30 min): After `cdp_disconnect`, if no reconnect occurs, the daemon shuts down. Set `SPEL_CDP_IDLE_TIMEOUT` (ms) to override, `0` disables.
-- **CDP route lock wait** (default 120s): When another session holds the CDP route lock, commands queue and poll every 2s instead of failing immediately. Set `SPEL_CDP_LOCK_WAIT` (seconds) and `SPEL_CDP_LOCK_POLL_INTERVAL` (seconds) to override.
+- **Session idle timeout** (default 30 min): No command → shutdown. Set `SPEL_SESSION_IDLE_TIMEOUT` (ms) to override, `0` disables. Runtime: `(spel/set-session-idle-timeout! ms)`.
+- **CDP idle timeout** (default 30 min): After `cdp_disconnect`, no reconnect → shutdown. Set `SPEL_CDP_IDLE_TIMEOUT` (ms) to override, `0` disables.
+- **CDP route lock wait** (default 120s): Another session holds lock → commands queue, poll every 2s. Set `SPEL_CDP_LOCK_WAIT` (seconds) + `SPEL_CDP_LOCK_POLL_INTERVAL` (seconds) to override.
 
 ---
 
 ## CDP auto-connect
 
-Connect to a running Chrome or Edge instance via Chrome DevTools Protocol (CDP). This lets spel control your actual browser with its real login sessions, cookies, and tabs.
+Connect to running Chrome/Edge via CDP. spel controls your actual browser with its real login sessions, cookies, tabs.
 
-> **Simpler alternative**: If you don't need to connect to an existing browser, use `--auto-launch` instead. It handles browser launch, port allocation, and CDP connection automatically with per-session isolation. See [Mode 2: auto-launch](#mode-2-details-auto-launch) above.
+> **Simpler alternative**: Don't need to connect to existing browser? Use `--auto-launch`. Handles launch, port allocation, CDP connection with per-session isolation. See [Mode 2](#mode-2-details-auto-launch).
 
 ### Setup (Chrome/Edge 136+ security change)
 
-Chrome/Edge 136+ (April 2025) intentionally ignores `--remote-debugging-port` when targeting the default user data directory. This is a security change, not a bug.
+Chrome/Edge 136+ (April 2025) intentionally ignores `--remote-debugging-port` when targeting default user data directory. Security change, not bug.
 
 Two ways to enable CDP:
 
@@ -183,9 +181,9 @@ spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open https://example.co
 
 #### Option 2: enable in running browser (M144+)
 
-1. Open `chrome://inspect/#remote-debugging` in Chrome or `edge://inspect/#remote-debugging` in Edge
+1. Open `chrome://inspect/#remote-debugging` (Chrome) or `edge://inspect/#remote-debugging` (Edge)
 2. Toggle remote debugging ON
-3. Browser creates a `DevToolsActivePort` file automatically
+3. Browser creates `DevToolsActivePort` file automatically
 
 Then connect:
 ```bash
@@ -199,11 +197,11 @@ spel --auto-connect open https://example.com
    - Linux: `~/.config/google-chrome/`, `microsoft-edge/`, `chromium/`, `google-chrome-unstable/`, `microsoft-edge-dev/`
 2. Checks `ms-playwright` cache dirs (finds Chrome launched by `chrome-devtools-mcp` etc.)
 3. Probes common ports: 9222, 9229 via HTTP `GET /json/version`
-4. For Chrome/Edge 144+ WebSocket-only mode: falls back to direct WebSocket connection
+4. Chrome/Edge 144+ WebSocket-only mode: falls back to direct WebSocket connection
 
 ### Flag persistence
 
-After the first successful `--auto-connect`, the discovered CDP URL is persisted to a session flags file. Subsequent commands reuse it automatically:
+After first successful `--auto-connect`, discovered CDP URL persisted to session flags file. Subsequent commands reuse automatically:
 
 ```bash
 spel --auto-connect open https://example.com   # discovers CDP, persists URL
@@ -216,26 +214,26 @@ spel click @eXXXX                                # still connected
 | Variable | Purpose |
 |----------|---------|
 | `SPEL_CDP` | CDP endpoint URL (same as `--cdp`) |
-| `SPEL_AUTO_CONNECT` | Enable auto-connect (any value, same as `--auto-connect`) |
-| `SPEL_AUTO_LAUNCH` | Enable auto-launch (any value, same as `--auto-launch`) |
+| `SPEL_AUTO_CONNECT` | Enable auto-connect (any value = `--auto-connect`) |
+| `SPEL_AUTO_LAUNCH` | Enable auto-launch (any value = `--auto-launch`) |
 
 ### Limitations
 
-- CDP is Chromium-only. Firefox and WebKit don't support it.
-- Chrome/Edge must be launched with `--user-data-dir` pointing to a non-default directory (136+ security requirement).
-- If the browser is already running, you cannot add `--remote-debugging-port` retroactively — use `chrome://inspect/#remote-debugging` (or `edge://inspect/#remote-debugging`) instead (M144+).
-- Reuse one named session per stage (`--session <name>`) and keep one endpoint owner; avoid attaching multiple sessions to the same CDP endpoint concurrently.
-- The `--user-data-dir` browser instance has a fresh profile unless you point it to an existing one.
+- CDP = Chromium-only. Firefox/WebKit don't support it.
+- Chrome/Edge must launch with `--user-data-dir` pointing to non-default dir (136+ requirement).
+- Already-running browser → can't add `--remote-debugging-port` retroactively. Use `chrome://inspect/#remote-debugging` (or `edge://inspect/#remote-debugging`) instead (M144+).
+- Reuse one named session per stage (`--session <name>`) + one endpoint owner; avoid concurrent multi-session attach to same CDP endpoint.
+- `--user-data-dir` browser instance has fresh profile unless pointed to existing one.
 ---
 
 ## Stealth mode
 
-Stealth mode is ON by default for all CLI and `eval-sci` commands. Anti-detection patches hide Playwright's automation signals from bot-detection systems (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). Use `--no-stealth` to disable.
+Stealth mode ON by default for all CLI + `eval-sci` commands. Anti-detection patches hide Playwright automation signals from bot-detection (Cloudflare, DataDome, PerimeterX, etc.). Based on [puppeteer-extra-plugin-stealth](https://github.com/AhmedIbrahim336/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth). `--no-stealth` to disable.
 
 ### CLI
 
 ```bash
-# Stealth is automatic — no flag needed
+# Stealth automatic — no flag needed
 spel open https://example.org
 spel eval-sci 'script.clj'
 spel --profile /path/to/profile open https://protected-site.com
@@ -243,10 +241,10 @@ spel --profile /path/to/profile open https://protected-site.com
 # Combine with other flags
 spel --channel chrome --profile ~/.config/google-chrome/Profile\ 1 open https://x.com
 
-# Disable stealth if needed
+# Disable stealth
 spel --no-stealth open https://example.org
 
-# Environment variable to disable stealth
+# Environment variable
 export SPEL_STEALTH=false
 spel open https://example.org
 ```
@@ -257,7 +255,7 @@ Chrome launch args:
 - `--disable-blink-features=AutomationControlled` — prevents `navigator.webdriver=true`
 - Suppresses `--enable-automation` — removes "Chrome is being controlled" infobar
 
-JavaScript evasion patches (injected via `addInitScript` before any page loads):
+JavaScript evasion patches (injected via `addInitScript` before page loads):
 
 | Patch | What it hides |
 |-------|---------------|
@@ -272,10 +270,10 @@ JavaScript evasion patches (injected via `addInitScript` before any page loads):
 
 ### Stealth + load-state workflow
 
-For maximum authenticity — combine stealth with saved browser state:
+Max authenticity — stealth + saved browser state:
 
 ```bash
-# Use saved state (stealth is already on by default)
+# Saved state (stealth already on by default)
 spel --load-state auth.json open https://protected-site.com
 ```
 
@@ -284,15 +282,15 @@ spel --load-state auth.json open https://protected-site.com
 ```clojure
 (require '[com.blockether.spel.stealth :as stealth])
 
-;; Get Chrome args for anti-detection
+;; Chrome args for anti-detection
 (stealth/stealth-args)
 ;; => ["--disable-blink-features=AutomationControlled"]
 
-;; Get default args to suppress
+;; Default args to suppress
 (stealth/stealth-ignore-default-args)
 ;; => ["--enable-automation"]
 
-;; Get the full JS evasion script (for addInitScript)
+;; Full JS evasion script (for addInitScript)
 (stealth/stealth-init-script)
 ;; => "(function() { ... })();"
 
@@ -309,32 +307,31 @@ spel --load-state auth.json open https://protected-site.com
 
 ### Limitations
 
-- Stealth patches help with common detection but are not foolproof against sophisticated fingerprinting (e.g., TLS fingerprint, HTTP/2 settings, canvas noise)
-- Some sites (banks, Google login) may still detect automation regardless
-- Headed mode (`--interactive`) combined with stealth (which is on by default) gives the best results
-- Works with all launch modes: normal, persistent profile, and CDP connect
+- Helps with common detection but not foolproof against sophisticated fingerprinting (TLS, HTTP/2, canvas noise)
+- Some sites (banks, Google login) may still detect automation
+- Headed mode (`--interactive`) + stealth (on by default) = best results
+- Works with all launch modes: normal, persistent profile, CDP connect
 
 ---
 
----
 ---
 
 ## Device emulation
 
-Three approaches, each with different fidelity.
+Three approaches, different fidelity.
 
 ### Approach 1: viewport only
 
-`spel/set-viewport-size!` changes width and height. No device pixel ratio, no mobile user agent, no touch support. Good enough for responsive CSS breakpoints.
+`spel/set-viewport-size!` changes width + height. No DPR, no mobile user agent, no touch. Good for responsive CSS breakpoints.
 
 ```clojure
-;; Daemon mode: just set viewport and go
+;; Daemon mode: set viewport + go
 (spel/set-viewport-size! 390 844)  ;; iPhone 14 dimensions
 (spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/mobile-view.png"})
 ```
 ### Approach 2: full device preset (CLI daemon)
-The daemon's `set device` command configures viewport, DPR, user agent, and touch all at once.
+Daemon's `set device` configures viewport, DPR, user agent, touch at once.
 ```bash
 spel open https://example.org
 spel set device "iPhone 14"
@@ -342,12 +339,12 @@ spel screenshot /tmp/iphone14.png
 ```
 
 ### Approach 3: library / `eval-sci` options
-Pass `:device` when creating the session. Sets viewport, DPR, user agent, touch, and mobile flag.
+Pass `:device` when creating session. Sets viewport, DPR, user agent, touch, mobile flag.
 
 ```clojure
 ;; Daemon: use CLI to set device on existing session
 ;; $ spel set device "iPhone 14"
-;; Then eval-sci just navigates:
+;; Then eval-sci navigates:
 (spel/navigate "https://example.org")
 (spel/screenshot {:path "/tmp/iphone14.png"})
 
@@ -380,7 +377,7 @@ Desktop: `:desktop-chrome` (1280x720), `:desktop-firefox` (1280x720), `:desktop-
 
 ### Viewport presets
 
-Use `:viewport` instead of `:device` when you just want dimensions without mobile emulation:
+Use `:viewport` instead of `:device` for dimensions without mobile emulation:
 
 ```clojure
 ;; Standalone eval-sci (no daemon)
@@ -398,10 +395,10 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 ## Browser selection
 
 ```clojure
-;; Daemon: start with a specific browser via CLI
+;; Daemon: start with specific browser via CLI
 ;; $ spel start --browser firefox
 
-;; Standalone eval-sci (no daemon): start! configures the browser
+;; Standalone eval-sci (no daemon): start! configures browser
 (spel/start! {:browser :chromium})   ;; default
 (spel/start! {:browser :firefox})
 (spel/start! {:browser :webkit})
@@ -424,17 +421,17 @@ Sizes: `:mobile` (375x667), `:mobile-lg` (428x926), `:tablet` (768x1024), `:tabl
 
 ### Browser-specific notes
 
-- PDF generation only works in Chromium headless. Firefox and WebKit don't support `page/pdf`.
-- CDP (Chrome DevTools Protocol) is Chromium-only. `core/cdp-send` won't work with Firefox or WebKit.
-- WebKit matches Safari's rendering engine. Good for cross-browser testing, but no CDP and limited video support.
+- PDF generation only works in Chromium headless. Firefox/WebKit don't support `page/pdf`.
+- CDP = Chromium-only. `core/cdp-send` won't work with Firefox/WebKit.
+- WebKit matches Safari rendering engine. Cross-browser testing, but no CDP + limited video support.
 
 ---
 
 ## Storage state
 
-Storage state captures cookies and localStorage as a JSON file. Lighter than a full profile, easy to share between test runs or CI jobs.
+Storage state captures cookies + localStorage as JSON. Lighter than full profile, easy to share between test runs or CI jobs.
 
-### Save and load
+### Save + load
 
 ```clojure
 ;; Save after logging in (daemon mode)
@@ -445,7 +442,7 @@ Storage state captures cookies and localStorage as a JSON file. Lighter than a f
 (spel/wait-for-url "**/dashboard")
 (spel/context-save-storage-state! "/tmp/auth-state.json")
 
-;; Load in a later session
+;; Load in later session
 ;; Daemon: spel start --load-state /tmp/auth-state.json
 ;; Standalone eval-sci:
 (spel/start! {:storage-state "/tmp/auth-state.json"})
@@ -476,7 +473,7 @@ Library:
 
 ## Agent initialization
 
-`spel init-agents` scaffolds E2E test agents for AI coding tools. Agents work together: planner writes test plans with self-challenge, test-writer generates tests and self-heals failures.
+`spel init-agents` scaffolds E2E test agents for AI coding tools. Agents work together: planner writes test plans with self-challenge, test-writer generates tests + self-heals failures.
 
 ### Quick start
 
@@ -492,10 +489,10 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` is deprecated) |
+| `--loop TARGET` | `opencode` | Agent format: `opencode`, `claude` (`vscode` deprecated) |
 | `--ns NS` | directory name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
-| `--no-tests` | off | Only scaffold the SKILL (API reference), skip test agents |
+| `--no-tests` | off | Only scaffold SKILL (API reference), skip test agents |
 | `--dry-run` | off | Preview files without writing |
 | `--force` | off | Overwrite existing files |
 | `--test-dir DIR` | `test-e2e` | E2E test output directory |
@@ -505,20 +502,20 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | File | Purpose |
 |------|---------|
-| `agents/spel-test-planner` | Explores the app with `spel` CLI and `eval-sci`. Catalogs pages/flows. Writes test plans to `specs/`. |
+| `agents/spel-test-planner` | Explores app with `spel` CLI + `eval-sci`. Catalogs pages/flows. Writes test plans to `specs/`. |
 | `agents/spel-test-writer` | Reads plans from `specs/`. Generates Clojure test files. Verifies selectors, self-heals failures. |
 | `prompts/spel-test-workflow` | Orchestrator prompt: plan, generate, heal cycle. |
-| `skills/spel/SKILL.md` | API reference so agents know spel's functions and conventions. |
-| `specs/README.md` | Test plans directory with instructions for the planner. |
-| `<test-dir>/<ns>/e2e/seed_test.clj` | Seed test file with a working example to build from. |
+| `skills/spel/SKILL.md` | API reference for agents. |
+| `specs/README.md` | Test plans directory with planner instructions. |
+| `<test-dir>/<ns>/e2e/seed_test.clj` | Seed test file with working example. |
 
-With `--no-tests`, only the SKILL file is generated. Useful for interactive development where you want the API reference available to your AI assistant but don't need the full test pipeline.
+With `--no-tests`, only SKILL file generated. Useful for interactive dev where you want API reference available to AI assistant but don't need full test pipeline.
 
-### How the agents work together
-1. Planner opens the target app with `spel`, takes snapshots, explores navigation flows, and writes markdown test plans.
-2. Test-writer reads those plans, writes Clojure test files, runs them, and self-heals any failures.
+### How agents work together
+1. Planner opens target app with `spel`, takes snapshots, explores navigation flows, writes markdown test plans.
+2. Test-writer reads plans, writes Clojure test files, runs them, self-heals failures.
 
-The `spel-test-workflow` prompt chains both: plan first, generate and heal second.
+`spel-test-workflow` prompt chains both: plan first, generate + heal second.
 
 ### File locations by target
 
