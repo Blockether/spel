@@ -1479,6 +1479,33 @@ assert_contains "ci-assemble --help mentions assemble" "$OUT" "assemble"
 OUT=$("$SPEL" merge-reports --help 2>&1)
 assert_contains "merge-reports --help mentions merge" "$OUT" "merge"
 
+OUT=$("$SPEL" report --help 2>&1)
+assert_contains "report --help mentions Blockether" "$OUT" "Blockether"
+assert_contains "report --help mentions results-dir" "$OUT" "results-dir"
+assert_contains "report --help mentions output-dir" "$OUT" "output-dir"
+
+# report: generate from mock allure-results
+REPORT_RESULTS_DIR=$(mktemp -d)
+TEMP_FILES+=("$REPORT_RESULTS_DIR")
+REPORT_OUTPUT_DIR=$(mktemp -d)
+TEMP_FILES+=("$REPORT_OUTPUT_DIR")
+cat > "$REPORT_RESULTS_DIR/$(uuidgen)-result.json" << 'REPORTJSON'
+{"uuid":"test-1","status":"passed","name":"sample-test","fullName":"suite.sample-test","start":1000,"stop":2000,"labels":[{"name":"suite","value":"my-suite"}],"steps":[],"attachments":[]}
+REPORTJSON
+cat > "$REPORT_RESULTS_DIR/$(uuidgen)-result.json" << 'REPORTJSON'
+{"uuid":"test-2","status":"failed","name":"failing-test","fullName":"suite.failing-test","start":3000,"stop":4000,"labels":[{"name":"suite","value":"my-suite"}],"statusDetails":{"message":"Expected 42"},"steps":[],"attachments":[]}
+REPORTJSON
+OUT=$("$SPEL" report --results-dir "$REPORT_RESULTS_DIR" --output-dir "$REPORT_OUTPUT_DIR" 2>&1)
+assert_contains "report generates HTML" "$OUT" "Blockether report generated"
+assert_contains "report shows test count" "$OUT" "2 tests"
+assert_contains "report shows passed" "$OUT" "1 passed"
+assert_contains "report shows failed" "$OUT" "1 failed"
+REPORT_HTML="$REPORT_OUTPUT_DIR/index.html"
+assert_contains "report HTML file exists" "$(cat "$REPORT_HTML" 2>/dev/null)" "Blockether"
+assert_contains "report HTML has test name" "$(cat "$REPORT_HTML")" "sample-test"
+assert_contains "report HTML has failing test" "$(cat "$REPORT_HTML")" "failing-test"
+assert_contains "report HTML has theme" "$(cat "$REPORT_HTML")" "Atkinson Hyperlegible"
+
 OUT=$("$SPEL" show-trace --help 2>&1)
 assert_contains "show-trace --help mentions trace" "$OUT" "trace"
 
