@@ -1,4 +1,4 @@
-(ns com.blockether.spel.block-report
+(ns com.blockether.spel.spel-allure-alternative-html-report
   "Blockether-themed Allure report renderer.
    Reads allure-results/ JSON files and generates a standalone HTML report
    using the Blockether design system (warm earth tones, Atkinson Hyperlegible,
@@ -6,7 +6,7 @@
 
    Usage:
      CLI: spel report [options]
-     API: (block-report/generate! \"allure-results\" \"block-report\")"
+     API: (alternative-report/generate! \"allure-results\" \"block-report\")"
   (:require
    [charred.api :as json]
    [clojure.java.io :as io]

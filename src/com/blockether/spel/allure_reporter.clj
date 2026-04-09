@@ -19,6 +19,7 @@
    [clojure.string :as str]
    [clojure.test :as ct]
    [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
    [lazytest.expectation-failed :refer [ex-failed?]]
    [lazytest.reporters :refer [reporter-dispatch]]
    [lazytest.suite :as s]
@@ -1401,10 +1402,8 @@
         ;; Generate HTML report if requested
         (when report
           (if (= :block (report-renderer))
-            (do
-              (require '[com.blockether.spel.block-report :as block-report])
-              ((resolve 'block-report/generate!) output-dir report-dir
-                                                 {:title (or (report-name) "Test Report")}))
+            (alternative-report/generate! output-dir report-dir
+              {:title (or (report-name) "Test Report")})
             (generate-html-report! output-dir report-dir)))
         {:merged @copied
          :results result-count
@@ -1494,10 +1493,8 @@
     (println (str "\nAllure results written to " (output-dir) "/ (" n " test cases)"))
     (when (generate-report?)
       (if (= :block (report-renderer))
-        (do
-          (require '[com.blockether.spel.block-report :as block-report])
-          ((resolve 'block-report/generate!) (output-dir) (report-dir)
-                                             {:title (or (report-name) "Test Report")}))
+        (alternative-report/generate! (output-dir) (report-dir)
+          {:title (or (report-name) "Test Report")})
         (generate-html-report! (output-dir) (report-dir))))))
 
 ;; =============================================================================
@@ -1831,10 +1828,8 @@
       (write-categories-json! dir))
     (when (ct-report?)
       (if (= :block (report-renderer))
-        (do
-          (require '[com.blockether.spel.block-report :as block-report])
-          ((resolve 'block-report/generate!) (ct-output-dir-path) (ct-report-dir)
-                                             {:title (or (report-name) "Test Report")}))
+        (alternative-report/generate! (ct-output-dir-path) (ct-report-dir)
+          {:title (or (report-name) "Test Report")})
         (generate-html-report! (ct-output-dir-path) (ct-report-dir))))
     (reset! ct-run-state nil)))
 

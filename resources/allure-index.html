@@ -135,6 +135,8 @@
     html.dark .pill-in-progress { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
     .pill-cancelled { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
     html.dark .pill-cancelled { background: var(--code-bg); color: var(--text-muted); border-color: var(--border); }
+    .pill-brown { background: rgba(178,101,42,0.08); color: #8B5E2B; border-color: rgba(178,101,42,0.25); }
+    html.dark .pill-brown { background: rgba(178,101,42,0.12); color: #D4915C; border-color: rgba(178,101,42,0.3); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
     /* --- Empty state --- */
@@ -556,6 +558,7 @@
 
       var noReport = inProgress || isCancelled || emptyReport;
       var clickHandler = noReport ? '' : 'onclick="window.location.href=\'' + escapeHtml(b.run) + '/\'"';
+      var altReportLink = noReport ? '' : '<a href="' + escapeHtml(b.run) + '/alternative/" class="pill pill-brown" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit" title="Blockether HTML Report">Alt Report</a>';
       var cardRole = noReport ? '' : ' role="link" tabindex="0"';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + cardRole + '>'
         + '<div class="run">'
@@ -569,6 +572,7 @@
         + mergedBadge
         + shaHtml
         + testBadge
+        + altReportLink
         + versionBadge
         + '</div><p class="msg">' + (msg || 'No commit message') + '</p>'
         + authorLine

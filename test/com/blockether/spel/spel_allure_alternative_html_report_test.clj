@@ -1,10 +1,10 @@
-(ns com.blockether.spel.block-report-test
+(ns com.blockether.spel.spel-allure-alternative-html-report-test
   "Tests for the Blockether-themed Allure report renderer."
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
-   [com.blockether.spel.block-report :as block-report])
+   [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report])
   (:import
    [java.io File]
    [java.nio.file Files]
@@ -75,14 +75,14 @@
   (describe "load-results"
     (it "returns empty vector for empty directory"
       (let [dir (tmp-dir "block-test-empty")]
-        (expect (= [] (block-report/load-results (.getAbsolutePath dir))))
+        (expect (= [] (alternative-report/load-results (.getAbsolutePath dir))))
         (clean-dir! dir)))
 
     (it "loads result files"
       (let [dir (tmp-dir "block-test-load")]
         (write-result! dir "uuid-1" "passed" "test-1" 1000 2000)
         (write-result! dir "uuid-2" "failed" "test-2" 3000 4000)
-        (let [results (block-report/load-results (.getAbsolutePath dir))]
+        (let [results (alternative-report/load-results (.getAbsolutePath dir))]
           (expect (= 2 (count results)))
           (expect (= "passed" (get (first results) "status"))))
         (clean-dir! dir)))))
@@ -98,7 +98,7 @@
         (write-result! results-dir "uuid-2" "failed" "test-fail" 3000 4000)
         (write-result! results-dir "uuid-3" "broken" "test-broken" 5000 6000)
         (write-env-props! results-dir {"java.version" "21" "os.name" "Linux"})
-        (block-report/generate! results-path output-path)
+        (alternative-report/generate! results-path output-path)
         (let [html-file (io/file output-path "index.html")]
           (expect (.isFile html-file))
           (let [html (slurp html-file)]
@@ -123,7 +123,7 @@
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-steps! results-dir "uuid-steps" "passed" "test-with-steps" 1000 2000)
-        (block-report/generate! results-path output-path)
+        (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "step 1"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-steps"))))
@@ -135,7 +135,7 @@
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-error! results-dir "uuid-err" "test-error" 1000 2000)
-        (block-report/generate! results-path output-path)
+        (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "Expected: 42"))
           (expect (str/includes? html "Actual: 43"))))
@@ -148,7 +148,7 @@
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result! results-dir "uuid-1" "passed" "test-1" 1000 2000)
-        (block-report/generate! results-path output-path {:title "My Project"})
+        (alternative-report/generate! results-path output-path {:title "My Project"})
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "My Project"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-title"))))

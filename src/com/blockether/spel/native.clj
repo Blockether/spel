@@ -22,7 +22,7 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
-   [com.blockether.spel.block-report :as block-report]
+   [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -1070,7 +1070,7 @@
         (if (some #{"--help" "-h"} sub-args)
           (println (report-help))
           (let [{:keys [opts]} (parse-report-args sub-args)]
-            (block-report/generate!
+            (alternative-report/generate!
               (:results-dir opts "allure-results")
               (:output-dir opts "block-report")
               (select-keys opts [:title :results-dir])))))

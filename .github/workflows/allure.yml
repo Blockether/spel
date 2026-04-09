@@ -153,6 +153,12 @@ jobs:
             (require '[com.blockether.spel.allure-reporter :as r])
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
+      - name: Generate Blockether alternative report
+        run: |
+          clojure -M -e "
+            (require '[com.blockether.spel.spel-allure-alternative-html-report :as alt])
+            (alt/generate! \"allure-results\" \"allure-report/alternative\")"
+
       - name: Extract test counts from Allure results
         id: test-counts
         run: |
