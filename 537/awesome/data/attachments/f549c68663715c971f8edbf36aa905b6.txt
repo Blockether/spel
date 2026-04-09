@@ -1,0 +1,4 @@
+Blockether report generated: /tmp/block-output-gen11823989687882059419/index.html
+  3 tests: 1 passed, 1 failed, 1 broken, 0 skipped
+  Duration: 3.0s
+  Pass rate: 33%
