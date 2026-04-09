@@ -92,9 +92,9 @@
       "}"))
   (spit (io/file dir (str uuid "-attachment.md"))
     (str "## GET https://api.example.test/users → 200 OK\n\n"
-         "### Request Headers\n```\naccept: application/json\n```\n\n"
-         "### Response Body\n```json\n{\"ok\":true}\n```\n\n"
-         "### cURL\n```bash\ncurl 'https://api.example.test/users'\n```\n"))
+      "### Request Headers\n```\naccept: application/json\n```\n\n"
+      "### Response Body\n```json\n{\"ok\":true}\n```\n\n"
+      "### cURL\n```bash\ncurl 'https://api.example.test/users'\n```\n"))
   (spit (io/file dir (str uuid "-attachment.txt")) "stdout line\n")
   (spit (io/file dir (str uuid "-attachment.har")) "{\"log\":{}}")
   (spit (io/file dir (str uuid "-attachment.webm")) "fake-webm")
@@ -148,7 +148,7 @@
         (let [html-file (io/file output-path "index.html")]
           (expect (.isFile html-file))
           (let [html (slurp html-file)]
-            (expect (str/includes? html "Blockether alternative report"))
+            (expect (str/includes? html "Blockether report"))
             (expect (str/includes? html "test-pass"))
             (expect (str/includes? html "test-fail"))
             (expect (str/includes? html "test-broken"))
@@ -157,9 +157,8 @@
             (expect (str/includes? html "BROKEN"))
             (expect (str/includes? html "java.version"))
             (expect (str/includes? html "Linux"))
-            (expect (str/includes? html "Atkinson Hyperlegible"))
-            (expect (str/includes? html "Manrope"))
-            (expect (str/includes? html "IBM Plex Mono")))))
+            (expect (str/includes? html "Inter"))
+            (expect (str/includes? html "JetBrains Mono")))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-gen"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-gen")))))
 
@@ -208,8 +207,8 @@
         (write-result-with-attachments! results-dir "uuid-att" "passed" "test-with-attachments" 1000 2000)
         (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
-          (expect (str/includes? html "Expand visible"))
-          (expect (str/includes? html "Collapse all"))
+          (expect (str/includes? html "Expand"))
+          (expect (str/includes? html "Collapse"))
           (expect (str/includes? html "Open Trace"))
           (expect (str/includes? html "trace-viewer/index.html?trace=../data/attachments/uuid-att-attachment.zip"))
           (expect (str/includes? html "data-testid=\"code-attachment-content\""))
@@ -217,7 +216,7 @@
           (expect (str/includes? html "Full stdout log"))
           (expect (str/includes? html "Video Recording"))
           (expect (str/includes? html "data-action=\"expand-suites\""))
-          (expect (str/includes? html "Compact investigation-first view")))
+          (expect (str/includes? html "Investigation-first test report")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.md")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.zip")))
         (expect (.isFile (io/file output-path "trace-viewer" "index.html"))))

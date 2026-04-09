@@ -1,8 +1,9 @@
 (ns com.blockether.spel.spel-allure-alternative-html-report
-  "Blockether-themed Allure report renderer.
+  "Blockether Allure report renderer.
    Reads allure-results/ JSON files and generates a standalone HTML report
-   using a warm Blockether palette, compact investigation-first layout,
-   and shared attachment UX reused from the standard Allure report helpers."
+   with a clean neutral palette, search, sorting, compact investigation-first
+   layout, and shared attachment UX reused from the standard Allure report
+   helpers."
   (:require
    [charred.api :as json]
    [clojure.java.io :as io]
@@ -203,7 +204,7 @@
 (defn- reporter-helper [sym]
   (require 'com.blockether.spel.allure-reporter)
   (or (ns-resolve 'com.blockether.spel.allure-reporter sym)
-      (throw (ex-info (str "Missing allure reporter helper: " sym) {:symbol sym}))))
+    (throw (ex-info (str "Missing allure reporter helper: " sym) {:symbol sym}))))
 
 (defn- invoke-reporter-helper! [sym & args]
   (apply (deref (reporter-helper sym)) args))
@@ -222,9 +223,9 @@
 
 (defn- render-summary-chip [label value class-name]
   (str "<div class=\"summary-chip " class-name "\">"
-       "<span class=\"summary-chip-label\">" label "</span>"
-       "<span class=\"summary-chip-value\">" value "</span>"
-       "</div>"))
+    "<span class=\"summary-chip-label\">" label "</span>"
+    "<span class=\"summary-chip-value\">" value "</span>"
+    "</div>"))
 
 (defn- render-attachment-html
   [attachment results-dir]
@@ -235,63 +236,63 @@
     (cond
       (trace-attachment? attachment)
       (str "<div class=\"attachment-actions attachment-actions-trace\">"
-           "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
-           " data-trace-url=\"" (trace-viewer-href attachment) "\""
-           " data-trace-title=\"" att-name "\">Open Trace</button>"
-           "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download zip</a>"
-           "</div>")
+        "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
+        " data-trace-url=\"" (trace-viewer-href attachment) "\""
+        " data-trace-title=\"" att-name "\">Open Trace</button>"
+        "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download zip</a>"
+        "</div>")
 
       (markdown-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-markdown\">"
-           "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
-           (if content
-             (str "<pre data-testid=\"code-attachment-content\" class=\"language-md\"><code>"
-                  (html-escape content)
-                  "</code></pre>")
-             "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
-           "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
-           "</details>")
+        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        (if content
+          (str "<pre data-testid=\"code-attachment-content\" class=\"language-md\"><code>"
+            (html-escape content)
+            "</code></pre>")
+          "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
+        "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
+        "</details>")
 
       (image-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-image\">"
-           "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
-           "<a class=\"attachment-image-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">"
-           "<img class=\"attachment-image\" src=\"" href "\" alt=\"" att-name "\" />"
-           "</a>"
-           "</details>")
+        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        "<a class=\"attachment-image-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">"
+        "<img class=\"attachment-image\" src=\"" href "\" alt=\"" att-name "\" />"
+        "</a>"
+        "</details>")
 
       (video-attachment? attachment)
       (str "<div class=\"attachment-actions\">"
-           "<a class=\"attachment-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">" att-name "</a>"
-           "</div>")
+        "<a class=\"attachment-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">" att-name "</a>"
+        "</div>")
 
       (json-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-json\">"
-           "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
-           (if content
-             (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
-             "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
-           "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
-           "</details>")
+        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        (if content
+          (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
+          "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
+        "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
+        "</details>")
 
       (text-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-log\">"
-           "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
-           (if content
-             (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
-             "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
-           "</details>")
+        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        (if content
+          (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
+          "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
+        "</details>")
 
       :else
       (str "<div class=\"attachment-actions\">"
-           "<a class=\"attachment-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">" att-name "</a>"
-           "</div>"))))
+        "<a class=\"attachment-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">" att-name "</a>"
+        "</div>"))))
 
 (defn- render-attachments-html [attachments results-dir]
   (when (seq attachments)
     (str "<div class=\"attachment-list\">"
-         (str/join "" (map #(render-attachment-html % results-dir) attachments))
-         "</div>")))
+      (str/join "" (map #(render-attachment-html % results-dir) attachments))
+      "</div>")))
 
 (declare render-steps-html)
 
@@ -302,26 +303,26 @@
         attachments (get step "attachments")
         params (get step "parameters")]
     (str "<li class=\"step-item " (status-class st) "\">"
-         "<div class=\"step-header\">"
-         "<span class=\"step-icon\">" (status-icon st) "</span>"
-         "<span class=\"step-name\" data-testid=\"test-result-step-title\">" name "</span>"
-         (when (seq params)
-           (str "<span class=\"step-params\">"
-                (str/join ", "
-                  (for [p params]
-                    (str (html-escape (get p "name")) "=" (html-escape (get p "value")))))
-                "</span>"))
-         "</div>"
-         (when (seq child-steps)
-           (render-steps-html child-steps results-dir))
-         (render-attachments-html attachments results-dir)
-         "</li>")))
+      "<div class=\"step-header\">"
+      "<span class=\"step-icon\">" (status-icon st) "</span>"
+      "<span class=\"step-name\" data-testid=\"test-result-step-title\">" name "</span>"
+      (when (seq params)
+        (str "<span class=\"step-params\">"
+          (str/join ", "
+            (for [p params]
+              (str (html-escape (get p "name")) "=" (html-escape (get p "value")))))
+          "</span>"))
+      "</div>"
+      (when (seq child-steps)
+        (render-steps-html child-steps results-dir))
+      (render-attachments-html attachments results-dir)
+      "</li>")))
 
 (defn- render-steps-html [steps results-dir]
   (when (seq steps)
     (str "<ul class=\"step-tree\">"
-         (str/join "" (map #(render-step-html % results-dir) steps))
-         "</ul>")))
+      (str/join "" (map #(render-step-html % results-dir) steps))
+      "</ul>")))
 
 (defn- render-test-card
   "Render a single test result as a compact details card."
@@ -344,191 +345,190 @@
         story (label-value result "story")
         severity (label-value result "severity")
         tags (->> labels (filter #(= "tag" (get % "name"))) (map #(get % "value")))
-         step-count (count-nested-steps steps)
-         attachment-count (long (count attachments))]
-    (str "<details class=\"test-card " (status-class status) "\" data-status=\"" status "\">"
-         "<summary class=\"test-card-summary\">"
-         (detail-marker)
-         "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
-         "<span class=\"test-name\">" name "</span>"
-         (when (pos? step-count)
-            (str "<span class=\"test-chip\">" step-count " steps</span>"))
-         (when (pos? attachment-count)
-            (str "<span class=\"test-chip\">" attachment-count " attachments</span>"))
-         (when duration
-           (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
-         "</summary>"
-         "<div class=\"test-card-body\">"
-         (when (seq full-name)
-           (str "<div class=\"test-full-name\">" full-name "</div>"))
-         (when (or epic feature story severity (seq tags))
-           (str "<div class=\"test-labels\">"
-                (when epic (str "<span class=\"label-pill label-epic\">" (html-escape epic) "</span>"))
-                (when feature (str "<span class=\"label-pill label-feature\">" (html-escape feature) "</span>"))
-                (when story (str "<span class=\"label-pill label-story\">" (html-escape story) "</span>"))
-                (when severity (str "<span class=\"label-pill label-severity\">" (html-escape severity) "</span>"))
-                (str/join "" (for [t tags] (str "<span class=\"label-pill label-tag\">" (html-escape t) "</span>")))
-                "</div>"))
-         (when (seq desc)
-           (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
-         (when (and message (not= status "passed"))
-           (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
-         (when (seq trace)
-           (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\">"
-                "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
-                "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
-                "</details>"))
-         (when (seq steps)
-           (str "<details class=\"test-steps\">"
-                "<summary>" (detail-marker) "<span>Execution steps</span></summary>"
-                (render-steps-html steps results-dir)
-                "</details>"))
-         (render-attachments-html attachments results-dir)
-         "</div>"
-         "</details>")))
+        step-count (count-nested-steps steps)
+        attachment-count (long (count attachments))]
+    (str "<details class=\"test-card " (status-class status) "\" data-status=\"" status "\""
+      " data-duration=\"" (or duration 0) "\""
+      " data-name=\"" (str/lower-case (or name "")) "\">"
+      "<summary class=\"test-card-summary\">"
+      (detail-marker)
+      "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
+      "<span class=\"test-name\">" name "</span>"
+      (when (pos? step-count)
+        (str "<span class=\"test-chip\">" step-count " steps</span>"))
+      (when (pos? attachment-count)
+        (str "<span class=\"test-chip\">" attachment-count " attachments</span>"))
+      (when duration
+        (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
+      "</summary>"
+      "<div class=\"test-card-body\">"
+      (when (seq full-name)
+        (str "<div class=\"test-full-name\">" full-name "</div>"))
+      (when (or epic feature story severity (seq tags))
+        (str "<div class=\"test-labels\">"
+          (when epic (str "<span class=\"label-pill label-epic\">" (html-escape epic) "</span>"))
+          (when feature (str "<span class=\"label-pill label-feature\">" (html-escape feature) "</span>"))
+          (when story (str "<span class=\"label-pill label-story\">" (html-escape story) "</span>"))
+          (when severity (str "<span class=\"label-pill label-severity\">" (html-escape severity) "</span>"))
+          (str/join "" (for [t tags] (str "<span class=\"label-pill label-tag\">" (html-escape t) "</span>")))
+          "</div>"))
+      (when (seq desc)
+        (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
+      (when (and message (not= status "passed"))
+        (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
+      (when (seq trace)
+        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\">"
+          "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
+          "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
+          "</details>"))
+      (when (seq steps)
+        (str "<details class=\"test-steps\">"
+          "<summary>" (detail-marker) "<span>Execution steps</span></summary>"
+          (render-steps-html steps results-dir)
+          "</details>"))
+      (render-attachments-html attachments results-dir)
+      "</div>"
+      "</details>")))
 
 (defn- render-suite-section
   "Render a suite group with compact collapsed-by-default cards."
   [suite-name results results-dir]
   (let [cts (count-by-status results)]
     (str "<details class=\"suite-section\" data-suite>"
-         "<summary class=\"suite-summary\">"
-         (detail-marker)
-         "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
-         "<span class=\"suite-summary-meta\">"
-         "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"
-          (when (pos? (long (:failed cts)))
-            (str "<span class=\"suite-stat stat-failed\">" (:failed cts) " failed</span>"))
-          (when (pos? (long (:broken cts)))
-            (str "<span class=\"suite-stat stat-broken\">" (:broken cts) " broken</span>"))
-          (when (pos? (long (:skipped cts)))
-            (str "<span class=\"suite-stat stat-skipped\">" (:skipped cts) " skipped</span>"))
-          (when (pos? (long (:passed cts)))
-            (str "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"))
-         "</span>"
-         "</summary>"
-         "<div class=\"suite-body\">"
-         (str/join "" (map #(render-test-card % results-dir) results))
-         "</div>"
-         "</details>")))
+      "<summary class=\"suite-summary\">"
+      (detail-marker)
+      "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
+      "<span class=\"suite-summary-meta\">"
+      "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"
+      (when (pos? (long (:failed cts)))
+        (str "<span class=\"suite-stat stat-failed\">" (:failed cts) " failed</span>"))
+      (when (pos? (long (:broken cts)))
+        (str "<span class=\"suite-stat stat-broken\">" (:broken cts) " broken</span>"))
+      (when (pos? (long (:skipped cts)))
+        (str "<span class=\"suite-stat stat-skipped\">" (:skipped cts) " skipped</span>"))
+      (when (pos? (long (:passed cts)))
+        (str "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"))
+      "</span>"
+      "</summary>"
+      "<div class=\"suite-body\">"
+      (str/join "" (map #(render-test-card % results-dir) results))
+      "</div>"
+      "</details>")))
 
 (defn- css
-  "Compact warm Blockether stylesheet for the alternative report."
+  "Clean neutral stylesheet for the Blockether alternative report."
   []
   "
   :root {
-    --bg: #f6f0e7;
-    --bg-panel: rgba(255, 251, 245, 0.96);
-    --bg-panel-strong: rgba(250, 242, 232, 0.98);
-    --bg-code: #f2e8db;
-    --bg-accent: rgba(140, 77, 25, 0.08);
-    --border: rgba(110, 79, 47, 0.28);
-    --border-strong: rgba(110, 79, 47, 0.45);
-    --text: #18202a;
-    --text-secondary: #394350;
-    --text-muted: #596779;
-    --accent: #8b4d19;
-    --accent-green: #227850;
-    --accent-yellow: #8d5d13;
-    --accent-red: #a83228;
-    --accent-teal: #0d6a62;
-    --shadow: 0 8px 24px rgba(38, 26, 15, 0.08);
-    --radius-lg: 16px;
-    --radius-md: 12px;
-    --radius-sm: 8px;
-    --header-gap: 0.65rem;
+    --bg: #f8f9fa;
+    --bg-panel: rgba(255, 255, 255, 0.97);
+    --bg-panel-strong: rgba(248, 249, 250, 0.98);
+    --bg-code: #f1f3f5;
+    --bg-accent: rgba(55, 65, 81, 0.06);
+    --border: rgba(0, 0, 0, 0.10);
+    --border-strong: rgba(0, 0, 0, 0.18);
+    --text: #111827;
+    --text-secondary: #4b5563;
+    --text-muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-green: #059669;
+    --accent-yellow: #d97706;
+    --accent-red: #dc2626;
+    --accent-teal: #0891b2;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+    --radius-lg: 12px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14191f;
-      --bg-panel: rgba(26, 32, 39, 0.98);
-      --bg-panel-strong: rgba(31, 39, 48, 0.98);
-      --bg-code: #1c2430;
-      --bg-accent: rgba(193, 125, 58, 0.12);
-      --border: rgba(255, 255, 255, 0.16);
-      --border-strong: rgba(255, 255, 255, 0.28);
-      --text: #eef2f7;
-      --text-secondary: #c2cbd7;
-      --text-muted: #9ba8b8;
-      --accent: #da8a45;
-      --accent-green: #379e72;
-      --accent-yellow: #d6a64a;
-      --accent-red: #ef7265;
-      --accent-teal: #4cbab0;
-      --shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+      --bg: #0f1117;
+      --bg-panel: rgba(22, 24, 32, 0.98);
+      --bg-panel-strong: rgba(28, 31, 40, 0.98);
+      --bg-code: #1e2028;
+      --bg-accent: rgba(99, 102, 241, 0.10);
+      --border: rgba(255, 255, 255, 0.10);
+      --border-strong: rgba(255, 255, 255, 0.18);
+      --text: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --accent: #818cf8;
+      --accent-green: #34d399;
+      --accent-yellow: #fbbf24;
+      --accent-red: #f87171;
+      --accent-teal: #22d3ee;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.20), 0 1px 2px rgba(0, 0, 0, 0.16);
+      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.24), 0 2px 4px rgba(0, 0, 0, 0.16);
     }
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: 'Atkinson Hyperlegible', 'Segoe UI', sans-serif;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-size: 14px;
-    line-height: 1.45;
+    line-height: 1.5;
     color: var(--text);
-    background:
-      radial-gradient(circle at top left, rgba(139, 77, 25, 0.08), transparent 24%),
-      linear-gradient(180deg, #fbf7f1 0%, var(--bg) 46%, #efe6da 100%);
-  }
-  @media (prefers-color-scheme: dark) {
-    body {
-      background:
-        radial-gradient(circle at top left, rgba(218, 138, 69, 0.14), transparent 20%),
-        linear-gradient(180deg, #11161b 0%, var(--bg) 55%, #192028 100%);
-    }
+    background: var(--bg);
   }
   h1, h2, h3, h4 {
     margin: 0;
-    font-family: 'Manrope', 'Atkinson Hyperlegible', sans-serif;
-    line-height: 1.12;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
     color: var(--text);
   }
   code, pre, .mono {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  button { font: inherit; }
+  button, select { font: inherit; }
 
+  /* Layout */
   .page-shell {
-    max-width: 1580px;
+    max-width: 1440px;
     margin: 0 auto;
-    padding: 1rem 1rem 2rem;
+    padding: 1.25rem 1.25rem 2.5rem;
   }
 
+  /* Header */
   .report-header {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 1.1rem;
-    margin-bottom: 0.85rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-strong));
+    background: var(--bg-panel);
     box-shadow: var(--shadow);
   }
   .report-header-main {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.25rem;
     min-width: 280px;
   }
   .report-kicker {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--accent);
+    font-weight: 600;
   }
   .report-title {
-    font-size: clamp(1.35rem, 2.6vw, 2rem);
-    letter-spacing: -0.03em;
+    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+    letter-spacing: -0.02em;
+    font-weight: 800;
   }
   .report-subtitle {
-    color: var(--text-secondary);
-    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
   }
   .report-meta {
     display: flex;
@@ -536,77 +536,101 @@
     gap: 0.5rem;
     justify-content: flex-end;
   }
+
+  /* Summary chips */
   .summary-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.42rem 0.72rem;
-    border-radius: 999px;
+    gap: 0.4rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-sm);
     background: var(--bg-accent);
     border: 1px solid var(--border);
     color: var(--text);
     white-space: nowrap;
+    font-size: 0.8rem;
   }
   .summary-chip-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     color: var(--text-muted);
   }
-  .summary-chip-value {
-    font-weight: 800;
-    font-size: 0.86rem;
-  }
+  .summary-chip-value { font-weight: 700; }
   .summary-chip-passed .summary-chip-value { color: var(--accent-green); }
   .summary-chip-failed .summary-chip-value { color: var(--accent-red); }
   .summary-chip-broken .summary-chip-value { color: var(--accent-yellow); }
-  .summary-chip-skipped .summary-chip-value { color: var(--text-secondary); }
+  .summary-chip-skipped .summary-chip-value { color: var(--text-muted); }
   .summary-chip-total .summary-chip-value,
   .summary-chip-suites .summary-chip-value { color: var(--accent); }
   .summary-chip-duration .summary-chip-value { color: var(--accent-teal); }
 
+  /* Toolbar */
   .toolbar {
     position: sticky;
-    top: 0.5rem;
-    z-index: 6;
+    top: 0;
+    z-index: 10;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.65rem;
-    margin-bottom: 0.85rem;
-    padding: 0.65rem 0.8rem;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: rgba(255, 250, 244, 0.88);
-    backdrop-filter: blur(10px);
-    box-shadow: var(--shadow);
-  }
-  @media (prefers-color-scheme: dark) {
-    .toolbar { background: rgba(20, 27, 34, 0.88); }
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-md);
   }
   .filter-bar,
   .toolbar-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 0.35rem;
     align-items: center;
+  }
+  .toolbar-actions { margin-left: auto; }
+  .toolbar-search {
+    flex: 1;
+    min-width: 140px;
+    max-width: 280px;
+    padding: 0.32rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-panel-strong);
+    color: var(--text);
+    font-size: 0.8rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .toolbar-search:focus { border-color: var(--accent); }
+  .toolbar-search::placeholder { color: var(--text-muted); }
+  .toolbar-sort {
+    padding: 0.32rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-panel-strong);
+    color: var(--text);
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
   }
   .filter-btn,
   .toolbar-btn,
   .attachment-link,
   .attachment-link-button {
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-secondary);
-    padding: 0.34rem 0.74rem;
+    padding: 0.3rem 0.6rem;
     cursor: pointer;
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
+    transition: all 0.12s ease;
   }
   .filter-btn:hover,
   .toolbar-btn:hover,
@@ -615,18 +639,19 @@
     text-decoration: none;
     color: var(--text);
     border-color: var(--border-strong);
-    background: rgba(139, 77, 25, 0.08);
+    background: var(--bg-accent);
   }
   .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .filter-btn[data-filter='passed'].active { background: var(--accent-green); border-color: var(--accent-green); }
   .filter-btn[data-filter='failed'].active { background: var(--accent-red); border-color: var(--accent-red); }
   .filter-btn[data-filter='broken'].active { background: var(--accent-yellow); border-color: var(--accent-yellow); }
-  .filter-btn[data-filter='skipped'].active { background: var(--text-secondary); border-color: var(--text-secondary); }
+  .filter-btn[data-filter='skipped'].active { background: var(--text-muted); border-color: var(--text-muted); }
   .attachment-link-button { display: inline-flex; align-items: center; }
   .attachment-link-subtle { color: var(--text-muted); }
 
+  /* Panels */
   .panel {
-    margin-bottom: 0.85rem;
+    margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-panel);
@@ -635,51 +660,52 @@
   .panel > summary {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.75rem 0.9rem;
+    gap: 0.5rem;
+    padding: 0.7rem 0.85rem;
     cursor: pointer;
     list-style: none;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.85rem;
   }
   .panel > summary::-webkit-details-marker { display: none; }
   .panel-body {
-    padding: 0 0.9rem 0.9rem;
+    padding: 0.75rem 0.85rem;
     border-top: 1px solid var(--border);
   }
   .env-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.45rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
   }
   .env-item {
-    padding: 0.55rem 0.7rem;
+    padding: 0.5rem 0.65rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.35);
-  }
-  @media (prefers-color-scheme: dark) {
-    .env-item { background: rgba(255, 255, 255, 0.03); }
+    background: var(--bg-panel-strong);
   }
   .env-key {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.66rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.05em;
   }
   .env-value {
-    margin-top: 0.18rem;
-    font-weight: 700;
+    margin-top: 0.15rem;
+    font-weight: 600;
+    font-size: 0.85rem;
   }
 
+  /* Section headings */
   .section-heading {
-    margin: 0 0 0.55rem;
-    font-size: 1rem;
-    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
   }
 
+  /* Suite sections */
   .suite-section {
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.75rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-panel);
@@ -690,39 +716,37 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.65rem;
-    padding: 0.78rem 0.95rem;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
     cursor: pointer;
     list-style: none;
-    background: linear-gradient(180deg, rgba(139, 77, 25, 0.06), transparent);
   }
   .suite-section > summary::-webkit-details-marker { display: none; }
   .suite-body {
-    padding: 0 0.75rem 0.75rem;
+    padding: 0 0.65rem 0.65rem;
     border-top: 1px solid var(--border);
   }
   .suite-title {
     flex: 1;
-    min-width: 240px;
-    font-size: 0.96rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    min-width: 200px;
+    font-size: 0.88rem;
+    font-weight: 700;
   }
   .suite-summary-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.3rem;
     justify-content: flex-end;
   }
   .suite-stat,
   .test-chip {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.66rem;
-    padding: 0.18rem 0.44rem;
-    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.28);
+    background: var(--bg-panel-strong);
   }
   .stat-passed { color: var(--accent-green); }
   .stat-failed { color: var(--accent-red); }
@@ -730,43 +754,46 @@
   .stat-skipped { color: var(--text-muted); }
   .stat-total { color: var(--accent); }
 
+  /* Test cards */
   .test-card {
-    margin-top: 0.6rem;
+    margin-top: 0.5rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.42);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    background: var(--bg-panel);
+    box-shadow: var(--shadow);
     overflow: hidden;
+    transition: box-shadow 0.12s ease;
   }
-  @media (prefers-color-scheme: dark) {
-    .test-card { background: rgba(255, 255, 255, 0.02); }
-  }
-  .test-card.status-failed { border-left: 4px solid var(--accent-red); }
-  .test-card.status-broken { border-left: 4px solid var(--accent-yellow); }
-  .test-card.status-passed { border-left: 4px solid var(--accent-green); }
-  .test-card.status-skipped { border-left: 4px solid var(--text-muted); }
+  .test-card:hover { box-shadow: var(--shadow-md); }
+  .test-card.status-failed { border-left: 3px solid var(--accent-red); }
+  .test-card.status-broken { border-left: 3px solid var(--accent-yellow); }
+  .test-card.status-passed { border-left: 3px solid var(--accent-green); }
+  .test-card.status-skipped { border-left: 3px solid var(--text-muted); }
   .test-card > summary {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.58rem 0.72rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
     cursor: pointer;
     list-style: none;
   }
   .test-card > summary::-webkit-details-marker { display: none; }
   .test-card-body {
-    padding: 0 0.75rem 0.8rem;
+    padding: 0.5rem 0.7rem 0.7rem;
     border-top: 1px solid var(--border);
   }
+
+  /* Status badges */
   .test-status-badge {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.64rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
     font-weight: 700;
-    padding: 0.16rem 0.46rem;
-    border-radius: 999px;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-sm);
     color: #fff;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
   }
   .status-passed { background: var(--accent-green); }
   .status-failed { background: var(--accent-red); }
@@ -775,133 +802,139 @@
   .status-unknown { background: var(--text-secondary); }
   .test-name {
     flex: 1;
-    min-width: 180px;
-    font-size: 0.89rem;
-    font-weight: 800;
+    min-width: 150px;
+    font-size: 0.85rem;
+    font-weight: 600;
   }
   .test-duration {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
-    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
     white-space: nowrap;
   }
   .test-full-name {
-    margin-top: 0.55rem;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
+    margin-top: 0.4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
     color: var(--text-muted);
     word-break: break-word;
   }
+
+  /* Labels / tags */
   .test-labels {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.28rem;
+    gap: 0.3rem;
     margin-top: 0.5rem;
   }
   .label-pill {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem; padding: 0.18rem 0.5rem;
-    padding: 0.12rem 0.42rem;
-    border-radius: 999px;
-    border: 1px solid transparent;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-weight: 500;
   }
-  .label-epic { background: rgba(139, 77, 25, 0.12); color: var(--accent); }
-  .label-feature { background: rgba(13, 106, 98, 0.12); color: var(--accent-teal); }
-  .label-story { background: rgba(141, 93, 19, 0.12); color: var(--accent-yellow); }
-  .label-severity { background: rgba(168, 50, 40, 0.12); color: var(--accent-red); }
-  .label-tag { background: rgba(57, 67, 80, 0.12); color: var(--text-secondary); }
+  .label-epic { background: rgba(79, 70, 229, 0.08); color: var(--accent); }
+  .label-feature { background: rgba(8, 145, 178, 0.08); color: var(--accent-teal); }
+  .label-story { background: rgba(217, 119, 6, 0.08); color: var(--accent-yellow); }
+  .label-severity { background: rgba(220, 38, 38, 0.08); color: var(--accent-red); }
+  .label-tag { background: var(--bg-accent); color: var(--text-secondary); }
+
+  /* Description / error */
   .test-description,
   .test-error {
-    margin-top: 0.55rem;
-    padding: 0.62rem 0.72rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.65rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
+    font-size: 0.82rem;
   }
-  .test-description { background: rgba(255, 255, 255, 0.28); color: var(--text-secondary); }
-  .test-error { background: rgba(168, 50, 40, 0.07); }
+  .test-description { background: var(--bg-panel-strong); color: var(--text-secondary); }
+  .test-error { background: rgba(220, 38, 38, 0.05); border-color: rgba(220, 38, 38, 0.15); }
   .error-message { color: var(--accent-red); white-space: pre-wrap; word-break: break-word; }
 
+  /* Steps & attachments */
   .test-steps,
   .attachment-panel {
-    margin-top: 0.55rem;
+    margin-top: 0.5rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--bg-panel-strong);
     overflow: hidden;
-  }
-  @media (prefers-color-scheme: dark) {
-    .test-steps,
-    .attachment-panel { background: rgba(255, 255, 255, 0.02); }
   }
   .test-steps > summary,
   .attachment-panel > summary {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.55rem 0.68rem;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
     cursor: pointer;
     list-style: none;
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
+    font-weight: 600;
   }
   .test-steps > summary::-webkit-details-marker,
   .attachment-panel > summary::-webkit-details-marker { display: none; }
   .disclosure-marker {
     width: 0;
     height: 0;
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 6px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid currentColor;
     transition: transform 0.15s ease;
+    flex-shrink: 0;
   }
   details[open] > summary .disclosure-marker { transform: rotate(90deg); }
 
+  /* Step tree */
   .step-tree {
     list-style: none;
     margin: 0;
-    padding: 0 0.68rem 0.68rem 1rem;
+    padding: 0.25rem 0.6rem 0.6rem 0.85rem;
   }
   .step-item {
-    margin-top: 0.45rem;
-    padding-left: 0.65rem;
-    border-left: 1px dashed var(--border-strong);
+    margin-top: 0.25rem;
+    padding: 0.25rem 0 0.25rem 0.6rem;
+    border-left: 2px solid var(--border);
   }
   .step-header {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.3rem;
     align-items: baseline;
   }
-  .step-icon { font-size: 0.74rem; }
+  .step-icon { font-size: 0.72rem; flex-shrink: 0; }
   .step-name {
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     font-weight: 500;
     color: var(--text);
   }
-  .step-item { padding: 0.4rem 0.2rem; }
   .step-params {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.66rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
     color: var(--text-muted);
   }
 
+  /* Attachment list */
   .attachment-list {
     display: grid;
-    gap: 0.45rem;
-    margin-top: 0.55rem;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
   }
   .attachment-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
+    gap: 0.35rem;
+    margin-top: 0.4rem;
   }
   .attachment-pre {
     margin: 0;
-    padding: 0.75rem;
+    padding: 0.65rem;
     background: var(--bg-code);
     border-top: 1px solid var(--border);
     overflow: auto;
@@ -909,41 +942,42 @@
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 0.72rem;
-    line-height: 1.55;
+    line-height: 1.5;
     color: var(--text);
   }
   .attachment-missing {
-    padding: 0.75rem;
+    padding: 0.65rem;
     color: var(--text-muted);
   }
   .attachment-image-link {
     display: block;
-    padding: 0 0.75rem 0.75rem;
+    padding: 0.5rem 0.65rem 0.65rem;
   }
   .attachment-image {
     display: block;
     max-width: 100%;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
-    background: rgba(255,255,255,0.6);
   }
 
+  /* Empty state */
   .empty-state {
     padding: 2rem 1rem;
     border: 1px dashed var(--border-strong);
     border-radius: var(--radius-md);
     background: var(--bg-panel);
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-align: center;
   }
 
+  /* Trace modal */
   .trace-modal {
     display: none;
     position: fixed;
     inset: 0;
     z-index: 9998;
-    background: rgba(10, 12, 15, 0.78);
+    background: rgba(0, 0, 0, 0.6);
     padding: 1rem;
   }
   .trace-modal.show {
@@ -954,123 +988,167 @@
   .trace-modal-content {
     width: min(1480px, 100%);
     height: calc(100vh - 2rem);
-    background: #0f141a;
-    border-radius: 16px;
+    background: #0f1117;
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.14);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     display: grid;
     grid-template-rows: auto 1fr;
-    box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
   }
   .trace-modal-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.7rem 0.9rem;
-    background: rgba(255,255,255,0.04);
+    padding: 0.6rem 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
     color: #fff;
   }
-  .trace-modal-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-  }
+  .trace-modal-title { font-size: 0.82rem; font-weight: 600; }
   .trace-modal-close {
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: #fff;
-    padding: 0.3rem 0.7rem;
+    padding: 0.25rem 0.6rem;
     cursor: pointer;
+    font-size: 0.75rem;
   }
   .trace-frame {
     width: 100%;
     height: 100%;
     border: 0;
-    background: #11161c;
+    background: #0f1117;
   }
 
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
   ::-webkit-scrollbar-track { background: transparent; }
 
+  /* Print */
   @media print {
-    .toolbar,
-    .trace-modal { display: none !important; }
+    .toolbar, .trace-modal { display: none !important; }
     .page-shell { max-width: none; padding: 0; }
-    .report-header,
-    .suite-section,
-    .panel,
-    .test-card { box-shadow: none; }
-    details[open] > summary .disclosure-marker,
-    .disclosure-marker { display: none; }
+    .report-header, .suite-section, .panel, .test-card { box-shadow: none; }
+    details[open] > summary .disclosure-marker, .disclosure-marker { display: none; }
   }
 
-    /* Markdown HTTP & Badges Overrides */
-  .spel-md .http-title { background: var(--bg-panel-strong) !important; border-bottom: 1px solid var(--border-strong) !important; color: var(--text) !important; }
+  /* Markdown HTTP & badge overrides */
+  .spel-md .http-title { background: var(--bg-panel-strong) !important; border-bottom: 1px solid var(--border) !important; color: var(--text) !important; }
   .spel-md .http-url { color: var(--text) !important; }
-  .spel-md .http-card { border-color: var(--border-strong) !important; background: var(--bg-panel) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-  .spel-md .http-card.req .card-hdr { background: rgba(73,204,144,0.1) !important; color: var(--accent-green) !important; border-bottom-color: var(--border) !important; }
-  .spel-md .http-card.res .card-hdr { background: rgba(97,175,254,0.1) !important; color: var(--accent-teal) !important; border-bottom-color: var(--border) !important; }
-  .spel-md .http-card.curl .card-hdr { background: rgba(252,161,48,0.1) !important; color: var(--accent-yellow) !important; border-bottom-color: var(--border) !important; }
+  .spel-md .http-card { border-color: var(--border) !important; background: var(--bg-panel) !important; box-shadow: var(--shadow); }
+  .spel-md .http-card.req .card-hdr { background: rgba(5, 150, 105, 0.08) !important; color: var(--accent-green) !important; border-bottom-color: var(--border) !important; }
+  .spel-md .http-card.res .card-hdr { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; border-bottom-color: var(--border) !important; }
+  .spel-md .http-card.curl .card-hdr { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; border-bottom-color: var(--border) !important; }
   .spel-md .http-section { border-top-color: var(--border) !important; }
   .spel-md .section-hdr { color: var(--text-muted) !important; }
   .spel-md .code-wrap pre { background: var(--bg-code) !important; color: var(--text) !important; border: 1px solid var(--border); }
   .spel-md .copy-btn { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
-  .spel-md .copy-btn:hover { background: var(--bg-panel-strong) !important; color: var(--text) !important; }
+  .spel-md .copy-btn:hover { background: var(--bg-accent) !important; color: var(--text) !important; }
+  .spel-badge { border-radius: var(--radius-sm) !important; padding: 2px 7px !important; font-size: 0.72em !important; border: 1px solid var(--border) !important; }
+  .spel-badge.api { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; }
+  .spel-badge.ui { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; }
+  .spel-badge.ui-api { background: rgba(79, 70, 229, 0.08) !important; color: var(--accent) !important; }
 
-  .spel-badge { border-radius: var(--radius-sm) !important; padding: 2px 8px !important; font-size: 0.75em !important; border: 1px solid var(--border-strong) !important; }
-  .spel-badge.api { background: rgba(13,106,98,0.12) !important; color: var(--accent-teal) !important; }
-  .spel-badge.ui { background: rgba(141,93,19,0.12) !important; color: var(--accent-yellow) !important; }
-  .spel-badge.ui-api { background: rgba(139,77,25,0.12) !important; color: var(--accent) !important; }
-
-  @media (max-width: 900px) {
-    .page-shell { padding: 0.4rem; }
-    .report-header { padding: 0.75rem; gap: 0.6rem; border-radius: var(--radius-md); }
-    .toolbar { top: 0; padding: 0.6rem; gap: 0.5rem; border-radius: var(--radius-md); margin-bottom: 0.6rem; }
-    .suite-section > summary, .test-card > summary { align-items: flex-start; padding: 0.6rem 0.75rem; }
+  /* Mobile */
+  @media (max-width: 768px) {
+    .page-shell { padding: 0.5rem 0.5rem 1.5rem; }
+    .report-header { padding: 0.75rem; gap: 0.75rem; }
+    .toolbar { padding: 0.5rem; gap: 0.4rem; top: 0; }
+    .toolbar-search { max-width: none; min-width: 100px; }
+    .suite-section > summary, .test-card > summary { padding: 0.5rem 0.6rem; }
     .report-meta { justify-content: flex-start; }
-    .test-card-body { padding: 0 0.6rem 0.6rem; }
-    .attachment-pre { padding: 0.6rem; font-size: 0.68rem; }
-  }
+    .test-card-body { padding: 0.4rem 0.5rem 0.5rem; }
+    .attachment-pre { padding: 0.5rem; font-size: 0.68rem; }
+    .summary-chip { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
   }
   ")
 
 (defn- js-ui
-  "Client-side filtering, collapsing, and trace modal behavior."
+  "Client-side filtering, searching, sorting, collapsing, and trace modal."
   []
   "
   (function() {
-    function visibleTestCards(section) {
-      return Array.from(section.querySelectorAll('.test-card')).filter(function(card) {
-        return card.style.display !== 'none';
-      });
-    }
+    var statusOrder = {failed: 0, broken: 1, skipped: 2, passed: 3, unknown: 4};
+    var currentFilter = 'all';
+    var currentSearch = '';
+    var currentSort = 'status';
 
-    function filterTests(status) {
+    function applyFilters() {
       var cards = document.querySelectorAll('.test-card');
       var sections = document.querySelectorAll('.suite-section');
-      var btns = document.querySelectorAll('.filter-btn');
-
-      btns.forEach(function(btn) {
-        btn.classList.toggle('active', btn.getAttribute('data-filter') === status);
-      });
+      var q = currentSearch.toLowerCase();
 
       cards.forEach(function(card) {
-        var match = status === 'all' || card.getAttribute('data-status') === status;
-        card.style.display = match ? '' : 'none';
+        var statusMatch = currentFilter === 'all' || card.getAttribute('data-status') === currentFilter;
+        var nameMatch = !q || (card.getAttribute('data-name') || '').indexOf(q) !== -1;
+        card.style.display = (statusMatch && nameMatch) ? '' : 'none';
       });
 
       sections.forEach(function(section) {
-        section.style.display = visibleTestCards(section).length > 0 ? '' : 'none';
+        var visible = Array.from(section.querySelectorAll('.test-card')).filter(function(c) {
+          return c.style.display !== 'none';
+        });
+        section.style.display = visible.length > 0 ? '' : 'none';
+      });
+    }
+
+    function sortCards() {
+      var sections = document.querySelectorAll('.suite-section');
+      sections.forEach(function(section) {
+        var body = section.querySelector('.suite-body');
+        if (!body) return;
+        var cards = Array.from(body.querySelectorAll(':scope > .test-card'));
+        cards.sort(function(a, b) {
+          if (currentSort === 'longest') {
+            return parseInt(b.getAttribute('data-duration') || '0') - parseInt(a.getAttribute('data-duration') || '0');
+          } else if (currentSort === 'shortest') {
+            return parseInt(a.getAttribute('data-duration') || '0') - parseInt(b.getAttribute('data-duration') || '0');
+          } else if (currentSort === 'name') {
+            return (a.getAttribute('data-name') || '').localeCompare(b.getAttribute('data-name') || '');
+          } else {
+            var sa = statusOrder[a.getAttribute('data-status')] || 99;
+            var sb = statusOrder[b.getAttribute('data-status')] || 99;
+            if (sa !== sb) return sa - sb;
+            return (a.getAttribute('data-name') || '').localeCompare(b.getAttribute('data-name') || '');
+          }
+        });
+        cards.forEach(function(card) { body.appendChild(card); });
       });
     }
 
     document.querySelectorAll('.filter-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        filterTests(btn.getAttribute('data-filter'));
+        currentFilter = btn.getAttribute('data-filter');
+        document.querySelectorAll('.filter-btn').forEach(function(b) {
+          b.classList.toggle('active', b.getAttribute('data-filter') === currentFilter);
+        });
+        applyFilters();
       });
     });
+
+    var searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+      var debounceTimer;
+      searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+          currentSearch = searchInput.value;
+          applyFilters();
+        }, 150);
+      });
+    }
+
+    var sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function() {
+        currentSort = sortSelect.value;
+        sortCards();
+        applyFilters();
+      });
+    }
 
     var expandBtn = document.querySelector(\"[data-action='expand-suites']\");
     var collapseBtn = document.querySelector(\"[data-action='collapse-suites']\");
@@ -1085,8 +1163,8 @@
 
     if (collapseBtn) {
       collapseBtn.addEventListener('click', function() {
-        document.querySelectorAll('.suite-section, .test-card, .test-steps, .attachment-panel').forEach(function(section) {
-          section.open = false;
+        document.querySelectorAll('.suite-section, .test-card, .test-steps, .attachment-panel').forEach(function(el) {
+          el.open = false;
         });
       });
     }
@@ -1172,29 +1250,28 @@
   <title>" (html-escape title) "</title>
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
-  <link href=\"https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap\" rel=\"stylesheet\">
-  <link href=\"https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap\" rel=\"stylesheet\">
-  <link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
+  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">
+  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
   <style>" (css) "</style>
 </head>
 <body>
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-main\">
-      <div class=\"report-kicker\">Blockether alternative report</div>
+      <div class=\"report-kicker\">Blockether report</div>
       <h1 class=\"report-title\">" (html-escape title) "</h1>
-      <div class=\"report-subtitle\">Compact investigation-first view with warm Blockether palette.</div>
+      <div class=\"report-subtitle\">Investigation-first test report</div>
     </div>
     <div class=\"report-meta\">"
-                (render-summary-chip "Total" (:total cts) "summary-chip-total")
-                (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
-                (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
-                (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
-                (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
-                (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
-                (render-summary-chip "Suites" (count suites) "summary-chip-suites")
-                (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
-                "</div>
+                  (render-summary-chip "Total" (:total cts) "summary-chip-total")
+                  (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
+                  (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
+                  (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
+                  (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
+                  (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
+                  (render-summary-chip "Suites" (count suites) "summary-chip-suites")
+                  (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
+                  "</div>
   </header>
 
   <div class=\"toolbar\">
@@ -1203,37 +1280,44 @@
       <button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>
       <button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>
       <button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
-                (when (pos? (long (get cts :skipped 0)))
-                  (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
-                "</div>
+                  (when (pos? (long (get cts :skipped 0)))
+                    (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
+                  "</div>
     <div class=\"toolbar-actions\">
-      <button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand visible</button>
-      <button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse all</button>
+      <input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />
+      <select id=\"sortSelect\" class=\"toolbar-sort\">
+        <option value=\"status\">Sort: Status</option>
+        <option value=\"longest\">Sort: Longest first</option>
+        <option value=\"shortest\">Sort: Shortest first</option>
+        <option value=\"name\">Sort: Name A-Z</option>
+      </select>
+      <button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>
+      <button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>
     </div>
   </div>
 
   <details class=\"panel environment-panel\" id=\"environment\">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
     <div class=\"panel-body\">"
-                (if (seq env)
-                  (str "<div class=\"env-grid\">"
-                       (str/join ""
-                         (for [[k v] (sort-by first env)]
-                           (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
-                                "<div class=\"env-value\">" (html-escape v) "</div></div>")))
-                       "</div>")
-                  "<div class=\"empty-state\"><p>No environment data</p></div>")
-                "</div>
+                  (if (seq env)
+                    (str "<div class=\"env-grid\">"
+                      (str/join ""
+                        (for [[k v] (sort-by first env)]
+                          (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
+                            "<div class=\"env-value\">" (html-escape v) "</div></div>")))
+                      "</div>")
+                    "<div class=\"empty-state\"><p>No environment data</p></div>")
+                  "</div>
   </details>
 
   <section id=\"suites\">
     <h2 class=\"section-heading\">Test suites</h2>"
-                (if (seq suites)
-                  (str/join ""
-                    (for [[suite-name suite-results] suites]
-                      (render-suite-section suite-name suite-results results-dir)))
-                  "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
-                "
+                  (if (seq suites)
+                    (str/join ""
+                      (for [[suite-name suite-results] suites]
+                        (render-suite-section suite-name suite-results results-dir)))
+                    "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
+                  "
   </section>
 </div>
 
@@ -1254,10 +1338,10 @@
        (enhance-report-shell! out)
        (println (str "Blockether report generated: " output-dir "/index.html"))
        (println (str "  " (:total cts) " tests: "
-                     (:passed cts) " passed, "
-                     (:failed cts) " failed, "
-                     (:broken cts) " broken, "
-                     (:skipped cts) " skipped"))
+                  (:passed cts) " passed, "
+                  (:failed cts) " failed, "
+                  (:broken cts) " broken, "
+                  (:skipped cts) " skipped"))
        (println (str "  Duration: " (format-duration total-ms)))
        (println (str "  Pass rate: " pass-rate "%"))
        (when (seq results)
