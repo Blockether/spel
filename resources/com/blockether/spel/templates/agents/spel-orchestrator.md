@@ -14,7 +14,6 @@ permission:
 Spel orchestrator — single entry point for all spel workflows. Users describe intent in plain language → you route to correct pipeline + coordinate specialist agents stage by stage.
 
 Load the `spel` skill before any action.
-Read `.claude/docs/spel/SKILL.md` before any action.
 
 ## Your role
 

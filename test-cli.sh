@@ -1419,6 +1419,13 @@ else
   fail "orchestrator embeds automation coordination and JSON output gates" "Expected merged orchestrator to enforce automation handoff JSON and requested output gates"
 fi
 
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '.claude/docs/spel/SKILL.md' "$LEARN_ORCH_FILE"; then
+  fail "opencode orchestrator avoids claude skill path" "Expected OpenCode scaffold to avoid Claude skill path"
+else
+  pass "opencode orchestrator avoids claude skill path"
+fi
+
 # --only test --dry-run: includes test agents, excludes others
 OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)
 assert_contains "init-agents --only test includes test-planner" "$OUT" "spel-test-planner"
