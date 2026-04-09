@@ -71,6 +71,35 @@
                   (str/join "\n"))]
     (spit (io/file dir "environment.properties") (str content "\n"))))
 
+(defn- write-result-with-attachments!
+  [^File dir uuid status name start stop]
+  (.mkdirs dir)
+  (spit (io/file dir (str uuid "-result.json"))
+    (str "{\"uuid\":\"" uuid
+      "\",\"status\":\"" status
+      "\",\"name\":\"" name
+      "\",\"fullName\":\"suite." name
+      "\",\"start\":" start
+      ",\"stop\":" stop
+      ",\"labels\":[{\"name\":\"suite\",\"value\":\"test-suite\"}]"
+      ",\"steps\":[{\"name\":\"[API] call endpoint\",\"status\":\"passed\",\"start\":" start ",\"stop\":" (+ start 100)
+      ",\"steps\":[],\"attachments\":[{\"name\":\"HTTP\",\"source\":\"" uuid "-attachment.md\",\"type\":\"text/markdown\"}]}]"
+      ",\"attachments\":["
+      "{\"name\":\"Playwright Trace\",\"source\":\"" uuid "-attachment.zip\",\"type\":\"application/vnd.allure.playwright-trace\"},"
+      "{\"name\":\"Full stdout log\",\"source\":\"" uuid "-attachment.txt\",\"type\":\"text/plain\"},"
+      "{\"name\":\"Network Activity (HAR)\",\"source\":\"" uuid "-attachment.har\",\"type\":\"application/json\"},"
+      "{\"name\":\"Video Recording\",\"source\":\"" uuid "-attachment.webm\",\"type\":\"video/webm\"}]"
+      "}"))
+  (spit (io/file dir (str uuid "-attachment.md"))
+    (str "## GET https://api.example.test/users → 200 OK\n\n"
+         "### Request Headers\n```\naccept: application/json\n```\n\n"
+         "### Response Body\n```json\n{\"ok\":true}\n```\n\n"
+         "### cURL\n```bash\ncurl 'https://api.example.test/users'\n```\n"))
+  (spit (io/file dir (str uuid "-attachment.txt")) "stdout line\n")
+  (spit (io/file dir (str uuid "-attachment.har")) "{\"log\":{}}")
+  (spit (io/file dir (str uuid "-attachment.webm")) "fake-webm")
+  (spit (io/file dir (str uuid "-attachment.zip")) "fake-zip"))
+
 (defdescribe block-report-load-results-test
   (describe "load-results"
     (it "returns empty vector for empty directory"
@@ -101,7 +130,8 @@
               html (slurp html-file)]
           (expect (.isFile html-file))
           (expect (str/includes? html "No test result files were found for this run."))
-          (expect (str/includes? html "Tests:</strong> 0"))))
+          (expect (str/includes? html "summary-chip-label\">Total</span>"))
+          (expect (str/includes? html "summary-chip-value\">0</span>"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-empty"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-empty")))))
 
@@ -118,7 +148,7 @@
         (let [html-file (io/file output-path "index.html")]
           (expect (.isFile html-file))
           (let [html (slurp html-file)]
-            (expect (str/includes? html "Blockether Test Report"))
+            (expect (str/includes? html "Blockether alternative report"))
             (expect (str/includes? html "test-pass"))
             (expect (str/includes? html "test-fail"))
             (expect (str/includes? html "test-broken"))
@@ -168,4 +198,28 @@
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "My Project"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-title"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-title")))))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-title")))))
+
+    (it "renders compact collapsed layout and attachment UX"
+      (let [results-dir (tmp-dir "block-results-att")
+            output-dir (tmp-dir "block-output-att")
+            results-path (.getAbsolutePath results-dir)
+            output-path (.getAbsolutePath output-dir)]
+        (write-result-with-attachments! results-dir "uuid-att" "passed" "test-with-attachments" 1000 2000)
+        (alternative-report/generate! results-path output-path)
+        (let [html (slurp (io/file output-path "index.html"))]
+          (expect (str/includes? html "Expand visible"))
+          (expect (str/includes? html "Collapse all"))
+          (expect (str/includes? html "Open Trace"))
+          (expect (str/includes? html "trace-viewer/index.html?trace=../data/attachments/uuid-att-attachment.zip"))
+          (expect (str/includes? html "data-testid=\"code-attachment-content\""))
+          (expect (str/includes? html "class=\"language-md\""))
+          (expect (str/includes? html "Full stdout log"))
+          (expect (str/includes? html "Video Recording"))
+          (expect (str/includes? html "data-action=\"expand-suites\""))
+          (expect (str/includes? html "Compact investigation-first view")))
+        (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.md")))
+        (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.zip")))
+        (expect (.isFile (io/file output-path "trace-viewer" "index.html"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-att"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-att")))))))
