@@ -84,7 +84,9 @@
         (write-result! dir "uuid-2" "failed" "test-2" 3000 4000)
         (let [results (alternative-report/load-results (.getAbsolutePath dir))]
           (expect (= 2 (count results)))
-          (expect (= "passed" (get (first results) "status"))))
+          (let [statuses (set (map #(get % "status") results))]
+            (expect (contains? statuses "passed"))
+            (expect (contains? statuses "failed"))))
         (clean-dir! dir)))))
 
 (defdescribe block-report-generate-test
