@@ -91,6 +91,20 @@
 
 (defdescribe block-report-generate-test
   (describe "generate!"
+    (it "generates placeholder report when results directory is empty"
+      (let [results-dir (tmp-dir "block-results-empty")
+            output-dir (tmp-dir "block-output-empty")
+            results-path (.getAbsolutePath results-dir)
+            output-path (.getAbsolutePath output-dir)]
+        (alternative-report/generate! results-path output-path)
+        (let [html-file (io/file output-path "index.html")
+              html (slurp html-file)]
+          (expect (.isFile html-file))
+          (expect (str/includes? html "No test result files were found for this run."))
+          (expect (str/includes? html "Tests:</strong> 0"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-empty"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-empty")))))
+
     (it "generates HTML report from allure results"
       (let [results-dir (tmp-dir "block-results-gen")
             output-dir (tmp-dir "block-output-gen")

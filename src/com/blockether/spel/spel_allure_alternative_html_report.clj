@@ -124,9 +124,9 @@
 
 (defn- render-steps-html
   "Render nested step tree as HTML."
-  [steps depth]
+  [steps ^long depth]
   (when (seq steps)
-    (str "<ul class=\"step-tree depth-" (inc depth) "\">"
+    (str "<ul class=\"step-tree depth-" (unchecked-inc depth) "\">"
       (str/join ""
         (for [step steps]
           (let [name (html-escape (get step "name" "step"))
@@ -146,7 +146,7 @@
                   "</span>"))
               "</div>"
               (when (seq child-steps)
-                (render-steps-html child-steps (inc depth)))
+                (render-steps-html child-steps (unchecked-inc depth)))
               (when (seq attachments)
                 (str "<div class=\"step-attachments\">"
                   (str/join ""
@@ -236,14 +236,17 @@
     "<section class=\"suite-section\">"
     "<h3 class=\"suite-title\">" (html-escape suite-name) "</h3>"
     "<div class=\"suite-stats\">"
-    (let [cts (count-by-status results)]
+    (let [cts (count-by-status results)
+          failed (long (get cts :failed 0))
+          broken (long (get cts :broken 0))
+          skipped (long (get cts :skipped 0))]
       (str
         "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"
-        (when (pos? (:failed cts))
+        (when (pos? failed)
           (str "<span class=\"suite-stat stat-failed\">" (:failed cts) " failed</span>"))
-        (when (pos? (:broken cts))
+        (when (pos? broken)
           (str "<span class=\"suite-stat stat-broken\">" (:broken cts) " broken</span>"))
-        (when (pos? (:skipped cts))
+        (when (pos? skipped)
           (str "<span class=\"suite-stat stat-skipped\">" (:skipped cts) " skipped</span>"))
         "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"))
     "</div>"
@@ -736,17 +739,18 @@
          title (or (:title opts) "Test Report")
          att-dir (:results-dir opts results-dir)
          out (io/file output-dir)]
-     (when (empty? results)
-       (println (str "No allure results found in " results-dir "/"))
-       (println "Run your tests with the allure reporter first.")
-       (System/exit 1))
-     (.mkdirs out)
-     (let [cts (count-by-status results)
-           total-ms (total-duration-ms results)
-           pass-rate (if (pos? (:total cts))
-                       (int (* 100.0 (/ (double (:passed cts)) (double (:total cts)))))
-                       0)
-           suites (group-by-suite results)
+      (when (empty? results)
+        (println (str "No allure results found in " results-dir "/"))
+        (println "Generating an empty report placeholder."))
+      (.mkdirs out)
+      (let [cts (count-by-status results)
+            total-ms (total-duration-ms results)
+            total (long (get cts :total 0))
+            passed (long (get cts :passed 0))
+            pass-rate (if (pos? total)
+                        (int (* 100.0 (/ (double passed) (double total))))
+                        0)
+            suites (group-by-suite results)
            start-ts (reduce min Long/MAX_VALUE (keep #(get % "start") results))
            _stop-ts (reduce max 0 (keep #(get % "stop") results))
            html (str "<!DOCTYPE html>
@@ -840,12 +844,14 @@
         <button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>
         <button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>
         <button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
-                  (when (pos? (:skipped cts))
+                  (when (pos? (long (get cts :skipped 0)))
                     (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
                   "</div>"
-                  (str/join ""
-                    (for [[suite-name suite-results] suites]
-                      (render-suite-section suite-name suite-results att-dir)))
+                  (if (seq suites)
+                    (str/join ""
+                      (for [[suite-name suite-results] suites]
+                        (render-suite-section suite-name suite-results att-dir)))
+                    "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
                   "</section>
 
     <footer class=\"report-footer\">

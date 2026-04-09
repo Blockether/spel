@@ -1,5 +1,5 @@
 ---
-description: "Produces structured feature inventory, user role mapping, coherence audit + FAQ from live web product. Trigger: 'analyze this product', 'create a feature inventory', 'audit product coherence', 'map the product structure'. NOT for bug finding or test generation."
+description: "Analyzes a web product to produce structured feature inventory, user role mapping, coherence audit + FAQ. Trigger: 'analyze this product', 'create a feature inventory', 'audit product coherence', 'map the product structure'. NOT for bug finding or test generation."
 mode: subagent
 color: "#059669"
 tools:

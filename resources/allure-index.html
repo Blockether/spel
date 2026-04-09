@@ -557,8 +557,9 @@
       var authorLine = displayAuthor ? '<p class="author">by ' + displayAuthor + (isPR && b.branch ? ' \u00b7 ' + escapeHtml(b.branch) : '') + '</p>' : '';
 
       var noReport = inProgress || isCancelled || emptyReport;
+      var altReportAvailable = !inProgress && !isCancelled;
       var clickHandler = noReport ? '' : 'onclick="window.location.href=\'' + escapeHtml(b.run) + '/\'"';
-      var altReportLink = noReport ? '' : '<a href="' + escapeHtml(b.run) + '/alternative/" class="pill pill-brown" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit" title="Blockether HTML Report">Alt Report</a>';
+      var altReportLink = altReportAvailable ? '<a href="' + escapeHtml(b.run) + '/alternative/" class="pill pill-brown" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit" title="Blockether HTML Report">Alt Report</a>' : '';
       var cardRole = noReport ? '' : ' role="link" tabindex="0"';
       return '<div class="' + cardClass + '" style="animation-delay:' + delay + 's" ' + clickHandler + cardRole + '>'
         + '<div class="run">'
