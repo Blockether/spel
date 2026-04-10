@@ -3210,16 +3210,23 @@
           ;; Session list (before :session — session_list has :sessions AND :current)
           (:sessions data)
           (let [current (:current data)
-                sessions (:sessions data)]
-            (println (format "  %-3s %-14s %s" "" "SESSION" "SOCKET"))
-            (println (str "  " (apply str (repeat 60 "─"))))
+                sessions (:sessions data)
+                external-cdp (:external_cdp data)]
+            (println (format "  %-3s %-14s %-32s %s" "" "SESSION" "CDP" "SOCKET"))
+            (println (str "  " (apply str (repeat 80 "─"))))
             (if (seq sessions)
               (doseq [s sessions]
-                (println (format "  %-3s %-14s %s"
+                (println (format "  %-3s %-14s %-32s %s"
                            (if (= (:name s) current) "→" "")
                            (:name s)
+                           (or (:cdp_url s) "—")
                            (:socket s))))
-              (println "  No active sessions.")))
+              (println "  No active sessions."))
+            (when (seq external-cdp)
+              (println)
+              (println "  External CDP endpoints (connect with: spel open --cdp <url>):")
+              (doseq [c external-cdp]
+                (println (format "    %s" (:cdp_url c))))))
 
           ;; Session info (before :url — session_info also has :url)
           (:session data)

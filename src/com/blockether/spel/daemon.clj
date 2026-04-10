@@ -144,6 +144,125 @@
             {:port port :ws-path ws-path}))
         (catch Exception _ nil)))))
 
+(defn- chromium-user-data-dirs
+  "Returns a seq of absolute paths to every chromium-family user-data directory
+   known to host a DevToolsActivePort file on the current OS. Covers Chrome (+
+   Beta/Canary/Dev/for Testing), Chromium, Microsoft Edge (+ Beta/Dev/Canary),
+   Brave (+ Beta/Nightly), Vivaldi, Opera (+ Beta/Developer), Arc, Thorium, and
+   snap/flatpak variants on Linux."
+  []
+  (let [home    (System/getProperty "user.home")
+        os-name (str/lower-case (or (System/getProperty "os.name") ""))
+        mac?    (str/includes? os-name "mac")
+        win?    (str/includes? os-name "windows")]
+    (cond
+      mac?
+      (let [app-support (str home "/Library/Application Support")]
+        [(str app-support "/Google/Chrome")
+         (str app-support "/Google/Chrome Beta")
+         (str app-support "/Google/Chrome Canary")
+         (str app-support "/Google/Chrome Dev")
+         (str app-support "/Google/Chrome for Testing")
+         (str app-support "/Chromium")
+         (str app-support "/Microsoft Edge")
+         (str app-support "/Microsoft Edge Beta")
+         (str app-support "/Microsoft Edge Dev")
+         (str app-support "/Microsoft Edge Canary")
+         (str app-support "/BraveSoftware/Brave-Browser")
+         (str app-support "/BraveSoftware/Brave-Browser-Beta")
+         (str app-support "/BraveSoftware/Brave-Browser-Nightly")
+         (str app-support "/Vivaldi")
+         (str app-support "/com.operasoftware.Opera")
+         (str app-support "/com.operasoftware.OperaNext")
+         (str app-support "/com.operasoftware.OperaDeveloper")
+         (str app-support "/Arc/User Data")
+         (str app-support "/Thorium")])
+
+      win?
+      (let [lad (or (System/getenv "LOCALAPPDATA")
+                  (str home "\\AppData\\Local"))
+            rad (or (System/getenv "APPDATA")
+                  (str home "\\AppData\\Roaming"))]
+        [(str lad "\\Google\\Chrome\\User Data")
+         (str lad "\\Google\\Chrome Beta\\User Data")
+         (str lad "\\Google\\Chrome SxS\\User Data")
+         (str lad "\\Google\\Chrome Dev\\User Data")
+         (str lad "\\Google\\Chrome for Testing\\User Data")
+         (str lad "\\Chromium\\User Data")
+         (str lad "\\Microsoft\\Edge\\User Data")
+         (str lad "\\Microsoft\\Edge Beta\\User Data")
+         (str lad "\\Microsoft\\Edge Dev\\User Data")
+         (str lad "\\Microsoft\\Edge SxS\\User Data")
+         (str lad "\\BraveSoftware\\Brave-Browser\\User Data")
+         (str lad "\\BraveSoftware\\Brave-Browser-Beta\\User Data")
+         (str lad "\\BraveSoftware\\Brave-Browser-Nightly\\User Data")
+         (str lad "\\Vivaldi\\User Data")
+         (str rad "\\Opera Software\\Opera Stable")
+         (str rad "\\Opera Software\\Opera Beta")
+         (str rad "\\Opera Software\\Opera Developer")
+         (str lad "\\Arc\\User Data")
+         (str lad "\\Thorium\\User Data")])
+
+      :else ;; Linux / BSD
+      (let [cfg     (str home "/.config")
+            snap    (str home "/snap")
+            flatpak (str home "/.var/app")]
+        [(str cfg "/google-chrome")
+         (str cfg "/google-chrome-beta")
+         (str cfg "/google-chrome-unstable")
+         (str cfg "/google-chrome-for-testing")
+         (str cfg "/chromium")
+         (str cfg "/microsoft-edge")
+         (str cfg "/microsoft-edge-beta")
+         (str cfg "/microsoft-edge-dev")
+         (str cfg "/BraveSoftware/Brave-Browser")
+         (str cfg "/BraveSoftware/Brave-Browser-Beta")
+         (str cfg "/BraveSoftware/Brave-Browser-Nightly")
+         (str cfg "/vivaldi")
+         (str cfg "/vivaldi-snapshot")
+         (str cfg "/opera")
+         (str cfg "/opera-beta")
+         (str cfg "/opera-developer")
+         (str cfg "/thorium")
+         ;; Snap
+         (str snap "/chromium/common/chromium")
+         (str snap "/brave/current/.config/BraveSoftware/Brave-Browser")
+         ;; Flatpak
+         (str flatpak "/org.chromium.Chromium/config/chromium")
+         (str flatpak "/com.google.Chrome/config/google-chrome")
+         (str flatpak "/com.brave.Browser/config/BraveSoftware/Brave-Browser")
+         (str flatpak "/com.vivaldi.Vivaldi/config/vivaldi")]))))
+
+(defn- ms-playwright-cache-dir
+  "Returns the absolute path of the ms-playwright browser cache for the current OS."
+  ^String []
+  (let [home    (System/getProperty "user.home")
+        os-name (str/lower-case (or (System/getProperty "os.name") ""))]
+    (cond
+      (str/includes? os-name "mac")
+      (str home "/Library/Caches/ms-playwright")
+      (str/includes? os-name "windows")
+      (str (or (System/getenv "LOCALAPPDATA")
+             (str home "\\AppData\\Local"))
+        "\\ms-playwright")
+      :else (str home "/.cache/ms-playwright"))))
+
+(defn- chromium-devtools-active-port-files
+  "Returns a seq of absolute paths to every DevToolsActivePort file candidate
+   on the current OS: one per chromium-family user-data dir, plus any found
+   one level deep under the ms-playwright cache (which is where
+   chrome-devtools-mcp, agent-browser, etc. launch their Chromium)."
+  []
+  (let [base (map #(str % "/DevToolsActivePort")
+               (chromium-user-data-dirs))
+        pw-cache (ms-playwright-cache-dir)
+        pw-dir (java.io.File. pw-cache)
+        pw-files (when (.isDirectory pw-dir)
+                   (mapv (fn [^File child]
+                           (str (.getPath child) "/DevToolsActivePort"))
+                     (filter #(.isDirectory ^File %) (.listFiles pw-dir))))]
+    (into [] (concat base (or pw-files [])))))
+
 (defn- scan-playwright-devtools
   "Scans ms-playwright cache dir for subdirectories containing DevToolsActivePort.
    Returns first match or nil. Finds Chrome launched by chrome-devtools-mcp etc."
@@ -173,38 +292,28 @@
           (.disconnect ^HttpURLConnection conn))))
     (catch Exception _ nil)))
 
+(defn- list-devtools-active-ports
+  "Returns a seq of {:port :ws-path} parsed from every DevToolsActivePort file
+   candidate on the current OS (see `chromium-devtools-active-port-files`).
+   Silently skips missing/unreadable files."
+  []
+  (->> (chromium-devtools-active-port-files)
+    (keep parse-devtools-active-port)
+    (into [])))
+
 (defn discover-cdp-endpoint
   "Auto-discovers a running Chromium-based browser's CDP endpoint.
-   Checks DevToolsActivePort files first (Chrome, Edge, Chromium data dirs +
-   ms-playwright cache), then probes common ports (9222, 9229).
+   Checks DevToolsActivePort files first across every known chromium-family
+   user-data dir on the current OS (Chrome, Chromium, Edge, Brave, Vivaldi,
+   Opera, Arc, Thorium — including snap/flatpak variants on Linux) and the
+   ms-playwright cache, then probes common ports (9222, 9229).
    Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
 
    Chrome/Edge 136+ ignores --remote-debugging-port without --user-data-dir.
    Chrome/Edge 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
   []
-  (let [home    (System/getProperty "user.home")
-        os-name (str/lower-case (System/getProperty "os.name"))
-        mac?    (str/includes? os-name "mac")
-        ;; Standard browser data directories (Chrome, Edge, Chromium)
-        browser-candidates
-        (if mac?
-          [(str home "/Library/Application Support/Google/Chrome/DevToolsActivePort")
-           (str home "/Library/Application Support/Google/Chrome Canary/DevToolsActivePort")
-           (str home "/Library/Application Support/Microsoft Edge/DevToolsActivePort")
-           (str home "/Library/Application Support/Microsoft Edge Canary/DevToolsActivePort")
-           (str home "/Library/Application Support/Chromium/DevToolsActivePort")]
-          [(str home "/.config/google-chrome/DevToolsActivePort")
-           (str home "/.config/microsoft-edge/DevToolsActivePort")
-           (str home "/.config/chromium/DevToolsActivePort")
-           (str home "/.config/google-chrome-unstable/DevToolsActivePort")
-           (str home "/.config/microsoft-edge-dev/DevToolsActivePort")])
-        ;; ms-playwright cache (chrome-devtools-mcp, agent-browser, etc.)
-        pw-cache (if mac?
-                   (str home "/Library/Caches/ms-playwright")
-                   (str home "/.cache/ms-playwright"))
-        ;; Try browser data dirs first, then ms-playwright subdirs
-        dt-info  (or (some parse-devtools-active-port browser-candidates)
-                   (scan-playwright-devtools pw-cache))]
+  (let [mac? (str/includes? (str/lower-case (or (System/getProperty "os.name") "")) "mac")
+        dt-info (first (list-devtools-active-ports))]
     (if dt-info
       ;; DevToolsActivePort found — try HTTP probe first, fall back to direct WebSocket
       (let [port    (:port dt-info)
@@ -251,9 +360,8 @@
                             "Option 2 — Enable in running browser (M144+):\n"
                             "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
                             "  (Works in both Chrome and Edge)\n")
-                   {:browser-candidates browser-candidates
-                    :pw-cache           pw-cache
-                    :probed-ports       [9222 9229]})))))))
+                   {:devtools-active-port-files (chromium-devtools-active-port-files)
+                    :probed-ports               [9222 9229]})))))))
 
 ;; =============================================================================
 ;; Auto-Launch: browser lifecycle for --auto-launch
@@ -321,6 +429,74 @@
       (if (and owner (daemon-running? owner))
         true
         (do (clear-auto-launch-lock! port) false)))))
+
+(defn list-active-cdp-endpoints
+  "Scans /tmp/spel-auto-launch-*.json for active CDP endpoints owned by spel
+   sessions. For each lock whose owning daemon is still alive and whose port
+   responds to a CDP /json/version probe, returns {:session :port :cdp_url}.
+   Stale entries are filtered out silently."
+  []
+  (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))
+        lock-files (->> (.listFiles tmp-dir)
+                     (filter (fn [^File f]
+                               (and (.isFile f)
+                                 (str/starts-with? (.getName f) "spel-auto-launch-")
+                                 (str/ends-with? (.getName f) ".json")))))]
+    (->> lock-files
+      (keep (fn [^File f]
+              (try
+                (let [port (Long/parseLong
+                             (-> (.getName f)
+                               (str/replace "spel-auto-launch-" "")
+                               (str/replace ".json" "")))
+                      lock (read-auto-launch-lock port)
+                      session (get lock "session")]
+                  (when (and session
+                          (daemon-running? session)
+                          (probe-http-cdp port 300))
+                    {:session session
+                     :port port
+                     :cdp_url (str "http://127.0.0.1:" port)}))
+                (catch Exception _ nil))))
+      (into []))))
+
+(defn discover-external-cdp-endpoints
+  "Scans localhost for running CDP browsers. Probes common ports (9222, 9229),
+   the spel auto-launch port range, and any ports advertised in
+   DevToolsActivePort files (Chrome/Edge/Chromium data dirs + ms-playwright
+   cache). Excludes any ports in `excluded-ports`. Fast TCP liveness check
+   first so closed ports cost ~microseconds, then HTTP-probes listening ports
+   with a 200 ms timeout. If HTTP /json/version returns non-200 (e.g. Chrome
+   M144+ chrome://inspect is WebSocket-only), falls back to the DevToolsActivePort
+   ws-path to build a ws:// URL. Returns [{:port :cdp_url}]."
+  [excluded-ports]
+  (let [excluded (set (map long excluded-ports))
+        dt-entries (list-devtools-active-ports)
+        dt-by-port (into {} (map (juxt :port identity) dt-entries))
+        common-ports [9222 9229]
+        base (long auto-launch-base-port)
+        span (long auto-launch-port-range)
+        range-ports (range base (+ base span))
+        candidates (->> (concat common-ports
+                          range-ports
+                          (map :port dt-entries))
+                     (map long)
+                     distinct
+                     (remove excluded))]
+    (->> candidates
+      (filter port-in-use?)
+      (keep (fn [^long port]
+              (cond
+                (probe-http-cdp port 200)
+                {:port port :cdp_url (str "http://127.0.0.1:" port)}
+
+                (get dt-by-port port)
+                (let [ws-path (:ws-path (get dt-by-port port))]
+                  {:port port
+                   :cdp_url (if ws-path
+                              (str "ws://127.0.0.1:" port ws-path)
+                              (str "http://127.0.0.1:" port))}))))
+      (into []))))
 
 (defn find-free-cdp-port
   "Finds an available CDP port starting from 9222. Checks both the OS-level port
@@ -3266,14 +3442,23 @@
                   (filter (fn [^File f]
                             (and (.exists f)
                               (str/starts-with? (.getName f) "spel-")
-                              (str/ends-with? (.getName f) ".sock")))))]
-    {:sessions (mapv (fn [^File f]
-                       (let [n (-> (.getName f)
-                                 (str/replace "spel-" "")
-                                 (str/replace ".sock" ""))]
-                         {:name n :socket (.getAbsolutePath f)}))
-                 socks)
-     :current (:session @!state)}))
+                              (str/ends-with? (.getName f) ".sock")))))
+        owned-cdp (list-active-cdp-endpoints)
+        owned-by-session (into {} (map (juxt :session identity) owned-cdp))
+        sessions (mapv (fn [^File f]
+                         (let [n (-> (.getName f)
+                                   (str/replace "spel-" "")
+                                   (str/replace ".sock" ""))
+                               cdp (get owned-by-session n)]
+                           (cond-> {:name n :socket (.getAbsolutePath f)}
+                             cdp (assoc :cdp_url (:cdp_url cdp)
+                                   :cdp_port (:port cdp)))))
+                   socks)
+        owned-ports (map :port owned-cdp)
+        external-cdp (discover-external-cdp-endpoints owned-ports)]
+    (cond-> {:sessions sessions
+             :current (:session @!state)}
+      (seq external-cdp) (assoc :external_cdp external-cdp))))
 
 (defmethod handle-cmd "session_info" [_ _]
   {:session    (:session @!state)
