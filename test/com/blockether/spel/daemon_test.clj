@@ -571,7 +571,11 @@
           (.createContext server "/json/version"
             (reify com.sun.net.httpserver.HttpHandler
               (handle [_ exchange]
-                (let [body (.getBytes "{}" java.nio.charset.StandardCharsets/UTF_8)]
+                ;; probe-http-cdp requires a non-blank `Browser` field in the
+                ;; JSON body, not just HTTP 200 — this prevents false positives
+                ;; from random HTTP servers running on CDP ports.
+                (let [body (.getBytes "{\"Browser\":\"FakeChrome/1.0\"}"
+                             java.nio.charset.StandardCharsets/UTF_8)]
                   (.sendResponseHeaders exchange 200 (alength body))
                   (with-open [os (.getResponseBody exchange)]
                     (.write os body))))))

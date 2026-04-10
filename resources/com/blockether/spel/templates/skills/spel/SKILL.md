@@ -59,7 +59,7 @@ Navigation playbook:
 | `spel --help` | CLI help |
 | `spel open <url>` | Open URL (stealth mode ON by default) |
 | `spel --auto-launch open <url>` | Launch isolated browser with CDP debug port (per-session) |
-| `spel --auto-connect open <url>` | Auto-discover running Chrome/Edge, open URL via CDP |
+| `spel --auto-connect open <url>` | Auto-discover any running chromium-family browser (Chrome/Edge/Brave/Vivaldi/Opera/Arc/Thorium/Chromium) and open URL via CDP |
 | `CDP_PORT=$(spel find-free-port) && spel --session agent-$(date +%s) --cdp http://127.0.0.1:$CDP_PORT open <url>` | Connect to Chrome/Edge via explicit CDP endpoint (ephemeral port + named session) |
 | `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
 | `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |

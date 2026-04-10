@@ -192,12 +192,22 @@ spel --auto-connect open https://example.com
 
 ### How auto-connect discovery works
 
-1. Checks `DevToolsActivePort` files in browser data directories:
-   - macOS: `~/Library/Application Support/Google/Chrome/`, `Chrome Canary/`, `Microsoft Edge/`, `Microsoft Edge Canary/`, `Chromium/`
-   - Linux: `~/.config/google-chrome/`, `microsoft-edge/`, `chromium/`, `google-chrome-unstable/`, `microsoft-edge-dev/`
-2. Checks `ms-playwright` cache dirs (finds Chrome launched by `chrome-devtools-mcp` etc.)
-3. Probes common ports: 9222, 9229 via HTTP `GET /json/version`
-4. Chrome/Edge 144+ WebSocket-only mode: falls back to direct WebSocket connection
+1. Checks `DevToolsActivePort` files across every chromium-family user-data directory on the current OS:
+   - **Chrome**: stable, Beta, Canary, Dev, For Testing
+   - **Chromium**
+   - **Microsoft Edge**: stable, Beta, Dev, Canary
+   - **Brave**: stable, Beta, Nightly
+   - **Vivaldi**: stable, Snapshot
+   - **Opera**: stable, Beta, Developer
+   - **Arc**, **Thorium**
+   - **Linux snap** and **Flatpak** variants of Chromium / Chrome / Brave / Vivaldi
+   - Standard locations:
+     - macOS: `~/Library/Application Support/<vendor>/<product>/`
+     - Linux: `~/.config/<product>/`, `~/snap/<product>/…`, `~/.var/app/<product>/…`
+     - Windows: `%LOCALAPPDATA%\<vendor>\<product>\User Data\` (and `%APPDATA%\Opera Software\…` for Opera)
+2. Checks `ms-playwright` cache dir (finds Chrome launched by `chrome-devtools-mcp`, `agent-browser`, etc.)
+3. Probes common ports: `9222`, `9229` via HTTP `GET /json/version`
+4. Chrome/Edge 144+ WebSocket-only mode: falls back to direct WebSocket connection using the `DevToolsActivePort` `ws-path`
 
 ### Flag persistence
 

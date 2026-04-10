@@ -1583,7 +1583,8 @@
      "  --executable-path PATH  Custom browser binary"
      "  --args \"ARG1,ARG2\"     Extra browser arguments"
      "  --cdp URL               Connect via Chrome DevTools Protocol"
-     "  --auto-connect          Auto-discover running Chrome/Edge CDP endpoint"
+     "  --auto-connect          Auto-discover running chromium-family browser CDP endpoint"
+     "                          (Chrome/Edge/Brave/Vivaldi/Opera/Arc/Thorium/Chromium)"
      "                          Chrome/Edge 136+ requires --user-data-dir for debug port"
      "                          Or use chrome://inspect/#remote-debugging (M144+)"
      "  --auto-launch           Launch browser with debug port (per-session isolation)"
@@ -2848,7 +2849,7 @@
           ;; Close (+ aliases)
             ("close" "quit" "exit")
             (cond-> {:action "close"}
-              (some #{"--all-sessions"} cmd-args)
+              (some #{"--all-sessions" "--all"} cmd-args)
               (assoc :all-sessions true))
 
           ;; Install
@@ -2947,21 +2948,69 @@
            (catch Exception _ nil)))))
 
 (defn- discover-sessions
-  "Finds all active spel sessions by looking for .sock files in tmpdir.
-   Returns a seq of session name strings."
+  "Returns a seq of spel session names (alive or ghost). Thin wrapper around
+   `daemon/discover-session-files` for legacy callers that only want names."
   []
-  (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))
-        socks   (.listFiles tmp-dir)]
-    (when socks
-      (->> socks
-        (filter (fn [^java.io.File f]
-                  (and (.exists f)
-                    (str/starts-with? (.getName f) "spel-")
-                    (str/ends-with? (.getName f) ".sock"))))
-        (mapv (fn [^java.io.File f]
-                (-> (.getName f)
-                  (str/replace "spel-" "")
-                  (str/replace ".sock" ""))))))))
+  (mapv :name (daemon/discover-session-files)))
+
+(defn- active-sessions-on-disk
+  "Returns a seq of {:name :socket} for every alive spel session. Thin wrapper
+   around `daemon/discover-session-files`."
+  []
+  (->> (daemon/discover-session-files)
+    (filter :alive?)
+    (mapv #(select-keys % [:name :socket]))))
+
+(def ^:private session-list-fanout-timeout-ms
+  "Per-session socket timeout used by `build-session-list-data` when fanning
+   out `session_info` requests. 1.5 s is generous for a healthy local daemon
+   and short enough that a single stuck daemon won't derail the whole list."
+  1500)
+
+(defn- enrich-session-with-info
+  "Sends a `session_info` command to `(:name s)` and merges the response.
+   On timeout/error, attaches `:status` and `:status_error` keys so callers
+   (text formatter, JSON output) can surface the problem rather than hide it."
+  [s]
+  (try
+    (let [resp (send-command! (:name s) {:action "session_info"}
+                 session-list-fanout-timeout-ms)
+          info (when (and (map? resp) (:success resp))
+                 (:data resp))]
+      (if info
+        (assoc (merge s info) :status "ok")
+        (assoc s :status "error"
+          :status_error (or (:error resp) "empty response"))))
+    (catch Exception e
+      (let [msg (.getMessage e)]
+        (assoc s
+          :status (if (and msg (str/includes? msg "timed out"))
+                    "timeout"
+                    "error")
+          :status_error (or msg (str (class e))))))))
+
+(defn- build-session-list-data
+  "Builds the session_list response entirely CLI-side. Enumerates alive
+   sessions on disk, attaches spel-owned CDP info, fans out `session_info`
+   in parallel to enrich each row (URL, viewport, refs, etc.), and discovers
+   external CDP endpoints. The returned map is the single source of truth for
+   both the text formatter and `--json` output — no `:_`-prefixed internal
+   keys leak through."
+  [current-session]
+  (let [sessions      (active-sessions-on-disk)
+        owned-cdp     (daemon/list-active-cdp-endpoints)
+        owned-by-name (into {} (map (juxt :session identity) owned-cdp))
+        with-own-cdp  (mapv (fn [s]
+                              (if-let [cdp (get owned-by-name (:name s))]
+                                (assoc s :cdp_url (:cdp_url cdp))
+                                s))
+                        sessions)
+        enriched      (into [] (pmap enrich-session-with-info with-own-cdp))
+        external-cdp  (daemon/discover-external-cdp-endpoints
+                        (map :port owned-cdp))]
+    (cond-> {:sessions enriched
+             :current  current-session}
+      (seq external-cdp) (assoc :external_cdp external-cdp))))
 
 (defn- close-session!
   "Gracefully closes a single daemon session. Sends close command,
@@ -3112,6 +3161,38 @@
   (when (and snapshot (not (str/blank? (str snapshot))))
     (println (str/trim (str snapshot)))))
 
+(defn- render-table
+  "Render a padded, dynamically-sized table to stdout.
+   - `headers` : seq of column titles (strings).
+   - `rows`    : seq of seqs of cell values (coerced with `str`; nil → \"\").
+   Each column auto-sizes to the widest value across the header and rows.
+   Output uses a 2-space left indent and a 3-space gap between columns, with
+   a Unicode `─` rule under the header. The last column is not right-padded
+   so trailing whitespace is avoided."
+  [headers rows]
+  (let [indent "  "
+        gap    "   "
+        rows*  (mapv (fn [row] (mapv #(if (nil? %) "" (str %)) row)) rows)
+        ncols  (count headers)
+        widths (mapv (fn [i]
+                       (apply max
+                         (count (str (nth headers i)))
+                         (map #(count (nth % i "")) rows*)))
+                 (range ncols))
+        render (fn [cells]
+                 (->> (map-indexed
+                        (fn [i c]
+                          (if (= i (dec ncols))
+                            (str c)
+                            (format (str "%-" (nth widths i) "s") (str c))))
+                        cells)
+                   (str/join gap)))
+        rule-w (+ (apply + widths) (* (count gap) (max 0 (dec ncols))))]
+    (println (str indent (render headers)))
+    (println (str indent (apply str (repeat rule-w "─"))))
+    (doseq [row rows*]
+      (println (str indent (render row))))))
+
 (defn- print-result*
   "Inner renderer — writes the raw (pre-security) output to *out*. Do not
    call directly; use `print-result` which layers security transforms on top."
@@ -3146,12 +3227,10 @@
           (let [creds (:credentials data)]
             (if (empty? creds)
               (println "No stored credentials. Use `spel auth save NAME --url ... --username ... --password-stdin`.")
-              (do
-                (println (format "  %-20s %-45s %s" "NAME" "URL" "USERNAME"))
-                (println (str "  " (apply str (repeat 80 "─"))))
-                (doseq [{:keys [name url username]} creds]
-                  (println (format "  %-20s %-45s %s"
-                             (str name) (str url) (str username)))))))
+              (render-table
+                ["NAME" "URL" "USERNAME"]
+                (for [{:keys [name url username]} creds]
+                  [name url username]))))
 
           ;; Profiles list — for `spel profiles`
           (contains? data :profiles)
@@ -3161,11 +3240,10 @@
               (do
                 (when-let [r (:root data)]
                   (println (str "Chrome user-data: " r)))
-                (println (format "  %-30s %-20s %s" "NAME" "DIRECTORY" "USER"))
-                (println (str "  " (apply str (repeat 70 "─"))))
-                (doseq [{:keys [name dir user-name]} profiles]
-                  (println (format "  %-30s %-20s %s"
-                             (str name) (str dir) (or user-name "")))))))
+                (render-table
+                  ["NAME" "DIRECTORY" "USER"]
+                  (for [{:keys [name dir user-name]} profiles]
+                    [name dir (or user-name "")])))))
 
           ;; DevTools URL — for `spel devtools`
           (:devtools_url data)
@@ -3209,33 +3287,84 @@
 
           ;; Session list (before :session — session_list has :sessions AND :current)
           (:sessions data)
-          (let [current (:current data)
-                sessions (:sessions data)
-                external-cdp (:external_cdp data)]
-            (println (format "  %-3s %-14s %-32s %s" "" "SESSION" "CDP" "SOCKET"))
-            (println (str "  " (apply str (repeat 80 "─"))))
+          (let [current      (:current data)
+                sessions     (:sessions data)
+                external-cdp (:external_cdp data)
+                fmt-viewport (fn [vp]
+                               (if (and (map? vp) (:width vp) (:height vp))
+                                 (str (:width vp) "×" (:height vp))
+                                 "—"))
+                fmt-url      (fn [u]
+                               (cond
+                                 (str/blank? (str u)) "—"
+                                 (> (count u) 48) (str (subs u 0 45) "…")
+                                 :else u))
+                status-cell  (fn [s]
+                               (case (:status s)
+                                 "timeout" "timeout"
+                                 "error"   (str "error: " (or (:status_error s) "?"))
+                                 "ok"      ""
+                                 ""))
+                any-problem? (some #(and (:status %) (not= "ok" (:status %))) sessions)
+                base-headers ["" "SESSION" "BROWSER" "URL" "VIEWPORT" "TABS" "REFS" "CDP"]
+                base-row     (fn [s]
+                               [(if (= (:name s) current) "→" "")
+                                (:name s)
+                                (or (:browser s) "—")
+                                (fmt-url (:url s))
+                                (fmt-viewport (:viewport s))
+                                (or (:tab_count s) "—")
+                                (or (:refs_count s) "—")
+                                (or (:cdp_url s) "—")])]
             (if (seq sessions)
-              (doseq [s sessions]
-                (println (format "  %-3s %-14s %-32s %s"
-                           (if (= (:name s) current) "→" "")
-                           (:name s)
-                           (or (:cdp_url s) "—")
-                           (:socket s))))
+              (if any-problem?
+                (render-table
+                  (conj base-headers "STATUS")
+                  (for [s sessions]
+                    (conj (base-row s) (status-cell s))))
+                (render-table base-headers (mapv base-row sessions)))
               (println "  No active sessions."))
             (when (seq external-cdp)
               (println)
-              (println "  External CDP endpoints (connect with: spel open --cdp <url>):")
-              (doseq [c external-cdp]
-                (println (format "    %s" (:cdp_url c))))))
+              (println "  External CDP endpoints (connect with: spel --auto-connect open <url>):")
+              (println)
+              (render-table
+                ["BROWSER" "CDP URL"]
+                (for [c external-cdp]
+                  [(or (:label c) "unknown") (:cdp_url c)]))))
 
           ;; Session info (before :url — session_info also has :url)
           (:session data)
-          (let [{:keys [session headless url title refs_count]} data]
-            (println (format "  %-12s %-10s %-6s %-40s %s" "SESSION" "HEADLESS" "REFS" "URL" "TITLE"))
-            (println (str "  " (apply str (repeat 90 "─"))))
-            (println (format "  %-12s %-10s %-6s %-40s %s"
-                       session headless (or refs_count 0)
-                       (or url "-") (or title "-"))))
+          (let [{:keys [session browser channel headless persist tracing
+                        har_recording har_path cdp_url cdp_connected device
+                        url title viewport tab_count cookies_count refs_count
+                        socket]} data
+                vp (if (and (map? viewport) (:width viewport) (:height viewport))
+                     (str (:width viewport) "×" (:height viewport))
+                     "—")
+                yn (fn [b] (if b "yes" "no"))
+                none (fn [x] (if (or (nil? x) (str/blank? (str x))) "—" (str x)))
+                rows (cond-> [["Session"    (none session)]
+                              ["Browser"    (none browser)]]
+                       channel        (conj ["Channel"    (none channel)])
+                       true           (conj ["Headless"   (yn headless)])
+                       true           (conj ["URL"        (none url)])
+                       true           (conj ["Title"      (none title)])
+                       true           (conj ["Viewport"   vp])
+                       true           (conj ["Tabs"       (none tab_count)])
+                       true           (conj ["Cookies"    (none cookies_count)])
+                       true           (conj ["Refs"       (none refs_count)])
+                       cdp_url        (conj ["CDP URL"    (none cdp_url)])
+                       cdp_url        (conj ["CDP connected" (yn cdp_connected)])
+                       device         (conj ["Device"     (none device)])
+                       true           (conj ["Persist"    (yn persist)])
+                       true           (conj ["Tracing"    (yn tracing)])
+                       har_recording  (conj ["HAR recording" (yn har_recording)])
+                       har_path       (conj ["HAR path"   (none har_path)])
+                       socket         (conj ["Socket"     (none socket)]))
+                label-w (apply max 0 (map #(count (first %)) rows))]
+            (doseq [[k v] rows]
+              (println (format (str "  %-" label-w "s   %s") k v))))
 
           ;; Tab list
           (:tabs data)
@@ -3334,14 +3463,13 @@
           (:requests data)
           (let [reqs (:requests data)]
             (when (seq reqs)
-              (println (format "  %-8s %-8s %-14s %s" "METHOD" "STATUS" "TYPE" "URL"))
-              (println (str "  " (apply str (repeat 90 "─"))))
-              (doseq [r reqs]
-                (println (format "  %-8s %-8s %-14s %s"
-                           (:method r "GET")
-                           (str (:status r ""))
-                           (:resource-type r "")
-                           (:url r))))))
+              (render-table
+                ["METHOD" "STATUS" "TYPE" "URL"]
+                (for [r reqs]
+                  [(:method r "GET")
+                   (str (:status r ""))
+                   (:resource-type r "")
+                   (:url r)]))))
 
           ;; Network status (clear etc.)
           (:network data)
@@ -3631,6 +3759,31 @@
           (close-session! session)
           (cleanup-session-files! session))
         (System/exit 0)))
+
+    ;; Session list — bypass ensure-daemon!. This is a pure read-only query
+    ;; that enumerates alive sessions on disk + probes for external CDP
+    ;; endpoints; there is no reason to spawn a Chromium for it.
+    (when (= "session_list" (:action command))
+      (let [data (build-session-list-data (:session flags))]
+        (print-result {:success true :data data} flags))
+      (System/exit 0))
+
+    ;; Session info (bare `spel session`) — if the target session's daemon is
+    ;; NOT running, do NOT auto-spawn. Print a message and exit. Only when
+    ;; the daemon is already alive do we forward the info query to it.
+    (when (= "session_info" (:action command))
+      (let [session (:session flags)]
+        (if (daemon/daemon-running? session)
+          nil ;; fall through to the normal send-command! path below
+          (do
+            (if (:json flags)
+              (println (json/write-json-str
+                         {:success false
+                          :error (str "No active session '" session
+                                   "'. Use `spel session list` to see running sessions.")}
+                         :escape-slash false))
+              (println (str "  No active session '" session "'.")))
+            (System/exit 0)))))
 
     ;; Ensure daemon is running
     (ensure-daemon! (:session flags) flags)
