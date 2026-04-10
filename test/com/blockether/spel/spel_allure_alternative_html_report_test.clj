@@ -378,4 +378,128 @@
           (expect (str/includes? html "Alice"))
           (expect (str/includes? html "https://example.com/run/99")))
         (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "inlines an SVG logo passed as <svg> markup in :logo"
+      (let [results-dir (tmp-dir "block-results-logo-svg")
+            output-dir (tmp-dir "block-output-logo-svg")
+            svg "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"#f0f\"/></svg>"]
+        (write-result! results-dir "uuid-l1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:logo svg})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "class=\"report-logo\""))
+          (expect (str/includes? html "data:image/svg+xml")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "copies a file-path logo into assets/ and references it"
+      (let [results-dir (tmp-dir "block-results-logo-file")
+            output-dir (tmp-dir "block-output-logo-file")
+            logo-src (io/file results-dir "logo.svg")]
+        (write-result! results-dir "uuid-l2" "passed" "t" 1000 2000)
+        (spit logo-src "<svg xmlns='http://www.w3.org/2000/svg'><circle r='5'/></svg>")
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:logo "logo.svg"})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "class=\"report-logo\""))
+          (expect (str/includes? html "src=\"assets/logo.svg\""))
+          (expect (.isFile (io/file output-dir "assets" "logo.svg"))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "passes through a data:image URL logo verbatim"
+      (let [results-dir (tmp-dir "block-results-logo-data")
+            output-dir (tmp-dir "block-output-logo-data")]
+        (write-result! results-dir "uuid-l3" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:logo "data:image/png;base64,iVBORw0KGgo"})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "src=\"data:image/png;base64,iVBORw0KGgo\"")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "injects :custom-css as a separate <style> block after the built-in stylesheet"
+      (let [results-dir (tmp-dir "block-results-css")
+            output-dir (tmp-dir "block-output-css")
+            css-rule ".report-title { color: hotpink !important; }"]
+        (write-result! results-dir "uuid-c1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:custom-css css-rule})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "id=\"report-custom-css\""))
+          (expect (str/includes? html css-rule)))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "renders :description under the title as a dedicated block"
+      (let [results-dir (tmp-dir "block-results-desc")
+            output-dir (tmp-dir "block-output-desc")]
+        (write-result! results-dir "uuid-d1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:description "End-to-end suite, run on CI against staging."})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "class=\"report-description\""))
+          (expect (str/includes? html "End-to-end suite, run on CI against staging.")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "passes through :description that already looks like HTML"
+      (let [results-dir (tmp-dir "block-results-desc-html")
+            output-dir (tmp-dir "block-output-desc-html")]
+        (write-result! results-dir "uuid-d2" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:description "<p>Suite owned by <a href=\"https://team\">@qa</a></p>"})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "<a href=\"https://team\">@qa</a>")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "accepts :build-id / :build-date / :build-url as top-level opts"
+      (let [results-dir (tmp-dir "block-results-build")
+            output-dir (tmp-dir "block-output-build")]
+        (write-result! results-dir "uuid-b1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:build-id "#777"
+           :build-date 1712707200000
+           :build-url "https://ci.example/run/777"})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "#777"))
+          (expect (str/includes? html "https://ci.example/run/777"))
+          (expect (str/includes? html "class=\"report-run-link\"")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "reads report.logo / report.description / build.* from environment.properties"
+      (let [results-dir (tmp-dir "block-results-env-custom")
+            output-dir (tmp-dir "block-output-env-custom")]
+        (write-result! results-dir "uuid-e1" "passed" "t" 1000 2000)
+        (spit (io/file results-dir "environment.properties")
+          (str "report.logo=data:image/svg+xml,<svg/>\n"
+            "report.description=Nightly smoke run\n"
+            "build.id=#321\n"
+            "build.url=https://ci.example/run/321\n"))
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "class=\"report-logo\""))
+          (expect (str/includes? html "Nightly smoke run"))
+          (expect (str/includes? html "#321"))
+          (expect (str/includes? html "https://ci.example/run/321")))
+        (clean-dir! results-dir)
         (clean-dir! output-dir)))))

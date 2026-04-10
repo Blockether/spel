@@ -65,11 +65,15 @@
   (when (and sha (>= (count sha) 7))
     (subs sha 0 7)))
 
+;; `resolve-description` (below) passes text through `html-escape`, which is
+;; defined further down alongside the HTML-rendering helpers. Forward-declare
+;; it so the file still compiles in order.
+(declare html-escape)
+
 (defn- build-run-info
   "Normalizes run metadata from whatever sources happen to be available:
-   1. Keys in `environment.properties` under `commit.*` / `run.*` / `report.*`
-      (e.g. `commit.sha`, `commit.author`, `commit.subject`, `commit.timestamp`,
-       `run.url`, `run.name`, `report.title`).
+   1. Keys in `environment.properties` under `commit.*` / `run.*` /
+      `build.*` / `report.*`.
    2. Allure's standard `executor.json` if present.
    Returns {:commit-sha :commit-short :commit-author :commit-subject
            :commit-ts :run-url :run-name :report-title} with any missing
@@ -83,14 +87,20 @@
                   (get executor "reportName"))
         author (first-non-blank (get env "commit.author")
                  (get executor "commit_author"))
-        ts-raw (first-non-blank (get env "commit.timestamp")
+        ;; Prefer `build.date` > `commit.timestamp` > `run.timestamp` so
+        ;; callers can surface the CI pipeline time when it differs from
+        ;; the commit time.
+        ts-raw (first-non-blank (get env "build.date")
+                 (get env "commit.timestamp")
                  (get env "run.timestamp"))
         ts (when ts-raw
              (try (Long/parseLong ts-raw) (catch Exception _ nil)))
-        run-url (first-non-blank (get env "run.url")
+        run-url (first-non-blank (get env "build.url")
+                  (get env "run.url")
                   (get executor "buildUrl")
                   (get executor "reportUrl"))
-        run-name (first-non-blank (get env "run.name")
+        run-name (first-non-blank (get env "build.id")
+                   (get env "run.name")
                    (when-let [bo (get executor "buildOrder")]
                      (str "#" bo))
                    (get executor "buildName"))
@@ -106,6 +116,97 @@
                run-name     (assoc :run-name run-name)
                report-title (assoc :report-title report-title))]
     (when (seq info) info)))
+
+(defn- logo-ext
+  "Pick a sensible file extension for a logo copied into the output dir."
+  [^String src]
+  (let [lower (str/lower-case src)]
+    (cond
+      (str/ends-with? lower ".svg")  "svg"
+      (str/ends-with? lower ".png")  "png"
+      (str/ends-with? lower ".jpg")  "jpg"
+      (str/ends-with? lower ".jpeg") "jpeg"
+      (str/ends-with? lower ".webp") "webp"
+      (str/ends-with? lower ".gif")  "gif"
+      :else "png")))
+
+(defn- resolve-logo!
+  "Resolve a caller-supplied logo into an `<img>`-ready `:href` string and,
+   when needed, copy the source asset into `<out>/assets/`. Accepts four
+   shapes and dispatches on prefix:
+     1. `data:image/...;base64,...` — inline as-is, no copy.
+     2. Inline `<svg …>…</svg>` markup — wrapped as `data:image/svg+xml,...`
+        so it still slots into `<img src>` cleanly.
+     3. `http://` / `https://` URL — referenced directly, no copy.
+     4. Filesystem path (absolute or relative to `results-dir`) — copied
+        into `<out>/assets/logo.<ext>` and referenced via relative path.
+   Returns nil when `src` is nil/blank."
+  [^String src ^String results-dir ^java.io.File out]
+  (when-not (str/blank? (str src))
+    (let [s (str/trim src)
+          lower (str/lower-case s)]
+      (cond
+        (str/starts-with? lower "data:")
+        s
+
+        (str/starts-with? lower "<svg")
+        (str "data:image/svg+xml," (java.net.URLEncoder/encode s "UTF-8"))
+
+        (or (str/starts-with? lower "http://")
+          (str/starts-with? lower "https://"))
+        s
+
+        :else
+        (let [src-file (let [f (io/file s)]
+                         (if (.isAbsolute f)
+                           f
+                           (io/file results-dir s)))]
+          (if (.isFile src-file)
+            (let [ext (logo-ext s)
+                  dest-dir (io/file out "assets")
+                  dest (io/file dest-dir (str "logo." ext))]
+              (.mkdirs dest-dir)
+              (io/copy src-file dest)
+              (str "assets/logo." ext))
+            (do
+              (binding [*out* *err*]
+                (println (str "spel: alt report: logo source not found, skipping: "
+                           (.getPath src-file))))
+              nil)))))))
+
+(defn- resolve-custom-css
+  "Returns a CSS string from `opts[:custom-css]`, `opts[:custom-css-file]`
+   (path relative to `results-dir` or absolute), or environment.properties
+   `report.custom_css`. Concatenates all sources so callers can layer them."
+  [opts env ^String results-dir]
+  (let [inline (some-> (:custom-css opts) str/trim)
+        file-opt (:custom-css-file opts)
+        file-src (when file-opt
+                   (let [f (io/file file-opt)]
+                     (if (.isAbsolute f)
+                       f
+                       (io/file results-dir file-opt))))
+        file-css (when (and file-src (.isFile ^java.io.File file-src))
+                   (try (slurp file-src) (catch Exception _ nil)))
+        env-css (some-> (get env "report.custom_css") str/trim)
+        parts (keep (fn [s] (when (not (str/blank? s)) s))
+                [inline file-css env-css])]
+    (when (seq parts)
+      (str/join "\n" parts))))
+
+(defn- resolve-description
+  "Returns an HTML-escaped description string rendered under the title.
+   Sources, in precedence order: `opts[:description]` → `environment.properties`
+   `report.description`. Plain text is escaped; strings that look like
+   pre-formatted HTML (start with `<`) are passed through verbatim so
+   callers can emit links, `<strong>`, multiple lines, etc."
+  [opts env]
+  (when-let [raw (first-non-blank (:description opts)
+                   (get env "report.description"))]
+    (let [trimmed (str/trim raw)]
+      (if (str/starts-with? trimmed "<")
+        trimmed
+        (html-escape trimmed)))))
 
 (defn- count-by-status [results]
   (let [freqs (frequencies (map #(get % "status" "unknown") results))]
@@ -818,6 +919,34 @@
     font-size: clamp(1.25rem, 2.5vw, 1.75rem);
     letter-spacing: -0.02em;
     font-weight: 800;
+  }
+  .report-logo {
+    display: block;
+    max-height: 40px;
+    max-width: 160px;
+    width: auto;
+    height: auto;
+    margin-bottom: 0.5rem;
+  }
+  .report-description {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin-top: 0.35rem;
+    max-width: 62ch;
+  }
+  .report-description a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .report-description a:hover { text-decoration: underline; }
+  .report-description p { margin: 0.25rem 0; }
+  .report-description code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    padding: 0 0.25rem;
+    background: var(--bg-accent);
+    border-radius: var(--radius-sm);
   }
   .report-subtitle {
     color: var(--text-muted);
@@ -1953,6 +2082,36 @@
      :title       - report title (default: \"Allure Report\")
      :kicker      - small mono heading above title (default: \"Allure Report\")
      :subtitle    - optional subtitle under title (default: \"\")
+
+   Customization (all optional):
+     :logo             - logo to display above the title. Accepts:
+                         • `data:image/…` URL       (inlined)
+                         • inline `<svg …>` markup  (wrapped as data URL)
+                         • `http(s)://` URL         (referenced directly)
+                         • filesystem path          (copied to assets/)
+                         Can also be set via `environment.properties`
+                         key `report.logo`.
+     :description      - HTML or text block rendered under the title.
+                         Text is escaped; strings starting with `<` pass
+                         through as HTML. Can also be set via
+                         `environment.properties` key `report.description`.
+     :custom-css       - extra CSS string appended after the built-in
+                         stylesheet. Layered with :custom-css-file and
+                         environment.properties `report.custom_css`.
+     :custom-css-file  - path (absolute or relative to results-dir) to a
+                         CSS file whose contents are inlined.
+     :build-id         - build/run identifier shown in the header kicker
+                         (e.g. \"#544\"). Maps to run-info :run-name.
+                         Env fallback: `build.id`.
+     :build-date       - build timestamp. Accepts epoch-millis Long or
+                         ISO-ish string. Maps to run-info :commit-ts.
+                         Env fallback: `build.date`.
+     :build-url        - URL to the CI run, linked from the header.
+                         Maps to run-info :run-url.
+                         Env fallback: `build.url`.
+     :run-info         - opt-out: pass a fully-built run-info map to
+                         override anything derived from env/executor.
+
      :results-dir - kept for CLI compatibility; generated report now packages
                      referenced attachments into its own output directory.
 
@@ -1965,8 +2124,21 @@
          executor (load-executor results-dir)
          ;; Caller-supplied :run-info wins; otherwise derive it from
          ;; environment.properties + executor.json if either has useful fields.
-         run-info (or (:run-info opts)
-                    (build-run-info env executor))
+         ;; Top-level :build-* opts layer on top of whichever base we pick,
+         ;; so callers can override just the fields they care about.
+         base-run-info (or (:run-info opts)
+                         (build-run-info env executor))
+         build-date-ts (when-let [v (:build-date opts)]
+                         (cond
+                           (number? v) (long v)
+                           (string? v) (try (Long/parseLong (str/trim v))
+                                         (catch Exception _ nil))
+                           :else nil))
+         run-info (let [m (cond-> (or base-run-info {})
+                            (:build-id opts)   (assoc :run-name (:build-id opts))
+                            build-date-ts      (assoc :commit-ts build-date-ts)
+                            (:build-url opts)  (assoc :run-url (:build-url opts)))]
+                    (when (seq m) m))
          ;; Header copy:
          ;; - title = commit subject if available, else caller's :title, else "Allure Report"
          ;; - kicker = "#<run-name> · <short-sha> · <author>" when run-info is present,
@@ -1993,13 +2165,23 @@
                      (and (:commit-short run-info) (:commit-subject run-info))
                      (str (:commit-short run-info) " · " (:commit-subject run-info))
                      :else title)
-         out (io/file output-dir)]
+         out (io/file output-dir)
+         ;; Customization: logo / description / custom-css. Resolved BEFORE
+         ;; the HTML template runs so logo file assets can be copied into
+         ;; `<out>/assets/` alongside the other generated files.
+         custom-css (resolve-custom-css opts env results-dir)
+         description-html (resolve-description opts env)]
      (when (empty? results)
        (println (str "No allure results found in " results-dir "/"))
        (println "Generating an empty report placeholder."))
      (clean-dir! out)
      (copy-attachments! results-dir out results)
-     (let [has-traces? (boolean (some trace-attachment? (collect-all-attachments results)))]
+     (let [;; `resolve-logo!` copies file-based logos into <out>/assets/
+           ;; so it has to run after `clean-dir!` has created the output dir.
+           logo-href (resolve-logo!
+                       (or (:logo opts) (get env "report.logo"))
+                       results-dir out)
+           has-traces? (boolean (some trace-attachment? (collect-all-attachments results)))]
        (when has-traces?
          (ensure-trace-viewer! out))
        (let [cts (count-by-status results)
@@ -2058,12 +2240,20 @@
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
   <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">
   <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
-  <style>" (css) "</style>
+  <style>" (css) "</style>" (if (seq custom-css)
+                                 (str "\n  <style id=\"report-custom-css\">"
+                                   custom-css
+                                   "</style>")
+                                 "") "
 </head>
 <body>
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-main\">
+      " (if logo-href
+          (str "<img class=\"report-logo\" src=\"" (html-escape logo-href)
+            "\" alt=\"\" aria-hidden=\"true\">")
+          "") "
       " (if (and (seq kicker)
               (not= (str/lower-case (str kicker))
                 (str/lower-case (str title))))
@@ -2081,6 +2271,9 @@
           (if (seq subtitle-html)
             (str "<div class=\"report-subtitle\">" (str/join " · " subtitle-html) "</div>")
             "")) "
+      " (if description-html
+          (str "<div class=\"report-description\">" description-html "</div>")
+          "") "
     </div>
     <div class=\"report-meta\">"
                   (render-summary-chip "Total" (:total cts) "summary-chip-total")
