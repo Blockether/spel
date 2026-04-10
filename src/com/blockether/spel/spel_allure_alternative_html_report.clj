@@ -896,12 +896,13 @@
   .test-description,
   .test-error {
     margin-top: 0.5rem;
-    padding: 0.5rem 0.65rem;
+    padding: 0.4rem 0.6rem;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    font-size: 0.82rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
   }
-  .test-description { background: var(--bg-panel-strong); color: var(--text-secondary); }
+  .test-description { background: var(--bg-panel-strong); color: var(--text-muted); font-weight: 400; }
   .test-error { background: rgba(220, 38, 38, 0.05); border-color: rgba(220, 38, 38, 0.15); }
   .error-message { color: var(--accent-red); white-space: pre-wrap; word-break: break-word; }
 
@@ -1127,6 +1128,34 @@
     .test-duration {
       order: 20;
     }
+    /* Attachment buttons: full-width stacked on mobile */
+    .attachment-actions {
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .attachment-actions .attachment-link,
+    .attachment-actions .attachment-link-button,
+    .attachment-actions .attachment-link-subtle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    /* Markdown HTTP cards: prevent overflow */
+    .spel-md .http-card { overflow: hidden; }
+    .spel-md .http-title { flex-wrap: wrap; font-size: 0.75rem; padding: 0.5rem; }
+    .spel-md .http-url { font-size: 0.68rem; word-break: break-all; }
+    .spel-md .card-hdr { font-size: 0.7rem; padding: 0.4rem 0.5rem; }
+    .spel-md .code-wrap pre { font-size: 0.65rem; padding: 0.5rem; }
+    .spel-md .copy-btn {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.7rem;
+    }
+    .spel-md .section-hdr { font-size: 0.68rem; padding: 0.35rem 0.5rem; }
   }
   ")
 
