@@ -93,6 +93,43 @@
     (map #(get % "value"))
     first))
 
+(defn- longest-common-prefix
+  "Find the longest common dot-separated namespace prefix across suite names.
+   Returns the prefix string (without trailing dot) or nil if no common prefix."
+  [suite-names]
+  (when (seq suite-names)
+    (let [split-names (map #(str/split % #"\.") suite-names)
+          shortest (long (apply min (map count split-names)))]
+      (loop [i 0]
+        (if (>= i shortest)
+          (when (pos? i)
+            (str/join "." (take i (first split-names))))
+          (let [seg (nth (first split-names) i)]
+            (if (every? #(= seg (nth % i)) split-names)
+              (recur (inc i))
+              (when (pos? i)
+                (str/join "." (take i (first split-names)))))))))))
+
+(defn- strip-prefix
+  "Strip a dot-separated prefix from a suite name. If the name starts with
+   prefix followed by a dot or ' / ', remove it. Returns the short name."
+  [^String prefix ^String suite-name]
+  (if (and prefix (not (str/blank? prefix)))
+    (let [dot-prefix (str prefix ".")
+          slash-prefix (str prefix " / ")]
+      (cond
+        (str/starts-with? suite-name slash-prefix)
+        (subs suite-name (count slash-prefix))
+
+        (str/starts-with? suite-name dot-prefix)
+        (subs suite-name (count dot-prefix))
+
+        (= suite-name prefix)
+        suite-name
+
+        :else suite-name))
+    suite-name))
+
 (defn- group-by-suite
   "Group results by parentSuite > suite hierarchy."
   [results]
@@ -431,7 +468,9 @@
     --text-secondary: #4b5563;
     --text-muted: #6b7280;
     --accent: #4f46e5;
-    --accent-green: #059669;
+    --accent-green: #16a34a;
+    --accent-green-light: rgba(22, 163, 74, 0.08);
+    --accent-green-border: rgba(22, 163, 74, 0.25);
     --accent-yellow: #d97706;
     --accent-red: #dc2626;
     --accent-teal: #0891b2;
@@ -454,7 +493,9 @@
       --text-secondary: #d1d5db;
       --text-muted: #9ca3af;
       --accent: #818cf8;
-      --accent-green: #34d399;
+      --accent-green: #4ade80;
+      --accent-green-light: rgba(74, 222, 128, 0.08);
+      --accent-green-border: rgba(74, 222, 128, 0.20);
       --accent-yellow: #fbbf24;
       --accent-red: #f87171;
       --accent-teal: #22d3ee;
@@ -642,7 +683,7 @@
     background: var(--bg-accent);
   }
   .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .filter-btn[data-filter='passed'].active { background: var(--accent-green); border-color: var(--accent-green); }
+  .filter-btn[data-filter='passed'].active { background: var(--accent-green-light); border-color: var(--accent-green-border); color: var(--accent-green); }
   .filter-btn[data-filter='failed'].active { background: var(--accent-red); border-color: var(--accent-red); }
   .filter-btn[data-filter='broken'].active { background: var(--accent-yellow); border-color: var(--accent-yellow); }
   .filter-btn[data-filter='skipped'].active { background: var(--text-muted); border-color: var(--text-muted); }
@@ -701,6 +742,14 @@
     margin: 0 0 0.5rem;
     font-size: 0.95rem;
     letter-spacing: -0.01em;
+  }
+  .suite-common-prefix {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 0.3rem 0;
+    margin-bottom: 0.25rem;
+    letter-spacing: 0.02em;
   }
 
   /* Suite sections */
@@ -767,7 +816,7 @@
   .test-card:hover { box-shadow: var(--shadow-md); }
   .test-card.status-failed { border-left: 3px solid var(--accent-red); }
   .test-card.status-broken { border-left: 3px solid var(--accent-yellow); }
-  .test-card.status-passed { border-left: 3px solid var(--accent-green); }
+  .test-card.status-passed { border-left: 3px solid var(--accent-green-border); }
   .test-card.status-skipped { border-left: 3px solid var(--text-muted); }
   .test-card > summary {
     display: flex;
@@ -795,16 +844,18 @@
     letter-spacing: 0.03em;
     flex-shrink: 0;
   }
-  .status-passed { background: var(--accent-green); }
+  .status-passed { background: var(--accent-green-light); color: var(--accent-green); }
   .status-failed { background: var(--accent-red); }
   .status-broken { background: var(--accent-yellow); }
   .status-skipped { background: var(--text-muted); }
   .status-unknown { background: var(--text-secondary); }
+  .test-status-badge.status-passed { color: var(--accent-green); }
   .test-name {
     flex: 1;
     min-width: 150px;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 400;
+    color: var(--text);
   }
   .test-duration {
     font-family: 'JetBrains Mono', monospace;
@@ -1039,7 +1090,7 @@
   .spel-md .http-title { background: var(--bg-panel-strong) !important; border-bottom: 1px solid var(--border) !important; color: var(--text) !important; }
   .spel-md .http-url { color: var(--text) !important; }
   .spel-md .http-card { border-color: var(--border) !important; background: var(--bg-panel) !important; box-shadow: var(--shadow); }
-  .spel-md .http-card.req .card-hdr { background: rgba(5, 150, 105, 0.08) !important; color: var(--accent-green) !important; border-bottom-color: var(--border) !important; }
+  .spel-md .http-card.req .card-hdr { background: var(--accent-green-light) !important; color: var(--accent-green) !important; border-bottom-color: var(--border) !important; }
   .spel-md .http-card.res .card-hdr { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; border-bottom-color: var(--border) !important; }
   .spel-md .http-card.curl .card-hdr { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; border-bottom-color: var(--border) !important; }
   .spel-md .http-section { border-top-color: var(--border) !important; }
@@ -1063,6 +1114,19 @@
     .test-card-body { padding: 0.4rem 0.5rem 0.5rem; }
     .attachment-pre { padding: 0.5rem; font-size: 0.68rem; }
     .summary-chip { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    .test-card > summary {
+      flex-wrap: wrap;
+      row-gap: 0.25rem;
+    }
+    .test-name {
+      flex-basis: 100%;
+      min-width: 0;
+      order: 10;
+    }
+    .test-chip,
+    .test-duration {
+      order: 20;
+    }
   }
   ")
 
@@ -1313,9 +1377,14 @@
   <section id=\"suites\">
     <h2 class=\"section-heading\">Test suites</h2>"
                   (if (seq suites)
-                    (str/join ""
-                      (for [[suite-name suite-results] suites]
-                        (render-suite-section suite-name suite-results results-dir)))
+                    (let [suite-names (keys suites)
+                          common-prefix (longest-common-prefix suite-names)]
+                      (str
+                        (when (and common-prefix (not (str/blank? common-prefix)))
+                          (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
+                        (str/join ""
+                          (for [[suite-name suite-results] suites]
+                            (render-suite-section (strip-prefix common-prefix suite-name) suite-results results-dir)))))
                     "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
                   "
   </section>
