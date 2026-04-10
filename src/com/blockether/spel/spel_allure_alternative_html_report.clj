@@ -212,18 +212,49 @@
       (-> (str/join "\n" parts)
         (str/replace #"(?i)</" "<\\\\/")))))
 
+(defn- sanitize-description-html
+  "Minimal HTML sanitizer for user-supplied description markup. This is
+   NOT a substitute for a full sanitizer like OWASP's Java HTML Sanitizer
+   — it is a pragmatic block-list targeted at the concrete threat model
+   for this codebase: a trusted CI pipeline that sometimes slurps commit
+   messages, branch names, or PR titles into `environment.properties`
+   and then feeds them to the alt report. Those values should be safe
+   90% of the time but may contain a `<script>` tag or an
+   `<img onerror>` if a developer names a branch creatively.
+   Strips:
+   1. Entire `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`,
+      `<link>`, `<meta>` elements (with contents, case-insensitive).
+   2. Any `on<eventname>=...` attribute (quoted or bare).
+   3. `href` / `src` / `xlink:href` values that start with `javascript:`
+      or `data:text/html` — replaced with `#`.
+   For truly untrusted input the caller should pass plain text (no
+   leading `<`) which takes the `html-escape` branch instead."
+  [^String html]
+  (-> html
+    (str/replace #"(?is)<(script|style|iframe|object|embed|link|meta)\b[^>]*>.*?</\s*\1\s*>" "")
+    (str/replace #"(?is)<(script|style|iframe|object|embed|link|meta)\b[^>]*/?>" "")
+    (str/replace #"(?i)\son[a-z]+\s*=\s*\"[^\"]*\"" "")
+    (str/replace #"(?i)\son[a-z]+\s*=\s*'[^']*'" "")
+    (str/replace #"(?i)\son[a-z]+\s*=\s*[^\s>]+" "")
+    (str/replace #"(?i)(href|src|xlink:href)\s*=\s*\"\s*javascript:[^\"]*\"" "$1=\"#\"")
+    (str/replace #"(?i)(href|src|xlink:href)\s*=\s*'\s*javascript:[^']*'" "$1='#'")
+    (str/replace #"(?i)(href|src|xlink:href)\s*=\s*\"\s*data:text/html[^\"]*\"" "$1=\"#\"")
+    (str/replace #"(?i)(href|src|xlink:href)\s*=\s*'\s*data:text/html[^']*'" "$1='#'")))
+
 (defn- resolve-description
-  "Returns an HTML-escaped description string rendered under the title.
-   Sources, in precedence order: `opts[:description]` → `environment.properties`
-   `report.description`. Plain text is escaped; strings that look like
-   pre-formatted HTML (start with `<`) are passed through verbatim so
-   callers can emit links, `<strong>`, multiple lines, etc."
+  "Returns a description string safe to drop into the report's
+   `.report-description` block. Sources, in precedence order:
+   `opts[:description]` → `environment.properties` `report.description`.
+   Plain text is html-escaped. Strings that start with `<` are treated
+   as pre-formatted HTML and passed through `sanitize-description-html`
+   so callers can emit links, `<strong>`, and multi-paragraph layout
+   without opening up a script-injection hole."
   [opts env]
   (when-let [raw (first-non-blank (:description opts)
                    (get env "report.description"))]
     (let [trimmed (str/trim raw)]
       (if (str/starts-with? trimmed "<")
-        trimmed
+        (sanitize-description-html trimmed)
         (html-escape trimmed)))))
 
 (defn- count-by-status [results]

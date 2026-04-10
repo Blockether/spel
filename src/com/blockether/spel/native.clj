@@ -982,48 +982,96 @@
      "with the Blockether design system (warm earth tones, no Node.js required)."
      ""
      "Options:"
-     "  --results-dir DIR   Allure results directory (default: allure-results)"
-     "  --output-dir DIR    Output directory for HTML report (default: block-report)"
-     "  --title TEXT        Report title (default: \"Test Report\")"
-     "  --help, -h          Show this help"
+     "  --results-dir DIR       Allure results directory (default: allure-results)"
+     "  --output-dir DIR        Output directory for HTML report (default: block-report)"
+     "  --title TEXT            Report title shown in <h1> (default: \"Allure Report\")"
+     "  --kicker TEXT           Small mono heading above the title"
+     "  --subtitle TEXT         One-line subtitle under the title"
+     ""
+     "Branding:"
+     "  --logo SRC              Logo shown above the title. Accepts:"
+     "                            • filesystem path (abs or relative to results-dir)"
+     "                            • data:image/… URL"
+     "                            • http(s):// URL"
+     "                            • inline <svg …>…</svg> markup"
+     "                          File paths are copied into <output-dir>/assets/."
+     "  --logo-alt TEXT         alt text for the logo <img> (default: report title)"
+     "  --description TEXT      Description block rendered under the title."
+     "                          Plain text is html-escaped. Strings starting with"
+     "                          '<' are treated as HTML and sanitized (scripts,"
+     "                          iframes, event handlers and javascript: URLs are"
+     "                          stripped)."
+     "  --custom-css CSS        Extra CSS appended after the built-in stylesheet"
+     "                          (hostile </style> closures are neutralized)."
+     "  --custom-css-file FILE  Path to a CSS file whose contents are inlined."
+     ""
+     "Build metadata:"
+     "  --build-id ID           Build/run identifier shown in the header kicker"
+     "                          (e.g. '#544')."
+     "  --build-date VALUE      Build timestamp. Accepts epoch-millis Long or"
+     "                          ISO-8601 string (e.g. '2026-04-10T12:00:00Z')."
+     "  --build-url URL         Link to the CI run; rendered as a chip in the"
+     "                          header subtitle."
+     ""
+     "  --help, -h              Show this help"
+     ""
+     "Every branding / metadata flag can also be set via environment.properties"
+     "keys under the corresponding `report.*` / `build.*` names. See"
+     "`generate!` docstring in the spel-allure-alternative-html-report namespace"
+     "for the full list."
      ""
      "Examples:"
      "  spel report"
      "  spel report --results-dir test-results --output-dir my-report"
-     "  spel report --title \"My Project Tests\""]))
+     "  spel report --title 'My Project Tests' --description 'Nightly smoke run'"
+     "  spel report --logo brand/logo.svg --logo-alt 'Acme Co.'"
+     "  spel report --build-id '#544' --build-date 2026-04-10T12:00:00Z \\"
+     "              --build-url https://ci.example/run/544"]))
 
 (defn- parse-report-args
-  "Parse report CLI arguments into {:opts {...}}."
+  "Parse report CLI arguments into {:opts {...}}.
+   Accepts both `--flag VALUE` and `--flag=VALUE` forms."
   [args]
-  (loop [args args
-         opts {}]
-    (if (empty? args)
-      {:opts opts}
-      (let [arg (first args)]
-        (cond
-          (or (= arg "--help") (= arg "-h"))
-          {:opts (assoc opts :help true)}
+  (let [flag-keys
+        ;; Map of `--flag` → [:opt-key body-length-for-prefix-form]
+        ;; body-length = count of the `--flag=` prefix, used for the
+        ;; `subs` call when the inline form is used.
+        {"--results-dir"     [:results-dir     14]
+         "--output-dir"      [:output-dir      13]
+         "--title"           [:title           8]
+         "--kicker"          [:kicker          9]
+         "--subtitle"        [:subtitle        11]
+         "--logo"            [:logo            7]
+         "--logo-alt"        [:logo-alt        11]
+         "--description"     [:description     14]
+         "--custom-css"      [:custom-css      13]
+         "--custom-css-file" [:custom-css-file 18]
+         "--build-id"        [:build-id        11]
+         "--build-date"      [:build-date      13]
+         "--build-url"       [:build-url       12]}]
+    (loop [args args
+           opts {}]
+      (if (empty? args)
+        {:opts opts}
+        (let [arg (first args)]
+          (cond
+            (or (= arg "--help") (= arg "-h"))
+            {:opts (assoc opts :help true)}
 
-          (str/starts-with? arg "--results-dir=")
-          (recur (rest args) (assoc opts :results-dir (subs arg 14)))
+            ;; --flag=VALUE
+            (let [eq (str/index-of arg "=")]
+              (and eq (contains? flag-keys (subs arg 0 eq))))
+            (let [eq (str/index-of arg "=")
+                  [k _] (get flag-keys (subs arg 0 eq))]
+              (recur (rest args) (assoc opts k (subs arg (inc eq)))))
 
-          (= arg "--results-dir")
-          (recur (drop 2 args) (assoc opts :results-dir (second args)))
+            ;; --flag VALUE
+            (contains? flag-keys arg)
+            (let [[k _] (get flag-keys arg)]
+              (recur (drop 2 args) (assoc opts k (second args))))
 
-          (str/starts-with? arg "--output-dir=")
-          (recur (rest args) (assoc opts :output-dir (subs arg 13)))
-
-          (= arg "--output-dir")
-          (recur (drop 2 args) (assoc opts :output-dir (second args)))
-
-          (str/starts-with? arg "--title=")
-          (recur (rest args) (assoc opts :title (subs arg 8)))
-
-          (= arg "--title")
-          (recur (drop 2 args) (assoc opts :title (second args)))
-
-          :else
-          (recur (rest args) opts))))))
+            :else
+            (recur (rest args) opts)))))))
 
 (defn -main
   "Main entry point for the native-image binary.
@@ -1074,7 +1122,7 @@
             (alternative-report/generate!
               (:results-dir opts "allure-results")
               (:output-dir opts "block-report")
-              (select-keys opts [:title :results-dir])))))
+              (dissoc opts :results-dir :output-dir :help)))))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]

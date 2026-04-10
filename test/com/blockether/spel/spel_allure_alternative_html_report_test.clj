@@ -467,6 +467,41 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
+    (it "sanitizes hostile HTML in :description (scripts, handlers, js: URLs)"
+      (let [results-dir (tmp-dir "block-results-desc-xss")
+            output-dir (tmp-dir "block-output-desc-xss")
+            hostile (str "<p>ok</p>"
+                      "<script>alert('s')</script>"
+                      "<iframe src=\"https://evil\"></iframe>"
+                      "<img src=x onerror=\"alert('o')\">"
+                      "<a href=\"javascript:alert('j')\">click</a>")]
+        (write-result! results-dir "uuid-d3" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:description hostile})
+        (let [html (slurp (io/file output-dir "index.html"))
+              desc-start (str/index-of html "<div class=\"report-description\">")
+              desc-end (when desc-start (str/index-of html "</div>" desc-start))
+              desc-block (when (and desc-start desc-end)
+                           (subs html desc-start (+ desc-end 6)))]
+          (expect (some? desc-block))
+          ;; Safe content survives
+          (expect (str/includes? desc-block "<p>ok</p>"))
+          ;; <script> fully stripped
+          (expect (not (str/includes? desc-block "<script")))
+          (expect (not (str/includes? desc-block "alert('s')")))
+          ;; <iframe> fully stripped
+          (expect (not (str/includes? desc-block "<iframe")))
+          ;; onerror handler stripped from the <img>
+          (expect (not (str/includes? desc-block "onerror")))
+          (expect (not (str/includes? desc-block "alert('o')")))
+          ;; javascript: URL replaced with #
+          (expect (not (str/includes? desc-block "javascript:")))
+          (expect (str/includes? desc-block "href=\"#\"")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
     (it "accepts :build-id / :build-date / :build-url as top-level opts"
       (let [results-dir (tmp-dir "block-results-build")
             output-dir (tmp-dir "block-output-build")]
