@@ -484,6 +484,96 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
+    (it "neutralizes </style> in :custom-css so hostile CSS cannot break out"
+      (let [results-dir (tmp-dir "block-results-cssxss")
+            output-dir (tmp-dir "block-output-cssxss")
+            hostile ".a{}</style><script>alert('xss')</script><style>.b{}"]
+        (write-result! results-dir "uuid-x1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:custom-css hostile})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; The injected <script> must NOT appear as live markup. A
+          ;; literal `<script>alert('xss')</script>` substring in the
+          ;; output would be the smoking gun.
+          (expect (not (str/includes? html "<script>alert('xss')</script>")))
+          ;; The intended CSS rules are still there.
+          (expect (str/includes? html ".a{}"))
+          (expect (str/includes? html ".b{}"))
+          ;; The neutralized form appears instead.
+          (expect (str/includes? html "<\\/style>")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "parses ISO-8601 :build-date strings (not just epoch millis)"
+      (let [results-dir (tmp-dir "block-results-iso")
+            output-dir (tmp-dir "block-output-iso")]
+        (write-result! results-dir "uuid-i1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:build-id "#iso"
+           :build-date "2026-04-10T12:00:00Z"})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; A <time> element means the date parsed successfully and the
+          ;; subtitle picked it up. The exact formatted value depends on
+          ;; the runner's JVM default timezone, so we just assert the
+          ;; element exists.
+          (expect (str/includes? html "<time>")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "accepts :logo-alt and omits aria-hidden on the logo itself"
+      (let [results-dir (tmp-dir "block-results-logoalt")
+            output-dir (tmp-dir "block-output-logoalt")]
+        (write-result! results-dir "uuid-la1" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:logo "data:image/svg+xml,<svg/>"
+           :logo-alt "Acme Co."})
+        (let [html (slurp (io/file output-dir "index.html"))
+              logo-tag-start (str/index-of html "<img class=\"report-logo\"")
+              logo-tag-end (when logo-tag-start
+                             (str/index-of html ">" logo-tag-start))
+              logo-tag (when (and logo-tag-start logo-tag-end)
+                         (subs html logo-tag-start (inc logo-tag-end)))]
+          (expect (some? logo-tag))
+          (expect (str/includes? logo-tag "alt=\"Acme Co.\""))
+          ;; Critically: the logo <img> element specifically must NOT
+          ;; be hidden from assistive tech.
+          (expect (not (str/includes? logo-tag "aria-hidden"))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "skips logo files larger than the 2 MB cap and logs to stderr"
+      (let [results-dir (tmp-dir "block-results-logobig")
+            output-dir (tmp-dir "block-output-logobig")
+            big (io/file results-dir "huge.png")]
+        (write-result! results-dir "uuid-lb1" "passed" "t" 1000 2000)
+        ;; 2.5 MB of zeros — above the cap
+        (with-open [os (java.io.FileOutputStream. big)]
+          (.write os (byte-array (* 2.5 1024 1024))))
+        (let [stderr (java.io.ByteArrayOutputStream.)
+              err-writer (java.io.PrintWriter. stderr)]
+          (binding [*err* err-writer]
+            (alternative-report/generate!
+              (.getAbsolutePath results-dir)
+              (.getAbsolutePath output-dir)
+              {:logo "huge.png"}))
+          (.flush err-writer)
+          (let [html (slurp (io/file output-dir "index.html"))
+                err-str (str stderr)]
+            ;; No logo rendered
+            (expect (not (str/includes? html "class=\"report-logo\"")))
+            ;; Not copied into assets
+            (expect (not (.isFile (io/file output-dir "assets" "logo.png"))))
+            ;; stderr warning
+            (expect (str/includes? err-str "exceeds"))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
     (it "reads report.logo / report.description / build.* from environment.properties"
       (let [results-dir (tmp-dir "block-results-env-custom")
             output-dir (tmp-dir "block-output-env-custom")]

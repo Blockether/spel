@@ -160,24 +160,38 @@
         (let [src-file (let [f (io/file s)]
                          (if (.isAbsolute f)
                            f
-                           (io/file results-dir s)))]
-          (if (.isFile src-file)
+                           (io/file results-dir s)))
+              max-bytes (* 2 1024 1024)]
+          (cond
+            (not (.isFile src-file))
+            (do (binding [*out* *err*]
+                  (println (str "spel: alt report: logo source not found, skipping: "
+                             (.getPath src-file))))
+                nil)
+
+            (> (.length src-file) max-bytes)
+            (do (binding [*out* *err*]
+                  (println (str "spel: alt report: logo " (.getPath src-file)
+                             " is " (.length src-file) " bytes, exceeds "
+                             max-bytes " byte cap — skipping")))
+                nil)
+
+            :else
             (let [ext (logo-ext s)
                   dest-dir (io/file out "assets")
                   dest (io/file dest-dir (str "logo." ext))]
               (.mkdirs dest-dir)
               (io/copy src-file dest)
-              (str "assets/logo." ext))
-            (do
-              (binding [*out* *err*]
-                (println (str "spel: alt report: logo source not found, skipping: "
-                           (.getPath src-file))))
-              nil)))))))
+              (str "assets/logo." ext))))))))
 
 (defn- resolve-custom-css
   "Returns a CSS string from `opts[:custom-css]`, `opts[:custom-css-file]`
    (path relative to `results-dir` or absolute), or environment.properties
-   `report.custom_css`. Concatenates all sources so callers can layer them."
+   `report.custom_css`. Concatenates all sources so callers can layer them.
+   Sequences that would close the surrounding `<style>` tag (`</style>` in
+   any casing) are escaped to `<\\/style>` so a hostile value — e.g. a CI
+   pipeline that interpolates a commit message into `report.custom_css` —
+   cannot break out of the style block and execute arbitrary JavaScript."
   [opts env ^String results-dir]
   (let [inline (some-> (:custom-css opts) str/trim)
         file-opt (:custom-css-file opts)
@@ -192,7 +206,11 @@
         parts (keep (fn [s] (when (not (str/blank? s)) s))
                 [inline file-css env-css])]
     (when (seq parts)
-      (str/join "\n" parts))))
+      ;; Case-insensitive `</` neutralization — anything that could close
+      ;; the enclosing <style> tag is rewritten so the browser keeps
+      ;; treating it as CSS text.
+      (-> (str/join "\n" parts)
+        (str/replace #"(?i)</" "<\\\\/")))))
 
 (defn- resolve-description
   "Returns an HTML-escaped description string rendered under the title.
@@ -2131,8 +2149,21 @@
          build-date-ts (when-let [v (:build-date opts)]
                          (cond
                            (number? v) (long v)
-                           (string? v) (try (Long/parseLong (str/trim v))
-                                         (catch Exception _ nil))
+                           (inst? v) (.getTime ^java.util.Date
+                                       (if (instance? java.util.Date v)
+                                         v
+                                         (java.util.Date/from v)))
+                           (string? v)
+                           (let [s (str/trim v)]
+                             ;; Accept epoch millis OR an ISO-8601-ish
+                             ;; instant — matches the docstring.
+                             (or (try (Long/parseLong s) (catch Exception _ nil))
+                               (try (.toEpochMilli (java.time.Instant/parse s))
+                                 (catch Exception _ nil))
+                               (try (.toEpochMilli
+                                      (.toInstant
+                                        (java.time.OffsetDateTime/parse s)))
+                                 (catch Exception _ nil))))
                            :else nil))
          run-info (let [m (cond-> (or base-run-info {})
                             (:build-id opts)   (assoc :run-name (:build-id opts))
@@ -2251,8 +2282,11 @@
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-main\">
       " (if logo-href
-          (str "<img class=\"report-logo\" src=\"" (html-escape logo-href)
-            "\" alt=\"\" aria-hidden=\"true\">")
+          (let [alt (or (:logo-alt opts)
+                      (get env "report.logo_alt")
+                      (or (:report-title run-info) title))]
+            (str "<img class=\"report-logo\" src=\"" (html-escape logo-href)
+              "\" alt=\"" (html-escape alt) "\">"))
           "") "
       " (if (and (seq kicker)
               (not= (str/lower-case (str kicker))
