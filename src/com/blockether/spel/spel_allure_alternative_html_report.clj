@@ -125,9 +125,17 @@
         (subs suite-name (count dot-prefix))
 
         (= suite-name prefix)
-        suite-name
+        ""
 
         :else suite-name))
+    suite-name))
+
+(defn- suite-prefix-candidate
+  "Extract the namespace-like prefix portion from a suite label.
+   For labels like `parent / suite`, use `parent` for prefix detection."
+  [^String suite-name]
+  (if (str/includes? suite-name " / ")
+    (first (str/split suite-name #"\s+/\s+" 2))
     suite-name))
 
 (defn- group-by-suite
@@ -137,7 +145,10 @@
                  (fn [r]
                    (let [parent (or (label-value r "parentSuite") "")
                          suite (or (label-value r "suite") "unknown")]
-                     (str/trim (str parent " / " suite))))
+                     (cond
+                       (str/blank? parent) suite
+                       (= parent suite) suite
+                       :else (str parent " / " suite))))
                  results)]
     (into (sorted-map)
       (for [[suite-name suite-results] groups]
@@ -225,6 +236,42 @@
       (.delete f)))
   (.mkdirs dir))
 
+(def ^:private trace-chunk-size-bytes
+  (long (* 9 1024 1024)))
+
+(defn- trace-chunk-count
+  "Return number of chunks needed for a file at trace-chunk-size-bytes."
+  ^long [^File f]
+  (let [size (long (.length f))
+        chunk-size (long trace-chunk-size-bytes)]
+    (if (<= size chunk-size)
+      1
+      (long (Math/ceil (/ (double size) (double chunk-size)))))))
+
+(defn- copy-file-in-chunks!
+  "Copy a file to dest-dir as `<source>.partNNN` chunks."
+  [^File src ^File dest-dir ^String source]
+  (with-open [in (io/input-stream src)]
+    (loop [remaining (long (.length src))
+           idx 0]
+      (when (pos? remaining)
+        (let [part-name (format "%s.part%03d" source idx)
+              part-file (io/file dest-dir part-name)
+              part-size (long (Math/min (long trace-chunk-size-bytes) remaining))]
+          (io/make-parents part-file)
+          (with-open [out (io/output-stream part-file)]
+            (let [buf (byte-array 8192)]
+              (loop [left part-size]
+                (when (pos? left)
+                  (let [to-read (int (min left (alength buf)))
+                        n (.read in buf 0 to-read)]
+                    (when (neg? n)
+                      (throw (ex-info "Unexpected EOF while chunking trace"
+                               {:source source :part idx})))
+                    (.write out buf 0 n)
+                    (recur (- left n)))))))
+          (recur (- remaining part-size) (inc idx)))))))
+
 (defn- copy-attachments!
   [^String results-dir ^File out results]
   (let [dest-dir (io/file out "data" "attachments")]
@@ -235,8 +282,12 @@
       (let [src (io/file results-dir source)
             dest (io/file dest-dir source)]
         (when (.isFile src)
-          (io/make-parents dest)
-          (io/copy src dest))))))
+          (if (and (trace-attachment? attachment)
+                (> (long (.length src)) (long trace-chunk-size-bytes)))
+            (copy-file-in-chunks! src dest-dir source)
+            (do
+              (io/make-parents dest)
+              (io/copy src dest))))))))
 
 (defn- reporter-helper [sym]
   (require 'com.blockether.spel.allure-reporter)
@@ -269,15 +320,28 @@
   (let [att-name (html-escape (get attachment "name" "attachment"))
         href (attachment-href attachment)
         file (attachment-path results-dir attachment)
-        content (slurp-safe file)]
+        content (slurp-safe file)
+        source (html-escape (get attachment "source" ""))
+        chunk-count (if (and (trace-attachment? attachment) file (.isFile ^File file))
+                      (trace-chunk-count ^File file)
+                      1)]
     (cond
       (trace-attachment? attachment)
-      (str "<div class=\"attachment-actions attachment-actions-trace\">"
-        "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
-        " data-trace-url=\"" (trace-viewer-href attachment) "\""
-        " data-trace-title=\"" att-name "\">Open Trace</button>"
-        "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download zip</a>"
-        "</div>")
+      (if (> chunk-count 1)
+        (str "<div class=\"attachment-actions attachment-actions-trace\">"
+          "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
+          " data-trace-source=\"" source "\""
+          " data-trace-chunks=\"" chunk-count "\""
+          " data-trace-title=\"" att-name "\">Open Trace</button>"
+          "<span class=\"attachment-link attachment-link-subtle trace-chunk-note\">"
+          "Trace split into " chunk-count " parts (&lt;10MB each)</span>"
+          "</div>")
+        (str "<div class=\"attachment-actions attachment-actions-trace\">"
+          "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
+          " data-trace-url=\"" (trace-viewer-href attachment) "\""
+          " data-trace-title=\"" att-name "\">Open Trace</button>"
+          "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download zip</a>"
+          "</div>"))
 
       (markdown-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-markdown\">"
@@ -556,11 +620,11 @@
   }
   .report-kicker {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 600;
+    color: var(--text-muted);
+    font-weight: 500;
   }
   .report-title {
     font-size: clamp(1.25rem, 2.5vw, 1.75rem);
@@ -569,7 +633,7 @@
   }
   .report-subtitle {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
   }
   .report-meta {
     display: flex;
@@ -689,6 +753,17 @@
   .filter-btn[data-filter='skipped'].active { background: var(--text-muted); border-color: var(--text-muted); }
   .attachment-link-button { display: inline-flex; align-items: center; }
   .attachment-link-subtle { color: var(--text-muted); }
+  .trace-chunk-note {
+    border: none;
+    background: transparent;
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 0.72rem;
+    padding: 0;
+    color: var(--text-muted);
+    cursor: default;
+  }
 
   /* Panels */
   .panel {
@@ -984,6 +1059,28 @@
     gap: 0.35rem;
     margin-top: 0.4rem;
   }
+  .attachment-panel-markdown .attachment-actions {
+    margin-top: 0;
+    padding: 0.38rem 0.6rem 0.48rem;
+    border-top: 1px solid var(--border);
+    justify-content: flex-end;
+  }
+  .attachment-panel-markdown .attachment-link-subtle {
+    border: none;
+    background: transparent;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 0.74rem;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 0;
+    color: var(--text-muted);
+  }
+  .attachment-panel-markdown .attachment-link-subtle:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    background: transparent;
+    border: none;
+  }
   .attachment-pre {
     margin: 0;
     padding: 0.65rem;
@@ -1099,7 +1196,9 @@
   .spel-md .code-wrap pre { background: var(--bg-code) !important; color: var(--text) !important; border: 1px solid var(--border); }
   .spel-md .copy-btn { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
   .spel-md .copy-btn:hover { background: var(--bg-accent) !important; color: var(--text) !important; }
-  .spel-badge { border-radius: var(--radius-sm) !important; padding: 2px 7px !important; font-size: 0.72em !important; border: 1px solid var(--border) !important; }
+  .spel-badge { display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: var(--radius-sm) !important; padding: 2px 8px !important; font-size: 0.68rem !important; font-weight: 600 !important; line-height: 1.2 !important; border: 1px solid var(--border) !important; margin-right: 6px !important; margin-bottom: 2px !important; }
+  .spel-md .http-title { align-items: center !important; flex-wrap: wrap !important; }
+  .spel-md .http-url { margin-left: 2px; }
   .spel-badge.api { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; }
   .spel-badge.ui { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; }
   .spel-badge.ui-api { background: rgba(79, 70, 229, 0.08) !important; color: var(--accent) !important; }
@@ -1135,7 +1234,7 @@
     }
     .attachment-actions .attachment-link,
     .attachment-actions .attachment-link-button,
-    .attachment-actions .attachment-link-subtle {
+    .attachment-actions .attachment-link-subtle:not(.trace-chunk-note) {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1144,6 +1243,18 @@
       font-size: 0.75rem;
       text-align: center;
       box-sizing: border-box;
+    }
+    .attachment-panel-markdown .attachment-actions {
+      flex-direction: row;
+      justify-content: flex-end;
+      gap: 0;
+    }
+    .attachment-panel-markdown .attachment-link-subtle {
+      width: auto;
+      padding: 0;
+      display: inline;
+      font-size: 0.73rem;
+      text-align: right;
     }
     /* Markdown HTTP cards: prevent overflow */
     .spel-md .http-card { overflow: hidden; }
@@ -1265,9 +1376,45 @@
     var modal = document.getElementById('traceModal');
     var frame = document.getElementById('traceFrame');
     var title = document.getElementById('traceModalTitle');
+    var activeTraceBlobUrl = null;
 
-    window.openTraceModal = function(url, label) {
+    function pad3(n) {
+      return String(n).padStart(3, '0');
+    }
+
+    function buildChunkedTraceBlobUrl(source, chunkCount) {
+      var buffers = [];
+      var index = 0;
+
+      function loadNext() {
+        if (index >= chunkCount) {
+          var blob = new Blob(buffers, { type: 'application/zip' });
+          return Promise.resolve(URL.createObjectURL(blob));
+        }
+
+        var partPath = 'data/attachments/' + source + '.part' + pad3(index);
+        return fetch(partPath).then(function(resp) {
+          if (!resp.ok) {
+            throw new Error('Failed to load trace chunk: ' + partPath);
+          }
+          return resp.arrayBuffer();
+        }).then(function(buf) {
+          buffers.push(buf);
+          index += 1;
+          return loadNext();
+        });
+      }
+
+      return loadNext();
+    }
+
+    window.openTraceModal = function(url, label, blobUrl) {
       if (!modal || !frame) return;
+      if (activeTraceBlobUrl) {
+        URL.revokeObjectURL(activeTraceBlobUrl);
+        activeTraceBlobUrl = null;
+      }
+      if (blobUrl) activeTraceBlobUrl = blobUrl;
       frame.src = url;
       title.textContent = label || 'Playwright Trace';
       modal.classList.add('show');
@@ -1277,13 +1424,43 @@
     window.closeTraceModal = function() {
       if (!modal || !frame) return;
       frame.src = 'about:blank';
+      if (activeTraceBlobUrl) {
+        URL.revokeObjectURL(activeTraceBlobUrl);
+        activeTraceBlobUrl = null;
+      }
       modal.classList.remove('show');
       document.body.style.overflow = '';
     };
 
     document.querySelectorAll('.trace-launch').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        openTraceModal(btn.getAttribute('data-trace-url'), btn.getAttribute('data-trace-title'));
+        var traceUrl = btn.getAttribute('data-trace-url');
+        var traceTitle = btn.getAttribute('data-trace-title');
+        var traceSource = btn.getAttribute('data-trace-source');
+        var chunkCount = parseInt(btn.getAttribute('data-trace-chunks') || '0', 10);
+
+        if (chunkCount > 1 && traceSource) {
+          var original = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Preparing trace...';
+
+          buildChunkedTraceBlobUrl(traceSource, chunkCount)
+            .then(function(blobUrl) {
+              var viewerUrl = 'trace-viewer/index.html?trace=' + encodeURIComponent(blobUrl);
+              openTraceModal(viewerUrl, traceTitle, blobUrl);
+            })
+            .catch(function(err) {
+              console.error(err);
+              alert('Unable to open split trace.');
+            })
+            .finally(function() {
+              btn.disabled = false;
+              btn.textContent = original;
+            });
+          return;
+        }
+
+        openTraceModal(traceUrl, traceTitle, null);
       });
     });
 
@@ -1307,9 +1484,11 @@
      output-dir  - path to write the HTML report directory
 
    Options (opts map):
-     :title       - report title (default: \"Test Report\")
+     :title       - report title (default: \"Allure Report\")
+     :kicker      - small mono heading above title (default: \"Allure Report\")
+     :subtitle    - optional subtitle under title (default: \"\")
      :results-dir - kept for CLI compatibility; generated report now packages
-                    referenced attachments into its own output directory.
+                     referenced attachments into its own output directory.
 
    Returns the output directory path on success."
   ([^String results-dir ^String output-dir]
@@ -1317,7 +1496,9 @@
   ([^String results-dir ^String output-dir opts]
    (let [results (load-results results-dir)
          env (load-environment results-dir)
-         title (or (:title opts) "Test Report")
+         title (or (:title opts) "Allure Report")
+         kicker (or (:kicker opts) "Allure Report")
+         subtitle (or (:subtitle opts) "")
          out (io/file output-dir)]
      (when (empty? results)
        (println (str "No allure results found in " results-dir "/"))
@@ -1351,9 +1532,11 @@
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-main\">
-      <div class=\"report-kicker\">Blockether report</div>
+      <div class=\"report-kicker\">" (html-escape kicker) "</div>
       <h1 class=\"report-title\">" (html-escape title) "</h1>
-      <div class=\"report-subtitle\">Investigation-first test report</div>
+      " (if (seq subtitle)
+          (str "<div class=\"report-subtitle\">" (html-escape subtitle) "</div>")
+          "") "
     </div>
     <div class=\"report-meta\">"
                   (render-summary-chip "Total" (:total cts) "summary-chip-total")
@@ -1407,13 +1590,17 @@
     <h2 class=\"section-heading\">Test suites</h2>"
                   (if (seq suites)
                     (let [suite-names (keys suites)
-                          common-prefix (longest-common-prefix suite-names)]
+                          common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
                       (str
                         (when (and common-prefix (not (str/blank? common-prefix)))
                           (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
                         (str/join ""
                           (for [[suite-name suite-results] suites]
-                            (render-suite-section (strip-prefix common-prefix suite-name) suite-results results-dir)))))
+                            (let [short-name (strip-prefix common-prefix suite-name)
+                                  display-name (if (str/blank? short-name)
+                                                 (last (str/split suite-name #"\."))
+                                                 short-name)]
+                              (render-suite-section display-name suite-results results-dir))))))
                     "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
                   "
   </section>

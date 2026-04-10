@@ -148,7 +148,7 @@
         (let [html-file (io/file output-path "index.html")]
           (expect (.isFile html-file))
           (let [html (slurp html-file)]
-            (expect (str/includes? html "Blockether report"))
+            (expect (str/includes? html "Allure Report"))
             (expect (str/includes? html "test-pass"))
             (expect (str/includes? html "test-fail"))
             (expect (str/includes? html "test-broken"))
@@ -216,7 +216,7 @@
           (expect (str/includes? html "Full stdout log"))
           (expect (str/includes? html "Video Recording"))
           (expect (str/includes? html "data-action=\"expand-suites\""))
-          (expect (str/includes? html "Investigation-first test report")))
+          (expect (str/includes? html "class=\"report-kicker\">Allure Report")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.md")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.zip")))
         (expect (.isFile (io/file output-path "trace-viewer" "index.html"))))
