@@ -236,28 +236,58 @@
       (.delete f)))
   (.mkdirs dir))
 
-(def ^:private trace-chunk-size-bytes
-  (long (* 9 1024 1024)))
+(def ^:private trace-chunk-size-prop
+  "spel.report.trace.chunk.bytes")
+
+(def ^:private trace-chunk-size-env
+  "SPEL_REPORT_TRACE_CHUNK_BYTES")
+
+(defn- parse-long-safe [^String s]
+  (try (Long/parseLong (str/trim s))
+    (catch Exception _ nil)))
+
+(defn- trace-chunk-size-bytes
+  "Resolve trace chunk size in bytes. Returns nil when chunking is disabled.
+   Precedence:
+   1. System property `spel.report.trace.chunk.bytes`
+   2. Environment variable `SPEL_REPORT_TRACE_CHUNK_BYTES`
+   Both must be a positive integer. When neither is set (or values are invalid
+   / non-positive), chunking is disabled and traces are copied as a single file."
+  []
+  (let [from-prop (some-> (System/getProperty trace-chunk-size-prop) parse-long-safe)
+        from-env (some-> (System/getenv trace-chunk-size-env) parse-long-safe)]
+    (or (when (and from-prop (pos? from-prop)) (long from-prop))
+      (when (and from-env (pos? from-env)) (long from-env)))))
+
+(defn- trace-chunk-size-label
+  "Human-readable label for the given chunk size in bytes, e.g. `9MB`."
+  ^String [^long bytes]
+  (let [mib (/ (double bytes) (* 1024.0 1024.0))]
+    (if (== mib (Math/floor mib))
+      (str (long mib) "MB")
+      (format "%.1fMB" mib))))
 
 (defn- trace-chunk-count
-  "Return number of chunks needed for a file at trace-chunk-size-bytes."
+  "Return number of chunks needed for a file. Returns 1 when chunking is disabled
+   or the file fits in a single chunk."
   ^long [^File f]
   (let [size (long (.length f))
-        chunk-size (long trace-chunk-size-bytes)]
-    (if (<= size chunk-size)
+        chunk-size (trace-chunk-size-bytes)]
+    (if (or (nil? chunk-size) (<= size (long chunk-size)))
       1
       (long (Math/ceil (/ (double size) (double chunk-size)))))))
 
 (defn- copy-file-in-chunks!
   "Copy a file to dest-dir as `<source>.partNNN` chunks."
   [^File src ^File dest-dir ^String source]
-  (with-open [in (io/input-stream src)]
-    (loop [remaining (long (.length src))
-           idx 0]
-      (when (pos? remaining)
-        (let [part-name (format "%s.part%03d" source idx)
-              part-file (io/file dest-dir part-name)
-              part-size (long (Math/min (long trace-chunk-size-bytes) remaining))]
+  (let [chunk-size (trace-chunk-size-bytes)]
+    (with-open [in (io/input-stream src)]
+      (loop [remaining (long (.length src))
+             idx 0]
+        (when (pos? remaining)
+          (let [part-name (format "%s.part%03d" source idx)
+                part-file (io/file dest-dir part-name)
+                part-size (long (Math/min (long chunk-size) remaining))]
           (io/make-parents part-file)
           (with-open [out (io/output-stream part-file)]
             (let [buf (byte-array 8192)]
@@ -270,11 +300,12 @@
                                {:source source :part idx})))
                     (.write out buf 0 n)
                     (recur (- left n)))))))
-          (recur (- remaining part-size) (inc idx)))))))
+          (recur (- remaining part-size) (inc idx))))))))
 
 (defn- copy-attachments!
   [^String results-dir ^File out results]
-  (let [dest-dir (io/file out "data" "attachments")]
+  (let [dest-dir (io/file out "data" "attachments")
+        chunk-size (trace-chunk-size-bytes)]
     (.mkdirs dest-dir)
     (doseq [attachment (collect-all-attachments results)
             :let [source (get attachment "source")]
@@ -282,8 +313,9 @@
       (let [src (io/file results-dir source)
             dest (io/file dest-dir source)]
         (when (.isFile src)
-          (if (and (trace-attachment? attachment)
-                (> (long (.length src)) (long trace-chunk-size-bytes)))
+          (if (and chunk-size
+                (trace-attachment? attachment)
+                (> (long (.length src)) (long chunk-size)))
             (copy-file-in-chunks! src dest-dir source)
             (do
               (io/make-parents dest)
@@ -334,7 +366,7 @@
           " data-trace-chunks=\"" chunk-count "\""
           " data-trace-title=\"" att-name "\">Open Trace</button>"
           "<span class=\"attachment-link attachment-link-subtle trace-chunk-note\">"
-          "Trace split into " chunk-count " parts (&lt;10MB each)</span>"
+          "Trace split into " chunk-count " parts (&lt;" (trace-chunk-size-label (trace-chunk-size-bytes)) " each)</span>"
           "</div>")
         (str "<div class=\"attachment-actions attachment-actions-trace\">"
           "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
