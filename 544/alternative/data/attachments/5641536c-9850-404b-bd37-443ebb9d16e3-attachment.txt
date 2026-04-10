@@ -1,0 +1,2 @@
+Merged 2 files from 2 directories into /tmp/merge-cat-test17032597518678616562/merged/
+  2 test results
