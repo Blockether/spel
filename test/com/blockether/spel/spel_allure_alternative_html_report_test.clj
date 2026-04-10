@@ -216,9 +216,166 @@
           (expect (str/includes? html "Full stdout log"))
           (expect (str/includes? html "Video Recording"))
           (expect (str/includes? html "data-action=\"expand-suites\""))
-          (expect (str/includes? html "class=\"report-kicker\">Allure Report")))
+          ;; Finding #12: the kicker is suppressed when it exactly matches
+          ;; the title (no point rendering "Allure Report" twice).
+          (expect (not (str/includes? html "class=\"report-kicker\">Allure Report"))))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.md")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.zip")))
         (expect (.isFile (io/file output-path "trace-viewer" "index.html"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-att"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-att")))))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-att")))))
+
+    (it "always embeds an inline SVG favicon (no /favicon.ico 404)"
+      (let [results-dir (tmp-dir "block-results-favicon")
+            output-dir (tmp-dir "block-output-favicon")]
+        (write-result! results-dir "uuid-f" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "rel=\"icon\""))
+          (expect (str/includes? html "image/svg+xml")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "renders commit metadata in the header when environment.properties has commit.* keys"
+      (let [results-dir (tmp-dir "block-results-commit")
+            output-dir (tmp-dir "block-output-commit")]
+        (write-result! results-dir "uuid-c" "passed" "t" 1000 2000)
+        (spit (io/file results-dir "environment.properties")
+          (str "commit.sha=f9e04421f828d6fb24c46a405559aee3b5f3c7af\n"
+            "commit.author=Test Author\n"
+            "commit.subject=fix: tighten the thing\n"
+            "commit.timestamp=1712707200000\n"
+            "run.url=https://example.com/ci/run/42\n"
+            "run.name=#544\n"))
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; Title comes from commit subject
+          (expect (str/includes? html "fix: tighten the thing"))
+          ;; <title> includes short-sha prefix for tab discrimination
+          (expect (str/includes? html "<title>f9e0442 · fix: tighten the thing</title>"))
+          ;; Kicker carries run-name / short SHA / author
+          (expect (str/includes? html "#544"))
+          (expect (str/includes? html "f9e0442"))
+          (expect (str/includes? html "Test Author"))
+          ;; Subtitle has the run link
+          (expect (str/includes? html "https://example.com/ci/run/42"))
+          (expect (str/includes? html "report-run-link")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "gracefully falls back to static header when no commit metadata is present"
+      (let [results-dir (tmp-dir "block-results-nometa")
+            output-dir (tmp-dir "block-output-nometa")]
+        (write-result! results-dir "uuid-n" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; Title is still the default
+          (expect (str/includes? html "<h1 class=\"report-title\">Allure Report</h1>"))
+          ;; No run-link anchor in the body (the .report-run-link CSS
+          ;; selector is always present in the stylesheet — check for the
+          ;; rendered <a …> instead).
+          (expect (not (str/includes? html "<a class=\"report-run-link\"")))
+          ;; Duplicate kicker is still suppressed (finding #12)
+          (expect (not (str/includes? html "class=\"report-kicker\">Allure Report"))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "defers test-card rendering into per-suite <template> elements (virtualization)"
+      (let [results-dir (tmp-dir "block-results-virt")
+            output-dir (tmp-dir "block-output-virt")]
+        (dotimes [i 50]
+          (write-result! results-dir (str "uuid-v-" i) "passed" (str "t" i)
+            (* i 1000) (+ (* i 1000) 500)))
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; Every suite wraps its cards in a <template> so the initial DOM
+          ;; doesn't count them.
+          (expect (str/includes? html "<template class=\"suite-template\">"))
+          ;; Metadata JSON is inlined per suite for filter/search across
+          ;; unhydrated suites.
+          (expect (str/includes? html "class=\"suite-meta\""))
+          ;; The suite body starts unhydrated.
+          (expect (str/includes? html "data-suite-hydrated=\"false\""))
+          ;; The template MUST contain the test-card markup (so hydration can
+          ;; clone it on toggle).
+          (let [tpl-start (str/index-of html "<template class=\"suite-template\">")
+                tpl-end (when tpl-start (str/index-of html "</template>" tpl-start))
+                tpl-body (when (and tpl-start tpl-end)
+                           (subs html tpl-start tpl-end))]
+            (expect (and tpl-body (str/includes? tpl-body "test-card")))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "renders the suites filter empty-state placeholder and its reset button"
+      (let [results-dir (tmp-dir "block-results-empty")
+            output-dir (tmp-dir "block-output-empty")]
+        (write-result! results-dir "uuid-e" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "id=\"suitesRoot\""))
+          (expect (str/includes? html "id=\"suitesEmptyState\""))
+          (expect (str/includes? html "No tests match the current filter."))
+          (expect (str/includes? html "data-action=\"reset-filters\"")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "replaces the native sort <select> with a custom menu"
+      (let [results-dir (tmp-dir "block-results-sort")
+            output-dir (tmp-dir "block-output-sort")]
+        (write-result! results-dir "uuid-s" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; No native <select> with id sortSelect anymore
+          (expect (not (str/includes? html "<select id=\"sortSelect\"")))
+          ;; Custom menu structure is present
+          (expect (str/includes? html "id=\"sortControl\""))
+          (expect (str/includes? html "toolbar-sort-menu"))
+          (expect (str/includes? html "aria-haspopup=\"menu\""))
+          (expect (str/includes? html "data-value=\"longest\""))
+          (expect (str/includes? html "data-value=\"name\"")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "exposes a 3-state theme toggle button in the header"
+      (let [results-dir (tmp-dir "block-results-theme")
+            output-dir (tmp-dir "block-output-theme")]
+        (write-result! results-dir "uuid-t" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "id=\"themeToggle\""))
+          (expect (str/includes? html "class=\"theme-toggle\""))
+          ;; data-theme driven CSS branches exist
+          (expect (str/includes? html "html[data-theme='dark']"))
+          (expect (str/includes? html "html[data-theme='light']"))
+          ;; Pre-paint inline script to avoid FOUT/wrong-theme flash
+          (expect (str/includes? html "spel.report.theme")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "accepts explicit :run-info opt (caller supplies metadata directly)"
+      (let [results-dir (tmp-dir "block-results-runopts")
+            output-dir (tmp-dir "block-output-runopts")]
+        (write-result! results-dir "uuid-r" "passed" "t" 1000 2000)
+        (alternative-report/generate!
+          (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir)
+          {:run-info {:commit-sha "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+                      :commit-short "deadbee"
+                      :commit-author "Alice"
+                      :commit-subject "feat: option passthrough"
+                      :run-url "https://example.com/run/99"
+                      :run-name "#99"}})
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "feat: option passthrough"))
+          (expect (str/includes? html "deadbee"))
+          (expect (str/includes? html "Alice"))
+          (expect (str/includes? html "https://example.com/run/99")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))))
