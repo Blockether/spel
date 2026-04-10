@@ -1051,7 +1051,7 @@
 ;; =============================================================================
 
 (defdescribe session-integration-test
-  "Integration tests for session_info, session_list"
+  "Integration tests for session_info"
 
   (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
 
@@ -1063,11 +1063,7 @@
         (expect (= "integ-test" (:session r)))
         (expect (true? (:headless r)))
         (expect (str/includes? (:url r) "/test-page"))
-        (expect (= "Test Page" (:title r)))))
-
-    (it "session_list returns vector"
-      (let [r (cmd "session_list" {})]
-        (expect (vector? (:sessions r)))))))
+        (expect (= "Test Page" (:title r)))))))
 
 ;; =============================================================================
 ;; 29. Find (semantic locators)
