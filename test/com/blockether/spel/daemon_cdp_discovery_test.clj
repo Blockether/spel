@@ -34,12 +34,6 @@
     (.start srv)
     srv))
 
-(defn- find-free-port
-  "Binds an ephemeral TCP port, closes the socket, returns the number."
-  ^long []
-  (with-open [s (java.net.ServerSocket. 0)]
-    (.getLocalPort s)))
-
 ;; =============================================================================
 ;; Chromium browser catalog
 ;; =============================================================================

@@ -494,7 +494,6 @@
     (it "falls back to ws URL when DevToolsActivePort has ws-path and HTTP probe fails"
       (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
                                                           {:port 9222 :ws-path "/devtools/browser/ws-id"})
-                       #'sut/scan-playwright-devtools    (fn [_] nil)
                        #'sut/probe-http-cdp              (fn [& _] nil)}
         #(expect (= "ws://127.0.0.1:9222/devtools/browser/ws-id"
                    (sut/discover-cdp-endpoint)))))
@@ -502,7 +501,6 @@
     (it "falls back to http URL when ws-path is missing"
       (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
                                                           {:port 9222 :ws-path nil})
-                       #'sut/scan-playwright-devtools    (fn [_] nil)
                        #'sut/probe-http-cdp              (fn [& _] nil)}
         #(expect (= "http://127.0.0.1:9222"
                    (sut/discover-cdp-endpoint))))))

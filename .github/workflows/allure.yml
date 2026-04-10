@@ -154,10 +154,36 @@ jobs:
             (r/generate-html-report! \"allure-results\" \"allure-report\")"
 
       - name: Generate Blockether alternative report
+        env:
+          ALT_LOGO: ${{ github.workspace }}/logo.svg
+          ALT_BUILD_ID: "#${{ steps.ctx.outputs.ci_run_number }}"
+          ALT_BUILD_DATE: ${{ steps.commit.outputs.timestamp }}
+          ALT_BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ steps.ctx.outputs.ci_run_id }}
+          ALT_COMMIT_SHA: ${{ steps.ctx.outputs.head_sha }}
+          ALT_COMMIT_AUTHOR: ${{ steps.commit.outputs.author }}
+          ALT_COMMIT_SUBJECT: ${{ steps.commit.outputs.message }}
+          ALT_DESCRIPTION: >-
+            Nightly spel CI run on branch
+            <code>${{ github.event.workflow_run.head_branch }}</code>.
+            <a href="${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.ctx.outputs.head_sha }}">View commit</a>.
         run: |
           clojure -M -e "
             (require '[com.blockether.spel.spel-allure-alternative-html-report :as alt])
-            (alt/generate! \"allure-results\" \"allure-report/alternative\")"
+            (let [sha       (System/getenv \"ALT_COMMIT_SHA\")
+                  short-sha (when (and sha (>= (count sha) 7)) (subs sha 0 7))
+                  logo-path (System/getenv \"ALT_LOGO\")
+                  logo      (when (.isFile (clojure.java.io/file logo-path)) logo-path)]
+              (alt/generate! \"allure-results\" \"allure-report/alternative\"
+                (cond-> {:logo-alt    \"spel\"
+                         :description (System/getenv \"ALT_DESCRIPTION\")
+                         :build-id    (System/getenv \"ALT_BUILD_ID\")
+                         :build-date  (System/getenv \"ALT_BUILD_DATE\")
+                         :build-url   (System/getenv \"ALT_BUILD_URL\")
+                         :run-info    {:commit-sha     sha
+                                       :commit-short   short-sha
+                                       :commit-author  (System/getenv \"ALT_COMMIT_AUTHOR\")
+                                       :commit-subject (System/getenv \"ALT_COMMIT_SUBJECT\")}}
+                  logo (assoc :logo logo))))"
 
       - name: Extract test counts from Allure results
         id: test-counts

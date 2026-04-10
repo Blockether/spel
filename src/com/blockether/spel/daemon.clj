@@ -378,18 +378,6 @@
                      (filter #(.isDirectory ^File %) (.listFiles pw-dir))))]
     (into [] (concat base (or pw-files [])))))
 
-(defn- scan-playwright-devtools
-  "Scans ms-playwright cache dir for subdirectories containing DevToolsActivePort.
-   Returns first match or nil. Finds Chrome launched by chrome-devtools-mcp etc."
-  [^String cache-dir]
-  (let [parent (java.io.File. cache-dir)]
-    (when (.isDirectory parent)
-      (some (fn [^java.io.File child]
-              (when (.isDirectory child)
-                (parse-devtools-active-port
-                  (str (.getPath child) "/DevToolsActivePort"))))
-        (.listFiles parent)))))
-
 (defn- read-cdp-json-version
   "HTTP-GETs /json/version on the given port and returns
    `{:port N :browser \"Chrome/…\"}` iff:

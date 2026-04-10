@@ -2315,7 +2315,8 @@
       " (if logo-href
           (let [alt (or (:logo-alt opts)
                       (get env "report.logo_alt")
-                      (or (:report-title run-info) title))]
+                      (:report-title run-info)
+                      title)]
             (str "<img class=\"report-logo\" src=\"" (html-escape logo-href)
               "\" alt=\"" (html-escape alt) "\">"))
           "") "
