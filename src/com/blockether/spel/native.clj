@@ -1061,7 +1061,7 @@
             ;; --flag=VALUE
             (let [eq (str/index-of arg "=")]
               (and eq (contains? flag-keys (subs arg 0 eq))))
-            (let [eq (str/index-of arg "=")
+            (let [eq (long (str/index-of arg "="))
                   [k _] (get flag-keys (subs arg 0 eq))]
               (recur (rest args) (assoc opts k (subs arg (inc eq)))))
 

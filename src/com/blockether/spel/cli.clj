@@ -3173,7 +3173,7 @@
   (let [indent "  "
         gap    "   "
         rows*  (mapv (fn [row] (mapv #(if (nil? %) "" (str %)) row)) rows)
-        ncols  (count headers)
+        ncols  (long (count headers))
         widths (mapv (fn [i]
                        (apply max
                          (count (str (nth headers i)))
@@ -3187,7 +3187,12 @@
                             (format (str "%-" (nth widths i) "s") (str c))))
                         cells)
                    (str/join gap)))
-        rule-w (+ (apply + widths) (* (count gap) (max 0 (dec ncols))))]
+        ;; All primitive longs — keeps the unchecked_add / inc-unchecked
+        ;; paths out of the boxed Numbers.add(Object,long) route.
+        widths-sum (long (reduce + 0 widths))
+        gap-len    (long (count gap))
+        sep-count  (long (max 0 (dec ncols)))
+        rule-w     (+ widths-sum (* gap-len sep-count))]
     (println (str indent (render headers)))
     (println (str indent (apply str (repeat rule-w "─"))))
     (doseq [row rows*]

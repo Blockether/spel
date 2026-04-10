@@ -466,8 +466,12 @@
   []
   (let [from-prop (some-> (System/getProperty trace-chunk-size-prop) parse-long-safe)
         from-env (some-> (System/getenv trace-chunk-size-env) parse-long-safe)]
-    (or (when (and from-prop (pos? from-prop)) (long from-prop))
-      (when (and from-env (pos? from-env)) (long from-env)))))
+    ;; Explicit `(long …)` coercions force primitive-long `pos?` dispatch
+    ;; instead of the boxed `Numbers/isPos(Object)` path.
+    (or (when from-prop
+          (let [n (long from-prop)] (when (pos? n) n)))
+      (when from-env
+        (let [n (long from-env)] (when (pos? n) n))))))
 
 (defn- trace-chunk-size-label
   "Human-readable label for the given chunk size in bytes, e.g. `9MB`."
@@ -2180,10 +2184,13 @@
          build-date-ts (when-let [v (:build-date opts)]
                          (cond
                            (number? v) (long v)
-                           (inst? v) (.getTime ^java.util.Date
-                                       (if (instance? java.util.Date v)
-                                         v
-                                         (java.util.Date/from v)))
+                           (inst? v)
+                           ;; Bind into a locally-hinted `^Date` so the
+                           ;; `.getTime` call resolves without reflection.
+                           (let [^java.util.Date d (if (instance? java.util.Date v)
+                                                     v
+                                                     (java.util.Date/from v))]
+                             (.getTime d))
                            (string? v)
                            (let [s (str/trim v)]
                              ;; Accept epoch millis OR an ISO-8601-ish
