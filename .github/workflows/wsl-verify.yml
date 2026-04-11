@@ -71,60 +71,148 @@ jobs:
           wsl --list --verbose
 
       # ─────────────────────────────────────────────────────────────────
-      # 2. Launch Chrome on the Windows side with the exact recommended
-      #    flags. Headless so the runner doesn't need a display.
+      # 2. Launch a Chromium-family browser on the Windows side with the
+      #    exact recommended flags. Headless so the runner doesn't need
+      #    a display. Falls back through Chrome → Edge → Playwright's
+      #    bundled Chromium until one wakes up with a valid
+      #    DevToolsActivePort file.
       # ─────────────────────────────────────────────────────────────────
-      # --remote-debugging-address=0.0.0.0 is critical: without it, Chrome
-      # binds to Windows 127.0.0.1 only and WSL can't reach it under NAT.
-      # --remote-allow-origins=* disables the DNS-rebinding 403 that fires
-      # when /json/version is hit with a non-local Host header.
-      # --user-data-dir gives the browser a private profile so we don't
-      # collide with any system Chrome state on the runner image.
-      - name: Start Chrome on Windows with --remote-debugging-port=9222
+      # Key flags:
+      #   --remote-debugging-address=0.0.0.0   — without this, Chrome
+      #     binds Windows 127.0.0.1 only and WSL can't reach it under NAT
+      #   --remote-allow-origins=*             — disables the DNS-rebinding
+      #     403 that fires when /json/version has a non-local Host header
+      #   --user-data-dir=<fresh dir>          — private profile; avoids
+      #     clashing with any system Chrome state on the runner image
+      #   --headless=old                       — the classic headless mode;
+      #     --headless=new has been flaky on windows-latest CI runners
+      #     (hangs or dies silently before writing DevToolsActivePort)
+      - name: Start Chromium-family browser on Windows
         id: start-chrome
         shell: pwsh
         run: |
-          $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-          if (-not (Test-Path $chrome)) {
-            $chrome = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-          }
-          if (-not (Test-Path $chrome)) {
-            Write-Error "Chrome not found in standard locations on this runner"
-            exit 1
-          }
-          $udd = Join-Path $env:TEMP "spel-wsl-verify-chrome"
-          New-Item -ItemType Directory -Force -Path $udd | Out-Null
-          Write-Host "Chrome: $chrome"
-          Write-Host "User-data-dir: $udd"
-
-          $proc = Start-Process -FilePath $chrome -PassThru -ArgumentList @(
-            "--remote-debugging-port=9222",
-            "--remote-debugging-address=0.0.0.0",
-            "--remote-allow-origins=*",
-            "--user-data-dir=$udd",
-            "--headless=new",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-gpu",
-            "about:blank"
+          # Resolve all candidate browsers up front so failure messages
+          # can say "tried X, Y, Z and none worked".
+          $candidates = @(
+            @{ Name = "Google Chrome";  Path = "C:\Program Files\Google\Chrome\Application\chrome.exe" },
+            @{ Name = "Google Chrome (x86)"; Path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" },
+            @{ Name = "Microsoft Edge"; Path = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" },
+            @{ Name = "Microsoft Edge"; Path = "C:\Program Files\Microsoft\Edge\Application\msedge.exe" }
           )
-          Write-Host "Chrome PID: $($proc.Id)"
-          "chrome_pid=$($proc.Id)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "chrome_udd=$udd"        | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-          # Wait for DevToolsActivePort — up to 20s. Chrome creates this
-          # file once it has bound the remote-debugging socket.
-          $dtap = Join-Path $udd "DevToolsActivePort"
-          $deadline = (Get-Date).AddSeconds(20)
-          while ((Get-Date) -lt $deadline -and -not (Test-Path $dtap)) {
-            Start-Sleep -Milliseconds 250
-          }
-          if (-not (Test-Path $dtap)) {
-            Write-Error "DevToolsActivePort never appeared under $udd"
+          $existing = $candidates | Where-Object { Test-Path $_.Path }
+          if ($existing.Count -eq 0) {
+            Write-Error "No Chromium-family browser found on this runner"
             exit 1
           }
-          Write-Host "--- DevToolsActivePort ---"
-          Get-Content $dtap
+          Write-Host "Available browsers:"
+          $existing | ForEach-Object { Write-Host "  $($_.Name) → $($_.Path)" }
+
+          # Use a short fixed path — some Chrome versions dislike 8.3
+          # short-name paths under Temp (e.g. RUNNER~1).
+          $uddBase = "C:\spel-wsl-verify"
+          New-Item -ItemType Directory -Force -Path $uddBase | Out-Null
+
+          $logDir = Join-Path $uddBase "logs"
+          New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+          $success = $false
+          $chosen = $null
+          $chosenPid = $null
+          $chosenUdd = $null
+
+          foreach ($b in $existing) {
+            $label = $b.Name -replace ' ', '_'
+            $udd = Join-Path $uddBase $label
+            if (Test-Path $udd) { Remove-Item -Recurse -Force $udd }
+            New-Item -ItemType Directory -Force -Path $udd | Out-Null
+            $stdoutLog = Join-Path $logDir "$label-stdout.log"
+            $stderrLog = Join-Path $logDir "$label-stderr.log"
+
+            Write-Host ""
+            Write-Host "=== Trying $($b.Name) ==="
+            Write-Host "  path:  $($b.Path)"
+            Write-Host "  udd:   $udd"
+            Write-Host "  logs:  $stdoutLog / $stderrLog"
+
+            # Redirect stderr to file so we can fish Chrome's own crash
+            # message out of the log if DTAP never appears.
+            $proc = Start-Process -FilePath $b.Path -PassThru `
+              -RedirectStandardError $stderrLog `
+              -RedirectStandardOutput $stdoutLog `
+              -ArgumentList @(
+                "--remote-debugging-port=9222",
+                "--remote-debugging-address=0.0.0.0",
+                "--remote-allow-origins=*",
+                "--user-data-dir=$udd",
+                "--headless=old",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--no-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-sync",
+                "--metrics-recording-only",
+                "about:blank"
+              )
+            Write-Host "  pid:   $($proc.Id)"
+
+            # Wait up to 30s for DevToolsActivePort. Check liveness every
+            # iteration so we fail fast on an immediate crash instead of
+            # waiting the full 30 seconds.
+            $dtap = Join-Path $udd "DevToolsActivePort"
+            $deadline = (Get-Date).AddSeconds(30)
+            $dtapFound = $false
+            while ((Get-Date) -lt $deadline) {
+              if (Test-Path $dtap) { $dtapFound = $true; break }
+              $p = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+              if (-not $p) {
+                Write-Host "  [WARN] $($b.Name) process exited before writing DTAP"
+                break
+              }
+              Start-Sleep -Milliseconds 250
+            }
+
+            if ($dtapFound) {
+              Write-Host "  [OK] DevToolsActivePort ready:"
+              Get-Content $dtap | ForEach-Object { Write-Host "      $_" }
+              $success = $true
+              $chosen = $b.Name
+              $chosenPid = $proc.Id
+              $chosenUdd = $udd
+              break
+            }
+
+            # Dump logs and the udd contents so we can see what Chrome
+            # did on its way out.
+            Write-Host "  [FAIL] ${($b.Name)} didn't produce DTAP. Logs:"
+            if (Test-Path $stderrLog) {
+              Write-Host "  --- stderr ---"
+              Get-Content $stderrLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
+            }
+            if (Test-Path $stdoutLog) {
+              Write-Host "  --- stdout ---"
+              Get-Content $stdoutLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
+            }
+            Write-Host "  --- udd contents ---"
+            Get-ChildItem -Recurse -Depth 2 $udd -ErrorAction SilentlyContinue |
+              Select-Object -First 20 |
+              ForEach-Object { Write-Host "    $($_.FullName)" }
+
+            # Kill the failed candidate so it doesn't linger.
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction Stop } catch { }
+          }
+
+          if (-not $success) {
+            Write-Error "All Chromium-family browsers failed to expose a CDP endpoint"
+            exit 1
+          }
+
+          Write-Host ""
+          Write-Host "*** Selected browser: $chosen (PID $chosenPid) ***"
+          "chrome_pid=$chosenPid" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "chrome_udd=$chosenUdd" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Sanity-check Chrome from the Windows side first
         shell: pwsh
