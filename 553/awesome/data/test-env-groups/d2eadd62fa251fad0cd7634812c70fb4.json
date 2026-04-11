@@ -1,0 +1,1 @@
+{"id":"d2eadd62fa251fad0cd7634812c70fb4","fullName":"com.blockether.spel.security-test.wrap-boundaries: opt-in XML-style delimiter wrapping.disabled.returns text unchanged when nil","name":"wrap-boundaries: opt-in XML-style delimiter wrapping > disabled > returns text unchanged when nil","status":"passed","testResultsByEnv":{"default":"1b9a3c560357592665e8236de666d97d"}}

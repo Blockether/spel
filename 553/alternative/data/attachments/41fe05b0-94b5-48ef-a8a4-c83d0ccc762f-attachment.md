@@ -1,0 +1,25 @@
+## GET http://localhost:36059/status/400 → 400 Bad Request
+
+### Request Headers
+```
+GET http://localhost:36059/status/400
+```
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Sat, 11 Apr 2026 09:37:10 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 400
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:36059/status/400'
+```
