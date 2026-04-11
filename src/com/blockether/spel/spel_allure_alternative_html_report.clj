@@ -245,17 +245,20 @@
   "Returns a description string safe to drop into the report's
    `.report-description` block. Sources, in precedence order:
    `opts[:description]` → `environment.properties` `report.description`.
-   Plain text is html-escaped. Strings that start with `<` are treated
-   as pre-formatted HTML and passed through `sanitize-description-html`
-   so callers can emit links, `<strong>`, and multi-paragraph layout
-   without opening up a script-injection hole."
+
+   The value is ALWAYS treated as HTML and passed through
+   `sanitize-description-html`, so callers can freely embed links,
+   `<strong>`, `<code>`, and multi-paragraph layout regardless of
+   whether the string happens to start with a `<` tag. Previously
+   this function html-escaped any value that didn't start with `<`,
+   which meant a description like
+   `Nightly run on <code>main</code>. <a href=...>View commit</a>.`
+   rendered as literal `&lt;code&gt;` text. Plain text containing
+   `<` or `&` characters should be entity-escaped by the caller."
   [opts env]
   (when-let [raw (first-non-blank (:description opts)
                    (get env "report.description"))]
-    (let [trimmed (str/trim raw)]
-      (if (str/starts-with? trimmed "<")
-        (sanitize-description-html trimmed)
-        (html-escape trimmed)))))
+    (sanitize-description-html (str/trim raw))))
 
 (defn- count-by-status [results]
   (let [freqs (frequencies (map #(get % "status" "unknown") results))]
@@ -777,14 +780,28 @@
   (let [cts (count-by-status results)
         meta-json (-> (suite-metadata-json results)
                     ;; Escape `</` so an inlined `</script>` can't break out.
-                    (str/replace "</" "<\\/"))]
+                    (str/replace "</" "<\\/"))
+        ;; Aggregate per-test durations so sortCards() can reorder the
+        ;; suites themselves (longest-first / shortest-first) without
+        ;; having to hydrate the template. Previously sorting only
+        ;; reshuffled cards inside each suite, leaving the suites
+        ;; themselves in alphabetical order — so the 5020ms test was
+        ;; still buried at the bottom of the page on "Longest first".
+        durations (map (fn [r]
+                         (let [s (get r "start") e (get r "stop")]
+                           (if (and s e) (- (long e) (long s)) 0)))
+                    results)
+        max-dur (if (seq durations) (long (apply max durations)) 0)
+        total-dur (long (reduce + 0 durations))]
     (str "<details class=\"suite-section\" data-suite"
       " data-suite-name=\"" (str/lower-case (html-escape suite-name)) "\""
       " data-suite-total=\"" (:total cts) "\""
       " data-suite-failed=\"" (:failed cts) "\""
       " data-suite-broken=\"" (:broken cts) "\""
       " data-suite-skipped=\"" (:skipped cts) "\""
-      " data-suite-passed=\"" (:passed cts) "\">"
+      " data-suite-passed=\"" (:passed cts) "\""
+      " data-suite-duration-max=\"" max-dur "\""
+      " data-suite-duration-total=\"" total-dur "\">"
       "<summary class=\"suite-summary\">"
       (detail-marker)
       "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
@@ -954,11 +971,20 @@
     background: var(--bg-panel);
     box-shadow: var(--shadow);
   }
+  .report-header-left {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.25rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .report-header-main {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    min-width: 280px;
+    min-width: 0;
+    flex: 1 1 auto;
   }
   .report-kicker {
     font-family: 'JetBrains Mono', monospace;
@@ -975,11 +1001,12 @@
   }
   .report-logo {
     display: block;
-    max-height: 40px;
-    max-width: 160px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    max-height: 56px;
+    max-width: 220px;
     width: auto;
     height: auto;
-    margin-bottom: 0.5rem;
   }
   .report-description {
     color: var(--text-secondary);
@@ -1841,11 +1868,45 @@
     }
 
     function sortCards() {
-      // Only touch suites that have already been hydrated — unhydrated suites
-      // keep their original test order in the <template>, which is fine
-      // because their cards aren't visible yet.
-      var sections = document.querySelectorAll('.suite-section');
-      sections.forEach(function(section) {
+      // Sort both (a) the suite sections themselves and (b) the test
+      // cards inside any already-hydrated suite. Previously this only
+      // reshuffled cards within a suite, so clicking \"Longest first\"
+      // left all 40 suites in alphabetical order — the longest test
+      // was still buried in a suite near the bottom of the page.
+      var suitesRoot = document.getElementById('suitesRoot');
+      var sectionList = Array.from(document.querySelectorAll('.suite-section'));
+
+      function suiteCmp(a, b) {
+        if (currentSort === 'longest') {
+          return parseInt(b.getAttribute('data-suite-duration-max') || '0')
+               - parseInt(a.getAttribute('data-suite-duration-max') || '0');
+        } else if (currentSort === 'shortest') {
+          return parseInt(a.getAttribute('data-suite-duration-max') || '0')
+               - parseInt(b.getAttribute('data-suite-duration-max') || '0');
+        } else if (currentSort === 'name') {
+          return (a.getAttribute('data-suite-name') || '')
+            .localeCompare(b.getAttribute('data-suite-name') || '');
+        } else {
+          // Status: suites with failures/broken first, then by name.
+          var aFail = parseInt(a.getAttribute('data-suite-failed') || '0')
+                    + parseInt(a.getAttribute('data-suite-broken') || '0');
+          var bFail = parseInt(b.getAttribute('data-suite-failed') || '0')
+                    + parseInt(b.getAttribute('data-suite-broken') || '0');
+          if (aFail !== bFail) return bFail - aFail;
+          return (a.getAttribute('data-suite-name') || '')
+            .localeCompare(b.getAttribute('data-suite-name') || '');
+        }
+      }
+
+      if (suitesRoot) {
+        var sorted = sectionList.slice().sort(suiteCmp);
+        // appendChild moves the element; non-suite children of
+        // suitesRoot (e.g. .suite-common-prefix) stay in place at the
+        // front because we never touch them.
+        sorted.forEach(function(sec) { suitesRoot.appendChild(sec); });
+      }
+
+      sectionList.forEach(function(section) {
         var body = section.querySelector('.suite-body');
         if (!body || body.getAttribute('data-suite-hydrated') !== 'true') return;
         var cards = Array.from(body.querySelectorAll(':scope > .test-card'));
@@ -2318,7 +2379,7 @@
 <body>
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
-    <div class=\"report-header-main\">
+    <div class=\"report-header-left\">
       " (if logo-href
           (let [alt (or (:logo-alt opts)
                       (get env "report.logo_alt")
@@ -2327,6 +2388,7 @@
             (str "<img class=\"report-logo\" src=\"" (html-escape logo-href)
               "\" alt=\"" (html-escape alt) "\">"))
           "") "
+      <div class=\"report-header-main\">
       " (if (and (seq kicker)
               (not= (str/lower-case (str kicker))
                 (str/lower-case (str title))))
@@ -2347,6 +2409,7 @@
       " (if description-html
           (str "<div class=\"report-description\">" description-html "</div>")
           "") "
+      </div>
     </div>
     <div class=\"report-meta\">"
                   (render-summary-chip "Total" (:total cts) "summary-chip-total")

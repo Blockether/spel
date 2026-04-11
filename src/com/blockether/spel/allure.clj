@@ -757,13 +757,16 @@
     ;; Title
     (.append sb (str "## " method " " (or url "") " \u2192 " status " " status-text "\n\n"))
 
-    ;; Request Headers — always emit so the Request card always appears
-    (.append sb "### Request Headers\n```\n")
-    (if (and request-headers (seq request-headers))
+    ;; Request Headers — only emit when we actually captured headers.
+    ;; Previously we fell back to the request line (`GET https://…`) when
+    ;; empty, which rendered as a fake header inside the Request Headers
+    ;; block. Callers that never populate :request-headers now get no
+    ;; Request Headers section instead of a misleading placeholder.
+    (when (and request-headers (seq request-headers))
+      (.append sb "### Request Headers\n```\n")
       (doseq [[k v] (sort request-headers)]
         (.append sb (str k ": " v "\n")))
-      (.append sb (str method " " (or url "") "\n")))
-    (.append sb "```\n\n")
+      (.append sb "```\n\n"))
 
     ;; Request Body
     (when (and request-body (pos? (count request-body)))
