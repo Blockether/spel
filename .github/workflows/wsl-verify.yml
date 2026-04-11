@@ -158,25 +158,52 @@ jobs:
               )
             Write-Host "  pid:   $($proc.Id)"
 
-            # Wait up to 30s for DevToolsActivePort. Check liveness every
-            # iteration so we fail fast on an immediate crash instead of
-            # waiting the full 30 seconds.
-            $dtap = Join-Path $udd "DevToolsActivePort"
+            # Wait up to 30s for /json/version to respond on localhost.
+            # Chrome in --headless mode does NOT reliably write
+            # DevToolsActivePort to the user-data-dir root (prior run
+            # 24282735379 confirmed: stderr says "DevTools listening
+            # on ws://127.0.0.1:9222/..." but the udd only contains a
+            # Crashpad subdir). Probing the CDP HTTP endpoint directly
+            # is the authoritative readiness signal.
+            $ready = $false
+            $wsUrl = $null
+            $browserLabel = $null
             $deadline = (Get-Date).AddSeconds(30)
-            $dtapFound = $false
             while ((Get-Date) -lt $deadline) {
-              if (Test-Path $dtap) { $dtapFound = $true; break }
               $p = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
               if (-not $p) {
-                Write-Host "  [WARN] $($b.Name) process exited before writing DTAP"
+                Write-Host "  [WARN] $($b.Name) process exited before CDP came up"
                 break
               }
-              Start-Sleep -Milliseconds 250
+              try {
+                $resp = Invoke-WebRequest -UseBasicParsing `
+                  -Uri "http://127.0.0.1:9222/json/version" `
+                  -TimeoutSec 2 -ErrorAction Stop
+                if ($resp.StatusCode -eq 200) {
+                  $json = $resp.Content | ConvertFrom-Json
+                  $wsUrl = $json.webSocketDebuggerUrl
+                  $browserLabel = $json.Browser
+                  $ready = $true
+                  break
+                }
+              } catch {
+                # Not ready yet — keep polling.
+              }
+              Start-Sleep -Milliseconds 300
             }
 
-            if ($dtapFound) {
-              Write-Host "  [OK] DevToolsActivePort ready:"
-              Get-Content $dtap | ForEach-Object { Write-Host "      $_" }
+            if ($ready) {
+              Write-Host "  [OK] CDP endpoint live on 127.0.0.1:9222"
+              Write-Host "       Browser: $browserLabel"
+              Write-Host "       ws URL:  $wsUrl"
+              # Write a DevToolsActivePort file manually so the diag
+              # script's Linux-side /mnt/c/ catalog walk has something
+              # to chew on when exercising the spel WSL discovery path.
+              # First line is the port, second line is the ws-path —
+              # exactly what Chromium normally emits.
+              $wsPath = $wsUrl -replace '^ws://[^/]+', ''
+              "9222`n$wsPath" | Out-File -FilePath (Join-Path $udd "DevToolsActivePort") -Encoding ascii -NoNewline
+              Write-Host "       Wrote synthetic DevToolsActivePort for diag script"
               $success = $true
               $chosen = $b.Name
               $chosenPid = $proc.Id
@@ -186,7 +213,7 @@ jobs:
 
             # Dump logs and the udd contents so we can see what Chrome
             # did on its way out.
-            Write-Host "  [FAIL] ${($b.Name)} didn't produce DTAP. Logs:"
+            Write-Host "  [FAIL] ${($b.Name)} didn't expose /json/version. Logs:"
             if (Test-Path $stderrLog) {
               Write-Host "  --- stderr ---"
               Get-Content $stderrLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
