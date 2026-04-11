@@ -342,7 +342,7 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
-    (it "exposes a 3-state theme toggle button in the header"
+    (it "exposes a 3-state theme toggle button pinned to the top-right"
       (let [results-dir (tmp-dir "block-results-theme")
             output-dir (tmp-dir "block-output-theme")]
         (write-result! results-dir "uuid-t" "passed" "t" 1000 2000)
@@ -350,7 +350,10 @@
           (.getAbsolutePath output-dir))
         (let [html (slurp (io/file output-dir "index.html"))]
           (expect (str/includes? html "id=\"themeToggle\""))
-          (expect (str/includes? html "class=\"theme-toggle\""))
+          ;; Button has both the base `.theme-toggle` class and the
+          ;; `.theme-toggle-fixed` modifier that pins it top-right.
+          (expect (str/includes? html "theme-toggle theme-toggle-fixed"))
+          (expect (str/includes? html ".theme-toggle-fixed"))
           ;; data-theme driven CSS branches exist
           (expect (str/includes? html "html[data-theme='dark']"))
           (expect (str/includes? html "html[data-theme='light']"))

@@ -1615,6 +1615,19 @@
     outline-offset: 2px;
   }
   .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
+  /* Fixed top-right placement — pinned to the viewport so it stays
+     visible as the user scrolls through suites. Higher z-index than
+     the sticky toolbar so it never gets covered. */
+  .theme-toggle-fixed {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+  }
+  @media print {
+    .theme-toggle-fixed { display: none; }
+  }
 
   /* Custom Sort menu — pill button + dropdown, visually aligned with
      the filter pills so the toolbar reads as one design system. */
@@ -2377,6 +2390,12 @@
                                  "") "
 </head>
 <body>
+<button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
+        aria-label=\"Toggle theme (auto / light / dark)\"
+        title=\"Toggle theme — auto / light / dark\">
+  <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
+  <span class=\"theme-toggle-label\">Auto</span>
+</button>
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-left\">
@@ -2420,12 +2439,6 @@
                   (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
                   (render-summary-chip "Suites" (count suites) "summary-chip-suites")
                   (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
-                  "<button type=\"button\" id=\"themeToggle\" class=\"theme-toggle\"
-                          aria-label=\"Toggle theme (auto / light / dark)\"
-                          title=\"Toggle theme — auto / light / dark\">
-                    <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
-                    <span class=\"theme-toggle-label\">Auto</span>
-                  </button>"
                   "</div>
   </header>
 
