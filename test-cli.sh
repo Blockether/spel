@@ -1508,10 +1508,10 @@ assert_contains "report shows test count" "$OUT" "2 tests"
 assert_contains "report shows passed" "$OUT" "1 passed"
 assert_contains "report shows failed" "$OUT" "1 failed"
 REPORT_HTML="$REPORT_OUTPUT_DIR/index.html"
-assert_contains "report HTML file exists" "$(cat "$REPORT_HTML" 2>/dev/null)" "Blockether"
+assert_contains "report HTML file exists" "$(cat "$REPORT_HTML" 2>/dev/null)" "Allure Report"
 assert_contains "report HTML has test name" "$(cat "$REPORT_HTML")" "sample-test"
 assert_contains "report HTML has failing test" "$(cat "$REPORT_HTML")" "failing-test"
-assert_contains "report HTML has theme" "$(cat "$REPORT_HTML")" "Atkinson Hyperlegible"
+assert_contains "report HTML has theme" "$(cat "$REPORT_HTML")" "Inter"
 
 OUT=$("$SPEL" show-trace --help 2>&1)
 assert_contains "show-trace --help mentions trace" "$OUT" "trace"
