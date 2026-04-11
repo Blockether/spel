@@ -169,9 +169,33 @@ fi
 
 if [[ -z "$FOUND_PORT" ]]; then
   fail "no DevToolsActivePort found in any known user-data-dir"
-  info "launch Chrome on Windows with:"
-  info "  chrome.exe --remote-debugging-port=9222"
-  info "then rerun this script, OR pass --port 9222 to probe it manually"
+  info ""
+  info "Neither Chrome nor Edge is currently running with remote debugging on"
+  info "the Windows side. Launch WHICHEVER browser you actually use — here are"
+  info "the commands to run from Windows PowerShell (NOT from inside WSL;"
+  info "chrome.exe / msedge.exe only exist on the Windows filesystem):"
+  info ""
+  info "  # Google Chrome"
+  info "  & \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" \`"
+  info "    --remote-debugging-port=9222 \`"
+  info "    --remote-debugging-address=0.0.0.0 \`"
+  info "    --remote-allow-origins=* \`"
+  info "    --user-data-dir=\"\$env:LOCALAPPDATA\\Google\\Chrome\\User Data\""
+  info ""
+  info "  # Microsoft Edge"
+  info "  & \"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" \`"
+  info "    --remote-debugging-port=9222 \`"
+  info "    --remote-debugging-address=0.0.0.0 \`"
+  info "    --remote-allow-origins=* \`"
+  info "    --user-data-dir=\"\$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\""
+  info ""
+  info "Or from inside WSL via Windows interop (launches on the Windows side):"
+  info "  powershell.exe -NoProfile -Command \\"
+  info "    \"Start-Process chrome -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\""
+  info "  powershell.exe -NoProfile -Command \\"
+  info "    \"Start-Process msedge -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\""
+  info ""
+  info "Then rerun this script, OR pass --port 9222 to probe it manually."
   exit 3
 fi
 
@@ -191,18 +215,75 @@ fi
 step "6. Reachability probes (HTTP + WebSocket)"
 
 probe_http() {
+  # Probe /json/version at ${target}. Reports:
+  #   200 + Browser field       → the happy path
+  #   403 Host-header rejection → Chrome's DNS-rebinding protection kicked
+  #                               in; caller forgot --remote-allow-origins=*
+  #   connection refused        → the TCP path is dead
+  #   other                     → dump the status and body excerpt
+  # Also stashes the discovered webSocketDebuggerUrl for the WS probe so we
+  # don't have to fetch /json/version twice.
   local target="$1"
-  local body
-  body=$(curl -sS --max-time 2 "http://${target}/json/version" 2>/dev/null || true)
-  if [[ -n "$body" ]]; then
-    local browser_field
-    browser_field=$(printf '%s' "$body" | grep -oE '"Browser":\s*"[^"]+"' | head -n1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-    ok "HTTP  http://${target}/json/version → 200 (${browser_field:-???})"
-    return 0
-  else
-    fail "HTTP  http://${target}/json/version → NOT reachable"
-    return 1
-  fi
+  local tmp_body tmp_headers http_status
+  tmp_body=$(mktemp)
+  tmp_headers=$(mktemp)
+  # -D: dump headers; -w: status code on stdout; -o: body to file
+  http_status=$(curl -sS --max-time 2 \
+    -D "$tmp_headers" -o "$tmp_body" \
+    -w '%{http_code}' \
+    "http://${target}/json/version" 2>/dev/null || echo "000")
+
+  case "$http_status" in
+    200)
+      local browser_field ws_url
+      browser_field=$(grep -oE '"Browser":\s*"[^"]+"' "$tmp_body" | head -n1 \
+        | sed 's/.*: *"\([^"]*\)".*/\1/')
+      ws_url=$(grep -oE '"webSocketDebuggerUrl":\s*"ws://[^"]+"' "$tmp_body" | head -n1 \
+        | sed 's/.*: *"\(ws:\/\/[^"]*\)".*/\1/')
+      ok "HTTP  http://${target}/json/version → 200 (${browser_field:-???})"
+      if [[ -n "$ws_url" ]]; then
+        info "      Chrome reports webSocketDebuggerUrl: ${ws_url}"
+        # Stash for probe_ws — global, indexed by target so we don't
+        # re-fetch /json/version to discover the ws-path.
+        printf -v "DISCOVERED_WS_URL_${target//[^a-zA-Z0-9]/_}" '%s' "$ws_url"
+        # Warn loudly if Chrome pins the WS URL to localhost even though
+        # we hit it via a non-localhost target: Playwright will follow
+        # that URL and fail to connect from WSL.
+        if [[ "$target" != 127.0.0.1:* && "$ws_url" == ws://127.0.0.1:* ]]; then
+          warn "      ^^ Chrome pinned the ws URL to 127.0.0.1 — Playwright will"
+          warn "         follow it and fail from WSL. Launch Chrome with"
+          warn "         --remote-allow-origins=* to get the host-reflecting form."
+        fi
+        if [[ "$target" != localhost:* && "$ws_url" == ws://localhost:* ]]; then
+          warn "      ^^ Chrome pinned the ws URL to 'localhost' — same concern"
+          warn "         as 127.0.0.1 pinning above."
+        fi
+      fi
+      rm -f "$tmp_body" "$tmp_headers"
+      return 0 ;;
+    403)
+      # Surface the exact Chrome message so the user sees "Host header is
+      # specified and is not an IP address or localhost" directly.
+      local body_excerpt
+      body_excerpt=$(head -c 200 "$tmp_body" | tr -d '\r' | tr '\n' ' ')
+      fail "HTTP  http://${target}/json/version → 403 (${body_excerpt})"
+      info "      → Chrome's DNS-rebinding protection is active. Relaunch with:"
+      info "           chrome.exe --remote-debugging-port=<port> \\"
+      info "                      --remote-debugging-address=0.0.0.0 \\"
+      info "                      --remote-allow-origins=*"
+      rm -f "$tmp_body" "$tmp_headers"
+      return 1 ;;
+    000)
+      fail "HTTP  http://${target}/json/version → connection refused / timeout"
+      rm -f "$tmp_body" "$tmp_headers"
+      return 1 ;;
+    *)
+      local body_excerpt
+      body_excerpt=$(head -c 200 "$tmp_body" | tr -d '\r' | tr '\n' ' ')
+      fail "HTTP  http://${target}/json/version → HTTP ${http_status} (${body_excerpt})"
+      rm -f "$tmp_body" "$tmp_headers"
+      return 1 ;;
+  esac
 }
 
 probe_ws() {
@@ -393,14 +474,20 @@ elif (! $LOOPBACK_HTTP && ! $HOST_HTTP) && ($LOOPBACK_WS || $HOST_WS); then
   info "  spel --cdp ws://${WIN_IP:-<win-ip>}:${FOUND_PORT}${FOUND_WS_PATH}"
   exit 2
 else
-  fail "Chrome is not reachable on ${FOUND_PORT} from either loopback or ${WIN_IP} (HTTP or WS)."
+  fail "Chrome/Edge is not reachable on ${FOUND_PORT} from either loopback or ${WIN_IP} (HTTP or WS)."
   info "Possible causes:"
-  info "  • Chrome wasn't launched with --remote-debugging-port=${FOUND_PORT}"
-  info "  • Windows Defender firewall is blocking the port"
-  info "  • Chrome crashed / closed since DevToolsActivePort was written"
+  info "  • The browser wasn't launched with --remote-debugging-port=${FOUND_PORT}"
+  info "  • It was launched without --remote-debugging-address=0.0.0.0 so it"
+  info "    only binds to Windows-side localhost (unreachable from WSL under NAT)"
+  info "  • It was launched without --remote-allow-origins=* so /json/version"
+  info "    returns HTTP 403 when hit from a non-local Host header"
+  info "  • Windows Defender firewall is blocking inbound on ${FOUND_PORT}"
+  info "  • The browser crashed / closed since DevToolsActivePort was written"
   info ""
-  info "Quickest sanity check — on Windows PowerShell:"
+  info "Quickest sanity check — run this on Windows PowerShell (NOT inside WSL):"
   info "  Invoke-WebRequest http://127.0.0.1:${FOUND_PORT}/json/version -UseBasicParsing"
-  info "If that also fails, the issue is on the Windows side, not WSL."
+  info "If THAT also fails, the browser isn't serving CDP at all — relaunch it"
+  info "(see the commands in the \"no DevToolsActivePort\" section above — valid"
+  info "for either Chrome or Edge)."
   exit 3
 fi
