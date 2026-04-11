@@ -1,0 +1,220 @@
+name: WSL CDP verify
+
+# End-to-end verification that spel's CDP auto-discovery actually works
+# across the WSL2 ↔ Windows boundary. macOS can't reproduce WSL networking,
+# and engineering intuition is cheap — this job provisions a real Ubuntu
+# inside a real windows-latest runner, boots Chrome on the Windows side
+# with the debug flags we recommend, then runs dev/wsl-cdp-diag.sh from
+# inside WSL and asserts what it finds.
+#
+# Runs on any push / PR that touches the CDP discovery code, the diag
+# script, or this workflow — and can be triggered manually via the
+# Actions tab.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/com/blockether/spel/daemon.clj"
+      - "test/com/blockether/spel/daemon_cdp_discovery_test.clj"
+      - "dev/wsl-cdp-diag.sh"
+      - ".github/workflows/wsl-verify.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/com/blockether/spel/daemon.clj"
+      - "test/com/blockether/spel/daemon_cdp_discovery_test.clj"
+      - "dev/wsl-cdp-diag.sh"
+      - ".github/workflows/wsl-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wsl-diag:
+    name: WSL ↔ Windows CDP diagnostic
+    runs-on: windows-latest
+    # Mark non-blocking while we iterate on GH-runner-specific quirks
+    # (WSL install caveats, Chrome flag behaviour under headless, etc.).
+    # Once it's stable for a week or two we flip this off.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────────────────────────
+      # 1. Provision WSL2 + Ubuntu on the Windows runner.
+      # ─────────────────────────────────────────────────────────────────
+      # Vampire/setup-wsl handles the "enable optional features + download
+      # distro + create user" dance without requiring a reboot. windows-
+      # latest has the WSL2 kernel components pre-staged so distro install
+      # is the only cost. Pinned to v3 to avoid surprise API changes.
+      - name: Install WSL (Ubuntu-24.04)
+        uses: Vampire/setup-wsl@v3
+        with:
+          distribution: Ubuntu-24.04
+          use-cache: "true"
+          # Pre-install everything the diag script shells out to so the
+          # first invocation doesn't hit a "command not found" for curl
+          # or iproute2 (curl is usually present, iproute2 ships /proc
+          # parsing we use instead, but belt-and-braces).
+          additional-packages: |
+            curl
+            ca-certificates
+            iproute2
+
+      - name: Show WSL status
+        shell: pwsh
+        run: |
+          wsl --status
+          wsl --list --verbose
+
+      # ─────────────────────────────────────────────────────────────────
+      # 2. Launch Chrome on the Windows side with the exact recommended
+      #    flags. Headless so the runner doesn't need a display.
+      # ─────────────────────────────────────────────────────────────────
+      # --remote-debugging-address=0.0.0.0 is critical: without it, Chrome
+      # binds to Windows 127.0.0.1 only and WSL can't reach it under NAT.
+      # --remote-allow-origins=* disables the DNS-rebinding 403 that fires
+      # when /json/version is hit with a non-local Host header.
+      # --user-data-dir gives the browser a private profile so we don't
+      # collide with any system Chrome state on the runner image.
+      - name: Start Chrome on Windows with --remote-debugging-port=9222
+        id: start-chrome
+        shell: pwsh
+        run: |
+          $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+          if (-not (Test-Path $chrome)) {
+            $chrome = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+          }
+          if (-not (Test-Path $chrome)) {
+            Write-Error "Chrome not found in standard locations on this runner"
+            exit 1
+          }
+          $udd = Join-Path $env:TEMP "spel-wsl-verify-chrome"
+          New-Item -ItemType Directory -Force -Path $udd | Out-Null
+          Write-Host "Chrome: $chrome"
+          Write-Host "User-data-dir: $udd"
+
+          $proc = Start-Process -FilePath $chrome -PassThru -ArgumentList @(
+            "--remote-debugging-port=9222",
+            "--remote-debugging-address=0.0.0.0",
+            "--remote-allow-origins=*",
+            "--user-data-dir=$udd",
+            "--headless=new",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-gpu",
+            "about:blank"
+          )
+          Write-Host "Chrome PID: $($proc.Id)"
+          "chrome_pid=$($proc.Id)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "chrome_udd=$udd"        | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          # Wait for DevToolsActivePort — up to 20s. Chrome creates this
+          # file once it has bound the remote-debugging socket.
+          $dtap = Join-Path $udd "DevToolsActivePort"
+          $deadline = (Get-Date).AddSeconds(20)
+          while ((Get-Date) -lt $deadline -and -not (Test-Path $dtap)) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not (Test-Path $dtap)) {
+            Write-Error "DevToolsActivePort never appeared under $udd"
+            exit 1
+          }
+          Write-Host "--- DevToolsActivePort ---"
+          Get-Content $dtap
+
+      - name: Sanity-check Chrome from the Windows side first
+        shell: pwsh
+        run: |
+          # Confirms the browser is reachable via Windows 127.0.0.1 before
+          # we even cross the WSL boundary. If this fails the test isn't
+          # about WSL at all — it's a runner/launch issue.
+          $resp = Invoke-WebRequest -UseBasicParsing `
+            -Uri "http://127.0.0.1:9222/json/version" `
+            -TimeoutSec 5
+          Write-Host "--- /json/version (Windows) ---"
+          Write-Host $resp.Content
+
+      # ─────────────────────────────────────────────────────────────────
+      # 3. From inside WSL, run the diagnostic script end-to-end.
+      # ─────────────────────────────────────────────────────────────────
+      # We pass the DTAP path through an env var since the runner-generated
+      # temp directory is unpredictable; the diag script handles the common
+      # Chrome/Edge user-data-dir layouts itself so this is mainly so we
+      # can echo the path into the job log for postmortem.
+      - name: Run wsl-cdp-diag.sh inside WSL
+        id: diag
+        shell: wsl-bash {0}
+        run: |
+          set -o pipefail
+          echo "::group::uname + /proc/version"
+          uname -a
+          cat /proc/version
+          echo "::endgroup::"
+
+          echo "::group::/proc/net/route (what wsl-default-gateway-ip parses)"
+          cat /proc/net/route
+          echo "::endgroup::"
+
+          echo "::group::ip route show default"
+          ip route show default || true
+          echo "::endgroup::"
+
+          echo "::group::Visible Windows user-data-dirs"
+          ls -la /mnt/c/Users/ 2>&1 | head -20
+          echo "::endgroup::"
+
+          # The diag script is shellcheck-clean and exits:
+          #   0 — 127.0.0.1 path works (mirrored networking / port proxy)
+          #   1 — not in WSL (shouldn't happen inside wsl-bash)
+          #   2 — NAT mode confirmed (loopback fails, gateway works)
+          #   3 — Chrome not reachable from either host (runner issue)
+          #
+          # For CI we accept 0 OR 2 as "the fix works" — exit code 3 means
+          # Chrome wasn't reachable from WSL at all, which is what we're
+          # actively testing for, so we fail hard on it.
+          set +e
+          bash ./dev/wsl-cdp-diag.sh --port 9222
+          rc=$?
+          set -e
+          echo "diag exit code: $rc"
+          echo "diag_exit=$rc" >> "$GITHUB_OUTPUT"
+
+          case "$rc" in
+            0)
+              echo "::notice::WSL loopback reaches Windows Chrome (mirrored networking or port proxy). spel auto-discovery works via 127.0.0.1."
+              ;;
+            2)
+              echo "::notice::WSL NAT networking confirmed — loopback fails but default gateway reaches Windows Chrome. The spel WSL host-resolution fix is the whole point of this job."
+              ;;
+            3)
+              echo "::error::Chrome unreachable from WSL (HTTP and WS both dead). The fix this workflow verifies is NOT working on this runner."
+              exit 1
+              ;;
+            *)
+              echo "::error::Unexpected diag exit code: $rc"
+              exit 1
+              ;;
+          esac
+
+      # ─────────────────────────────────────────────────────────────────
+      # 4. Teardown — always run so the runner doesn't leak Chrome.
+      # ─────────────────────────────────────────────────────────────────
+      - name: Kill Chrome
+        if: always()
+        shell: pwsh
+        run: |
+          if ("${{ steps.start-chrome.outputs.chrome_pid }}") {
+            try {
+              Stop-Process -Id ${{ steps.start-chrome.outputs.chrome_pid }} -Force -ErrorAction Stop
+              Write-Host "Chrome process terminated"
+            } catch {
+              Write-Host "Chrome already gone: $_"
+            }
+          }
+          # Belt-and-braces — kill any stray chrome.exe processes the
+          # runner might have spawned as child processes.
+          Get-Process -Name chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
