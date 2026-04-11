@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Allure Report</title>
+  <title>cfc607c · ci(wsl-verify): force LF line endings, pin WSL2, guard GITHUB_OUTPUT</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E">
   <script>
     /* Set data-theme before the stylesheet parses to avoid a flash of
@@ -149,6 +149,10 @@
     max-width: 1440px;
     margin: 0 auto;
     padding: 1.25rem 1.25rem 2.5rem;
+    /* Positioning context for the theme toggle so it sits inside the
+       shell's right edge on wide viewports instead of drifting into
+       the centered-layout gutter space. */
+    position: relative;
   }
 
   /* Header */
@@ -165,11 +169,20 @@
     background: var(--bg-panel);
     box-shadow: var(--shadow);
   }
+  .report-header-left {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.25rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .report-header-main {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    min-width: 280px;
+    min-width: 0;
+    flex: 1 1 auto;
   }
   .report-kicker {
     font-family: 'JetBrains Mono', monospace;
@@ -186,11 +199,12 @@
   }
   .report-logo {
     display: block;
-    max-height: 40px;
-    max-width: 160px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    max-height: 56px;
+    max-width: 220px;
     width: auto;
     height: auto;
-    margin-bottom: 0.5rem;
   }
   .report-description {
     color: var(--text-secondary);
@@ -799,6 +813,23 @@
     outline-offset: 2px;
   }
   .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
+  /* Top-right placement — absolute relative to `.page-shell` so the
+     button sits at the shell's right edge on any viewport width
+     instead of drifting into the centered-layout gutter on wide
+     screens. (Was `position: fixed` which pinned it to the viewport
+     corner and floated partially outside the shell on >1440px.)
+     Values match the shell's own padding so the button aligns with
+     the content edge. */
+  .theme-toggle-fixed {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 20;
+    box-shadow: var(--shadow);
+  }
+  @media print {
+    .theme-toggle-fixed { display: none; }
+  }
 
   /* Custom Sort menu — pill button + dropdown, visually aligned with
      the filter pills so the toolbar reads as one design system. */
@@ -1011,20 +1042,23 @@
 </div>
 
 <div class="page-shell">
+<button type="button" id="themeToggle" class="theme-toggle theme-toggle-fixed"
+        aria-label="Toggle theme (auto / light / dark)"
+        title="Toggle theme — auto / light / dark">
+  <span class="theme-toggle-icon" aria-hidden="true">⦾</span>
+  <span class="theme-toggle-label">Auto</span>
+</button>
   <header class="report-header" id="summary">
-    <div class="report-header-main">
-      
-      
-      <h1 class="report-title">Allure Report</h1>
-      
-      
+    <div class="report-header-left">
+      <img class="report-logo" src="assets/logo.svg" alt="spel">
+      <div class="report-header-main">
+      <div class="report-kicker">#562 · cfc607c · Karol Wojcik</div>
+      <h1 class="report-title">ci(wsl-verify): force LF line endings, pin WSL2, guard GITHUB_OUTPUT</h1>
+      <div class="report-subtitle"><time>2026-04-11 13:00:07</time> · <a class="report-run-link" href="https://github.com/Blockether/spel/actions/runs/24282997766" target="_blank" rel="noopener">#562</a></div>
+      <div class="report-description">Nightly spel CI run on branch <code>main</code>. <a href="https://github.com/Blockether/spel/commit/cfc607cd290f755b95c0c8df6724469c8d873b42">View commit</a>.</div>
+      </div>
     </div>
-    <div class="report-meta"><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Total</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-passed"><span class="summary-chip-label">Passed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-failed"><span class="summary-chip-label">Failed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-broken"><span class="summary-chip-label">Broken</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-skipped"><span class="summary-chip-label">Skipped</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-duration"><span class="summary-chip-label">Duration</span><span class="summary-chip-value">0.0s</span></div><div class="summary-chip summary-chip-suites"><span class="summary-chip-label">Suites</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Pass rate</span><span class="summary-chip-value">0%</span></div><button type="button" id="themeToggle" class="theme-toggle"
-                          aria-label="Toggle theme (auto / light / dark)"
-                          title="Toggle theme — auto / light / dark">
-                    <span class="theme-toggle-icon" aria-hidden="true">⦾</span>
-                    <span class="theme-toggle-label">Auto</span>
-                  </button></div>
+    <div class="report-meta"><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Total</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-passed"><span class="summary-chip-label">Passed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-failed"><span class="summary-chip-label">Failed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-broken"><span class="summary-chip-label">Broken</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-skipped"><span class="summary-chip-label">Skipped</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-duration"><span class="summary-chip-label">Duration</span><span class="summary-chip-value">0.0s</span></div><div class="summary-chip summary-chip-suites"><span class="summary-chip-label">Suites</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Pass rate</span><span class="summary-chip-value">0%</span></div></div>
   </header>
 
   <div class="toolbar">
@@ -1162,11 +1196,45 @@
     }
 
     function sortCards() {
-      // Only touch suites that have already been hydrated — unhydrated suites
-      // keep their original test order in the <template>, which is fine
-      // because their cards aren't visible yet.
-      var sections = document.querySelectorAll('.suite-section');
-      sections.forEach(function(section) {
+      // Sort both (a) the suite sections themselves and (b) the test
+      // cards inside any already-hydrated suite. Previously this only
+      // reshuffled cards within a suite, so clicking "Longest first"
+      // left all 40 suites in alphabetical order — the longest test
+      // was still buried in a suite near the bottom of the page.
+      var suitesRoot = document.getElementById('suitesRoot');
+      var sectionList = Array.from(document.querySelectorAll('.suite-section'));
+
+      function suiteCmp(a, b) {
+        if (currentSort === 'longest') {
+          return parseInt(b.getAttribute('data-suite-duration-max') || '0')
+               - parseInt(a.getAttribute('data-suite-duration-max') || '0');
+        } else if (currentSort === 'shortest') {
+          return parseInt(a.getAttribute('data-suite-duration-max') || '0')
+               - parseInt(b.getAttribute('data-suite-duration-max') || '0');
+        } else if (currentSort === 'name') {
+          return (a.getAttribute('data-suite-name') || '')
+            .localeCompare(b.getAttribute('data-suite-name') || '');
+        } else {
+          // Status: suites with failures/broken first, then by name.
+          var aFail = parseInt(a.getAttribute('data-suite-failed') || '0')
+                    + parseInt(a.getAttribute('data-suite-broken') || '0');
+          var bFail = parseInt(b.getAttribute('data-suite-failed') || '0')
+                    + parseInt(b.getAttribute('data-suite-broken') || '0');
+          if (aFail !== bFail) return bFail - aFail;
+          return (a.getAttribute('data-suite-name') || '')
+            .localeCompare(b.getAttribute('data-suite-name') || '');
+        }
+      }
+
+      if (suitesRoot) {
+        var sorted = sectionList.slice().sort(suiteCmp);
+        // appendChild moves the element; non-suite children of
+        // suitesRoot (e.g. .suite-common-prefix) stay in place at the
+        // front because we never touch them.
+        sorted.forEach(function(sec) { suitesRoot.appendChild(sec); });
+      }
+
+      sectionList.forEach(function(section) {
         var body = section.querySelector('.suite-body');
         if (!body || body.getAttribute('data-suite-hydrated') !== 'true') return;
         var cards = Array.from(body.querySelectorAll(':scope > .test-card'));
