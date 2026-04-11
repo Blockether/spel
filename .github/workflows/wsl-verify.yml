@@ -99,23 +99,31 @@ jobs:
         uses: Vampire/setup-wsl@v3
         with:
           distribution: Ubuntu-24.04
-          # Force WSL2 so the networking code path actually exercises
-          # the NAT isolation spel's fix addresses. Prior run
-          # 24282919374 got WSL1 by default (kernel 4.4.0-Microsoft,
-          # the compatibility-layer kernel), which has unified
-          # loopback natively — a trivially green test that doesn't
-          # prove anything about the fix.
-          wsl-version: "2"
           use-cache: "true"
           # Pre-install everything the diag script shells out to so the
           # first invocation doesn't hit a "command not found" for curl
           # or iproute2 (curl is usually present, iproute2 ships /proc
-          # parsing we use instead, but belt-and-braces).
+          # parsing we use instead, but belt-and-braces). dos2unix is
+          # for the belt-and-braces CRLF strip inside the diag step —
+          # even with .gitattributes forcing LF some permutations of
+          # actions/checkout still leave stray \r bytes.
           additional-packages: |
             curl
             ca-certificates
             iproute2
             dos2unix
+          # NOTE on WSL version: Vampire/setup-wsl@v3 does NOT accept a
+          # `wsl-version` input (confirmed on run 24282997771 via:
+          #   "Unexpected input(s) 'wsl-version', valid inputs are
+          #    ['distribution', 'use-cache', 'wsl-conf', ...]"
+          # ). The runner chose its own WSL flavour, but the important
+          # thing — which the diag script empirically confirmed — is
+          # that the networking is NAT-isolated (loopback inside WSL
+          # cannot reach Windows Chrome, default-gateway IP can).
+          # That's the exact scenario spel's new host-resolution code
+          # path exists for. If the runner ever starts giving us a
+          # mirrored-loopback environment, the diag will simply exit 0
+          # instead of 2 and the job will still pass.
 
       - name: Show WSL status
         shell: pwsh
