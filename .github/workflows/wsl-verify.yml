@@ -44,6 +44,29 @@ jobs:
       - uses: actions/checkout@v4
 
       # ─────────────────────────────────────────────────────────────────
+      # 0. Try to enable mirrored networking BEFORE WSL is provisioned.
+      # ─────────────────────────────────────────────────────────────────
+      # Mirrored mode unifies WSL's loopback with Windows's loopback, so
+      # 127.0.0.1 inside WSL IS the Windows Chrome socket without any
+      # gateway resolution. Requires Windows 11 22H2+ and a sufficiently
+      # recent WSL2 kernel; older images silently fall back to NAT, and
+      # the diag script's exit code tells us which mode we got:
+      #   exit 0 → mirrored (or a portproxy, which has the same effect)
+      #   exit 2 → NAT — the spel WSL host-resolution fix is what kept
+      #            the diagnostic from failing entirely
+      # Either outcome counts as a pass for this job.
+      - name: Write .wslconfig with networkingMode=mirrored (best-effort)
+        shell: pwsh
+        run: |
+          $cfg = Join-Path $env:USERPROFILE ".wslconfig"
+          @"
+          [wsl2]
+          networkingMode=mirrored
+          "@ | Out-File -FilePath $cfg -Encoding ascii -Force
+          Write-Host "Wrote $cfg"
+          Get-Content $cfg
+
+      # ─────────────────────────────────────────────────────────────────
       # 1. Provision WSL2 + Ubuntu on the Windows runner.
       # ─────────────────────────────────────────────────────────────────
       # Vampire/setup-wsl handles the "enable optional features + download
@@ -125,20 +148,26 @@ jobs:
             $udd = Join-Path $uddBase $label
             if (Test-Path $udd) { Remove-Item -Recurse -Force $udd }
             New-Item -ItemType Directory -Force -Path $udd | Out-Null
-            $stdoutLog = Join-Path $logDir "$label-stdout.log"
-            $stderrLog = Join-Path $logDir "$label-stderr.log"
+            $chromeLog = Join-Path $logDir "$label-chrome.log"
 
             Write-Host ""
             Write-Host "=== Trying $($b.Name) ==="
             Write-Host "  path:  $($b.Path)"
             Write-Host "  udd:   $udd"
-            Write-Host "  logs:  $stdoutLog / $stderrLog"
+            Write-Host "  log:   $chromeLog"
 
-            # Redirect stderr to file so we can fish Chrome's own crash
-            # message out of the log if DTAP never appears.
+            # No -RedirectStandard* — prior run confirmed that
+            # Start-Process with those options keeps the child process
+            # bound to pwsh's I/O pipes, and when the step wraps up the
+            # pipes close and Chrome is torn down by the GH Actions step
+            # cleanup. Next step gets connection refused on 9222.
+            #
+            # Instead: -WindowStyle Hidden creates a truly detached
+            # process, and we let Chrome write its own stderr to a file
+            # via --enable-logging --log-file. That log survives the
+            # step boundary because Chrome owns the file handle.
             $proc = Start-Process -FilePath $b.Path -PassThru `
-              -RedirectStandardError $stderrLog `
-              -RedirectStandardOutput $stdoutLog `
+              -WindowStyle Hidden `
               -ArgumentList @(
                 "--remote-debugging-port=9222",
                 "--remote-debugging-address=0.0.0.0",
@@ -154,6 +183,9 @@ jobs:
                 "--disable-background-networking",
                 "--disable-sync",
                 "--metrics-recording-only",
+                "--enable-logging=stderr",
+                "--log-file=$chromeLog",
+                "--v=0",
                 "about:blank"
               )
             Write-Host "  pid:   $($proc.Id)"
