@@ -955,10 +955,6 @@
     max-width: 1440px;
     margin: 0 auto;
     padding: 1.25rem 1.25rem 2.5rem;
-    /* Positioning context for the theme toggle so it sits inside the
-       shell's right edge on wide viewports instead of drifting into
-       the centered-layout gutter space. */
-    position: relative;
   }
 
   /* Header */
@@ -968,12 +964,20 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.25rem 1.5rem;
+    /* Extra right padding (6rem vs default 1.5rem) reserves horizontal
+       space for the absolutely-positioned theme toggle so the summary
+       chips don't collide with it. Without this the PASS RATE chip
+       ends up under the toggle on wide viewports. */
+    padding: 1.25rem 6rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--bg-panel);
     box-shadow: var(--shadow);
+    /* Positioning context for the theme toggle so it sits pinned at
+       the card's own top-right corner, INSIDE the header card
+       itself — not floating outside the card in the page shell. */
+    position: relative;
   }
   .report-header-left {
     display: flex;
@@ -1619,17 +1623,17 @@
     outline-offset: 2px;
   }
   .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
-  /* Top-right placement — absolute relative to `.page-shell` so the
-     button sits at the shell's right edge on any viewport width
-     instead of drifting into the centered-layout gutter on wide
-     screens. (Was `position: fixed` which pinned it to the viewport
-     corner and floated partially outside the shell on >1440px.)
-     Values match the shell's own padding so the button aligns with
-     the content edge. */
+  /* Top-right placement — absolute relative to `.report-header` so
+     the button sits PINNED AT THE HEADER CARD'S OWN TOP-RIGHT
+     CORNER. Values match the card's own padding (1.25rem 1.5rem)
+     so the button aligns with the card's inside edge. Previous
+     attempts had this floating in the viewport gutter (fixed) or in
+     the page-shell's right margin (absolute rel. to shell); both
+     sat OUTSIDE the header card visually. This fix keeps it inside. */
   .theme-toggle-fixed {
     position: absolute;
     top: 1.25rem;
-    right: 1.25rem;
+    right: 1.5rem;
     z-index: 20;
     box-shadow: var(--shadow);
   }
@@ -2399,13 +2403,13 @@
 </head>
 <body>
 <div class=\"page-shell\">
-<button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
-        aria-label=\"Toggle theme (auto / light / dark)\"
-        title=\"Toggle theme — auto / light / dark\">
-  <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
-  <span class=\"theme-toggle-label\">Auto</span>
-</button>
   <header class=\"report-header\" id=\"summary\">
+    <button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
+            aria-label=\"Toggle theme (auto / light / dark)\"
+            title=\"Toggle theme — auto / light / dark\">
+      <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
+      <span class=\"theme-toggle-label\">Auto</span>
+    </button>
     <div class=\"report-header-left\">
       " (if logo-href
           (let [alt (or (:logo-alt opts)
