@@ -955,6 +955,10 @@
     max-width: 1440px;
     margin: 0 auto;
     padding: 1.25rem 1.25rem 2.5rem;
+    /* Positioning context for the theme toggle so it sits inside the
+       shell's right edge on wide viewports instead of drifting into
+       the centered-layout gutter space. */
+    position: relative;
   }
 
   /* Header */
@@ -1615,14 +1619,18 @@
     outline-offset: 2px;
   }
   .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
-  /* Fixed top-right placement — pinned to the viewport so it stays
-     visible as the user scrolls through suites. Higher z-index than
-     the sticky toolbar so it never gets covered. */
+  /* Top-right placement — absolute relative to `.page-shell` so the
+     button sits at the shell's right edge on any viewport width
+     instead of drifting into the centered-layout gutter on wide
+     screens. (Was `position: fixed` which pinned it to the viewport
+     corner and floated partially outside the shell on >1440px.)
+     Values match the shell's own padding so the button aligns with
+     the content edge. */
   .theme-toggle-fixed {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 1000;
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 20;
     box-shadow: var(--shadow);
   }
   @media print {
@@ -2390,13 +2398,13 @@
                                  "") "
 </head>
 <body>
+<div class=\"page-shell\">
 <button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
         aria-label=\"Toggle theme (auto / light / dark)\"
         title=\"Toggle theme — auto / light / dark\">
   <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
   <span class=\"theme-toggle-label\">Auto</span>
 </button>
-<div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <div class=\"report-header-left\">
       " (if logo-href
