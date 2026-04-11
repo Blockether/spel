@@ -41,7 +41,29 @@ jobs:
     continue-on-error: true
 
     steps:
+      # Force LF line endings for bash scripts even though we're on a
+      # Windows runner. `.gitattributes` pins dev/wsl-cdp-diag.sh to LF
+      # but older repos may have it cached in CRLF form; setting the
+      # global autocrlf config before checkout is the reliable form.
+      - name: Force LF checkout on Windows
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - uses: actions/checkout@v4
+
+      # Belt-and-braces: some shells (WSL's dash-symlinked sh, ancient
+      # bash builds) still choke on CR bytes even with a LF checkout
+      # if git's autocrlf hasn't kicked in. Strip them defensively.
+      - name: Sanity-check diag script has LF endings
+        shell: bash
+        run: |
+          if file dev/wsl-cdp-diag.sh | grep -q CRLF; then
+            echo "WARNING: CRLF detected, stripping"
+            sed -i 's/\r$//' dev/wsl-cdp-diag.sh
+          fi
+          head -1 dev/wsl-cdp-diag.sh | od -c | head -1
 
       # ─────────────────────────────────────────────────────────────────
       # 0. Try to enable mirrored networking BEFORE WSL is provisioned.
@@ -77,6 +99,13 @@ jobs:
         uses: Vampire/setup-wsl@v3
         with:
           distribution: Ubuntu-24.04
+          # Force WSL2 so the networking code path actually exercises
+          # the NAT isolation spel's fix addresses. Prior run
+          # 24282919374 got WSL1 by default (kernel 4.4.0-Microsoft,
+          # the compatibility-layer kernel), which has unified
+          # loopback natively — a trivially green test that doesn't
+          # prove anything about the fix.
+          wsl-version: "2"
           use-cache: "true"
           # Pre-install everything the diag script shells out to so the
           # first invocation doesn't hit a "command not found" for curl
@@ -86,6 +115,7 @@ jobs:
             curl
             ca-certificates
             iproute2
+            dos2unix
 
       - name: Show WSL status
         shell: pwsh
@@ -296,7 +326,20 @@ jobs:
         id: diag
         shell: wsl-bash {0}
         run: |
+          # wsl-bash runs with `set -u` by default, so guard every env
+          # var dereference that isn't guaranteed to exist inside WSL.
           set -o pipefail
+          GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
+
+          # Final belt-and-braces: strip CRLF inside WSL itself. Even
+          # with .gitattributes + git config, some permutations of the
+          # checkout path end up leaving \r bytes in the script.
+          if command -v dos2unix >/dev/null 2>&1; then
+            dos2unix ./dev/wsl-cdp-diag.sh 2>/dev/null || true
+          else
+            sed -i 's/\r$//' ./dev/wsl-cdp-diag.sh
+          fi
+
           echo "::group::uname + /proc/version"
           uname -a
           cat /proc/version

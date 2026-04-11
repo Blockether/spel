@@ -1,0 +1,18 @@
+# Force LF for shell scripts that get executed inside WSL/Linux contexts.
+# actions/checkout on Windows runners defaults to converting LF → CRLF on
+# checkout, which breaks bash parsing inside WSL ("$'\r': command not
+# found"). This keeps the working tree in LF form regardless of platform.
+*.sh        text eol=lf
+*.bash      text eol=lf
+
+# Edn/Clojure source — LF only, same reasoning applies for scripts that
+# might be executed or shelled out to from WSL/CI.
+*.clj       text eol=lf
+*.cljc      text eol=lf
+*.cljs      text eol=lf
+*.edn       text eol=lf
+
+# Batch files are Windows-native and want CRLF.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
