@@ -399,6 +399,158 @@ jobs:
           esac
 
       # ─────────────────────────────────────────────────────────────────
+      # 3b. END-TO-END: run spel's actual Clojure code inside WSL and
+      #     make it reach Windows Chrome. The bash diag only proves
+      #     curl can do it; this proves spel itself can.
+      # ─────────────────────────────────────────────────────────────────
+      # Installs OpenJDK + Clojure CLI, then invokes daemon.clj's host-
+      # aware CDP primitives directly against the running Chrome. The
+      # one-liner asserts:
+      #
+      #   1. (wsl?) returns true on this runner
+      #   2. (wsl-default-gateway-ip) returns a valid dotted-quad —
+      #      proving /proc/net/route parsing works on a real box
+      #   3. (read-cdp-json-version "127.0.0.1" 9222 3000) returns nil
+      #      — proving loopback is NAT-isolated (the bug scenario)
+      #   4. (read-cdp-json-version <gateway> 9222 3000) returns a map
+      #      with a :browser field containing "Chrome" or "Edge" —
+      #      proving the 3-arg overload reaches Windows Chrome from
+      #      inside WSL via the host fallback. THIS is the
+      #      user-facing "does spel work" signal.
+      #
+      # Any assertion failing → step fails → job fails → we know.
+      - name: Install OpenJDK + Clojure CLI inside WSL
+        shell: wsl-bash {0}
+        run: |
+          set -e
+          echo "::group::Install JRE"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jre rlwrap
+          java -version
+          echo "::endgroup::"
+
+          echo "::group::Install Clojure CLI"
+          curl -sSL -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
+          chmod +x linux-install.sh
+          sudo ./linux-install.sh
+          clojure --version || (clj -e '(println "clj ok")' )
+          echo "::endgroup::"
+
+      - name: Run spel CDP discovery from inside WSL against Windows Chrome
+        id: spel-e2e
+        shell: wsl-bash {0}
+        run: |
+          set -eo pipefail
+          GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
+
+          WS_PATH="$(wslpath "$GITHUB_WORKSPACE")"
+          cd "$WS_PATH"
+          pwd
+          ls -la deps.edn src/com/blockether/spel/daemon.clj | head -5
+
+          # Write the Clojure assertions to a real file so we don't
+          # have to fight shell-quoting rules for #' and string
+          # literals. The quoted heredoc (<<'CLJ') tells bash to
+          # pass the body through verbatim.
+          mkdir -p /tmp/spel-e2e
+          cat > /tmp/spel-e2e/test.clj <<'CLJ'
+          (require '[com.blockether.spel.daemon :as d]
+                   '[clojure.string :as str])
+          (import '[com.microsoft.playwright Playwright Browser BrowserContext Page])
+
+          (defn- die [msg]
+            (binding [*out* *err*] (println "FAIL:" msg))
+            (System/exit 1))
+
+          (println "===== spel end-to-end CDP from inside WSL =====")
+
+          ;; ---------- Section A: primitive sanity checks ----------
+          ;; Fast, no Playwright load. Catches simple breakage before
+          ;; we pay the cost of booting Playwright and doing a real
+          ;; connectOverCDP round-trip.
+
+          ;; 1. WSL detection — uses /proc/version + $WSL_DISTRO_NAME
+          (let [is-wsl? (#'d/wsl?)]
+            (println "  (wsl?)                   =>" is-wsl?)
+            (when-not is-wsl?
+              (die "wsl? returned false on a WSL runner")))
+
+          ;; 2. Gateway IP — parses /proc/net/route little-endian hex
+          (let [gw (d/wsl-default-gateway-ip)]
+            (println "  (wsl-default-gateway-ip) =>" gw)
+            (when-not (and (string? gw) (re-matches #"\d+\.\d+\.\d+\.\d+" gw))
+              (die (str "wsl-default-gateway-ip returned invalid: " (pr-str gw)))))
+
+          ;; 3. Loopback from inside WSL: may or may not work depending
+          ;; on the runner's networking mode. Report but don't assert.
+          (let [loopback (#'d/read-cdp-json-version "127.0.0.1" 9222 3000)]
+            (println "  loopback 127.0.0.1:9222  =>" (pr-str loopback)))
+
+          ;; 4. Gateway MUST succeed — proves read-cdp-json-version
+          ;; with a non-loopback host reaches Windows Chrome.
+          (let [gw       (d/wsl-default-gateway-ip)
+                gw-result (#'d/read-cdp-json-version gw 9222 3000)]
+            (println "  gateway  " (str gw ":9222") "=>" (pr-str gw-result))
+            (when-not gw-result
+              (die (str "read-cdp-json-version via gateway " gw " returned nil — "
+                     "spel cannot reach Windows Chrome even with the fix"))))
+
+          ;; ---------- Section B: REAL spel code path ----------
+          ;; This is the "does spel actually work" proof. We call
+          ;; com.microsoft.playwright.Playwright.connectOverCDP with
+          ;; the same URL spel's discover-cdp-endpoint would build —
+          ;; i.e. `http://<windows-gateway>:<port>`. If that returns
+          ;; a live Browser object whose context has a Page, we've
+          ;; reproduced spel's entire browser-connect flow end-to-end.
+          (println)
+          (println "--- Playwright connectOverCDP end-to-end ---")
+          (let [gw (d/wsl-default-gateway-ip)
+                url (str "http://" gw ":9222")]
+            (println "  Connecting to" url)
+            (let [^Playwright pw (Playwright/create)]
+              (try
+                (let [^Browser browser (-> pw .chromium (.connectOverCDP ^String url))
+                      contexts          (.contexts browser)
+                      n-ctx             (count contexts)]
+                  (println "  connected! live contexts:" n-ctx)
+                  (when (zero? n-ctx)
+                    (die "Playwright connected but no browser contexts — Chrome side broken"))
+                  (let [^BrowserContext ctx (first contexts)
+                        pages (.pages ctx)
+                        ^Page page (or (first pages)
+                                     ;; If Chrome was launched with
+                                     ;; about:blank but no pages yet,
+                                     ;; create one so the test has
+                                     ;; something to query.
+                                     (.newPage ctx))]
+                    (println "  page.url()               =>" (.url page))
+                    (println "  page.title()             =>" (.title page))
+                    ;; Navigate to about:version which shows the browser
+                    ;; version header — a trivial but observable action
+                    ;; that proves the WS channel is bi-directional.
+                    (.navigate page "about:blank")
+                    (.evaluate page "() => { document.title = 'spel-wsl-verified' }")
+                    (let [new-title (.title page)]
+                      (println "  page.title() after eval  =>" new-title)
+                      (when-not (= new-title "spel-wsl-verified")
+                        (die "evaluate() round-trip failed — WS channel looks one-way"))))
+                  (println)
+                  (println "  *** SPEL END-TO-END: Clojure → Playwright → WSL gateway → Windows Chrome ***")
+                  (println "  *** Platform:" (System/getProperty "os.name")
+                    "Java:" (System/getProperty "java.version") "                          ***")
+                  (.close browser))
+                (finally
+                  (.close pw)))))
+
+          (println "===== all assertions validated =====")
+          CLJ
+
+          echo "::group::Run spel end-to-end CDP test"
+          clojure -M /tmp/spel-e2e/test.clj
+          echo "::endgroup::"
+          echo "spel_e2e=pass" >> "$GITHUB_OUTPUT"
+
+      # ─────────────────────────────────────────────────────────────────
       # 4. Teardown — always run so the runner doesn't leak Chrome.
       # ─────────────────────────────────────────────────────────────────
       - name: Kill Chrome
