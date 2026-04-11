@@ -378,56 +378,140 @@
                      (filter #(.isDirectory ^File %) (.listFiles pw-dir))))]
     (into [] (concat base (or pw-files [])))))
 
+(defn wsl-default-gateway-ip
+  "Returns the default-gateway IP as seen from inside WSL (which under
+   classic NAT networking IS the Windows host), or nil if we're not in
+   WSL / can't determine it.
+
+   Reads `/proc/net/route` directly instead of shelling out to `ip route`,
+   so the call is pure-file and GraalVM-native-image friendly. The kernel
+   stores the gateway as a little-endian 32-bit hex string; reversing the
+   byte pairs and joining with dots yields the dotted-quad form.
+
+   Exposed (not private) so the diagnostic script / tests can inspect the
+   same resolution spel uses at runtime."
+  []
+  (when (wsl?)
+    (try
+      (let [content (slurp "/proc/net/route")
+            lines   (str/split-lines content)]
+        (first
+          (keep
+            (fn [line]
+              (let [cols (str/split line #"\s+")]
+                ;; First non-header line whose Destination column is all
+                ;; zeros IS the default route — its Gateway column holds
+                ;; the host we want.
+                (when (and (>= (count cols) 3)
+                        (= (nth cols 1) "00000000"))
+                  (let [hex (nth cols 2)]
+                    (when (and (string? hex) (= (count hex) 8))
+                      (try
+                        (str/join "."
+                          (reverse
+                            (for [i [0 1 2 3]]
+                              (Integer/parseInt
+                                (subs hex (* 2 i) (* 2 (inc i))) 16))))
+                        (catch NumberFormatException _ nil)))))))
+            lines)))
+      (catch Exception _ nil))))
+
+(defn- wsl-projected-source?
+  "True iff the given DevToolsActivePort file path lives on a Windows
+   drive projected into WSL (i.e. under /mnt/<drive>/). Such a file was
+   written by a Windows-side Chrome, so probing 127.0.0.1 from WSL will
+   never reach it under NAT networking — we must also try the Windows
+   host IP."
+  [^String source-path]
+  (and (string? source-path)
+    (or (str/starts-with? source-path "/mnt/")
+      (str/starts-with? source-path "/media/"))))
+
+(defn- cdp-candidate-hosts
+  "Given the DTAP source file path (nil for ad-hoc port scans), returns
+   the list of hosts spel should probe in order. Default: [\"127.0.0.1\"].
+   Under WSL when the DTAP came from a Windows-projected path AND we can
+   resolve the default-gateway IP, returns [\"127.0.0.1\" <win-ip>] —
+   loopback first because mirrored-networking users (where loopback IS
+   unified) get the fast path, and NAT users fall through to the gateway
+   IP on the second attempt. Duplicates are removed."
+  [source-path]
+  (let [loopback "127.0.0.1"
+        win-ip   (when (and (wsl?) (wsl-projected-source? source-path))
+                   (wsl-default-gateway-ip))]
+    (if (and win-ip (not= win-ip loopback))
+      [loopback win-ip]
+      [loopback])))
+
 (defn- read-cdp-json-version
-  "HTTP-GETs /json/version on the given port and returns
-   `{:port N :browser \"Chrome/…\"}` iff:
+  "HTTP-GETs /json/version on the given host:port and returns
+   `{:port N :browser \"Chrome/…\" :host H}` iff:
      1. the HTTP response is 200, AND
      2. the body parses as JSON, AND
      3. the parsed object has a non-blank `Browser` field.
    Returns nil in every other case (non-200, non-JSON, missing field,
    timeout, connection refused). Shared by `probe-http-cdp` and
    `fetch-cdp-browser-label` so both apply the same CDP-ness check.
+
+   Two-arity preserved for backwards compat with direct test call-sites
+   that pass [port timeout-ms]; those default to loopback, which matches
+   the historical behaviour. The three-arity form `[host port timeout-ms]`
+   lets WSL callers probe the Windows host IP as well.
+
    (Non-primitive arity — keeps the var compatible with `with-redefs` test
    stubs that don't carry `IFn$LLO` hints.)"
-  [port timeout-ms]
-  (try
-    (let [url  (URL. (str "http://127.0.0.1:" port "/json/version"))
-          conn (doto (.openConnection url)
-                 (.setConnectTimeout (int timeout-ms))
-                 (.setReadTimeout (int timeout-ms))
-                 (.connect))]
-      (try
-        (when (= 200 (.getResponseCode ^HttpURLConnection conn))
-          (with-open [in (.getInputStream ^HttpURLConnection conn)]
-            (let [body (slurp in)
-                  data (try (json/read-json body) (catch Exception _ nil))
-                  browser (when (map? data) (get data "Browser"))]
-              (when (and (string? browser) (not (str/blank? browser)))
-                {:port port :browser browser}))))
-        (finally
-          (.disconnect ^HttpURLConnection conn))))
-    (catch Exception _ nil)))
+  ([port timeout-ms]
+   (read-cdp-json-version "127.0.0.1" port timeout-ms))
+  ([^String host port timeout-ms]
+   (try
+     (let [url  (URL. (str "http://" host ":" port "/json/version"))
+           conn (doto (.openConnection url)
+                  (.setConnectTimeout (int timeout-ms))
+                  (.setReadTimeout (int timeout-ms))
+                  (.connect))]
+       (try
+         (when (= 200 (.getResponseCode ^HttpURLConnection conn))
+           (with-open [in (.getInputStream ^HttpURLConnection conn)]
+             (let [body (slurp in)
+                   data (try (json/read-json body) (catch Exception _ nil))
+                   browser (when (map? data) (get data "Browser"))]
+               (when (and (string? browser) (not (str/blank? browser)))
+                 {:port port :browser browser :host host}))))
+         (finally
+           (.disconnect ^HttpURLConnection conn))))
+     (catch Exception _ nil))))
 
 (defn- probe-http-cdp
   "Probes an HTTP endpoint for CDP. Returns the port only when /json/version is
    HTTP 200 **and** the JSON body carries a non-blank `Browser` field. Returns
    nil for non-200 (e.g. M144 websocket-only 404), non-JSON 200s, missing
    Browser field, or connection failures. This tighter check prevents random
-   HTTP servers from being mistaken for CDP endpoints."
-  [port timeout-ms]
-  (when (read-cdp-json-version port timeout-ms)
-    port))
+   HTTP servers from being mistaken for CDP endpoints.
+
+   Two-arity form `[port timeout-ms]` defaults to loopback (backwards compat
+   with tests and with local-browser call-sites like `auto-launch-browser!`).
+   Three-arity form `[host port timeout-ms]` lets WSL discovery probe the
+   Windows host IP."
+  ([port timeout-ms]
+   (probe-http-cdp "127.0.0.1" port timeout-ms))
+  ([^String host port timeout-ms]
+   (when (read-cdp-json-version host port timeout-ms)
+     port)))
 
 (defn- list-devtools-active-ports
-  "Returns a seq of {:port :ws-path :label} parsed from every DevToolsActivePort
-   file candidate on the current OS (see `chromium-devtools-active-port-files`).
-   The `:label` comes from the file's source directory, e.g. \"Google Chrome\".
+  "Returns a seq of {:port :ws-path :label :source-path} parsed from every
+   DevToolsActivePort file candidate on the current OS (see
+   `chromium-devtools-active-port-files`). The `:label` comes from the
+   file's source directory (e.g. \"Google Chrome\"); `:source-path` is
+   the absolute file path we read, which callers use to decide whether
+   the entry came from a Windows-projected WSL path (needs host
+   resolution) or a native Linux path (loopback-only).
    Silently skips missing/unreadable files."
   []
   (->> (chromium-devtools-active-port-files)
     (keep (fn [{:keys [file label]}]
             (when-let [info (parse-devtools-active-port file)]
-              (assoc info :label label))))
+              (assoc info :label label :source-path file))))
     (into [])))
 
 (defn discover-cdp-endpoint
@@ -438,24 +522,43 @@
    ms-playwright cache, then probes common ports (9222, 9229).
    Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
 
+   WSL awareness: when the DevToolsActivePort file was read from a
+   Windows-projected path (`/mnt/c/Users/...`), loopback inside WSL
+   doesn't reach the Windows-side Chrome under default NAT networking.
+   In that case we also probe the default-gateway IP (= Windows host),
+   and the winning host is baked into the returned URL so Playwright's
+   `connectOverCDP` uses the right one.
+
    Chrome/Edge 136+ ignores --remote-debugging-port without --user-data-dir.
    Chrome/Edge 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
   []
   (let [mac? (str/includes? (str/lower-case (or (System/getProperty "os.name") "")) "mac")
         dt-info (first (list-devtools-active-ports))]
     (if dt-info
-      ;; DevToolsActivePort found — try HTTP probe first, fall back to direct WebSocket
-      (let [port    (:port dt-info)
-            ws-path (:ws-path dt-info)]
-        (if (probe-http-cdp port 2000)
+      ;; DevToolsActivePort found — try HTTP probe across candidate hosts,
+      ;; then fall back to direct WebSocket using the winning host.
+      (let [port      (:port dt-info)
+            ws-path   (:ws-path dt-info)
+            src-path  (:source-path dt-info)
+            hosts     (cdp-candidate-hosts src-path)
+            ;; First host that passes the CDP-ness check wins. Falls back
+            ;; to the first host in the list if none respond, so the WS
+            ;; fallback still gets a non-nil host.
+            winning   (or (some (fn [h] (when (probe-http-cdp h port 2000) h)) hosts)
+                        (first hosts))
+            http-ok?  (some? (probe-http-cdp winning port 2000))]
+        (if http-ok?
           ;; Pre-M144: HTTP endpoint works
-          (str "http://127.0.0.1:" port)
+          (str "http://" winning ":" port)
           ;; M144+: WebSocket-only server (chrome://inspect remote debugging)
           ;; HTTP endpoints return 404, must connect via WebSocket directly.
           (if ws-path
-            (str "ws://127.0.0.1:" port ws-path)
-            (str "http://127.0.0.1:" port))))
-      ;; No DevToolsActivePort — probe common ports
+            (str "ws://" winning ":" port ws-path)
+            (str "http://" winning ":" port))))
+      ;; No DevToolsActivePort — probe common ports on loopback only.
+      ;; (Port-scanning every host×port combo would be slow and noisy;
+      ;; users with a Windows-side browser but no WSL-projected DTAP file
+      ;; should pass --cdp http://<win-ip>:<port> explicitly.)
       (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
         (if found
           (let [http-url (str "http://127.0.0.1:" found)
@@ -488,9 +591,34 @@
                             "\n\n"
                             "Option 2 — Enable in running browser (M144+):\n"
                             "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
-                            "  (Works in both Chrome and Edge)\n")
+                            "  (Works in both Chrome and Edge)\n"
+                            (when (wsl?)
+                              (str "\nWSL note — spel can't launch chrome.exe or msedge.exe from inside\n"
+                                "the WSL shell; those binaries live on Windows. Launch the browser\n"
+                                "you actually use (Chrome OR Edge) on the Windows side first, then\n"
+                                "rerun spel from WSL.\n\n"
+                                "Windows PowerShell — Google Chrome:\n"
+                                "  & \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" `\n"
+                                "    --remote-debugging-port=9222 `\n"
+                                "    --remote-debugging-address=0.0.0.0 `\n"
+                                "    --remote-allow-origins=* `\n"
+                                "    --user-data-dir=\"$env:LOCALAPPDATA\\Google\\Chrome\\User Data\"\n\n"
+                                "Windows PowerShell — Microsoft Edge:\n"
+                                "  & \"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" `\n"
+                                "    --remote-debugging-port=9222 `\n"
+                                "    --remote-debugging-address=0.0.0.0 `\n"
+                                "    --remote-allow-origins=* `\n"
+                                "    --user-data-dir=\"$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\"\n\n"
+                                "Or from inside WSL via Windows interop (either works):\n"
+                                "  powershell.exe -NoProfile -Command \"Start-Process chrome -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n"
+                                "  powershell.exe -NoProfile -Command \"Start-Process msedge -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n\n"
+                                "Once it's up, spel auto-discovery from WSL probes both 127.0.0.1 and\n"
+                                "the WSL default gateway (" (or (wsl-default-gateway-ip) "<unresolved>") ") — whichever answers /json/version first wins.\n"
+                                "Run ./dev/wsl-cdp-diag.sh for a step-by-step diagnosis.\n")))
                    {:devtools-active-port-files (mapv :file (chromium-devtools-active-port-files))
-                    :probed-ports               [9222 9229]})))))))
+                    :probed-ports               [9222 9229]
+                    :wsl?                       (wsl?)
+                    :wsl-gateway                (wsl-default-gateway-ip)})))))))
 
 ;; =============================================================================
 ;; Auto-Launch: browser lifecycle for --auto-launch
@@ -590,14 +718,17 @@
       (into []))))
 
 (defn- fetch-cdp-browser-label
-  "Returns the `Browser` string reported by /json/version on the given port
-   (e.g. \"Chrome/144.0.7339.127\"), or nil when the port isn't a valid CDP
-   endpoint. Thin wrapper around `read-cdp-json-version`."
-  ^String [^long port]
-  (:browser (read-cdp-json-version port 200)))
+  "Returns the `Browser` string reported by /json/version on the given
+   host:port (e.g. \"Chrome/144.0.7339.127\"), or nil when the endpoint
+   isn't a valid CDP endpoint. Thin wrapper around `read-cdp-json-version`.
+   Two-arity form defaults to loopback for backwards compat."
+  (^String [^long port]
+   (fetch-cdp-browser-label "127.0.0.1" port))
+  (^String [^String host ^long port]
+   (:browser (read-cdp-json-version host port 200))))
 
 (defn discover-external-cdp-endpoints
-  "Scans localhost for running CDP browsers. Probes common ports (9222, 9229),
+  "Scans for running CDP browsers. Probes common ports (9222, 9229),
    the spel auto-launch port range, and any ports advertised in
    DevToolsActivePort files (Chrome/Edge/Chromium/Brave/Vivaldi/Opera/Arc/
    Thorium data dirs + ms-playwright cache). Excludes any ports in
@@ -607,7 +738,12 @@
    WebSocket-only), falls back to the DevToolsActivePort ws-path to build a
    ws:// URL. Returns [{:port :cdp_url :label}], where :label is the browser
    identified via DevToolsActivePort source directory or the `Browser` field
-   from /json/version (or \"unknown\" as a last resort)."
+   from /json/version (or \"unknown\" as a last resort).
+
+   WSL awareness: for DTAP entries whose source path lives under /mnt/,
+   both loopback and the WSL default-gateway IP are probed per port.
+   The winning host is baked into the returned :cdp_url so downstream
+   `connectOverCDP` talks to the host that actually answered."
   [excluded-ports]
   (let [excluded (set (map long excluded-ports))
         dt-entries (list-devtools-active-ports)
@@ -623,24 +759,47 @@
                      distinct
                      (remove excluded))]
     (->> candidates
-      (filter port-in-use?)
+      ;; For port-in-use? we still check loopback first — the TCP probe
+      ;; is cheap and WSL users on mirrored networking hit this fast path.
+      ;; Entries backed by a /mnt/ DTAP bypass this filter since the port
+      ;; isn't on WSL's loopback at all; we rely on the HTTP probe below.
+      (filter (fn [^long port]
+                (or (port-in-use? port)
+                  (when-let [dt (get dt-by-port port)]
+                    (wsl-projected-source? (:source-path dt))))))
       (keep (fn [^long port]
-              (let [dt-info (get dt-by-port port)
-                    http-ok? (probe-http-cdp port 200)]
+              (let [dt-info  (get dt-by-port port)
+                    hosts    (cdp-candidate-hosts (:source-path dt-info))
+                    ;; Find the first host that passes the /json/version check.
+                    winner   (some (fn [h] (when (probe-http-cdp h port 200) h))
+                               hosts)]
                 (cond
-                  http-ok?
+                  winner
                   {:port port
-                   :cdp_url (str "http://127.0.0.1:" port)
+                   :cdp_url (str "http://" winner ":" port)
                    :label   (or (:label dt-info)
-                              (fetch-cdp-browser-label port)
+                              (fetch-cdp-browser-label winner port)
                               "unknown")}
 
+                  ;; No HTTP probe succeeded, but we have a DTAP entry —
+                  ;; build a WS URL using the first candidate host that
+                  ;; has a live TCP socket, falling back to the first host
+                  ;; in the list if none respond (so downstream code sees
+                  ;; a concrete URL even if it'll fail to connect).
                   dt-info
-                  {:port port
-                   :cdp_url (if-let [ws-path (:ws-path dt-info)]
-                              (str "ws://127.0.0.1:" port ws-path)
-                              (str "http://127.0.0.1:" port))
-                   :label (:label dt-info)}))))
+                  (let [tcp-host (or (some (fn [h]
+                                             (try
+                                               (with-open [^java.net.Socket s (java.net.Socket.)]
+                                                 (.connect s (java.net.InetSocketAddress. ^String h (int port)) 200)
+                                                 h)
+                                               (catch Exception _ nil)))
+                                       hosts)
+                                   (first hosts))]
+                    {:port port
+                     :cdp_url (if-let [ws-path (:ws-path dt-info)]
+                                (str "ws://" tcp-host ":" port ws-path)
+                                (str "http://" tcp-host ":" port))
+                     :label (:label dt-info)})))))
       (into []))))
 
 (defn find-free-cdp-port

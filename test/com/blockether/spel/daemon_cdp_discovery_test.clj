@@ -102,6 +102,135 @@
       (expect (not (#'sut/wsl?))))))
 
 ;; =============================================================================
+;; WSL host resolution (wsl-projected-source? / cdp-candidate-hosts)
+;; =============================================================================
+
+(defdescribe wsl-projected-source-test
+  "Unit tests for the `/mnt/`-path detector used to decide whether a
+   DevToolsActivePort file came from a Windows-side Chrome and therefore
+   needs host resolution beyond loopback."
+
+  (describe "returns true for /mnt/ paths (WSL projection)"
+    (it "/mnt/c/Users/alice/AppData/... (Chrome on Windows C: drive)"
+      (expect (#'sut/wsl-projected-source?
+                "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))
+    (it "/mnt/d/... (other drive)"
+      (expect (#'sut/wsl-projected-source?
+                "/mnt/d/some/path/DevToolsActivePort")))
+    (it "/media/... (older WSL layouts or distros)"
+      (expect (#'sut/wsl-projected-source?
+                "/media/sf_shared/DevToolsActivePort"))))
+
+  (describe "returns false for native Linux paths"
+    (it "~/.config path"
+      (expect (not (#'sut/wsl-projected-source?
+                     "/home/user/.config/google-chrome/DevToolsActivePort"))))
+    (it "/tmp path"
+      (expect (not (#'sut/wsl-projected-source? "/tmp/foo"))))
+    (it "nil / blank input"
+      (expect (not (#'sut/wsl-projected-source? nil)))
+      (expect (not (#'sut/wsl-projected-source? ""))))))
+
+(defdescribe cdp-candidate-hosts-test
+  "Unit tests for cdp-candidate-hosts — the per-source host-list builder
+   that decides whether spel probes loopback-only or loopback + WSL
+   default gateway.
+
+   `wsl?` is a private var backed by `System/getenv` + a file read, both
+   of which cannot be easily swapped. We therefore stub `wsl?` via
+   with-redefs where we need to simulate being inside WSL."
+
+  (describe "native-Linux (wsl? false)"
+    (it "returns [\"127.0.0.1\"] for any source-path"
+      (with-redefs [sut/wsl? (constantly false)]
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts nil)))
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/home/user/.config/google-chrome/DevToolsActivePort")))
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort"))))))
+
+  (describe "WSL with native-Linux DTAP source (wsl? true, path under ~/.config)"
+    (it "returns [\"127.0.0.1\"] — no gateway probe needed for a truly local browser"
+      (with-redefs [sut/wsl? (constantly true)
+                    sut/wsl-default-gateway-ip (constantly "172.24.96.1")]
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/home/user/.config/google-chrome/DevToolsActivePort"))))))
+
+  (describe "WSL with Windows-projected DTAP source"
+    (it "returns [loopback, gateway] when gateway resolves"
+      (with-redefs [sut/wsl? (constantly true)
+                    sut/wsl-default-gateway-ip (constantly "172.24.96.1")]
+        (expect (= ["127.0.0.1" "172.24.96.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
+
+    (it "returns [loopback] when gateway lookup fails"
+      (with-redefs [sut/wsl? (constantly true)
+                    sut/wsl-default-gateway-ip (constantly nil)]
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
+
+    (it "does not duplicate loopback if the gateway IP is also 127.0.0.1"
+      ;; Mirrored-networking configurations report the gateway as the
+      ;; same loopback address spel already tries. We must not end up
+      ;; probing [\"127.0.0.1\" \"127.0.0.1\"].
+      (with-redefs [sut/wsl? (constantly true)
+                    sut/wsl-default-gateway-ip (constantly "127.0.0.1")]
+        (expect (= ["127.0.0.1"]
+                  (#'sut/cdp-candidate-hosts
+                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))))
+
+;; =============================================================================
+;; CDP discovery — host-aware probing
+;; =============================================================================
+
+(defdescribe read-cdp-json-version-host-arity-test
+  "Regression tests for the 3-arg `[host port timeout]` overload of
+   read-cdp-json-version — the enabling change for WSL discovery."
+
+  (describe "3-arity form"
+    (it "reports :host in the result so callers know which host answered"
+      (let [port 59321
+            srv  (try (spin-up-fake-cdp-server! port "HostArityChrome/1.0")
+                   (catch Exception _ nil))]
+        (when srv
+          (try
+            (let [r (#'sut/read-cdp-json-version "127.0.0.1" port 1000)]
+              (expect (= port (:port r)))
+              (expect (= "127.0.0.1" (:host r)))
+              (expect (= "HostArityChrome/1.0" (:browser r))))
+            (finally (.stop srv 0))))))
+
+    (it "returns nil for an unreachable host even when port is live on another"
+      (let [port 59322
+            srv  (try (spin-up-fake-cdp-server! port "IsolatedChrome/1.0")
+                   (catch Exception _ nil))]
+        (when srv
+          (try
+            ;; 10.255.255.1 is the first address of an unroutable /32 —
+            ;; connect attempts time out quickly and return nil rather
+            ;; than a false positive against our fake local server.
+            (expect (nil? (#'sut/read-cdp-json-version "10.255.255.1" port 200)))
+            (finally (.stop srv 0)))))))
+
+  (describe "2-arity backwards compat"
+    (it "still defaults to 127.0.0.1"
+      (let [port 59323
+            srv  (try (spin-up-fake-cdp-server! port "CompatChrome/1.0")
+                   (catch Exception _ nil))]
+        (when srv
+          (try
+            (let [r (#'sut/read-cdp-json-version port 1000)]
+              (expect (= port (:port r)))
+              (expect (= "127.0.0.1" (:host r))))
+            (finally (.stop srv 0))))))))
+
+;; =============================================================================
 ;; CDP discovery — external endpoints
 ;; =============================================================================
 
