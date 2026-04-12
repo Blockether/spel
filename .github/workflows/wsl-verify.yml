@@ -562,9 +562,27 @@ jobs:
 
           echo "::group::Run spel CDP primitives test"
           # Set JAVA_HOME — apt's default-jre doesn't set it, and the
-          # Clojure CLI needs it.
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+          # Clojure CLI needs it. `which java` may fail if PATH wasn't
+          # refreshed across WSL invocations, so we also search common
+          # JVM install paths directly.
+          JAVA_BIN=""
+          for candidate in /usr/bin/java /usr/lib/jvm/default-java/bin/java /usr/lib/jvm/java-21-openjdk-amd64/bin/java; do
+            if [ -x "$candidate" ]; then
+              JAVA_BIN="$candidate"
+              break
+            fi
+          done
+          if [ -z "$JAVA_BIN" ]; then
+            JAVA_BIN=$(find /usr/lib/jvm -name java -type f 2>/dev/null | head -1)
+          fi
+          if [ -z "$JAVA_BIN" ]; then
+            echo "FATAL: cannot find java binary"
+            exit 1
+          fi
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f "$JAVA_BIN")))
+          export PATH="$JAVA_HOME/bin:$PATH"
           echo "JAVA_HOME=$JAVA_HOME"
+          echo "JAVA_BIN=$JAVA_BIN"
           java -version
 
           # Skip browser download — we connect to an existing Chrome.
