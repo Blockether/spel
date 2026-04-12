@@ -1,0 +1,5 @@
+Blockether report generated: /tmp/block-output-logobig13835042095530139483/index.html
+  1 tests: 1 passed, 0 failed, 0 broken, 0 skipped
+  Duration: 1.0s
+  Pass rate: 100%
+  Started: 1970-01-01 00:00:01
