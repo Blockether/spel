@@ -49,7 +49,10 @@
    [com.blockether.spel.search :as search]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.stitch :as stitch]
-   [com.blockether.spel.visual-diff :as visual-diff])
+   [com.blockether.spel.visual-diff :as visual-diff]
+   [com.blockether.spel.platform :as platform]
+   [clojure.set :as cset]
+   [clojure.walk :as walk])
   (:import
    [com.microsoft.playwright
     APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -1625,6 +1628,35 @@
              [sym (sci/new-var sym f var-meta)])))
     pairs))
 
+;; =============================================================================
+;; WSL / Platform SCI wrappers
+;; =============================================================================
+
+(defn sci-wsl?
+  "Returns true when running inside Windows Subsystem for Linux.
+   Detects via /proc/version markers and WSL_DISTRO_NAME env var."
+  []
+  (platform/wsl?))
+
+(defn sci-wsl-default-gateway-ip
+  "Returns the Windows host IP from /proc/net/route when inside WSL,
+   nil otherwise. Under classic NAT networking this is the IP spel
+   uses to reach a Windows-side Chrome via CDP."
+  []
+  (platform/wsl-default-gateway-ip))
+
+;; =============================================================================
+;; zprint runtime resolver
+;; =============================================================================
+;; zprint uses macros internally so sci/copy-ns doesn't work cleanly.
+;; Use requiring-resolve to lazily load at context creation time,
+;; same pattern as svar.
+
+(defn- zp-resolve
+  "Resolves a symbol from zprint.core at runtime via requiring-resolve."
+  [sym]
+  (deref (requiring-resolve (symbol "zprint.core" (str sym)))))
+
 (defn create-sci-ctx
   "Creates a SCI context with all spel functions registered.
 
@@ -1929,7 +1961,12 @@
                   ['heading-structure          sci-heading-structure]
                    ;; Report builder (polymorphic entries)
                   ['report->html              sci-report->html]
-                  ['report->pdf               sci-report->pdf]])
+                  ['report->pdf               sci-report->pdf]
+                   ;; Platform / WSL detection
+                  ['wsl?                      sci-wsl?]
+                  ['wsl-default-gateway-ip    sci-wsl-default-gateway-ip]
+                   ;; Java → Clojure conversion
+                  ['java->clj                core/java->clj]])
 
         ;; =================================================================
         ;; snapshot/ — Snapshot capture
@@ -2664,7 +2701,32 @@
                       ['format-results-as-markdown sci-format-results-as-markdown]
                       ['anti-detection-headers      sci-anti-detection-headers]
                       ['duckduckgo-url              sci-duckduckgo-url]
-                      ['ddg-search!                  sci-ddg-search!]])]
+                      ['ddg-search!                  sci-ddg-search!]])
+
+        ;; =================================================================
+        ;; Standard library namespaces
+        ;; =================================================================
+        ;; clojure.set — via sci/copy-ns (no macros, copies cleanly)
+        set-sci-ns  (sci/create-ns 'clojure.set nil)
+        set-map     (sci/copy-ns clojure.set set-sci-ns)
+
+        ;; clojure.walk — via sci/copy-ns (no macros, copies cleanly)
+        walk-sci-ns (sci/create-ns 'clojure.walk nil)
+        walk-map    (sci/copy-ns clojure.walk walk-sci-ns)
+
+        ;; zprint.core — runtime resolve (macros don't copy cleanly, same as svar)
+        zp-ns  (sci/create-ns 'zprint.core nil)
+        zp-map (make-ns-map zp-ns
+                 [['zprint-str      (zp-resolve 'zprint-str)]
+                  ['czprint-str     (zp-resolve 'czprint-str)]
+                  ['zprint          (zp-resolve 'zprint)]
+                  ['czprint         (zp-resolve 'czprint)]
+                  ['zprint-file-str (zp-resolve 'zprint-file-str)]])
+
+        ;; clojure.pprint alias → zprint (same convention as svar)
+        pprint-map (make-ns-map (sci/create-ns 'clojure.pprint nil)
+                     [['pprint     (zp-resolve 'zprint)]
+                      ['pprint-str (zp-resolve 'zprint-str)]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -2706,8 +2768,31 @@
                      ;; Google Search
                     'search                              search-map
                     'com.blockether.spel.search          search-map
+                     ;; Standard library
+                    'clojure.set                         set-map
+                    'clojure.walk                        walk-map
+                    'zprint.core                         zp-map
+                    'clojure.pprint                      pprint-map
                      ;; Dynamic vars exposed to eval scripts
                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
+       ;; Namespace aliases — users can write (str/join ...) without
+       ;; an explicit (require '[clojure.string :as str]) form. Mirrors
+       ;; the svar convention for a consistent cross-project experience.
+       :ns-aliases {'str    'clojure.string
+                    'set    'clojure.set
+                    'walk   'clojure.walk
+                    'zp     'zprint.core
+                    'pprint 'clojure.pprint
+                    'pp     'clojure.pprint
+                    'io     'clojure.java.io}
+       ;; Bare class imports for types NOT already in SCI's default
+       ;; resolution. SCI natively resolves java.lang.* names (String,
+       ;; Integer, Boolean, etc.) so we only import types that would
+       ;; otherwise need full qualification.
+       :imports    {'UUID        java.util.UUID
+                    'Pattern     java.util.regex.Pattern
+                    'BigDecimal  java.math.BigDecimal
+                    'BigInteger  java.math.BigInteger}
        :bindings   {'slurp     slurp
                     'spit      spit
                     'iteration iteration
@@ -2793,6 +2878,12 @@
                     'java.lang.Thread    java.lang.Thread
                     'System              java.lang.System
                     'java.lang.System    java.lang.System
+                    ;; Java collections (needed for java->clj interop)
+                    'java.util.Map       java.util.Map
+                    'java.util.List      java.util.List
+                    'java.util.LinkedHashMap java.util.LinkedHashMap
+                    'java.util.ArrayList java.util.ArrayList
+                    'java.util.HashMap   java.util.HashMap
                     :allow             :all}})))
 
 ;; =============================================================================
@@ -2816,3 +2907,19 @@
                       sci/err *err*
                       sci/in  *in*}
     (sci/eval-string* ctx code)))
+
+(defn fork-sci-ctx
+  "Creates a lightweight fork of a SCI context for isolated evaluation.
+
+   New var definitions in the fork do not leak back to the parent context.
+   Useful for parallel or per-request evaluation (e.g. concurrent sci_eval
+   daemon requests). Shared atoms (!page, !context, etc.) are still visible
+   because they are module-level JVM atoms, not SCI vars.
+
+   Params:
+   `ctx` - SCI context from create-sci-ctx.
+
+   Returns:
+   Forked SCI context."
+  [ctx]
+  (sci/fork ctx))

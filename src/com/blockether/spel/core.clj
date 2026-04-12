@@ -33,6 +33,36 @@
    [com.google.gson JsonObject]))
 
 ;; =============================================================================
+;; Java → Clojure conversion
+;; =============================================================================
+
+(defn java->clj
+  "Recursively converts Java collection types returned by Playwright's
+   `.evaluate` into idiomatic Clojure persistent data structures.
+
+   Playwright marshals JavaScript objects as `java.util.LinkedHashMap`
+   and arrays as `java.util.ArrayList`. Clojure's interop lets you
+   *read* from these (`get`, `keys`, `seq`), but *write* operations
+   like `assoc`, `merge`, `update`, `conj` throw because they expect
+   `clojure.lang.Associative` / `clojure.lang.IPersistentCollection`.
+
+   This function makes evaluate results work seamlessly with core
+   Clojure — no manual `(into {} ...)` required. See issue #105."
+  [obj]
+  (cond
+    (instance? java.util.Map obj)
+    (persistent!
+      (reduce (fn [m ^java.util.Map$Entry e]
+                (assoc! m (.getKey e) (java->clj (.getValue e))))
+        (transient {})
+        (.entrySet ^java.util.Map obj)))
+
+    (instance? java.util.List obj)
+    (mapv java->clj ^java.util.List obj)
+
+    :else obj))
+
+;; =============================================================================
 ;; Error Handling
 ;; =============================================================================
 

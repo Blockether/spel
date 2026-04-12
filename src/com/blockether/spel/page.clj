@@ -7,7 +7,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe]]
+   [com.blockether.spel.core :refer [safe java->clj]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
@@ -308,18 +308,23 @@
 
 (defn evaluate
   "Evaluates JavaScript expression in the page context.
-   
+
+   Returns Clojure persistent data structures (maps and vectors)
+   instead of Java's LinkedHashMap/ArrayList. See `java->clj`.
+
    Params:
    `page`       - Page instance.
    `expression` - String. JavaScript expression.
    `arg`        - Optional. Argument to pass to the expression.
-   
+
    Returns:
    Result of JavaScript evaluation or anomaly map on failure."
   ([^Page page ^String expression]
-   (safe (.evaluate page expression)))
+   (let [result (safe (.evaluate page expression))]
+     (if (anomaly/anomaly? result) result (java->clj result))))
   ([^Page page ^String expression arg]
-   (safe (.evaluate page expression arg))))
+   (let [result (safe (.evaluate page expression arg))]
+     (if (anomaly/anomaly? result) result (java->clj result)))))
 
 (defn keyboard-press
   "Presses a key or key combination on the page keyboard.

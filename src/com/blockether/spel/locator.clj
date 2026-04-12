@@ -4,7 +4,7 @@
    Locators are the primary way to find and interact with elements.
    They auto-wait and auto-retry, making them the preferred API."
   (:require
-   [com.blockether.spel.core :refer [safe]]
+   [com.blockether.spel.core :refer [safe java->clj]]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.options :as opts])
   (:import
@@ -675,32 +675,42 @@
 
 (defn evaluate-locator
   "Evaluates JavaScript on the element found by this locator.
-   
+
+   Returns Clojure persistent data structures (maps and vectors)
+   instead of Java's LinkedHashMap/ArrayList. See `core/java->clj`.
+
    Params:
    `loc`        - Locator instance.
    `expression` - String. JavaScript expression.
    `arg`        - Optional argument.
-   
+
    Returns:
    Result or anomaly map."
   ([^Locator loc ^String expression]
-   (safe (.evaluate loc expression)))
+   (let [r (safe (.evaluate loc expression))]
+     (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (safe (.evaluate loc expression arg))))
+   (let [r (safe (.evaluate loc expression arg))]
+     (if (map? r) r (java->clj r)))))
 
 (defn evaluate-all
   "Evaluates JavaScript on all elements matching the locator.
-   
+
+   Returns Clojure persistent data structures (maps and vectors)
+   instead of Java's LinkedHashMap/ArrayList. See `core/java->clj`.
+
    Params:
    `loc`        - Locator instance.
    `expression` - String. JavaScript expression.
-   
+
    Returns:
    Result or anomaly map."
   ([^Locator loc ^String expression]
-   (safe (.evaluateAll loc expression)))
+   (let [r (safe (.evaluateAll loc expression))]
+     (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (safe (.evaluateAll loc expression arg))))
+   (let [r (safe (.evaluateAll loc expression arg))]
+     (if (map? r) r (java->clj r)))))
 
 ;; =============================================================================
 ;; Locator Screenshots

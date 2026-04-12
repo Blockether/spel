@@ -32,7 +32,8 @@
    [com.blockether.spel.stealth :as stealth]
    [com.blockether.spel.vault :as vault]
    [com.blockether.spel.dashboard :as dashboard]
-   [com.blockether.spel.visual-diff :as visual-diff])
+   [com.blockether.spel.visual-diff :as visual-diff]
+   [com.blockether.spel.platform :as platform])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
    [com.microsoft.playwright.options AriaRole Cookie Geolocation]
@@ -165,19 +166,10 @@
         (catch Exception _ nil)))))
 
 (defn- wsl?
-  "Returns true when running inside Windows Subsystem for Linux.
-   Checks /proc/version for \"microsoft\"/\"WSL\" markers and the WSL_DISTRO_NAME
-   env var set by wsl.exe — either is sufficient."
+  "Delegates to platform/wsl?. Kept as a private wrapper for call-site
+   compatibility within daemon.clj."
   []
-  (or (some? (System/getenv "WSL_DISTRO_NAME"))
-    (some? (System/getenv "WSL_INTEROP"))
-    (try
-      (let [f (java.io.File. "/proc/version")]
-        (and (.isFile f)
-          (let [content (str/lower-case (slurp f))]
-            (or (str/includes? content "microsoft")
-              (str/includes? content "wsl")))))
-      (catch Exception _ false))))
+  (platform/wsl?))
 
 (defn- wsl-windows-user-dirs
   "For each Windows user visible under /mnt/c/Users, returns the path to their
@@ -379,42 +371,10 @@
     (into [] (concat base (or pw-files [])))))
 
 (defn wsl-default-gateway-ip
-  "Returns the default-gateway IP as seen from inside WSL (which under
-   classic NAT networking IS the Windows host), or nil if we're not in
-   WSL / can't determine it.
-
-   Reads `/proc/net/route` directly instead of shelling out to `ip route`,
-   so the call is pure-file and GraalVM-native-image friendly. The kernel
-   stores the gateway as a little-endian 32-bit hex string; reversing the
-   byte pairs and joining with dots yields the dotted-quad form.
-
-   Exposed (not private) so the diagnostic script / tests can inspect the
-   same resolution spel uses at runtime."
+  "Delegates to platform/wsl-default-gateway-ip. Kept as a public wrapper
+   for call-site compatibility (tests, diagnostic script, etc.)."
   []
-  (when (wsl?)
-    (try
-      (let [content (slurp "/proc/net/route")
-            lines   (str/split-lines content)]
-        (first
-          (keep
-            (fn [line]
-              (let [cols (str/split line #"\s+")]
-                ;; First non-header line whose Destination column is all
-                ;; zeros IS the default route — its Gateway column holds
-                ;; the host we want.
-                (when (and (>= (count cols) 3)
-                        (= (nth cols 1) "00000000"))
-                  (let [hex (nth cols 2)]
-                    (when (and (string? hex) (= (count hex) 8))
-                      (try
-                        (str/join "."
-                          (reverse
-                            (for [^long i [0 1 2 3]]
-                              (Integer/parseInt
-                                (subs hex (int (* 2 i)) (int (* 2 (inc i)))) 16))))
-                        (catch NumberFormatException _ nil)))))))
-            lines)))
-      (catch Exception _ nil))))
+  (platform/wsl-default-gateway-ip))
 
 (defn- wsl-projected-source?
   "True iff the given DevToolsActivePort file path lives on a Windows
