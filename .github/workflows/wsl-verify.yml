@@ -561,6 +561,12 @@ jobs:
           CLJ
 
           echo "::group::Run spel CDP primitives test"
+          # Set JAVA_HOME — apt's default-jre doesn't set it, and the
+          # Clojure CLI needs it.
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version
+
           # Skip browser download — we connect to an existing Chrome.
           # If Node.js works (WSL2), tell Playwright to use the
           # system-installed node instead of its bundled Windows .exe.
