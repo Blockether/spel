@@ -409,9 +409,9 @@
                       (try
                         (str/join "."
                           (reverse
-                            (for [i [0 1 2 3]]
+                            (for [^long i [0 1 2 3]]
                               (Integer/parseInt
-                                (subs hex (* 2 i) (* 2 (inc i))) 16))))
+                                (subs hex (int (* 2 i)) (int (* 2 (inc i)))) 16))))
                         (catch NumberFormatException _ nil)))))))
             lines)))
       (catch Exception _ nil))))
