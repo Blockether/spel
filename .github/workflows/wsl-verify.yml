@@ -419,14 +419,15 @@ jobs:
       #      user-facing "does spel work" signal.
       #
       # Any assertion failing → step fails → job fails → we know.
-      - name: Install OpenJDK + Clojure CLI inside WSL
+      - name: Install OpenJDK + Node.js + Clojure CLI inside WSL
         shell: wsl-bash {0}
         run: |
           set -e
-          echo "::group::Install JRE"
+          echo "::group::Install JRE + Node.js"
           sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jre rlwrap
+          sudo apt-get install -y -qq default-jre rlwrap nodejs
           java -version
+          node --version
           echo "::endgroup::"
 
           echo "::group::Install Clojure CLI"
@@ -573,6 +574,15 @@ jobs:
           CLJ
 
           echo "::group::Run spel end-to-end CDP test"
+          # Playwright Java bundles a Node.js binary for the host OS.
+          # Since deps.edn was fetched on the Windows side but we're
+          # running inside WSL (Linux), the bundled node is a Windows
+          # .exe that bash can't execute. Tell Playwright to use the
+          # WSL-native Node we just apt-installed instead. Also skip
+          # browser download — we're connecting to an existing Chrome
+          # via CDP, not launching one.
+          export PLAYWRIGHT_NODEJS_PATH="$(which node)"
+          export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
           clojure -M /tmp/spel-e2e/test.clj
           echo "::endgroup::"
           echo "spel_e2e=pass" >> "$GITHUB_OUTPUT"
