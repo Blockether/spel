@@ -1,0 +1,1 @@
+{"id":"e448508c3dda08f0efcdd076ef64dd69","fullName":"com.blockether.spel.cli-test.Tests for native.clj parse-global-flags (private).--profile flag.strips --profile from command-args","name":"Tests for native.clj parse-global-flags (private) > --profile flag > strips --profile from command-args","status":"passed","testResultsByEnv":{"default":"c8aba896d3eb55f1da35a6b3caf24526"}}
