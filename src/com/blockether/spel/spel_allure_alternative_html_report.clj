@@ -2527,6 +2527,57 @@
   })();
   ")
 
+(declare generate!)
+
+(defn generate-from-results!
+  "Generate a report directly from in-memory result maps — no allure-results
+   directory needed. Perfect for single-test runs, lambda functions, or any
+   scenario where you have results in memory and don't want to write them to
+   disk first.
+
+   Parameters:
+     results    - vector of Allure result maps (same format as *-result.json)
+     output-dir - path to write the report (index.html + summary.json + report.json)
+
+   Options: same as `generate!` (:title, :logo, :description, :custom-css, etc.)
+
+   Example:
+     ;; Single test result from a lambda:
+     (generate-from-results!
+       [{\"name\"   \"health check\"
+         \"status\" \"passed\"
+         \"start\"  1000
+         \"stop\"   2000
+         \"labels\" [{\"name\" \"suite\" \"value\" \"monitoring\"}
+                     {\"name\" \"epic\"  \"value\" \"API\"}]}]
+       \"/tmp/report\"
+       {:title \"Lambda Health Check\"})
+
+   Returns: output-dir path string."
+  ([results ^String output-dir]
+   (generate-from-results! results output-dir {}))
+  ([results ^String output-dir opts]
+   (let [tmp-dir (str (java.nio.file.Files/createTempDirectory
+                        "spel-report-"
+                        (into-array java.nio.file.attribute.FileAttribute [])))]
+     (try
+       ;; Write each result as a *-result.json file
+       (doseq [r results]
+         (let [uuid (or (get r "uuid") (str (java.util.UUID/randomUUID)))]
+           (spit (io/file tmp-dir (str uuid "-result.json"))
+             (json/write-json-str r))))
+       ;; Write environment.properties if caller provided env metadata
+       (when-let [env-map (:environment opts)]
+         (spit (io/file tmp-dir "environment.properties")
+           (str/join "\n" (map (fn [[k v]] (str k "=" v)) env-map))))
+       ;; Delegate to generate! which does all the rendering + JSON output
+       (generate! tmp-dir output-dir (dissoc opts :environment))
+       (finally
+         ;; Clean up temp dir
+         (doseq [f (.listFiles (io/file tmp-dir))]
+           (.delete ^java.io.File f))
+         (.delete (io/file tmp-dir)))))))
+
 (defn generate!
   "Generate a compact Blockether-themed HTML report from allure-results.
 
