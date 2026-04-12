@@ -66,6 +66,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `find-free-port` | [] | Finds an available local TCP port and returns it as an integer. |
 | `firefox` | [pw] | Returns the Firefox BrowserType. |
 | `form-data` | [] | Creates a new FormData instance. |
+| `java->clj` | [obj] | Recursively converts Java collection types returned by Playwright's |
 | `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
 | `launch-chromium` | [pw] \| [pw opts] | Launches Chromium browser. |
 | `launch-firefox` | [pw] \| [pw opts] | Launches Firefox browser. |
@@ -765,6 +766,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/browser-version` | [] | Returns the browser version string. |
 | `spel/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
 | `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
+| `spel/cdp-connect` | [] \| [url] | Connects to a Chrome/Edge browser via CDP (Chrome DevTools Protocol). |
 | `spel/cdp-disconnect` | [] | Temporarily disconnects from the CDP endpoint. |
 | `spel/cdp-idle-timeout` | [] | Returns the current CDP idle timeout in milliseconds. |
 | `spel/cdp-lock-wait` | [] | Returns the current CDP route lock wait timeout in seconds. |
@@ -840,6 +842,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/get-styles` | [sel] \| [sel opts] | Returns computed CSS styles for an element. Pass {:full true} for all properties. |
 | `spel/go-back` | [] | Navigates back in history. |
 | `spel/go-forward` | [] | Navigates forward in history. |
+| `spel/goto` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/heading-structure` | [] | Validates heading hierarchy and order from h1..h6 in DOM sequence. |
 | `spel/help` | [] \| [query] | Lists all available SCI eval functions with arglists and descriptions. |
 | `spel/hidden?` | [sel] | Returns whether the element is hidden. |
@@ -954,6 +957,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/wait-for-selector` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
 | `spel/wait-for-timeout` | [ms] | Waits for the specified time in milliseconds. |
 | `spel/wait-for-url` | [url] \| [url opts] | Waits for the page to navigate to a URL. |
+| `spel/wsl-default-gateway-ip` | [] | Returns the Windows host IP from /proc/net/route when inside WSL, |
+| `spel/wsl?` | [] | Returns true when running inside Windows Subsystem for Linux. |
 
 ### `snapshot/` — Accessibility snapshot capture and ref resolution
 
@@ -1567,7 +1572,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--headers <json>` | HTTP headers |
 | `--args <args>` | Browser args (comma-separated) |
 | `--cdp <url>` | Connect via CDP endpoint |
-| `--auto-connect` | Auto-discover running Chrome/Edge CDP endpoint |
+| `--auto-connect` | Auto-discover running chromium-family browser CDP endpoint |
 | `--auto-launch` | Launch browser with debug port (per-session isolation) |
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
@@ -1595,6 +1600,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
 | `ci-assemble [opts]` | Assemble Allure site for CI deployment (--help for details) |
 | `merge-reports [dirs]` | Merge N allure-results dirs into one (--help for details) |
+| `report [opts]` | Generate Blockether-themed HTML report from allure-results (--help for details) |
 
 ### Utility
 

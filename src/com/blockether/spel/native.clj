@@ -983,6 +983,10 @@
      ""
      "Options:"
      "  --results-dir DIR       Allure results directory (default: allure-results)"
+     "  --from-json FILE        Read results from a single JSON file containing an"
+     "                          array of Allure result maps (ideal for lambda /"
+     "                          single-test runs). Takes precedence over"
+     "                          --results-dir when both are given."
      "  --output-dir DIR        Output directory for HTML report (default: block-report)"
      "  --title TEXT            Report title shown in <h1> (default: \"Allure Report\")"
      "  --kicker TEXT           Small mono heading above the title"
@@ -1023,6 +1027,7 @@
      "Examples:"
      "  spel report"
      "  spel report --results-dir test-results --output-dir my-report"
+     "  spel report --from-json results.json --title 'Lambda Run'"
      "  spel report --title 'My Project Tests' --description 'Nightly smoke run'"
      "  spel report --logo brand/logo.svg --logo-alt 'Acme Co.'"
      "  spel report --build-id '#544' --build-date 2026-04-10T12:00:00Z \\"
@@ -1038,6 +1043,7 @@
         ;; `subs` call when the inline form is used.
         {"--results-dir"     [:results-dir     14]
          "--output-dir"      [:output-dir      13]
+         "--from-json"       [:from-json       12]
          "--title"           [:title           8]
          "--kicker"          [:kicker          9]
          "--subtitle"        [:subtitle        11]
@@ -1118,11 +1124,23 @@
       (let [sub-args (rest cmd-args)]
         (if (some #{"--help" "-h"} sub-args)
           (println (report-help))
-          (let [{:keys [opts]} (parse-report-args sub-args)]
-            (alternative-report/generate!
-              (:results-dir opts "allure-results")
-              (:output-dir opts "block-report")
-              (dissoc opts :results-dir :output-dir :help)))))
+          (let [{:keys [opts]} (parse-report-args sub-args)
+                from-json (:from-json opts)
+                clean-opts (dissoc opts :results-dir :output-dir :from-json :help)]
+            (if from-json
+              ;; Single-run / lambda mode: read a JSON file containing
+              ;; an array of result maps and generate the report from
+              ;; them directly. No allure-results directory needed.
+              (let [results (json/read-json (slurp from-json))]
+                (alternative-report/generate-from-results!
+                  results
+                  (:output-dir opts "block-report")
+                  clean-opts))
+              ;; Standard mode: read from allure-results directory.
+              (alternative-report/generate!
+                (:results-dir opts "allure-results")
+                (:output-dir opts "block-report")
+                clean-opts)))))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]
