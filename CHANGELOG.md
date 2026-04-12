@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-04-12
+
+### Changed
+- fix(ci): restore 3 orchestrator sentinel strings removed by compression
+- fix(evals): restore canonical contract strings lost in caveman compression
+- fix(ci): sync tests + docs with spel-test-planner removal, silence boxed math
+- refactor(templates): caveman compression + alt-report stats + SCI set-device!
+- feat(cli): add --from-json flag to spel report for single-run mode
+- feat: add generate-from-results! for single-run / lambda reports
+- feat: emit summary.json + report.json alongside alt report HTML
+- feat: add Allure label filtering to alternative report
+- test: add 16 tests for platform CDP probe, SCI eval, stdlib aliases
+- alt report: icon-only theme toggle, no label text
+- refactor: extract CDP probe to platform.clj, fix anomaly cause chain
+- feat: add page/goto alias + enhance cdp-connect auto-discovery
+- sci: add goto as alias for navigate
+- feat: add spel/cdp-connect with WSL auto-discovery
+- fix: eagerly require zprint.core for GraalVM native-image compat
+- fix: restore clojure.set/walk :as aliases, suppress unused-namespace lint
+- fix: drop unused :as aliases for clojure.set/walk (lint failure)
+- sci: merge markdownify into markdown namespace, add md alias
+- feat: SCI env overhaul — stdlib, aliases, zprint, WSL exposure, issue #105
+- fix: clear boxed-math warnings in wsl-default-gateway-ip hex parser
+- ci(wsl-verify): write test.clj to project dir, not /tmp (cross-fs)
+- ci(wsl-verify): add default-jre back to additional-packages
+- ci(wsl-verify): set +e to disable errexit in wsl-bash runner step
+- ci(wsl-verify): split Clojure script into separate step, fix heredoc
+- ci(wsl-verify): find java binary via direct path search, not which
+- ci(wsl-verify): set JAVA_HOME for Clojure CLI inside WSL
+- ci(wsl-verify): back to Vampire/setup-wsl + wsl --update + set-default-version 2
+- ci(wsl-verify): switch to vedantmgoyal9/setup-wsl2 for real WSL2
+- ci(wsl-verify): force WSL2, gate Playwright on Node.js availability
+- ci(wsl-verify): install WSL-native Node.js for Playwright driver
+- ci(wsl-verify): use winning host for connectOverCDP, handle WSL1
+- ci(wsl-verify): fix gateway IP parsing + GITHUB_WORKSPACE in WSL
+- ci(wsl-verify): actually run spel-level CDP code from inside WSL
+- alt report: pin theme toggle INSIDE the header card (not page-shell)
+- ci(wsl-verify): drop unrecognised wsl-version input (cleans up warning)
+- ci(wsl-verify): force LF line endings, pin WSL2, guard GITHUB_OUTPUT
+- ci(wsl-verify): detach Chrome properly + try mirrored networking
+- ci(wsl-verify): poll /json/version instead of waiting for DTAP file
+- ci(wsl-verify): fall back Chrome→Edge and capture stderr on launch failure
+- ci: verify WSL ↔ Windows CDP discovery on a real GH Actions runner
+- alt report: keep theme toggle inside .page-shell, not floating in gutter
+- dev: surface 403 body + webSocketDebuggerUrl in WSL CDP diagnostic
+- daemon: resolve Windows host IP for CDP discovery under WSL
+- dev: add WSL → Windows CDP reachability diagnostic
+- alt report: pin theme toggle to top-right corner, fixed positioning
+- alt report: fix logo layout, description HTML, suite sort, fake request headers
+- fix: update CLI bash test assertions for redesigned alternative report
+- fix: remove obsolete session_list daemon test — handler moved to CLI-side
+- fix: clear GraalVM native-image boxed-math + reflection warnings
+- alt report: fix lint, wire workflow to the new customization opts
+- chore: drop OBSERVATIONS.md now that the bug hunt shipped
+- alt report: sanitize description HTML, expose CLI flags, drop PLAN.md
+- alt report: harden customization opts (self-critique fixes)
+- alt report: custom logo, description, CSS, and build metadata
+- alt report: fix 12 findings from the visual/UX bug hunt
+- surface CDP endpoints + clean up session list and CDP discovery
+- surface CDP endpoints in `spel session list`
+- make trace chunk size configurable and disable chunking by default
+- refine alternative report UX and add split-trace loading
+- fix mobile UX: lighter descriptions, full-width attachment buttons, HTTP card overflow
+- improve alt report mobile UX and visual refinements
+- redesign alternative report: neutral palette, search, and sort
+- style: refine blockether alternative html report visual design
+- redesign alternative report investigation UX
+- test: prevent Claude skill path leak into opencode scaffold
+- fix: keep alternative reports available in failed empty runs
+- fix: make load-results test OS-agnostic — file ordering not guaranteed
+- refactor: rename block-report to spel-allure-alternative-html-report with direct require
+- test: add CLI assertions for dashboard commands
+- feat: add alternative HTML allure report and block report tests
+- feat: dashboard commands and allure reporter enhancements
+- docs: compress templates with caveman ultra style
+- feat: observability dashboard — live browser viewport, activity feed, network, sessions
+- test: agentic E2E for confirm-actions TTY gate + lightpanda mock launch
+- test: add 17 E2E assertions for sessions 3+4 features
+- feat: quick wins — keyboard inserttext, window new, download-path
+- feat: agent-browser parity III — config file, upgrade, Lightpanda, dialog/confirm, allow-file, screenshot output flags
+- feat: agent-browser parity II — iOS device, profile clone, HAR, auth vault, and more
+- feat: agent-browser parity — annotated screenshot, security trio, batch
+- release: update version files for v0.7.11, bump to next dev version
+
+
 ## [v0.7.11] - 2026-04-02
 
 ### Changed
@@ -1425,7 +1510,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.7.11...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.8.0...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1483,3 +1568,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.7.9]: https://github.com/Blockether/spel/releases/tag/v0.7.9
 [v0.7.10]: https://github.com/Blockether/spel/releases/tag/v0.7.10
 [v0.7.11]: https://github.com/Blockether/spel/releases/tag/v0.7.11
+[v0.8.0]: https://github.com/Blockether/spel/releases/tag/v0.8.0
