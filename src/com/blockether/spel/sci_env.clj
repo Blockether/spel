@@ -52,7 +52,8 @@
    [com.blockether.spel.visual-diff :as visual-diff]
    [com.blockether.spel.platform :as platform]
    [clojure.set :as set]
-   [clojure.walk :as walk])
+   [clojure.walk :as walk]
+   [zprint.core :as zp])
   (:import
    [com.microsoft.playwright
     APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
@@ -1646,16 +1647,16 @@
   (platform/wsl-default-gateway-ip))
 
 ;; =============================================================================
-;; zprint runtime resolver
+;; zprint resolver
 ;; =============================================================================
 ;; zprint uses macros internally so sci/copy-ns doesn't work cleanly.
-;; Use requiring-resolve to lazily load at context creation time,
-;; same pattern as svar.
+;; Require zprint.core eagerly (in the ns form above) so GraalVM
+;; native-image includes its classes. Then resolve vars by name.
 
 (defn- zp-resolve
-  "Resolves a symbol from zprint.core at runtime via requiring-resolve."
+  "Resolves a var from zprint.core by symbol name."
   [sym]
-  (deref (requiring-resolve (symbol "zprint.core" (str sym)))))
+  (deref (resolve (symbol "zprint.core" (str sym)))))
 
 (defn create-sci-ctx
   "Creates a SCI context with all spel functions registered.
