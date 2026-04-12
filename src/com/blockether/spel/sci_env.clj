@@ -736,12 +736,12 @@
       (let [preset (devices/resolve-device-by-name name-str)]
         (when-not preset
           (throw (ex-info (str "Unknown device: " name-str
-                               ". Available: "
-                               (clojure.string/join ", " (devices/available-device-names)))
-                          {:device name-str
-                           :available (devices/available-device-names)})))
+                            ". Available: "
+                            (clojure.string/join ", " (devices/available-device-names)))
+                   {:device name-str
+                    :available (devices/available-device-names)})))
         (let [browser (or @!browser
-                          (throw (ex-info "set-device! requires an active session. Call (spel/start!) first." {})))
+                        (throw (ex-info "set-device! requires an active session. Call (spel/start!) first." {})))
               ctx-opts preset
               current-url (try (when-let [p @!page] (page/url p)) (catch Exception _ nil))]
           (when-let [p @!page]    (try (core/close-page! p) (catch Exception _ nil)))

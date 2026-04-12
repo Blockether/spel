@@ -115,18 +115,18 @@
   (describe "returns true for /mnt/ paths (WSL projection)"
     (it "/mnt/c/Users/alice/AppData/... (Chrome on Windows C: drive)"
       (expect (#'sut/wsl-projected-source?
-                "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))
+               "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))
     (it "/mnt/d/... (other drive)"
       (expect (#'sut/wsl-projected-source?
-                "/mnt/d/some/path/DevToolsActivePort")))
+               "/mnt/d/some/path/DevToolsActivePort")))
     (it "/media/... (older WSL layouts or distros)"
       (expect (#'sut/wsl-projected-source?
-                "/media/sf_shared/DevToolsActivePort"))))
+               "/media/sf_shared/DevToolsActivePort"))))
 
   (describe "returns false for native Linux paths"
     (it "~/.config path"
       (expect (not (#'sut/wsl-projected-source?
-                     "/home/user/.config/google-chrome/DevToolsActivePort"))))
+                    "/home/user/.config/google-chrome/DevToolsActivePort"))))
     (it "/tmp path"
       (expect (not (#'sut/wsl-projected-source? "/tmp/foo"))))
     (it "nil / blank input"
@@ -149,10 +149,10 @@
                   (#'sut/cdp-candidate-hosts nil)))
         (expect (= ["127.0.0.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/home/user/.config/google-chrome/DevToolsActivePort")))
+                   "/home/user/.config/google-chrome/DevToolsActivePort")))
         (expect (= ["127.0.0.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort"))))))
+                   "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort"))))))
 
   (describe "WSL with native-Linux DTAP source (wsl? true, path under ~/.config)"
     (it "returns [\"127.0.0.1\"] — no gateway probe needed for a truly local browser"
@@ -160,7 +160,7 @@
                     sut/wsl-default-gateway-ip (constantly "172.24.96.1")]
         (expect (= ["127.0.0.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/home/user/.config/google-chrome/DevToolsActivePort"))))))
+                   "/home/user/.config/google-chrome/DevToolsActivePort"))))))
 
   (describe "WSL with Windows-projected DTAP source"
     (it "returns [loopback, gateway] when gateway resolves"
@@ -168,14 +168,14 @@
                     sut/wsl-default-gateway-ip (constantly "172.24.96.1")]
         (expect (= ["127.0.0.1" "172.24.96.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
+                   "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
 
     (it "returns [loopback] when gateway lookup fails"
       (with-redefs [sut/wsl? (constantly true)
                     sut/wsl-default-gateway-ip (constantly nil)]
         (expect (= ["127.0.0.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
+                   "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))
 
     (it "does not duplicate loopback if the gateway IP is also 127.0.0.1"
       ;; Mirrored-networking configurations report the gateway as the
@@ -185,7 +185,7 @@
                     sut/wsl-default-gateway-ip (constantly "127.0.0.1")]
         (expect (= ["127.0.0.1"]
                   (#'sut/cdp-candidate-hosts
-                    "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))))
+                   "/mnt/c/Users/alice/AppData/Local/Google/Chrome/User Data/DevToolsActivePort")))))))
 
 ;; =============================================================================
 ;; CDP discovery — host-aware probing
@@ -199,7 +199,7 @@
     (it "reports :host in the result so callers know which host answered"
       (let [port 59321
             srv  (try (spin-up-fake-cdp-server! port "HostArityChrome/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             (let [r (#'sut/read-cdp-json-version "127.0.0.1" port 1000)]
@@ -211,7 +211,7 @@
     (it "returns nil for an unreachable host even when port is live on another"
       (let [port 59322
             srv  (try (spin-up-fake-cdp-server! port "IsolatedChrome/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             ;; 10.255.255.1 is the first address of an unroutable /32 —
@@ -224,7 +224,7 @@
     (it "still defaults to 127.0.0.1"
       (let [port 59323
             srv  (try (spin-up-fake-cdp-server! port "CompatChrome/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             (let [r (#'sut/read-cdp-json-version port 1000)]
@@ -246,7 +246,7 @@
       ;; We need a port the scanner actually probes.
       (let [port   9222
             srv    (try (spin-up-fake-cdp-server! port "FakeChrome/1.0")
-                     (catch Exception _ nil))]
+                        (catch Exception _ nil))]
         (when srv
           (try
             (let [result (sut/discover-external-cdp-endpoints [])
@@ -263,7 +263,7 @@
     (it "a port in excluded-ports is not returned even if listening"
       (let [port 9222
             srv  (try (spin-up-fake-cdp-server! port "FakeChrome/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             (let [result (sut/discover-external-cdp-endpoints [port])
@@ -336,8 +336,8 @@
     (it "prints header + rule + rows with auto-sized widths"
       (let [out (with-out-str
                   (#'cli/render-table
-                    ["NAME" "VALUE"]
-                    [["foo" "1"] ["longer-name" "22"]]))]
+                   ["NAME" "VALUE"]
+                   [["foo" "1"] ["longer-name" "22"]]))]
         (expect (str/includes? out "NAME"))
         (expect (str/includes? out "VALUE"))
         (expect (str/includes? out "longer-name"))
@@ -347,8 +347,8 @@
     (it "still renders header + rule"
       (let [out (with-out-str
                   (#'cli/render-table
-                    ["COL1" "COL2"]
-                    []))]
+                   ["COL1" "COL2"]
+                   []))]
         (expect (str/includes? out "COL1"))
         (expect (str/includes? out "COL2"))
         (expect (str/includes? out "─")))))
@@ -357,8 +357,8 @@
     (it "no trailing whitespace before the newline"
       (let [out (with-out-str
                   (#'cli/render-table
-                    ["A" "B"]
-                    [["short" "last-cell"]]))
+                   ["A" "B"]
+                   [["short" "last-cell"]]))
             lines (str/split-lines out)
             body-line (last lines)]
         ;; body-line ends with "last-cell" (optionally a trailing blank) — no
@@ -380,7 +380,7 @@
     (it "extracts :host :port :browser :ws-url from /json/version"
       (let [port 59330
             srv  (try (spin-up-fake-cdp-server! port "ProbeCDP/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             (let [r (platform/probe-cdp "127.0.0.1" port 1000)]
@@ -422,7 +422,7 @@
     (it "finds a server on a probed port"
       (let [port 9222
             srv  (try (spin-up-fake-cdp-server! port "DiscoverTest/1.0")
-                   (catch Exception _ nil))]
+                      (catch Exception _ nil))]
         (when srv
           (try
             (let [r (platform/discover-cdp [port] 1000)]
@@ -464,7 +464,7 @@
 
     (it "converts nested structures recursively"
       (let [ctx (sci-env/create-sci-ctx)
-            r   (sci-env/eval-string ctx "(spel/java->clj (java.util.LinkedHashMap. {\"x\" (java.util.ArrayList. [1 2 3])}))" )]
+            r   (sci-env/eval-string ctx "(spel/java->clj (java.util.LinkedHashMap. {\"x\" (java.util.ArrayList. [1 2 3])}))")]
         (expect (map? r))
         (expect (vector? (get r "x")))
         (expect (= [1 2 3] (get r "x"))))))
@@ -500,7 +500,7 @@
         (sci-env/eval-string forked "(def test-leak-var 42)")
         (expect (= 42 (sci-env/eval-string forked "test-leak-var")))
         (let [parent-err (try (sci-env/eval-string ctx "test-leak-var")
-                           (catch Exception _ :not-found))]
+                              (catch Exception _ :not-found))]
           (expect (= :not-found parent-err))))))
 
   (describe "cdp-connect callable"
@@ -510,7 +510,7 @@
       ;; "daemon mode", proving the function IS wired up and runs.
       (let [ctx (sci-env/create-sci-ctx)
             err (try (sci-env/eval-string ctx "(spel/cdp-connect)")
-                  (catch Exception e (.getMessage e)))]
+                     (catch Exception e (.getMessage e)))]
         (expect (string? err))
         ;; Either "No running browser" (auto-discover path) or
         ;; "daemon mode" (reconnect handler not injected)

@@ -287,11 +287,12 @@
         n (count durations)]
     (if (zero? n)
       {"count" 0 "totalMs" 0 "meanMs" 0 "maxMs" 0 "minMs" 0}
-      {"count"   n
-       "totalMs" (long (reduce + durations))
-       "meanMs"  (long (quot (reduce + durations) n))
-       "maxMs"   (long (reduce max durations))
-       "minMs"   (long (reduce min durations))})))
+      (let [total (long (reduce + durations))]
+        {"count"   n
+         "totalMs" total
+         "meanMs"  (long (quot total (long n)))
+         "maxMs"   (long (reduce max durations))
+         "minMs"   (long (reduce min durations))}))))
 
 (defn- walk-steps
   "Pre-order flatten every step (and nested step) in a result."
@@ -309,12 +310,12 @@
   [step]
   (let [nm (or (get step "name") "")
         prefix? (or (str/starts-with? nm "[API] ")
-                    (str/starts-with? nm "[UI+API] "))
+                  (str/starts-with? nm "[UI+API] "))
         has-http-attach?
         (boolean
           (some (fn [att]
                   (and (= "text/markdown" (get att "type"))
-                       (= "HTTP" (get att "name"))))
+                    (= "HTTP" (get att "name"))))
             (or (get step "attachments") [])))]
     (or prefix? has-http-attach?)))
 
@@ -334,8 +335,8 @@
                 stop    (get s "stop")
                 http-at (some (fn [att]
                                 (when (and (= "text/markdown" (get att "type"))
-                                           (= "HTTP" (get att "name"))
-                                           (get att "source"))
+                                        (= "HTTP" (get att "name"))
+                                        (get att "source"))
                                   att))
                           (or (get s "attachments") []))]]
       (cond-> {"test"   (or (get r "name") (get r "fullName") "")
@@ -343,7 +344,7 @@
                "status" (or (get s "status") "unknown")}
         (and start stop)
         (-> (assoc "durationMs" (long (- (long stop) (long start))))
-            (assoc "startedAt"  (long start)))
+          (assoc "startedAt"  (long start)))
         http-at
         (assoc "attachment" (str "data/attachments/" (get http-at "source")))))))
 
@@ -357,8 +358,8 @@
         n (or (get att "name") "")]
     (and
       (or (= t "text/plain")
-          (= t "application/json")
-          (= t "text/x-log"))
+        (= t "application/json")
+        (= t "text/x-log"))
       ;; Skip the HTTP markdown exchange — it's counted as an HTTP call.
       (not (and (= t "text/markdown") (= n "HTTP"))))))
 
@@ -371,8 +372,8 @@
     (for [r results
           :let [test-name (or (get r "name") (get r "fullName") "")]
           att (concat (get r "attachments" [])
-                      (mapcat (fn [s] (get s "attachments" []))
-                        (walk-steps r)))
+                (mapcat (fn [s] (get s "attachments" []))
+                  (walk-steps r)))
           :when (log-attachment? att)
           :let [src  (get att "source")
                 file (when (and src results-dir)
@@ -396,11 +397,12 @@
         n (count durations)]
     (if (zero? n)
       {"calls" 0 "totalMs" 0 "meanMs" 0 "maxMs" 0 "minMs" 0}
-      {"calls"   n
-       "totalMs" (long (reduce + durations))
-       "meanMs"  (long (quot (reduce + durations) n))
-       "maxMs"   (long (reduce max durations))
-       "minMs"   (long (reduce min durations))})))
+      (let [total (long (reduce + durations))]
+        {"calls"   n
+         "totalMs" total
+         "meanMs"  (long (quot total (long n)))
+         "maxMs"   (long (reduce max durations))
+         "minMs"   (long (reduce min durations))}))))
 
 (defn- collect-errors
   "Extract an error entry for every non-passing result (failed / broken).
@@ -418,7 +420,7 @@
         (get sd "trace")   (assoc "trace"    (get sd "trace"))
         (and (get r "start") (get r "stop"))
         (assoc "durationMs"
-               (long (- (long (get r "stop")) (long (get r "start")))))))))
+          (long (- (long (get r "stop")) (long (get r "start")))))))))
 
 (defn- format-duration [^long ms]
   (let [secs (quot ms 1000)
@@ -601,7 +603,7 @@
 
 (defn- parse-long-safe [^String s]
   (try (Long/parseLong (str/trim s))
-    (catch Exception _ nil)))
+       (catch Exception _ nil)))
 
 (defn- trace-chunk-size-bytes
   "Resolve trace chunk size in bytes. Returns nil when chunking is disabled.
@@ -649,19 +651,19 @@
           (let [part-name (format "%s.part%03d" source idx)
                 part-file (io/file dest-dir part-name)
                 part-size (long (Math/min (long chunk-size) remaining))]
-          (io/make-parents part-file)
-          (with-open [out (io/output-stream part-file)]
-            (let [buf (byte-array 8192)]
-              (loop [left part-size]
-                (when (pos? left)
-                  (let [to-read (int (min left (alength buf)))
-                        n (.read in buf 0 to-read)]
-                    (when (neg? n)
-                      (throw (ex-info "Unexpected EOF while chunking trace"
-                               {:source source :part idx})))
-                    (.write out buf 0 n)
-                    (recur (- left n)))))))
-          (recur (- remaining part-size) (inc idx))))))))
+            (io/make-parents part-file)
+            (with-open [out (io/output-stream part-file)]
+              (let [buf (byte-array 8192)]
+                (loop [left part-size]
+                  (when (pos? left)
+                    (let [to-read (int (min left (alength buf)))
+                          n (.read in buf 0 to-read)]
+                      (when (neg? n)
+                        (throw (ex-info "Unexpected EOF while chunking trace"
+                                 {:source source :part idx})))
+                      (.write out buf 0 n)
+                      (recur (- left n)))))))
+            (recur (- remaining part-size) (inc idx))))))))
 
 (defn- copy-attachments!
   [^String results-dir ^File out results]
@@ -2795,11 +2797,11 @@
                              ;; instant — matches the docstring.
                              (or (try (Long/parseLong s) (catch Exception _ nil))
                                (try (.toEpochMilli (java.time.Instant/parse s))
-                                 (catch Exception _ nil))
+                                    (catch Exception _ nil))
                                (try (.toEpochMilli
                                       (.toInstant
                                         (java.time.OffsetDateTime/parse s)))
-                                 (catch Exception _ nil))))
+                                    (catch Exception _ nil))))
                            :else nil))
          run-info (let [m (cond-> (or base-run-info {})
                             (:build-id opts)   (assoc :run-name (:build-id opts))
@@ -2852,20 +2854,20 @@
        (when has-traces?
          (ensure-trace-viewer! out))
        (let [cts (count-by-status results)
-           total-ms (total-duration-ms results)
-           total (long (get cts :total 0))
-           passed (long (get cts :passed 0))
-           pass-rate (if (pos? total)
-                       (int (* 100.0 (/ (double passed) (double total))))
-                       0)
-           suites (group-by-suite results)
-           label-index (collect-label-index results)
-           start-ts (reduce min Long/MAX_VALUE (keep #(get % "start") results))
+             total-ms (total-duration-ms results)
+             total (long (get cts :total 0))
+             passed (long (get cts :passed 0))
+             pass-rate (if (pos? total)
+                         (int (* 100.0 (/ (double passed) (double total))))
+                         0)
+             suites (group-by-suite results)
+             label-index (collect-label-index results)
+             start-ts (reduce min Long/MAX_VALUE (keep #(get % "start") results))
            ;; Inline SVG favicon — a simple indigo orb matching --accent.
            ;; Self-contained so the report has zero external asset deps
            ;; and no /favicon.ico 404 in the console.
-           favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E"
-           html (str "<!DOCTYPE html>
+             favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E"
+             html (str "<!DOCTYPE html>
 <html lang=\"en\">
 <head>
   <meta charset=\"UTF-8\">
@@ -2909,13 +2911,13 @@
   <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">
   <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
   <style>" (css) "</style>" (if (seq custom-css)
-                                 (str "\n  <style id=\"report-custom-css\">"
-                                   custom-css
-                                   "</style>")
-                                 "") "
+                              (str "\n  <style id=\"report-custom-css\">"
+                                custom-css
+                                "</style>")
+                              "") "
   <script id=\"labelIndex\" type=\"application/json\">"
-                  (-> (json/write-json-str label-index)
-                    (str/replace "</" "<\\/")) "
+                    (-> (json/write-json-str label-index)
+                      (str/replace "</" "<\\/")) "
   </script>
 </head>
 <body>
@@ -2959,15 +2961,15 @@
       </div>
     </div>
     <div class=\"report-meta\">"
-                  (render-summary-chip "Total" (:total cts) "summary-chip-total")
-                  (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
-                  (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
-                  (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
-                  (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
-                  (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
-                  (render-summary-chip "Suites" (count suites) "summary-chip-suites")
-                  (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
-                  "</div>
+                    (render-summary-chip "Total" (:total cts) "summary-chip-total")
+                    (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
+                    (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
+                    (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
+                    (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
+                    (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
+                    (render-summary-chip "Suites" (count suites) "summary-chip-suites")
+                    (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
+                    "</div>
   </header>
 
   <div class=\"toolbar\">
@@ -2976,9 +2978,9 @@
       <button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>
       <button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>
       <button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
-                  (when (pos? (long (get cts :skipped 0)))
-                    (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
-                  "</div>
+                    (when (pos? (long (get cts :skipped 0)))
+                      (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
+                    "</div>
     <div class=\"toolbar-actions\">
       <input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />
       <div class=\"toolbar-sort\" id=\"sortControl\" data-sort=\"status\" aria-expanded=\"false\">
@@ -2992,31 +2994,31 @@
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"name\">Name A–Z</li>
         </ul>
       </div>"
-                  (when (seq label-index)
-                    (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
-                                        "severity" "Severity" "tag" "Tag"}
+                    (when (seq label-index)
+                      (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
+                                          "severity" "Severity" "tag" "Tag"}
                           ;; Render in a stable order
-                          ordered-types (filter label-index ["epic" "feature" "story" "severity" "tag"])]
-                      (str
-                        "<div class=\"toolbar-labels\" id=\"labelControl\" aria-expanded=\"false\">"
-                        "<button type=\"button\" class=\"filter-btn toolbar-label-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">Labels</button>"
-                        "<div class=\"toolbar-label-menu\" hidden>"
-                        (str/join ""
-                          (for [ltype ordered-types
-                                :let [values (get label-index ltype)]
-                                :when (seq values)]
-                            (str "<div class=\"label-filter-group\" data-label-type=\"" (html-escape ltype) "\">"
-                              "<div class=\"label-filter-title\">" (get type-display ltype ltype) "</div>"
-                              (str/join ""
-                                (for [v values]
-                                  (str "<button class=\"label-filter-item\" type=\"button\""
-                                    " data-label-type=\"" (html-escape ltype) "\""
-                                    " data-label-value=\"" (html-escape v) "\">"
-                                    (html-escape v)
-                                    "</button>")))
-                              "</div>")))
-                        "</div>"
-                        "</div>"))) "
+                            ordered-types (filter label-index ["epic" "feature" "story" "severity" "tag"])]
+                        (str
+                          "<div class=\"toolbar-labels\" id=\"labelControl\" aria-expanded=\"false\">"
+                          "<button type=\"button\" class=\"filter-btn toolbar-label-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">Labels</button>"
+                          "<div class=\"toolbar-label-menu\" hidden>"
+                          (str/join ""
+                            (for [ltype ordered-types
+                                  :let [values (get label-index ltype)]
+                                  :when (seq values)]
+                              (str "<div class=\"label-filter-group\" data-label-type=\"" (html-escape ltype) "\">"
+                                "<div class=\"label-filter-title\">" (get type-display ltype ltype) "</div>"
+                                (str/join ""
+                                  (for [v values]
+                                    (str "<button class=\"label-filter-item\" type=\"button\""
+                                      " data-label-type=\"" (html-escape ltype) "\""
+                                      " data-label-value=\"" (html-escape v) "\">"
+                                      (html-escape v)
+                                      "</button>")))
+                                "</div>")))
+                          "</div>"
+                          "</div>"))) "
       <button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>
       <button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>
     </div>
@@ -3026,35 +3028,35 @@
   <details class=\"panel environment-panel\" id=\"environment\">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
     <div class=\"panel-body\">"
-                  (if (seq env)
-                    (str "<div class=\"env-grid\">"
-                      (str/join ""
-                        (for [[k v] (sort-by first env)]
-                          (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
-                            "<div class=\"env-value\">" (html-escape v) "</div></div>")))
-                      "</div>")
-                    "<div class=\"empty-state\"><p>No environment data</p></div>")
-                  "</div>
+                    (if (seq env)
+                      (str "<div class=\"env-grid\">"
+                        (str/join ""
+                          (for [[k v] (sort-by first env)]
+                            (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
+                              "<div class=\"env-value\">" (html-escape v) "</div></div>")))
+                        "</div>")
+                      "<div class=\"empty-state\"><p>No environment data</p></div>")
+                    "</div>
   </details>
 
   <section id=\"suites\">
     <h2 class=\"section-heading\">Test suites</h2>
     <div id=\"suitesRoot\">"
-                  (if (seq suites)
-                    (let [suite-names (keys suites)
-                          common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
-                      (str
-                        (when (and common-prefix (not (str/blank? common-prefix)))
-                          (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
-                        (str/join ""
-                          (for [[suite-name suite-results] suites]
-                            (let [short-name (strip-prefix common-prefix suite-name)
-                                  display-name (if (str/blank? short-name)
-                                                 (last (str/split suite-name #"\."))
-                                                 short-name)]
-                              (render-suite-section display-name suite-results results-dir))))))
-                    "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
-                  "
+                    (if (seq suites)
+                      (let [suite-names (keys suites)
+                            common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
+                        (str
+                          (when (and common-prefix (not (str/blank? common-prefix)))
+                            (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
+                          (str/join ""
+                            (for [[suite-name suite-results] suites]
+                              (let [short-name (strip-prefix common-prefix suite-name)
+                                    display-name (if (str/blank? short-name)
+                                                   (last (str/split suite-name #"\."))
+                                                   short-name)]
+                                (render-suite-section display-name suite-results results-dir))))))
+                      "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
+                    "
     </div>
     <div id=\"suitesEmptyState\" class=\"empty-state\" hidden>
       <strong>No tests match the current filter.</strong>
@@ -3067,62 +3069,62 @@
 <script>" (js-ui) "</script>
 </body>
 </html>")]
-       (spit (io/file out "index.html") html)
-       (enhance-report-shell! out)
+         (spit (io/file out "index.html") html)
+         (enhance-report-shell! out)
        ;; Machine-readable JSON outputs — same data the HTML renders,
        ;; in formats CI dashboards and custom tooling can consume.
        ;; summary.json: Allure-compatible aggregate stats.
        ;; report.json:  full array of every test result with labels,
        ;;               steps, attachments, and status details.
-       (spit (io/file out "summary.json")
-         (json/write-json-str
-           (let [tds     (test-duration-stats results)
-                 http    (http-stats results)
-                 calls   (http-call-entries results)
-                 logs    (collect-logs results-dir results)
-                 errs    (collect-errors results)]
-             {"name"         (or (:report-title run-info) title)
-              "stats"        {"total"   (:total cts)
-                              "passed"  (:passed cts)
-                              "failed"  (:failed cts)
-                              "broken"  (:broken cts)
-                              "skipped" (:skipped cts)
-                              "unknown" (:unknown cts)}
-              "status"       (cond
-                               (pos? (long (:failed cts))) "failed"
-                               (pos? (long (:broken cts))) "broken"
-                               :else                       "passed")
+         (spit (io/file out "summary.json")
+           (json/write-json-str
+             (let [tds     (test-duration-stats results)
+                   http    (http-stats results)
+                   calls   (http-call-entries results)
+                   logs    (collect-logs results-dir results)
+                   errs    (collect-errors results)]
+               {"name"         (or (:report-title run-info) title)
+                "stats"        {"total"   (:total cts)
+                                "passed"  (:passed cts)
+                                "failed"  (:failed cts)
+                                "broken"  (:broken cts)
+                                "skipped" (:skipped cts)
+                                "unknown" (:unknown cts)}
+                "status"       (cond
+                                 (pos? (long (:failed cts))) "failed"
+                                 (pos? (long (:broken cts))) "broken"
+                                 :else                       "passed")
               ;; Wall-clock total (sum of per-test durations).
-              "duration"     total-ms
+                "duration"     total-ms
               ;; Per-test duration stats — count/total/mean/max/min (ms).
-              "testDuration" tds
+                "testDuration" tds
               ;; HTTP calls captured in api-step / {:http? true} / attach-http-markdown!
               ;; — count + total/mean/max/min duration (ms). Zeroed when none.
-              "http"         http
+                "http"         http
               ;; Every individual HTTP call: {test, name, status, durationMs,
               ;; startedAt, attachment?}. `attachment` is the relative path of
               ;; the captured HTTP markdown exchange (full request/response/
               ;; headers/body) — summary.json stays small, callers load on demand.
-              "httpCalls"    calls
+                "httpCalls"    calls
               ;; Log-like attachments (text/plain, application/json, text/x-log)
               ;; flattened across every result + step. Each: {test, name, type,
               ;; path, size?}. Captures user `allure/attach` payloads:
               ;; stdout/stderr, console dumps, structured event logs.
-              "logs"         logs
+                "logs"         logs
               ;; One entry per failed/broken test: name, status, message, trace, durationMs.
-              "errors"       errs
-              "passRate"     pass-rate
-              "createdAt"    (System/currentTimeMillis)})))
-       (spit (io/file out "report.json")
-         (json/write-json-str results))
-       (println (str "Blockether report generated: " output-dir "/index.html"))
-       (println (str "  " (:total cts) " tests: "
-                  (:passed cts) " passed, "
-                  (:failed cts) " failed, "
-                  (:broken cts) " broken, "
-                  (:skipped cts) " skipped"))
-       (println (str "  Duration: " (format-duration total-ms)))
-       (println (str "  Pass rate: " pass-rate "%"))
-       (when (seq results)
-         (println (str "  Started: " (if (= Long/MAX_VALUE start-ts) "N/A" (format-ts start-ts)))))
-       output-dir)))))
+                "errors"       errs
+                "passRate"     pass-rate
+                "createdAt"    (System/currentTimeMillis)})))
+         (spit (io/file out "report.json")
+           (json/write-json-str results))
+         (println (str "Blockether report generated: " output-dir "/index.html"))
+         (println (str "  " (:total cts) " tests: "
+                    (:passed cts) " passed, "
+                    (:failed cts) " failed, "
+                    (:broken cts) " broken, "
+                    (:skipped cts) " skipped"))
+         (println (str "  Duration: " (format-duration total-ms)))
+         (println (str "  Pass rate: " pass-rate "%"))
+         (when (seq results)
+           (println (str "  Started: " (if (= Long/MAX_VALUE start-ts) "N/A" (format-ts start-ts)))))
+         output-dir)))))

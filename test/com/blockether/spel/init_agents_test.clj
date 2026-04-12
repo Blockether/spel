@@ -32,8 +32,7 @@
         (expect (= "lazytest" (:flavour opts)))
         (expect (nil? (:ns opts)))
         (expect (= "opencode" (:loop opts)))
-        (expect (= "test-e2e" (:test-dir opts)))
-        (expect (= "test-e2e/specs" (:specs-dir opts))))))
+        (expect (= "test-e2e" (:test-dir opts))))))
 
   (describe "boolean flags"
     (it "parses --dry-run"
@@ -78,18 +77,12 @@
     (it "parses --flavour= syntax"
       (expect (= "clojure-test" (:flavour (#'sut/parse-args ["--flavour=clojure-test"]))))))
 
-  (describe "--test-dir and --specs-dir"
+  (describe "--test-dir"
     (it "parses --test-dir with space-separated value"
       (expect (= "test/e2e" (:test-dir (#'sut/parse-args ["--test-dir" "test/e2e"])))))
 
     (it "parses --test-dir= syntax"
-      (expect (= "test/e2e" (:test-dir (#'sut/parse-args ["--test-dir=test/e2e"])))))
-
-    (it "parses --specs-dir with space-separated value"
-      (expect (= "specs" (:specs-dir (#'sut/parse-args ["--specs-dir" "specs"])))))
-
-    (it "parses --specs-dir= syntax"
-      (expect (= "specs" (:specs-dir (#'sut/parse-args ["--specs-dir=specs"]))))))
+      (expect (= "test/e2e" (:test-dir (#'sut/parse-args ["--test-dir=test/e2e"]))))))
 
   (describe "--only"
     (it "parses --only with space-separated value"
@@ -255,10 +248,10 @@
       (expect (= "Use @spel-orchestrator to start" result))))
 
   (it "replaces multiple agent references in one string"
-    (let [content "Start with @spel-orchestrator then use @spel-test-planner and @spel-bug-hunter"
+    (let [content "Start with @spel-orchestrator then use @spel-test-writer and @spel-bug-hunter"
           result (#'sut/transform-agent-references content "opencode")]
       (expect (str/includes? result "@spel-orchestrator"))
-      (expect (str/includes? result "@spel-test-planner"))
+      (expect (str/includes? result "@spel-test-writer"))
       (expect (str/includes? result "@spel-bug-hunter"))))
 
   (it "does not modify text without agent references"
@@ -299,8 +292,8 @@
 
   (it "transforms frontmatter with description and default color"
     (let [content "---\ndescription: \"A test agent\"\n---\nBody text"
-          result (#'sut/transform-for-claude content "spel-test-planner" ".claude/docs/spel")]
-      (expect (str/includes? result "name: spel-test-planner"))
+          result (#'sut/transform-for-claude content "spel-test-writer" ".claude/docs/spel")]
+      (expect (str/includes? result "name: spel-test-writer"))
       (expect (str/includes? result "description: \"A test agent\""))
       (expect (str/includes? result "tools: Bash, Read, Write, Edit, Glob, Grep"))
       (expect (str/includes? result "color:"))
@@ -335,12 +328,12 @@
 
   (it "returns content unchanged for opencode target"
     (let [content "---\ndescription: \"Agent\"\n---\nBody"]
-      (expect (= content (#'sut/transform-agent-template content "opencode" "spel-test-planner")))))
+      (expect (= content (#'sut/transform-agent-template content "opencode" "spel-test-writer")))))
 
   (it "transforms content for claude target"
     (let [content "---\ndescription: \"Agent\"\n---\nBody"
-          result (#'sut/transform-agent-template content "claude" "spel-test-planner")]
-      (expect (str/includes? result "name: spel-test-planner"))
+          result (#'sut/transform-agent-template content "claude" "spel-test-writer")]
+      (expect (str/includes? result "name: spel-test-writer"))
       (expect (not= content result))))
 
   (it "returns content unchanged when agent-name is nil"
@@ -357,8 +350,8 @@
   (it "detects spel-orchestrator"
     (expect (true? (#'sut/orchestrator-agent? "spel-orchestrator"))))
 
-  (it "rejects spel-test-planner"
-    (expect (false? (#'sut/orchestrator-agent? "spel-test-planner"))))
+  (it "rejects spel-test-writer"
+    (expect (false? (#'sut/orchestrator-agent? "spel-test-writer"))))
 
   (it "rejects spel-bug-hunter"
     (expect (false? (#'sut/orchestrator-agent? "spel-bug-hunter"))))
@@ -408,13 +401,12 @@
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest" nil false))]
         (expect (some #(= ".opencode/skills/spel/SKILL.md" %) paths))))
 
-    (it "includes all 8 agent templates"
+    (it "includes all 7 agent templates"
       (let [names (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false))]
-        (expect (= 8 (count names)))))
+        (expect (= 7 (count names)))))
 
-    (it "includes test agents"
+    (it "includes test writer agent"
       (let [names (set (agent-names (#'sut/files-to-create "opencode" "lazytest" nil false)))]
-        (expect (contains? names "spel-test-planner"))
         (expect (contains? names "spel-test-writer"))))
 
     (it "includes orchestrator agent"
@@ -435,8 +427,7 @@
           names (set (agent-names specs))
           paths (set (output-paths specs))]
 
-      (it "includes test agents"
-        (expect (contains? names "spel-test-planner"))
+      (it "includes test writer agent"
         (expect (contains? names "spel-test-writer")))
 
       (it "excludes non-test agents"
@@ -467,7 +458,7 @@
         (expect (contains? names "spel-automator")))
 
       (it "excludes test agents"
-        (expect (not (contains? names "spel-test-planner"))))))
+        (expect (not (contains? names "spel-test-writer"))))))
 
   (describe "--only bugfind"
     (let [resolved #{:bug-hunter}
@@ -482,7 +473,7 @@
         (expect (some #(str/includes? % "spel-bugfind-workflow") paths)))
 
       (it "excludes test and automation agents"
-        (expect (not (contains? names "spel-test-planner")))
+        (expect (not (contains? names "spel-test-writer")))
         (expect (not (contains? names "spel-explorer"))))))
 
   (describe "--only discovery"
@@ -499,7 +490,7 @@
 
       (it "excludes non-discovery agents"
         (expect (not (contains? names "spel-orchestrator")))
-        (expect (not (contains? names "spel-test-planner"))))))
+        (expect (not (contains? names "spel-test-writer"))))))
 
   (describe "--only orchestrator"
     (let [resolved #{:orchestrator}
@@ -510,7 +501,7 @@
         (expect (contains? names "spel-orchestrator")))
 
       (it "excludes non-orchestrator agents"
-        (expect (not (contains? names "spel-test-planner")))
+        (expect (not (contains? names "spel-test-writer")))
         (expect (not (contains? names "spel-bug-hunter"))))))
 
   (describe "--only core"
@@ -521,7 +512,6 @@
 
       (it "includes core agents"
         (expect (contains? names "spel-orchestrator"))
-        (expect (contains? names "spel-test-planner"))
         (expect (contains? names "spel-test-writer"))
         (expect (contains? names "spel-explorer"))
         (expect (contains? names "spel-bug-hunter"))

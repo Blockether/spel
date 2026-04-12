@@ -538,12 +538,11 @@ spel init-agents --no-tests                   # skip seed test and specs directo
 | `--simplified` | — | Simplified 6-prompt setup (alias for `--only=core`) |
 | `--ns NS` | dir name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | Test framework: `lazytest` or `clojure-test` |
-| `--no-tests` | — | Skip seed test and specs directory |
+| `--no-tests` | — | Skip seed test scaffolding |
 | `--learnings` | — | Agents will maintain a `LEARNINGS.md` file where they record gotchas and patterns they discover while working (useful for building up project-specific knowledge over time) |
 | `--dry-run` | — | Preview what files would be created without writing them |
 | `--force` | — | Overwrite existing files |
 | `--test-dir DIR` | `test-e2e` | Where to put E2E test files |
-| `--specs-dir DIR` | `test-e2e/specs` | Where to put test plan files |
 
 </details>
 

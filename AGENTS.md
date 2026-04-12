@@ -161,7 +161,7 @@ spel init-agents --only=test,visual           # combine
 
 | Group | Agents | Use for |
 |-------|--------|---------|
-| `test` | spel-test-planner, spel-test-writer | E2E tests |
+| `test` | spel-test-writer | E2E tests |
 | `automation` | spel-explorer, spel-automator | Browser automation |
 | `visual` | spel-presenter | Visual content |
 | `bugfind` | spel-bug-hunter | Bug-finding |

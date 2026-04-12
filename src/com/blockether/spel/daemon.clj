@@ -3714,9 +3714,9 @@
         launch-flags (:launch-flags state)
         viewport (try (when page (page/viewport-size page)) (catch Exception _ nil))
         tab-count (try (when context (count (.pages ^com.microsoft.playwright.BrowserContext context)))
-                    (catch Exception _ nil))
+                       (catch Exception _ nil))
         cookies-count (try (when context (count (.cookies ^com.microsoft.playwright.BrowserContext context)))
-                        (catch Exception _ nil))]
+                           (catch Exception _ nil))]
     {:session        (:session state)
      :browser        (get launch-flags "browser" "chromium")
      :channel        (get launch-flags "channel")

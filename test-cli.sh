@@ -1428,7 +1428,6 @@ fi
 
 # --only test --dry-run: includes test agents, excludes others
 OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)
-assert_contains "init-agents --only test includes test-planner" "$OUT" "spel-test-planner"
 assert_contains "init-agents --only test includes test-writer" "$OUT" "spel-test-writer"
 assert_contains "init-agents --only test includes SKILL" "$OUT" "SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -1443,10 +1442,10 @@ OUT=$("$SPEL" init-agents --only automation --dry-run 2>&1)
 assert_contains "init-agents --only automation includes explorer" "$OUT" "spel-explorer"
 assert_contains "init-agents --only automation includes automator" "$OUT" "spel-automator"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "agents/spel-test-planner"; then
-  fail "init-agents --only automation excludes test-planner"
+if echo "$OUT" | grep -q "agents/spel-test-writer"; then
+  fail "init-agents --only automation excludes test-writer"
 else
-  pass "init-agents --only automation excludes test-planner"
+  pass "init-agents --only automation excludes test-writer"
 fi
 
 # --only invalid: shows error with valid values
@@ -1460,7 +1459,7 @@ assert_contains "init-agents --help mentions --only" "$OUT" "--only"
 # --no-tests --dry-run: includes ALL agents but no seed test or specs
 OUT=$("$SPEL" init-agents --no-tests --dry-run 2>&1)
 assert_contains "--no-tests includes orchestrator" "$OUT" "spel-orchestrator"
-assert_contains "--no-tests includes test-planner" "$OUT" "spel-test-planner"
+assert_contains "--no-tests includes test-writer" "$OUT" "spel-test-writer"
 assert_contains "--no-tests includes explorer" "$OUT" "spel-explorer"
 assert_contains "--no-tests includes SKILL" "$OUT" "SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -1474,10 +1473,10 @@ fi
 OUT=$("$SPEL" init-agents --no-tests --only bugfind --dry-run 2>&1)
 assert_contains "--no-tests --only bugfind includes bug-hunter" "$OUT" "spel-bug-hunter"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "spel-test-planner"; then
-  fail "--no-tests --only bugfind excludes test-planner"
+if echo "$OUT" | grep -q "spel-test-writer"; then
+  fail "--no-tests --only bugfind excludes test-writer"
 else
-  pass "--no-tests --only bugfind excludes test-planner"
+  pass "--no-tests --only bugfind excludes test-writer"
 fi
 
 OUT=$("$SPEL" ci-assemble --help 2>&1)

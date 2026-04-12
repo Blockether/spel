@@ -50,12 +50,11 @@ fi
 # ── init-agents --dry-run opencode paths ─────────────────────────────────────
 OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --dry-run 2>&1)
 assert_contains "dry-run opencode → banner says OpenCode" "$OUT" "for OpenCode"
-assert_contains "dry-run opencode → planner path" "$OUT" ".opencode/agents/spel-test-planner.md"
 assert_contains "dry-run opencode → writer path" "$OUT" ".opencode/agents/spel-test-writer.md"
 assert_contains "dry-run opencode → prompt path" "$OUT" ".opencode/prompts/spel-test-workflow.md"
 assert_contains "dry-run opencode → skill path" "$OUT" ".opencode/skills/spel/SKILL.md"
 assert_contains "dry-run opencode → seed test uses --ns" "$OUT" "test-e2e/test_app/e2e/seed_test.clj"
-assert_contains "dry-run opencode → footer @mention" "$OUT" "@spel-test-planner"
+assert_contains "dry-run opencode → footer @mention" "$OUT" "@spel-test-writer"
 assert_contains "dry-run opencode → next steps header" "$OUT" "Next steps:"
 assert_contains "dry-run opencode → step: install browsers" "$OUT" "spel install --with-deps chromium"
 assert_contains "dry-run opencode → step: deps.edn alias" "$OUT" ':e2e {:extra-paths ["test-e2e"]'
@@ -66,7 +65,7 @@ assert_contains "dry-run opencode → step: update seed URL" "$OUT" "Update the 
 # ── init-agents --dry-run --loop=claude paths ────────────────────────────────
 OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --loop=claude --dry-run 2>&1)
 assert_contains "dry-run claude → banner says Claude Code" "$OUT" "for Claude Code"
-assert_contains "dry-run claude → agent dir" "$OUT" ".claude/agents/spel-test-planner.md"
+assert_contains "dry-run claude → agent dir" "$OUT" ".claude/agents/spel-test-writer.md"
 assert_contains "dry-run claude → prompt dir" "$OUT" ".claude/prompts/spel-test-workflow.md"
 assert_contains "dry-run claude → docs dir" "$OUT" ".claude/docs/spel/SKILL.md"
 assert_contains "dry-run claude → generic footer" "$OUT" 'Use the spel-orchestrator agent to get started'
