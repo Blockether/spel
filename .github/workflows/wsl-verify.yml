@@ -518,30 +518,37 @@ jobs:
         id: spel-e2e
         shell: wsl-bash {0}
         run: |
+          # Disable errexit — Vampire's wsl-bash may set -e implicitly
+          # and test commands like [ -x ... ] trigger false exits.
+          set +e
+
+          echo "--- Shell options: $- ---"
+
           echo "--- Finding Java ---"
+          # Search common JVM paths; apt's default-jre doesn't set
+          # JAVA_HOME or update PATH reliably across WSL shell sessions.
           JAVA_BIN=""
-          for candidate in /usr/bin/java /usr/lib/jvm/default-java/bin/java /usr/lib/jvm/java-21-openjdk-amd64/bin/java; do
-            if [ -x "$candidate" ]; then
-              JAVA_BIN="$candidate"
-              break
-            fi
+          for p in /usr/bin/java /usr/lib/jvm/java-21-openjdk-amd64/bin/java /usr/lib/jvm/default-java/bin/java; do
+            if [ -x "$p" ]; then JAVA_BIN="$p"; break; fi
           done
           if [ -z "$JAVA_BIN" ]; then
-            JAVA_BIN=$(find /usr/lib/jvm -name java -type f 2>/dev/null | head -1)
+            JAVA_BIN="$(find /usr/lib/jvm -name java -type f 2>/dev/null | head -1)"
           fi
           if [ -z "$JAVA_BIN" ]; then
             echo "FATAL: cannot find java binary"
+            ls -la /usr/bin/java /usr/lib/jvm/ 2>&1 || true
             exit 1
           fi
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f "$JAVA_BIN")))
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")"
           export PATH="$JAVA_HOME/bin:/usr/local/bin:$PATH"
           echo "JAVA_HOME=$JAVA_HOME"
-          java -version
+          echo "JAVA_BIN=$JAVA_BIN"
+          java -version 2>&1
 
           echo "--- Finding workspace ---"
           GH_WS="${GITHUB_WORKSPACE:-}"
           if [ -z "$GH_WS" ]; then
-            GH_WS=$(powershell.exe -NoProfile -Command 'Write-Host -NoNewline $env:GITHUB_WORKSPACE' 2>/dev/null | tr -d '\r') || true
+            GH_WS="$(powershell.exe -NoProfile -Command 'Write-Host -NoNewline $env:GITHUB_WORKSPACE' 2>/dev/null | tr -d '\r')" || true
           fi
           if [ -z "$GH_WS" ]; then
             echo "FATAL: cannot determine GITHUB_WORKSPACE"
@@ -560,6 +567,7 @@ jobs:
           fi
 
           echo "--- Running Clojure test ---"
+          set -e
           clojure -M /tmp/spel-e2e/test.clj
           echo "spel_e2e=pass"
 
