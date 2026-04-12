@@ -90,7 +90,11 @@ fi
 # 3. Windows host IP (default gateway from WSL's POV)
 # ─────────────────────────────────────────────────────────────────────────
 step "3. Windows host IP"
-WIN_IP=$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')
+# `ip route show default` formats vary across distros and WSL versions:
+#   Typical:   default via 10.1.0.1 dev eth0
+#   GH runner: none default via 10.1.0.1 dev eth0 proto unspec metric 1
+# The reliable token is "via" — the gateway IP is always the word AFTER it.
+WIN_IP=$(ip route show default 2>/dev/null | awk '/via/ { for(i=1;i<=NF;i++) if($i=="via") { print $(i+1); exit } }')
 if [[ -n "$WIN_IP" ]]; then
   ok "default gateway (= Windows host under NAT mode): ${WIN_IP}"
 else

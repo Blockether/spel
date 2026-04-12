@@ -443,9 +443,22 @@ jobs:
           set -eo pipefail
           GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
 
-          WS_PATH="$(wslpath "$GITHUB_WORKSPACE")"
+          # GITHUB_WORKSPACE isn't forwarded into the WSL shell by
+          # default; it lives in the Windows env. The checkout path
+          # on windows-latest is D:\a\<repo>\<repo>. wslpath converts
+          # that to /mnt/d/a/<repo>/<repo>.
+          GH_WS="${GITHUB_WORKSPACE:-}"
+          if [[ -z "$GH_WS" ]]; then
+            # Fallback: ask Windows for the env var via interop.
+            GH_WS=$(powershell.exe -NoProfile -Command 'Write-Host -NoNewline $env:GITHUB_WORKSPACE' 2>/dev/null | tr -d '\r')
+          fi
+          if [[ -z "$GH_WS" ]]; then
+            echo "FATAL: cannot determine GITHUB_WORKSPACE"
+            exit 1
+          fi
+          WS_PATH="$(wslpath "$GH_WS")"
           cd "$WS_PATH"
-          pwd
+          echo "Working dir: $(pwd)"
           ls -la deps.edn src/com/blockether/spel/daemon.clj | head -5
 
           # Write the Clojure assertions to a real file so we don't
