@@ -435,8 +435,7 @@ jobs:
       - name: Write Clojure test script
         shell: bash
         run: |
-          mkdir -p /tmp/spel-e2e
-          cat > /tmp/spel-e2e/test.clj <<'ENDCLJ'
+          cat > wsl-cdp-test.clj <<'ENDCLJ'
           (require '[com.blockether.spel.daemon :as d]
                    '[clojure.string :as str])
 
@@ -513,7 +512,7 @@ jobs:
 
           (println "===== all assertions validated =====")
           ENDCLJ
-          echo "Test script written: $(wc -l < /tmp/spel-e2e/test.clj) lines"
+          echo "Test script written: $(wc -l < wsl-cdp-test.clj) lines"
 
       - name: Run spel CDP discovery from inside WSL against Windows Chrome
         id: spel-e2e
@@ -569,7 +568,7 @@ jobs:
 
           echo "--- Running Clojure test ---"
           set -e
-          clojure -M /tmp/spel-e2e/test.clj
+          clojure -M wsl-cdp-test.clj
           echo "spel_e2e=pass"
 
       # ─────────────────────────────────────────────────────────────────
