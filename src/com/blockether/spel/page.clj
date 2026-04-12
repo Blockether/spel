@@ -34,6 +34,10 @@
    (safe (.navigate page url)))
   ([^Page page ^String url nav-opts]
    (safe (.navigate page url (opts/->navigate-options nav-opts)))))
+(def goto
+  "Alias for `navigate`. Navigates the page to a URL."
+  navigate)
+
 (defn validate-url
   "Validates a URL string for navigation.
 
