@@ -495,18 +495,33 @@ jobs:
               (die (str "wsl-default-gateway-ip returned invalid: " (pr-str gw)))))
 
           ;; 3. Loopback from inside WSL: may or may not work depending
-          ;; on the runner's networking mode. Report but don't assert.
+          ;; on the runner's WSL version / networking mode.
+          ;; WSL1 or mirrored WSL2 → loopback works (unified with Windows)
+          ;; WSL2 NAT              → loopback fails, gateway must work
           (let [loopback (#'d/read-cdp-json-version "127.0.0.1" 9222 3000)]
-            (println "  loopback 127.0.0.1:9222  =>" (pr-str loopback)))
+            (println "  loopback 127.0.0.1:9222  =>" (pr-str loopback))
+            (if loopback
+              ;; Loopback works → unified networking (WSL1 or mirrored
+              ;; WSL2). spel works as-is without gateway fallback. Skip
+              ;; the gateway assertion — on this runner the gateway IP
+              ;; routes internet traffic, it doesn't proxy Chrome's port.
+              (do (println)
+                  (println "  *** Loopback reaches Chrome → unified networking ***")
+                  (println "  *** spel auto-discovery works via 127.0.0.1 ***"))
+              ;; Loopback fails → NAT mode. Gateway MUST succeed or the
+              ;; fix is broken.
+              (let [gw       (d/wsl-default-gateway-ip)
+                    gw-result (#'d/read-cdp-json-version gw 9222 3000)]
+                (println "  gateway  " (str gw ":9222") "=>" (pr-str gw-result))
+                (when-not gw-result
+                  (die (str "read-cdp-json-version via gateway " gw " returned nil — "
+                         "spel cannot reach Windows Chrome even with the fix"))))))
 
-          ;; 4. Gateway MUST succeed — proves read-cdp-json-version
-          ;; with a non-loopback host reaches Windows Chrome.
-          (let [gw       (d/wsl-default-gateway-ip)
-                gw-result (#'d/read-cdp-json-version gw 9222 3000)]
-            (println "  gateway  " (str gw ":9222") "=>" (pr-str gw-result))
-            (when-not gw-result
-              (die (str "read-cdp-json-version via gateway " gw " returned nil — "
-                     "spel cannot reach Windows Chrome even with the fix"))))
+          ;; Determine which host won, for the connectOverCDP test below.
+          (def ^:private winning-host
+            (if (#'d/read-cdp-json-version "127.0.0.1" 9222 2000)
+              "127.0.0.1"
+              (d/wsl-default-gateway-ip)))
 
           ;; ---------- Section B: REAL spel code path ----------
           ;; This is the "does spel actually work" proof. We call
@@ -517,8 +532,7 @@ jobs:
           ;; reproduced spel's entire browser-connect flow end-to-end.
           (println)
           (println "--- Playwright connectOverCDP end-to-end ---")
-          (let [gw (d/wsl-default-gateway-ip)
-                url (str "http://" gw ":9222")]
+          (let [url (str "http://" winning-host ":9222")]
             (println "  Connecting to" url)
             (let [^Playwright pw (Playwright/create)]
               (try
