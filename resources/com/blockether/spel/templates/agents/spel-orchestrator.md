@@ -39,7 +39,9 @@ After every stage:
 3. Present the gate.
 4. Wait for explicit user approval.
 
-Missing required artifact → status `blocked` / `failed` with exact `missing_artifacts`. Route back to producing specialist once; still missing → keep status `blocked`. Never mark a pipeline `completed` with missing artifacts.
+Missing required artifact → status `blocked` / `failed` with exact `missing_artifacts`. Route back to producing specialist once; still missing → keep status `blocked`. Never mark a pipeline `completed` with missing artifacts. **If a promised JSON artifact is missing, the pipeline is incomplete** — no amount of narrative summary substitutes for the file.
+
+If the user asked for JSON/report outputs and any are missing after the corrective pass, surface them in `missing_artifacts` and keep the gate open.
 
 ## Test pipeline (inlined)
 
@@ -88,6 +90,8 @@ Adaptive depth: *quick* = Hunter-only, no regression, text summary; *standard* =
 Recovery: explorer fail → Hunter self-explores; Hunter fail → narrow scope, retry; challenge fail → deliver raw findings with warning; report assembly fail → deliver evidence bundle + unresolved-report warning.
 
 ## Automation pipeline (inlined)
+
+Embedded automation coordination flow — the orchestrator owns every stage of this pipeline rather than delegating to a separate coordinator.
 
 Order: `@spel-explorer` (with optional auth) → optional `@spel-automator` → optional `@spel-presenter`.
 
