@@ -2625,7 +2625,9 @@
         md-ns  (sci/create-ns 'markdown nil)
         md-map (make-ns-map md-ns
                  [['from-markdown-table markdown/from-markdown-table]
-                  ['to-markdown-table   markdown/to-markdown-table]])
+                  ['to-markdown-table   markdown/to-markdown-table]
+                  ;; HTML → Markdown (merged from spel/markdownify)
+                  ['html->markdown      sci-markdownify]])
 
         ;; =================================================================
         ;; clojure.string / string — String helpers
@@ -2784,7 +2786,8 @@
                     'zp     'zprint.core
                     'pprint 'clojure.pprint
                     'pp     'clojure.pprint
-                    'io     'clojure.java.io}
+                    'io     'clojure.java.io
+                    'md     'markdown}
        ;; Bare class imports for types NOT already in SCI's default
        ;; resolution. SCI natively resolves java.lang.* names (String,
        ;; Integer, Boolean, etc.) so we only import types that would
