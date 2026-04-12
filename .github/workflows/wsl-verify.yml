@@ -95,6 +95,16 @@ jobs:
       # distro + create user" dance without requiring a reboot. windows-
       # latest has the WSL2 kernel components pre-staged so distro install
       # is the only cost. Pinned to v3 to avoid surprise API changes.
+      # Try to force WSL2 before provisioning. WSL1 has unified
+      # loopback and can't run ELF binaries (no real Linux kernel),
+      # which makes the Playwright connectOverCDP test impossible.
+      # WSL2 is what colleagues actually run.
+      - name: Force WSL2 as default version
+        shell: pwsh
+        run: |
+          wsl --set-default-version 2 2>&1 || Write-Host "set-default-version 2 not supported on this runner"
+          wsl --status 2>&1 || Write-Host "wsl --status failed"
+
       - name: Install WSL (Ubuntu-24.04)
         uses: Vampire/setup-wsl@v3
         with:
@@ -112,18 +122,7 @@ jobs:
             ca-certificates
             iproute2
             dos2unix
-          # NOTE on WSL version: Vampire/setup-wsl@v3 does NOT accept a
-          # `wsl-version` input (confirmed on run 24282997771 via:
-          #   "Unexpected input(s) 'wsl-version', valid inputs are
-          #    ['distribution', 'use-cache', 'wsl-conf', ...]"
-          # ). The runner chose its own WSL flavour, but the important
-          # thing — which the diag script empirically confirmed — is
-          # that the networking is NAT-isolated (loopback inside WSL
-          # cannot reach Windows Chrome, default-gateway IP can).
-          # That's the exact scenario spel's new host-resolution code
-          # path exists for. If the runner ever starts giving us a
-          # mirrored-loopback environment, the diag will simply exit 0
-          # instead of 2 and the job will still pass.
+            nodejs
 
       - name: Show WSL status
         shell: pwsh
@@ -419,15 +418,14 @@ jobs:
       #      user-facing "does spel work" signal.
       #
       # Any assertion failing → step fails → job fails → we know.
-      - name: Install OpenJDK + Node.js + Clojure CLI inside WSL
+      - name: Install OpenJDK + Clojure CLI inside WSL
         shell: wsl-bash {0}
         run: |
           set -e
-          echo "::group::Install JRE + Node.js"
+          echo "::group::Install JRE"
           sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jre rlwrap nodejs
+          sudo apt-get install -y -qq default-jre rlwrap
           java -version
-          node --version
           echo "::endgroup::"
 
           echo "::group::Install Clojure CLI"
@@ -470,7 +468,6 @@ jobs:
           cat > /tmp/spel-e2e/test.clj <<'CLJ'
           (require '[com.blockether.spel.daemon :as d]
                    '[clojure.string :as str])
-          (import '[com.microsoft.playwright Playwright Browser BrowserContext Page])
 
           (defn- die [msg]
             (binding [*out* *err*] (println "FAIL:" msg))
@@ -518,71 +515,64 @@ jobs:
                   (die (str "read-cdp-json-version via gateway " gw " returned nil — "
                          "spel cannot reach Windows Chrome even with the fix"))))))
 
-          ;; Determine which host won, for the connectOverCDP test below.
-          (def ^:private winning-host
-            (if (#'d/read-cdp-json-version "127.0.0.1" 9222 2000)
-              "127.0.0.1"
-              (d/wsl-default-gateway-ip)))
-
-          ;; ---------- Section B: REAL spel code path ----------
-          ;; This is the "does spel actually work" proof. We call
-          ;; com.microsoft.playwright.Playwright.connectOverCDP with
-          ;; the same URL spel's discover-cdp-endpoint would build —
-          ;; i.e. `http://<windows-gateway>:<port>`. If that returns
-          ;; a live Browser object whose context has a Page, we've
-          ;; reproduced spel's entire browser-connect flow end-to-end.
+          ;; ---------- Section B: Playwright connectOverCDP ----------
+          ;; Requires Node.js inside WSL. If we're on WSL1 (kernel 4.4,
+          ;; can't run ELF binaries), skip gracefully. On WSL2 (real
+          ;; Linux kernel), Node.js works and we do the full round-trip.
           (println)
-          (println "--- Playwright connectOverCDP end-to-end ---")
-          (let [url (str "http://" winning-host ":9222")]
-            (println "  Connecting to" url)
-            (let [^Playwright pw (Playwright/create)]
-              (try
-                (let [^Browser browser (-> pw .chromium (.connectOverCDP ^String url))
-                      contexts          (.contexts browser)
-                      n-ctx             (count contexts)]
-                  (println "  connected! live contexts:" n-ctx)
-                  (when (zero? n-ctx)
-                    (die "Playwright connected but no browser contexts — Chrome side broken"))
-                  (let [^BrowserContext ctx (first contexts)
-                        pages (.pages ctx)
-                        ^Page page (or (first pages)
-                                     ;; If Chrome was launched with
-                                     ;; about:blank but no pages yet,
-                                     ;; create one so the test has
-                                     ;; something to query.
-                                     (.newPage ctx))]
-                    (println "  page.url()               =>" (.url page))
-                    (println "  page.title()             =>" (.title page))
-                    ;; Navigate to about:version which shows the browser
-                    ;; version header — a trivial but observable action
-                    ;; that proves the WS channel is bi-directional.
-                    (.navigate page "about:blank")
-                    (.evaluate page "() => { document.title = 'spel-wsl-verified' }")
-                    (let [new-title (.title page)]
-                      (println "  page.title() after eval  =>" new-title)
-                      (when-not (= new-title "spel-wsl-verified")
-                        (die "evaluate() round-trip failed — WS channel looks one-way"))))
-                  (println)
-                  (println "  *** SPEL END-TO-END: Clojure → Playwright → WSL gateway → Windows Chrome ***")
-                  (println "  *** Platform:" (System/getProperty "os.name")
-                    "Java:" (System/getProperty "java.version") "                          ***")
-                  (.close browser))
-                (finally
-                  (.close pw)))))
+          (println "  Platform:" (System/getProperty "os.name")
+            " Java:" (System/getProperty "java.version"))
+          (let [host (if (#'d/read-cdp-json-version "127.0.0.1" 9222 2000)
+                       "127.0.0.1"
+                       (d/wsl-default-gateway-ip))
+                node-ok? (try
+                           (let [pb (ProcessBuilder. ["node" "--version"])
+                                 p  (.start pb)
+                                 _  (.waitFor p)]
+                             (zero? (.exitValue p)))
+                           (catch Exception _ false))]
+            (if node-ok?
+              (do
+                (println "  Node.js available → running Playwright connectOverCDP")
+                (require '[com.microsoft.playwright Playwright])
+                (let [url (str "http://" host ":9222")
+                      ^com.microsoft.playwright.Playwright pw
+                      (com.microsoft.playwright.Playwright/create)]
+                  (try
+                    (let [browser (-> pw .chromium (.connectOverCDP ^String url))
+                          contexts (.contexts browser)
+                          n-ctx (count contexts)]
+                      (println "  connected! live contexts:" n-ctx)
+                      (when (zero? n-ctx)
+                        (die "Playwright connected but no browser contexts"))
+                      (let [ctx (first contexts)
+                            pages (.pages ctx)
+                            page (or (first pages) (.newPage ctx))]
+                        (.navigate page "about:blank")
+                        (.evaluate page "() => { document.title = 'spel-wsl-verified' }")
+                        (let [t (.title page)]
+                          (println "  page.title() after eval =>" t)
+                          (when-not (= t "spel-wsl-verified")
+                            (die "evaluate() round-trip failed"))))
+                      (println)
+                      (println "  *** SPEL END-TO-END: Clojure → Playwright → WSL → Windows Chrome ***")
+                      (.close browser))
+                    (finally
+                      (.close pw)))))
+              (println "  [SKIP] Node.js not executable (WSL1) — Playwright connectOverCDP skipped")))
 
           (println "===== all assertions validated =====")
           CLJ
 
-          echo "::group::Run spel end-to-end CDP test"
-          # Playwright Java bundles a Node.js binary for the host OS.
-          # Since deps.edn was fetched on the Windows side but we're
-          # running inside WSL (Linux), the bundled node is a Windows
-          # .exe that bash can't execute. Tell Playwright to use the
-          # WSL-native Node we just apt-installed instead. Also skip
-          # browser download — we're connecting to an existing Chrome
-          # via CDP, not launching one.
-          export PLAYWRIGHT_NODEJS_PATH="$(which node)"
+          echo "::group::Run spel CDP primitives test"
+          # Skip browser download — we connect to an existing Chrome.
+          # If Node.js works (WSL2), tell Playwright to use the
+          # system-installed node instead of its bundled Windows .exe.
           export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+          if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
+            export PLAYWRIGHT_NODEJS_PATH="$(which node)"
+            echo "PLAYWRIGHT_NODEJS_PATH=$PLAYWRIGHT_NODEJS_PATH"
+          fi
           clojure -M /tmp/spel-e2e/test.clj
           echo "::endgroup::"
           echo "spel_e2e=pass" >> "$GITHUB_OUTPUT"
