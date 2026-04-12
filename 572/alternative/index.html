@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>251c4f6 · dev: surface 403 body + webSocketDebuggerUrl in WSL CDP diagnostic</title>
+  <title>0fe6cee · ci(wsl-verify): set JAVA_HOME for Clojure CLI inside WSL</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E">
   <script>
     /* Set data-theme before the stylesheet parses to avoid a flash of
@@ -158,12 +158,20 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.25rem 1.5rem;
+    /* Extra right padding (6rem vs default 1.5rem) reserves horizontal
+       space for the absolutely-positioned theme toggle so the summary
+       chips don't collide with it. Without this the PASS RATE chip
+       ends up under the toggle on wide viewports. */
+    padding: 1.25rem 6rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--bg-panel);
     box-shadow: var(--shadow);
+    /* Positioning context for the theme toggle so it sits pinned at
+       the card's own top-right corner, INSIDE the header card
+       itself — not floating outside the card in the page shell. */
+    position: relative;
   }
   .report-header-left {
     display: flex;
@@ -809,14 +817,18 @@
     outline-offset: 2px;
   }
   .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
-  /* Fixed top-right placement — pinned to the viewport so it stays
-     visible as the user scrolls through suites. Higher z-index than
-     the sticky toolbar so it never gets covered. */
+  /* Top-right placement — absolute relative to `.report-header` so
+     the button sits PINNED AT THE HEADER CARD'S OWN TOP-RIGHT
+     CORNER. Values match the card's own padding (1.25rem 1.5rem)
+     so the button aligns with the card's inside edge. Previous
+     attempts had this floating in the viewport gutter (fixed) or in
+     the page-shell's right margin (absolute rel. to shell); both
+     sat OUTSIDE the header card visually. This fix keeps it inside. */
   .theme-toggle-fixed {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 1000;
+    position: absolute;
+    top: 1.25rem;
+    right: 1.5rem;
+    z-index: 20;
     box-shadow: var(--shadow);
   }
   @media print {
@@ -1033,21 +1045,21 @@
 </div>
 </div>
 
-<button type="button" id="themeToggle" class="theme-toggle theme-toggle-fixed"
-        aria-label="Toggle theme (auto / light / dark)"
-        title="Toggle theme — auto / light / dark">
-  <span class="theme-toggle-icon" aria-hidden="true">⦾</span>
-  <span class="theme-toggle-label">Auto</span>
-</button>
 <div class="page-shell">
   <header class="report-header" id="summary">
+    <button type="button" id="themeToggle" class="theme-toggle theme-toggle-fixed"
+            aria-label="Toggle theme (auto / light / dark)"
+            title="Toggle theme — auto / light / dark">
+      <span class="theme-toggle-icon" aria-hidden="true">⦾</span>
+      <span class="theme-toggle-label">Auto</span>
+    </button>
     <div class="report-header-left">
       <img class="report-logo" src="assets/logo.svg" alt="spel">
       <div class="report-header-main">
-      <div class="report-kicker">#557 · 251c4f6 · Karol Wojcik</div>
-      <h1 class="report-title">dev: surface 403 body + webSocketDebuggerUrl in WSL CDP diagnostic</h1>
-      <div class="report-subtitle"><time>2026-04-11 12:24:53</time> · <a class="report-run-link" href="https://github.com/Blockether/spel/actions/runs/24282425173" target="_blank" rel="noopener">#557</a></div>
-      <div class="report-description">Nightly spel CI run on branch <code>main</code>. <a href="https://github.com/Blockether/spel/commit/251c4f6d576ff6d60d0871fa9c14f7305d88172a">View commit</a>.</div>
+      <div class="report-kicker">#572 · 0fe6cee · Karol Wojcik</div>
+      <h1 class="report-title">ci(wsl-verify): set JAVA_HOME for Clojure CLI inside WSL</h1>
+      <div class="report-subtitle"><time>2026-04-12 07:40:34</time> · <a class="report-run-link" href="https://github.com/Blockether/spel/actions/runs/24301666251" target="_blank" rel="noopener">#572</a></div>
+      <div class="report-description">Nightly spel CI run on branch <code>main</code>. <a href="https://github.com/Blockether/spel/commit/0fe6cee26dc75c0816664785af54efc420455b2f">View commit</a>.</div>
       </div>
     </div>
     <div class="report-meta"><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Total</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-passed"><span class="summary-chip-label">Passed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-failed"><span class="summary-chip-label">Failed</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-broken"><span class="summary-chip-label">Broken</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-skipped"><span class="summary-chip-label">Skipped</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-duration"><span class="summary-chip-label">Duration</span><span class="summary-chip-value">0.0s</span></div><div class="summary-chip summary-chip-suites"><span class="summary-chip-label">Suites</span><span class="summary-chip-value">0</span></div><div class="summary-chip summary-chip-total"><span class="summary-chip-label">Pass rate</span><span class="summary-chip-value">0%</span></div></div>
