@@ -1171,6 +1171,65 @@
      (handler url)
      (throw (ex-info "cdp-reconnect requires daemon mode (start via: spel open/connect)" {})))))
 
+(defn sci-cdp-connect
+  "Connects to a Chrome/Edge browser via CDP (Chrome DevTools Protocol).
+
+   With a URL argument, connects to that specific endpoint:
+     (spel/cdp-connect \"http://192.168.1.50:9222\")
+
+   Without arguments, auto-discovers the best endpoint:
+   - On WSL: probes both 127.0.0.1 and the Windows host gateway IP
+     (from /proc/net/route), uses whichever answers /json/version
+   - On native Linux/macOS: probes 127.0.0.1 on ports 9222, 9229
+   - Throws with clear instructions if no browser is found
+
+   This is the recommended entry point for CDP connections — it
+   handles WSL networking, host resolution, and Chrome discovery
+   automatically.
+
+   Examples:
+     (spel/cdp-connect)                           ;; auto-discover
+     (spel/cdp-connect \"http://10.1.0.1:9222\")  ;; explicit host
+     (spel/cdp-connect \"ws://localhost:9222/devtools/browser/abc\") ;; WS
+
+   Returns:
+   Map with :connected URL, :url current page URL."
+  ([]
+   ;; Auto-discover: try loopback first, then WSL gateway if available
+   (let [hosts (if (platform/wsl?)
+                 (let [gw (platform/wsl-default-gateway-ip)]
+                   (cond-> ["127.0.0.1"]
+                     (and gw (not= gw "127.0.0.1")) (conj gw)))
+                 ["127.0.0.1"])
+         ports [9222 9229]
+         found (first
+                 (for [host hosts
+                       port ports
+                       :let [url (str "http://" host ":" port "/json/version")]
+                       :when (try
+                               (let [conn (doto (.openConnection (java.net.URL. url))
+                                            (.setConnectTimeout 2000)
+                                            (.setReadTimeout 2000)
+                                            (.connect))]
+                                 (try
+                                   (= 200 (.getResponseCode ^java.net.HttpURLConnection conn))
+                                   (finally
+                                     (.disconnect ^java.net.HttpURLConnection conn))))
+                               (catch Exception _ false))]
+                   (str "http://" host ":" port)))]
+     (if found
+       (sci-cdp-reconnect found)
+       (throw (ex-info
+                (str "No running browser with remote debugging found.\n"
+                  (when (platform/wsl?)
+                    (str "WSL detected — probed hosts: " (pr-str hosts) "\n"
+                      "Gateway IP: " (or (platform/wsl-default-gateway-ip) "<unresolved>") "\n"
+                      "Launch Chrome/Edge on Windows with:\n"
+                      "  chrome.exe --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --remote-allow-origins=*\n")))
+                {:hosts hosts :ports ports :wsl? (platform/wsl?)})))))
+  ([url]
+   (sci-cdp-reconnect url)))
+
 (defn sci-cdp-idle-timeout
   "Returns the current CDP idle timeout in milliseconds.
 
@@ -1894,6 +1953,7 @@
                   ['browser-connected? sci-browser-connected?]
                   ['browser-version    sci-browser-version]
                   ;; CDP disconnect/reconnect
+                  ['cdp-connect    sci-cdp-connect]
                   ['cdp-disconnect sci-cdp-disconnect]
                   ['cdp-reconnect  sci-cdp-reconnect]
                   ['cdp-idle-timeout       sci-cdp-idle-timeout]
