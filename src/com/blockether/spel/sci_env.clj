@@ -1759,6 +1759,7 @@
                   ['tabs          sci-tabs]
                   ;; Navigation
                   ['navigate      sci-goto]
+                  ['goto          sci-goto]
                   ['go-back       sci-back]
                   ['go-forward    sci-forward]
                   ['reload        sci-reload!]
