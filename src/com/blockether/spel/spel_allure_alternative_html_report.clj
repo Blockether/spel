@@ -964,11 +964,10 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    /* Extra right padding (6rem vs default 1.5rem) reserves horizontal
-       space for the absolutely-positioned theme toggle so the summary
-       chips don't collide with it. Without this the PASS RATE chip
-       ends up under the toggle on wide viewports. */
-    padding: 1.25rem 6rem 1.25rem 1.5rem;
+    /* Extra right padding (3.5rem vs default 1.5rem) reserves space
+       for the icon-only theme toggle button so summary chips don't
+       collide with it. */
+    padding: 1.25rem 3.5rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -1599,17 +1598,14 @@
   .theme-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: center;
     border: 1px solid var(--border);
     background: var(--bg-panel);
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
-    padding: 0.35rem 0.65rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
     cursor: pointer;
     transition: all 0.12s ease;
   }
@@ -2084,9 +2080,8 @@
       function applyTheme(t) {
         document.documentElement.setAttribute('data-theme', t);
         var iconEl = themeToggle.querySelector('.theme-toggle-icon');
-        var labelEl = themeToggle.querySelector('.theme-toggle-label');
         if (iconEl) iconEl.textContent = ICON[t] || ICON.auto;
-        if (labelEl) labelEl.textContent = LABEL[t] || LABEL.auto;
+        themeToggle.title = 'Theme: ' + (LABEL[t] || LABEL.auto);
       }
       applyTheme(readTheme());
       themeToggle.addEventListener('click', function() {
@@ -2408,7 +2403,6 @@
             aria-label=\"Toggle theme (auto / light / dark)\"
             title=\"Toggle theme — auto / light / dark\">
       <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
-      <span class=\"theme-toggle-label\">Auto</span>
     </button>
     <div class=\"report-header-left\">
       " (if logo-href
