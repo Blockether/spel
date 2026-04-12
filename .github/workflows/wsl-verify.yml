@@ -431,37 +431,11 @@ jobs:
           clojure --version || (clj -e '(println "clj ok")' )
           echo "::endgroup::"
 
-      - name: Run spel CDP discovery from inside WSL against Windows Chrome
-        id: spel-e2e
-        shell: wsl-bash {0}
+      - name: Write Clojure test script
+        shell: bash
         run: |
-          set -eo pipefail
-          GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
-
-          # GITHUB_WORKSPACE isn't forwarded into the WSL shell by
-          # default; it lives in the Windows env. The checkout path
-          # on windows-latest is D:\a\<repo>\<repo>. wslpath converts
-          # that to /mnt/d/a/<repo>/<repo>.
-          GH_WS="${GITHUB_WORKSPACE:-}"
-          if [[ -z "$GH_WS" ]]; then
-            # Fallback: ask Windows for the env var via interop.
-            GH_WS=$(powershell.exe -NoProfile -Command 'Write-Host -NoNewline $env:GITHUB_WORKSPACE' 2>/dev/null | tr -d '\r')
-          fi
-          if [[ -z "$GH_WS" ]]; then
-            echo "FATAL: cannot determine GITHUB_WORKSPACE"
-            exit 1
-          fi
-          WS_PATH="$(wslpath "$GH_WS")"
-          cd "$WS_PATH"
-          echo "Working dir: $(pwd)"
-          ls -la deps.edn src/com/blockether/spel/daemon.clj | head -5
-
-          # Write the Clojure assertions to a real file so we don't
-          # have to fight shell-quoting rules for #' and string
-          # literals. The quoted heredoc (<<'CLJ') tells bash to
-          # pass the body through verbatim.
           mkdir -p /tmp/spel-e2e
-          cat > /tmp/spel-e2e/test.clj <<'CLJ'
+          cat > /tmp/spel-e2e/test.clj <<'ENDCLJ'
           (require '[com.blockether.spel.daemon :as d]
                    '[clojure.string :as str])
 
@@ -471,79 +445,58 @@ jobs:
 
           (println "===== spel end-to-end CDP from inside WSL =====")
 
-          ;; ---------- Section A: primitive sanity checks ----------
-          ;; Fast, no Playwright load. Catches simple breakage before
-          ;; we pay the cost of booting Playwright and doing a real
-          ;; connectOverCDP round-trip.
-
-          ;; 1. WSL detection — uses /proc/version + $WSL_DISTRO_NAME
+          ;; 1. WSL detection
           (let [is-wsl? (#'d/wsl?)]
             (println "  (wsl?)                   =>" is-wsl?)
             (when-not is-wsl?
               (die "wsl? returned false on a WSL runner")))
 
-          ;; 2. Gateway IP — parses /proc/net/route little-endian hex
+          ;; 2. Gateway IP
           (let [gw (d/wsl-default-gateway-ip)]
             (println "  (wsl-default-gateway-ip) =>" gw)
             (when-not (and (string? gw) (re-matches #"\d+\.\d+\.\d+\.\d+" gw))
               (die (str "wsl-default-gateway-ip returned invalid: " (pr-str gw)))))
 
-          ;; 3. Loopback from inside WSL: may or may not work depending
-          ;; on the runner's WSL version / networking mode.
-          ;; WSL1 or mirrored WSL2 → loopback works (unified with Windows)
-          ;; WSL2 NAT              → loopback fails, gateway must work
+          ;; 3. Loopback: may or may not work depending on WSL version
           (let [loopback (#'d/read-cdp-json-version "127.0.0.1" 9222 3000)]
             (println "  loopback 127.0.0.1:9222  =>" (pr-str loopback))
             (if loopback
-              ;; Loopback works → unified networking (WSL1 or mirrored
-              ;; WSL2). spel works as-is without gateway fallback. Skip
-              ;; the gateway assertion — on this runner the gateway IP
-              ;; routes internet traffic, it doesn't proxy Chrome's port.
               (do (println)
-                  (println "  *** Loopback reaches Chrome → unified networking ***")
+                  (println "  *** Loopback reaches Chrome -> unified networking ***")
                   (println "  *** spel auto-discovery works via 127.0.0.1 ***"))
-              ;; Loopback fails → NAT mode. Gateway MUST succeed or the
-              ;; fix is broken.
               (let [gw       (d/wsl-default-gateway-ip)
                     gw-result (#'d/read-cdp-json-version gw 9222 3000)]
                 (println "  gateway  " (str gw ":9222") "=>" (pr-str gw-result))
                 (when-not gw-result
-                  (die (str "read-cdp-json-version via gateway " gw " returned nil — "
-                         "spel cannot reach Windows Chrome even with the fix"))))))
+                  (die (str "read-cdp-json-version via gateway " gw " returned nil"))))))
 
-          ;; ---------- Section B: Playwright connectOverCDP ----------
-          ;; Requires Node.js inside WSL. If we're on WSL1 (kernel 4.4,
-          ;; can't run ELF binaries), skip gracefully. On WSL2 (real
-          ;; Linux kernel), Node.js works and we do the full round-trip.
+          ;; 4. Platform info
           (println)
           (println "  Platform:" (System/getProperty "os.name")
             " Java:" (System/getProperty "java.version"))
+
+          ;; 5. Playwright connectOverCDP (WSL2 only — needs Node.js)
           (let [host (if (#'d/read-cdp-json-version "127.0.0.1" 9222 2000)
                        "127.0.0.1"
                        (d/wsl-default-gateway-ip))
                 node-ok? (try
-                           (let [pb (ProcessBuilder. ["node" "--version"])
-                                 p  (.start pb)
-                                 _  (.waitFor p)]
+                           (let [p (.start (ProcessBuilder. ["node" "--version"]))]
+                             (.waitFor p)
                              (zero? (.exitValue p)))
                            (catch Exception _ false))]
             (if node-ok?
               (do
-                (println "  Node.js available → running Playwright connectOverCDP")
-                (require '[com.microsoft.playwright Playwright])
+                (println "  Node.js available -> running Playwright connectOverCDP")
                 (let [url (str "http://" host ":9222")
-                      ^com.microsoft.playwright.Playwright pw
-                      (com.microsoft.playwright.Playwright/create)]
+                      pw  (com.microsoft.playwright.Playwright/create)]
                   (try
-                    (let [browser (-> pw .chromium (.connectOverCDP ^String url))
-                          contexts (.contexts browser)
-                          n-ctx (count contexts)]
-                      (println "  connected! live contexts:" n-ctx)
-                      (when (zero? n-ctx)
+                    (let [browser (-> pw .chromium (.connectOverCDP url))
+                          contexts (.contexts browser)]
+                      (println "  connected! live contexts:" (count contexts))
+                      (when (zero? (count contexts))
                         (die "Playwright connected but no browser contexts"))
-                      (let [ctx (first contexts)
-                            pages (.pages ctx)
-                            page (or (first pages) (.newPage ctx))]
+                      (let [ctx  (first contexts)
+                            page (or (first (.pages ctx)) (.newPage ctx))]
                         (.navigate page "about:blank")
                         (.evaluate page "() => { document.title = 'spel-wsl-verified' }")
                         (let [t (.title page)]
@@ -551,20 +504,21 @@ jobs:
                           (when-not (= t "spel-wsl-verified")
                             (die "evaluate() round-trip failed"))))
                       (println)
-                      (println "  *** SPEL END-TO-END: Clojure → Playwright → WSL → Windows Chrome ***")
+                      (println "  *** SPEL END-TO-END: Clojure -> Playwright -> WSL -> Windows Chrome ***")
                       (.close browser))
                     (finally
                       (.close pw)))))
               (println "  [SKIP] Node.js not executable (WSL1) — Playwright connectOverCDP skipped")))
 
           (println "===== all assertions validated =====")
-          CLJ
+          ENDCLJ
+          echo "Test script written: $(wc -l < /tmp/spel-e2e/test.clj) lines"
 
-          echo "::group::Run spel CDP primitives test"
-          # Set JAVA_HOME — apt's default-jre doesn't set it, and the
-          # Clojure CLI needs it. `which java` may fail if PATH wasn't
-          # refreshed across WSL invocations, so we also search common
-          # JVM install paths directly.
+      - name: Run spel CDP discovery from inside WSL against Windows Chrome
+        id: spel-e2e
+        shell: wsl-bash {0}
+        run: |
+          echo "--- Finding Java ---"
           JAVA_BIN=""
           for candidate in /usr/bin/java /usr/lib/jvm/default-java/bin/java /usr/lib/jvm/java-21-openjdk-amd64/bin/java; do
             if [ -x "$candidate" ]; then
@@ -580,22 +534,34 @@ jobs:
             exit 1
           fi
           export JAVA_HOME=$(dirname $(dirname $(readlink -f "$JAVA_BIN")))
-          export PATH="$JAVA_HOME/bin:$PATH"
+          export PATH="$JAVA_HOME/bin:/usr/local/bin:$PATH"
           echo "JAVA_HOME=$JAVA_HOME"
-          echo "JAVA_BIN=$JAVA_BIN"
           java -version
 
-          # Skip browser download — we connect to an existing Chrome.
-          # If Node.js works (WSL2), tell Playwright to use the
-          # system-installed node instead of its bundled Windows .exe.
+          echo "--- Finding workspace ---"
+          GH_WS="${GITHUB_WORKSPACE:-}"
+          if [ -z "$GH_WS" ]; then
+            GH_WS=$(powershell.exe -NoProfile -Command 'Write-Host -NoNewline $env:GITHUB_WORKSPACE' 2>/dev/null | tr -d '\r') || true
+          fi
+          if [ -z "$GH_WS" ]; then
+            echo "FATAL: cannot determine GITHUB_WORKSPACE"
+            exit 1
+          fi
+          cd "$(wslpath "$GH_WS")"
+          echo "Working dir: $(pwd)"
+
+          echo "--- Setting up Playwright env ---"
           export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
           if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
             export PLAYWRIGHT_NODEJS_PATH="$(which node)"
-            echo "PLAYWRIGHT_NODEJS_PATH=$PLAYWRIGHT_NODEJS_PATH"
+            echo "PLAYWRIGHT_NODEJS_PATH=$PLAYWRIGHT_NODEJS_PATH ($(node --version))"
+          else
+            echo "Node.js not available — Playwright connectOverCDP will be skipped"
           fi
+
+          echo "--- Running Clojure test ---"
           clojure -M /tmp/spel-e2e/test.clj
-          echo "::endgroup::"
-          echo "spel_e2e=pass" >> "$GITHUB_OUTPUT"
+          echo "spel_e2e=pass"
 
       # ─────────────────────────────────────────────────────────────────
       # 4. Teardown — always run so the runner doesn't leak Chrome.
