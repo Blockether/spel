@@ -95,40 +95,37 @@ jobs:
       # distro + create user" dance without requiring a reboot. windows-
       # latest has the WSL2 kernel components pre-staged so distro install
       # is the only cost. Pinned to v3 to avoid surprise API changes.
-      # Try to force WSL2 before provisioning. WSL1 has unified
-      # loopback and can't run ELF binaries (no real Linux kernel),
-      # which makes the Playwright connectOverCDP test impossible.
-      # WSL2 is what colleagues actually run.
-      - name: Force WSL2 as default version
-        shell: pwsh
-        run: |
-          wsl --set-default-version 2 2>&1 || Write-Host "set-default-version 2 not supported on this runner"
-          wsl --status 2>&1 || Write-Host "wsl --status failed"
-
-      - name: Install WSL (Ubuntu-24.04)
-        uses: Vampire/setup-wsl@v3
+      # ─────────────────────────────────────────────────────────────────
+      # 1. Provision WSL2 + Ubuntu.
+      # ─────────────────────────────────────────────────────────────────
+      # We use vedantmgoyal9/setup-wsl2 instead of Vampire/setup-wsl
+      # because Vampire gives us WSL1 by default (kernel 4.4.0-Microsoft,
+      # a syscall translation layer that can't run ELF binaries at all).
+      # WSL1 has unified loopback natively so it doesn't exercise spel's
+      # gateway-fallback code path, AND can't run Node.js so Playwright's
+      # connectOverCDP is impossible.
+      #
+      # vedantmgoyal9/setup-wsl2 explicitly enables the WSL2 kernel and
+      # provisions a real Linux VM — which is what our colleagues
+      # actually run on their Windows machines.
+      - name: Install WSL2 (Ubuntu)
+        uses: vedantmgoyal9/setup-wsl2@main
         with:
-          distribution: Ubuntu-24.04
-          use-cache: "true"
-          # Pre-install everything the diag script shells out to so the
-          # first invocation doesn't hit a "command not found" for curl
-          # or iproute2 (curl is usually present, iproute2 ships /proc
-          # parsing we use instead, but belt-and-braces). dos2unix is
-          # for the belt-and-braces CRLF strip inside the diag step —
-          # even with .gitattributes forcing LF some permutations of
-          # actions/checkout still leave stray \r bytes.
-          additional-packages: |
-            curl
-            ca-certificates
-            iproute2
-            dos2unix
-            nodejs
+          distro: Ubuntu
 
       - name: Show WSL status
         shell: pwsh
         run: |
           wsl --status
           wsl --list --verbose
+
+      - name: Install packages inside WSL2
+        shell: wsl-run {0}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates iproute2 dos2unix nodejs default-jre rlwrap
+          echo "node: $(node --version)"
+          echo "java: $(java -version 2>&1 | head -1)"
 
       # ─────────────────────────────────────────────────────────────────
       # 2. Launch a Chromium-family browser on the Windows side with the
@@ -331,9 +328,9 @@ jobs:
       # can echo the path into the job log for postmortem.
       - name: Run wsl-cdp-diag.sh inside WSL
         id: diag
-        shell: wsl-bash {0}
+        shell: wsl-run {0}
         run: |
-          # wsl-bash runs with `set -u` by default, so guard every env
+          # Guard every env
           # var dereference that isn't guaranteed to exist inside WSL.
           set -o pipefail
           GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
@@ -366,7 +363,7 @@ jobs:
 
           # The diag script is shellcheck-clean and exits:
           #   0 — 127.0.0.1 path works (mirrored networking / port proxy)
-          #   1 — not in WSL (shouldn't happen inside wsl-bash)
+          #   1 — not in WSL (shouldn't happen inside wsl-run)
           #   2 — NAT mode confirmed (loopback fails, gateway works)
           #   3 — Chrome not reachable from either host (runner issue)
           #
@@ -418,16 +415,10 @@ jobs:
       #      user-facing "does spel work" signal.
       #
       # Any assertion failing → step fails → job fails → we know.
-      - name: Install OpenJDK + Clojure CLI inside WSL
-        shell: wsl-bash {0}
+      - name: Install Clojure CLI inside WSL
+        shell: wsl-run {0}
         run: |
           set -e
-          echo "::group::Install JRE"
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jre rlwrap
-          java -version
-          echo "::endgroup::"
-
           echo "::group::Install Clojure CLI"
           curl -sSL -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
           chmod +x linux-install.sh
@@ -437,7 +428,7 @@ jobs:
 
       - name: Run spel CDP discovery from inside WSL against Windows Chrome
         id: spel-e2e
-        shell: wsl-bash {0}
+        shell: wsl-run {0}
         run: |
           set -eo pipefail
           GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
