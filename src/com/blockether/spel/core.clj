@@ -71,41 +71,72 @@
   [^Throwable e]
   (mapv str (.getStackTrace e)))
 
+(defn- cause-chain
+  "Walks the exception cause chain and returns a vector of
+   {:class :message} maps from outermost to root cause. Stops at
+   nil or a self-referencing cause to avoid infinite loops."
+  [^Throwable e]
+  (loop [current (.getCause e)
+         seen    #{e}
+         chain   []]
+    (if (or (nil? current) (contains? seen current))
+      chain
+      (recur (.getCause current)
+        (conj seen current)
+        (conj chain {:class   (.getName (.getClass current))
+                     :message (.getMessage current)})))))
+
+(defn- full-message
+  "Builds a comprehensive error message by joining the top-level message
+   with all cause messages, separated by ' → '. This surfaces the root
+   cause that Playwright often buries 2-3 levels deep."
+  [^Throwable e]
+  (let [top (.getMessage e)
+        causes (cause-chain e)
+        cause-msgs (keep :message causes)]
+    (if (seq cause-msgs)
+      (str/join " → " (cons top cause-msgs))
+      (or top (.getName (.getClass e))))))
+
 (defn wrap-error
   "Wraps Playwright exceptions into anomaly maps.
 
-   Includes the exception message, class, stack trace, and the original
-   exception object for programmatic access.
-    
+   Includes the exception message, class, stack trace, the full cause
+   chain, and the original exception object for programmatic access.
+   The message field contains the FULL cause chain joined with ' → '
+   so the root cause is always visible — not buried inside a generic
+   wrapper exception.
+
    Params:
    `e` - Exception from Playwright.
-    
+
    Returns:
    Anomaly map with appropriate category."
   [^Exception e]
-  (let [base {:playwright/exception   e
-              :playwright/class       (.getName (.getClass e))
-              :playwright/stacktrace  (stacktrace->vec e)}]
+  (let [causes (cause-chain e)
+        base (cond-> {:playwright/exception   e
+                      :playwright/class       (.getName (.getClass e))
+                      :playwright/stacktrace  (stacktrace->vec e)}
+               (seq causes) (assoc :playwright/causes causes))]
     (cond
       (instance? TimeoutError e)
       (anomaly/anomaly ::anomaly/busy
-        (.getMessage e)
+        (full-message e)
         (assoc base :playwright/error-type :playwright.error/timeout))
 
       (instance? TargetClosedError e)
       (anomaly/anomaly ::anomaly/interrupted
-        (.getMessage e)
+        (full-message e)
         (assoc base :playwright/error-type :playwright.error/target-closed))
 
       (instance? PlaywrightException e)
       (anomaly/anomaly ::anomaly/fault
-        (.getMessage e)
+        (full-message e)
         (assoc base :playwright/error-type :playwright.error/exception))
 
       :else
       (anomaly/anomaly ::anomaly/fault
-        (or (.getMessage e)
-          (str "Unknown Playwright error (" (.getName (.getClass e)) ")"))
+        (full-message e)
         (assoc base :playwright/error-type :playwright.error/unknown)))))
 
 (defmacro safe

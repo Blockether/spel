@@ -1195,58 +1195,26 @@
    Returns:
    Map with :connected URL, :url current page URL."
   ([]
-   ;; Auto-discover: try loopback first, then WSL gateway if available.
-   ;; For each host:port, probe /json/version — if it returns 200 with
-   ;; a valid JSON body, extract the webSocketDebuggerUrl (for M144+
-   ;; ws-only endpoints) and use whichever URL Playwright can connect to.
-   (let [hosts (if (platform/wsl?)
-                 (let [gw (platform/wsl-default-gateway-ip)]
-                   (cond-> ["127.0.0.1"]
-                     (and gw (not= gw "127.0.0.1")) (conj gw)))
-                 ["127.0.0.1"])
-         ports [9222 9229]
-         probe (fn [host port]
-                 (try
-                   (let [url  (java.net.URL. (str "http://" host ":" port "/json/version"))
-                         conn (doto (.openConnection url)
-                                (.setConnectTimeout 2000)
-                                (.setReadTimeout 2000)
-                                (.connect))]
-                     (try
-                       (when (= 200 (.getResponseCode ^java.net.HttpURLConnection conn))
-                         (let [body (slurp (.getInputStream ^java.net.HttpURLConnection conn))
-                               data (try (json/read-json body) (catch Exception _ nil))
-                               ws-url (when (map? data) (get data "webSocketDebuggerUrl"))]
-                           ;; Return the http URL; Playwright's connectOverCDP
-                           ;; accepts http:// and discovers ws internally.
-                           ;; Include ws-url as fallback for M144+ ws-only.
-                           {:http (str "http://" host ":" port)
-                            :ws   ws-url
-                            :browser (when (map? data) (get data "Browser"))}))
-                       (finally
-                         (.disconnect ^java.net.HttpURLConnection conn))))
-                   (catch Exception _ nil)))
-         found (first
-                 (keep identity
-                   (for [host hosts, port ports]
-                     (probe host port))))]
-     (if found
-       (do
-         (binding [*out* *err*]
-           (println (str "spel: cdp-connect: " (:browser found) " at " (:http found))))
-         (sci-cdp-reconnect (:http found)))
+   ;; Auto-discover via platform/discover-cdp — shared probe logic
+   ;; used by both SCI and daemon. WSL-aware, probes loopback first.
+   (if-let [found (platform/discover-cdp)]
+     (do
+       (binding [*out* *err*]
+         (println (str "spel: cdp-connect: " (:browser found)
+                    " at " (:host found) ":" (:port found))))
+       (sci-cdp-reconnect (str "http://" (:host found) ":" (:port found))))
+     (let [hosts (platform/cdp-candidate-hosts)]
        (throw (ex-info
                 (str "No running browser with remote debugging found.\n"
-                  "Probed: " (str/join ", " (for [h hosts, p ports] (str h ":" p))) "\n"
-                  (when (platform/wsl?)
+                  "Probed: " (str/join ", " (for [h hosts, p [9222 9229]] (str h ":" p))) "\n"
+                  (if (platform/wsl?)
                     (str "\nWSL detected — gateway IP: " (or (platform/wsl-default-gateway-ip) "<unresolved>") "\n"
                       "Launch Chrome/Edge on Windows with:\n"
                       "  chrome.exe --remote-debugging-port=9222 \\\n"
                       "             --remote-debugging-address=0.0.0.0 \\\n"
-                      "             --remote-allow-origins=*\n"))
-                  (when-not (platform/wsl?)
+                      "             --remote-allow-origins=*\n")
                     "Launch Chrome/Edge with:\n  chrome --remote-debugging-port=9222 --no-first-run\n"))
-                {:hosts hosts :ports ports :wsl? (platform/wsl?)})))))
+                {:hosts hosts :ports [9222 9229] :wsl? (platform/wsl?)})))))
   ([url]
    (sci-cdp-reconnect url)))
 
