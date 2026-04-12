@@ -51,8 +51,10 @@
    [com.blockether.spel.stitch :as stitch]
    [com.blockether.spel.visual-diff :as visual-diff]
    [com.blockether.spel.platform :as platform]
-   [clojure.set :as cset]
-   [clojure.walk :as walk])
+   ;; Required so sci/copy-ns can find them; used only at context
+   ;; creation time, not via their aliases — hence :as is omitted.
+   clojure.set
+   clojure.walk)
   (:import
    [com.microsoft.playwright
     APIRequest APIRequestContext APIResponse Browser BrowserContext BrowserType CDPSession ConsoleMessage
