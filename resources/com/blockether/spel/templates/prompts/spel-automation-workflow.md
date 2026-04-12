@@ -53,9 +53,9 @@ Required artifacts:
 - `spel-scripts/<name>.clj`
 - Any JSON/data output paths requested by user
 
-## Session isolation + CDP
+## CDP ownership and port policy
 
-One stage = one named session (`exp-<name>`, `auto-<name>`) reused across every command. For CDP runs: one session owns one endpoint; prefer ephemeral ports (never assume 9222); dedicated `--user-data-dir` per run; recovery = relaunch only the dedicated debug browser, never global Chrome kills.
+One stage = one named session (`exp-<name>`, `auto-<name>`) reused across every command. Sessions never overlap. For CDP runs: one session owns one endpoint; prefer ephemeral ports (never assume 9222); dedicated `--user-data-dir` per run; recovery = relaunch only the dedicated debug browser, never global Chrome kills.
 
 ```bash
 SESSION="exp-<name>"
