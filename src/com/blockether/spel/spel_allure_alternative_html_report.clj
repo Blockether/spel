@@ -2874,6 +2874,29 @@
 </html>")]
        (spit (io/file out "index.html") html)
        (enhance-report-shell! out)
+       ;; Machine-readable JSON outputs — same data the HTML renders,
+       ;; in formats CI dashboards and custom tooling can consume.
+       ;; summary.json: Allure-compatible aggregate stats.
+       ;; report.json:  full array of every test result with labels,
+       ;;               steps, attachments, and status details.
+       (spit (io/file out "summary.json")
+         (json/write-json-str
+           {"name"      (or (:report-title run-info) title)
+            "stats"     {"total"   (:total cts)
+                         "passed"  (:passed cts)
+                         "failed"  (:failed cts)
+                         "broken"  (:broken cts)
+                         "skipped" (:skipped cts)
+                         "unknown" (:unknown cts)}
+            "status"    (cond
+                          (pos? (long (:failed cts))) "failed"
+                          (pos? (long (:broken cts))) "broken"
+                          :else                       "passed")
+            "duration"  total-ms
+            "passRate"  pass-rate
+            "createdAt" (System/currentTimeMillis)}))
+       (spit (io/file out "report.json")
+         (json/write-json-str results))
        (println (str "Blockether report generated: " output-dir "/index.html"))
        (println (str "  " (:total cts) " tests: "
                   (:passed cts) " passed, "
