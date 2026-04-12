@@ -1,173 +1,144 @@
-# Network & Routing
+# Network & routing
 
 Intercept, modify, inspect HTTP req/res. Handle WebSocket connections.
 
-## Route Handlers
+## Route handlers
 
-Register handlers to intercept network requests matching URL patterns. Use glob patterns for multiple URLs.
-
-### Block Images
+Register handlers to intercept requests matching URL glob patterns.
 
 ```clojure
 (require '[com.blockether.spel.network :as net])
 
-(page/route! pg "**/*.{png,jpg,jpeg,gif,svg}" (fn [route]
-  (net/route-abort! route)))
-```
+;; Block images
+(page/route! pg "**/*.{png,jpg,jpeg,gif,svg}"
+             (fn [route] (net/route-abort! route)))
 
-### Mock API Response
+;; Mock API
+(page/route! pg "**/api/users"
+             (fn [route] (net/route-fulfill! route {:status 200
+                                                    :content-type "application/json"
+                                                    :body "{\"users\":[]}"})))
 
-```clojure
-(page/route! pg "**/api/users" (fn [route]
-  (net/route-fulfill! route {:status 200
-                             :content-type "application/json"
-                             :body "{\"users\":[]}"})))
-```
+;; Add/modify request headers
+(page/route! pg "**/*"
+  (fn [route]
+    (net/route-continue! route
+      {:headers (merge (net/request-headers (net/route-request route))
+                       {"X-Custom" "injected"})})))
 
-### Modify Request Headers
+;; Fetch real response, mutate, fulfill
+(page/route! pg "**/api/data"
+  (fn [route]
+    (let [resp (net/route-fetch! route)]
+      (net/route-fulfill! route
+        {:status 200 :body (str (net/response-text resp) " (modified)")}))))
 
-```clojure
-(page/route! pg "**/*" (fn [route]
-  (net/route-continue! route {:headers (merge (net/request-headers (net/route-request route))
-                                               {"X-Custom" "injected"})})))
-```
+;; Fallback to next handler
+(page/route! pg "**/*"
+  (fn [route]
+    (if (= "POST" (net/request-method (net/route-request route)))
+      (net/route-abort! route)
+      (net/route-fallback! route))))
 
-### Modify Response (Fetch Then Alter)
-
-Fetch real response, alter, fulfill:
-
-```clojure
-(page/route! pg "**/api/data" (fn [route]
-  (let [resp (net/route-fetch! route)]
-    (net/route-fulfill! route {:status 200
-                               :body (str (net/response-text resp) " (modified)")}))))
-```
-
-### Fallback to Next Handler
-
-Pass control to next registered handler:
-
-```clojure
-(page/route! pg "**/*" (fn [route]
-  (if (= "POST" (net/request-method (net/route-request route)))
-    (net/route-abort! route)
-    (net/route-fallback! route))))
-```
-
-### Remove Route
-
-Unregister route handler by pattern:
-
-```clojure
+;; Unregister
 (page/unroute! pg "**/*.{png,jpg}")
 ```
 
-## Request Inspection
-
-Extract info from request objects.
+## Request / response inspection
 
 ```clojure
 (let [req some-request]
-  (net/request-url req)            ; "https://example.org/api"
-  (net/request-method req)         ; "GET"
-  (net/request-headers req)        ; {"accept" "text/html" ...}
-  (net/request-post-data req)      ; POST body string or nil
-  (net/request-resource-type req)  ; "document", "script", "fetch", etc.
-  (net/request-timing req)         ; {:start-time ... :response-end ...}
-  (net/request-is-navigation? req) ; true/false
-  (net/request-failure req))       ; failure text or nil
-```
+  (net/request-url            req)   ; "https://…"
+  (net/request-method         req)   ; "GET"
+  (net/request-headers        req)
+  (net/request-post-data      req)   ; body or nil
+  (net/request-resource-type  req)   ; "document" "script" "fetch" …
+  (net/request-timing         req)   ; {:start-time … :response-end …}
+  (net/request-is-navigation? req)
+  (net/request-failure        req))  ; failure text or nil
 
-## Response Inspection
-
-Extract info from response objects.
-
-```clojure
 (let [resp some-response]
-  (net/response-url resp)          ; "https://example.org/api"
-  (net/response-status resp)       ; 200
-  (net/response-status-text resp)  ; "OK"
-  (net/response-ok? resp)          ; true
-  (net/response-headers resp)      ; {"content-type" "application/json" ...}
-  (net/response-text resp)         ; body string
-  (net/response-body resp)         ; byte[]
-  (net/response-header-value resp "content-type"))
+  (net/response-url           resp)
+  (net/response-status        resp)
+  (net/response-status-text   resp)
+  (net/response-ok?           resp)
+  (net/response-headers       resp)
+  (net/response-text          resp)
+  (net/response-body          resp)  ; byte[]
+  (net/response-header-value  resp "content-type"))
 ```
 
-## Wait for Specific Response
-
-Wait for response matching URL pattern while executing action:
+## Wait for specific response
 
 ```clojure
 (let [resp (page/wait-for-response pg "**/api/users"
-             (reify Runnable (run [_]
-               (locator/click (page/locator pg "#load-users")))))]
-  (println (net/response-status resp)))
+             (reify Runnable
+               (run [_] (locator/click (page/locator pg "#load-users")))))]
+  (net/response-status resp))
 ```
 
-## WebSocket Handling
-
-Inspect + interact with WebSocket connections.
+## WebSocket
 
 ```clojure
 (let [ws (first (.webSockets pg))]
   (net/ws-url ws)
   (net/ws-is-closed? ws)
-  (net/ws-on-message ws (fn [frame]
-    (println "WS msg:" (net/wsf-text frame))))
-  (net/ws-on-close ws (fn [_ws] (println "WS closed")))
-  (net/ws-on-error ws (fn [err] (println "WS error:" err))))
+  (net/ws-on-message ws (fn [frame] (println "WS msg:" (net/wsf-text frame))))
+  (net/ws-on-close   ws (fn [_ws]   (println "WS closed")))
+  (net/ws-on-error   ws (fn [err]   (println "WS error:" err))))
 ```
 
-## Route Actions
+## Quick reference
 
-| Action | Description |
-|---------|-------------|
-| `net/route-abort!` | Abort request (optionally with error code) |
-| `net/route-continue!` | Continue request (optionally modify headers) |
-| `net/route-fallback!` | Pass to next registered handler |
+### Route actions
+
+| Fn | Description |
+|----|-------------|
+| `net/route-abort!` | Abort (optional error code) |
+| `net/route-continue!` | Continue (optional header override) |
+| `net/route-fallback!` | Pass to next handler |
 | `net/route-fetch!` | Perform request + get response |
 | `net/route-fulfill!` | Fulfill with custom response |
 
-## Request Functions
+### Request
 
-| Function | Returns |
-|----------|----------|
-| `net/request-url` | Request URL string |
-| `net/request-method` | HTTP method ("GET", "POST", etc.) |
-| `net/request-headers` | Map of headers |
-| `net/request-post-data` | POST body string or nil |
-| `net/request-resource-type` | "document", "script", "image", "fetch", etc. |
-| `net/request-timing` | Timing map with start/end timestamps |
-| `net/request-is-navigation?` | true if navigation request |
-| `net/request-failure` | Failure text or nil if no failure |
+| Fn | Returns |
+|----|---------|
+| `net/request-url` | URL |
+| `net/request-method` | HTTP method |
+| `net/request-headers` | map |
+| `net/request-post-data` | body or nil |
+| `net/request-resource-type` | `"document"` / `"script"` / `"image"` / `"fetch"` … |
+| `net/request-timing` | `{:start-time … :response-end …}` |
+| `net/request-is-navigation?` | bool |
+| `net/request-failure` | failure text or nil |
 
-## Response Functions
+### Response
 
-| Function | Returns |
-|----------|----------|
-| `net/response-url` | Response URL string |
-| `net/response-status` | HTTP status code (200, 404, etc.) |
-| `net/response-status-text` | Status text ("OK", "Not Found", etc.) |
-| `net/response-ok?` | true if status is 2xx |
-| `net/response-headers` | Map of response headers |
-| `net/response-text` | Response body as string |
-| `net/response-body` | Response body as byte array |
-| `net/response-header-value` | Value for specific header name |
+| Fn | Returns |
+|----|---------|
+| `net/response-url` | URL |
+| `net/response-status` | int |
+| `net/response-status-text` | text |
+| `net/response-ok?` | bool (2xx) |
+| `net/response-headers` | map |
+| `net/response-text` | body string |
+| `net/response-body` | `byte[]` |
+| `net/response-header-value` | header value |
 
-## WebSocket Functions
+### WebSocket
 
-| Function | Returns |
-|----------|----------|
-| `net/ws-url` | WebSocket URL string |
-| `net/ws-is-closed?` | true if connection closed |
-| `net/ws-on-message` | Register message handler (receives frame) |
-| `net/ws-on-close` | Register close handler |
-| `net/ws-on-error` | Register error handler |
+| Fn | Returns |
+|----|---------|
+| `net/ws-url` | URL |
+| `net/ws-is-closed?` | bool |
+| `net/ws-on-message` | register frame handler |
+| `net/ws-on-close` | register close handler |
+| `net/ws-on-error` | register error handler |
 
-## WebSocket Frame Functions
+### Frame
 
-| Function | Returns |
-|----------|----------|
-| `net/wsf-text` | Frame content as text |
-| `net/wsf-binary` | Frame content as bytes |
+| Fn | Returns |
+|----|---------|
+| `net/wsf-text` | frame as text |
+| `net/wsf-binary` | frame as bytes |

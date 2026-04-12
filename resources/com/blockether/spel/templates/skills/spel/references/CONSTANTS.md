@@ -1,18 +1,16 @@
-# Constants, Enums, and Device Presets
+# Constants, enums, device presets
 
-Quick reference for all typed constants in spel's `eval-sci` sandbox and library code.
-
-| Namespace | What it holds | Count |
-|-----------|---------------|-------|
+| Namespace | Holds | Count |
+|-----------|-------|------:|
 | `constants/` | Playwright enum values as flat Clojure vars | 25 |
 | `role/` | AriaRole constants for role-based selectors | 82 |
 | `device/` | Device preset maps (viewport, UA, scale, touch) | 18 + helpers |
 
-> **Keyword shorthand** is primary API for all Playwright enums. Use `:networkidle`, `:dark`, `:right`, etc. directly in option maps. `constants/` namespace provides named vars as alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
+> **Keywords are the primary API** for Playwright enums (`:networkidle`, `:dark`, `:right`, …). `constants/` provides named vars as an alternative; Java enum interop (`LoadState/NETWORKIDLE`) also works.
 
-## Keyword Constants (Primary API)
+## Keyword constants
 
-spel functions accept keywords for all Playwright enum values. Options layer converts automatically.
+Options layer converts keywords → Java enums automatically.
 
 | Category | Keywords | Used in |
 |----------|----------|---------|
@@ -20,18 +18,16 @@ spel functions accept keywords for all Playwright enum values. Options layer con
 | Wait-until | `:load`, `:domcontentloaded`, `:networkidle`, `:commit` | `navigate` opts |
 | Color scheme | `:light`, `:dark`, `:no-preference` | `emulate-media!`, context opts |
 | Mouse button | `:left`, `:right`, `:middle` | `click` opts |
-| Screenshot type | `:png`, `:jpeg` | `screenshot` opts |
+| Screenshot | `:png`, `:jpeg` | `screenshot` opts |
 | Selector state | `:attached`, `:detached`, `:visible`, `:hidden` | `wait-for-selector` opts |
 | Media | `:screen`, `:print` | `emulate-media!` opts |
 | Forced colors | `:active`, `:none` | `emulate-media!` opts |
 | Reduced motion | `:reduce`, `:no-preference` | `emulate-media!` opts |
 
-In `eval-sci` mode, string forms also work for load states and selector states (e.g. `"networkidle"`, `"hidden"`).
-
-### Usage Examples
+In `eval-sci` mode, string forms also work for load states and selector states (`"networkidle"`, `"hidden"`).
 
 ```clojure
-;; eval-sci mode (keywords)
+;; eval-sci
 (spel/wait-for-load-state :networkidle)
 (spel/navigate "https://example.org" {:wait-until :commit})
 (spel/emulate-media! {:color-scheme :dark})
@@ -40,24 +36,22 @@ In `eval-sci` mode, string forms also work for load states and selector states (
 (spel/wait-for-selector ".spinner" {:state :hidden})
 (spel/emulate-media! {:media :print})
 
-;; Library mode (same keywords)
+;; Library (same keywords)
 (page/wait-for-load-state pg :networkidle)
 (page/navigate pg "https://example.org" {:wait-until :commit})
 (page/wait-for-selector pg ".spinner" {:state :hidden})
-(core/with-testing-page {:color-scheme :dark} [pg] ...)
+(core/with-testing-page {:color-scheme :dark} [pg] …)
 ```
 
-## `role/` Namespace
-
-AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
+## `role/` namespace
 
 ```clojure
-(spel/get-by-role role/button {:name "Submit"})                    ;; eval-sci
-(page/get-by-role pg role/button {:name "Submit"})                ;; library
-(page/get-by-role pg role/heading {:level 1})                     ;; with options
+(spel/get-by-role role/button {:name "Submit"})                    ; eval-sci
+(page/get-by-role pg role/button {:name "Submit"})                 ; library
+(page/get-by-role pg role/heading {:level 1})
 ```
 
-### Complete Role List (82 constants)
+### All 82 roles
 
 | | | | |
 |---|---|---|---|
@@ -83,108 +77,86 @@ AriaRole constants for `page/get-by-role` and `spel/get-by-role`.
 | `role/timer` | `role/toolbar` | `role/tooltip` | `role/tree` |
 | `role/treegrid` | `role/treeitem` | | |
 
-### Common Roles
+### Common
 
-| Finding... | Role | Example |
-|------------|------|---------|
-| Buttons | `role/button` | `(spel/get-by-role role/button {:name "Save"})` |
-| Links | `role/link` | `(spel/get-by-role role/link {:name "Home"})` |
-| Headings | `role/heading` | `(spel/get-by-role role/heading {:level 2})` |
-| Text inputs | `role/textbox` | `(spel/get-by-role role/textbox {:name "Email"})` |
-| Checkboxes | `role/checkbox` | `(spel/get-by-role role/checkbox {:name "Agree"})` |
-| Dropdowns | `role/combobox` | `(spel/get-by-role role/combobox {:name "Country"})` |
+| Finding | Role | Example |
+|---------|------|---------|
+| Button | `role/button` | `(spel/get-by-role role/button {:name "Save"})` |
+| Link | `role/link` | `(spel/get-by-role role/link {:name "Home"})` |
+| Heading | `role/heading` | `(spel/get-by-role role/heading {:level 2})` |
+| Text input | `role/textbox` | `(spel/get-by-role role/textbox {:name "Email"})` |
+| Checkbox | `role/checkbox` | `(spel/get-by-role role/checkbox {:name "Agree"})` |
+| Dropdown | `role/combobox` | `(spel/get-by-role role/combobox {:name "Country"})` |
 | Navigation | `role/navigation` | `(spel/get-by-role role/navigation)` |
-| Dialogs | `role/dialog` | `(spel/get-by-role role/dialog {:name "Confirm"})` |
-| Tables | `role/table` | `(spel/get-by-role role/table)` |
-| Tabs | `role/tab` | `(spel/get-by-role role/tab {:name "Settings"})` |
+| Dialog | `role/dialog` | `(spel/get-by-role role/dialog {:name "Confirm"})` |
+| Table | `role/table` | `(spel/get-by-role role/table)` |
+| Tab | `role/tab` | `(spel/get-by-role role/tab {:name "Settings"})` |
 
-## Device Presets
+## Device presets
 
-Device presets used via `:device` keyword in option maps. Each preset configures viewport, device scale factor, mobile flag, touch support, user agent.
+Each preset is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. Pass via `:device` keyword in option maps.
 
-`device/` namespace available in `eval-sci` mode. Each preset var is a map with `:viewport`, `:device-scale-factor`, `:is-mobile`, `:has-touch`, `:user-agent`. Can also use `:device` keyword in option maps.
-
-### All Device Presets
-
-#### Apple iPhones
+### Apple iPhones
 
 | Keyword | Viewport | Scale |
-|---------|----------|-------|
-| `:iphone-se` | 375 x 667 | 2 |
-| `:iphone-12` | 390 x 844 | 3 |
-| `:iphone-13` | 390 x 844 | 3 |
-| `:iphone-14` | 390 x 844 | 3 |
-| `:iphone-14-pro` | 393 x 852 | 3 |
-| `:iphone-15` | 393 x 852 | 3 |
-| `:iphone-15-pro` | 393 x 852 | 3 |
+|---------|----------|------:|
+| `:iphone-se` | 375×667 | 2 |
+| `:iphone-12` / `:iphone-13` / `:iphone-14` | 390×844 | 3 |
+| `:iphone-14-pro` / `:iphone-15` / `:iphone-15-pro` | 393×852 | 3 |
 
-#### Apple iPads
+### iPads
 
 | Keyword | Viewport | Scale |
-|---------|----------|-------|
-| `:ipad` | 810 x 1080 | 2 |
-| `:ipad-mini` | 768 x 1024 | 2 |
-| `:ipad-pro-11` | 834 x 1194 | 2 |
-| `:ipad-pro` | 1024 x 1366 | 2 |
+|---------|----------|------:|
+| `:ipad` | 810×1080 | 2 |
+| `:ipad-mini` | 768×1024 | 2 |
+| `:ipad-pro-11` | 834×1194 | 2 |
+| `:ipad-pro` | 1024×1366 | 2 |
 
-#### Android
-
-| Keyword | Viewport | Scale |
-|---------|----------|-------|
-| `:pixel-5` | 393 x 851 | 2.75 |
-| `:pixel-7` | 412 x 915 | 2.625 |
-| `:galaxy-s24` | 360 x 780 | 3 |
-| `:galaxy-s9` | 360 x 740 | 3 |
-
-#### Desktop
+### Android
 
 | Keyword | Viewport | Scale |
-|---------|----------|-------|
-| `:desktop-chrome` | 1280 x 720 | 1 |
-| `:desktop-firefox` | 1280 x 720 | 1 |
-| `:desktop-safari` | 1280 x 720 | 1 |
+|---------|----------|------:|
+| `:pixel-5` | 393×851 | 2.75 |
+| `:pixel-7` | 412×915 | 2.625 |
+| `:galaxy-s24` | 360×780 | 3 |
+| `:galaxy-s9` | 360×740 | 3 |
 
-All mobile/tablet presets have `:is-mobile true` and `:has-touch true`. Desktop presets have both `false`.
+### Desktop
 
-### Using Devices
+| Keyword | Viewport | Scale |
+|---------|----------|------:|
+| `:desktop-chrome` / `:desktop-firefox` / `:desktop-safari` | 1280×720 | 1 |
+
+Mobile/tablet presets: `:is-mobile true`, `:has-touch true`. Desktop: both `false`.
 
 ```clojure
-;; Standalone eval-sci (no daemon)
-(spel/start! {:device :iphone-14})
-
-;; Library
-(core/with-testing-page {:device :iphone-14} [pg]
-  (page/navigate pg "https://example.org"))
-
-;; Manual viewport sizing in daemon mode
-(spel/set-viewport-size! 390 844)
+(spel/start! {:device :iphone-14})                         ; standalone
+(core/with-testing-page {:device :iphone-14} [pg] …)       ; library
+(spel/set-viewport-size! 390 844)                          ; daemon mode, viewport only
 ```
 
-### Viewport Presets (dimensions only)
+### Viewport presets (dimensions only)
 
 | Keyword | Size |
 |---------|------|
-| `:mobile` | 375 x 667 |
-| `:mobile-lg` | 428 x 926 |
-| `:tablet` | 768 x 1024 |
-| `:tablet-lg` | 1024 x 1366 |
-| `:desktop` | 1280 x 720 |
-| `:desktop-hd` | 1920 x 1080 |
-| `:desktop-4k` | 3840 x 2160 |
+| `:mobile` / `:mobile-lg` | 375×667 / 428×926 |
+| `:tablet` / `:tablet-lg` | 768×1024 / 1024×1366 |
+| `:desktop` / `:desktop-hd` / `:desktop-4k` | 1280×720 / 1920×1080 / 3840×2160 |
 
 ```clojure
-(core/with-testing-page {:viewport :desktop-hd} [pg] ...)
-(core/with-testing-page {:viewport {:width 1440 :height 900}} [pg] ...)
+(core/with-testing-page {:viewport :desktop-hd}            [pg] …)
+(core/with-testing-page {:viewport {:width 1440 :height 900}} [pg] …)
 ```
 
-## Java Enum Interop
+## Java enum interop
 
-All Playwright enum classes registered in `eval-sci`. Direct interop works too:
+All Playwright enum classes registered; direct interop also works.
 
 ```clojure
-LoadState/NETWORKIDLE    WaitUntilState/COMMIT    ColorScheme/DARK
-MouseButton/RIGHT        ScreenshotType/PNG       ForcedColors/ACTIVE
-ReducedMotion/REDUCE     Media/PRINT              WaitForSelectorState/HIDDEN
+LoadState/NETWORKIDLE      WaitUntilState/COMMIT      ColorScheme/DARK
+MouseButton/RIGHT          ScreenshotType/PNG         ForcedColors/ACTIVE
+ReducedMotion/REDUCE       Media/PRINT                WaitForSelectorState/HIDDEN
 AriaRole/BUTTON
 ```
 

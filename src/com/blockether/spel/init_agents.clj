@@ -10,7 +10,6 @@
    - clojure-test       — deftest/testing/is from clojure.test, use-fixtures
 
    Also generates:
-   - test-e2e/specs/ — test plans directory (colocated with tests)
    - test-e2e/<ns>/e2e/ — seed test (path derived from --ns)
 
    Usage:
@@ -18,7 +17,7 @@
      spel init-agents --ns my-app --loop=claude
      spel init-agents --ns my-app --flavour=clojure-test
      spel init-agents --ns my-app --no-tests
-     spel init-agents --ns my-app --test-dir test-e2e --specs-dir test-e2e/specs
+     spel init-agents --ns my-app --test-dir test-e2e
      spel init-agents --dry-run"
   (:require
    [clojure.java.io :as io]
@@ -103,8 +102,7 @@
 
 (def ^:private agent-to-subagent
   "Maps agent template names to their subagent group keyword."
-  {"spel-test-planner" :test
-   "spel-test-writer" :test
+  {"spel-test-writer" :test
    "spel-explorer" :explorer
    "spel-automator" :automator
    "spel-presenter" :presenter
@@ -160,12 +158,7 @@
                                "+"
                                nil])
                         selected-ref-files))
-        all-test-files [["agents/spel-test-planner.md"
-                         (str agent-dir "/spel-test-planner" agent-ext)
-                         "test planner agent"
-                         "+"
-                         "spel-test-planner"]
-                        [writer-template
+        all-test-files [[writer-template
                          (str agent-dir "/spel-test-writer" agent-ext)
                          "test writer agent"
                          "+"
@@ -359,7 +352,6 @@
 (def ^:private agent-ref-names
   "Agent names that may be referenced in templates via @name syntax."
   ["spel-orchestrator"
-   "spel-test-planner"
    "spel-test-writer"
    "spel-explorer"
    "spel-automator"
@@ -498,7 +490,7 @@
 
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --specs-dir DIR, --only AGENTS, --simplified, --learnings"
+   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --only AGENTS, --simplified, --learnings"
   [args]
   (loop [remaining args
          opts {:dry-run false
@@ -509,8 +501,7 @@
                :flavour "lazytest"
                :ns nil
                :loop "opencode"
-               :test-dir "test-e2e"
-               :specs-dir "test-e2e/specs"}]
+               :test-dir "test-e2e"}]
     (if (empty? remaining)
       opts
       (let [arg (first remaining)]
@@ -569,14 +560,6 @@
           (str/starts-with? arg "--test-dir=")
           (recur (rest remaining)
             (assoc opts :test-dir (subs arg (count "--test-dir="))))
-
-          (= "--specs-dir" arg)
-          (recur (drop 2 remaining)
-            (assoc opts :specs-dir (second remaining)))
-
-          (str/starts-with? arg "--specs-dir=")
-          (recur (rest remaining)
-            (assoc opts :specs-dir (subs arg (count "--specs-dir="))))
 
           (#{"--help" "-h"} arg)
           (assoc opts :help true)
@@ -638,7 +621,7 @@
   (println "Usage:")
   (println "  spel init-agents --ns my-app")
   (println "  spel init-agents --ns my-app --loop=claude")
-  (println "  spel init-agents --ns my-app --test-dir test/e2e --specs-dir test-e2e/specs")
+  (println "  spel init-agents --ns my-app --test-dir test/e2e")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
   (println "  spel init-agents --ns my-app --learnings")
@@ -652,7 +635,7 @@
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
   (println "                    lazytest: defdescribe/it/expect from spel.allure, :context fixtures")
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
-  (println "  --no-tests        Skip seed test and specs directory — scaffold agents + SKILL only.")
+  (println "  --no-tests        Skip seed test — scaffold agents + SKILL only.")
   (println "                    Use this when you don't need a starter test file.")
   (println "  --learnings       Inject mandatory per-agent learnings contracts.")
   (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
@@ -670,7 +653,6 @@
   (println "                    SKILL.md and core refs are always included")
   (println "  --simplified      Use simplified template set (equivalent to --only core)")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
-  (println "  --specs-dir DIR   Test plans directory (default: test-e2e/specs)")
   (println "  --dry-run         Show what would be created without writing")
   (println "  --force           Overwrite existing files")
   (println "  -h, --help        Show this help")
@@ -680,7 +662,6 @@
   (println "  claude            .claude/agents/, .claude/prompts/, .claude/docs/")
   (println "")
   (println "Also generates (skipped by --no-tests):")
-  (println "  test-e2e/specs/                — Test plans directory (with README)")
   (println "  test-e2e/<ns>/e2e/seed_test.clj — Seed test (path derived from --ns)"))
 
 (defn- print-result
@@ -722,8 +703,8 @@
         (println "     Agents now create/update the file lazily; orchestrators must synthesize high-level issues.")))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
-        (println "Done! Use @spel-orchestrator to get started, or @spel-test-planner to plan tests directly.")
-        (println "Done! Use the spel-orchestrator agent to get started, or spel-test-planner to plan tests directly."))
+        (println "Done! Use @spel-orchestrator to get started, or @spel-test-writer to generate tests directly.")
+        (println "Done! Use the spel-orchestrator agent to get started, or spel-test-writer to generate tests directly."))
       (println "")
       (println "Next steps:")
       (println "")
@@ -811,8 +792,7 @@
                             (println "         Tip: use --ns my-app to set namespace explicitly.")
                             (println ""))
                           (derive-namespace)))
-            test-dir (:test-dir opts)
-            specs-dir (:specs-dir opts)]
+            test-dir (:test-dir opts)]
         (print-banner loop-target no-tests)
 
         ;; Scaffold files (agents + skill; --only filters which agents)
@@ -821,11 +801,6 @@
             (print-result icon output-path description result)))
 
         (when-not no-tests
-          ;; Scaffold specs directory with README
-          (let [specs-readme-path (str specs-dir "/README.md")
-                specs-readme-result (scaffold-file "specs_readme.md" specs-readme-path "test plans directory" "+" opts ns-name loop-target nil)]
-            (print-result "+" specs-readme-path "test plans directory" specs-readme-result))
-
           ;; Scaffold test directory with seed test
           ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
           (let [seed-ns (str ns-name ".e2e.seed-test")

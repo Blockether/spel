@@ -276,6 +276,150 @@
               (- (long (get r "stop")) (long (get r "start")))))
       results)))
 
+(defn- test-duration-stats
+  "Per-test wall-clock duration stats across results (in ms)."
+  [results]
+  (let [durations (->> results
+                    (keep (fn [r]
+                            (when (and (get r "start") (get r "stop"))
+                              (long (- (long (get r "stop")) (long (get r "start")))))))
+                    vec)
+        n (count durations)]
+    (if (zero? n)
+      {"count" 0 "totalMs" 0 "meanMs" 0 "maxMs" 0 "minMs" 0}
+      {"count"   n
+       "totalMs" (long (reduce + durations))
+       "meanMs"  (long (quot (reduce + durations) n))
+       "maxMs"   (long (reduce max durations))
+       "minMs"   (long (reduce min durations))})))
+
+(defn- walk-steps
+  "Pre-order flatten every step (and nested step) in a result."
+  [result]
+  (letfn [(walk [steps]
+            (mapcat (fn [s]
+                      (cons s (walk (get s "steps"))))
+              (or steps [])))]
+    (walk (get result "steps"))))
+
+(defn- http-step?
+  "A step counts as an HTTP call if it was wrapped by api-step / {:http? true}
+   (name prefixed with `[API]` or `[UI+API]`) or if it attached an HTTP markdown
+   exchange (attachment name 'HTTP', type 'text/markdown')."
+  [step]
+  (let [nm (or (get step "name") "")
+        prefix? (or (str/starts-with? nm "[API] ")
+                    (str/starts-with? nm "[UI+API] "))
+        has-http-attach?
+        (boolean
+          (some (fn [att]
+                  (and (= "text/markdown" (get att "type"))
+                       (= "HTTP" (get att "name"))))
+            (or (get step "attachments") [])))]
+    (or prefix? has-http-attach?)))
+
+(defn- http-call-entries
+  "Collect one entry per HTTP call across every result. Each entry:
+   `{test, name, status, durationMs, startedAt, attachment?}`. `name` is the
+   step name (keeps the `[API]` / `[UI+API]` prefix so the origin of the call
+   is visible). `attachment` is the relative path of the HTTP markdown exchange
+   when one was captured — full request/response/headers/body live there, so
+   summary.json stays small while tools can load the detail on demand."
+  [results]
+  (vec
+    (for [r results
+          s (walk-steps r)
+          :when (http-step? s)
+          :let [start   (get s "start")
+                stop    (get s "stop")
+                http-at (some (fn [att]
+                                (when (and (= "text/markdown" (get att "type"))
+                                           (= "HTTP" (get att "name"))
+                                           (get att "source"))
+                                  att))
+                          (or (get s "attachments") []))]]
+      (cond-> {"test"   (or (get r "name") (get r "fullName") "")
+               "name"   (or (get s "name") "")
+               "status" (or (get s "status") "unknown")}
+        (and start stop)
+        (-> (assoc "durationMs" (long (- (long stop) (long start))))
+            (assoc "startedAt"  (long start)))
+        http-at
+        (assoc "attachment" (str "data/attachments/" (get http-at "source")))))))
+
+(defn- log-attachment?
+  "An attachment counts as a log if it's a plain-text / JSON / plain-log payload
+   that isn't something we already surface specially (trace, HAR, video, image,
+   HTTP markdown). This catches user `allure/attach` calls for stdout/stderr,
+   console dumps, structured event logs, etc."
+  [att]
+  (let [t (or (get att "type") "")
+        n (or (get att "name") "")]
+    (and
+      (or (= t "text/plain")
+          (= t "application/json")
+          (= t "text/x-log"))
+      ;; Skip the HTTP markdown exchange — it's counted as an HTTP call.
+      (not (and (= t "text/markdown") (= n "HTTP"))))))
+
+(defn- collect-logs
+  "Flatten log-like attachments across every result + step.
+   Each entry: `{test, name, type, path, size?}`. Size is included when the
+   attachment source points to a file we can stat."
+  [^String results-dir results]
+  (vec
+    (for [r results
+          :let [test-name (or (get r "name") (get r "fullName") "")]
+          att (concat (get r "attachments" [])
+                      (mapcat (fn [s] (get s "attachments" []))
+                        (walk-steps r)))
+          :when (log-attachment? att)
+          :let [src  (get att "source")
+                file (when (and src results-dir)
+                       (io/file results-dir src))
+                size (when (and file (.isFile ^File file))
+                       (.length ^File file))]]
+      (cond-> {"test" test-name
+               "name" (or (get att "name") "")
+               "type" (or (get att "type") "")}
+        src  (assoc "path" (str "data/attachments/" src))
+        size (assoc "size" (long size))))))
+
+(defn- http-stats
+  "HTTP-call stats across every result: count, total/mean/max/min (ms)."
+  [results]
+  (let [durations (vec
+                    (for [e (http-call-entries results)
+                          :let [d (get e "durationMs")]
+                          :when d]
+                      (long d)))
+        n (count durations)]
+    (if (zero? n)
+      {"calls" 0 "totalMs" 0 "meanMs" 0 "maxMs" 0 "minMs" 0}
+      {"calls"   n
+       "totalMs" (long (reduce + durations))
+       "meanMs"  (long (quot (reduce + durations) n))
+       "maxMs"   (long (reduce max durations))
+       "minMs"   (long (reduce min durations))})))
+
+(defn- collect-errors
+  "Extract an error entry for every non-passing result (failed / broken).
+   Each entry carries name, status, message, and trace (when present)."
+  [results]
+  (vec
+    (for [r results
+          :let [status (get r "status" "unknown")]
+          :when (contains? #{"failed" "broken"} status)
+          :let [sd (get r "statusDetails")]]
+      (cond-> {"name"   (or (get r "name") (get r "fullName") "")
+               "status" status}
+        (get r "fullName") (assoc "fullName" (get r "fullName"))
+        (get sd "message") (assoc "message"  (get sd "message"))
+        (get sd "trace")   (assoc "trace"    (get sd "trace"))
+        (and (get r "start") (get r "stop"))
+        (assoc "durationMs"
+               (long (- (long (get r "stop")) (long (get r "start")))))))))
+
 (defn- format-duration [^long ms]
   (let [secs (quot ms 1000)
         mins (quot secs 60)
@@ -2932,20 +3076,43 @@
        ;;               steps, attachments, and status details.
        (spit (io/file out "summary.json")
          (json/write-json-str
-           {"name"      (or (:report-title run-info) title)
-            "stats"     {"total"   (:total cts)
-                         "passed"  (:passed cts)
-                         "failed"  (:failed cts)
-                         "broken"  (:broken cts)
-                         "skipped" (:skipped cts)
-                         "unknown" (:unknown cts)}
-            "status"    (cond
-                          (pos? (long (:failed cts))) "failed"
-                          (pos? (long (:broken cts))) "broken"
-                          :else                       "passed")
-            "duration"  total-ms
-            "passRate"  pass-rate
-            "createdAt" (System/currentTimeMillis)}))
+           (let [tds     (test-duration-stats results)
+                 http    (http-stats results)
+                 calls   (http-call-entries results)
+                 logs    (collect-logs results-dir results)
+                 errs    (collect-errors results)]
+             {"name"         (or (:report-title run-info) title)
+              "stats"        {"total"   (:total cts)
+                              "passed"  (:passed cts)
+                              "failed"  (:failed cts)
+                              "broken"  (:broken cts)
+                              "skipped" (:skipped cts)
+                              "unknown" (:unknown cts)}
+              "status"       (cond
+                               (pos? (long (:failed cts))) "failed"
+                               (pos? (long (:broken cts))) "broken"
+                               :else                       "passed")
+              ;; Wall-clock total (sum of per-test durations).
+              "duration"     total-ms
+              ;; Per-test duration stats — count/total/mean/max/min (ms).
+              "testDuration" tds
+              ;; HTTP calls captured in api-step / {:http? true} / attach-http-markdown!
+              ;; — count + total/mean/max/min duration (ms). Zeroed when none.
+              "http"         http
+              ;; Every individual HTTP call: {test, name, status, durationMs,
+              ;; startedAt, attachment?}. `attachment` is the relative path of
+              ;; the captured HTTP markdown exchange (full request/response/
+              ;; headers/body) — summary.json stays small, callers load on demand.
+              "httpCalls"    calls
+              ;; Log-like attachments (text/plain, application/json, text/x-log)
+              ;; flattened across every result + step. Each: {test, name, type,
+              ;; path, size?}. Captures user `allure/attach` payloads:
+              ;; stdout/stderr, console dumps, structured event logs.
+              "logs"         logs
+              ;; One entry per failed/broken test: name, status, message, trace, durationMs.
+              "errors"       errs
+              "passRate"     pass-rate
+              "createdAt"    (System/currentTimeMillis)})))
        (spit (io/file out "report.json")
          (json/write-json-str results))
        (println (str "Blockether report generated: " output-dir "/index.html"))

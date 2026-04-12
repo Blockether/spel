@@ -1,43 +1,39 @@
-# GitHub Actions CI/CD Workflows
+# GitHub Actions CI/CD workflows
 
-Reference for three workflows: `.github/workflows/ci.yml`, `.github/workflows/allure.yml`, `.github/workflows/release.yml`.
+Three workflows: `.github/workflows/ci.yml`, `allure.yml`, `release.yml`.
 
-## 1) CI (`ci.yml`)
+## 1 · CI (`ci.yml`)
 
-Continuous integration for main and PRs. Runs tests on 3 OSes, Linux-only lint/validation + dual test suites with Allure output, then builds and smoke-tests native binaries.
-
-### Trigger
+Tests on 3 OSes, Linux-only lint/validation + dual test suites with Allure, native-binary build + smoke tests.
 
 ```yaml
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  push:         { branches: [main] }
+  pull_request: { branches: [main] }
 ```
 
-### Job structure
-
 | Job | Runs on | Matrix | Notes |
-|---|---|---|---|
-| `test` | `${{ matrix.os }}` | `ubuntu-latest`, `macos-latest`, `windows-latest` | `fail-fast: false`; artifact names: `spel-dev-linux-amd64`, `spel-dev-macos-arm64`, `spel-dev-windows-amd64` |
+|-----|---------|--------|-------|
+| `test` | `${{ matrix.os }}` | `ubuntu-latest`, `macos-latest`, `windows-latest` | `fail-fast: false`; binaries: `spel-dev-linux-amd64`, `-macos-arm64`, `-windows-amd64` |
 
 ### Caches
 
-| Cache step | Path | Key | Restore keys |
-|---|---|---|---|
-| `Cache Clojure deps` | `~/.m2/repository`, `~/.gitlibs`, `~/.clojure/.cpcache` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` | `deps-${{ runner.os }}-` |
-| `Cache Playwright browsers` | `~/.cache/ms-playwright` | `playwright-${{ runner.os }}-1.58.0` | `playwright-${{ runner.os }}-` |
+| Step | Path | Key |
+|------|------|-----|
+| `Cache Clojure deps` | `~/.m2/repository`, `~/.gitlibs`, `~/.clojure/.cpcache` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` |
+| `Cache Playwright browsers` | `~/.cache/ms-playwright` | `playwright-${{ runner.os }}-1.58.0` |
 
-### Step flow (exact names)
+Restore key prefixes are the same with the hash dropped.
 
-| Order | Scope | Step name |
-|---:|---|---|
-| 1 | all | *(unnamed)* `actions/checkout@v4` |
+### Step flow
+
+| # | Scope | Step |
+|--:|-------|------|
+| 1 | all | `actions/checkout@v4` |
 | 2 | all | `Normalize Playwright browsers path` |
 | 3 | all | `Setup GraalVM` |
-| 4 | all | *(unnamed)* `DeLaGuardo/setup-clojure@13.5` |
-| 5 | Linux | *(unnamed)* `clojure-lsp/setup-clojure-lsp@v1` |
+| 4 | all | `DeLaGuardo/setup-clojure@13.5` |
+| 5 | Linux | `clojure-lsp/setup-clojure-lsp@v1` |
 | 6 | all | `Cache Clojure deps` |
 | 7 | all | `Cache Playwright browsers` |
 | 8 | Linux | `Install Playwright browsers (Linux — with system deps)` |
@@ -49,7 +45,7 @@ on:
 | 14 | Linux | `Run tests with Allure reporter (lazytest)` *(continue-on-error)* |
 | 15 | Linux | `Run clojure.test suite with Allure reporter` *(continue-on-error)* |
 | 16 | Linux (`always()`) | `Upload Allure results` |
-| 17 | Linux (conditional fail gate) | `Fail if Linux tests failed` |
+| 17 | Linux | `Fail if Linux tests failed` (explicit gate) |
 | 18 | non-Linux | `Run tests` (`clojure -M:test`) |
 | 19 | all | `Build jar` |
 | 20 | all | `Build spel native image` |
@@ -60,34 +56,23 @@ on:
 | 25 | Unix | `Upload spel binary (Unix)` |
 | 26 | Windows | `Upload spel binary (Windows)` |
 
-### Linux vs non-Linux test behavior
+**Linux** runs `make lint`, `make validate-safe-graal`, both test commands with Allure wiring
+(`clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure` + `clojure -M:test-ct`),
+uploads `allure-results`, and fails at the explicit gate if either suite failed.
+**macOS/Windows** run a single plain `clojure -M:test`.
 
-- **Linux**: runs `make lint`, `make validate-safe-graal`, then two test commands with Allure env wiring:
-  - `clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure`
-  - `clojure -M:test-ct`
-  - uploads `allure-results` artifact and fails at explicit gate step if either suite failed.
-- **macOS/Windows**: single plain test step: `clojure -M:test`.
+## 2 · Allure report (`allure.yml`)
 
----
-
-## 2) Allure Report (`allure.yml`)
-
-Post-CI report workflow. Consumes Linux Allure artifact from CI run, generates HTML report, deploys to `gh-pages` with per-build directories.
-
-### Trigger
+Consumes the Linux Allure artifact from the CI run, generates an HTML report, and deploys to `gh-pages` with per-build directories.
 
 ```yaml
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  workflow_run: { workflows: ["CI"], types: [completed] }
 ```
 
-### Top-level settings
-
 | Setting | Value |
-|---|---|
-| Workflow name | `Allure Report` |
+|---------|-------|
+| Name | `Allure Report` |
 | `permissions` | `contents: write`, `pull-requests: write`, `checks: write` |
 | `concurrency.group` | `allure-report` |
 | `concurrency.cancel-in-progress` | `false` |
@@ -95,98 +80,80 @@ on:
 | `env.MAX_REPORTS` | `15` |
 | `env.MAX_PR_REPORTS` | `3` |
 
-### Job structure
-
 | Job | Runs on | Gate |
-|---|---|---|
-| `report` | `ubuntu-latest` | runs only when upstream CI conclusion is `success` or `failure`, and `head_repository.full_name == github.repository` |
+|-----|---------|------|
+| `report` | `ubuntu-latest` | Upstream CI conclusion `success` or `failure` and `head_repository.full_name == github.repository` |
 
 ### Caches
 
-| Cache step | Path | Key | Restore keys |
-|---|---|---|---|
-| `Cache Clojure deps` | `~/.m2/repository`, `~/.gitlibs`, `~/.clojure/.cpcache` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` | `deps-${{ runner.os }}-` |
-| `Restore Allure history` (`actions/cache/restore`) | `.allure-history.jsonl` | `allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}` | `allure-history-jsonl-` |
-| `Cache Allure history` (`actions/cache/save`) | `.allure-history.jsonl` | `allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}` | n/a |
+| Step | Path | Key |
+|------|------|-----|
+| `Cache Clojure deps` | `~/.m2/repository`, `~/.gitlibs`, `~/.clojure/.cpcache` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` |
+| `Restore Allure history` (cache/restore) | `.allure-history.jsonl` | `allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}` |
+| `Cache Allure history` (cache/save) | `.allure-history.jsonl` | same |
 
-### Step flow (exact names)
+### Step flow
 
-`report` job steps, in order:
-
-1. *(unnamed)* `actions/checkout@v4` (checks out `head_sha`)
-2. *(unnamed)* `actions/setup-node@v4`
-3. *(unnamed)* `DeLaGuardo/setup-clojure@13.5`
+1. `actions/checkout@v4` (checks out `head_sha`)
+2. `actions/setup-node@v4`
+3. `DeLaGuardo/setup-clojure@13.5`
 4. `Cache Clojure deps`
 5. `Download Allure results from CI`
 6. `Create empty results dir if download failed`
 7. `Detect context`
 8. `Detect commit info`
-9. `Restore Allure history` *(main builds only)*
+9. `Restore Allure history` *(main builds)*
 10. `Detect version`
 11. `Generate combined Allure report`
 12. `Extract test counts from Allure results`
-13. `Comment PR with live report link` *(PR builds only)*
-14. `Build PR deploy with metadata` *(PR builds only)*
-15. `Deploy PR report to GitHub Pages` *(PR builds only)*
-16. `Inject report URL and commit info into history` *(main builds only)*
-17. `Fetch existing site from gh-pages` *(main builds only)*
-18. `Assemble site with per-build reports` *(main builds only)*
-19. `Mark merged PRs` *(main builds only)*
-20. `Update PR check statuses` *(main builds only)*
-21. `Cache Allure history` *(main builds only)*
-22. `Deploy to GitHub Pages` *(main builds only, via `peaceiris/actions-gh-pages@v4`)*
+13. `Comment PR with live report link` *(PR builds)*
+14. `Build PR deploy with metadata` *(PR builds)*
+15. `Deploy PR report to GitHub Pages` *(PR builds)*
+16. `Inject report URL and commit info into history` *(main)*
+17. `Fetch existing site from gh-pages` *(main)*
+18. `Assemble site with per-build reports` *(main)*
+19. `Mark merged PRs` *(main)*
+20. `Update PR check statuses` *(main)*
+21. `Cache Allure history` *(main)*
+22. `Deploy to GitHub Pages` *(main, via `peaceiris/actions-gh-pages@v4`)*
 
 ### Deployment layout
 
 | Path on `gh-pages` | Purpose |
-|---|---|
-| `/<run-number>/` | Report for each main CI run number |
+|--------------------|---------|
+| `/<run-number>/` | Report for each main CI run |
 | `/latest/` | HTML redirect to newest main report |
 | `/pr/<number>/` | Latest report for each PR |
-| `/builds-meta.json`, `/builds-meta.jsonl`, `/builds.json`, `/pr-builds.json`, `/badge.svg` | metadata and status artifacts used by landing page |
+| `/builds-meta.json`, `/builds-meta.jsonl`, `/builds.json`, `/pr-builds.json`, `/badge.svg` | Landing-page metadata and status |
 
----
+## 3 · Release (`release.yml`)
 
-## 3) Release (`release.yml`)
-
-Tag-driven release pipeline: builds native binaries on 4 targets, publishes GitHub Release, deploys JAR to Clojars, updates versioning files on `main`.
-
-### Trigger
+Tag-driven pipeline: builds native binaries on 4 targets, publishes GitHub Release, deploys JAR to Clojars, updates version files on `main`.
 
 ```yaml
 on:
-  push:
-    tags: ['v*']
+  push: { tags: ['v*'] }
 ```
 
-### Job structure
-
 | Job | Runs on | Needs | Purpose |
-|---|---|---|---|
-| `build` | `${{ matrix.os }}` | — | build/test/upload 4 binaries |
-| `release` | `ubuntu-latest` | `build` | changelog, GitHub Release, Clojars deploy, version-file updates |
+|-----|---------|-------|---------|
+| `build` | `${{ matrix.os }}` | — | Build / test / upload 4 binaries |
+| `release` | `ubuntu-latest` | `build` | Changelog, GitHub Release, Clojars deploy, version-file updates |
 
-#### Build matrix (exact)
+### Build matrix
 
-| OS runner | `arch` | Artifact basename |
-|---|---|---|
-| `ubuntu-latest` | `amd64` | `spel-linux-amd64` |
-| `ubuntu-24.04-arm` | `arm64` | `spel-linux-arm64` |
-| `macos-latest` | `arm64` | `spel-macos-arm64` |
-| `windows-latest` | `amd64` | `spel-windows-amd64` |
+| OS runner | arch | Artifact |
+|-----------|------|----------|
+| `ubuntu-latest` | amd64 | `spel-linux-amd64` |
+| `ubuntu-24.04-arm` | arm64 | `spel-linux-arm64` |
+| `macos-latest` | arm64 | `spel-macos-arm64` |
+| `windows-latest` | amd64 | `spel-windows-amd64` |
 
-### Caches
+Both jobs cache Clojure deps with `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}`.
 
-| Job | Cache step | Key |
-|---|---|---|
-| `build` | `Cache Clojure deps` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` |
-| `release` | `Cache Clojure deps` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` |
+### `build` steps
 
-### Steps (exact names)
-
-**`build` job:**
-
-1. *(unnamed)* `actions/checkout@v4`
+1. `actions/checkout@v4`
 2. `Setup GraalVM`
 3. `Setup Clojure`
 4. `Cache Clojure deps`
@@ -199,42 +166,34 @@ on:
 11. `Upload artifact (Unix)` *(non-Windows)*
 12. `Upload artifact (Windows)`
 
-**`release` job:**
+### `release` steps
 
-1. *(unnamed)* `actions/checkout@v4` (`ref: main`, full history + tags)
-2. *(unnamed)* `DeLaGuardo/setup-clojure@13.5`
+1. `actions/checkout@v4` (`ref: main`, full history + tags)
+2. `DeLaGuardo/setup-clojure@13.5`
 3. `Cache Clojure deps`
 4. `Generate changelog`
 5. `Download all artifacts`
 6. `Make Unix binaries executable`
 7. `Create GitHub Release`
 8. `Check if version exists on Clojars`
-9. `Build & Deploy to Clojars` *(only if version does not already exist)*
+9. `Build & Deploy to Clojars` *(only when version is new)*
 10. `Update README.md version`
 11. `Update CHANGELOG.md`
 12. `Bump SPEL_VERSION to next patch`
 13. `Commit version updates`
 
----
-
-## Running Locally
-
-Common commands mirroring CI/CD checks:
+## Running locally
 
 ```bash
 make test
 make lint
 make validate-safe-graal
 ./verify.sh
-```
 
-```bash
 clojure -T:build jar
 clojure -T:build native-image
 clojure -T:build uberjar
-```
 
-```bash
 make test-cli
 make test-cli-clj
 ```

@@ -1,78 +1,57 @@
 # Adversarial bug-finding guide
 
-Single agent (`spel-bug-hunter`) with three internal competing phases → verified bug list, minimal false positives. Hunter/Skeptic/Referee methodology consolidated into one agent.
-
----
+Single agent (`spel-bug-hunter`) with three internal competing phases — Hunter / Skeptic / Referee — produces a verified bug list with minimal false positives.
 
 ## Why adversarial?
 
-Single-pass bug reviews fail two ways:
-1. Over-reporting — aggressive finders report noise → wasted engineering time on false positives
-2. Under-reporting — conservative finders miss real bugs → defects ship
+Single-pass reviews fail two ways: over-report (noise → wasted review) or under-report (defects ship). Competing incentives solve both:
 
-Competing incentives solve both:
-- Hunter incentivized to over-report (missed bug scores 0)
-- Skeptic incentivized to challenge aggressively but carefully (wrong dismissal costs 2x)
-- Referee incentivized to be precise (every wrong judgment costs a point)
+- Hunter over-reports (missed bug scores 0)
+- Skeptic challenges aggressively but carefully (wrong dismissal costs 2×)
+- Referee is precise (every wrong judgment costs 1 point)
 
-Competing incentives → breaks self-validation echo chamber.
+## Scoring
 
----
-
-## Scoring system
-
-### Hunter scoring
+### Hunter
 
 | Points | Severity | Examples |
-|--------|----------|---------|
-| +1 | Low | Minor spacing inconsistency, cosmetic issue, unlikely edge case |
-| +5 | Medium | Functional issue, broken interaction, a11y gap, UX confusion, perf degradation, layout shift |
+|:-----:|----------|----------|
+| +1  | Low | Spacing inconsistency, cosmetic, unlikely edge case |
+| +5  | Medium | Functional issue, broken interaction, a11y gap, UX confusion, perf degradation, layout shift |
 | +10 | Critical | Security vulnerability, data loss risk, crash, complete UX failure, a11y blocker |
 
-Objective: maximize total score. Report anything that *could* be a bug. False positives acceptable — missing real bugs is not.
+Goal: maximize total score. Report anything that *could* be a bug — false positives are acceptable, missing real bugs is not.
 
-### Skeptic scoring
-
-| Action | Points |
-|--------|--------|
-| Successfully disprove a bug | +[bug's original score] |
-| Wrongly dismiss a real bug | -2x [bug's original score] |
-
-Objective: maximize score. DISPROVE only when expected value positive (confidence > 66%).
-
-Risk calculation:
-```
-Expected value = (confidence × bug_score) + ((1 - confidence) × -2 × bug_score)
-DISPROVE only when expected value > 0
-```
-
-### Referee scoring
+### Skeptic
 
 | Action | Points |
-|--------|--------|
-| Correct judgment | +1 |
-| Incorrect judgment | -1 |
+|--------|:-----:|
+| Successfully disprove a bug | +[bug's score] |
+| Wrongly dismiss a real bug | −2× [bug's score] |
 
-Objective: be precise. Evidence over rhetoric. Reproduction over theory.
+DISPROVE only when expected value is positive (confidence > 66%).
 
----
+```
+EV = (conf × score) + ((1 − conf) × −2 × score)
+DISPROVE only when EV > 0
+```
 
-## Bug categories
+### Referee
 
-| Category | Code | What to Check |
-|----------|------|--------------|
-| Functional | `functional` | Broken interactions, form validation, dead links, JS errors, wrong redirects, state corruption |
-| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues, duplicate elements (2x logo/heading/nav), duplicate messages (same text in multiple places), text overflow and truncation (ellipsis, clipped labels), visual inequality between similar elements, visual incoherence (repeated patterns with inconsistent internal layout — e.g. badges that jump position based on content length), partially visible elements (clipped by overflow or off-screen), broken grid/flex layout (misaligned columns, collapsed rows) |
-| Accessibility | `accessibility` | Missing ARIA labels, keyboard nav, contrast ratios, screen reader flow, focus management |
-| UX | `ux` | Confusing flows, unclear CTAs, inconsistent terminology, poor error messages, hierarchy failures |
-| Performance | `performance` | Slow loads, large assets, excessive requests, render-blocking resources, layout thrashing |
-| API/Network | `api` | Failed requests, wrong status codes, CORS issues, missing responses, timeout errors |
+Correct judgment +1, incorrect −1. Evidence over rhetoric; reproduction over theory.
 
----
+## Categories
 
-## JSON report schemas
+| Category | Code | Check |
+|----------|------|-------|
+| Functional | `functional` | Broken interactions, validation, dead links, JS errors, wrong redirects, state corruption |
+| Visual | `visual` | Layout shifts, style regressions, missing elements, responsive breakpoints, font/color issues, duplicate elements/messages, text overflow/truncation, visual inequality or incoherence, partially visible content, broken grid/flex |
+| Accessibility | `accessibility` | Missing ARIA, keyboard nav, contrast, SR flow, focus mgmt |
+| UX | `ux` | Confusing flows, unclear CTAs, inconsistent terminology, poor errors, hierarchy failures |
+| Performance | `performance` | Slow loads, large assets, excessive requests, render-blocking, layout thrashing |
+| API/Network | `api` | Failed requests, wrong status codes, CORS, missing responses, timeouts |
 
-### Hunter report (`hunter-report.json`)
+## Hunter report — `hunter-report.json`
 
 ```json
 {
@@ -86,7 +65,7 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
       "id": "BUG-001",
       "category": "functional",
       "location": "Login page > Submit button",
-      "description": "Submit button does not disable during form submission, allowing double-submit",
+      "description": "Submit does not disable during submission, allowing double-submit",
       "impact": "Medium",
       "points": 5,
       "evidence": {
@@ -103,69 +82,39 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
     }
   ],
   "visual_checks": {
-    "duplicate_elements": {"pass": true, "evidence": null},
-    "duplicate_messages": {"pass": true, "evidence": null},
-    "text_overflow": {"pass": true, "evidence": null},
-    "text_truncation": {"pass": true, "evidence": null},
-    "visual_inequality": {"pass": true, "evidence": null},
+    "duplicate_elements":  {"pass": true, "evidence": null},
+    "duplicate_messages":  {"pass": true, "evidence": null},
+    "text_overflow":       {"pass": true, "evidence": null},
+    "text_truncation":     {"pass": true, "evidence": null},
+    "visual_inequality":   {"pass": true, "evidence": null},
     "visual_coherence": {
       "pass": false,
       "snapshot_refs": ["@e4kqmn", "@e7xrtw", "@e9bnnq"],
       "screenshot": "evidence/visual-coherence-badges.png",
       "description": "Badge placement in task list rows is inconsistent — badges shift horizontally based on title length instead of staying right-aligned"
     },
-    "partially_visible": {"pass": true, "evidence": null},
-    "broken_layout": {"pass": true, "evidence": null}
+    "partially_visible":   {"pass": true, "evidence": null},
+    "broken_layout":       {"pass": true, "evidence": null}
   },
   "viewport_checks": {
     "homepage": {
-      "desktop": {
-        "screenshot": "evidence/homepage-desktop.png",
-        "snapshot": "evidence/homepage-desktop.json",
-        "overflow": false,
-        "bugs_found": []
-      },
-      "tablet": {
-        "screenshot": "evidence/homepage-tablet.png",
-        "snapshot": "evidence/homepage-tablet.json",
-        "overflow": false,
-        "bugs_found": ["BUG-004"]
-      },
-      "mobile": {
-        "screenshot": "evidence/homepage-mobile.png",
-        "snapshot": "evidence/homepage-mobile.json",
-        "overflow": true,
-        "bugs_found": ["BUG-005", "BUG-006"]
-      }
+      "desktop": {"screenshot":"evidence/homepage-desktop.png","snapshot":"evidence/homepage-desktop.json","overflow":false,"bugs_found":[]},
+      "tablet":  {"screenshot":"evidence/homepage-tablet.png","snapshot":"evidence/homepage-tablet.json","overflow":false,"bugs_found":["BUG-004"]},
+      "mobile":  {"screenshot":"evidence/homepage-mobile.png","snapshot":"evidence/homepage-mobile.json","overflow":true,"bugs_found":["BUG-005","BUG-006"]}
     }
   },
-  "artifacts": [
-    {"type": "annotated-screenshot", "path": "evidence/page-annotated.png"},
-    {"type": "annotated-screenshot", "path": "evidence/bug-001-annotated.png"},
-    {"type": "annotated-screenshot", "path": "evidence/visual-coherence-badges.png"},
-    {"type": "annotated-screenshot", "path": "evidence/homepage-desktop.png"},
-    {"type": "annotated-screenshot", "path": "evidence/homepage-tablet.png"},
-    {"type": "annotated-screenshot", "path": "evidence/homepage-mobile.png"},
-    {"type": "snapshot", "path": "evidence/page-snapshot.json"},
-    {"type": "snapshot", "path": "evidence/homepage-desktop.json"},
-    {"type": "snapshot", "path": "evidence/homepage-tablet.json"},
-    {"type": "snapshot", "path": "evidence/homepage-mobile.json"}
-  ]
+  "artifacts": [ /* … paths for every screenshot / snapshot mentioned above … */ ]
 }
 ```
 
-**`visual_checks` rules:**
-- `"pass": true` + `"evidence": null` = checked, no issue found.
-- `"pass": false` = issue found. MUST include:
-  - `"snapshot_refs"`: array of `@eXXXX` refs for the affected elements
-  - `"screenshot"`: path to an annotated screenshot with action markers highlighting those refs
-  - `"description"`: what's wrong, in one sentence
-- Screenshot captured with `inject-action-markers!` + `save-audit-screenshot!` so affected refs visually highlighted.
-- Every screenshot path must exist in `bugfind-reports/evidence/` and appear in top-level `artifacts[]`.
+### `visual_checks` rules
 
-**Evidence capture for visual_checks:**
+- `"pass": true` + `"evidence": null` → checked, no issue.
+- `"pass": false` MUST include `snapshot_refs[]`, `screenshot` (annotated, action markers on refs), and `description` (one sentence).
+- Capture with `inject-action-markers!` + `save-audit-screenshot!`.
+- Every screenshot path lives under `bugfind-reports/evidence/` and appears in the top-level `artifacts[]`.
+
 ```clojure
-;; When a visual check fails, capture proof:
 (def snap (spel/capture-snapshot))
 (spel/inject-action-markers! "@e4kqmn" "@e7xrtw" "@e9bnnq")
 (spel/save-audit-screenshot!
@@ -175,131 +124,80 @@ Objective: be precise. Evidence over rhetoric. Reproduction over theory.
 (spel/remove-action-markers!)
 ```
 
-**`viewport_checks` rules:**
-- One entry per audited page. Each page has `desktop` (1280x720), `tablet` (768x1024), `mobile` (375x667).
-- Every viewport MUST have:
-  - `"screenshot"`: annotated screenshot captured at that viewport via `save-audit-screenshot!`
-  - `"snapshot"`: structural snapshot JSON captured at that viewport
-  - `"overflow"`: boolean — did horizontal scrollbar appear?
-  - `"bugs_found"`: array of bug IDs discovered at this viewport (empty array if clean)
-- Use `spel/set-viewport-size!` to resize between captures. Re-snapshot after each resize.
-- All screenshot/snapshot paths must exist in `bugfind-reports/evidence/` and appear in `artifacts[]`.
+### `viewport_checks` rules
 
-**Viewport capture workflow:**
+One entry per audited page with `desktop` (1280×720), `tablet` (768×1024), `mobile` (375×667). Every viewport MUST have `screenshot`, `snapshot`, `overflow` (bool), `bugs_found[]`. Use `spel/set-viewport-size!` between captures and re-snapshot after each resize.
+
 ```clojure
-;; For each page, at each viewport:
-(spel/set-viewport-size! 375 667)  ;; mobile
+(spel/set-viewport-size! 375 667)       ; mobile
 (spel/wait-for-load-state)
 (def snap (spel/capture-snapshot))
 (spel/save-audit-screenshot!
-  "Homepage @ mobile (375x667)"
+  "Homepage @ mobile (375×667)"
   "bugfind-reports/evidence/homepage-mobile.png"
   {:refs (:refs snap)})
-;; Save snapshot JSON separately via CLI:
-;; spel --session $SESSION snapshot -S --json > bugfind-reports/evidence/homepage-mobile.json
+;; snapshot JSON via CLI:
+;;   spel --session $SESSION snapshot -S --json > bugfind-reports/evidence/homepage-mobile.json
 
-;; Check for horizontal overflow:
+;; Overflow check:
 (let [sw (spel/evaluate "document.documentElement.scrollWidth")
       cw (spel/evaluate "document.documentElement.clientWidth")]
-  (> sw cw))  ;; true = overflow bug
+  (> sw cw))                              ; true = overflow bug
 ```
 
-### Self-challenge review (built into hunter report)
-
-Bug-hunter's internal skeptic phase produces challenge records within the hunter report:
+## Self-challenge records (inside hunter report)
 
 ```json
-{
-  "challenges": [
-    {
-      "bug_id": "BUG-001",
-      "original_points": 5,
-      "original_category": "functional",
-      "counter_argument": "The submit button has a 200ms debounce handler. Re-testing shows double-submission is prevented.",
-      "evidence": {
-        "screenshots": ["evidence/challenge-bug-001-counter.png"]
-      },
-      "confidence": 90,
-      "risk_calculation": "+5 correct, -10 wrong. EV = +3.5",
-      "decision": "DISPROVE",
-      "points_claimed": 5
-    }
-  ]
-}
+{"challenges":[
+  {"bug_id":"BUG-001","original_points":5,"original_category":"functional",
+   "counter_argument":"Submit button has a 200ms debounce handler. Re-testing shows double-submission is prevented.",
+   "evidence":{"screenshots":["evidence/challenge-bug-001-counter.png"]},
+   "confidence":90,
+   "risk_calculation":"+5 correct, -10 wrong. EV = +3.5",
+   "decision":"DISPROVE",
+   "points_claimed":5}]}
 ```
 
-### Final verdict (built into hunter report)
-
-Bug-hunter's internal referee phase produces final verdict within same report:
+## Final verdict (inside hunter report)
 
 ```json
-{
-  "verdict_summary": {
-    "total_bugs_reviewed": 12,
-    "confirmed_real": 9,
-    "dismissed": 3,
-    "severity_adjusted": 2,
-    "high_confidence": 10,
-    "medium_confidence": 2,
-    "low_confidence": 0
-  },
-  "verdicts": [
-    {
-      "bug_id": "BUG-001",
-      "hunter_claim": "Submit allows double-submission",
-      "self_challenge": "200ms debounce prevents it",
-      "final_observation": "Debounce exists but 300ms+ intervals bypass it. Real bug, lower severity.",
-      "evidence": {
-        "screenshots": ["evidence/verdict-bug-001.png"]
-      },
-      "verdict": "REAL BUG",
-      "final_severity": "Low",
-      "final_points": 1,
-      "confidence": "High"
-    }
-  ],
-  "verified_bug_list": {
-    "critical": [],
-    "medium": [],
-    "low": [
-      {
-        "bug_id": "BUG-001",
-        "description": "Submit double-submission at 300ms+ intervals",
-        "location": "Login page > Submit button",
-        "category": "functional",
-        "fix_suggestion": "Add server-side idempotency check"
-      }
-    ]
-  }
-}
+{"verdict_summary":{
+   "total_bugs_reviewed":12,"confirmed_real":9,"dismissed":3,
+   "severity_adjusted":2,"high_confidence":10,"medium_confidence":2,"low_confidence":0},
+ "verdicts":[
+   {"bug_id":"BUG-001",
+    "hunter_claim":"Submit allows double-submission",
+    "self_challenge":"200ms debounce prevents it",
+    "final_observation":"Debounce exists but 300ms+ intervals bypass it. Real bug, lower severity.",
+    "evidence":{"screenshots":["evidence/verdict-bug-001.png"]},
+    "verdict":"REAL BUG","final_severity":"Low","final_points":1,"confidence":"High"}],
+ "verified_bug_list":{
+   "critical":[], "medium":[],
+   "low":[{"bug_id":"BUG-001",
+           "description":"Submit double-submission at 300ms+ intervals",
+           "location":"Login page > Submit button",
+           "category":"functional",
+           "fix_suggestion":"Add server-side idempotency check"}]}}
 ```
 
----
-
-## Pipeline flow
+## Pipeline
 
 ```
-Phase 0 (optional): @spel-explorer + visual regression (built into Hunter)
-  Exploration data + visual regression report
-  ↓
+Phase 0 (optional): @spel-explorer + visual regression → exploration data + diff report
+        ↓
 Phase 1: @spel-bug-hunter — Hunt
-  Recommended first step: `spel audit` (runs all 7 audits at once — structure, contrast, colors, layout, fonts, links, headings)
-  Reads exploration data (if available)
-  Technical audit + Design audit (UX Architect lens)
-  → bugfind-reports/hunter-report.json (bugs section)
-  ↓
+        Recommended first step: `spel audit` (runs all 7: structure/contrast/colors/layout/fonts/links/headings)
+        Technical audit + Design audit (UX architect lens)
+        → bugfind-reports/hunter-report.json (bugs)
+        ↓
 Phase 2: @spel-bug-hunter — Self-Challenge (internal)
-  Re-verifies each finding independently
-  Attempts to disprove weak claims
-  → bugfind-reports/hunter-report.json (challenges section)
-  ↓ GATE: User reviews findings and challenges
+        Re-verifies each finding independently, tries to disprove weak claims
+        → bugfind-reports/hunter-report.json (challenges)
+        ↓ GATE: user reviews findings and challenges
 Phase 3: @spel-bug-hunter — Verdict (internal)
-  Weighs hunt claims vs self-challenge evidence
-  Independent verification of disputed bugs
-  → bugfind-reports/hunter-report.json (verdict section — final deliverable)
+        Weighs hunt vs challenge, independent verification of disputed bugs
+        → bugfind-reports/hunter-report.json (verdict — final deliverable)
 ```
-
----
 
 ## Directory convention
 
@@ -309,61 +207,47 @@ bugfind-reports/
   evidence/
     <page>-snapshot.json
     <page>-annotated.png
-    <page>-desktop.png
-    <page>-desktop.json
-    <page>-tablet.png
-    <page>-tablet.json
-    <page>-mobile.png
-    <page>-mobile.json
+    <page>-{desktop,tablet,mobile}.{png,json}
     bug-001-annotated.png
     visual-coherence-badges.png
     challenge-bug-001-counter.png
     verdict-bug-001.png
 ```
 
----
+## UX architect lens (Hunter phase 2)
 
-## UX architect lens (Hunter Phase 2)
-
-Hunter applies design quality audit inspired by Jobs/Ive design philosophy. For every page:
+Design audit inspired by Jobs/Ive. Per page:
 
 | Dimension | Questions |
 |-----------|-----------|
-| Visual hierarchy | Eye lands where it should? Most important element most prominent? Scannable in 2 seconds? |
-| Spacing & rhythm | Whitespace consistent and intentional? Vertical rhythm harmonious? |
-| Typography | Clear hierarchy in type sizes? Too many weights competing? Calm or chaotic? |
-| Color | Used with restraint and purpose? Guides attention? Sufficient contrast? |
-| Alignment & grid | Elements on consistent grid? Anything off by 1-2px? |
-| Component consistency | Similar elements identical across screens? Interactive elements obvious? States accounted for? Repeated list/card patterns maintain consistent internal layout (badges, icons, metadata in same position regardless of content length)? |
-| Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos/headings/nav blocks? Same message text appearing in multiple places? |
-| Responsiveness | Tested at all 3 viewports (desktop 1280x720, tablet 768x1024, mobile 375x667)? Annotated screenshot + snapshot captured at each? Touch targets ≥44x44px on mobile? No horizontal overflow? Navigation usable at every size? |
+| Visual hierarchy | Eye lands where intended? Most important element most prominent? Scannable in 2 s? |
+| Spacing & rhythm | Whitespace consistent + intentional? Vertical rhythm harmonious? |
+| Typography | Clear size hierarchy? Too many weights? Calm or chaotic? |
+| Color | Restrained + purposeful? Guides attention? Enough contrast? |
+| Alignment & grid | Elements on a consistent grid? Anything 1–2 px off? |
+| Component consistency | Same component looks identical across screens? States accounted for? Repeated patterns keep internal layout regardless of content length? |
+| Density | Anything removable without losing meaning? Every element earning its place? Duplicate logos / headings / nav blocks? Same message text twice? |
+| Responsiveness | All 3 viewports captured? Touch targets ≥ 44×44 on mobile? No horizontal overflow? Nav usable at every size? |
 
-Jobs Filter:
-- "Would a user need to be told this exists?" → UX confusion bug
-- "Can this be removed without losing meaning?" → Density bug
-- "Does this feel inevitable?" → Design inconsistency bug / Visual coherence bug
-- "Are there duplicate elements or repeated messages that shouldn't appear twice?" → Duplication bug
-- "Does text fit its container or does it overflow/truncate?" → Content overflow bug
-- "Is any meaningful content clipped, off-screen, or hidden behind an overlay?" → Visibility bug
-- "Are grid columns aligned and flex rows intact?" → Layout bug
-- "Do repeated UI patterns keep their internal layout consistent regardless of content?" → Visual coherence bug
-
----
+**Jobs filter**:
+"Would a user need to be told this exists?" → UX confusion.
+"Can this be removed without losing meaning?" → Density bug.
+"Does this feel inevitable?" → Inconsistency / coherence bug.
+"Are there duplicate elements or repeated messages?" → Duplication.
+"Does text fit its container?" → Content overflow.
+"Is meaningful content clipped, off-screen, or hidden behind an overlay?" → Visibility.
+"Are grid columns aligned and flex rows intact?" → Layout.
+"Do repeated UI patterns keep their internal layout regardless of content?" → Coherence.
 
 ## Evidence guidelines
 
 1. Every bug needs ≥1 piece of evidence. No exceptions.
-2. Annotated screenshots with action markers = gold standard. Mark affected refs with `spel/inject-action-markers!`, capture with `spel/save-audit-screenshot!` (includes caption + ref overlays + highlighted elements in one image).
-3. Every annotated screenshot must show: (a) ref labels for cross-reference with snapshot, (b) action markers highlighting affected elements.
-4. Snapshot JSON provides structural proof. Style values, ARIA attributes, element hierarchy — all machine-verifiable. Always capture alongside screenshots.
-5. For non-visual bugs, console output or network logs acceptable, but pair with screenshot when bug has any visible effect.
-6. Independent capture mandatory for Skeptic and Referee. They must capture OWN evidence in OWN session. Reusing Hunter's evidence defeats adversarial purpose.
-
----
+2. Annotated screenshots with action markers are gold standard — mark affected refs with `inject-action-markers!`, capture with `save-audit-screenshot!` (caption + ref overlays + highlights in one image).
+3. Every annotated screenshot shows ref labels (for snapshot cross-ref) **and** action markers on affected elements.
+4. Snapshot JSON provides structural proof — style values, ARIA, hierarchy. Capture alongside screenshots.
+5. Non-visual bugs: console / network logs acceptable; pair with screenshot when the bug has any visible effect.
+6. Skeptic and Referee must capture **own** evidence in **own** session — reusing Hunter's evidence defeats the purpose.
 
 ## See also
 
-- [AGENT_COMMON.md](AGENT_COMMON.md) — Session management, I/O contracts, gates, error recovery
-- [VISUAL_QA_GUIDE.md](VISUAL_QA_GUIDE.md) — Baseline capture, structural diff, regression thresholds
-- [SELECTORS_SNAPSHOTS.md](SELECTORS_SNAPSHOTS.md) — Snapshot commands, annotation, style tiers
-- [EVAL_GUIDE.md](EVAL_GUIDE.md) — SCI scripting for console/network inspection
+- `AGENT_COMMON.md` · `VISUAL_QA_GUIDE.md` · `SELECTORS_SNAPSHOTS.md` · `EVAL_GUIDE.md`

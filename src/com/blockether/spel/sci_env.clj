@@ -110,6 +110,11 @@
 (defonce !cdp-disconnect-handler (atom nil))
 (defonce !cdp-reconnect-handler (atom nil))
 
+;; Set-device handler — injected by daemon.clj so SCI scripts can call
+;; `(spel/set-device! "iphone-14")` without sci_env depending on daemon
+;; (which would be a circular dep). Handler takes a string device name.
+(defonce !set-device-handler (atom nil))
+
 ;; CDP idle timeout — daemon auto-shuts down after this many ms of CDP disconnection.
 ;; Injected by daemon from SPEL_CDP_IDLE_TIMEOUT env var (default 30 min).
 ;; Exposed to SCI as (spel/cdp-idle-timeout) and (spel/set-cdp-idle-timeout! ms).
@@ -689,6 +694,65 @@
   ([html opts] (throw-if-anomaly (page/set-content! (require-page!) html opts))))
 (defn sci-set-viewport-size! [width height]
   (page/set-viewport-size! (require-page!) width height))
+
+(defn sci-set-device!
+  "Switch the current session to a device preset programmatically.
+
+   Unlike `set-viewport-size!`, this reproduces a full device:
+   viewport + device-scale-factor + mobile flag + touch + user agent.
+
+   Accepts:
+   - A keyword: `:iphone-14`, `:pixel-7`, `:ipad-mini`, etc.
+   - A string device name: `\"iPhone 14\"`, `\"iphone-14\"`, `\"iphone_14\"`
+     (matching is loose — case/separator/punctuation insensitive).
+
+   Behavior in daemon mode: delegates to the daemon handler, which saves
+   the current URL, closes the context, creates a fresh one with the
+   preset options, and re-navigates. Console/error/response listeners
+   are re-registered automatically.
+
+   Behavior in standalone SCI (no daemon): recreates the context on the
+   existing browser and opens a new page.
+
+   Throws when the device name is unknown — the error carries the list
+   of available presets.
+
+   Returns: `{:device <name> :preset <preset-map>}`.
+
+   Examples:
+     (spel/set-device! :iphone-14)
+     (spel/set-device! \"Pixel 7\")
+     (spel/navigate \"https://example.org\")
+     (spel/screenshot {:path \"/tmp/mobile.png\"})"
+  [device]
+  (let [name-str (cond
+                   (keyword? device) (name device)
+                   (string?  device) device
+                   :else (str device))]
+    ;; Prefer the daemon-installed handler (daemon owns the browser lifecycle).
+    (if-let [handler @!set-device-handler]
+      (handler name-str)
+      ;; Standalone SCI: no daemon, recreate context on the current browser ourselves.
+      (let [preset (devices/resolve-device-by-name name-str)]
+        (when-not preset
+          (throw (ex-info (str "Unknown device: " name-str
+                               ". Available: "
+                               (clojure.string/join ", " (devices/available-device-names)))
+                          {:device name-str
+                           :available (devices/available-device-names)})))
+        (let [browser (or @!browser
+                          (throw (ex-info "set-device! requires an active session. Call (spel/start!) first." {})))
+              ctx-opts preset
+              current-url (try (when-let [p @!page] (page/url p)) (catch Exception _ nil))]
+          (when-let [p @!page]    (try (core/close-page! p) (catch Exception _ nil)))
+          (when-let [c @!context] (try (.close ^com.microsoft.playwright.BrowserContext c) (catch Exception _ nil)))
+          (let [new-ctx (throw-if-anomaly (core/new-context browser ctx-opts))
+                new-pg  (throw-if-anomaly (core/new-page-from-context new-ctx))]
+            (reset! !context new-ctx)
+            (reset! !page    new-pg)
+            (reset! !device  name-str)
+            (when current-url (page/navigate new-pg current-url))
+            {:device name-str :preset preset}))))))
 (defn sci-set-page-default-timeout! [ms]
   (page/set-default-timeout! (require-page!) ms))
 (defn sci-set-default-navigation-timeout! [ms]
@@ -1874,6 +1938,7 @@
                   ;; Page functions
                   ['set-content!     sci-set-content!]
                   ['set-viewport-size! sci-set-viewport-size!]
+                  ['set-device!      sci-set-device!]
                   ['viewport-size  sci-viewport-size]
                   ['set-default-timeout! sci-set-page-default-timeout!]
                   ['set-default-navigation-timeout! sci-set-default-navigation-timeout!]

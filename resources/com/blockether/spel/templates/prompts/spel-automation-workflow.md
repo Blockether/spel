@@ -4,27 +4,21 @@ description: Automation workflow: explore, script, and interact with browser ses
 
 # Automation workflow
 
-Browser exploration + script creation via spel subagents.
-
-Orchestrator must maintain `orchestration/automation-pipeline.json` as machine-readable handoff for stage status + produced artifacts.
-
-## Parameters
-
-- Task: automation goal (explore site, write script, auth-gated automation)
-- Target URL: URL to automate
-- Script output (optional): path for generated `.clj` scripts (default: `spel-scripts/`)
-- Args (optional): args to pass to eval scripts via `--`
-
-## Pipeline overview
-
-Two agents, progressive pipeline. Run only what needed.
+Two-agent pipeline. Orchestrator keeps `orchestration/automation-pipeline.json` current.
 
 | Step | Agent | Produces | Consumes |
 |------|-------|----------|----------|
-| 1. Explore | @spel-explorer | `exploration-manifest.json`, snapshots, screenshots, `auth-state.json` (optional) | Target URL |
-| 2. Automate | @spel-automator | `spel-scripts/<name>.clj` | Exploration data (optional) |
+| 1. Explore | `@spel-explorer` | `exploration-manifest.json`, snapshots, screenshots, `auth-state.json` (opt.) | Target URL |
+| 2. Automate | `@spel-automator` | `spel-scripts/<name>.clj` | Exploration data (opt.) |
 
-## Explore
+## Parameters
+
+- Task (explore site / write script / auth-gated automation)
+- Target URL
+- Script output dir (default `spel-scripts/`)
+- Args forwarded via `--`
+
+## 1. Explore
 
 ```xml
 <explore>
@@ -33,11 +27,16 @@ Two agents, progressive pipeline. Run only what needed.
 </explore>
 ```
 
-GATE: Review exploration artifacts, pages explored, selectors found, navigation coverage. Do NOT proceed until reviewed.
-Required artifact before this gate:
-- `exploration-manifest.json`
+**GATE** — review pages explored, selectors found, navigation coverage.
+Required artifact: `exploration-manifest.json`.
 
-## Automate
+### Auth-gated (optional)
+
+Login needs 2FA/CAPTCHA/SSO? Explorer runs Step 0: open with `--interactive` +
+user's profile, user authenticates manually, explorer exports `auth-state.json`,
+then continues normal exploration. Reuse with `spel --load-state auth-state.json …`.
+
+## 2. Automate
 
 ```xml
 <automate>
@@ -48,91 +47,42 @@ Required artifact before this gate:
 </automate>
 ```
 
-GATE: Review generated script, verify runs with test args, handles errors, produces expected output. Do NOT proceed until approved.
-Required artifacts before this gate:
+**GATE** — review generated script, run with test args, verify error handling + expected output.
+
+Required artifacts:
 - `spel-scripts/<name>.clj`
-- Any exact JSON/data output paths requested by user
+- Any JSON/data output paths requested by user
 
-## Auth-gated exploration (optional)
+## Session isolation + CDP
 
-When target site requires login (2FA, CAPTCHA, SSO), explorer handles auth as Step 0:
-
-1. Explorer opens site with `--interactive` + user's browser profile
-2. User authenticates manually
-3. Explorer exports `auth-state.json` for reuse
-4. Explorer continues normal exploration workflow
-
-Exported `auth-state.json` usable by automator:
-```bash
-spel --load-state auth-state.json eval-sci script.clj
-```
-
-## Composition
-
-- With bugfind workflow: run explore step before bug-finding pipeline. Hunter reads `exploration-manifest.json` for prioritized coverage.
-- With test workflow: exploration data helps test planner identify selectors + flows.
-- With visual workflow: explorer snapshots provide baseline material for Bug Hunter's visual regression phase.
-
-## Session isolation
-
-Each agent uses own named session:
-
-- Explorer: `exp-<name>`
-- Automator: `auto-<name>`
-
-Sessions never overlap. Each agent closes session on completion or error.
-
-### CDP ownership and port policy
-
-For CDP-based runs, enforce:
-
-1. One session owns one CDP endpoint for duration of stage.
-2. Reuse that session across all commands in stage (`open`, `snapshot`, `click`, `eval-sci`).
-3. Prefer ephemeral debug ports for dedicated debug browsers; avoid assuming `9222` is free.
-4. Use dedicated `--user-data-dir` per run → avoid profile lock collisions.
-5. Recovery must be targeted: relaunch only dedicated debug browser for that stage. Never kill all Chrome processes.
-
-Example launch/attach pattern:
+One stage = one named session (`exp-<name>`, `auto-<name>`) reused across every command. For CDP runs: one session owns one endpoint; prefer ephemeral ports (never assume 9222); dedicated `--user-data-dir` per run; recovery = relaunch only the dedicated debug browser, never global Chrome kills.
 
 ```bash
 SESSION="exp-<name>"
 CDP_PORT=$(spel find-free-port)
-
-open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
-
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT \
+     --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open <url>
-spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
 ```
 
-## Usage patterns
+## Navigation defaults
 
-- Data exploration only: run explore step alone
-- Full automation script creation: run explore + automate
-- Auth-gated automation: run explore with auth bootstrap, then automate with `--load-state auth-state.json`
-- Quick script without exploration: run automate alone (automator explores minimally on own)
+- Simulate user actions; never `spel open <url>` to skip steps (only initial load).
+- Heavy portal pages: `wait --load domcontentloaded` then `wait --url <domain>` before extraction.
+- Modal/consent/postcode: fresh `snapshot` after each action. Pointer-interception error → stop retries, run full `snapshot` (not `-i`), resolve modal, resume.
+- Longer click timeouts are a last resort.
+- Tool policy blocks file edits → write artifacts via `bash`/`python`, read back to verify.
 
-## Final artifact gate (fail-closed)
+## Final artifact gate (fail closed)
 
-Before finishing automation workflow output:
-
-1. Enumerate required artifacts for current task.
-2. Verify each path exists + is non-empty.
-3. If any artifact missing/empty → one focused corrective pass writing only missing outputs.
-4. Re-check paths after corrective pass.
-5. If still missing → mark handoff status `blocked`, list `missing_artifacts` explicitly.
-
-Never emit `status: completed` while required artifacts missing.
+1. Enumerate required artifacts.
+2. Verify each exists + non-empty.
+3. Missing → one focused corrective pass writing only missing outputs.
+4. Still missing → status `blocked`, list `missing_artifacts` explicitly.
+5. End direct-artifact runs with a concrete file check (`test -s <path>`) recorded in the handoff JSON.
 
 ## Notes
 
-- Scripts accept args via `--` separator: `spel eval-sci script.clj -- arg1 arg2`
-- Every step has GATE → human review before proceeding
-- Each agent produces machine-readable output for downstream composition
-- Missing artifacts fail closed: if promised JSON/data file absent → step incomplete
-- For heavy portal front pages (e.g. `onet.pl`, `wp.pl`), prefer split waits: `wait --load domcontentloaded` then `wait --url <domain>` before collecting artifacts
-- For consent/postcode/login modals, treat overlay handling as mandatory state management: after each modal-related action run fresh snapshot; if click logs indicate overlay/pointer interception, take full `snapshot` (not only `snapshot -i`), resolve/close modal, resume navigation.
-- If tool policy blocks patch-style editing, artifact files must be written with `bash`/`python` then read back for verification
-- Do not pause for generic external-helper checks when task is standard spel automation; execute directly, keep handoff artifacts current
-- For direct single-URL artifact tasks, skip exploration entirely: execute minimal commands in order (`open` -> waits -> `get title`/`get url` -> write JSON -> read/verify JSON), then update `orchestration/automation-pipeline.json`
-- Shell command hygiene: tool `bash` command fields must contain only executable shell commands (no narrative comments/prose embedded in command text).
-- End every direct artifact run with explicit file checks (e.g. `test -s`), include verification result in handoff JSON.
+- Scripts take args via `--`: `spel eval-sci script.clj -- arg1 arg2`.
+- Skip exploration for single-URL artifact tasks — execute `open → waits → get title/url → write JSON → verify` in one turn, update the pipeline JSON.
+- Compose with bugfind (exploration seeds Hunter), test (selectors/flows feed the test-writer), visual (snapshots feed Hunter's Phase 0).

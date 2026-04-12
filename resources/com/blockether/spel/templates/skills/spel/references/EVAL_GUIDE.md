@@ -1,427 +1,240 @@
 # eval-sci mode guide
-spel's `eval-sci` mode runs Clojure code inside a [SCI](https://github.com/babashka/sci) sandbox with full access to the Playwright API. No JVM startup, no project setup. Pass code directly:
+
+`eval-sci` runs Clojure inside a [SCI](https://github.com/babashka/sci) sandbox with full Playwright access. No JVM startup, no project setup.
 
 ```bash
 spel eval-sci '(spel/navigate "https://example.org") (println (spel/title))'
-```
-
-Or run a file:
-
-```bash
 spel eval-sci script.clj
+echo '(spel/navigate "…") (println (spel/title))' | spel eval-sci --stdin
 ```
 
-Or pipe from stdin:
+> **Daemon mode is default.** If a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser — no `spel/start!` / `spel/stop!` needed. Standalone scripts manage their own browser (see § Session lifecycle).
 
-```bash
-echo '(spel/navigate "https://example.org") (println (spel/title))' | spel eval-sci --stdin
-```
+## Discovery — `spel/help`
 
-> Daemon mode is default. When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses existing browser — no `spel/start!` or `spel/stop!` needed. See [Session Lifecycle](#session-lifecycle) for standalone scripts that manage their own browser.
-
-## Discovering the API: `spel/help`
-
-`spel/help` is primary discovery tool. Eval sandbox has 350+ functions across 14 namespaces. Don't guess signatures. Ask.
+Sandbox has 350+ fns across 14 namespaces. Don't guess signatures.
 
 ```clojure
-;; List all namespaces with function counts
-(spel/help)
-;; => spel/     143 functions  Simplified API with implicit page
-;;    snapshot/   5 functions  Accessibility snapshots
-;;    annotate/   8 functions  Screenshot annotations
-;;    ...
-
-;; List every function in a namespace
-(spel/help "spel")
-;; => spel/navigate   [url] [url opts]   Navigates the page to a URL.
-;;    spel/click      [sel] [sel opts]   Clicks an element.
-;;    spel/fill       [sel value] ...    Fills an input element with text.
-;;    ...
-
-;; Search by keyword across ALL namespaces
-(spel/help "screenshot")
-;; => spel/screenshot           [path-or-opts]  Takes a screenshot of the page.
-;;    spel/locator-screenshot   [sel] [sel opts] Takes a screenshot of the element.
-;;    annotate/annotated-screenshot ...
-;;    ...
-
-;; Search for snapshot-related functions
-(spel/help "snapshot")
-;; => spel/capture-snapshot             [] [page-or-opts] ...
-;;    snapshot/capture-snapshot         [] [page-or-opts] ...
-;;    snapshot/capture-full-snapshot    [] [page]          ...
-;;    ...
-
-;; Get details for a specific function
-(spel/help "spel/click")
-;; => spel/click  [sel] [sel opts]  Clicks an element.
+(spel/help)                  ; list namespaces + counts
+(spel/help "spel")           ; list every fn in one namespace with signatures + docs
+(spel/help "screenshot")     ; keyword search across namespaces
+(spel/help "spel/click")     ; one fn's signature + doc
 ```
 
-Rule of thumb: run `(spel/help "keyword")` before writing any code that uses an unverified function.
+Rule of thumb: run `(spel/help "keyword")` before calling anything you haven't verified.
 
-## Viewing Source: `spel/source`
-
-When `spel/help` shows a function exists but you need to understand what it does under the hood:
+## Source — `spel/source`
 
 ```clojure
-;; Show the SCI wrapper source and which library function it delegates to
-(spel/source "spel/navigate")
-;; => (defn navigate [url] (page/navigate (require-page!) url))
-;;    Delegates to: com.blockether.spel.page/navigate
-
-;; Search by bare name (shows candidates if ambiguous)
-(spel/source "screenshot")
+(spel/source "spel/navigate")    ; shows SCI wrapper + delegation target
+(spel/source "screenshot")        ; bare name; lists candidates when ambiguous
 ```
 
 ## Session lifecycle
 
-> Daemon mode (default): When a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses existing browser. Call `spel/navigate`, `spel/screenshot`, etc. directly — no `spel/start!` or `spel/stop!` needed. Daemon persists state between `eval-sci` calls, no need to re-navigate same URL.
->
-> `spel/start!` and `spel/stop!` only needed for standalone scripts running without a daemon.
-
-In daemon mode, `spel/start!` is a no-op if page already exists → standalone scripts work unchanged, but calling it is unnecessary and wasteful.
+Daemon mode: call `spel/navigate`, `spel/screenshot`, … directly. `spel/start!` is a no-op when a page already exists. `spel/stop!` is only needed for standalone scripts.
 
 ### Standalone scripts (no daemon)
 
-`spel/start!` creates full Playwright stack: Playwright instance, browser, context, page. Only use when running `spel eval-sci` without a daemon.
-
 ```clojure
-;; Defaults: headless Chromium, standard viewport
 (spel/start!)
-
-;; With options
-(spel/start! {:headless false       ;; visible browser for debugging
-              :slow-mo 500          ;; slow down every action by 500ms
-              :browser :firefox      ;; :chromium (default), :firefox, :webkit
+(spel/start! {:headless false :slow-mo 500
+              :browser :firefox            ; :chromium (default) / :webkit
               :viewport {:width 1920 :height 1080}
-              :base-url "https://example.org"  ;; relative URLs resolve against this
+              :base-url "https://example.org"
               :user-agent "MyBot/1.0"
-              :locale "fr-FR"
-              :timezone-id "Europe/Paris"
-              :timeout 10000})       ;; default action timeout in ms
+              :locale "fr-FR" :timezone-id "Europe/Paris"
+              :timeout 10000})
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `:headless` | boolean | `true` | Run browser without visible window |
-| `:slow-mo` | number | nil | Milliseconds to wait between actions |
-| `:browser` | keyword | `:chromium` | `:chromium`, `:firefox`, or `:webkit` |
-| `:viewport` | map | browser default | `{:width N :height N}` |
-| `:base-url` | string | nil | Base URL for relative navigations |
-| `:user-agent` | string | nil | Custom user agent string |
-| `:locale` | string | nil | Browser locale (e.g. `"en-US"`, `"ja-JP"`) |
-| `:timezone-id` | string | nil | Timezone (e.g. `"America/New_York"`) |
-| `:timeout` | number | 30000 | Default timeout for all actions (ms) |
-
-### Stopping and restarting
+| Option | Type | Default | Notes |
+|--------|------|---------|-------|
+| `:headless` | bool | `true` | Visible window when `false` |
+| `:slow-mo` | ms | nil | Slow down every action |
+| `:browser` | kw | `:chromium` | `:firefox` / `:webkit` |
+| `:viewport` | `{:width :height}` | browser default | |
+| `:base-url` | str | nil | Relative URLs resolve against this |
+| `:user-agent` | str | nil | |
+| `:locale` / `:timezone-id` | str | nil | |
+| `:timeout` | ms | 30000 | Default action timeout |
 
 ```clojure
-(spel/stop!)     ;; closes browser, cleans up all resources, returns :stopped
-
-(spel/restart!)  ;; equivalent to stop! then start! with fresh defaults
-(spel/restart! {:browser :firefox :headless false})  ;; restart with new options
+(spel/stop!)                                                ; => :stopped
+(spel/restart!)                                             ; stop + start (fresh defaults)
+(spel/restart! {:browser :firefox :headless false})
 ```
 
-### Tab management
+### Tabs
 
 ```clojure
-(spel/tabs)          ;; list all open tabs: [{:index 0 :url "..." :title "..." :active true}]
-(spel/new-tab!)      ;; open a new blank tab and switch to it
-(spel/switch-tab! 0) ;; switch back to the first tab
+(spel/tabs)                                                 ; [{:index 0 :url … :title … :active true} …]
+(spel/new-tab!)                                             ; opens + switches
+(spel/switch-tab! 0)
 ```
 
-Each tab is a separate Page. `spel/new-tab!` creates new page in current context and makes it active page for all subsequent `spel/` calls.
+Each tab is a distinct Page. `new-tab!` makes the new one current for every subsequent `spel/` call.
 
-## Available namespaces
+## Available namespaces (pre-registered)
 
-Every namespace below pre-registered. No `require` or `import` needed.
+| Namespace | Fns | Purpose |
+|-----------|----:|---------|
+| `spel/` | ~143 | Simplified API with implicit page — the primary namespace |
+| `snapshot/` | 5 | `capture`, `capture-full`, `clear-refs!`, `ref-bounding-box`, `resolve-ref` |
+| `annotate/` | 8 | `annotated-screenshot`, `save!`, `mark!`, `unmark!`, `audit-screenshot`, `save-audit!`, `report->html`, `report->pdf` |
+| `stitch/` | 3 | `stitch-vertical`, `stitch-vertical-overlap`, `read-image` |
+| `input/` | 12 | Low-level keyboard / mouse / touchscreen (explicit device args) |
+| `frame/` | 22+ | Frame + iframe ops (explicit Frame args) |
+| `net/` | 46 | Request/response inspection, routing, mocking |
+| `loc/` (alias `locator/`) | 39 | Raw Locator ops with explicit Locator arg |
+| `assert/` | 31 | `assert-that`, `has-text`, `is-visible`, `has-url`, `loc-not`, `page-not`, … |
+| `core/` | 29 fn + 4 macros | Lifecycle — `with-testing-page`/`-api`, `with-playwright`, `with-browser`, `with-context`, `with-page` |
+| `page/` | 42 | Raw Page ops with explicit page arg |
+| `role/` | 82 constants | `role/button`, `role/heading`, `role/navigation`, … |
+| `markdown/` | 2 | `from-markdown-table`, `to-markdown-table` |
+| `constants/` | 25 | Playwright enum values as named Clojure vars |
+| `device/` | 20 | Device presets + `device-presets` / `viewport-presets` helper maps |
 
-### Browser automation
+### When to drop down
 
-| Namespace | Functions | Purpose |
-|-----------|-----------|---------|
-| `spel/` | ~143 | Simplified API with implicit page. Covers navigation, clicks, fills, screenshots, assertions, snapshots, annotations, and more. Primary namespace for `eval-sci` scripts. |
-| `snapshot/` | 5 | Accessibility snapshot capture and ref resolution. `capture`, `capture-full`, `clear-refs!`, `ref-bounding-box`, `resolve-ref`. |
-| `annotate/` | 8 | Screenshot annotations and reports. `annotated-screenshot`, `save!`, `mark!`, `unmark!`, `audit-screenshot`, `save-audit!`, `report->html`, `report->pdf`. |
-| `stitch/` | 3 | Vertical image stitching. `stitch-vertical`, `stitch-vertical-overlap`, `read-image`. |
-| `input/` | 12 | Low-level keyboard, mouse, touchscreen control. Takes explicit device args (e.g. `(input/key-press (spel/keyboard) "Enter")`). |
-| `frame/` | 22+ | Frame and iframe operations. Navigate frames, create FrameLocators, evaluate JS in frames. Takes explicit Frame args. |
-| `net/` | 46 | Network request/response inspection and route handling. Inspect headers, status, body. Mock or abort requests. |
-| `loc/` | 39 | Raw Locator operations with explicit Locator arg. Click, fill, hover, check, get attributes, evaluate JS on elements. |
-| `assert/` | 31 | Playwright assertion functions. `assert-that`, `has-text`, `is-visible`, `has-url`, `loc-not`, `page-not`. Takes assertion objects. |
-| `core/` | 29 fn + 4 macros | Browser lifecycle. `with-testing-page` (recommended), `with-testing-api`, plus low-level `with-playwright`, `with-browser`, `with-context`, `with-page`. |
-| `page/` | 42 | Raw Page operations with explicit page arg. Same functions as library's `com.blockether.spel.page` namespace. |
-| `locator/` | (alias) | Alias of `loc/`. Both names work identically. |
-| `role/` | 82 constants | AriaRole constants: `role/button`, `role/link`, `role/heading`, `role/navigation`, `role/textbox`, etc. |
-| `markdown/` | 2 | Markdown table parsing. `from-markdown-table`, `to-markdown-table`. |
-| `constants/` | 25 | Playwright enum values as named Clojure vars. `load-state-networkidle`, `wait-until-commit`, `color-scheme-dark`, `mouse-button-right`, etc. |
-| `device/` | 20 | Device preset maps. `device/iphone-14`, `device/pixel-7`, `device/desktop-chrome`, plus `device-presets` and `viewport-presets` helper maps. |
-
-
-### When to use which namespace
-
-For most `eval-sci` scripts, `spel/` is all you need. Wraps implicit page, handles locator resolution from strings, refs, and Locator objects.
-
-Drop down to `loc/`, `page/`, `frame/`, `input/`, or `net/` when you need:
-- Explicit control over which page, frame, or locator you're operating on
-- Low-level mouse/keyboard sequences
-- Network interception and response mocking
-- Multi-frame navigation
+Use `spel/` for almost everything — it handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Fall back to `loc/`, `page/`, `frame/`, `input/`, `net/` when you need explicit control over which object you're operating on, low-level pointer/keyboard sequences, network interception, or multi-frame navigation.
 
 ### Constants & device presets
 
-Playwright enum values passed as keywords in option maps. Options layer converts them to Java enums automatically. `constants/` namespace provides named vars as alternative. Java enum interop (e.g. `LoadState/NETWORKIDLE`) also works.
+Playwright enums pass as keywords in option maps; options layer converts to Java enums. `constants/` provides named vars. Java enum interop also works.
 
 ```clojure
-;; Keywords (recommended)
 (spel/wait-for-load-state :networkidle)
 (spel/navigate "https://example.org" {:wait-until :commit})
 (spel/emulate-media! {:color-scheme :dark})
 (spel/click "#el" {:button :right})
 
-;; constants/ namespace (named vars)
 (spel/wait-for-load-state constants/load-state-networkidle)
-(spel/navigate "https://example.org" {:wait-until constants/wait-until-commit})
+(spel/wait-for-load-state LoadState/NETWORKIDLE)          ; interop
 
-;; Java enum interop (also works)
-(spel/wait-for-load-state LoadState/NETWORKIDLE)
-
-;; Device presets via start! (keyword in opts map)
 (spel/start! {:device :iphone-14})
-
-;; Device presets via device/ namespace
 (spel/start! {:device device/iphone-14})
 
-;; Dynamic JSON encoder (pre-bound to json/write-json-str)
-(*json-encoder* {:a 1 :b [2 3]})  ;; => "{\"a\":1,\"b\":[2,3]}"
+(*json-encoder* {:a 1 :b [2 3]})                          ; => "{\"a\":1,\"b\":[2,3]}"
 ```
 
-See [CONSTANTS.md](CONSTANTS.md) for complete keyword reference.
+See `CONSTANTS.md` for the full keyword reference.
 
-## Clojure standard library
-These Clojure namespaces available without any `require`:
+## Clojure stdlib (no `require` needed)
+
 | Namespace | Notes |
 |-----------|-------|
-| `clojure.core` | Full standard library: `map`, `filter`, `reduce`, `let`, `fn`, `atom`, `swap!`, `deref`, `assert`, etc. |
-| `clojure.string` | `split`, `join`, `replace`, `trim`, `lower-case`, `upper-case`, `includes?`, `starts-with?`, `blank?`. Also available as `str/` — e.g. `(str/upper-case "hello")` |
-| `clojure.set` | `union`, `intersection`, `difference`, `rename-keys` |
-| `clojure.walk` | `postwalk`, `prewalk`, `keywordize-keys`, `stringify-keys` |
-| `clojure.edn` | `read-string` for safe EDN parsing |
-| `clojure.repl` | `doc`, `source`, `dir` |
-| `clojure.template` | `do-template`, `apply-template` |
-| `pprint/` | Pretty-printing via [fipp](https://github.com/brandonbloom/fipp) (GraalVM-safe). `pprint`, `print-table`. Also available as `clojure.pprint/` — e.g. `(pprint/pprint data)` |
-| `json/` | JSON via [charred](https://github.com/cnuernber/charred): `json/read-json`, `json/write-json-str`. E.g. `(json/write-json-str {:a 1})` → `"{\"a\":1}"` |
-| `*json-encoder*` | Dynamic var bound to `json/write-json-str`. Used internally for JSON encoding; rebind to customize serialization. |
+| `clojure.core` | Full stdlib |
+| `clojure.string` (alias `str/`) | `split`, `join`, `replace`, `trim`, `includes?`, `starts-with?`, `blank?`, … |
+| `clojure.set` / `clojure.walk` / `clojure.edn` / `clojure.repl` / `clojure.template` | Usual suspects |
+| `pprint/` (alias `clojure.pprint/`) | [fipp](https://github.com/brandonbloom/fipp) — GraalVM-safe |
+| `json/` | [charred](https://github.com/cnuernber/charred): `read-json`, `write-json-str` |
+| `*json-encoder*` | Dynamic, defaults to `json/write-json-str`; rebind to customize |
 
 ## File I/O
 
-### `slurp` and `spit`
-
 ```clojure
-;; Read entire file as string
 (slurp "/tmp/data.txt")
+(spit "/tmp/out.txt" "hello")
+(spit "/tmp/log.txt" "more\n" :append true)
 
-;; Write string to file (creates or overwrites)
-(spit "/tmp/output.txt" "hello world")
-
-;; Append to file
-(spit "/tmp/log.txt" "new line\n" :append true)
-```
-
-### `clojure.java.io` (aliased as `io`)
-
-```clojure
-;; Create parent directories
+;; clojure.java.io (aliased `io`)
 (io/make-parents "/tmp/deep/nested/file.txt")
 (spit (io/file "/tmp/deep/nested/file.txt") "content")
-
-;; File objects
-(io/file "/tmp" "subdir" "file.txt")  ;; => #<File /tmp/subdir/file.txt>
-
-;; Readers and writers
-(with-open [r (io/reader "/tmp/data.txt")]
-  (line-seq r))
-
-;; Copy streams
-(io/copy (io/input-stream "/tmp/src.bin")
-         (io/output-stream "/tmp/dst.bin"))
-
-;; Delete
-(io/delete-file "/tmp/old.txt" true)  ;; true = silently ignore if missing
+(with-open [r (io/reader "/tmp/data.txt")] (line-seq r))
+(io/copy (io/input-stream "/tmp/src.bin") (io/output-stream "/tmp/dst.bin"))
+(io/delete-file "/tmp/old.txt" true)                      ; true = ignore missing
 ```
 
-Available `io/` functions: `file`, `reader`, `writer`, `input-stream`, `output-stream`, `copy`, `as-file`, `as-url`, `resource`, `make-parents`, `delete-file`.
+Available `io/` fns: `file`, `reader`, `writer`, `input-stream`, `output-stream`, `copy`, `as-file`, `as-url`, `resource`, `make-parents`, `delete-file`.
 
 ## Java interop
 
-### Playwright classes
+### Playwright classes (registered)
 
-All core Playwright Java classes registered, support full method interop:
-
-`Page`, `Browser`, `BrowserContext`, `Locator`, `Frame`, `Request`, `Response`, `Route`, `ElementHandle`, `JSHandle`, `ConsoleMessage`, `Dialog`, `Download`, `WebSocket`, `Tracing`, `Keyboard`, `Mouse`, `Touchscreen`
+`Page`, `Browser`, `BrowserContext`, `Locator`, `Frame`, `Request`, `Response`, `Route`, `ElementHandle`, `JSHandle`, `ConsoleMessage`, `Dialog`, `Download`, `WebSocket`, `Tracing`, `Keyboard`, `Mouse`, `Touchscreen`.
 
 ```clojure
-;; Direct method calls on Playwright objects
 (let [pg (spel/page)]
-  (.title pg)           ;; same as (spel/title)
-  (.url pg)             ;; same as (spel/url)
-  (.content pg))        ;; same as (spel/content)
+  (.title pg) (.url pg) (.content pg))
 ```
 
-### Playwright enums
-Prefer `role/` namespace for AriaRole constants — idiomatic Clojure, no Java interop needed:
-```clojure
-role/button              ;; preferred
-role/heading
-role/link
-role/textbox
-role/checkbox
+### Enums
 
-;; Java enum form also works (all enums from com.microsoft.playwright.options):
-AriaRole/BUTTON          ;; equivalent to role/button
-LoadState/NETWORKIDLE
-WaitUntilState/COMMIT
-ScreenshotType/PNG
-MouseButton/RIGHT
-ColorScheme/DARK
+Prefer `role/` for AriaRole constants. `AriaRole/BUTTON` also works.
+
+Interop-only enum classes: `ColorScheme`, `ForcedColors`, `HarContentPolicy`, `HarMode`, `HarNotFound`, `LoadState`, `Media`, `MouseButton`, `ReducedMotion`, `ScreenshotType`, `ServiceWorkerPolicy`, `WaitForSelectorState`, `WaitUntilState`.
+
+### Registered JDK classes
+
+`File`, `Base64`, `Files`, `Paths`, `Path`, `LinkOption`, `FileAttribute`, `Thread`, `System`.
+
+```clojure
+(let [enc (java.util.Base64/getEncoder)
+      dec (java.util.Base64/getDecoder)]
+  (->> (.getBytes "hello") (.encodeToString enc) (.decode dec) (String.)))    ; => "hello"
+
+(System/getenv "HOME")
+(System/currentTimeMillis)
+(Thread/sleep (long 500))                ; non-browser delays only — see tip below
 ```
 
-`role/` namespace has 82 constants: `role/button`, `role/link`, `role/heading`, `role/textbox`, `role/checkbox`, `role/radio`, `role/combobox`, `role/navigation`, `role/dialog`, `role/tab`, `role/tabpanel`, `role/list`, `role/listitem`, `role/img`, `role/table`, `role/row`, `role/cell`, etc.
+## Not available
 
-Other enum classes (Java interop only): `ColorScheme`, `ForcedColors`, `HarContentPolicy`, `HarMode`, `HarNotFound`, `LoadState`, `Media`, `MouseButton`, `ReducedMotion`, `ScreenshotType`, `ServiceWorkerPolicy`, `WaitForSelectorState`, `WaitUntilState`.
+- `require` / `use` / `import` — namespaces are pre-registered.
+- Arbitrary Java class construction — only registered classes work.
+- `defmacro`.
+- Loading external libraries (no deps / Maven).
+- STM / concurrency primitives (`ref`, `dosync`, `future`, `agent`). Use `atom`, `volatile!`, `promise`.
 
-### Java utility classes
+Need something unavailable → write a `.clj` library file and use the library API (JVM mode).
 
-```clojure
-;; java.io.File
-(let [f (java.io.File. "/tmp/test.txt")]
-  (.exists f)
-  (.getName f)
-  (.getParent f))
-
-;; java.util.Base64
-(let [encoder (java.util.Base64/getEncoder)
-      decoder (java.util.Base64/getDecoder)]
-  (->> (.getBytes "hello")
-       (.encodeToString encoder)  ;; => "aGVsbG8="
-       (.decode decoder)
-       (String.)))               ;; => "hello"
-
-;; java.nio.file.Paths / Files
-(let [path (java.nio.file.Paths/get "/tmp" (into-array String ["test.txt"]))]
-  (java.nio.file.Files/exists path (into-array java.nio.file.LinkOption [])))
-
-;; java.lang.Thread (for non-browser delays ONLY — see warning below)
-(Thread/sleep (long 500))  ;; blocks for 500ms, no browser page needed
-
-;; java.lang.System
-(System/getenv "HOME")      ;; => "/Users/you"
-(System/currentTimeMillis)  ;; => 1740000000000
-```
-
-## What's NOT available
-
-SCI sandbox has boundaries. These will fail:
-
-- `require`, `use`, `import`: All namespaces pre-registered. Can't load new ones.
-- Arbitrary Java class construction: Only registered classes work. `(java.util.HashMap.)` will fail. `(java.io.File. "/tmp")` works because `File` is registered. Registered JDK classes: `File`, `Base64`, `Files`, `Paths`, `Path`, `LinkOption`, `FileAttribute`, `Thread`, `System`.
-- Macro definitions: `defmacro` not available. Use functions instead.
-- Loading external libraries: No Clojure deps, no Maven artifacts. Everything needed is already in sandbox.
-- STM and concurrency: `ref`/`dosync`/`future`/`agent` not available. Use `atom`/`deref`/`reset!`/`swap!`/`volatile!`/`promise` instead.
-
-If you need something unavailable, write a `.clj` library file and use library API (JVM mode) instead of `eval-sci`.
-
-## Complete example: multi-step eval script
-
-Script demonstrates realistic workflow: start session, explore page, capture data, annotate, write results to disk.
+## Complete example
 
 ```clojure
-;; Save as explore.clj, run with: spel eval-sci explore.clj
-
-;; 1. Start a headless browser session
 (spel/start! {:viewport {:width 1280 :height 800}})
 
-;; 2. Discover what functions are available for snapshots
-(println "=== Snapshot functions ===")
 (println (spel/help "snapshot"))
 
-;; 3. Navigate and wait for the page to settle
 (spel/navigate "https://news.ycombinator.com")
 (spel/wait-for-load-state)
+(println "Title:" (spel/title) "URL:" (spel/url))
 
-;; 4. Grab basic page info
-(println "Title:" (spel/title))
-(println "URL:" (spel/url))
+(let [snap (spel/capture-snapshot)]
+  (spit "/tmp/hn-snapshot.txt" (:tree snap))
+  (spel/save-annotated-screenshot! (:refs snap) "/tmp/hn-annotated.png")
+  (println "Refs:" (count (:refs snap))))
 
-;; 5. Take an accessibility snapshot
-(let [snap (spel/capture-snapshot)
-      tree (:tree snap)
-      refs (:refs snap)]
-
-  ;; 6. Write the snapshot tree to a file
-  (spit "/tmp/hn-snapshot.txt" tree)
-  (println "Snapshot saved. Ref count:" (count refs))
-
-  ;; 7. Save an annotated screenshot with numbered overlays
-  (spel/save-annotated-screenshot! refs "/tmp/hn-annotated.png")
-  (println "Annotated screenshot saved."))
-
-;; 8. Read back the snapshot we just wrote
-(let [content (slurp "/tmp/hn-snapshot.txt")
-      lines   (clojure.string/split-lines content)]
-  (println "First 5 lines of snapshot:")  
-  (doseq [line (take 5 lines)]
-    (println " " line)))
-
-;; 9. Take a plain screenshot too
 (spel/screenshot {:path "/tmp/hn-plain.png"})
-
-;; 10. Clean up
 (spel/stop!)
-(println "Done.")
 ```
 
-Run it:
-
-```bash
-spel eval-sci explore.clj
-```
-
-## CLI flags for `eval-sci`
+## CLI flags
 
 | Flag | Purpose |
 |------|---------|
-| `eval-sci '<code>'` | Evaluate inline Clojure expression |
-| `eval-sci file.clj` | Evaluate a Clojure file |
-| `eval-sci --stdin` | Read code from stdin (pipe-friendly) |
-| `eval-sci --interactive` | Use a visible (headed) browser |
-| `eval-sci --load-state FILE` | Load auth/storage state before evaluation |
-| `--autoclose` | Close the daemon after eval completes |
-| `--timeout <ms>` | Set default action timeout |
-| `--session <name>` | Use a named browser session |
-| `--json` | JSON output format |
+| `eval-sci '<code>'` | Inline expression |
+| `eval-sci file.clj` | Run a file |
+| `eval-sci --stdin` | Read from stdin |
+| `eval-sci --interactive` | Headed browser |
+| `eval-sci --load-state FILE` | Pre-load auth/storage state |
+| `--autoclose` | Close daemon after eval |
+| `--timeout <ms>` | Default action timeout |
+| `--session <name>` | Named session |
+| `--json` | JSON output |
 
 ## Tips
 
-Console output captured automatically. Browser `console.log`, `console.warn`, `console.error` messages print to stderr after eval result. Check stderr if something fails silently in browser.
+- Browser `console.log/warn/error` prints to stderr after the eval result.
+- In daemon mode, don't call `spel/start!` / `spel/stop!` — daemon persists page state between calls, so no redundant re-navigations.
+- Prefer `spel/` over raw namespaces; it resolves strings / refs / Locator objects uniformly.
+- For SPAs, wait on `:networkidle` (or better, `wait-for-selector` / `wait-for-function`).
+- **Never** use `spel/wait-for-timeout` or `sleep` as sync. Use event-driven waits.
 
-Daemon mode is default. When daemon running, `eval-sci` reuses its browser — don't call `spel/start!` or `spel/stop!`. Daemon persists page state between `eval-sci` calls, avoid redundant navigations to same URL.
-
-Prefer `spel/` over raw namespaces. `spel/` namespace handles locator resolution from strings, snapshot refs (`"@e2yrjz"`), and Locator objects. Raw namespaces like `loc/` and `page/` require managing objects yourself.
-
-Use `spel/wait-for-load-state :networkidle` for SPAs. Single Page Applications render client-side after initial `:load` event. Waiting for `:networkidle` ensures React, Vue, or similar frameworks have finished fetching data and rendering.
-
-NEVER use `spel/wait-for-timeout` or `sleep` for synchronization. Fixed-time delays are flaky anti-pattern. Use `spel/wait-for-selector`, `spel/wait-for-url`, `spel/wait-for-function`, or `spel/wait-for-load-state` instead. Only acceptable use of fixed delay is waiting for CSS animation with no observable state change.
-
-`sleep` vs `spel/wait-for-timeout` vs page waits:
-
-| Function | Needs browser? | What it does | When to use |
-|---|---|---|---|
-| `spel/wait-for-selector` | Yes | Waits until element appears/disappears | preferred — event-driven, not flaky |
-| `spel/wait-for-url` | Yes | Waits until URL matches | preferred — for navigation |
-| `spel/wait-for-load-state` | Yes | Waits for load/networkidle | preferred — for page loads |
-| `spel/wait-for-function` | Yes | Waits until JS expression is truthy | preferred, for content that loads asynchronously |
-| `spel/wait-for-timeout` | Yes | Playwright-managed fixed delay | Last resort for browser timing |
-| `sleep` / `(Thread/sleep (long ms))` | no | Plain JVM thread sleep | only for non-browser delays (file I/O timing, external process waits) |
-
-Rule of thumb: If interacting with browser, use a page wait. Always. `sleep` exists for rare case where you need delay outside browser context (e.g., waiting for external file to appear, polling non-browser resource).
+| Fn | Needs browser? | What | When |
+|----|:-:|------|------|
+| `spel/wait-for-selector` | ✓ | Element appears/disappears | preferred |
+| `spel/wait-for-url` | ✓ | URL matches | navigation |
+| `spel/wait-for-load-state` | ✓ | load / networkidle | page loads |
+| `spel/wait-for-function` | ✓ | JS expr truthy | async content |
+| `spel/wait-for-timeout` | ✓ | Fixed delay | last resort |
+| `sleep` / `(Thread/sleep (long ms))` | ✗ | JVM thread sleep | non-browser delays only |

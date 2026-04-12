@@ -1,289 +1,191 @@
 # Agent common patterns
 
-Shared conventions for all spel subagents. Every agent MUST follow these patterns.
-
----
+Shared conventions for every spel subagent. Follow these.
 
 ## Session management
 
-**NEVER use the default session.** May belong to user or another agent. Always use a named session.
+**Never use the default session** — it may belong to the user or another agent.
 
 ```bash
-SESSION="<agent-short-name>-$(date +%s)"
-
+SESSION="<agent-short>-$(date +%s)"
 spel --session $SESSION open <url> --interactive
 spel --session $SESSION snapshot -i
 spel --session $SESSION screenshot evidence.png
 spel --session $SESSION eval-sci '(spel/title)'
-
-# ALWAYS close on completion or error
-spel --session $SESSION close
+spel --session $SESSION close                   # always
 ```
 
-If cleanup does not remove the session, escalate immediately instead of leaving an orphan:
+Agent short names: `plan`, `tw`, `exp`, `auto`, `pres`, `hunt`, `disc`.
+
+Stuck/orphaned session → clean daemon then stale sockets:
 
 ```bash
-spel --session $SESSION close
 spel session list
-
-# If the session still exists, clean up the daemon process and stale sockets.
 pkill -f "spel daemon"
 pkill -f "chrome-headless-shell"
 rm -f /tmp/spel-*.sock /tmp/spel-*.pid
 ```
 
-### Session-first CDP policy (mandatory)
+### CDP policy — one session owns one endpoint
 
-When using CDP, treat one named session as single owner of one CDP endpoint.
+- One session for the whole flow; never recreate it per command.
+- Never attach two agents to the same CDP endpoint concurrently.
+- Never `pkill -f "chrome"` / `pkill -f "Google Chrome"` as recovery — it kills the user's browser.
 
-- Create one session, keep reusing it for whole flow.
-- Do **not** create new `--session` for every command in same flow.
-- Do **not** attach multiple agent sessions to same CDP browser endpoint concurrently.
-- Never run broad browser kills (`pkill -f "Google Chrome"`, `pkill -f "chrome"`) as normal recovery step — kills user's browser and other agent runs.
-
-Recommended pattern (auto-launch — simplest):
+Simplest pattern (auto-launch):
 
 ```bash
 SESSION="exp-$(date +%s)"
-
-# Auto-launch handles browser launch, port allocation, and CDP connection
 spel --session $SESSION --auto-launch open https://example.com
 spel --session $SESSION snapshot -i
 spel --session $SESSION click @eXXXXX
-
-# Teardown only your session (kills the auto-launched browser)
 spel --session $SESSION close
 ```
 
-Alternative pattern (manual CDP — when you need a specific browser or profile):
+Manual CDP (when you need a specific browser/profile):
 
 ```bash
 SESSION="exp-$(date +%s)"
-
-# Resolve a dedicated debug port for this run (spel-native helper).
 CDP_PORT=$(spel find-free-port)
-
-# Launch dedicated debug browser (custom user-data-dir; never default profile)
-open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
-
-# Attach once, then reuse same session for all commands
+open -na "Google Chrome" --args --remote-debugging-port=$CDP_PORT \
+     --user-data-dir="/tmp/spel-cdp-$SESSION" --no-first-run
 spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT open https://example.com
-spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT snapshot -i
-spel --session $SESSION --cdp http://127.0.0.1:$CDP_PORT click @eXXXXX
-
-# Teardown only your session
-spel --session $SESSION close
 ```
 
-If CDP attach fails (`TargetClosedError`, `ECONNREFUSED`):
-1. Keep same session name.
-2. Verify endpoint health (`curl http://127.0.0.1:$CDP_PORT/json/version`).
-3. Relaunch only dedicated debug browser for that session and reattach.
-4. Re-snapshot and continue.
+CDP attach fails (`TargetClosedError`, `ECONNREFUSED`):
 
-Never recover by killing all Chrome processes.
-
-Agent short names:
-- planner → `plan`, test-writer → `tw`
-- explorer → `exp`, automator → `auto`
-- presenter → `pres`
-- bug-hunter → `hunt`
-- product-analyst → `disc`
-
----
+1. Keep session name.
+2. `curl http://127.0.0.1:$CDP_PORT/json/version` to verify endpoint.
+3. Relaunch only the dedicated debug browser, reattach.
+4. Re-snapshot, continue.
 
 ## Audit commands
 
-`spel audit` runs all page quality audits at once. Use subcommands for individual checks.
+`spel audit` runs every page-quality audit; subcommands run individual checks.
 
-| CLI command | eval-sci function | What it checks |
+| CLI | eval-sci | Checks |
 |---|---|---|
-| `spel audit` | — | All 7 audits combined |
+| `spel audit` | — | All 7 combined |
 | `spel audit structure` | `(audit)` | Page landmarks and sections |
 | `spel audit contrast` | `(text-contrast)` | WCAG text contrast |
-| `spel audit colors` | `(color-palette)` | Page color palette |
+| `spel audit colors` | `(color-palette)` | Color palette |
 | `spel audit layout` | `(layout-check)` | Overflow, overlap, alignment |
-| `spel audit fonts` | `(font-audit)` | Font usage consistency |
-| `spel audit links` | `(link-health)` | Broken links (HEAD requests) |
-| `spel audit headings` | `(heading-structure)` | Heading hierarchy (h1-h6) |
+| `spel audit fonts` | `(font-audit)` | Font consistency |
+| `spel audit links` | `(link-health)` | Broken links (HEAD) |
+| `spel audit headings` | `(heading-structure)` | Heading hierarchy |
 
-Use `--only` to run a subset: `spel audit --only contrast,layout`.
----
+Subset: `spel audit --only contrast,layout`.
 
-## Input/output contracts
-
-Every agent declares what it reads and produces, enabling composition.
+## I/O contracts
 
 ### Contract format
 
 ```markdown
 ## Contract
-
-Inputs:
-- `<path>` — description (REQUIRED/OPTIONAL)
-
-Outputs:
-- `<path>` — description (format: JSON/PNG/MD)
+Inputs:  - `<path>` — description (REQUIRED/OPTIONAL)
+Outputs: - `<path>` — description (JSON/PNG/MD)
 ```
 
 ### JSON output convention
 
 ```json
-{
-  "agent": "spel-<name>",
-  "timestamp": "2026-03-06T12:00:00Z",
-  "target_url": "https://example.com",
-  "session": "<session-name>",
-  "status": "complete",
-  "artifacts": [
-    {"type": "screenshot", "path": "evidence/page.png"},
-    {"type": "snapshot", "path": "evidence/page-snapshot.json"},
-    {"type": "report", "path": "report.json"}
-  ]
-}
+{"agent":"spel-<name>", "timestamp":"2026-03-06T12:00:00Z",
+ "target_url":"...", "session":"...", "status":"complete",
+ "artifacts":[{"type":"screenshot","path":"evidence/page.png"},
+              {"type":"snapshot","path":"evidence/page-snapshot.json"},
+              {"type":"report","path":"report.json"}]}
 ```
 
-### Artifact verification
+### Artifact verification (before announcing or opening a GATE)
 
-If an output file is part of your contract, it is not optional in practice.
+- Every promised file exists and is non-empty.
+- JSON outputs parse and match expected shape.
+- Every referenced evidence path exists on disk.
+- User explicitly asked for JSON → those paths are hard requirements.
 
-Before announcing completion or opening a GATE:
-- Verify every promised file exists and is non-empty
-- Verify JSON outputs parse and match expected shape
-- Verify every referenced evidence path exists on disk
-- If user explicitly asked for JSON, treat those JSON paths as hard requirements
+Missing artifact = incomplete stage. Fix before summarizing.
 
-Missing artifact = incomplete stage. Do not summarize as done. Go back and produce/fix the file first.
+### Pipeline handoff
 
-### Pipeline handoff manifests
-
-Orchestrated runs must leave a machine-readable handoff file in `orchestration/`:
+Orchestrated runs leave a handoff file in `orchestration/`:
 
 ```json
-{
-  "pipeline": "automation|qa|test|discovery",
-  "stage": "explore|hunt|generate|complete",
-  "status": "awaiting_user_approval|complete|blocked",
-  "required_artifacts": ["..."],
-  "missing_artifacts": [],
-  "artifacts": [
-    {"kind": "report", "path": "bugfind-reports/hunter-report.json"}
-  ],
-  "next_step": "challenge",
-  "open_questions": []
-}
+{"pipeline":"automation|qa|test|discovery",
+ "stage":"explore|hunt|generate|complete",
+ "status":"awaiting_user_approval|complete|blocked",
+ "required_artifacts":["..."], "missing_artifacts":[],
+ "artifacts":[{"kind":"report","path":"..."}],
+ "next_step":"challenge", "open_questions":[]}
 ```
 
-Update this file after every stage transition. Next pipeline consumes it as context.
-
----
+Update after every stage transition.
 
 ## Gates
 
-A GATE is a mandatory pause where agent presents results to user and waits for approval before proceeding.
+GATE = mandatory pause — present results and wait for approval.
 
-### When to GATE
+When: after a plan/spec, after changes, after finding issues, before destructive actions.
 
-- After producing a plan/spec: user must review before execution
-- After making changes: user must verify before next agent consumes output
-- After finding issues: user must acknowledge before fixes applied
-- Before destructive actions: user must confirm before overwriting baselines, deleting files, etc.
-
-### GATE format
+Format:
 
 ```markdown
 **GATE: [What was produced]**
 
-Present the [output] to the user:
-1. Show the key findings/changes
+1. Show key findings/changes
 2. Show evidence (screenshots, diffs)
 3. Ask: "Approve to proceed, or provide feedback?"
 
-Do NOT continue to the next phase until the user explicitly approves.
+Do NOT continue until user explicitly approves.
 ```
 
-### Embedded vs workflow gates
+Embedded GATE (inside agent template) protects standalone invocation; workflow GATE protects the pipeline — both apply.
 
-- Embedded GATE: inside agent template itself. Agent pauses when invoked standalone.
-- Workflow GATE: in workflow prompt. Orchestrator pauses between agent invocations.
-
-Both needed. Embedded gates protect standalone invocation. Workflow gates protect the pipeline.
-
-### Valid gate checklist
-
-A GATE is valid only when all of the following are true:
-- Required artifacts for stage exist
-- Missing artifact list is empty
-- User sees exact file paths that were produced
-- Next step is explicitly blocked pending approval
-
-If any required artifact is missing, do not ask for approval yet. Fix the stage first.
-
----
+A GATE is valid only when: required artifacts exist, `missing_artifacts` is empty, user sees exact file paths, next step is blocked pending approval. Missing required artifact → don't ask yet. Fix the stage.
 
 ## Error recovery
 
-### Common failures
-
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
-| URL unreachable | `spel open` returns error | Report: "Target URL unreachable: <url>. Verify the application is running." |
-| Selector not found | `--timeout` expires | Capture snapshot, show what IS on the page. Suggest alternative selectors. |
-| Heavy page click times out | Click on portal/SPA element hangs on wait | Use `spel wait --load domcontentloaded` or `spel wait --url <partial>` after the click. NEVER skip user actions by navigating directly — always click like a human would. |
-| Eval run times out before artifacts | Agent spends run budget on scans/helpers and never writes required files | Trigger direct-task fast-path: skip helper agents and broad scans, run minimal open/wait/get/write sequence, then verify artifact files immediately. |
-| Session conflict | `spel --session` error | Generate a new unique session name and retry. |
-| CDP endpoint conflict | `TargetClosedError` / `ECONNREFUSED` / attach flake | Use one owner session per CDP endpoint, relaunch only dedicated debug browser, keep user browser untouched. |
-| Edit tool denied by policy | Agent gets tool-permission error when writing artifacts | Write required files with `bash`/`python`, then read them back and verify exact content/paths before gate approval. |
-| Page requires auth | Login form detected | Report: "Page requires authentication. Use @spel-explorer for auth bootstrap (Step 0: open headed browser, let user log in, export state), or provide --load-state." |
-| JavaScript errors | Console errors in snapshot | Capture and report. Continue unless page is non-functional. |
-| Network failures | Failed requests in network log | Capture and report. Distinguish blocking vs non-blocking failures. |
-
-### Recovery pattern
+| URL unreachable | `spel open` errors | Report "Target URL unreachable: …" |
+| Selector not found | `--timeout` expires | Snapshot, show what IS present, suggest alternatives |
+| Heavy-page click times out | Portal/SPA click hangs on wait | `wait --load domcontentloaded` or `wait --url <partial>` after click. Never bypass user action by navigating directly. |
+| Budget spent on scans, no artifacts | Agent runs helpers/scans without writing artifacts | Fast-path: skip helpers + broad scans, run minimal `open → wait → get → write → verify` |
+| Session conflict | `--session` error | Generate fresh unique name, retry |
+| CDP attach flake | `TargetClosedError` / `ECONNREFUSED` | One-owner session per endpoint; relaunch only the dedicated debug browser |
+| Edit tool denied by policy | Tool-permission error on artifact write | Write with `bash`/`python`, then read back + verify content/paths |
+| Auth required | Login form detected | Report + suggest `@spel-explorer` auth bootstrap or `--load-state` |
+| JS errors / network failures | Console / network log | Capture, continue unless page is non-functional; distinguish blocking vs non-blocking |
 
 ```bash
-spel --session $SESSION open <url> --interactive
-if [ $? -ne 0 ]; then
-  echo "ERROR: Could not open <url>. Is the application running?"
-  spel --session $SESSION close 2>/dev/null
-  exit 1
-fi
+spel --session $SESSION open <url> --interactive \
+  || { echo "ERROR: Could not open <url>. Is the app running?";
+       spel --session $SESSION close 2>/dev/null; exit 1; }
 ```
 
-In `eval-sci` mode, errors throw automatically. Wrap risky operations:
+eval-sci errors throw automatically. Wrap risky ops:
 
 ```clojure
-(try
-  (spel/click (spel/get-by-text "Submit"))
-  (catch Exception e
-    (println "Could not find Submit button. Current page state:")
-    (println (:tree (spel/capture-snapshot)))))
+(try (spel/click (spel/get-by-text "Submit"))
+     (catch Exception e
+       (println "Could not find Submit. Page state:")
+       (println (:tree (spel/capture-snapshot)))))
 ```
-
----
 
 ## Evidence capture
 
-### Directory convention
-
 ```
 <output-dir>/
-  report.json              # Machine-readable report (agent-specific schema)
+  report.json              # agent-specific schema
   evidence/
-    <page>-snapshot.json   # Accessibility snapshot with styles
-    <page>-screenshot.png  # Visual screenshot
-    <page>-annotated.png   # Annotated screenshot (with ref overlays)
-    <element>-detail.png   # Close-up of specific element
+    <page>-snapshot.json   # accessibility snapshot with styles
+    <page>-screenshot.png
+    <page>-annotated.png   # annotated (ref overlays)
+    <element>-detail.png
 ```
 
-### Capture checklist
+Per page/state: snapshot → screenshot → annotate → screenshot → unannotate.
 
-For every page/state you examine:
-
-1. Snapshot: `spel --session $SESSION snapshot -S --json > evidence/<page>-snapshot.json`
-2. Screenshot: `spel --session $SESSION screenshot evidence/<page>-screenshot.png`
-3. Annotate: `spel --session $SESSION annotate` then `spel --session $SESSION screenshot evidence/<page>-annotated.png` then `spel --session $SESSION unannotate`
-
-### Responsive evidence
+Responsive:
 
 ```bash
 for viewport in "375 812 mobile" "768 1024 tablet" "1440 900 desktop"; do
@@ -293,275 +195,146 @@ for viewport in "375 812 mobile" "768 1024 tablet" "1440 900 desktop"; do
 done
 ```
 
----
-
 ## Position annotations in snapshot refs
 
-Each ref'd element includes screen position data as `[pos:X,Y W×H]`: pixel coordinates (X,Y from top-left) and dimensions (width×height). Use for:
-- Layout verification: check element positions, alignment, spacing
-- Overlap detection: find elements that overlap or are cut off
-- Viewport fit: verify elements are within visible viewport
-- Spatial reasoning: understand page layout without screenshots
-- Duplicate detection: spot repeated logos, headings, navigation blocks, or identical message text
-- Visual symmetry: paired elements should match in size and position
-- Clipped content: find meaningful elements partially hidden by overflow, off-screen position, or overlapping layers
-- Broken layout: detect misaligned grid columns, collapsed flex rows, orphaned floats
-- Visual coherence: repeated UI patterns (list rows, cards, table rows) should keep badges, icons, metadata in same position regardless of content length
+Each ref includes `[pos:X,Y W×H]` — pixel coords (X,Y from top-left) + dimensions.
 
 ```
 button "Submit" @e2yrjz [pos:150,200 120×40]
-input "Email" @e3kqmn [pos:100,100 300×30]
+input  "Email"  @e3kqmn [pos:100,100 300×30]
 ```
 
----
+Use for layout verification, overlap/clipping detection, viewport fit, spatial reasoning, duplicate detection (repeated logos/headings/nav blocks, identical message text), visual symmetry, broken grid/flex, repeat-pattern coherence (list rows/cards keep badges + icons in the same position regardless of content length).
 
-## Selector strategy: snapshot refs first
+## Selector strategy — snapshot refs first
 
-ALWAYS capture a snapshot before any interaction.
+Always snapshot before interacting.
 
-## Navigation decision table
+Why refs over CSS: deterministic (same element → same ref across snapshots until nav), semantic (role/name-hashed via FNV-1a), resilient (survive CSS refactors), universal (every spel fn accepts them).
 
-Choose navigation strategy based on site behavior instead of blindly clicking and waiting for `load`.
+Priority (high → low): snapshot ref (`@eXXXX`) → semantic locator (role + name / label / text) → `data-testid` → CSS (last resort).
 
-| Situation | Preferred action | Preferred wait | Why |
-|-----------|------------------|----------------|-----|
-| Traditional multi-page site | `spel --session $SESSION open <url>` | `spel --session $SESSION wait --load load` | Full page load is good readiness signal |
-| Heavy portal / ad-heavy page | Click only if needed | `spel --session $SESSION wait --load domcontentloaded` or `spel --session $SESSION wait --url <partial>` | Full `load` often delayed by third-party resources |
-| SPA route already known | Reach route via user-visible interactions (click/keyboard), then use route-aware wait | `spel --session $SESSION wait --url <partial>` then `spel --session $SESSION wait --load domcontentloaded` | Preserves user-like navigation while using reliable SPA readiness checks |
-| SPA route unknown | Snapshot first, then click | `spel --session $SESSION wait --url <partial>` and content wait | URL change is stable signal, not full resource completion |
-
-Rules:
-- Prefer split commands: `open` first, `wait` second.
-- Do not solve navigation flakiness by immediately raising timeouts.
-- If a click repeatedly times out on SPA or portal pages, keep user-visible interaction flow, adjust waits (`--url`, `--load domcontentloaded`), record evidence in artifacts.
-
-### Why refs over CSS selectors
-
-Snapshot refs are content-hashed identifiers (FNV-1a of role|name|tag). They are:
-
-- Deterministic: same element = same ref across snapshots (until navigation)
-- Semantic: derived from accessibility roles/names, not CSS classes
-- Resilient: survive CSS refactors, class renaming, layout changes
-- Universal: work with ALL spel functions: click, fill, text, assert
-
-CSS selectors (`.btn-primary`, `#submit`) are brittle and implementation-dependent.
-
-### Selector priority (highest to lowest)
-
-1. Snapshot refs (`@e2yrjz`): deterministic, resilient, semantic
-2. Semantic locators (role + name, label, text): stable, user-visible
-3. Test IDs (`data-testid`): stable but requires dev cooperation
-4. CSS selectors: LAST RESORT, always fragile
-
-### Snapshot-first workflow
-
-Before ANY interaction:
+After nav, re-snapshot:
 
 ```bash
 spel --session $SESSION snapshot -i
 spel --session $SESSION click @eXXXXX
-spel --session $SESSION fill @eXXXXX "value"
-```
-
-After navigation, refs become stale. Re-capture:
-
-```bash
-spel --session $SESSION click @eXXXXX
-# Page changed — re-snapshot
-spel --session $SESSION snapshot -i
-# Use NEW refs from fresh snapshot
+spel --session $SESSION snapshot -i   # fresh refs
 spel --session $SESSION click @eYYYYY
 ```
 
----
+## Navigation decision table
 
-## Cookie consent and first-visit popups
+| Situation | Action | Wait | Why |
+|-----------|--------|------|-----|
+| Traditional multi-page | `open <url>` | `wait --load load` | Full load is a good ready signal |
+| Heavy / ad-laden portal | Click only if needed | `wait --load domcontentloaded` or `wait --url <partial>` | Full load delayed by 3rd-party |
+| SPA route known | Reach via clicks/keyboard | `wait --url <partial>` then `wait --load domcontentloaded` | Keeps user-like nav, reliable SPA readiness |
+| SPA route unknown | Snapshot first, then click | `wait --url <partial>` + content wait | URL change more stable than full resource completion |
 
-EU/GDPR sites show cookie consent on first visit — handle before data extraction:
+Rules: split `open` + `wait`. Don't fix flakiness by raising timeouts. If clicks repeatedly time out, keep user-visible flow, adjust waits.
 
-```bash
-# 1. Snapshot to detect cookie consent
-spel --session $SESSION snapshot -i
+## Cookie consent / first-visit popups
 
-# 2. Look for consent buttons:
-#   English: "Accept all", "Accept cookies", "I agree"
-#   Polish: "Akceptuję", "Zgadzam się", "Zaakceptuj wszystko"
-#   German: "Alle akzeptieren"
+EU/GDPR sites show consent on first visit — handle before extraction.
 
-# 3. Click the consent button by its snapshot ref
-spel --session $SESSION click @eXXXXX
-
-# 4. If a postal code / location popup appears next:
-spel --session $SESSION snapshot -i
-spel --session $SESSION fill @eXXXXX "31-564"
-spel --session $SESSION click @eXXXXX
-
-# 5. Snapshot again to confirm clean page state
-spel --session $SESSION snapshot -i
-```
+Common button text: EN `Accept all` / `Accept cookies` / `I agree`; PL `Akceptuję` / `Zgadzam się` / `Zaakceptuj wszystko`; DE `Alle akzeptieren`.
 
 ```bash
-spel --session $SESSION --timeout 10000 eval-sci '
-(do
-  (spel/goto "https://example.com")
-  (spel/wait-for-load)
+spel --session $SESSION snapshot -i
+spel --session $SESSION click @eXXXXX            # consent button
 
-  ;; Handle cookie consent if present
-  (let [snap (spel/capture-snapshot)]
-    (when (str/includes? (:tree snap) "cookie")
-      (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
-           (catch Exception _ nil))
-      (spel/wait-for-load))))'
+# Postal-code / location popup? Snapshot again and fill.
+spel --session $SESSION snapshot -i
+spel --session $SESSION fill  @eXXXXX "31-564"
+spel --session $SESSION click @eXXXXX
+spel --session $SESSION snapshot -i              # confirm clean state
 ```
 
-> In library test code (not SCI/CLI), use `page/get-by-role page role/button` form instead of `spel/get-by-role role/button`.
+eval-sci equivalent:
 
----
+```clojure
+(let [snap (spel/capture-snapshot)]
+  (when (str/includes? (:tree snap) "cookie")
+    (try (spel/click (spel/get-by-role role/button {:name "Accept all"}))
+         (catch Exception _ nil))
+    (spel/wait-for-load)))
+```
+
+> In library test code (not SCI/CLI) use `page/get-by-role page role/button`, not `spel/get-by-role role/button`.
 
 ## Mandatory viewport audit
 
-You MUST test every audited page at all three viewports. No exceptions.
+Every audited page at all three viewports. No exceptions.
 
-| Viewport | Size | How to set |
-|----------|------|------------|
-| Desktop | 1280x720 | Default (or `spel/set-viewport-size! 1280 720`) |
-| Tablet | 768x1024 | `(spel/set-viewport-size! 768 1024)` |
-| Mobile | 375x667 | `(spel/set-viewport-size! 375 667)` |
+| Viewport | Size | Set via |
+|----------|------|---------|
+| Desktop | 1280×720 | default (or `(spel/set-viewport-size! 1280 720)`) |
+| Tablet | 768×1024 | `(spel/set-viewport-size! 768 1024)` |
+| Mobile | 375×667 | `(spel/set-viewport-size! 375 667)` |
 
-At each viewport, capture:
-1. Annotated screenshot: `(spel/save-audit-screenshot! "<page> @ <viewport>" "bugfind-reports/evidence/<page>-<viewport>.png" {:refs (:refs snap)})`
-2. Snapshot JSON: `spel snapshot -S --json > bugfind-reports/evidence/<page>-<viewport>.json`
-3. Overflow check:
+Per viewport, capture annotated screenshot + snapshot JSON + overflow check:
 
 ```clojure
-;; Run at each viewport — true means horizontal overflow exists
 (let [sw (spel/evaluate "document.documentElement.scrollWidth")
       cw (spel/evaluate "document.documentElement.clientWidth")]
   (println "Overflow:" (> sw cw) "scroll:" sw "client:" cw))
 ```
 
----
-
 ## Mandatory exploratory pass
 
-After structured audit of all 6 categories, spend 30-90 seconds on unscripted exploration:
+After structured audit, 30–90 s unscripted exploration:
 
-1. Click without a plan — try unlikely navigation paths
-2. Submit forms with empty, too-long, or special-character data
-3. Rapidly click the same button multiple times
-4. Use browser back/forward during multi-step flows
-5. Resize viewport mid-interaction
-6. Open the same flow in a new tab
+1. Click without a plan, try unlikely paths.
+2. Submit forms with empty / too-long / special-char data.
+3. Rapidly double-click / spam a button.
+4. Browser back/forward during multi-step flows.
+5. Resize viewport mid-interaction.
+6. Open the same flow in a second tab.
 
-Document any unexpected behavior. Unscripted exploration often surfaces highest-severity bugs.
+Document anything unexpected. Exploratory passes surface the highest-severity bugs.
 
----
+## Daemon notes (do not duplicate in agents)
 
-## Daemon notes (do NOT duplicate in agent templates)
+- `spel/start!` / `spel/stop!` are not needed — daemon manages lifecycle.
+- `--timeout <ms>` to fail fast on bad selectors (default 30s = too long for exploration).
+- `--interactive` when the user should see the browser.
+- eval-sci errors throw — no explicit checks unless custom recovery is desired.
+- Always `spel --session $SESSION close` when done.
 
-These apply to ALL agents. Reference this doc instead of copy-pasting:
+## Video recording (quick)
 
-- `spel/start!` and `spel/stop!` NOT needed. Daemon manages browser lifecycle.
-- Use `--timeout <ms>` to fail fast on bad selectors (default is 30s, too long for exploration)
-- Use `--interactive` when user should see browser window
-- Errors throw automatically in `eval-sci` mode. No need for explicit error checking unless custom recovery desired.
-- Use `spel open <url> --interactive` before `eval-sci` if user wants to watch
-- ALWAYS `spel --session $SESSION close` when done. Never leave sessions open.
+See `PDF_STITCH_VIDEO.md` for full reference.
 
----
-
-## Video recording
-
-Record browser sessions for evidence and CI artifacts.
-
-### Recording a session with action log
+Minimal eval-sci:
 
 ```clojure
-;; Start video + clear action log
 (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
 (spel/clear-action-log!)
-
-;; Perform actions with natural pacing
 (spel/navigate "https://example.org")
-(spel/human-pause)    ;; 300-700ms random pause
-
+(spel/human-pause)
 (spel/smooth-scroll 300)
 (spel/human-pause)
-
 (spel/click "@e123")
-(spel/human-pause 500 1000)
-
-;; Export SRT before finishing video
 (spit "/tmp/session.srt" (spel/export-srt))
 (spel/finish-video-recording {:save-as "/tmp/session.webm"})
 ```
 
-Or via CLI:
+CLI:
 
 ```bash
 spel --session $SESSION open <url> --interactive --record-video
 spel --session $SESSION click @e123
-spel --session $SESSION fill @e456 "hello"
-
-# Export SRT and action log
 spel --session $SESSION action-log --srt -o session.srt
-spel --session $SESSION action-log --json -o session.json
-
-# Close (finalizes video)
-spel --session $SESSION close
+spel --session $SESSION close   # finalizes video
 ```
 
-### SRT transcript (automatic)
-
-Action log generates SRT subtitles automatically:
-
-```
-1
-00:00:00,000 --> 00:00:02,000
-navigate https://example.org
-
-2
-00:00:02,000 --> 00:00:03,500
-click @e123
-
-3
-00:00:03,500 --> 00:00:05,000
-fill @e456 "search text"
-```
-
-JSON export includes full context (URL, title, snapshot tree) for each action.
-
-### FFmpeg post-processing (optional)
-
-```bash
-# Burn in subtitles
-ffmpeg -i session.webm -vf "subtitles=session.srt" output.mp4
-
-# Remove idle frames
-ffmpeg -i session.webm -vf "mpdecimate,setpts=N/30/TB" -r 30 trimmed.mp4
-```
-
-See `references/PDF_STITCH_VIDEO.md` for complete FFmpeg reference.
-
-### Video in QA reports
-
-QA orchestrator can embed video in HTML report using `<video>` element with SRT track. See `references/spel-report.html` for visual structure and `references/spel-report.md` for LLM handoff structure.
-
----
+QA report embeds video via `<video>` + SRT track — see `spel-report.html` / `spel-report.md`.
 
 ## Black-box testing rule
 
-**NEVER read application source code.** Bug-finding agents (Hunter) are black-box testers. They test what users see and experience: UI, behavior, accessibility, network responses.
-
-Reading source code introduces bias: you test what you know is there, miss bugs in the gap between intent and implementation, skip exploratory paths a real user would try.
-
-To understand behavior, observe it through the browser. Use snapshots, screenshots, console output, network logs. Never `cat`, `grep`, or read `.js`/`.ts`/`.py` source files.
-
----
+**Never read application source code.** Bug-finding agents (Hunter) test what users see: UI, behavior, a11y, network. Reading source biases testing to what you know is there — miss bugs in the gap between intent and implementation; skip exploratory paths a real user would try. Observe through snapshots, screenshots, console output, network logs. Never `cat`/`grep` `.js`/`.ts`/`.py` sources.
 
 ## See also
 
-- [FULL_API.md](FULL_API.md) — Complete spel CLI and library API
-- [EVAL_GUIDE.md](EVAL_GUIDE.md) — SCI eval scripting patterns
-- [SELECTORS_SNAPSHOTS.md](SELECTORS_SNAPSHOTS.md) — Snapshot and annotation workflows
-- [VISUAL_QA_GUIDE.md](VISUAL_QA_GUIDE.md) — Visual regression methodology
+- `FULL_API.md` · `EVAL_GUIDE.md` · `SELECTORS_SNAPSHOTS.md` · `VISUAL_QA_GUIDE.md`

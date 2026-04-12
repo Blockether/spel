@@ -4,35 +4,30 @@ description: Bug-finding workflow — Hunt, challenge, and verdict in a single-a
 
 # Bug-finding workflow
 
-Single-agent multi-phase pipeline → find, challenge, verify bugs in live web app. See `BUGFIND_GUIDE.md` for methodology, scoring, JSON schemas.
+Single-agent multi-phase pipeline → find, challenge, verify bugs in a live web
+app. See `BUGFIND_GUIDE.md` for methodology, scoring, JSON schemas.
 
-Orchestrator must maintain `orchestration/qa-pipeline.json` as machine-readable handoff for stage status + produced artifacts.
+Orchestrator keeps `orchestration/qa-pipeline.json` current.
 
 ## Parameters
 
-- Target URL: URL to audit
-- Scope (optional): specific pages, flows, areas to focus on. Defaults to full-site audit.
-- Bug categories (optional): defaults to all: functional, visual, accessibility, ux, performance, api.
-- Baseline dir (optional): dir with baseline snapshots for visual regression. Absent → no baseline comparison.
+- Target URL (REQUIRED)
+- Scope (pages / flows / areas; default full-site)
+- Categories (default all: functional, visual, accessibility, ux, performance, api)
+- Baseline dir (optional — enables visual regression)
 
-## Pipeline overview
-
-One agent, five phases:
+## Pipeline — five phases, one agent
 
 | Phase | Purpose | Output |
 |-------|---------|--------|
-| 0. Visual regression | Diff against baselines (if present) | `bugfind-reports/diff-report.json` |
-| 1-3. Hunt | Explore + test across all categories | `bugfind-reports/hunter-report.json` |
-| 4. Self-challenge | Challenge each finding: real bug or false positive? | Integrated into final report |
-| 5. Verdict + report | Final severity scoring + report generation | `bugfind-reports/qa-report.html`, `bugfind-reports/qa-report.md` |
+| 0. Visual regression | Diff current vs `baselines/` (if present) | `bugfind-reports/diff-report.json` |
+| 1–3. Hunt | Technical audit + design audit + evidence capture | `bugfind-reports/hunter-report.json` |
+| 4. Self-challenge | Fresh session; classify CONFIRMED / FLAKY / FALSE-POSITIVE | integrated into verdict |
+| 5. Verdict + reports | Final severity, reports | `verdict.json`, `qa-report.html`, `qa-report.md` |
 
-## Pre-exploration (optional)
+## Optional pre-exploration
 
-> Skip if Bug Hunter should do own exploration.
-
-If @spel-explorer scaffolded, invoke first for higher-quality input data. Bug Hunter handles visual regression as Phase 0 when baselines exist.
-
-### Explore
+Skip unless higher-quality input needed. Run `@spel-explorer` first:
 
 ```xml
 <explore>
@@ -41,11 +36,9 @@ If @spel-explorer scaffolded, invoke first for higher-quality input data. Bug Hu
 </explore>
 ```
 
-Produces: `exploration-manifest.json`, page snapshots, screenshots.
+Produces `exploration-manifest.json` + page snapshots + screenshots that the Hunter will prioritize.
 
-## Hunt
-
-> Agent: @spel-bug-hunter
+## Hunt — `@spel-bug-hunter`
 
 ```xml
 <hunt>
@@ -56,31 +49,21 @@ Produces: `exploration-manifest.json`, page snapshots, screenshots.
 </hunt>
 ```
 
-Bug Hunter runs all five phases in sequence:
+Hunter runs all five phases end-to-end: visual regression (if baselines) → hunt across all categories → self-challenge each finding → produce verdict + HTML + MD reports.
 
-1. **Visual regression** (Phase 0): If baselines exist → captures current state, diffs against baselines, generates `bugfind-reports/diff-report.json`.
-2. **Hunt** (Phases 1–3): Explores target, tests across all bug categories, collects evidence with screenshots + reproduction steps.
-3. **Self-challenge** (Phase 4): Challenges each finding → disproves false positives, verifies real bugs with counter-evidence, adjusts severity scores.
-4. **Verdict + report** (Phase 5): Produces final verified bug list ordered by severity, generates `bugfind-reports/qa-report.html` + `bugfind-reports/qa-report.md`.
+**GATE** — review Hunter's final report. Must contain specific, self-challenged, evidence-backed bugs. Weak → send back.
 
-**GATE**: Review Bug Hunter's final report. Must contain specific, self-challenged bugs with evidence — not vague observations or unverified claims. If weak, send back with feedback.
-Required artifacts before this gate:
+Required artifacts:
+
 - `bugfind-reports/hunter-report.json`
+- `bugfind-reports/verdict.json`
 - `bugfind-reports/qa-report.html`
 - `bugfind-reports/qa-report.md`
 - `orchestration/qa-pipeline.json`
 
-## Final deliverable
-
-- `bugfind-reports/hunter-report.json` → machine-readable bug list with self-challenge verdicts
-- `bugfind-reports/qa-report.html` → stakeholder report
-- `bugfind-reports/qa-report.md` → LLM/agent handoff report with exact reproductions per issue
-- `orchestration/qa-pipeline.json` → pipeline handoff + gate state
-
 ## Notes
 
-- Session isolation critical: Bug Hunter uses own named session. Shared sessions contaminate evidence.
-- Self-challenge phase built into Bug Hunter → no separate agent invocation needed.
-- Pre-exploration optional: Bug Hunter can explore alone, but specialist agents produce higher-quality input.
-- Responsive testing: Bug Hunter captures at mobile (375x812), tablet (768x1024), desktop (1440x900).
-- Missing artifacts fail closed: if promised JSON/report file absent → step incomplete.
+- Hunter uses its own named session. Shared sessions contaminate evidence.
+- Pre-exploration optional — Hunter can explore alone.
+- Responsive testing: mobile 375×812, tablet 768×1024, desktop 1440×900.
+- Missing artifacts fail closed.

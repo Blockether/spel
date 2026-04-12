@@ -1,237 +1,143 @@
-<!-- Adapted from visual-explainer (MIT License, github.com/nicobailon/visual-explainer) -->
-# Presenter Reference
+<!-- Adapted from visual-explainer (MIT, github.com/nicobailon/visual-explainer) -->
+# Presenter reference
 
-Generate self-contained HTML for technical diagrams, visualizations, data tables. Use `spel open` to preview, `spel screenshot` to capture evidence.
+Generate self-contained HTML for technical diagrams, visualizations, data tables. `spel open` to preview, `spel screenshot` to capture evidence.
 
-> **Design system**: ALL output MUST use **spel report design system** from `CSS_PATTERNS.md` — Atkinson Hyperlegible / Manrope / IBM Plex Mono, warm earth tones (#b2652a brown accent). Do NOT invent your own color palette or font stack.
+> **Design system.** All output uses the **spel report design system** from `CSS_PATTERNS.md` — Atkinson Hyperlegible / Manrope / IBM Plex Mono, warm earth tones (`#b2652a` brown accent). Do not invent a new palette or font stack.
 
 ## Workflow
 
-### 1. Think (5 seconds)
-Before writing HTML, commit to direction.
+### 1. Think (5 s)
 
-Who's looking? Dev understanding a system? PM seeing big picture? Shapes information density.
+- **Who's looking?** Dev understanding a system? PM seeing the big picture? → shapes density.
+- **What type?** Architecture, flowchart, sequence, data flow, schema/ER, state machine, mind map, class diagram, C4, data table, timeline, dashboard, slide deck.
+- **What aesthetic?** Default = spel brand. Only deviate on explicit user request: Blueprint (deep slate/blue + mono labels), Editorial (serif headlines + muted earth), Paper/ink (cream + terracotta/sage), Monochrome terminal (green/amber on near-black), IDE-inspired (Dracula / Nord / Catppuccin / Solarized / Gruvbox).
 
-What type? Architecture, flowchart, sequence, data flow, schema/ER, state machine, mind map, class diagram, C4, data table, timeline, dashboard, slide deck.
-
-What aesthetic? **Default = always spel brand** (warm earth tones from CSS_PATTERNS.md). Only deviate on explicit user request:
-- Blueprint (technical drawing, deep slate/blue palette, monospace labels)
-- Editorial (serif headlines, generous whitespace, muted earth tones)
-- Paper/ink (warm cream background, terracotta/sage accents)
-- Monochrome terminal (green/amber on near-black)
-- IDE-inspired (commit to real named scheme: Dracula, Nord, Catppuccin, Solarized, Gruvbox)
-
-Forbidden aesthetics:
-- Neon dashboard (cyan + magenta + purple on dark) → always AI slop
-- Gradient mesh (pink/purple/cyan blobs)
-- Inter font + violet/indigo accents + gradient text
+**Forbidden** aesthetics: neon dashboard (cyan + magenta + purple on dark), gradient mesh (pink/purple/cyan blobs), Inter + violet/indigo + gradient text.
 
 ### 2. Structure
-Rendering approach:
 
-| Content type | Approach |
-|---|---|
+| Content | Approach |
+|---------|----------|
 | Architecture (text-heavy) | CSS Grid cards + flow arrows |
 | Architecture (topology-focused) | Mermaid `graph TD` |
-| Flowchart / pipeline | Mermaid |
-| Sequence diagram | Mermaid `sequenceDiagram` |
+| Flowchart / pipeline | Mermaid (or `.pipeline` CSS for simple linear) |
+| Sequence | Mermaid `sequenceDiagram` |
 | Data flow | Mermaid with edge labels |
 | ER / schema | Mermaid `erDiagram` |
 | State machine | Mermaid `stateDiagram-v2` |
 | Mind map | Mermaid `mindmap` |
 | Class diagram | Mermaid `classDiagram` |
-| C4 architecture | Mermaid `graph TD` + `subgraph` (NOT native C4Context) |
+| C4 | Mermaid `graph TD` + `subgraph` (not native C4Context) |
 | Data table | HTML `<table>` |
 | Dashboard | CSS Grid + Chart.js |
-| Slide deck | Scroll-snap slides (see SLIDE_PATTERNS.md) |
+| Slide deck | Scroll-snap slides — see `SLIDE_PATTERNS.md` |
 
-Mermaid theming: always `theme: 'base'` with custom `themeVariables`. Never use built-in themes — they ignore variable overrides.
-
-Mermaid containers: always center with `display: flex; justify-content: center;`. Add zoom controls (+/−/reset/expand) to every `.mermaid-wrap`.
+Mermaid: always `theme: 'base'` with custom `themeVariables` (built-in themes ignore overrides). Always center with `display: flex; justify-content: center;` and add zoom controls to every `.mermaid-wrap`.
 
 ### 3. Style
-- Typography: Use **spel report font stack** from CSS_PATTERNS.md (Atkinson Hyperlegible / Manrope / IBM Plex Mono). Do NOT substitute unless user explicitly requests.
-- Color: Copy **exact CSS custom properties** from CSS_PATTERNS.md theme. Use `--accent: #b2652a`, `--node-b: #1f8a5c`, `--node-c: #0f766e`, `--node-d: #b7791f`, `--node-e: #c44536`.
-- Surfaces: Build depth via `--surface`, `--surface-elevated`, `--bg-secondary` tiers from CSS_PATTERNS.md.
-- Animation: staggered fade-ins on load. Respect `prefers-reduced-motion`. Forbidden: animated glowing box-shadows, pulsing effects on static content.
+
+- **Typography** — spel font stack from `CSS_PATTERNS.md` (Atkinson Hyperlegible / Manrope / IBM Plex Mono). Never substitute unless user asks.
+- **Color** — copy CSS custom properties verbatim. Accent `#b2652a`; semantic `--node-b … --node-e`.
+- **Surfaces** — build depth with `--surface`, `--surface-elevated`, `--bg-secondary`.
+- **Animation** — staggered fade-ins; respect `prefers-reduced-motion`. No glowing/pulsing effects on static content.
 
 ### 4. Deliver
-Output: write to `$(pwd)/spel-visual/` (ALWAYS absolute path — daemon CWD fixed at startup). Descriptive filenames: `architecture.html`, `pipeline-flow.html`.
 
-Preview:
+Output path: always **absolute** (daemon CWD is fixed at startup).
+
 ```bash
+# Preview
 spel open $(pwd)/spel-visual/filename.html
-```
-
-Capture:
-```bash
+# Capture
 spel screenshot $(pwd)/spel-visual/filename.png
 ```
 
-Tell user file path for re-open/sharing.
+Tell the user the path for re-open / sharing.
 
----
+## Content spec protocol (anti-hallucination)
 
-## Content Specification Protocol (ANTI-HALLUCINATION)
+**Rule 1 — Only user-provided information.** Never invent metrics, counts, component names, API endpoints, or file paths. User said "3 services" → show exactly 3. Missing label → `[Service Name]` placeholder, note it.
 
-**Prevents hallucinated content. Follow exactly.**
+**Rule 2 — Every text slot intentional.** For each text element, answer "Where did this come from?"
+- User's input (exact quote or close paraphrase) ✅
+- Structural label ("Overview", "Step 1") ✅
+- Made up because it looked good ❌
 
-### Rule 1: Only use information user provided
-- NEVER invent metric values, statistics, percentages, counts
-- NEVER fabricate component names, API endpoints, file paths user didn't mention
-- User said "3 services" → show exactly 3, not 4 or 5
-- Need label user didn't provide → use generic placeholder `[Service Name]`, note in output
+**Rule 3 — Describe what you're showing.** Every diagram needs:
+- **Title** (`<h1>`/`<h2>`) — what this represents, in user's own words.
+- **Subtitle** (1–2 sentences) — why this exists / what question it answers.
+- **Source note** (footer) — where the data came from.
 
-### Rule 2: Every text slot filled intentionally
-Per text element, answer: "Where did this text come from?"
-- **From user's input** — exact quote or close paraphrase ✅
-- **Structural label** — "Overview", "Details", "Pipeline", "Step 1" ✅
-- **Made up because it looked good** — ❌ NEVER
+## Design token contract (enforced)
 
-### Rule 3: Describe what you're showing
-Every diagram/visualization MUST include:
-- **Title** (`<h1>` or `<h2>`): What this represents. Use user's own words.
-- **Subtitle/description** (1-2 sentences below title): WHY this exists — what question it answers / decision it supports.
-- **Source note** (small text at bottom): Where data came from. "Source: user-provided architecture description" or "Generated from: [user's document name]"
-
----
-
-## Design Token Contract (enforced, not optional)
-
-Visual identity = **design tokens** — CSS custom properties, font stacks, color values, spacing rules from `CSS_PATTERNS.md`. HTML structure flexible; tokens are not.
-
-### Enforced (MUST match spel report)
+Enforced tokens (must match spel report):
 
 | Token | Value | Why |
-|---|---|---|
-| `--font-body` | `'Atkinson Hyperlegible', 'Segoe UI', sans-serif` | Body text readability |
-| `--font-heading` | `'Manrope', 'Atkinson Hyperlegible', sans-serif` | Heading weight + character |
-| `--font-mono` | `'IBM Plex Mono', ui-monospace, monospace` | Code, labels, metrics |
-| `--accent` | `#b2652a` | Primary accent (brown, warm) |
-| `--node-b` | `#1f8a5c` | Success / positive (green) |
-| `--node-c` | `#0f766e` | Info / secondary (teal) |
-| `--node-d` | `#b7791f` | Warning (yellow) |
-| `--node-e` | `#c44536` | Error / critical (red) |
+|-------|-------|-----|
+| `--font-body` | `'Atkinson Hyperlegible', 'Segoe UI', sans-serif` | Body readability |
+| `--font-heading` | `'Manrope', 'Atkinson Hyperlegible', sans-serif` | Heading character |
+| `--font-mono` | `'IBM Plex Mono', ui-monospace, monospace` | Code / labels / metrics |
+| `--accent` | `#b2652a` | Primary accent (brown) |
+| `--node-b / -c / -d / -e` | `#1f8a5c / #0f766e / #b7791f / #c44536` | Success / info / warning / error |
 | `--radius-md` | `18px` | Card border-radius |
-| Background | Warm radial gradients (brown + teal glow) | Signature atmosphere |
-| Card depth | `backdrop-filter: blur(10px)`, soft shadows | Glass-like elevation |
+| Background | Warm radial gradient (brown + teal glow) | Signature atmosphere |
+| Card depth | `backdrop-filter: blur(10px)` + soft shadows | Glass-like elevation |
 | Label style | IBM Plex Mono, uppercase, pill-shaped, accent bg | Consistent categorization |
 
-### Flexible (adapt to content)
+Flexible: page layout, section ordering, component choice (cards / tables / pipelines / Mermaid / charts), section count, flat vs tabs / collapsible, container max-width.
 
-- Page layout (single column, sidebar + main, full-width, grid)
-- Section ordering + nesting
-- Which CSS components to use (cards, tables, pipelines, Mermaid, charts)
-- Number of sections + headings
-- Collapsible sections, tabs, or flat layout
-- Container max-width (900px good default, wider for dashboards)
+Every page must include: Google Fonts block, full theme CSS (`:root` + dark media query), body gradient, `<h1>`, 1–2 sentence context text, source attribution.
 
-### Every page MUST include
+## Content type guidance
 
-1. **Google Fonts block** — exact 3-family `<link>` from CSS_PATTERNS.md
-2. **Full theme CSS** — copy `:root` + `@media (prefers-color-scheme: dark)` blocks from CSS_PATTERNS.md
-3. **Background atmosphere** — body gradient from CSS_PATTERNS.md (warm radial)
-4. **Title** — `<h1>` or equivalent, using user's own words
-5. **Context text** — 1-2 sentences explaining WHAT + WHY
-6. **Source attribution** — small text noting data provenance
+Patterns, not rigid templates. Tokens are the contract; HTML is yours.
 
----
+### Architecture — CSS Grid cards
 
-## Content Type Guidance
+`.ve-card` in `.card-grid`. One card per component. Pill for category, user-provided title, 1–2 sentence body from user input, left-border accent for visual categorization. Stagger fade-ins with `--i` (`style="--i:0"`, `style="--i:1"`, …). Card count must match user's component count.
 
-Patterns, not rigid templates. Use CSS classes from `CSS_PATTERNS.md`, adapt layout to content. Design tokens above = contract; HTML structure = yours.
+### Architecture — Mermaid topology
 
-### Architecture Diagram (CSS Grid Cards)
+`.mermaid-wrap` + zoom controls. One node per component user named. Edge labels only if user specified; subgraphs only if user described groupings; below diagram consider a legend.
 
-Use `.ve-card` components in `.card-grid` layout. Each card = one user-described component.
+### Flowchart / pipeline
 
-**Per card:**
-- `.ve-card__label` pill: component category ("FRONTEND", "DATABASE")
-- Title: component name from user's input
-- Body: 1-2 sentences describing what it does — ONLY from user's input
-- Left-border accent (`--accent-a` through `--accent-e`) for visual categorization
+Mermaid for complex; `.pipeline` CSS for simple 3–4 step linear flows. One step per stage the user described. Decision diamonds only for explicit conditional logic. Consider pairing diagram with a `.data-table` summary (step, description, inputs, outputs; "—" for unspecified).
 
-Use `--i` CSS variable for staggered fade-in (`style="--i:0"`, `style="--i:1"`)
+### Data table / comparison
 
-**Anti-hallucination check:** Count user's components. Card count MUST match.
+`.table-wrap > .table-scroll > .data-table`. Headers, row count, cell values exactly as user provided — no rounding, no summarizing. `.status` pills for categorical values (`match` / `gap` / `warn` / `info`).
 
-### Architecture Diagram (Mermaid Topology)
+### Dashboard / metrics
 
-Use `.mermaid-wrap` with zoom controls. One node per component user named — no invented nodes.
+`.kpi-row > .kpi-card`. Only user-provided metrics. Color mapping: green (`--node-b`) positive / growth; red (`--node-e`) negative / failure; brown (`--accent`) neutral / totals; yellow (`--node-d`) warning / threshold.
 
-- Edge labels: only if user specified relationship type
-- Subgraphs: only if user described logical groupings
-- Below diagram: consider legend explaining colors/shapes — using user's data
+## Diagram type sizing
 
-### Flowchart / Pipeline
+- Architecture < 10 elements → Mermaid `graph TD`
+- Text-heavy < 15 → CSS Grid cards
+- 15+ → hybrid: Mermaid overview (5–8 nodes) + CSS Grid cards for detail
+- Simple linear pipelines → CSS `.pipeline`
 
-Mermaid in `.mermaid-wrap` for complex flows. For simple 3-4 step linear flows, consider `.pipeline` CSS layout from CSS_PATTERNS.md.
+Prefer `graph TD` over `graph LR` for complex diagrams.
 
-**Required:**
-- One step per stage user described — no extra steps
-- Decision diamonds only if user described conditional logic
-- Edge labels only if user specified transitions
+## Quality checks
 
-Consider pairing diagram with `.data-table` summary below listing step, description, inputs, outputs. Use "—" for unspecified fields.
+- **Squint test** — hierarchy still perceptible when blurred?
+- **Swap test** — generic dark theme / generic fonts → still distinguishable from template?
+- **Both themes** — toggle OS light/dark. Both look intentional.
+- **No overflow** — resize. Every grid/flex child has `min-width: 0`.
+- **Mermaid zoom controls** on every `.mermaid-wrap`.
+- **Design token check** — Atkinson Hyperlegible / Manrope / IBM Plex Mono + brown accent.
+- **Content fidelity** — every text traces to user input.
 
-### Data Table / Comparison
+## Anti-patterns (AI slop)
 
-Use `.table-wrap` > `.table-scroll` > `.data-table` from CSS_PATTERNS.md.
-
-- Column headers: EXACTLY user-specified
-- Row count: EXACTLY user-provided
-- Cell values: EXACTLY user-provided — no rounding, no summarizing
-- `.status` pills for categorical values (match/gap/warn/info)
-
-### Dashboard / Metrics
-
-Use `.kpi-row` > `.kpi-card` from CSS_PATTERNS.md. ONLY metrics user provided.
-
-**Color mapping for KPI values:**
-- Green (`--node-b`): positive, growth, success
-- Red (`--node-e`): negative, errors, failures
-- Brown (`--accent`): neutral, totals, counts
-- Yellow (`--node-d`): warnings, thresholds approaching
-
-NEVER invent numbers. User gave 4 metrics → show exactly 4.
-
----
-
-## Diagram Types
-
-### Architecture / system diagrams
-- Simple topology (< 10 elements): Mermaid `graph TD`
-- Text-heavy (< 15 elements): CSS Grid cards with colored borders + monospace labels
-- Complex (15+ elements): hybrid — simple Mermaid overview (5-8 nodes) + CSS Grid cards for details
-
-### Flowcharts / Pipelines
-Mermaid. Prefer `graph TD` over `graph LR` for complex diagrams.
-
-### Data tables / comparisons
-Real `<table>` elements. Wrap in scrollable container. Sticky `<thead>`. Alternating row backgrounds.
-
-### Slide deck mode
-Opt-in only — explicit user request. See SLIDE_PATTERNS.md for full slide engine.
-
-## File Structure
-Every diagram = single self-contained `.html` file. No external assets except CDN links (fonts, optional libraries).
-
-## Quality Checks
-- Squint test: blur eyes. Still perceive hierarchy?
-- Swap test: generic dark theme fonts/colors → still distinguishable from template?
-- Both themes: toggle OS light/dark. Both look intentional.
-- No overflow: resize browser. No content clips. Every grid/flex child needs `min-width: 0`.
-- Mermaid zoom controls: every `.mermaid-wrap` must have zoom + click-to-expand.
-- **Design token check**: Atkinson Hyperlegible / Manrope / IBM Plex Mono + brown accent? If not, fix.
-- **Content fidelity**: Every text traces to user's input? If not, remove.
-
-## Anti-Patterns (AI Slop)
-- Inter/Roboto as primary font → use Atkinson Hyperlegible / Manrope / IBM Plex Mono
-- Indigo/violet accents (`#8b5cf6`, `#7c3aed`) → use warm earth tones from CSS_PATTERNS.md
-- Gradient text on headings (`background-clip: text`)
-- Animated glowing box-shadows
-- Emoji icons in section headers
-- All cards styled identically with no visual hierarchy
-- **Invented metrics/statistics user didn't provide**
-- **Extra components/nodes user didn't mention**
-- **Generic placeholder text: "Lorem ipsum" / "Description goes here"**
+- Inter / Roboto as primary font → use Atkinson Hyperlegible / Manrope / IBM Plex Mono.
+- Indigo / violet accents (`#8b5cf6`, `#7c3aed`) → use warm earth tones.
+- Gradient text on headings (`background-clip: text`).
+- Animated glowing box-shadows.
+- Emoji icons in section headers.
+- All cards styled identically with no visual hierarchy.
+- Invented metrics, extra components, generic placeholder text ("Lorem ipsum", "Description goes here").

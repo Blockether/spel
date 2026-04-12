@@ -1,61 +1,54 @@
-# Codegen & CLI Reference
+# Codegen & CLI reference
 
-## Codegen - Record & Transform
-
-Record browser sessions, transform to idiomatic Clojure.
-
-### Workflow
+## Codegen — record + transform
 
 ```bash
-# 1. Record browser session (opens interactive Playwright Codegen recorder)
-# Defaults to --target=jsonl for the spel transform pipeline
+# 1. Record session (opens interactive Playwright recorder, JSONL target by default)
 spel codegen record -o recording.jsonl https://example.org
 
-# 2. Transform JSONL to Clojure test
+# 2. Transform JSONL → Clojure
 spel codegen recording.jsonl > my_test.clj
 spel codegen --format=script recording.jsonl
-spel codegen --format=body recording.jsonl
+spel codegen --format=body   recording.jsonl
 ```
-
-### Formats
 
 | Format | Output |
 |--------|--------|
-| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` (from `spel.allure`) using `core/with-testing-page` |
+| `:test` (default) | Full test file with `defdescribe`/`it`/`expect` + `core/with-testing-page` |
 | `:script` | Standalone script with `require`/`import` + `with-testing-page` |
-| `:body` | Just action lines for pasting into existing code |
+| `:body` | Just action lines — paste into existing code |
 
-### Supported Actions
+### Action mapping
 
-| Action | Codegen Output |
-|--------|---------------|
+| Action | Codegen output |
+|--------|----------------|
 | `navigate` | `(page/navigate pg "url")` |
-| `click` | `(locator/click loc)` with modifiers, button, position |
-| `click` (dblclick) | `(locator/dblclick loc)` when clickCount=2 |
+| `click` | `(locator/click loc)` (+ modifiers, button, position) |
+| `click` (dblclick) | `(locator/dblclick loc)` when `clickCount=2` |
 | `click` (N>2) | `(locator/click loc {:click-count N})` |
 | `fill` | `(locator/fill loc "text")` |
-| `press` | `(locator/press loc "key")` with modifier combos |
-| `hover` | `(locator/hover loc)` with optional position |
-| `check`/`uncheck` | `(locator/check loc)` / `(locator/uncheck loc)` |
+| `press` | `(locator/press loc "key")` (+ modifier combos) |
+| `hover` | `(locator/hover loc)` (+ optional position) |
+| `check` / `uncheck` | `(locator/check loc)` / `(locator/uncheck loc)` |
 | `select` | `(locator/select-option loc "value")` |
 | `setInputFiles` | `(locator/set-input-files! loc "path")` or vector |
 | `assertText` | `(assert/has-text (assert/assert-that loc) "text")` |
 | `assertChecked` | `(assert/is-checked (assert/assert-that loc))` |
 | `assertVisible` | `(assert/is-visible (assert/assert-that loc))` |
 | `assertValue` | `(assert/has-value (assert/assert-that loc) "val")` |
-| `assertSnapshot` | `(assert/matches-aria-snapshot (assert/assert-that loc) "snapshot")` |
+| `assertSnapshot` | `(assert/matches-aria-snapshot (assert/assert-that loc) "snap")` |
 
-### Signal Handling
+### Signals
 
-| Signal | Codegen Pattern |
-|--------|----------------|
-| `dialog` | `(page/on-dialog pg (fn [dialog] (.dismiss dialog)))` BEFORE action |
-| `popup` | `(let [popup-pg (page/wait-for-popup pg #(action))] ...)` AROUND action |
-| `download` | `(let [download (page/wait-for-download pg #(action))] ...)` AROUND action |
+| Signal | Pattern |
+|--------|---------|
+| `dialog` | `(page/on-dialog pg (fn [dlg] (.dismiss dlg)))` **before** action |
+| `popup` | `(let [popup-pg (page/wait-for-popup pg #(action))] ...)` **around** action |
+| `download` | `(let [dl (page/wait-for-download pg #(action))] ...)` **around** action |
 
-### Frame Navigation in Codegen
+### Frame navigation
 
-`framePath` array generates chained `.contentFrame()` calls:
+A `framePath` array generates chained `.contentFrame()` calls:
 
 ```clojure
 ;; framePath: ["iframe.outer", "iframe.inner"]
@@ -64,328 +57,245 @@ spel codegen --format=body recording.jsonl
   (locator/click (.locator fl1 "button")))
 ```
 
-### Hard Errors
+### Hard errors
 
-Codegen dies immediately on:
-- Unknown action types
-- Unknown signal types
-- Unrecognized locator formats
-- Missing locator/selector data
-
-In CLI mode: prints full action data + `System/exit 1`.
-In library mode: throws `ex-info` with `:codegen/error` and `:codegen/action`.
-
----
+Codegen exits immediately on unknown action types, unknown signal types, unrecognized locator formats, or missing locator/selector data. CLI: prints the full action + `System/exit 1`. Library: throws `ex-info` with `:codegen/error` and `:codegen/action`.
 
 ## CLI
 
-Wraps Playwright CLI commands via `spel` native binary.
+Wraps Playwright CLI commands via the `spel` native binary.
 
-> **Prefer `eval-sci` for multi-step automation.** Standalone CLI commands (`spel open`, `spel click @e2yrjz`, etc.) useful for quick one-off actions, but for anything beyond a single command, use `spel eval-sci '<clojure-code>'` or `spel eval-sci script.clj`. Gives you full Clojure composition — loops, conditionals, variables, error handling — in a single persistent browser session. LLM-generated scripts piped via `echo '(code)' | spel eval-sci --stdin`.
+> **For multi-step automation, prefer `eval-sci`.** Standalone commands (`spel open`, `spel click @e2yrjz`) are good for one-offs; anything longer should be `spel eval-sci '<code>'` or `spel eval-sci script.clj`. LLM-generated scripts: `echo '(code)' | spel eval-sci --stdin`.
 
-> **Note**: `spel install` delegates to `com.microsoft.playwright.CLI` — thin shim spawning same Node.js Playwright CLI that `npx playwright` uses. Driver version pinned to Playwright Java dependency (1.58.0), so browser versions always match.
+> `spel install` wraps `com.microsoft.playwright.CLI` — same Node.js Playwright CLI that `npx playwright` uses. Driver version is pinned to Playwright Java (1.58.0), so browser versions always match.
 
 ```bash
-spel install                        # Install browsers (Chromium by default)
-spel install --with-deps chromium   # Install with system dependencies
-spel codegen URL                    # Record interactions
-spel open URL                       # Open browser
-spel screenshot URL                 # Take screenshot
+spel install                        # install browsers (Chromium default)
+spel install --with-deps chromium   # + system dependencies
+spel codegen URL                    # record interactions
+spel open URL                       # open browser
+spel screenshot URL                 # take screenshot
 ```
 
-#### Corporate Proxy / Custom CA Certificates
+### Corporate proxy / custom CA certs
 
-Behind corporate SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Use these env vars to add corporate CA certs:
+Behind an SSL-inspecting proxy, `spel install` may fail with "PKIX path building failed". Supply CA certs via env vars:
 
-| Env Var | Format | On missing file | Description |
-|---------|--------|----------------|-------------|
-| `SPEL_CA_BUNDLE` | PEM file | Error | Extra CA certs (merged with defaults) |
-| `NODE_EXTRA_CA_CERTS` | PEM file | Warning, skips | Shared with Node.js subprocess |
+| Env var | Format | On missing file | Description |
+|---------|--------|-----------------|-------------|
+| `SPEL_CA_BUNDLE` | PEM | Error | Extra CA certs (merged with defaults) |
+| `NODE_EXTRA_CA_CERTS` | PEM | Warning, skips | Shared with Node.js subprocess |
 | `SPEL_TRUSTSTORE` | JKS/PKCS12 | Error | Truststore (merged with defaults) |
-| `SPEL_TRUSTSTORE_TYPE` | String | — | Default: JKS |
-| `SPEL_TRUSTSTORE_PASSWORD` | String | — | Default: empty |
+| `SPEL_TRUSTSTORE_TYPE` | string | — | Default: JKS |
+| `SPEL_TRUSTSTORE_PASSWORD` | string | — | Default: empty |
 
 ```bash
-# Simplest — PEM file with corporate CA
 export SPEL_CA_BUNDLE=/path/to/corporate-ca.pem
 spel install --with-deps
 
-# Or reuse Node.js var — covers both driver + browser downloads
+# Or reuse Node.js var (covers driver + browser downloads)
 export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
 spel install --with-deps
 ```
 
-All options merge with built-in defaults — public CDN certs continue to work.
+Public CDN certs still work — these merge with defaults.
 
-### Playwright Tools
-
-Launch Playwright's built-in visual tools directly from `spel`:
+### Playwright tools
 
 ```bash
-# Inspector — opens a headed browser with the Playwright Inspector panel.
-# Use to explore the page, pick locators, and record actions interactively.
-spel inspector                                      # Open Inspector (blank page)
-spel inspector https://example.org                  # Open Inspector on URL
-spel inspector -b firefox https://example.org       # Use Firefox
-spel inspector --device "iPhone 14" https://example.org  # Emulate device
+# Inspector — headed browser with the Inspector panel
+spel inspector
+spel inspector https://example.org
+spel inspector -b firefox https://example.org
+spel inspector --device "iPhone 14" https://example.org
 
-# Trace Viewer — opens the Playwright Trace Viewer to inspect recorded traces.
-# Traces are created via `spel trace start` / `spel trace stop` or automatically
-# by test fixtures with Allure reporter active.
-spel show-trace                     # Open Trace Viewer (blank)
-spel show-trace trace.zip           # Open specific trace file
-spel show-trace --port 8080 trace.zip  # Serve on specific port
+# Trace Viewer
+spel show-trace                           # blank
+spel show-trace trace.zip
+spel show-trace --port 8080 trace.zip
 ```
 
-**Inspector options** (all Playwright `open` flags supported):
+Inspector options (all Playwright `open` flags supported):
 
-| Flag | Description |
-|------|-------------|
-| `-b, --browser <type>` | Browser engine: `cr`/`chromium`, `ff`/`firefox`, `wk`/`webkit` (default: chromium) |
-| `--channel <channel>` | Chromium channel: `chrome`, `chrome-beta`, `msedge-dev`, etc. |
-| `--device <name>` | Emulate device (e.g. `"iPhone 14"`, `"Pixel 7"`) |
-| `--color-scheme <scheme>` | `light` or `dark` |
-| `--geolocation <lat,lng>` | Geolocation coordinates |
-| `--lang <locale>` | Language locale (e.g. `en-GB`) |
-| `--timezone <tz>` | Timezone (e.g. `Europe/Rome`) |
-| `--viewport-size <w,h>` | Viewport size (e.g. `1280,720`) |
-| `--user-agent <ua>` | Custom user agent |
-| `--proxy-server <url>` | Proxy server |
-| `--ignore-https-errors` | Ignore HTTPS certificate errors |
-| `--load-state <file>` | Load saved state (alias: `--load-storage`) |
-| `--save-state <file>` | Save state on exit (alias: `--save-storage`) |
-| `--save-har <file>` | Save HAR file on exit |
-| `--timeout <ms>` | Action timeout in ms |
+| Flag | Purpose |
+|------|---------|
+| `-b, --browser <type>` | `cr`/`chromium`, `ff`/`firefox`, `wk`/`webkit` (default chromium) |
+| `--channel <channel>` | Chromium channel (`chrome`, `chrome-beta`, `msedge-dev`, …) |
+| `--device <name>` | Emulate device |
+| `--color-scheme <scheme>` | `light` / `dark` |
+| `--geolocation <lat,lng>` | Geo coords |
+| `--lang <locale>` / `--timezone <tz>` | Locale / tz |
+| `--viewport-size <w,h>` / `--user-agent <ua>` | Viewport / UA |
+| `--proxy-server <url>` | Proxy |
+| `--ignore-https-errors` | Skip HTTPS cert errors |
+| `--load-state <file>` / `--save-state <file>` | Storage state (aliases: `--load-storage`, `--save-storage`) |
+| `--save-har <file>` / `--timeout <ms>` | HAR / action timeout |
 
----
+## Page exploration (CLI)
 
-## Page Exploration (spel)
-
-`spel` CLI provides comprehensive page exploration without writing code.
-
-### Basic Exploration Workflow
+### Basic workflow
 
 ```bash
-# 1. Navigate to a page
 spel open https://example.org
-
-# 2. Get accessibility snapshot with numbered refs (e1, e2, etc.)
-spel snapshot
-
-# 3. Take a screenshot for visual reference
+spel snapshot                # full a11y tree
 spel screenshot page.png
 ```
 
-### Snapshot Command
-
-Primary exploration tool — returns ARIA accessibility tree with numbered refs:
+### Snapshot command
 
 ```bash
-spel snapshot                           # Full accessibility tree
-spel snapshot -i                        # Interactive elements only
-spel snapshot -i -c                     # Compact format
-spel snapshot -i -c -d 3               # Limit depth to 3 levels
-spel snapshot -i -C                     # Include cursor/pointer elements
-spel snapshot -s "#main"               # Scoped to CSS selector
+spel snapshot                # full a11y tree
+spel snapshot -i             # interactive only
+spel snapshot -i -c          # compact
+spel snapshot -i -c -d 3     # depth limit
+spel snapshot -i -C          # include cursor/pointer elements
+spel snapshot -s "#main"     # scoped to selector
 ```
 
-**Output format:**
+Output:
+
 ```
 - heading "Example Domain" [@e2yrjz] [level=1]
-- link "More information..." [@e9mter]
-- button "Submit" [@e6t2x4]
+- link    "More information..." [@e9mter]
+- button  "Submit" [@e6t2x4]
 ```
 
-### Get Page Information
+### Get page info
 
 ```bash
-spel get url                           # Current URL
-spel get title                         # Page title
-spel get text @e2yrjz                      # Text content of ref e2yrjz
-spel get html @e2yrjz                      # Inner HTML
-spel get value @e9mter                     # Input value
-spel get attr @e2yrjz href                 # Attribute value
-spel get count ".items"               # Count matching elements
-spel get box @e2yrjz                       # Bounding box {x, y, width, height}
+spel get url
+spel get title
+spel get text  @e2yrjz
+spel get html  @e2yrjz
+spel get value @e9mter
+spel get attr  @e2yrjz href
+spel get count ".items"
+spel get box   @e2yrjz       # {x, y, width, height}
 ```
 
-### Check Element State
+### Check element state
 
 ```bash
-spel is visible @e2yrjz                    # Check visibility
-spel is enabled @e2yrjz                    # Check if enabled
-spel is checked @e6t2x4                    # Check checkbox state
+spel is visible @e2yrjz
+spel is enabled @e2yrjz
+spel is checked @e6t2x4
 ```
 
-### Find Elements (Semantic Locators)
-
-Find and interact in one command:
+### Find + act (semantic locators)
 
 ```bash
-# Find by ARIA role
-spel find role button click
-spel find role button click --name "Submit"
-
-# Find by text content
-spel find text "Login" click
-
-# Find by label
-spel find label "Email" fill "test@example.org"
-
-# Position-based
-spel find first ".item" click
-spel find last ".item" click
-spel find nth 2 ".item" click
+spel find role   button click
+spel find role   button click --name "Submit"
+spel find text   "Login" click
+spel find label  "Email"  fill "test@example.org"
+spel find first  ".item"  click
+spel find last   ".item"  click
+spel find nth 2  ".item"  click
 ```
 
-### Visual Exploration
+### Visual
 
 ```bash
-spel screenshot                        # Screenshot to stdout (base64)
-spel screenshot shot.png              # Save to file
-spel screenshot -f full.png           # Full page screenshot
-spel pdf page.pdf                     # Save as PDF (Chromium only)
-spel highlight @e2yrjz                    # Highlight element visually
+spel screenshot              # stdout (base64)
+spel screenshot shot.png
+spel screenshot -f full.png  # full page
+spel pdf page.pdf            # Chromium only
+spel highlight @e2yrjz
 ```
 
-### Image Stitching
-
-Stitch multiple screenshots vertically into one image. Useful for capturing full-page content from virtual-scroll pages.
+### Stitching
 
 ```bash
-# Basic stitch - combine screenshots vertically
 spel stitch s1.png s2.png s3.png
-
-# Custom output path
 spel stitch s1.png s2.png -o full-page.png
-
-# Overlap trimming - remove N pixels from top of each subsequent image
-# (removes duplicate content from overlapping scroll captures)
 spel stitch s1.png s2.png s3.png --overlap 50 -o full.png
 ```
 
-Also available in SCI `eval-sci` mode:
+Programmatic (SCI):
 
 ```clojure
-;; Stitch images programmatically
 (stitch/stitch-vertical ["s1.png" "s2.png" "s3.png"] "output.png")
-
-;; With overlap trimming (removes 50px from top of each image after first)
 (stitch/stitch-vertical-overlap ["s1.png" "s2.png"] "output.png" {:overlap-px 50})
-
-;; Read an image as BufferedImage for inspection
 (stitch/read-image "screenshot.png")
 ```
 
-### Network Exploration
+### Network
 
 ```bash
-spel network requests                  # View all captured requests
-spel network requests --type fetch    # Filter by type (document, script, fetch, image, etc.)
-spel network requests --method POST   # Filter by HTTP method
-spel network requests --status 2      # Filter by status prefix (2=2xx, 4=4xx)
-spel network requests --filter "/api" # Filter by URL regex
-spel network clear                    # Clear captured requests
+spel network requests                     # all
+spel network requests --type fetch        # filter by type
+spel network requests --method POST       # by method
+spel network requests --status 2          # by status prefix (2xx, 4xx, …)
+spel network requests --filter "/api"     # URL regex
+spel network clear
 ```
 
-### JavaScript Evaluation
+### JS eval
 
 ```bash
-# Run JavaScript
 spel eval "document.title"
 spel eval "document.querySelector('h1').textContent"
-
-# Base64-encoded result
-spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text: a.textContent, href: a.href})))" -b
+spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text:a.textContent, href:a.href})))" -b
 ```
 
-### Console & Errors
+### Console / errors
 
-Console messages and page errors auto-captured from moment page opens. No `start` command needed.
+Auto-captured from the moment the page opens; no `start` needed.
 
 ```bash
-spel console                           # View captured console messages
-spel console clear                     # Clear captured messages
-
-spel errors                            # View captured page errors
-spel errors clear                      # Clear captured errors
+spel console           spel console clear
+spel errors            spel errors  clear
 ```
 
-### Complete Exploration Example
+### Complete example
 
 ```bash
-# Open page
 spel open https://example.org
-
-# Get initial snapshot
 spel snapshot -i
-
-# Take screenshot
 spel screenshot initial.png
-
-# Get page info
 spel get title
 spel get url
-
-# Check specific element
 spel get text @e9mter
 spel is visible @e6t2x4
-
-# Interact and re-snapshot
 spel click @e9mter
 spel snapshot -i
-
-# View network activity
 spel network requests
-
-# Close browser when done
 spel close
 ```
 
----
+## Native image CLI
 
-## Native Image CLI
-
-Library includes GraalVM native-image compiled binary for instant-start browser automation via CLI.
-
-### Build & Run
+Library ships a GraalVM native-image binary for instant-start automation.
 
 ```bash
-# Build native binary
 clojure -T:build uberjar
 clojure -T:build native-image
-
-# Install Playwright browsers
 ./target/spel install
 ```
 
-### CLI Configuration
-
-Global flags apply to all commands and modes:
+### Global flags
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--timeout <ms>` | `30000` | Playwright action timeout in milliseconds |
-| `--session <name>` | `default` | Named browser session (isolates state between sessions) |
-| `--json` | off | JSON output format (for agent/machine consumption) |
+| `--timeout <ms>` | `30000` | Playwright action timeout |
+| `--session <name>` | `default` | Named browser session |
+| `--json` | off | JSON output |
 | `--debug` | off | Debug output |
-| `--autoclose` | off | Close daemon after `eval-sci` completes |
-| `--interactive` | off | Headed (visible) browser for `eval-sci` mode |
-| `--load-state <path>` | - | Load browser state (cookies/localStorage JSON, alias: `--storage-state`) |
-| `--profile <path>` | - | Chrome user data directory (persistent profile) |
-| `--executable-path <path>` | - | Custom browser executable |
-| `--user-agent <ua>` | - | Custom user agent string |
-| `--proxy <url>` | - | Proxy server URL |
-| `--proxy-bypass <domains>` | - | Proxy bypass domains |
-| `--headers <json>` | - | Extra HTTP headers (JSON string) |
-| `--args <args>` | - | Browser args (comma-separated) |
-| `--cdp <url>` | - | Connect via Chrome DevTools Protocol endpoint |
-| `--ignore-https-errors` | off | Ignore HTTPS certificate errors |
-| `--allow-file-access` | off | Allow file:// access |
+| `--autoclose` | off | Close daemon after `eval-sci` |
+| `--interactive` | off | Headed browser for `eval-sci` |
+| `--load-state <path>` | — | Restore storage JSON (alias `--storage-state`) |
+| `--profile <path>` | — | Persistent Chrome user-data-dir |
+| `--executable-path <path>` | — | Custom binary |
+| `--user-agent <ua>` / `--proxy <url>` / `--proxy-bypass <domains>` | — | — |
+| `--headers <json>` | — | Extra HTTP headers |
+| `--args <args>` | — | Comma-separated browser args |
+| `--cdp <url>` | — | Attach via CDP endpoint |
+| `--ignore-https-errors` | off | — |
+| `--allow-file-access` | off | Allow `file://` |
 
-### CI Assemble (`spel ci-assemble`)
+### CI assemble (`spel ci-assemble`)
 
-Assembles Allure report sites for CI/CD deployment. Replaces shell/Python scripts in CI workflows with single Clojure command.
+Assembles Allure report sites for CI/CD. Replaces shell/Python scripts in CI workflows.
 
 ```bash
 spel ci-assemble \
@@ -397,92 +307,59 @@ spel ci-assemble \
   --test-passed=100 --test-failed=2
 ```
 
-| Flag | Env Var | Purpose |
-|------|---------|---------|
-| `--site-dir DIR` | `SPEL_CI_SITE_DIR` | Site directory (default: `gh-pages-site`) |
+| Flag | Env | Purpose |
+|------|-----|---------|
+| `--site-dir DIR` | `SPEL_CI_SITE_DIR` | Site directory (default `gh-pages-site`) |
 | `--run NUMBER` | `RUN_NUMBER` | CI run number (required) |
-| `--commit-sha SHA` | `COMMIT_SHA` | Git commit SHA |
-| `--commit-msg MSG` | `COMMIT_MSG` | Commit message |
-| `--commit-ts TS` | `COMMIT_TS` | Commit timestamp (ISO 8601) |
-| `--tests-passed BOOL` | `TEST_PASSED` | Whether tests passed (`true`/`false`) |
-| `--repo-url URL` | `REPO_URL` | Repository URL |
-| `--run-url URL` | `RUN_URL` | CI run URL |
-| `--version VER` | `VERSION` | Project version string |
-| `--version-badge TYPE` | `VERSION_BADGE` | Badge type: `release` or `candidate` |
-| `--test-passed N` | `TEST_COUNTS_PASSED` | Number of passed tests |
-| `--test-failed N` | `TEST_COUNTS_FAILED` | Number of failed tests |
-| `--test-broken N` | `TEST_COUNTS_BROKEN` | Number of broken tests |
-| `--test-skipped N` | `TEST_COUNTS_SKIPPED` | Number of skipped tests |
-| `--history-file FILE` | `ALLURE_HISTORY_FILE` | Allure history file (default: `.allure-history.jsonl`) |
-| `--report-url URL` | `REPORT_URL` | Report URL for history patching |
-| `--logo-file FILE` | `LOGO_FILE` | Logo SVG file path |
-| `--index-file FILE` | `INDEX_FILE` | Index HTML file path |
-| `--title TEXT` | `LANDING_TITLE` | Title to inject into index.html |
-| `--subtitle TEXT` | `LANDING_SUBTITLE` | Subtitle to inject into index.html |
+| `--commit-sha` / `--commit-msg` / `--commit-ts` | `COMMIT_SHA` / `COMMIT_MSG` / `COMMIT_TS` | Git info |
+| `--tests-passed BOOL` | `TEST_PASSED` | Whether tests passed |
+| `--repo-url` / `--run-url` | `REPO_URL` / `RUN_URL` | Repo / CI URLs |
+| `--version` / `--version-badge` | `VERSION` / `VERSION_BADGE` | Version string / badge (`release` / `candidate`) |
+| `--test-passed N` / `--test-failed N` / `--test-broken N` / `--test-skipped N` | `TEST_COUNTS_*` | Test counts |
+| `--history-file FILE` | `ALLURE_HISTORY_FILE` | Default `.allure-history.jsonl` |
+| `--report-url` | `REPORT_URL` | For history patching |
+| `--logo-file` / `--index-file` | `LOGO_FILE` / `INDEX_FILE` | Assets |
+| `--title` / `--subtitle` | `LANDING_TITLE` / `LANDING_SUBTITLE` | Injected into `index.html` |
 
-Operations performed (in order):
-1. Patches `.allure-history.jsonl` with report URL and commit info (when `--report-url` set)
-2. Generates `builds.json`, `builds-meta.json`, and `badge.json` (when site directory exists)
-3. Patches `index.html` with logo and title placeholders (when `--index-file` set)
+Operations (in order): patch `.allure-history.jsonl` → generate `builds.json` + `builds-meta.json` + `badge.json` → patch `index.html`.
 
-**In-Progress Build Tracking:**
-
-CI module supports tracking builds as "in progress" with yellow animated badge on landing page:
+**In-progress tracking**: `register-build-start!` shows a yellow animated badge before tests finish; `finalize-build!` updates to passed/failed. Flow: register → deploy pages (yellow) → run tests → finalize → regenerate metadata → re-deploy.
 
 ```clojure
-;; At start of CI run — registers build with yellow "In Progress" badge
-(ci/register-build-start!
-  {:site-dir "gh-pages-site"
-   :run-number "123"
-   :commit-sha "abc123..."
-   :commit-msg "feat: add feature"
-   :commit-author "developer"
-   :repo-url "https://github.com/org/repo"
-   :run-url "https://github.com/org/repo/actions/runs/456"})
+(ci/register-build-start! {:site-dir "gh-pages-site" :run-number "123" :commit-sha "abc…"
+                           :commit-msg "feat: add feature" :commit-author "dev"
+                           :repo-url "https://github.com/org/repo"
+                           :run-url "https://github.com/org/repo/actions/runs/456"})
 
-;; After tests complete — updates status to completed/failed
-(ci/finalize-build!
-  {:site-dir "gh-pages-site"
-   :run-number "123"
-   :passed true})
+(ci/finalize-build! {:site-dir "gh-pages-site" :run-number "123" :passed true})
 ```
 
-Flow: register → deploy pages (shows yellow badge) → run tests → finalize → regenerate metadata → re-deploy pages.
-
-In CI workflows, call via JVM (Clojure CLI) rather than native binary:
+In CI, call via JVM (Clojure CLI) rather than native:
 
 ```clojure
 clojure -M -e "
   (require '[com.blockether.spel.ci :as ci])
   (ci/generate-builds-metadata! {:site-dir \"gh-pages-site\" ...})
-  (ci/patch-index-html! {:index-file \"gh-pages-site/index.html\" ...})"
+  (ci/patch-index-html!         {:index-file \"gh-pages-site/index.html\" ...})"
 ```
 
----
+## API discovery in `eval-sci`
 
-## API Discovery in `eval-sci` Mode
+| Call | Purpose |
+|------|---------|
+| `(spel/help)` | List namespaces + counts |
+| `(spel/help "spel")` | List every fn in a namespace |
+| `(spel/help "click")` | Search by keyword |
+| `(spel/help "spel/click")` | One fn's signature + doc |
+| `(spel/source "spel/click")` | Show SCI wrapper + library target |
+| `(spel/source "goto")` | By bare name; lists candidates on ambiguity |
 
-Use `spel/help` and `spel/source` to explore the eval API at runtime:
+Prefer these over reading SKILL.md while writing `eval-sci`.
 
-| Command | What it does |
-|---------|-------------|
-| `(spel/help)` | List all namespaces with function counts |
-| `(spel/help "spel")` | List all functions in a namespace (table: name, arglists, description) |
-| `(spel/help "click")` | Search across all namespaces by function name or description |
-| `(spel/help "spel/click")` | Show details for a specific function (arglists, description, backing library function) |
-| `(spel/source "spel/click")` | Show the SCI wrapper source code and which library function it delegates to |
-| `(spel/source "goto")` | Search by bare name — shows source if unique match, lists candidates if multiple |
-
-These are **canonical** way to discover and understand the eval API. Prefer `spel/help` over reading this SKILL file when working in `eval-sci` mode.
-
----
-
-## CLI Entry Points
-
-`spel` binary is primary CLI interface:
+## CLI entry points
 
 | Command | Purpose |
 |---------|---------|
 | `spel <command>` | Browser automation CLI (100+ commands) |
-| `spel codegen` | Record and transform browser sessions to Clojure |
-| `spel init-agents` | Scaffold E2E testing agents (`--loop=opencode\|claude\|vscode`) |
+| `spel codegen` | Record + transform sessions to Clojure |
+| `spel init-agents` | Scaffold E2E agents (`--loop=opencode|claude`) |

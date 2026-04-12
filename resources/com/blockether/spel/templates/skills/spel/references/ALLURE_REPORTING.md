@@ -1,10 +1,9 @@
 # Allure test reporting
 
-Rich HTML reports with embedded Playwright traces, step hierarchies, labels, attachments, and build history tracking.
+Rich HTML reports with embedded Playwright traces, steps, labels, attachments,
+build history.
 
-## Labels
-
-Call these inside test bodies to add metadata to Allure results:
+## Labels — add metadata inside test bodies
 
 ```clojure
 (require '[com.blockether.spel.allure :as allure])
@@ -12,7 +11,7 @@ Call these inside test bodies to add metadata to Allure results:
 (allure/epic "E2E Testing")
 (allure/feature "Authentication")
 (allure/story "Login Flow")
-(allure/severity :critical)          ; :blocker :critical :normal :minor :trivial
+(allure/severity :critical)       ; :blocker :critical :normal :minor :trivial
 (allure/owner "team@example.org")
 (allure/tag "smoke")
 (allure/description "Tests the complete login flow")
@@ -22,221 +21,220 @@ Call these inside test bodies to add metadata to Allure results:
 (allure/parameter "browser" "chromium")
 ```
 
-| Label | Function | Purpose |
-|-------|-----------|---------|
-| Epic | `allure/epic` | High-level test grouping (e.g., "E2E Testing") |
-| Feature | `allure/feature` | Feature or module under test (e.g., "Authentication") |
-| Story | `allure/story` | User story or scenario (e.g., "Login Flow") |
-| Severity | `allure/severity` | Priority: `:blocker`, `:critical`, `:normal`, `:minor`, `:trivial` |
-| Owner | `allure/owner` | Test owner email |
-| Tag | `allure/tag` | Freeform tags for filtering (e.g., "smoke", "regression") |
-| Description | `allure/description` | Full test description |
-| Link | `allure/link` | Named link to external resources |
-| Issue | `allure/issue` | Link to bug tracker |
-| TMS | `allure/tms` | Link to Test Management System |
-| Parameter | `allure/parameter` | Test parameter (key-value pairs for parametrized tests) |
+| Label | Purpose |
+|-------|---------|
+| `epic` / `feature` / `story` | Three-level test grouping |
+| `severity` | `:blocker` `:critical` `:normal` `:minor` `:trivial` |
+| `owner` / `tag` | Ownership + freeform filters |
+| `description` / `link` / `issue` / `tms` | External refs |
+| `parameter` | Key-value for parametrized tests |
 
 ## Steps
 
-Create step hierarchies for better readability and failure debugging:
-
 ```clojure
-;; Simple step
-(allure/step "Navigate to login page"
-  (page/navigate pg "https://example.org/login"))
-
-;; Nested steps
 (allure/step "Login flow"
   (allure/step "Enter credentials"
     (locator/fill (page/locator pg "#user") "admin")
     (locator/fill (page/locator pg "#pass") "secret"))
   (allure/step "Submit"
     (locator/click (page/locator pg "#submit"))))
+
+;; Options map — attach screenshots and/or HTTP exchange
+(allure/step "Fill form"   {:screenshots? true} ...)
+(allure/step "Create user" {:http?        true} (core/api-post ctx "/users" {...}))
+(allure/step "Both"        {:screenshots? true :http? true} ...)
+
+;; Convenience wrappers (equivalent to the options above)
+(allure/ui-step  "Fill login form" ...)   ; = step + :screenshots? true
+(allure/api-step "Create user"     ...)   ; = step + :http? true
 ```
-
-### Step Options
-
-`step` supports optional opts map for composable behaviors:
-
-| Option | Description |
-|--------|-------------|
-| `:screenshots?` | Take before/after screenshots (requires page binding, skipped when tracing) |
-| `:http?` | Attach HTTP exchange markdown for APIResponse / browser Response |
-
-```clojure
-;; Step with screenshots (equivalent to ui-step)
-(allure/step "Fill login form" {:screenshots? true}
-  (locator/fill username-input "admin")
-  (locator/click submit-btn))
-
-;; Step with HTTP attachment (equivalent to api-step)
-(allure/step "Create user" {:http? true}
-  (core/api-post ctx "/users" {:data body}))
-
-;; Both screenshots and HTTP attachment
-(allure/step "Submit and verify API" {:screenshots? true :http? true}
-  (page/wait-for-response pg "**/api/submit"
-    #(locator/click submit-btn)))
-
-;; Runtime opts via :opts keyword
-(let [my-opts {:http? true}]
-  (allure/step "Dynamic step" :opts my-opts
-    (core/api-get ctx "/health")))
-```
-
-## UI Steps
-
-UI steps auto-capture before/after screenshots. Equivalent to `(step name {:screenshots? true} body...)`.
-Works with `core/with-testing-page` or test fixtures:
-
-```clojure
-(allure/ui-step "Fill login form"
-  (locator/fill username-input "admin")
-  (locator/fill password-input "secret")
-  (locator/click submit-btn))
-```
-
-UI steps:
-- Attach screenshots before and after the step
-- Include step timing
-- Capture page state changes
-- Ideal for debugging visual issues
-
-## API Steps
-
-API steps auto-attach response details (status, headers, body). Equivalent to `(step name {:http? true} body...)`:
-
-```clojure
-(allure/api-step "Create user"
-  (core/api-post ctx "/users" {:json {:name "Alice" :age 30}}))
-```
-
-API steps attach:
-- HTTP status code
-- Response headers
-- Response body (formatted)
-- Request URL and method
-- Timing information
 
 ## Attachments
 
-Add arbitrary attachments to test results:
-
 ```clojure
-;; Attach text with MIME type
-(allure/attach "Request Body" "{\"key\":\"value\"}" "application/json")
-
-;; Attach binary data
+(allure/attach "Request Body" "{\"k\":\"v\"}" "application/json")
 (allure/attach-bytes "Screenshot" (page/screenshot pg) "image/png")
-
-;; Convenience: capture and attach PNG screenshot
-(allure/screenshot pg "After navigation")
-
-;; Attach API response as formatted Markdown (method, URL, status, headers, body)
-(allure/attach-http-markdown! resp {})
+(allure/screenshot pg "After navigation")              ; capture + attach PNG
+(allure/attach-http-markdown! resp {})                 ; API response as MD
 ```
 
-## Allure Reporter
-
-Built-in Allure reporter handles JSON results, HTML generation, embedded trace viewer, and build history.
-
-### Running tests with Allure
+## Running tests with Allure
 
 ```bash
-# Allure reporter only
+# Allure only
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
 
-# Combine with JUnit reporter
+# With JUnit alongside
 clojure -M:test --output nested \
   --output com.blockether.spel.allure-reporter/allure \
   --output com.blockether.spel.junit-reporter/junit
 ```
 
-### Configuration
+### Reporter config
 
-| Property | Env Var | Default | Description |
-|----------|---------|---------|-------------|
-| `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` | Results output directory |
-| `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` | HTML report directory |
-| `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` | Max builds retained in history |
-| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | _(auto: "spel vX.Y.Z")_ | Report title (shown in header and history) |
-| `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | _(SPEL_VERSION)_ | Project version shown in build history |
-| `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | _(none)_ | Path to logo image for report header |
-| `spel.allure.cwd` | `SPEL_ALLURE_CWD` | _(inherit)_ | Working directory for Allure CLI process (set to `/tmp` on read-only filesystems like AWS Lambda) |
+| Property | Env | Default |
+|----------|-----|---------|
+| `lazytest.allure.output` | `LAZYTEST_ALLURE_OUTPUT` | `allure-results` |
+| `lazytest.allure.report` | `LAZYTEST_ALLURE_REPORT` | `allure-report` |
+| `lazytest.allure.history-limit` | `LAZYTEST_ALLURE_HISTORY_LIMIT` | `10` |
+| `lazytest.allure.report-name` | `LAZYTEST_ALLURE_REPORT_NAME` | auto `"spel vX.Y.Z"` |
+| `lazytest.allure.version` | `LAZYTEST_ALLURE_VERSION` | SPEL_VERSION |
+| `lazytest.allure.logo` | `LAZYTEST_ALLURE_LOGO` | — |
+| `spel.allure.cwd` | `SPEL_ALLURE_CWD` | inherit |
 
-### Version in build listings
+Version appears in build history + `environment.properties` (`project.version`, `spel.version`).
 
-When `lazytest.allure.version` is set (or `SPEL_VERSION` on classpath), each build in Allure history tagged with version. Report name auto-generates as `"spel vX.Y.Z"` unless overridden by `report-name`. Version also appears in `environment.properties` as `project.version` and `spel.version`.
+### Serving
 
-```bash
-# Tag build with custom version (overrides SPEL_VERSION)
-clojure -J-Dlazytest.allure.version=1.2.3 -M:test \
-  --output nested --output com.blockether.spel.allure-reporter/allure
-
-# Keep last 20 builds in history
-LAZYTEST_ALLURE_HISTORY_LIMIT=20 clojure -M:test \
-  --output nested --output com.blockether.spel.allure-reporter/allure
-```
-
-### Serving Reports
-
-Report MUST be served via HTTP (not `file://`) — embedded Playwright trace viewer uses a Service Worker:
+Report must be served via HTTP (not `file://`) — embedded trace viewer uses a Service Worker:
 
 ```bash
-# Serve generated report in browser (port 9999)
 npx http-server allure-report -o -p 9999
 ```
 
-## Trace viewer integration
+## Alternative HTML report — `spel report`
 
-When using `with-testing-page` (recommended) or low-level fixtures (`with-page` / `with-traced-page`) with Allure reporter active, Playwright tracing auto-enabled.
+Self-contained alt report (lighter than the official Allure HTML, still bundles
+every result). Written to `<output-dir>/` with **three companion JSON files**
+alongside `index.html`:
 
-### What's Captured
+- `index.html` — rendered report
+- `summary.json` — aggregate stats (see schema below)
+- `report.json` — full array of every result (labels, steps, attachments, timing)
+- `data/` — per-test detail files consumed by the HTML
 
-Tracing captures full test execution data:
+### `summary.json` schema
 
-- Screenshots captured on every action
-- DOM snapshots included
-- Network activity recorded
-- Sources captured
-- HAR file generated
+```json
+{
+  "name":         "Report title",
+  "stats":        {"total": N, "passed": N, "failed": N, "broken": N, "skipped": N, "unknown": N},
+  "status":       "passed | failed | broken",
+  "duration":     12345,                 // wall-clock sum across all tests (ms)
+  "testDuration": {"count": N, "totalMs": …, "meanMs": …, "maxMs": …, "minMs": …},
+  "http":         {"calls": N, "totalMs": …, "meanMs": …, "maxMs": …, "minMs": …},
+  "httpCalls":    [{"test": "test-name",
+                    "name": "[API] GET /users",
+                    "status": "passed",
+                    "durationMs": 40,
+                    "startedAt":  1700000001010,
+                    "attachment": "data/attachments/abc-HTTP.md"}],
+  "logs":         [{"test": "test-name",
+                    "name": "server-stderr",
+                    "type": "text/plain",
+                    "path": "data/attachments/log-123.txt",
+                    "size": 4096}],
+  "errors":       [{"name": "test-name",
+                    "status": "failed",
+                    "message": "expected 200 got 500",
+                    "trace":   "<stacktrace>",
+                    "durationMs": 800}],
+  "passRate":     100.0,
+  "createdAt":    1700000000000
+}
+```
 
-### Auto-attach to test results
+- **`testDuration`** — per-test wall-clock stats (count, total, mean, max, min in ms).
+- **`http`** — HTTP-call stats collected from every step produced by `api-step` / `step … {:http? true}` / `attach-http-markdown!`. Counts calls + total / mean / max / min duration in ms. Zeroed when no HTTP exchanges were captured.
+- **`httpCalls`** — one entry per HTTP call: `test`, `name` (keeps the `[API]` / `[UI+API]` prefix), `status`, `durationMs`, `startedAt`, `attachment` (relative path to the captured HTTP markdown exchange — full request/response/headers/body live there; `summary.json` stays small, callers load on demand). Empty array when no calls were captured.
+- **`logs`** — log-like attachments (`text/plain` / `application/json` / `text/x-log`) flattened across every result + step. Each entry: `test`, `name`, `type`, `path`, `size` (bytes, when the attachment file exists on disk). Captures any `(allure/attach …)` call with a log-shaped MIME type — stdout/stderr, console dumps, structured event logs. The HTTP markdown exchange is deliberately excluded (it's already in `httpCalls[].attachment`).
+- **`errors`** — one entry per failed/broken test with `name`, `status`, `message`, `trace` (when present), and per-test `durationMs`.
 
-Trace and HAR files auto-attached to test results with MIME type `application/vnd.allure.playwright-trace`. Viewable directly in Allure report via embedded local trace viewer — no external service dependency.
-
-`with-testing-page` auto-attaches traces for both Lazytest reporter and clojure.test reporter — no additional config needed.
-
-### Source mapping in trace viewer
-
-All step macros (`step`, `ui-step`, `api-step`, `describe`, `it`, `expect`) auto-capture source file and line number at macro expansion time. Pass this info to `Tracing.group()` via `GroupOptions.setLocation()`. Clicking a step in Trace Viewer **Source** tab shows actual test code where step was written, not allure.clj macro internals.
-
-#### PLAYWRIGHT_JAVA_SRC
-
-Source path resolution uses `PLAYWRIGHT_JAVA_SRC` env var (auto-set to `src:test:dev` by `core/create`). Maps classpath-relative paths (e.g., `com/blockether/spel/smoke_test.clj`) to project-relative paths (e.g., `test/com/blockether/spel/smoke_test.clj`) matching trace's captured sources.
+### Modes
 
 ```bash
-# Custom source directories
+# Standard: read allure-results directory
+spel report --results-dir allure-results --output-dir block-report
+
+# Single-run / Lambda: read one JSON file of result maps, no directory needed
+spel report --from-json results.json --output-dir my-report --title "Lambda Run"
+```
+
+`--from-json` takes precedence over `--results-dir` when both are passed.
+
+### Flags
+
+| Flag | Purpose |
+|------|---------|
+| `--results-dir DIR` | Allure results dir (default `allure-results`) |
+| `--from-json FILE` | JSON array of result maps (single-run / lambda / SCI) |
+| `--output-dir DIR` | Output dir (default `block-report`) |
+| `--title TEXT` | `<h1>` report title |
+| `--kicker TEXT` | Mono heading above the title |
+| `--subtitle TEXT` | Subtitle line |
+| `--logo SRC` | Path, `data:`, `http(s):`, or inline `<svg>` |
+| `--logo-alt TEXT` | Image alt text |
+| `--description TEXT` | Description block (plain → escaped; `<…>` → sanitized HTML) |
+| `--custom-css CSS` / `--custom-css-file FILE` | Extra CSS |
+| `--build-id ID` | Build/run id shown in header |
+| `--build-date VALUE` | Epoch-ms or ISO-8601 |
+| `--build-url URL` | Link to CI run |
+
+Every branding/metadata flag also maps to an `environment.properties` key
+(`report.*`, `build.*`) — see the `generate!` docstring in
+`com.blockether.spel.spel-allure-alternative-html-report`.
+
+### Library API — `generate-from-results!`
+
+Single-run / lambda / in-memory use case (no temp dir juggling):
+
+```clojure
+(require '[com.blockether.spel.spel-allure-alternative-html-report :as r])
+
+(r/generate-from-results!
+  [{"name"   "health check"
+    "status" "passed"
+    "start"  1000
+    "stop"   1500
+    "labels" [{"name" "epic"  "value" "API"}
+              {"name" "suite" "value" "smoke"}]}]
+  "/tmp/report"
+  {:title "Lambda Run"})
+```
+
+Produces the same `index.html` + `summary.json` + `report.json` + `data/` as
+`generate!`, sharing all rendering code. Use `generate!` for the standard
+directory-based flow, `generate-from-results!` when results are already in
+memory.
+
+### Label filtering (in-report UI)
+
+The rendered HTML has client-side Allure-label filters. Viewers can narrow
+displayed results by `epic`, `feature`, `story`, `severity`, `owner`, `suite`,
+`tag`, etc. Nothing extra to enable — filters appear automatically for every
+label present in the results.
+
+## Trace viewer
+
+`with-testing-page` + Allure reporter → Playwright tracing auto-enabled.
+Captures screenshots per action, DOM snapshots, network, sources, HAR.
+
+Trace + HAR auto-attached with MIME `application/vnd.allure.playwright-trace`
+→ opens in the embedded local trace viewer.
+
+### Source mapping
+
+All step/test macros capture file + line at macro expansion. `Tracing.group()`
+receives the location, so the trace viewer's **Source** tab jumps to your test
+code (not `allure.clj` internals).
+
+Path resolution uses `PLAYWRIGHT_JAVA_SRC` (auto-set to `src:test:dev` by `core/create`):
+
+```bash
 PLAYWRIGHT_JAVA_SRC="src:test:test-e2e:dev" clojure -M:test ...
 ```
 
 ## clojure.test Allure reporter
 
-SPEL includes a clojure.test reporter (integrated in `allure-reporter`) producing identical
-Allure results. Activate via JVM property or env var — works with **any test runner**
-(Kaocha, Cognitect test-runner, plain `clojure.test/run-tests`).
-
-### Activation
+Same reporter works under `clojure.test` for any runner (Kaocha, Cognitect,
+plain `run-tests`).
 
 ```bash
 # JVM property
 clojure -J-Dallure.clojure-test.enabled=true -M:test
-
-# Environment variable
+# Env var
 ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
 ```
-
-### Usage
 
 ```clojure
 (ns my-app.test
@@ -254,67 +252,34 @@ ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
       (is (= "Login" (page/title pg))))))
 ```
 
-For API-only tests (no browser), require reporter explicitly:
+API-only tests (no browser) — require the reporter explicitly:
 
 ```clojure
-(ns my-app.api-test
-  (:require [clojure.test :refer [deftest testing is]]
-            [com.blockether.spel.allure :as allure]
-            [com.blockether.spel.allure-reporter]  ;; explicit require
-            [com.blockether.spel.core :as api]))
+[com.blockether.spel.allure-reporter]
 ```
 
-### Configuration
+### Config
 
-| Property | Env Var | Default |
-|---|---|---|
+| Property | Env | Default |
+|----------|-----|---------|
 | `allure.clojure-test.enabled` | `ALLURE_CLOJURE_TEST_ENABLED` | `false` |
-| `allure.clojure-test.output` | `ALLURE_CLOJURE_TEST_OUTPUT` | `allure-results` |
-| `allure.clojure-test.report` | `ALLURE_CLOJURE_TEST_REPORT` | `true` |
-| `allure.clojure-test.clean` | `ALLURE_CLOJURE_TEST_CLEAN` | `true` |
+| `allure.clojure-test.output`  | `ALLURE_CLOJURE_TEST_OUTPUT`  | `allure-results` |
+| `allure.clojure-test.report`  | `ALLURE_CLOJURE_TEST_REPORT`  | `true` |
+| `allure.clojure-test.clean`   | `ALLURE_CLOJURE_TEST_CLEAN`   | `true` |
 
-`with-allure-context` auto-injected as outermost `:each` fixture — test files never reference it directly.
+`with-allure-context` is auto-injected as outermost `:each` fixture — never reference directly.
 
 ## JUnit XML reporter
 
-Produces JUnit XML output compatible with GitHub Actions, Jenkins, GitLab CI, and any CI system consuming JUnit XML.
-
-### Running tests with JUnit
-
 ```bash
-# JUnit reporter only
 clojure -M:test --output com.blockether.spel.junit-reporter/junit
-
-# Combine with Allure reporter
-clojure -M:test --output nested \
-  --output com.blockether.spel.allure-reporter/allure \
-  --output com.blockether.spel.junit-reporter/junit
 ```
 
-### Configuration
+| Property | Env | Default |
+|----------|-----|---------|
+| `lazytest.junit.output` | `LAZYTEST_JUNIT_OUTPUT` | `test-results/junit.xml` |
 
-| Property | Env Var | Default | Description |
-|----------|---------|---------|-------------|
-| `lazytest.junit.output` | `LAZYTEST_JUNIT_OUTPUT` | `test-results/junit.xml` | Output file path |
-
-```bash
-# Custom output path
-clojure -J-Dlazytest.junit.output=reports/results.xml -M:test \
-  --output nested --output com.blockether.spel.junit-reporter/junit
-
-# Or via env var
-LAZYTEST_JUNIT_OUTPUT=reports/results.xml clojure -M:test \
-  --output nested --output com.blockether.spel.junit-reporter/junit
-```
-
-### JUnit XML features
-
-Generates fully compliant Apache Ant JUnit schema XML:
-
-- `<testsuites>` root element with aggregate counts (tests, failures, errors, skipped, time)
-- `<testsuite>` per namespace with timestamp, hostname, package, id
-- `<testcase>` with classname (namespace), name (describe > it path), time, file
-- `<failure>` vs `<error>` distinction (assertion failure vs unexpected exception)
-- `<skipped>` support for pending tests
-- `<properties>` with environment metadata (JVM version, OS, Clojure version)
-- `<system-out>` / `<system-err>` — per-test captured stdout/stderr output
+Apache Ant schema. `<testsuites>` → `<testsuite>` per namespace → `<testcase>`
+with classname/name/file/time, `<failure>` vs `<error>` distinction,
+`<skipped>`, `<properties>` (JVM/OS/Clojure), `<system-out>` / `<system-err>`
+per-test capture.

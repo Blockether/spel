@@ -8,360 +8,193 @@ compatibility: opencode
 
 # spel — Clojure Playwright wrapper
 
-`com.blockether.spel` wraps Playwright Java 1.58.0 with idiomatic Clojure.
+Skill generated for spel **{{version}}**. Verify with `spel version`. Mismatch → run `spel init-agents` to reinitialize.
 
-## Version check
+## Entry point: `@spel-orchestrator`
 
-Skill generated for spel **{{version}}**. Verify:
+**Never call specialists directly.** Orchestrator routes + enforces gates/artifacts:
 
-```bash
-spel version
-```
+- Tests: `@spel-test-writer` (explores → generates → self-heals in one pass)
+- Bugs:  `@spel-bug-hunter` (explore → hunt → self-challenge → HTML + MD report)
+- Automation: `@spel-explorer` → `@spel-automator` → `@spel-presenter`
+- Discovery: `@spel-product-analyst`
 
-Mismatch **{{version}}**:
-1. Warn: **"spel skill outdated (skill: {{version}}, installed: <actual version>)."**
-2. Suggest: **"Run `spel init-agents` to reinitialize."**
+Falls back to plain `spel` CLI + `eval-sci` when specialists unavailable.
 
-## Quick reference
-
-## Getting started: orchestrator
-
-**NEVER call specialists directly.** Use `@spel-orchestrator` — analyzes request, routes to correct pipeline.
+## CLI commands (obvious form)
 
 ```
-@spel-orchestrator test the login page
-@spel-orchestrator find bugs on https://example.com
-@spel-orchestrator automate the checkout flow
+spel --help                         # global help (always available)
+spel <cmd> --help                   # help per subcommand
 ```
-
-Orchestrator routes:
-- E2E tests (`@spel-test-planner` → `@spel-test-writer`) — plan + self-challenge → generate + self-heal
-- Bug finding (`@spel-bug-hunter`) — explore → hunt + visual regression → self-challenge → verdict → HTML + Markdown reports
-- Automation (`@spel-explorer`, `@spel-automator`, `@spel-presenter`) — explore/auth → script → document
-
-Direct specialist invocation deprecated. Prefer `@spel-orchestrator` → gates, artifacts, sequencing stay consistent.
-Artifact-first: requesting JSON/report files → orchestrator treats those paths as required outputs, stops at gates, keeps `orchestration/*-pipeline.json` handoffs current.
-
-Runtime:
-- Full scaffold: `@spel-orchestrator` coordinates specialists directly.
-- Constrained runtime (specialists unavailable): fall back to spel CLI + `eval-sci`, same artifact-first contract, same `orchestration/*-pipeline.json` handoffs.
-
-Navigation playbook:
-- ALWAYS simulate user actions: click links, buttons, nav elements like a human. NEVER `spel open <url>` to skip steps — only for initial page load.
-- Prefer split initial load: `spel open <url>` first, then `spel wait --load ...` separately.
-- Default follow-up wait: `spel wait --load load` for traditional multi-page sites.
-- Heavy portal / ad/tracker pages: prefer `spel wait --load domcontentloaded` after clicks; `spel wait --url <partial>` when route change matters more than full resource completion.
-- Longer click timeouts = last resort, not first fix.
-
 
 | Command | Purpose |
 |---------|---------|
-| `spel --help` | CLI help |
-| `spel open <url>` | Open URL (stealth mode ON by default) |
-| `spel --auto-launch open <url>` | Launch isolated browser with CDP debug port (per-session) |
-| `spel --auto-connect open <url>` | Auto-discover any running chromium-family browser (Chrome/Edge/Brave/Vivaldi/Opera/Arc/Thorium/Chromium) and open URL via CDP |
-| `CDP_PORT=$(spel find-free-port) && spel --session agent-$(date +%s) --cdp http://127.0.0.1:$CDP_PORT open <url>` | Connect to Chrome/Edge via explicit CDP endpoint (ephemeral port + named session) |
-| `spel --profile <path> open <url>` | Open URL with persistent Chrome profile |
-| `spel --channel msedge --profile <path> open <url>` | Open with Edge profile |
-| `spel --load-state auth.json open <url>` | Open with browser state JSON (cookies/localStorage) |
-| `spel --load-state auth.json eval-sci 'script.clj'` | Run script with pre-loaded auth state |
-| `spel codegen --help` | Codegen CLI help |
-| `spel init-agents --help` | Agent scaffolding help |
-| `spel init-agents --loop=opencode` | Scaffold E2E agents for OpenCode (default) |
-| `spel init-agents --loop=claude` | Scaffold E2E agents for Claude Code |
-| `spel init-agents --loop=claude` | ~~`--loop=vscode` is DEPRECATED — exits with error~~ |
-| `spel search "query"` | Google search (table output) |
-| `spel search "query" --json` | Google search (JSON output) |
-| `spel search "cats" --images` | Google image search |
-| `spel search "world news" --news` | Google news search |
-| `spel search "query" --limit 5` | Show only first 5 results |
-| `spel search "query" --open 1` | Navigate to result #1 |
-| `spel snapshot -i` | Accessibility snapshot (interactive elements only, includes `[pos:X,Y W×H]` screen coordinates) |
-| `spel snapshot -i -c` | Compact interactive snapshot (removes bare role lines) |
-| `spel click @eXXXXX` | Click element by snapshot ref |
-| `spel fill @eXXXXX "text"` | Fill input by snapshot ref |
-| `spel screenshot name.png` | Take screenshot |
-| `spel screenshot -a` | **Annotated** full-page screenshot: overlays ref labels on every visible element AND prints a sorted list `@ref role "name"` that maps visual labels → clickable refs (LLM-friendly, one call) |
-| `spel annotate` | Inject visual overlays on the live page (no screenshot). Returns `{:count :entries [{:ref :role :name :bbox}]}` — entries are sorted top→down/left→right |
-| `spel unannotate` | Remove visual overlays |
-| `spel batch [--bail] [--json]` | Run a JSON array of sub-commands from stdin (one warm daemon session, pays CLI cold-start once) |
-| `spel wait --text "..."` | Wait for text to appear |
-| `spel wait --load load` | Wait for page load |
-| `spel close` | Close browser session |
-| `spel codegen record -o rec.jsonl <url>` | Record browser session |
-| `spel stitch img1.png img2.png -o out.png` | Stitch screenshots vertically |
-| `spel state save [path]` | Save current browser state |
-| `spel state load [path]` | Restore saved browser state |
+| `spel open <url>` | Open URL (stealth ON by default) |
+| `spel --auto-launch open <url>` | Launch isolated browser with CDP debug port |
+| `spel --auto-connect open <url>` | Auto-discover running Chromium-family browser via CDP |
+| `spel --profile <path> open <url>` | Persistent Chrome profile |
+| `spel --channel msedge --profile <p> open <url>` | Edge profile |
+| `spel --load-state auth.json open <url>` | Restore cookies/localStorage |
+| `spel snapshot -i` | Interactive-elements snapshot with `@eXXX` refs + `[pos:X,Y W×H]` |
+| `spel snapshot -i -c` | Compact interactive (drops bare role lines) |
+| `spel click @eXXX` | Click by ref |
+| `spel fill @eXXX "text"` | Fill input by ref |
+| `spel screenshot name.png` | Screenshot |
+| `spel screenshot -a` | Annotated full-page PNG + sorted `@ref role "name"` list |
+| `spel annotate` / `spel unannotate` | Inject/remove visual overlays |
+| `spel batch [--bail] [--json]` | Run JSON array of sub-commands from stdin (one warm session) |
+| `spel wait --text "..."` | Wait for text |
+| `spel wait --load load\|domcontentloaded` | Wait for load state |
+| `spel wait --url <partial>` | Wait for URL match |
+| `spel close` | Close session |
+| `spel search "query" [--json\|--images\|--news\|--limit N\|--open N]` | Google search |
+| `spel state save/load [path]` | Persist/restore browser state |
+| `spel codegen record -o rec.jsonl <url>` | Record session |
+| `spel stitch a.png b.png -o out.png` | Stitch vertically |
+| `spel init-agents [--loop=opencode\|claude]` | Scaffold agents (vscode DEPRECATED — errors) |
+| `spel report [flags]` | **Generate alt HTML report** — see Reporting below |
+| `spel merge-reports <dirs...>` | Merge multiple `allure-results/` dirs |
+| `spel ci-assemble` | CI artifact assembly |
 
-## Google search
+### Reporting — `spel report`
 
-Search Google from CLI, SCI, or library — no API key. Quick example:
+Generates a self-contained HTML report (`index.html` + `summary.json` + `report.json` + `data/`) from Allure results.
 
 ```bash
-spel search "clojure programming"              # table output
-spel search "clojure" --json                    # JSON output
-spel search "cats" --images                     # image search
-spel search "query" --open 1                    # navigate to result #1
+# Standard mode: read allure-results/ directory
+spel report --results-dir allure-results --output-dir block-report
+
+# Single-run / lambda mode: read JSON file of result maps
+spel report --from-json results.json --output-dir my-report --title "Lambda Run"
 ```
 
-Full CLI flags, SCI fns, library API → `references/SEARCH_API.md`.
+Common flags: `--title`, `--kicker`, `--subtitle`, `--logo`, `--description`,
+`--custom-css[-file]`, `--build-id`, `--build-date`, `--build-url`.
+`--from-json` takes precedence over `--results-dir`. See
+`references/ALLURE_REPORTING.md` for full option list and label-filtering UI.
 
-## ⚠️ SCI eval vs library: key differences
+## SCI (`eval-sci`) vs library
 
-`eval-sci` mode: fn names match library. Only difference = implicit vs explicit args:
-
-- Library (JVM): explicit `page`/`locator` args.
-- SCI (`eval-sci`): same fn names, page/locator implicit (managed by daemon or `spel/start!`).
+Same fn names; SCI manages page/context implicitly.
 
 ```clojure
-;; Library
-(page/navigate pg url)
-(page/locator pg "#login")
-(locator/click (page/locator pg "#login"))
+;; Library (JVM): explicit args
+(page/navigate pg url) (page/locator pg "#login") (locator/click (page/locator pg "#login"))
 
-;; SCI eval-sci (implicit page)
-(spel/navigate url)
-(spel/locator "#login")
-(spel/click "#login")
+;; SCI: implicit page via daemon session
+(spel/navigate url) (spel/locator "#login") (spel/click "#login")
 
-;; Keyboard press (page-level, no selector needed)
-(spel/press "Escape")
-(spel/press "Enter")
-(spel/press "Tab")
-(spel/press "Control+a")
-(spel/keyboard-press "Escape")    ;; explicit alias
+;; Page-level keyboard press (no selector)
+(spel/press "Escape") (spel/press "Control+a") (spel/keyboard-press "Enter")
 
-;; Locator-level press (on specific element)
+;; Locator-level press
 (spel/press "#my-input" "Enter")
 ```
 
-Daemon running → `eval-sci` reuses its browser. No `spel/start!` / `spel/stop!` needed.
+Daemon running → `eval-sci` reuses the open browser. No `spel/start!` / `spel/stop!`.
 
-## SCI sandbox capabilities
+### SCI sandbox — what's available
 
-### Available in SCI
+- All spel namespaces: `spel/`, `snapshot/`, `annotate/`, `stitch/`, `search/`,
+  `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/`, `role/`, `markdown/`
+- Clojure stdlib: `core`, `string`, `set`, `walk`, `edn`, `repl`, `template`
+- IO: `clojure.java.io` (aliased `io`), `slurp`, `spit`,
+  `java.io.File`, `java.nio.file.{Files,Path,Paths}`, `java.util.Base64`
+- Playwright Java classes + enums (`Page`, `Browser`, `AriaRole`, …)
+- `iteration` (lazy pagination)
 
-- All `spel/`, `snapshot/`, `annotate/`, `stitch/`, `search/`, `input/`, `frame/`, `net/`, `loc/`, `assert/`, `core/` namespaces
-- `clojure.core`, `clojure.string`, `clojure.set`, `clojure.walk`, `clojure.edn`, `clojure.repl`, `clojure.template`
-- `clojure.java.io` (aliased as `io`): `io/file`, `io/reader`, `io/writer`, `io/input-stream`, `io/output-stream`, `io/copy`, `io/as-file`, `io/as-url`, `io/resource`, `io/make-parents`, `io/delete-file`
-- `slurp`, `spit` — full file read/write
-- `java.io.File`, `java.nio.file.Files`, `java.nio.file.Path`, `java.nio.file.Paths`, `java.util.Base64`
-- Playwright Java classes: `Page`, `Browser`, `BrowserContext`, `Locator`, `Frame`, `Request`, `Response`, `Route`, `ElementHandle`, `JSHandle`, `ConsoleMessage`, `Dialog`, `Download`, `WebSocket`, `Tracing`, `Keyboard`, `Mouse`, `Touchscreen`
-- All Playwright enums: `AriaRole`, `LoadState`, `WaitUntilState`, `ScreenshotType`, etc.
-- `role/` namespace for AriaRole constants (e.g., `role/button`, `role/link`)
-- `markdown/` namespace for markdown rendering
-- `stitch/` namespace for vertical image stitching
-- `search/` namespace for Google Search (web, images, news, pagination, `iteration`-based lazy pages)
-- `iteration` binding — `clojure.core/iteration` for lazy pagination
+**Not available**: arbitrary Java class construction, `require`/`use`/`import`.
 
-### NOT available in SCI
+## Navigation rules
 
-- Arbitrary Java class construction — only registered classes
-- `require`, `use`, `import` — namespaces pre-registered, cannot load new ones
+- **Simulate user actions.** Click links/buttons; never `spel open <url>` to skip steps.
+- Split load: `spel open <url>` then `spel wait --load …` separately.
+- Traditional sites: `wait --load load`. SPA/heavy/ad-laden: `wait --load domcontentloaded` or `wait --url <partial>`.
+- Longer click timeouts = last resort.
+- After navigation, **re-snapshot**. Never reuse old refs.
+
+## Agent safety (opt-in flags)
+
+| Flag | Purpose | Env |
+|------|---------|-----|
+| `--content-boundaries` | Wrap stdout in `<untrusted-content>…</untrusted-content>` | `SPEL_CONTENT_BOUNDARIES` |
+| `--max-output N` | Truncate stdout to N chars | `SPEL_MAX_OUTPUT` |
+| `--allowed-domains LIST` | Domain allowlist (supports `*.example.com`) for nav + sub-resources | `SPEL_ALLOWED_DOMAINS` |
+
+```bash
+spel --content-boundaries --max-output 50000 \
+     --allowed-domains "example.com,*.example.com" \
+     open https://example.com
+```
+
+Blocked nav → anomaly `blockedbyclient`. stderr never wrapped/truncated.
 
 ## Rules
 
-| Rule | Details |
-|------|---------|
-| Assertions | Exact string matching — NEVER substring unless explicitly `contains-text` |
-| Roles | Require `[com.blockether.spel.roles :as role]` for role-based locators (e.g. `role/button`, `role/heading`) |
-| Fixtures | Use `core/with-testing-page` or `core/with-testing-api`, NEVER nest manually inside `it`/`deftest` blocks |
-| Default fixture | Always use `with-testing-page` — enables tracing/HAR on every run for debugging |
-| Error handling | All errors return anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
-| Lifecycle | Use `with-testing-page` (recommended) or low-level `with-playwright`, `with-browser`, `with-context`, `with-page` — resources auto-cleaned |
-| Screenshots | After visual/UI changes, ALWAYS take and display screenshot as proof |
-
-## Agent Safety (opt-in, combinable)
-
-Three independent global flags protect LLM-driven browser deployments against
-prompt injection, context-window flooding, unauthorized navigation. Compose
-cleanly — enable one, two, or all three per invocation or via env vars.
-
-| Flag | Purpose | Env var |
-|------|---------|---------|
-| `--content-boundaries` | Wrap tool stdout in `<untrusted-content>...</untrusted-content>` delimiters → agent can reject instructions embedded in scraped page content | `SPEL_CONTENT_BOUNDARIES=true` |
-| `--max-output N` | Truncate stdout to N chars with suffix showing original size. Protects context window from runaway pages (e.g. 2MB snapshot) | `SPEL_MAX_OUTPUT=50000` |
-| `--allowed-domains LIST` | Comma-separated hostnames. Blocks navigation **and** sub-resource fetches (scripts, images, fetch, XHR) outside list. Supports `*.example.com` wildcards matching bare domain + subdomains. Applied at browser launch via context-level Playwright route. Non-HTTP schemes (`data:`, `blob:`, `about:`) always pass through | `SPEL_ALLOWED_DOMAINS` |
-
-```bash
-# Sandboxed agent run: only example.com + CDN, output capped, delimited
-spel \
-  --content-boundaries \
-  --max-output 50000 \
-  --allowed-domains "example.com,*.example.com,*.cloudfront.net" \
-  open https://example.com
-```
-
-**Security notes**
-- **Opt-in**. Default: no wrapping, no truncation, no allowlist.
-- `--allowed-domains` sticky per session → close session to lift. Navigation to blocked domain → anomaly with `blockedbyclient`.
-- Errors (stderr) **never** wrapped or truncated — agents need full error details.
-- Wildcards guard against suffix-attack domains: `*.example.com` does **not** match `notexample.com` or `example.com.evil.org`.
+| Rule | Detail |
+|------|--------|
+| Assertions | Exact match by default; `contains-text` only when justified |
+| Roles | `[com.blockether.spel.roles :as role]` → `role/button`, `role/heading` |
+| Fixtures | `core/with-testing-page` / `with-testing-api` — never nest in `it`/`deftest` |
+| Errors | Anomaly maps `{:error :msg :data}` — check with `core/anomaly?` |
+| Screenshots | Visual/UI change → take + display screenshot as proof |
 
 ## Examples
 
-Example 1: Write E2E tests
-User says: "Test the login page at http://localhost:3000"
-Actions:
-1. @spel-orchestrator routes to test pipeline
-2. @spel-test-planner explores login page, writes test plan (with self-challenge)
-3. @spel-test-writer generates Clojure E2E tests with assertions, self-heals failures
-Result: Working E2E test suite in `test-e2e/` with Allure reporting
-
-Example 2: Find bugs on a live site
-User says: "Find bugs on https://example.com"
-Actions:
-1. @spel-orchestrator routes to bug-finding pipeline
-2. @spel-explorer maps site, captures snapshots
-3. @spel-bug-hunter tests for functional, visual, UX bugs, self-challenges each finding, delivers final verdicts
-Result: HTML + Markdown bug reports with evidence screenshots
-
-Example 3: Automate a browser workflow
-User says: "Automate filling out the registration form"
-Actions:
-1. @spel-orchestrator runs embedded automation pipeline
-2. @spel-explorer maps form fields + page structure
-3. @spel-automator writes reusable eval-sci script
-Result: Reusable `.clj` automation script with JSON output
-
-Example 4: Screenshot + explore
-User says: "Open https://example.com and take a screenshot"
-Actions:
-1. `spel open https://example.com`
-2. `spel wait --load load`
-3. `spel screenshot example.png`
-Result: Screenshot saved to `example.png`
-
-Example 5: Multimodal — see page + get refs in one call
-User says: "Open the checkout page and click the primary CTA"
-Actions:
-1. `spel open https://shop.example.com/checkout`
-2. `spel screenshot -a` — returns PNG with ref labels on every visible
-   element **plus** deterministic list `@ref role "name"` in reading order
-3. Reason over image + list → pick target ref (e.g. `@e2yrjz`)
-4. `spel click @e2yrjz`
-Result: One round-trip → vision + addressability. No separate
-`snapshot -i` + `screenshot` + mental mapping. Use when text snapshot
-ambiguous (icon-only buttons, canvas, custom widgets).
-
-Example 6: Deterministic multi-step via `batch`
-User says: "Navigate, search, screenshot — one atomic sequence"
-Actions:
-```bash
-echo '[
-  ["open", "https://example.com"],
-  ["wait", "--load", "load"],
-  ["screenshot", "-a", "shot.png"]
-]' | spel batch --json --bail
-```
-Result: `{"count":3,"success":true,"results":[...]}`. Pays CLI cold-start
-once, shares one daemon session, stops on first failure with `--bail`.
-Use for atomic flows where each step depends on previous.
-
-Example 7: Sandboxed agent run with full security stack
-User says: "Let the LLM browse example.com without escaping"
-```bash
-spel \
-  --content-boundaries \
-  --max-output 50000 \
-  --allowed-domains "example.com,*.example.com" \
-  open https://example.com
-# Navigation or resource fetch outside example.com
-# → anomaly `blockedbyclient`. Page content wrapped in
-# <untrusted-content> → prompt injection quarantined. Output capped 50k chars.
-```
-Result: Agent operates inside sealed perimeter. Prompt-injection, sidetracked navigation, context-window explosions all contained.
+1. **E2E tests** — "Test login at http://localhost:3000" → orchestrator → test-writer (explore → generate → heal) → Allure report.
+2. **Bug audit** — "Find bugs on https://example.com" → orchestrator → explorer → bug-hunter → qa-report.{html,md}.
+3. **Automation** — "Automate registration form" → orchestrator → explorer → automator → reusable `.clj` script.
+4. **One-shot screenshot** — `spel open <url> && spel wait --load load && spel screenshot out.png`.
+5. **Visual + refs in one call** — `spel screenshot -a` → PNG with labels + `@ref role "name"` list in reading order.
+6. **Deterministic multi-step** —
+   ```bash
+   echo '[["open","https://example.com"],["wait","--load","load"],["screenshot","-a","shot.png"]]' \
+     | spel batch --json --bail
+   ```
 
 ## Troubleshooting
 
-### Click times out on SPA / heavy pages
-Cause: Default `load` wait hangs on SPAs that never fully "load" (ad trackers, analytics).
-Fix: `spel wait --load domcontentloaded` after clicks. Click itself times out → try `spel wait --url <partial>` for route change. NEVER skip user actions by navigating directly — always click like a human.
+- **Click times out on SPA** → `spel wait --load domcontentloaded` after clicks; or `--url <partial>`. Never skip user actions.
+- **Session conflict / stale daemon** → `spel --session $SESSION close`; then `spel session list`; remove stale socket as last resort.
+- **Snapshot refs missing after nav** → ALWAYS `spel snapshot -i` after any navigation or state change.
 
-### Session conflict / stale daemon
-Cause: Previous session not closed, or daemon socket stale.
-Fix: `spel --session $SESSION close`. Fails → `spel session list`, kill stale sessions. Last resort: remove stale socket files.
+More: `references/COMMON_PROBLEMS.md`.
 
-### Snapshot refs not found after navigation
-Cause: Page content changed after navigation; old refs invalid.
-Fix: ALWAYS re-run `spel snapshot -i` after any navigation or page state change. Never reuse refs from previous snapshot.
+## Reference docs
 
-More troubleshooting → `references/COMMON_PROBLEMS.md`.
+Start with `references/START_HERE.md` + `references/CAPABILITIES.md`.
 
-## Performance notes
-
-- Verify selectors + page state thoroughly before writing assertions.
-- Quality > speed — flaky tests cost more than slow generation.
-- Don't skip validation (snapshot verification, gate approvals).
-- Prefer fewer well-verified assertions over many untested ones.
-
-## Reference documentation
-
-Start with `references/START_HERE.md` for shortest orientation, `references/CAPABILITIES.md` for compact capability map.
-
-### Core API & patterns
-| Ref | Topic |
-|-----|-------|
-| `references/FULL_API.md` | Complete API tables — auto-generated library API, SCI eval API, CLI commands |
-| `references/PAGE_LOCATORS.md` | Page locators, selectors, get-by-* methods |
-| `references/NAVIGATION_WAIT.md` | Navigation, waiting, load states |
-| `references/SELECTORS_SNAPSHOTS.md` | CSS/XPath selectors, accessibility snapshots |
-| `references/EVAL_GUIDE.md` | SCI eval mode guide, `eval-sci` patterns |
-| `references/CONSTANTS.md` | Constants, enums, AriaRole values |
-| `references/SEARCH_API.md` | Google Search CLI, SCI, and library API |
-
-### Browser & network
-| Ref | Topic |
-|-----|-------|
-| `references/BROWSER_OPTIONS.md` | Browser launch/context options, presets, lifecycle macros, device emulation |
-| `references/NETWORK_ROUTING.md` | Page routing, request/response inspection, WebSocket |
-| `references/FRAMES_INPUT.md` | Frame navigation, keyboard/mouse/touchscreen input |
-
-### Testing & assertions
-| Ref | Topic |
-|-----|-------|
-| `references/TESTING_CONVENTIONS.md` | Test framework conventions, fixtures, running tests (flavour-specific) |
-| `references/ASSERTIONS_EVENTS.md` | Playwright assertions, events/signals, file input |
-| `references/SNAPSHOT_TESTING.md` | Snapshot testing patterns |
-| `references/API_TESTING.md` | API testing context, HTTP methods, hooks, retry, `retry-guard` |
-
-### Reporting & CI
-| Ref | Topic |
-|-----|-------|
-| `references/ALLURE_REPORTING.md` | Allure labels, steps, attachments, reporter config, trace viewer |
-| `references/CI_WORKFLOWS.md` | GitHub Actions CI/CD workflows |
-
-### Presenter & visual output
-| Ref | Topic |
-|-----|-------|
-| `references/CSS_PATTERNS.md` | **Canonical design system** — fonts, colors, dark mode, card/table/KPI components (REQUIRED for all visual output) |
-| `references/PRESENTER_SKILL.md` | Presenter workflow, content types, design token contract, quality checks |
-| `references/SLIDE_PATTERNS.md` | Slide engine, scroll-snap slides, transitions, navigation chrome, presets |
-| `references/LIBRARIES.md` | External libraries — Mermaid.js theming, Chart.js, anime.js, Google Fonts pairings |
-
-### QA / exploratory testing
-| Ref | Topic |
-|-----|-------|
-| `references/BUGFIND_GUIDE.md` | Adversarial bug-finding pipeline, scoring, schemas, Jobs Filter |
-| `references/VISUAL_QA_GUIDE.md` | Visual regression methodology, baseline/diff workflow |
-| `references/spel-report.html` | Unified report HTML template — QA + product discovery |
-| `references/spel-report.md` | Unified report Markdown template — LLM-friendly QA + product discovery handoff |
-| `references/PRODUCT_DISCOVERY.md` | Product discovery JSON schemas — product-spec.json, product-faq.json field definitions |
-
-### CLI & tools
-| Ref | Topic |
-|-----|-------|
-| `references/CODEGEN_CLI.md` | Codegen record/transform, CLI commands, page exploration, configuration |
-| `references/PDF_STITCH_VIDEO.md` | PDF generation, image stitching, video recording |
-| `references/PROFILES_AGENTS.md` | Browser profiles, stealth mode, CDP auto-connect/auto-launch, storage state, agent scaffolding |
-
-### Agent shared patterns
-| Ref | Topic |
-|-----|-------|
-| `references/AGENT_COMMON.md` | Shared agent patterns — session management, GATE contracts, error recovery |
-| `references/ENVIRONMENT_VARIABLES.md` | All spel environment variables — browser, session, network, SSL, testing, advanced |
-
-### Troubleshooting
-| Ref | Topic |
-|-----|-------|
-| `references/COMMON_PROBLEMS.md` | Common issues, debugging tips, error patterns |
+| Topic | Ref |
+|-------|-----|
+| Complete API tables | `FULL_API.md` |
+| Page/locators/get-by-* | `PAGE_LOCATORS.md` |
+| Navigation + wait | `NAVIGATION_WAIT.md` |
+| CSS/XPath + snapshots | `SELECTORS_SNAPSHOTS.md` |
+| SCI eval patterns | `EVAL_GUIDE.md` |
+| Constants/enums/AriaRole | `CONSTANTS.md` |
+| Google search API | `SEARCH_API.md` |
+| Browser options/devices | `BROWSER_OPTIONS.md` |
+| Network routing/mocking | `NETWORK_ROUTING.md` |
+| Frames + keyboard/mouse | `FRAMES_INPUT.md` |
+| Test conventions (flavour) | `TESTING_CONVENTIONS.md` |
+| Assertions + events | `ASSERTIONS_EVENTS.md` |
+| Snapshot testing | `SNAPSHOT_TESTING.md` |
+| API testing | `API_TESTING.md` |
+| **Allure reporting + `spel report`** | `ALLURE_REPORTING.md` |
+| CI workflows | `CI_WORKFLOWS.md` |
+| Design system (REQUIRED for visuals) | `CSS_PATTERNS.md` |
+| Presenter workflow | `PRESENTER_SKILL.md` |
+| Slide engine | `SLIDE_PATTERNS.md` |
+| External libs (Mermaid, Chart.js, …) | `LIBRARIES.md` |
+| Bug-finding pipeline + schemas | `BUGFIND_GUIDE.md` |
+| Visual regression methodology | `VISUAL_QA_GUIDE.md` |
+| Unified report template (HTML) | `spel-report.html` |
+| Unified report template (MD) | `spel-report.md` |
+| Product discovery schemas | `PRODUCT_DISCOVERY.md` |
+| Codegen record/transform | `CODEGEN_CLI.md` |
+| PDF / stitch / video | `PDF_STITCH_VIDEO.md` |
+| Profiles, stealth, CDP | `PROFILES_AGENTS.md` |
+| Shared agent patterns | `AGENT_COMMON.md` |
+| Env vars | `ENVIRONMENT_VARIABLES.md` |
+| Common problems | `COMMON_PROBLEMS.md` |

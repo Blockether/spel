@@ -889,6 +889,68 @@
     :firefox  firefox
     :webkit   webkit))
 
+(defn- install-console-capture!
+  "Registers listeners on `pg` that push every browser console message + every
+   page error into the returned atom. Lightweight — no file I/O until teardown.
+   Direct Playwright interop to avoid circular deps on `spel.page`."
+  [^Page pg]
+  (let [!msgs (atom [])]
+    (.onConsoleMessage pg
+      (reify java.util.function.Consumer
+        (accept [_ msg]
+          (let [^com.microsoft.playwright.ConsoleMessage cm msg
+                type     (try (.type cm)     (catch Throwable _ "log"))
+                text     (try (.text cm)     (catch Throwable _ ""))
+                location (try (.location cm) (catch Throwable _ nil))]
+            (swap! !msgs conj
+              (cond-> {:type type :text text}
+                (and location (string? location) (seq location))
+                (assoc :location location)))))))
+    (.onPageError pg
+      (reify java.util.function.Consumer
+        (accept [_ err]
+          (swap! !msgs conj {:type "pageerror" :text (str err)}))))
+    !msgs))
+
+(defn- format-console-messages
+  "Renders captured console entries as a plain-text block for attachment.
+   One entry per line: `[TYPE] text   (location)`."
+  [msgs]
+  (str/join "\n"
+    (map (fn [m]
+           (let [type (str/upper-case (or (:type m) "LOG"))
+                 text (or (:text m) "")
+                 loc  (:location m)
+                 loc-suffix (when (and loc (seq loc))
+                              (str "   (" loc ")"))]
+             (str "[" type "] " text (or loc-suffix ""))))
+      msgs)))
+
+(defn- attach-console-to-allure-context!
+  "When allure/*context* and *output-dir* are bound (reporter mode), dump the
+   captured console messages into the allure-results dir as a plain-text file
+   and add an attachment entry. Summary.json's `logs[]` picks this up
+   automatically (see spel-allure-alternative-html-report/collect-logs)."
+  [!msgs]
+  (try
+    (let [msgs (some-> !msgs deref)]
+      (when (seq msgs)
+        (let [ctx-var     (resolve 'com.blockether.spel.allure/*context*)
+              out-dir-var (resolve 'com.blockether.spel.allure/*output-dir*)
+              ctx-atom    (when ctx-var @ctx-var)
+              output-dir  (when out-dir-var @out-dir-var)]
+          (when (and ctx-atom output-dir (instance? clojure.lang.Atom ctx-atom))
+            (let [att-uuid (str (UUID/randomUUID))
+                  filename (str att-uuid "-attachment.txt")
+                  dest     (io/file output-dir filename)]
+              (spit dest (format-console-messages msgs))
+              (swap! ctx-atom update :attachments
+                (fnil conj [])
+                {:name "Browser Console"
+                 :source filename
+                 :type "text/plain"}))))))
+    (catch Exception _)))
+
 (defn- attach-trace-to-allure-context!
   "When allure/*context* and *output-dir* are bound (ct reporter mode), copy
    trace/HAR files into the allure-results directory and add attachment entries
@@ -942,7 +1004,8 @@
                       (.setSnapshots true)
                       (.setSources true)
                       (.setTitle (or (when title @title) "spel"))))
-    (let [pg (new-page-from-context ctx)]
+    (let [pg     (new-page-from-context ctx)
+          !msgs  (install-console-capture! pg)]
       (try
         (with-bindings (cond-> {}
                          page        (assoc page pg)
@@ -966,7 +1029,10 @@
           ;; In ct reporter mode, allure/*context* is bound but *trace-path*
           ;; exits scope before on-end-var captures it. Attach directly here
           ;; while we still have the trace/HAR files.
-          (attach-trace-to-allure-context! trace-file har-file))))))
+          (attach-trace-to-allure-context! trace-file har-file)
+          ;; Auto-attach captured browser console + page errors, so they
+          ;; land in summary.json's `logs[]` without user intervention.
+          (attach-console-to-allure-context! !msgs))))))
 
 (defn- run-plain-page
   "Runs `f` on a page without tracing. Binds allure *page* if available."

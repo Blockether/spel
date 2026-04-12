@@ -1,181 +1,57 @@
-# Product Discovery Reference
+# Product discovery reference
 
-Product discovery methodology converts exploratory browser observations → structured product model. Used when agent must infer what product does, who it serves, where UX/IA inconsistencies appear.
+Methodology + canonical schemas for converting browser observations into a structured product model.
 
-Defines:
-- 7-phase pipeline from crawl → synthesis
-- Canonical JSON outputs (`product-spec.json`, `product-faq.json`)
-- Shared vocabularies + scoring dimensions
-- Evidence expectations for reproducible discovery artifacts
-
----
+Covers: 7-phase pipeline · `product-spec.json` / `product-faq.json` schemas · shared vocabularies · evidence expectations.
 
 ## Overview
 
-Product discovery = black-box analysis workflow for understanding product behavior from outside in. Instead of internal source code assumptions, analyst documents:
+Product discovery is **black-box analysis** — no source code assumptions. The analyst documents:
 
 - Information architecture + page relationships
-- Feature boundaries + feature ownership by role
+- Feature boundaries + role ownership
 - UI states across interaction paths
-- Coherence quality across visual, interaction, accessibility dimensions
+- Coherence quality (visual / interaction / a11y …)
 
-Use when you need:
+Use it to bootstrap product understanding, compare expected-vs-observed role access, generate FAQs from behavior, identify quality debt, or build a machine-readable baseline.
 
-- Bootstrap product understanding for new team
-- Compare expected vs observed feature access by role
-- Generate FAQ content from observed behavior
-- Identify quality debt before roadmap planning
-- Build machine-readable baseline for future audits
+Core rule: every claim maps to visible evidence — snapshot refs, URLs, interaction traces, screenshots.
 
-Core principle: every extracted claim → maps to visible evidence (snapshot refs, URLs, interaction traces, screenshots).
-
----
-
-## 7-Phase Pipeline
+## 7-phase pipeline
 
 `CRAWL → CLASSIFY → DISCOVER ROLES → MAP STATES → EXTRACT DOMAIN → COHERENCE AUDIT → SYNTHESIZE`
 
-Each phase produces data required by later phases. Don't skip order; downstream `product-spec.json` sections depend on upstream completeness.
+| Phase | Goal | Primary output |
+|------:|------|----------------|
+| 1. CRAWL | Reachable pages + core nav graph | `navigation_map.pages[]` |
+| 2. CLASSIFY | Pages/interactions → product areas | `features[].category` + page `type` |
+| 3. DISCOVER ROLES | Role model + privileges | `roles[]` |
+| 4. MAP STATES | Observable UI states + transitions | `features[].states` |
+| 5. EXTRACT DOMAIN | Consolidated feature model | `features[]`, `feature_matrix` |
+| 6. COHERENCE AUDIT | Cross-product consistency scores | `coherence_audit` |
+| 7. SYNTHESIZE | Recommendations + FAQ | `recommendations[]`, `product-faq.json` |
 
-| Phase | Primary goal | Main output section |
-|------|--------------|---------------------|
-| 1. CRAWL | Enumerate reachable pages + core navigation graph | `navigation_map.pages[]` |
-| 2. CLASSIFY | Tag pages + interactions into product areas | `features[].category` + page `type` |
-| 3. DISCOVER ROLES | Infer user roles + role privileges | `roles[]` |
-| 4. MAP STATES | Capture observable UI states + transitions | `features[].states` |
-| 5. EXTRACT DOMAIN | Consolidate product concepts → feature model | `features[]`, `feature_matrix` |
-| 6. COHERENCE AUDIT | Score cross-product consistency + quality | `coherence_audit` |
-| 7. SYNTHESIZE | Produce recommendations + FAQ-ready narrative | `recommendations[]`, `product-faq.json` |
+### Phase details
 
-### Phase 1: CRAWL
+**1 · CRAWL.** Start from entry URLs; traverse primary + secondary nav; record canonical URL / title / outbound links; note dead ends, gated pages, redirects. **Done when**: navigation coverage includes major menu branches and `navigation_map.pages[]` has no duplicate canonical URLs.
 
-Purpose: discover product surface area.
+**2 · CLASSIFY.** Assign each page a `type` (`landing`, `auth`, `dashboard`, `settings`, …); group interactions into candidate features; map each feature to one of the 10 categories. **Done when**: every feature has exactly one valid category and page types match observed purpose.
 
-Tasks:
-- Start from one or more entry URLs
-- Traverse primary + secondary navigation
-- Record canonical page URL, visible title, outbound links
-- Note dead ends, gated pages, redirects
+**3 · DISCOVER ROLES.** Compare menus/controls/routes across account contexts; infer privilege levels from exposed capabilities. **Done when**: each role has `id`, `name`, `description`, `access_level`; `features_accessible[]` matches evidence.
 
-Expected artifacts:
-- Initial site map draft
-- URL normalization rules (e.g., trailing slash handling)
-- Candidate page list for classification
+**4 · MAP STATES.** Enumerate states (empty / loading / populated / error / success / disabled …); trigger transitions; record evidence + navigation impact. **Done when**: every core feature has at least one non-default state; names are product-meaningful, not implementation-specific.
 
-Completion criteria:
-- Navigation coverage includes major menu branches
-- `navigation_map.pages[]` has no duplicate canonical URLs
+**5 · EXTRACT DOMAIN.** Finalize kebab-case feature IDs; consolidate duplicates; build the role × feature matrix. **Done when**: IDs unique + referenced consistently; matrix covers every role × feature.
 
-### Phase 2: CLASSIFY
+**6 · COHERENCE AUDIT.** Score all 8 dimensions (0–100) with issue lists + element-level evidence. **Done when**: all eight present; each has score + issues + elements.
 
-Purpose: map observed pages/modules → known product areas.
+**7 · SYNTHESIZE.** Actionable recommendations; FAQs grounded in real features; schema validation. **Done when**: recommendations are concrete/actionable; FAQ entries include confidence + related feature IDs.
 
-Tasks:
-- Assign each page type (`landing`, `auth`, `dashboard`, `settings`, etc.)
-- Group interactions into candidate features
-- Map each feature → category from canonical 10-category vocabulary
+## Output schemas
 
-Expected artifacts:
-- Classified page inventory
-- Draft feature candidates with category tags
+Keep keys + nesting exactly as defined.
 
-Completion criteria:
-- Every tracked feature has exactly one valid category
-- Page type labels consistent with observed purpose
-
-### Phase 3: DISCOVER ROLES
-
-Purpose: infer user role model from visible access boundaries.
-
-Tasks:
-- Observe guest-visible vs authenticated surfaces
-- Compare menus, controls, routes across account contexts
-- Infer privilege levels (user/admin/superadmin) from exposed capabilities
-
-Expected artifacts:
-- Role list with semantic names + descriptions
-- Feature accessibility mapping per role
-
-Completion criteria:
-- Each role has `id`, `name`, `description`, `access_level`
-- `features_accessible[]` aligns with observed evidence
-
-### Phase 4: MAP STATES
-
-Purpose: capture dynamic behavior per feature.
-
-Tasks:
-- Enumerate states (empty, loading, populated, error, success, disabled, etc.)
-- Trigger transitions through real interactions
-- Record state-specific evidence + navigation impacts
-
-Expected artifacts:
-- State list per feature in `features[].states`
-- Notes on transition triggers + blockers
-
-Completion criteria:
-- Every core feature includes at least one non-default state
-- State names product-meaningful, not implementation-specific
-
-### Phase 5: EXTRACT DOMAIN
-
-Purpose: convert observational data → stable domain model.
-
-Tasks:
-- Finalize unique feature IDs (kebab-case)
-- Consolidate duplicate feature candidates
-- Build role × feature access matrix
-
-Expected artifacts:
-- Normalized `features[]`
-- Final `roles[]`
-- Complete `feature_matrix`
-
-Completion criteria:
-- Feature IDs unique + referenced consistently
-- Matrix rows cover all roles + all mapped features
-
-### Phase 6: COHERENCE AUDIT
-
-Purpose: quantify consistency + usability quality across product.
-
-Tasks:
-- Evaluate all 8 coherence dimensions
-- Assign dimension scores (0-100)
-- Capture issue statements + `elements[]` evidence objects
-
-Expected artifacts:
-- `coherence_audit.score`
-- `coherence_audit.dimensions.*`
-
-Completion criteria:
-- All eight dimensions present
-- Each dimension provides score, issue list, element-level evidence
-
-### Phase 7: SYNTHESIZE
-
-Purpose: produce consumable outputs for product, design, QA, support teams.
-
-Tasks:
-- Write actionable recommendations
-- Generate FAQ candidates tied to real features
-- Validate schema completeness + field consistency
-
-Expected artifacts:
-- Final `product-spec.json`
-- Final `product-faq.json`
-
-Completion criteria:
-- Recommendations concrete + action-oriented
-- FAQ entries include confidence + related feature IDs
-
----
-
-## Output Schemas
-
-Schema snippets use inline annotations (`string — ...`) for intent. Keep keys + nesting exactly as defined.
-
-### product-spec.json
+### `product-spec.json`
 
 ```json
 {
@@ -189,202 +65,119 @@ Schema snippets use inline annotations (`string — ...`) for intent. Keep keys 
   },
   "features": [
     {
-      "id": "string — kebab-case unique identifier",
-      "name": "string — human-readable name",
-      "category": "string — one of the 10 feature categories",
+      "id": "kebab-case unique id",
+      "name": "human-readable",
+      "category": "one of 10 categories",
       "description": "string",
-      "regions": ["string — region vocabulary values"],
-      "states": ["string — UI states observed"],
-      "roles_required": ["string — role IDs that can access this feature"],
-      "evidence": "string — snapshot ref or URL where observed"
+      "regions": ["from region vocabulary"],
+      "states": ["UI states observed"],
+      "roles_required": ["role ids"],
+      "evidence": "snapshot ref or URL"
     }
   ],
   "roles": [
-    {
-      "id": "string — kebab-case",
-      "name": "string",
-      "description": "string",
-      "access_level": "string — guest | user | admin | superadmin",
-      "features_accessible": ["string — feature IDs"]
-    }
+    {"id":"kebab-case","name":"string","description":"string",
+     "access_level":"guest | user | admin | superadmin",
+     "features_accessible":["feature ids"]}
   ],
   "feature_matrix": {
     "description": "2D matrix: roles × features",
-    "rows": [
-      {
-        "role_id": "string",
-        "feature_access": {
-          "feature-id": "boolean | string — true/false/partial"
-        }
-      }
-    ]
+    "rows": [{"role_id":"string", "feature_access":{"feature-id":"bool|partial"}}]
   },
   "coherence_audit": {
-    "score": "number 0-100",
+    "score": "0-100",
     "dimensions": {
-      "visual_consistency": {
-        "score": "number 0-100",
-        "issues": ["string"],
-        "elements": []
-      },
-      "interaction_patterns": { "score": "number", "issues": [], "elements": [] },
-      "terminology": { "score": "number", "issues": [], "elements": [] },
-      "navigation_flow": { "score": "number", "issues": [], "elements": [] },
-      "error_handling": { "score": "number", "issues": [], "elements": [] },
-      "loading_states": { "score": "number", "issues": [], "elements": [] },
-      "responsive_behavior": { "score": "number", "issues": [], "elements": [] },
-      "accessibility_baseline": { "score": "number", "issues": [], "elements": [] }
+      "visual_consistency":     {"score":"0-100","issues":[],"elements":[]},
+      "interaction_patterns":   {"score":"0-100","issues":[],"elements":[]},
+      "terminology":            {"score":"0-100","issues":[],"elements":[]},
+      "navigation_flow":        {"score":"0-100","issues":[],"elements":[]},
+      "error_handling":         {"score":"0-100","issues":[],"elements":[]},
+      "loading_states":         {"score":"0-100","issues":[],"elements":[]},
+      "responsive_behavior":    {"score":"0-100","issues":[],"elements":[]},
+      "accessibility_baseline": {"score":"0-100","issues":[],"elements":[]}
     }
   },
   "navigation_map": {
-    "pages": [
-      {
-        "url": "string",
-        "title": "string",
-        "type": "string — landing | auth | dashboard | settings | etc.",
-        "links_to": ["string — URLs"]
-      }
-    ]
+    "pages": [{"url":"string","title":"string","type":"landing|auth|dashboard|…","links_to":["urls"]}]
   },
-  "recommendations": ["string — actionable improvement suggestions"]
+  "recommendations": ["actionable improvement suggestions"]
 }
 ```
 
-#### product-spec.json field notes
+Field notes:
 
-| Field | Guidance |
-|------|----------|
-| `url` | Root URL scoping analyzed product surface |
-| `analyzed_at` | UTC timestamp (`YYYY-MM-DDTHH:mm:ssZ`) |
-| `metadata.primary_language` | Prefer observed UI language, not guessed locale |
-| `metadata.detected_framework` | `null` when uncertain |
-| `features[].evidence` | Stable references: snapshot refs, URL+state, or both |
-| `roles[].access_level` | One of: `guest`, `user`, `admin`, `superadmin` |
-| `feature_matrix.rows[].feature_access` | Boolean for binary; `partial` for conditional availability |
-| `coherence_audit.score` | Overall score explainable from dimension scores |
-| `navigation_map.pages[].links_to` | Canonicalized URLs only |
-| `recommendations[]` | Action verbs + scope ("unify", "rename", "add") |
+- `analyzed_at` — UTC `YYYY-MM-DDTHH:mm:ssZ`.
+- `metadata.primary_language` — observed UI language, not guessed locale.
+- `metadata.detected_framework` — `null` when uncertain.
+- `features[].evidence` — snapshot refs, URL+state, or both.
+- `roles[].access_level` — one of `guest | user | admin | superadmin`.
+- `feature_matrix.rows[].feature_access` — boolean for binary, `"partial"` only for deterministic conditional access (plan tier, state, route).
+- `coherence_audit.score` — explainable from dimension scores.
+- `navigation_map.pages[].links_to` — canonicalized URLs only.
+- `recommendations[]` — start with an action verb (`unify`, `rename`, `add`).
 
-#### Role + feature normalization rules
+Role / feature normalization:
 
 1. IDs: lowercase kebab-case, immutable once published.
-2. Feature names: user-facing, avoid internal implementation terms.
-3. Merge duplicate features representing same user outcome.
-4. Keep role definitions minimal; avoid synthetic roles without evidence.
-5. Every `features_accessible[]` entry resolves to existing feature ID.
+2. Feature names: user-facing, not implementation terms.
+3. Merge duplicates representing the same user outcome.
+4. Don't invent synthetic roles without evidence.
+5. Every `features_accessible[]` entry resolves to an existing feature id.
 
-#### Feature matrix interpretation
-
-- `true`: directly accessible in that role context
-- `false`: not accessible
-- `partial`: conditional access (plan tier, state, route path)
-
-Use `partial` only when deterministic condition observed.
-
-### product-faq.json
+### `product-faq.json`
 
 ```json
 {
   "generated_at": "ISO 8601 timestamp",
-  "source_spec": "string — path to product-spec.json",
+  "source_spec": "path to product-spec.json",
   "faqs": [
-    {
-      "id": "string — kebab-case",
-      "question": "string",
-      "answer": "string",
-      "category": "string — feature category or general",
-      "related_features": ["string — feature IDs"],
-      "confidence": "number 0-1"
-    }
+    {"id":"kebab-case","question":"string","answer":"string",
+     "category":"feature category or general",
+     "related_features":["feature ids"],
+     "confidence":"0-1"}
   ]
 }
 ```
 
-#### product-faq.json field notes
+FAQ quality bar:
 
-| Field | Guidance |
-|------|----------|
-| `generated_at` | FAQ generation timestamp, not crawl time |
-| `source_spec` | Relative path or artifact URI to exact spec used |
-| `faqs[].id` | Stable kebab-case key for downstream indexing |
-| `faqs[].category` | One feature category value or `general` |
-| `faqs[].related_features` | One or more `features[].id` links |
-| `faqs[].confidence` | `0.0` to `1.0` based on evidence coverage |
+- User-intent-driven questions (not schema-driven).
+- Answers explicit about role constraints when relevant.
+- Low certainty → lower `confidence`, never overstate.
+- Never speculate beyond the spec.
 
-#### FAQ writing quality bar
+### `elements[]` schema (shared)
 
-- Questions: user-intent driven, not schema driven.
-- Answers: explicit about role constraints when relevant.
-- Low certainty → reduce confidence, don't overstate.
-- Avoid speculative details unsupported by source spec.
-
-### elements[] Schema
-
-Shared reference type used by all `coherence_audit.dimensions.*.elements` arrays.
+Used by every `coherence_audit.dimensions.*.elements`:
 
 ```json
-{
-  "ref": "string — snapshot ref (e.g. @e123)",
-  "region": "string — region vocabulary value",
-  "description": "string — what was observed",
-  "url": "string — page where observed"
-}
+{"ref":"@e123", "region":"from region vocab",
+ "description":"what was observed", "url":"page observed on"}
 ```
 
-#### elements[] usage rules
-
-1. `ref` identifies specific UI element from snapshot output.
-2. `region` must be one value from region vocabulary.
-3. `description` describes issue or positive consistency signal.
-4. `url` = page where element observed.
-5. Multiple entries when same issue appears on multiple pages.
-
-Example:
+Rules: `ref` identifies a specific UI element from a snapshot; `region` must be one of the 15 vocabulary values; `description` states the issue or consistency signal; `url` is the page where observed. Use multiple entries when the same issue appears on multiple pages.
 
 ```json
-{
-  "ref": "@e4kqmn",
-  "region": "nav",
-  "description": "Primary CTA label differs from dashboard nav wording",
-  "url": "https://example.app/dashboard"
-}
+{"ref":"@e4kqmn","region":"nav",
+ "description":"Primary CTA label differs from dashboard nav wording",
+ "url":"https://example.app/dashboard"}
 ```
 
----
+## Vocabularies
 
-## Vocabulary
+Contract constants — don't invent alternatives.
 
-Vocabularies = contract-level constants. Don't invent alternatives during reporting.
+### Region vocabulary (15)
 
-### Region Vocabulary (15 regions)
-
-Use exactly these values:
-
-1. `hero`
-2. `nav`
-3. `sidebar`
-4. `footer`
-5. `modal`
-6. `drawer`
-7. `toast`
-8. `card`
-9. `table`
-10. `form`
-11. `cta`
-12. `badge`
-13. `tab`
-14. `accordion`
-15. `carousel`
-
-Region mapping heuristics:
+`hero`, `nav`, `sidebar`, `footer`, `modal`, `drawer`, `toast`, `card`, `table`, `form`, `cta`, `badge`, `tab`, `accordion`, `carousel`.
 
 | Region | Typical signals |
-|--------|------------------|
-| `hero` | Top-of-page headline area with primary proposition/CTA |
-| `nav` | Global or local route controls + menu structures |
+|--------|-----------------|
+| `hero` | Top-of-page headline with primary proposition/CTA |
+| `nav` | Global or local route controls, menu structures |
 | `sidebar` | Persistent side navigation or contextual tools |
-| `footer` | Bottom-of-page global links/legal/support content |
-| `modal` | Overlay dialog requiring contextual acknowledgement |
+| `footer` | Bottom-of-page global links, legal, support |
+| `modal` | Overlay requiring contextual acknowledgement |
 | `drawer` | Side panel sliding over content |
 | `toast` | Short-lived notification container |
 | `card` | Self-contained grouped content block |
@@ -396,124 +189,78 @@ Region mapping heuristics:
 | `accordion` | Expand/collapse grouped sections |
 | `carousel` | Rotating or paged visual/content track |
 
-### Feature Categories (10)
+### Feature categories (10)
 
-Use exactly these category identifiers:
+`auth`, `commerce`, `content`, `social`, `search`, `media`, `settings`, `analytics`, `notifications`, `integrations`.
 
-1. `auth`
-2. `commerce`
-3. `content`
-4. `social`
-5. `search`
-6. `media`
-7. `settings`
-8. `analytics`
-9. `notifications`
-10. `integrations`
+- `auth` — login, signup, password reset, session
+- `commerce` — cart, checkout, payment, billing, subscriptions
+- `content` — CMS, publishing, editing, article/page mgmt
+- `social` — profiles, follows, comments, messaging, sharing
+- `search` — query, filter, ranking, results navigation
+- `media` — image/video/audio upload, playback, galleries
+- `settings` — prefs, account config, feature toggles
+- `analytics` — dashboards, charts, KPIs, reports
+- `notifications` — alerts, inbox, digests, preferences
+- `integrations` — third-party connections, API keys, webhooks
 
-Category assignment:
+## Coherence dimensions (8)
 
-- `auth`: login, signup, password reset, session management
-- `commerce`: cart, checkout, payment, billing, subscriptions
-- `content`: CMS, publishing, editing, article/page management
-- `social`: profiles, follows, comments, messaging, sharing
-- `search`: query input, filtering, ranking, search result navigation
-- `media`: image/video/audio upload, playback, galleries
-- `settings`: preferences, account config, feature toggles
-- `analytics`: dashboards, charts, KPIs, reporting views
-- `notifications`: alerts, inbox, digests, alert preferences
-- `integrations`: third-party connections, API keys, webhooks
+Each scored 0–100 with issue list + `elements[]`:
 
----
+1. **visual_consistency** — color, typography, spacing, icon style.
+2. **interaction_patterns** — button behaviors, forms, hover/focus, keyboard nav.
+3. **terminology** — consistent naming of features, actions, concepts.
+4. **navigation_flow** — page hierarchy, breadcrumbs, back, deep links.
+5. **error_handling** — error style, validation, empty states, 404.
+6. **loading_states** — skeletons, spinners, progress, optimistic updates.
+7. **responsive_behavior** — mobile/tablet/desktop consistency, touch, overflow.
+8. **accessibility_baseline** — ARIA, focus, contrast, keyboard traps.
 
-## Coherence Dimensions (8)
+Scoring rubric:
 
-Coherence audit uses eight required dimensions. Each gets score (0-100), issue list, `elements[]` evidence links.
+| Range | Interpretation |
+|-------|----------------|
+| 90–100 | Highly coherent; minor refinements |
+| 75–89 | Mostly coherent; moderate inconsistencies |
+| 60–74 | Noticeable friction; targeted remediations |
+| 40–59 | Significant inconsistency affecting usability |
+| 0–39 | Severe coherence debt; systemic redesign likely |
 
-1. **visual_consistency** — Color palette, typography, spacing, icon style consistency across pages
-2. **interaction_patterns** — Button behaviors, form patterns, hover/focus states, keyboard navigation
-3. **terminology** — Consistent naming of features, actions, concepts across product
-4. **navigation_flow** — Logical page hierarchy, breadcrumbs, back navigation, deep-link support
-5. **error_handling** — Error message style, validation feedback, empty states, 404 handling
-6. **loading_states** — Skeleton screens, spinners, progress indicators, optimistic updates
-7. **responsive_behavior** — Mobile/tablet/desktop layout consistency, touch targets, overflow
-8. **accessibility_baseline** — ARIA labels, focus management, color contrast, keyboard traps
+Per dimension: ≥1 confirming or violating element; prefer issues that repeat across pages; keep phrasing neutral + observable; no implementation guesses without proof.
 
-### Scoring rubric (suggested)
+## End-to-end synthesis
 
-| Score range | Interpretation |
-|-------------|----------------|
-| 90-100 | Highly coherent; minor refinements only |
-| 75-89 | Mostly coherent; moderate inconsistencies |
-| 60-74 | Noticeable friction; targeted remediations required |
-| 40-59 | Significant inconsistency affecting usability |
-| 0-39 | Severe coherence debt; systemic redesign likely required |
-
-### Dimension audit checklist
-
-Per dimension:
-- Capture at least one confirming or violating `elements[]` evidence object
-- Prefer repeatable issues across multiple pages
-- Keep issue phrasing neutral + observable
-- Avoid implementation guesses without visible proof
-
----
-
-## End-to-End Synthesis Pattern
-
-Use after phase completion:
-
-1. Validate all required schema keys exist.
+1. Validate every required key exists.
 2. Every feature categorized + role-linked.
-3. Matrix coverage for every role + feature.
-4. Reconcile coherence dimension scores with issue severity.
-5. Draft recommendations from highest-impact inconsistencies first.
-6. Generate FAQs grounded in observed behavior + role limits.
+3. Matrix coverage for every role × feature.
+4. Reconcile dimension scores with issue severity.
+5. Recommendations by highest impact first.
+6. FAQs grounded in observed behavior + role limits.
 
-Quality gates before publishing:
+Quality gates before publishing: no dangling feature refs, no off-vocabulary region/category values, no missing coherence dimensions, no FAQ entries without related features (unless `general`).
 
-- No dangling feature references
-- No undefined region/category vocabulary values
-- No missing coherence dimensions
-- No FAQ entries without related features (unless `general`)
-
----
-
-## Minimal Example Bundle
-
-Expected output layout:
+## Layout
 
 ```text
 product-discovery/
-  product-spec.json
-  product-faq.json
+  product-spec.json     # canonical structured model
+  product-faq.json      # derivative communication artifact
   evidence/
     homepage-snapshot.json
     dashboard-snapshot.json
     settings-snapshot.json
 ```
 
-Artifact relationships:
+## Common pitfalls
 
-- `product-spec.json` = canonical structured model.
-- `product-faq.json` = derivative communication artifact.
-- `evidence/*` files justify observed claims in both outputs.
+- Mixing inferred vs observed behavior without confidence notes.
+- Feature IDs changing between runs.
+- Free-form region names outside the 15-item vocabulary.
+- Omitting `partial` context in the feature matrix when constraints exist.
+- Scoring coherence dimensions without element-level evidence.
+- FAQs untraceable to feature evidence.
 
----
+## See also
 
-## Common Pitfalls
-
-1. Mixing inferred + observed behavior without confidence notes.
-2. Feature IDs changing between runs.
-3. Free-form region names outside 15-item vocabulary.
-4. Omitting `partial` access context in feature matrix when constraints exist.
-5. Scoring coherence dimensions without element-level evidence.
-6. FAQs untraceable to feature evidence.
-
----
-
-## See Also
-
-- [AGENT_COMMON.md](AGENT_COMMON.md) - shared agent conventions + operational contracts
-- [BUGFIND_GUIDE.md](BUGFIND_GUIDE.md) - reference style model for long-form methodology docs
-- [SELECTORS_SNAPSHOTS.md](SELECTORS_SNAPSHOTS.md) - snapshot usage + evidence mechanics
+- `AGENT_COMMON.md` · `BUGFIND_GUIDE.md` · `SELECTORS_SNAPSHOTS.md`

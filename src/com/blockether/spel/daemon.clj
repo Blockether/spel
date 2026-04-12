@@ -4009,6 +4009,19 @@
   ;; Install CDP handlers so eval-sci scripts can call (spel/cdp-disconnect) / (spel/cdp-reconnect)
   (reset! sci-env/!cdp-disconnect-handler sci-cdp-disconnect-handler)
   (reset! sci-env/!cdp-reconnect-handler sci-cdp-reconnect-handler)
+  ;; Install set-device handler so eval-sci can call (spel/set-device! "iPhone 14").
+  ;; Routes through the existing "set_device" handler — same behavior as the CLI
+  ;; `spel set device …` path, including SCI state sync.
+  (reset! sci-env/!set-device-handler
+    (fn set-device-handler [device-name]
+      (let [result (handle-cmd "set_device" {"device" device-name})]
+        (when (:error result)
+          (throw (ex-info (:error result) {:device device-name})))
+        (let [st @!state]
+          (reset! sci-env/!context (:context st))
+          (reset! sci-env/!page    (:page st))
+          (reset! sci-env/!device  (:device st)))
+        result)))
   ;; Sync CDP idle timeout value and setter
   (reset! sci-env/!cdp-idle-timeout-ms @!cdp-idle-timeout-ms)
   (reset! sci-env/!set-cdp-idle-timeout-handler
