@@ -8,6 +8,8 @@
    [clojure.string :as str]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.daemon :as sut]
+   [com.blockether.spel.platform :as platform]
+   [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
@@ -362,6 +364,158 @@
         ;; body-line ends with "last-cell" (optionally a trailing blank) — no
         ;; extra padding spaces.
         (expect (str/ends-with? body-line "last-cell"))))))
+
+;; =============================================================================
+;; platform.clj — probe-cdp, cdp-candidate-hosts, discover-cdp
+;; =============================================================================
+
+(defdescribe platform-probe-cdp-test
+  "Unit tests for platform/probe-cdp — the shared CDP liveness check."
+
+  (describe "returns nil for closed ports"
+    (it "returns nil for a port nothing listens on"
+      (expect (nil? (platform/probe-cdp "127.0.0.1" 19999 500)))))
+
+  (describe "returns a map for a live CDP endpoint"
+    (it "extracts :host :port :browser :ws-url from /json/version"
+      (let [port 59330
+            srv  (try (spin-up-fake-cdp-server! port "ProbeCDP/1.0")
+                   (catch Exception _ nil))]
+        (when srv
+          (try
+            (let [r (platform/probe-cdp "127.0.0.1" port 1000)]
+              (expect (some? r))
+              (expect (= "127.0.0.1" (:host r)))
+              (expect (= port (:port r)))
+              (expect (= "ProbeCDP/1.0" (:browser r))))
+            (finally (.stop srv 0)))))))
+
+  (describe "returns nil for non-CDP HTTP servers"
+    (it "returns nil when /json/version returns non-JSON"
+      (let [port 59331
+            srv  (HttpServer/create (InetSocketAddress. "127.0.0.1" (int port)) 0)]
+        (.createContext srv "/json/version"
+          (reify HttpHandler
+            (handle [_ ex]
+              (let [body (.getBytes "not json")]
+                (.sendResponseHeaders ^HttpExchange ex 200 (count body))
+                (with-open [os (.getResponseBody ^HttpExchange ex)]
+                  (.write os body))))))
+        (.start srv)
+        (try
+          (expect (nil? (platform/probe-cdp "127.0.0.1" port 1000)))
+          (finally (.stop srv 0)))))))
+
+(defdescribe platform-cdp-candidate-hosts-test
+  "Unit tests for platform/cdp-candidate-hosts."
+
+  (describe "on non-WSL machines"
+    (it "returns [\"127.0.0.1\"]"
+      (let [hosts (platform/cdp-candidate-hosts)]
+        ;; On macOS dev machines (not WSL), should be loopback only
+        (expect (contains? (set hosts) "127.0.0.1"))))))
+
+(defdescribe platform-discover-cdp-test
+  "Integration tests for platform/discover-cdp."
+
+  (describe "discovers a fake CDP server"
+    (it "finds a server on a probed port"
+      (let [port 9222
+            srv  (try (spin-up-fake-cdp-server! port "DiscoverTest/1.0")
+                   (catch Exception _ nil))]
+        (when srv
+          (try
+            (let [r (platform/discover-cdp [port] 1000)]
+              (expect (some? r))
+              (expect (= port (:port r)))
+              (expect (str/includes? (:browser r) "DiscoverTest")))
+            (finally (.stop srv 0)))))))
+
+  (describe "returns nil when nothing is listening"
+    (it "returns nil for unused ports"
+      (expect (nil? (platform/discover-cdp [19998 19999] 300))))))
+
+;; =============================================================================
+;; SCI eval — WSL, java->clj, cdp-connect, stdlib
+;; =============================================================================
+
+(defdescribe sci-eval-new-features-test
+  "Tests for newly exposed SCI functions: WSL detection, java->clj,
+   clojure.set, clojure.walk, zprint, ns-aliases, and cdp-connect."
+
+  (describe "WSL functions in SCI"
+    (it "spel/wsl? returns a boolean"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(spel/wsl?)")]
+        (expect (or (true? r) (false? r)))))
+
+    (it "spel/wsl-default-gateway-ip returns nil or string"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(spel/wsl-default-gateway-ip)")]
+        (expect (or (nil? r) (string? r))))))
+
+  (describe "java->clj in SCI"
+    (it "converts LinkedHashMap to Clojure map"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(spel/java->clj (java.util.LinkedHashMap. {\"a\" 1 \"b\" 2}))")]
+        (expect (map? r))
+        (expect (= 1 (get r "a")))
+        (expect (= 2 (get r "b")))))
+
+    (it "converts nested structures recursively"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(spel/java->clj (java.util.LinkedHashMap. {\"x\" (java.util.ArrayList. [1 2 3])}))" )]
+        (expect (map? r))
+        (expect (vector? (get r "x")))
+        (expect (= [1 2 3] (get r "x"))))))
+
+  (describe "clojure.set via ns-alias"
+    (it "set/union works without require"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(set/union #{1 2} #{2 3})")]
+        (expect (= #{1 2 3} r))))
+
+    (it "set/difference works"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(set/difference #{1 2 3} #{2})")]
+        (expect (= #{1 3} r)))))
+
+  (describe "clojure.walk via ns-alias"
+    (it "walk/keywordize-keys works without require"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(walk/keywordize-keys {\"a\" 1 \"b\" 2})")]
+        (expect (= {:a 1 :b 2} r)))))
+
+  (describe "zprint via ns-alias"
+    (it "zp/zprint-str formats data"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(zp/zprint-str {:a 1})")]
+        (expect (string? r))
+        (expect (str/includes? r ":a")))))
+
+  (describe "sci/fork isolation"
+    (it "forked context does not leak vars to parent"
+      (let [ctx    (sci-env/create-sci-ctx)
+            forked (sci-env/fork-sci-ctx ctx)]
+        (sci-env/eval-string forked "(def test-leak-var 42)")
+        (expect (= 42 (sci-env/eval-string forked "test-leak-var")))
+        (let [parent-err (try (sci-env/eval-string ctx "test-leak-var")
+                           (catch Exception _ :not-found))]
+          (expect (= :not-found parent-err))))))
+
+  (describe "cdp-connect callable"
+    (it "spel/cdp-connect with no browser throws with clear message"
+      ;; cdp-connect without a running daemon will throw — but the
+      ;; error message should mention "No running browser" or
+      ;; "daemon mode", proving the function IS wired up and runs.
+      (let [ctx (sci-env/create-sci-ctx)
+            err (try (sci-env/eval-string ctx "(spel/cdp-connect)")
+                  (catch Exception e (.getMessage e)))]
+        (expect (string? err))
+        ;; Either "No running browser" (auto-discover path) or
+        ;; "daemon mode" (reconnect handler not injected)
+        (expect (or (str/includes? err "browser")
+                  (str/includes? err "daemon")))))))
 
 ;; =============================================================================
 ;; CLI-side session list (discover-sessions, active-sessions-on-disk,
