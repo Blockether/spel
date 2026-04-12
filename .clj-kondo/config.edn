@@ -11,7 +11,11 @@
   :unused-binding {:level :info}
   ;; SCI env imports classes for user scripts at runtime - they appear unused
   ;; in static analysis but are exposed to the SCI interpreter
-  :unused-import {:level :off}}
+  :unused-import {:level :off}
+  ;; SCI env requires standard library namespaces (clojure.set, clojure.walk)
+  ;; so sci/copy-ns can find them at context creation time. They appear unused
+  ;; in static analysis because they're consumed by SCI, not by direct alias reference.
+  :unused-namespace {:level :off}}
  
  :config-in-comment
  {:linters {:unresolved-symbol {:level :off}}}}
