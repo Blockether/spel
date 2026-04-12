@@ -712,7 +712,14 @@
         attachment-count (long (count attachments))]
     (str "<details class=\"test-card " (status-class status) "\" data-status=\"" status "\""
       " data-duration=\"" (or duration 0) "\""
-      " data-name=\"" (str/lower-case (or name "")) "\">"
+      " data-name=\"" (str/lower-case (or name "")) "\""
+      (when epic     (str " data-epic=\""     (html-escape epic)     "\""))
+      (when feature  (str " data-feature=\""  (html-escape feature)  "\""))
+      (when story    (str " data-story=\""    (html-escape story)    "\""))
+      (when severity (str " data-severity=\"" (html-escape severity) "\""))
+      (when (seq tags)
+        (str " data-tags=\"" (html-escape (str/join "," tags)) "\""))
+      ">"
       "<summary class=\"test-card-summary\">"
       (detail-marker)
       "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
@@ -754,19 +761,63 @@
       "</details>")))
 
 (defn- suite-metadata-json
-  "Emit a compact JSON array of `{n, s, d}` entries — name, status, duration —
-   for the suite's tests. Used by the client-side filter so it can evaluate
-   status/name matches without having to hydrate collapsed suites."
+  "Emit a compact JSON array of `{n, s, d, e?, f?, y?, v?, t?}` entries —
+   name, status, duration, and optional label keys — for the suite's tests.
+   Used by the client-side filter so it can evaluate status/name/label matches
+   without having to hydrate collapsed suites. Nil label values are omitted to
+   keep the JSON compact."
   [results]
   (json/write-json-str
     (mapv (fn [r]
             (let [start (get r "start")
                   stop (get r "stop")
-                  duration (if (and start stop) (- (long stop) (long start)) 0)]
-              {"n" (str/lower-case (get r "name" ""))
-               "s" (get r "status" "unknown")
-               "d" duration}))
+                  duration (if (and start stop) (- (long stop) (long start)) 0)
+                  epic     (label-value r "epic")
+                  feature  (label-value r "feature")
+                  story    (label-value r "story")
+                  severity (label-value r "severity")
+                  tags     (->> (get r "labels" [])
+                             (filter #(= "tag" (get % "name")))
+                             (mapv #(get % "value"))
+                             not-empty)
+                  entry    (cond-> {"n" (str/lower-case (get r "name" ""))
+                                    "s" (get r "status" "unknown")
+                                    "d" duration}
+                             epic     (assoc "e" epic)
+                             feature  (assoc "f" feature)
+                             story    (assoc "y" story)
+                             severity (assoc "v" severity)
+                             tags     (assoc "t" tags))]
+              entry))
       results)))
+
+(defn- collect-label-index
+  "Scan all results and return a map of label-type → sorted vec of unique values.
+   Only the four named label types plus tags are indexed.
+   Example: {\"epic\" [\"API\" \"Auth\"], \"severity\" [\"critical\" \"normal\"]}
+   Types with no values are omitted."
+  [results]
+  (let [label-types [["epic" "e"] ["feature" "f"] ["story" "y"] ["severity" "v"]]
+        index (reduce
+                (fn [acc r]
+                  (let [acc (reduce
+                              (fn [a [lname _key]]
+                                (if-let [v (label-value r lname)]
+                                  (update a lname (fnil conj #{}) v)
+                                  a))
+                              acc
+                              label-types)
+                        tags (->> (get r "labels" [])
+                               (filter #(= "tag" (get % "name")))
+                               (map #(get % "value"))
+                               (remove str/blank?))]
+                    (if (seq tags)
+                      (update acc "tag" (fnil into #{}) tags)
+                      acc)))
+                {}
+                results)]
+    (into {} (for [[k vs] index :when (seq vs)]
+               [k (vec (sort vs))]))))
 
 (defn- render-suite-section
   "Render a suite group with compact collapsed-by-default cards.
@@ -1693,6 +1744,108 @@
     font-weight: 700;
   }
 
+  /* Label filter dropdown — same visual language as the sort dropdown */
+  .toolbar-labels {
+    position: relative;
+  }
+  .toolbar-label-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .toolbar-label-button::after {
+    content: '▾';
+    font-size: 0.6rem;
+    opacity: 0.7;
+  }
+  .toolbar-labels[aria-expanded='true'] .toolbar-label-button {
+    background: var(--bg-accent);
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
+  .toolbar-labels.has-active-labels .toolbar-label-button {
+    background: var(--bg-accent);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .toolbar-label-menu {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    right: 0;
+    min-width: 220px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 0.4rem;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    z-index: 50;
+  }
+  .toolbar-label-menu[hidden] { display: none; }
+  .label-filter-group {
+    margin-bottom: 0.5rem;
+  }
+  .label-filter-group:last-child { margin-bottom: 0; }
+  .label-filter-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0.15rem 0.4rem 0.3rem;
+  }
+  .label-filter-item {
+    display: block;
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .label-filter-item:hover,
+  .label-filter-item:focus-visible {
+    background: var(--bg-accent);
+    color: var(--text);
+    outline: none;
+  }
+  .label-filter-item.active {
+    background: var(--bg-accent);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  /* Active label pills shown in toolbar */
+  .toolbar-active-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .active-label-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .active-label-pill:hover { border-color: var(--accent-red); color: var(--accent-red); }
+  .active-label-pill-x { font-size: 0.65rem; opacity: 0.8; }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
@@ -1801,6 +1954,9 @@
     var currentFilter = 'all';
     var currentSearch = '';
     var currentSort = 'status';
+    // currentLabels: {labelType → Set of selected values}
+    // e.g. {epic: new Set(['Auth']), severity: new Set(['critical'])}
+    var currentLabels = {};
 
     // Finding #3 (virtualization): each suite's test cards live inside a
     // <template> until the user opens the <details>. We maintain a per-suite
@@ -1828,6 +1984,40 @@
       }
       body.setAttribute('data-suite-hydrated', 'true');
     }
+    // Map from meta key letter to label type name (mirrors suite-metadata-json)
+    var metaKeyToLabelType = {e: 'epic', f: 'feature', y: 'story', v: 'severity', t: 'tag'};
+
+    function testMetaMatchesLabels(entry) {
+      var labelTypes = Object.keys(currentLabels);
+      if (labelTypes.length === 0) return true;
+      for (var li = 0; li < labelTypes.length; li++) {
+        var ltype = labelTypes[li];
+        var selected = currentLabels[ltype];
+        if (!selected || selected.size === 0) continue;
+        // Find the meta key letter for this label type
+        var metaKey = null;
+        var metaKeys = Object.keys(metaKeyToLabelType);
+        for (var ki = 0; ki < metaKeys.length; ki++) {
+          if (metaKeyToLabelType[metaKeys[ki]] === ltype) { metaKey = metaKeys[ki]; break; }
+        }
+        if (!metaKey) continue;
+        var val = entry[metaKey];
+        // 't' key is an array of tags; others are strings
+        var matched = false;
+        if (ltype === 'tag') {
+          if (Array.isArray(val)) {
+            for (var ti = 0; ti < val.length; ti++) {
+              if (selected.has(val[ti])) { matched = true; break; }
+            }
+          }
+        } else {
+          matched = val !== undefined && val !== null && selected.has(val);
+        }
+        if (!matched) return false;
+      }
+      return true;
+    }
+
     function suiteMatches(section) {
       var q = currentSearch.toLowerCase();
       var meta = getSuiteMeta(section);
@@ -1835,9 +2025,39 @@
         var e = meta[i];
         var statusOk = currentFilter === 'all' || e.s === currentFilter;
         var nameOk = !q || (e.n || '').indexOf(q) !== -1;
-        if (statusOk && nameOk) return true;
+        var labelsOk = testMetaMatchesLabels(e);
+        if (statusOk && nameOk && labelsOk) return true;
       }
       return false;
+    }
+
+    // Map from label type name to data-attribute name on hydrated cards
+    var labelTypeToAttr = {epic: 'data-epic', feature: 'data-feature', story: 'data-story',
+                           severity: 'data-severity', tag: 'data-tags'};
+
+    function cardMatchesLabels(card) {
+      var labelTypes = Object.keys(currentLabels);
+      if (labelTypes.length === 0) return true;
+      for (var li = 0; li < labelTypes.length; li++) {
+        var ltype = labelTypes[li];
+        var selected = currentLabels[ltype];
+        if (!selected || selected.size === 0) continue;
+        var attr = labelTypeToAttr[ltype];
+        if (!attr) continue;
+        var attrVal = card.getAttribute(attr) || '';
+        var matched = false;
+        if (ltype === 'tag') {
+          // data-tags is comma-separated
+          var tagArr = attrVal ? attrVal.split(',') : [];
+          for (var ti = 0; ti < tagArr.length; ti++) {
+            if (selected.has(tagArr[ti])) { matched = true; break; }
+          }
+        } else {
+          matched = attrVal !== '' && selected.has(attrVal);
+        }
+        if (!matched) return false;
+      }
+      return true;
     }
 
     function applyFilters() {
@@ -1857,7 +2077,8 @@
           body.querySelectorAll(':scope > .test-card').forEach(function(card) {
             var statusMatch = currentFilter === 'all' || card.getAttribute('data-status') === currentFilter;
             var nameMatch = !q || (card.getAttribute('data-name') || '').indexOf(q) !== -1;
-            card.style.display = (statusMatch && nameMatch) ? '' : 'none';
+            var labelsMatch = cardMatchesLabels(card);
+            card.style.display = (statusMatch && nameMatch && labelsMatch) ? '' : 'none';
           });
         }
       });
@@ -1880,11 +2101,18 @@
     function resetFilters() {
       currentFilter = 'all';
       currentSearch = '';
+      currentLabels = {};
       var searchInput = document.getElementById('searchInput');
       if (searchInput) searchInput.value = '';
       document.querySelectorAll('.filter-btn[data-filter]').forEach(function(b) {
         b.classList.toggle('active', b.getAttribute('data-filter') === 'all');
       });
+      document.querySelectorAll('.label-filter-item.active').forEach(function(b) {
+        b.classList.remove('active');
+      });
+      var labelControl = document.getElementById('labelControl');
+      if (labelControl) labelControl.classList.remove('has-active-labels');
+      renderActiveLabelPills();
       applyFilters();
     }
 
@@ -2054,6 +2282,100 @@
           closeSortMenu();
           sortButton.focus();
         }
+      });
+    }
+
+    // Label filter dropdown — powered by #labelIndex JSON + data-* attributes.
+    var labelControl = document.getElementById('labelControl');
+    if (labelControl) {
+      var labelButton = labelControl.querySelector('.toolbar-label-button');
+      var labelMenu = labelControl.querySelector('.toolbar-label-menu');
+      function closeLabelMenu() {
+        labelMenu.hidden = true;
+        labelControl.setAttribute('aria-expanded', 'false');
+        labelButton.setAttribute('aria-expanded', 'false');
+      }
+      function openLabelMenu() {
+        labelMenu.hidden = false;
+        labelControl.setAttribute('aria-expanded', 'true');
+        labelButton.setAttribute('aria-expanded', 'true');
+        var first = labelMenu.querySelector('.label-filter-item');
+        if (first) first.focus();
+      }
+      labelButton.addEventListener('click', function() {
+        if (labelMenu.hidden) openLabelMenu(); else closeLabelMenu();
+      });
+      document.addEventListener('click', function(event) {
+        if (!labelControl.contains(event.target)) closeLabelMenu();
+      });
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && !labelMenu.hidden) {
+          closeLabelMenu();
+          labelButton.focus();
+        }
+      });
+
+      labelMenu.querySelectorAll('.label-filter-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+          var ltype = item.getAttribute('data-label-type');
+          var lval = item.getAttribute('data-label-value');
+          if (!currentLabels[ltype]) currentLabels[ltype] = new Set();
+          if (currentLabels[ltype].has(lval)) {
+            currentLabels[ltype].delete(lval);
+            if (currentLabels[ltype].size === 0) delete currentLabels[ltype];
+            item.classList.remove('active');
+          } else {
+            currentLabels[ltype].add(lval);
+            item.classList.add('active');
+          }
+          var hasAny = Object.keys(currentLabels).length > 0;
+          labelControl.classList.toggle('has-active-labels', hasAny);
+          renderActiveLabelPills();
+          applyFilters();
+        });
+        item.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
+          else if (e.key === 'Escape') { closeLabelMenu(); labelButton.focus(); }
+        });
+      });
+    }
+
+    // Render active-label pills row below the toolbar
+    function renderActiveLabelPills() {
+      var container = document.getElementById('activeLabelPills');
+      if (!container) return;
+      container.innerHTML = '';
+      var labelTypes = Object.keys(currentLabels);
+      if (labelTypes.length === 0) { container.hidden = true; return; }
+      container.hidden = false;
+      var typeLabels = {epic: 'Epic', feature: 'Feature', story: 'Story', severity: 'Severity', tag: 'Tag'};
+      labelTypes.forEach(function(ltype) {
+        currentLabels[ltype].forEach(function(lval) {
+          var pill = document.createElement('button');
+          pill.className = 'active-label-pill';
+          pill.type = 'button';
+          pill.title = 'Remove filter';
+          pill.innerHTML = (typeLabels[ltype] || ltype) + ': ' +
+            lval.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+            ' <span class=\"active-label-pill-x\" aria-hidden=\"true\">✕</span>';
+          pill.addEventListener('click', function() {
+            // Deselect in currentLabels
+            if (currentLabels[ltype]) {
+              currentLabels[ltype].delete(lval);
+              if (currentLabels[ltype].size === 0) delete currentLabels[ltype];
+            }
+            // Deselect in menu button
+            if (labelControl) {
+              var menuItem = labelControl.querySelector(
+                '.label-filter-item[data-label-type=\"' + ltype + '\"][data-label-value=\"' + lval.replace(/\"/g,'&quot;') + '\"]');
+              if (menuItem) menuItem.classList.remove('active');
+              labelControl.classList.toggle('has-active-labels', Object.keys(currentLabels).length > 0);
+            }
+            renderActiveLabelPills();
+            applyFilters();
+          });
+          container.appendChild(pill);
+        });
       });
     }
 
@@ -2342,6 +2664,7 @@
                        (int (* 100.0 (/ (double passed) (double total))))
                        0)
            suites (group-by-suite results)
+           label-index (collect-label-index results)
            start-ts (reduce min Long/MAX_VALUE (keep #(get % "start") results))
            ;; Inline SVG favicon — a simple indigo orb matching --accent.
            ;; Self-contained so the report has zero external asset deps
@@ -2395,6 +2718,10 @@
                                    custom-css
                                    "</style>")
                                  "") "
+  <script id=\"labelIndex\" type=\"application/json\">"
+                  (-> (json/write-json-str label-index)
+                    (str/replace "</" "<\\/")) "
+  </script>
 </head>
 <body>
 <div class=\"page-shell\">
@@ -2469,11 +2796,37 @@
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"shortest\">Shortest first</li>
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"name\">Name A–Z</li>
         </ul>
-      </div>
+      </div>"
+                  (when (seq label-index)
+                    (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
+                                        "severity" "Severity" "tag" "Tag"}
+                          ;; Render in a stable order
+                          ordered-types (filter label-index ["epic" "feature" "story" "severity" "tag"])]
+                      (str
+                        "<div class=\"toolbar-labels\" id=\"labelControl\" aria-expanded=\"false\">"
+                        "<button type=\"button\" class=\"filter-btn toolbar-label-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">Labels</button>"
+                        "<div class=\"toolbar-label-menu\" hidden>"
+                        (str/join ""
+                          (for [ltype ordered-types
+                                :let [values (get label-index ltype)]
+                                :when (seq values)]
+                            (str "<div class=\"label-filter-group\" data-label-type=\"" (html-escape ltype) "\">"
+                              "<div class=\"label-filter-title\">" (get type-display ltype ltype) "</div>"
+                              (str/join ""
+                                (for [v values]
+                                  (str "<button class=\"label-filter-item\" type=\"button\""
+                                    " data-label-type=\"" (html-escape ltype) "\""
+                                    " data-label-value=\"" (html-escape v) "\">"
+                                    (html-escape v)
+                                    "</button>")))
+                              "</div>")))
+                        "</div>"
+                        "</div>"))) "
       <button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>
       <button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>
     </div>
   </div>
+  <div id=\"activeLabelPills\" class=\"toolbar-active-labels\" style=\"padding: 0 1rem 0.5rem;\" hidden></div>
 
   <details class=\"panel environment-panel\" id=\"environment\">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
