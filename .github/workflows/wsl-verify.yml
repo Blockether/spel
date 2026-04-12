@@ -122,6 +122,7 @@ jobs:
             iproute2
             dos2unix
             nodejs
+            default-jre
 
       - name: Show WSL status + verify version
         shell: pwsh
