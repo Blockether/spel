@@ -98,34 +98,39 @@ jobs:
       # ─────────────────────────────────────────────────────────────────
       # 1. Provision WSL2 + Ubuntu.
       # ─────────────────────────────────────────────────────────────────
-      # We use vedantmgoyal9/setup-wsl2 instead of Vampire/setup-wsl
-      # because Vampire gives us WSL1 by default (kernel 4.4.0-Microsoft,
-      # a syscall translation layer that can't run ELF binaries at all).
-      # WSL1 has unified loopback natively so it doesn't exercise spel's
-      # gateway-fallback code path, AND can't run Node.js so Playwright's
-      # connectOverCDP is impossible.
-      #
-      # vedantmgoyal9/setup-wsl2 explicitly enables the WSL2 kernel and
-      # provisions a real Linux VM — which is what our colleagues
-      # actually run on their Windows machines.
-      - name: Install WSL2 (Ubuntu)
-        uses: vedantmgoyal9/setup-wsl2@main
-        with:
-          distro: Ubuntu
-
-      - name: Show WSL status
+      # Force WSL2 as the default version BEFORE Vampire/setup-wsl
+      # installs the distro. `wsl --set-default-version 2` applies to
+      # NEWLY installed distros, not existing ones — so ordering matters.
+      # If the runner doesn't support WSL2 this command will fail and
+      # Vampire will fall back to WSL1; the Clojure test gates the
+      # Playwright section on `node --version` to handle both cases.
+      - name: Force WSL2 as default version
         shell: pwsh
         run: |
-          wsl --status
-          wsl --list --verbose
+          Write-Host "Enabling WSL2 kernel..."
+          wsl --update 2>&1 | ForEach-Object { Write-Host $_ }
+          wsl --set-default-version 2 2>&1 | ForEach-Object { Write-Host $_ }
 
-      - name: Install packages inside WSL2
-        shell: wsl-run {0}
+      - name: Install WSL (Ubuntu-24.04)
+        uses: Vampire/setup-wsl@v3
+        with:
+          distribution: Ubuntu-24.04
+          use-cache: "true"
+          additional-packages: |
+            curl
+            ca-certificates
+            iproute2
+            dos2unix
+            nodejs
+
+      - name: Show WSL status + verify version
+        shell: pwsh
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq curl ca-certificates iproute2 dos2unix nodejs default-jre rlwrap
-          echo "node: $(node --version)"
-          echo "java: $(java -version 2>&1 | head -1)"
+          wsl --status 2>&1 | ForEach-Object { Write-Host $_ }
+          wsl --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
+          # Log the kernel version from inside WSL — 5.x+ means WSL2,
+          # 4.4.x means WSL1.
+          wsl -d Ubuntu-24.04 uname -r 2>&1 | ForEach-Object { Write-Host "WSL kernel: $_" }
 
       # ─────────────────────────────────────────────────────────────────
       # 2. Launch a Chromium-family browser on the Windows side with the
@@ -328,7 +333,7 @@ jobs:
       # can echo the path into the job log for postmortem.
       - name: Run wsl-cdp-diag.sh inside WSL
         id: diag
-        shell: wsl-run {0}
+        shell: wsl-bash {0}
         run: |
           # Guard every env
           # var dereference that isn't guaranteed to exist inside WSL.
@@ -363,7 +368,7 @@ jobs:
 
           # The diag script is shellcheck-clean and exits:
           #   0 — 127.0.0.1 path works (mirrored networking / port proxy)
-          #   1 — not in WSL (shouldn't happen inside wsl-run)
+          #   1 — not in WSL (shouldn't happen inside wsl-bash)
           #   2 — NAT mode confirmed (loopback fails, gateway works)
           #   3 — Chrome not reachable from either host (runner issue)
           #
@@ -416,7 +421,7 @@ jobs:
       #
       # Any assertion failing → step fails → job fails → we know.
       - name: Install Clojure CLI inside WSL
-        shell: wsl-run {0}
+        shell: wsl-bash {0}
         run: |
           set -e
           echo "::group::Install Clojure CLI"
@@ -428,7 +433,7 @@ jobs:
 
       - name: Run spel CDP discovery from inside WSL against Windows Chrome
         id: spel-e2e
-        shell: wsl-run {0}
+        shell: wsl-bash {0}
         run: |
           set -eo pipefail
           GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/gh-output-stub}"
