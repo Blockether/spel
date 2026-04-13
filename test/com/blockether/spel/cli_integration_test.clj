@@ -3475,6 +3475,12 @@
 ;;      these tests catch it.
 ;; =============================================================================
 
+(defn- lf
+  "Normalize Windows CRLF → LF so line-ending-sensitive assertions
+   work the same on every platform."
+  [^String s]
+  (when s (str/replace s "\r\n" "\n")))
+
 (defdescribe sci-eval-stdout-and-result-test
   "Pins the sci_eval response contract — stdout capture + result pr-str."
 
@@ -3484,12 +3490,12 @@
 
     (it "single println call lands in :stdout"
       (let [r (cmd "sci_eval" {"code" "(println \"hello world\")"})]
-        (expect (= "hello world\n" (:stdout r)))
+        (expect (= "hello world\n" (lf (:stdout r))))
         (expect (= "nil" (:result r)))))
 
     (it "multiple println calls concatenate in order"
       (let [r (cmd "sci_eval" {"code" "(println \"line 1\") (println \"line 2\")"})]
-        (expect (= "line 1\nline 2\n" (:stdout r)))
+        (expect (= "line 1\nline 2\n" (lf (:stdout r))))
         (expect (= "nil" (:result r)))))
 
     (it "prn preserves Clojure reader syntax in :stdout"
@@ -3526,12 +3532,12 @@
 
     (it "println writes to :stdout AND return value lands in :result"
       (let [r (cmd "sci_eval" {"code" "(do (println \"side-effect\") (+ 10 20))"})]
-        (expect (= "side-effect\n" (:stdout r)))
+        (expect (= "side-effect\n" (lf (:stdout r))))
         (expect (= "30" (:result r)))))
 
     (it "the pr-str of the last form is :result, not the println nil"
       (let [r (cmd "sci_eval" {"code" "(println \"log\") \"final-value\""})]
-        (expect (= "log\n" (:stdout r)))
+        (expect (= "log\n" (lf (:stdout r))))
         (expect (= "\"final-value\"" (:result r))))))
 
   (describe "page-accessing scripts (issue #106 reproduction path)"
