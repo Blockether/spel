@@ -1,0 +1,3 @@
+[INFO] %cDownload the React DevTools for a better development experience: https://fb.me/react-devtools font-weight:bold   (https://demo.playwright.dev/todomvc/js/bundle.js:20881:16)
+[ERROR] Mixed Content: The page at 'https://demo.playwright.dev/todomvc/#/' was loaded over HTTPS, but requested an insecure resource 'http://github.com/remojansen/'. This request has been blocked; the content must be served over HTTPS.   (:60:0)
+[ERROR] Mixed Content: The page at 'https://demo.playwright.dev/todomvc/#/' was loaded over HTTPS, but requested an insecure resource 'http://todomvc.com/'. This request has been blocked; the content must be served over HTTPS.   (:60:0)
