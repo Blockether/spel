@@ -2838,7 +2838,16 @@
                   ['czprint-str     (zp-resolve 'czprint-str)]
                   ['zprint          (zp-resolve 'zprint)]
                   ['czprint         (zp-resolve 'czprint)]
-                  ['zprint-file-str (zp-resolve 'zprint-file-str)]])]
+                  ['zprint-file-str (zp-resolve 'zprint-file-str)]])
+
+        ;; pprint / pp / clojure.pprint all resolve to zprint — never the
+        ;; GraalVM-hostile clojure.pprint. Each name exposes pprint(-str)
+        ;; so familiar calls like (pprint/pprint x) just work.
+        pprint-map (make-ns-map (sci/create-ns 'pprint nil)
+                     [['pprint     (zp-resolve 'zprint)]
+                      ['pprint-str (zp-resolve 'zprint-str)]
+                      ['cpprint    (zp-resolve 'czprint)]
+                      ['cpprint-str (zp-resolve 'czprint-str)]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -2884,6 +2893,10 @@
                     'clojure.set                         set-map
                     'clojure.walk                        walk-map
                     'zprint.core                         zp-map
+                     ;; pprint family — ALL route to zprint
+                    'pprint                              pprint-map
+                    'pp                                  pprint-map
+                    'clojure.pprint                      pprint-map
                      ;; Dynamic vars exposed to eval scripts
                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        ;; Namespace aliases — users can write (str/join ...) without
