@@ -63,7 +63,7 @@ Generates a self-contained HTML report (`index.html` + `summary.json` + `report.
 
 ```bash
 # Standard mode: read allure-results/ directory
-spel report --results-dir allure-results --output-dir block-report
+spel report --results-dir allure-results --output-dir alternative-report
 
 # Single-run / lambda mode: read JSON file of result maps
 spel report --from-json results.json --output-dir my-report --title "Lambda Run"

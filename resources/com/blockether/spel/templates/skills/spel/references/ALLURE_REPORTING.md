@@ -144,7 +144,7 @@ alongside `index.html`:
 
 ```bash
 # Standard: read allure-results directory
-spel report --results-dir allure-results --output-dir block-report
+spel report --results-dir allure-results --output-dir alternative-report
 
 # Single-run / Lambda: read one JSON file of result maps, no directory needed
 spel report --from-json results.json --output-dir my-report --title "Lambda Run"
@@ -158,7 +158,7 @@ spel report --from-json results.json --output-dir my-report --title "Lambda Run"
 |------|---------|
 | `--results-dir DIR` | Allure results dir (default `allure-results`) |
 | `--from-json FILE` | JSON array of result maps (single-run / lambda / SCI) |
-| `--output-dir DIR` | Output dir (default `block-report`) |
+| `--output-dir DIR` | Output dir (default `alternative-report`) |
 | `--title TEXT` | `<h1>` report title |
 | `--kicker TEXT` | Mono heading above the title |
 | `--subtitle TEXT` | Subtitle line |

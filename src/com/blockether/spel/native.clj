@@ -987,7 +987,7 @@
      "                          array of Allure result maps (ideal for lambda /"
      "                          single-test runs). Takes precedence over"
      "                          --results-dir when both are given."
-     "  --output-dir DIR        Output directory for HTML report (default: block-report)"
+     "  --output-dir DIR        Output directory for HTML report (default: alternative-report)"
      "  --title TEXT            Report title shown in <h1> (default: \"Allure Report\")"
      "  --kicker TEXT           Small mono heading above the title"
      "  --subtitle TEXT         One-line subtitle under the title"
@@ -1134,12 +1134,12 @@
               (let [results (json/read-json (slurp from-json))]
                 (alternative-report/generate-from-results!
                   results
-                  (:output-dir opts "block-report")
+                  (:output-dir opts "alternative-report")
                   clean-opts))
               ;; Standard mode: read from allure-results directory.
               (alternative-report/generate!
                 (:results-dir opts "allure-results")
-                (:output-dir opts "block-report")
+                (:output-dir opts "alternative-report")
                 clean-opts)))))
 
       (= "codegen" first-arg)

@@ -100,15 +100,15 @@
   (spit (io/file dir (str uuid "-attachment.webm")) "fake-webm")
   (spit (io/file dir (str uuid "-attachment.zip")) "fake-zip"))
 
-(defdescribe block-report-load-results-test
+(defdescribe alternative-report-load-results-test
   (describe "load-results"
     (it "returns empty vector for empty directory"
-      (let [dir (tmp-dir "block-test-empty")]
+      (let [dir (tmp-dir "alternative-test-empty")]
         (expect (= [] (alternative-report/load-results (.getAbsolutePath dir))))
         (clean-dir! dir)))
 
     (it "loads result files"
-      (let [dir (tmp-dir "block-test-load")]
+      (let [dir (tmp-dir "alternative-test-load")]
         (write-result! dir "uuid-1" "passed" "test-1" 1000 2000)
         (write-result! dir "uuid-2" "failed" "test-2" 3000 4000)
         (let [results (alternative-report/load-results (.getAbsolutePath dir))]
@@ -118,11 +118,11 @@
             (expect (contains? statuses "failed"))))
         (clean-dir! dir)))))
 
-(defdescribe block-report-generate-test
+(defdescribe alternative-report-generate-test
   (describe "generate!"
     (it "generates placeholder report when results directory is empty"
-      (let [results-dir (tmp-dir "block-results-empty")
-            output-dir (tmp-dir "block-output-empty")
+      (let [results-dir (tmp-dir "alternative-results-empty")
+            output-dir (tmp-dir "alternative-output-empty")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (alternative-report/generate! results-path output-path)
@@ -132,12 +132,12 @@
           (expect (str/includes? html "No test result files were found for this run."))
           (expect (str/includes? html "summary-chip-label\">Total</span>"))
           (expect (str/includes? html "summary-chip-value\">0</span>"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-empty"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-empty")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-empty"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-empty")))))
 
     (it "generates HTML report from allure results"
-      (let [results-dir (tmp-dir "block-results-gen")
-            output-dir (tmp-dir "block-output-gen")
+      (let [results-dir (tmp-dir "alternative-results-gen")
+            output-dir (tmp-dir "alternative-output-gen")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result! results-dir "uuid-1" "passed" "test-pass" 1000 2000)
@@ -159,24 +159,24 @@
             (expect (str/includes? html "Linux"))
             (expect (str/includes? html "Inter"))
             (expect (str/includes? html "JetBrains Mono")))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-gen"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-gen")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-gen"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-gen")))))
 
     (it "renders steps in test cards"
-      (let [results-dir (tmp-dir "block-results-steps")
-            output-dir (tmp-dir "block-output-steps")
+      (let [results-dir (tmp-dir "alternative-results-steps")
+            output-dir (tmp-dir "alternative-output-steps")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-steps! results-dir "uuid-steps" "passed" "test-with-steps" 1000 2000)
         (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "step 1"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-steps"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-steps")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-steps"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-steps")))))
 
     (it "renders error messages for failed tests"
-      (let [results-dir (tmp-dir "block-results-err")
-            output-dir (tmp-dir "block-output-err")
+      (let [results-dir (tmp-dir "alternative-results-err")
+            output-dir (tmp-dir "alternative-output-err")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-error! results-dir "uuid-err" "test-error" 1000 2000)
@@ -184,24 +184,24 @@
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "Expected: 42"))
           (expect (str/includes? html "Actual: 43"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-err"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-err")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-err"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-err")))))
 
     (it "accepts custom title"
-      (let [results-dir (tmp-dir "block-results-title")
-            output-dir (tmp-dir "block-output-title")
+      (let [results-dir (tmp-dir "alternative-results-title")
+            output-dir (tmp-dir "alternative-output-title")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result! results-dir "uuid-1" "passed" "test-1" 1000 2000)
         (alternative-report/generate! results-path output-path {:title "My Project"})
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "My Project"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-title"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-title")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-title"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-title")))))
 
     (it "renders compact collapsed layout and attachment UX"
-      (let [results-dir (tmp-dir "block-results-att")
-            output-dir (tmp-dir "block-output-att")
+      (let [results-dir (tmp-dir "alternative-results-att")
+            output-dir (tmp-dir "alternative-output-att")
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-attachments! results-dir "uuid-att" "passed" "test-with-attachments" 1000 2000)
@@ -222,12 +222,12 @@
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.md")))
         (expect (.isFile (io/file output-path "data" "attachments" "uuid-att-attachment.zip")))
         (expect (.isFile (io/file output-path "trace-viewer" "index.html"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-results-att"))))
-      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "block-output-att")))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-att"))))
+      (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-att")))))
 
     (it "always embeds an inline SVG favicon (no /favicon.ico 404)"
-      (let [results-dir (tmp-dir "block-results-favicon")
-            output-dir (tmp-dir "block-output-favicon")]
+      (let [results-dir (tmp-dir "alternative-results-favicon")
+            output-dir (tmp-dir "alternative-output-favicon")]
         (write-result! results-dir "uuid-f" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
@@ -238,8 +238,8 @@
         (clean-dir! output-dir)))
 
     (it "renders commit metadata in the header when environment.properties has commit.* keys"
-      (let [results-dir (tmp-dir "block-results-commit")
-            output-dir (tmp-dir "block-output-commit")]
+      (let [results-dir (tmp-dir "alternative-results-commit")
+            output-dir (tmp-dir "alternative-output-commit")]
         (write-result! results-dir "uuid-c" "passed" "t" 1000 2000)
         (spit (io/file results-dir "environment.properties")
           (str "commit.sha=f9e04421f828d6fb24c46a405559aee3b5f3c7af\n"
@@ -266,8 +266,8 @@
         (clean-dir! output-dir)))
 
     (it "gracefully falls back to static header when no commit metadata is present"
-      (let [results-dir (tmp-dir "block-results-nometa")
-            output-dir (tmp-dir "block-output-nometa")]
+      (let [results-dir (tmp-dir "alternative-results-nometa")
+            output-dir (tmp-dir "alternative-output-nometa")]
         (write-result! results-dir "uuid-n" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
@@ -284,8 +284,8 @@
         (clean-dir! output-dir)))
 
     (it "defers test-card rendering into per-suite <template> elements (virtualization)"
-      (let [results-dir (tmp-dir "block-results-virt")
-            output-dir (tmp-dir "block-output-virt")]
+      (let [results-dir (tmp-dir "alternative-results-virt")
+            output-dir (tmp-dir "alternative-output-virt")]
         (dotimes [i 50]
           (write-result! results-dir (str "uuid-v-" i) "passed" (str "t" i)
             (* i 1000) (+ (* i 1000) 500)))
@@ -311,8 +311,8 @@
         (clean-dir! output-dir)))
 
     (it "renders the suites filter empty-state placeholder and its reset button"
-      (let [results-dir (tmp-dir "block-results-empty")
-            output-dir (tmp-dir "block-output-empty")]
+      (let [results-dir (tmp-dir "alternative-results-empty")
+            output-dir (tmp-dir "alternative-output-empty")]
         (write-result! results-dir "uuid-e" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
@@ -325,8 +325,8 @@
         (clean-dir! output-dir)))
 
     (it "replaces the native sort <select> with a custom menu"
-      (let [results-dir (tmp-dir "block-results-sort")
-            output-dir (tmp-dir "block-output-sort")]
+      (let [results-dir (tmp-dir "alternative-results-sort")
+            output-dir (tmp-dir "alternative-output-sort")]
         (write-result! results-dir "uuid-s" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
@@ -343,8 +343,8 @@
         (clean-dir! output-dir)))
 
     (it "exposes a 3-state theme toggle button pinned to the top-right"
-      (let [results-dir (tmp-dir "block-results-theme")
-            output-dir (tmp-dir "block-output-theme")]
+      (let [results-dir (tmp-dir "alternative-results-theme")
+            output-dir (tmp-dir "alternative-output-theme")]
         (write-result! results-dir "uuid-t" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
@@ -363,8 +363,8 @@
         (clean-dir! output-dir)))
 
     (it "accepts explicit :run-info opt (caller supplies metadata directly)"
-      (let [results-dir (tmp-dir "block-results-runopts")
-            output-dir (tmp-dir "block-output-runopts")]
+      (let [results-dir (tmp-dir "alternative-results-runopts")
+            output-dir (tmp-dir "alternative-output-runopts")]
         (write-result! results-dir "uuid-r" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -384,8 +384,8 @@
         (clean-dir! output-dir)))
 
     (it "inlines an SVG logo passed as <svg> markup in :logo"
-      (let [results-dir (tmp-dir "block-results-logo-svg")
-            output-dir (tmp-dir "block-output-logo-svg")
+      (let [results-dir (tmp-dir "alternative-results-logo-svg")
+            output-dir (tmp-dir "alternative-output-logo-svg")
             svg "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"#f0f\"/></svg>"]
         (write-result! results-dir "uuid-l1" "passed" "t" 1000 2000)
         (alternative-report/generate!
@@ -399,8 +399,8 @@
         (clean-dir! output-dir)))
 
     (it "copies a file-path logo into assets/ and references it"
-      (let [results-dir (tmp-dir "block-results-logo-file")
-            output-dir (tmp-dir "block-output-logo-file")
+      (let [results-dir (tmp-dir "alternative-results-logo-file")
+            output-dir (tmp-dir "alternative-output-logo-file")
             logo-src (io/file results-dir "logo.svg")]
         (write-result! results-dir "uuid-l2" "passed" "t" 1000 2000)
         (spit logo-src "<svg xmlns='http://www.w3.org/2000/svg'><circle r='5'/></svg>")
@@ -416,8 +416,8 @@
         (clean-dir! output-dir)))
 
     (it "passes through a data:image URL logo verbatim"
-      (let [results-dir (tmp-dir "block-results-logo-data")
-            output-dir (tmp-dir "block-output-logo-data")]
+      (let [results-dir (tmp-dir "alternative-results-logo-data")
+            output-dir (tmp-dir "alternative-output-logo-data")]
         (write-result! results-dir "uuid-l3" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -429,8 +429,8 @@
         (clean-dir! output-dir)))
 
     (it "injects :custom-css as a separate <style> block after the built-in stylesheet"
-      (let [results-dir (tmp-dir "block-results-css")
-            output-dir (tmp-dir "block-output-css")
+      (let [results-dir (tmp-dir "alternative-results-css")
+            output-dir (tmp-dir "alternative-output-css")
             css-rule ".report-title { color: hotpink !important; }"]
         (write-result! results-dir "uuid-c1" "passed" "t" 1000 2000)
         (alternative-report/generate!
@@ -444,8 +444,8 @@
         (clean-dir! output-dir)))
 
     (it "renders :description under the title as a dedicated block"
-      (let [results-dir (tmp-dir "block-results-desc")
-            output-dir (tmp-dir "block-output-desc")]
+      (let [results-dir (tmp-dir "alternative-results-desc")
+            output-dir (tmp-dir "alternative-output-desc")]
         (write-result! results-dir "uuid-d1" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -458,8 +458,8 @@
         (clean-dir! output-dir)))
 
     (it "passes through :description that already looks like HTML"
-      (let [results-dir (tmp-dir "block-results-desc-html")
-            output-dir (tmp-dir "block-output-desc-html")]
+      (let [results-dir (tmp-dir "alternative-results-desc-html")
+            output-dir (tmp-dir "alternative-output-desc-html")]
         (write-result! results-dir "uuid-d2" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -471,8 +471,8 @@
         (clean-dir! output-dir)))
 
     (it "sanitizes hostile HTML in :description (scripts, handlers, js: URLs)"
-      (let [results-dir (tmp-dir "block-results-desc-xss")
-            output-dir (tmp-dir "block-output-desc-xss")
+      (let [results-dir (tmp-dir "alternative-results-desc-xss")
+            output-dir (tmp-dir "alternative-output-desc-xss")
             hostile (str "<p>ok</p>"
                       "<script>alert('s')</script>"
                       "<iframe src=\"https://evil\"></iframe>"
@@ -506,8 +506,8 @@
         (clean-dir! output-dir)))
 
     (it "accepts :build-id / :build-date / :build-url as top-level opts"
-      (let [results-dir (tmp-dir "block-results-build")
-            output-dir (tmp-dir "block-output-build")]
+      (let [results-dir (tmp-dir "alternative-results-build")
+            output-dir (tmp-dir "alternative-output-build")]
         (write-result! results-dir "uuid-b1" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -523,8 +523,8 @@
         (clean-dir! output-dir)))
 
     (it "neutralizes </style> in :custom-css so hostile CSS cannot break out"
-      (let [results-dir (tmp-dir "block-results-cssxss")
-            output-dir (tmp-dir "block-output-cssxss")
+      (let [results-dir (tmp-dir "alternative-results-cssxss")
+            output-dir (tmp-dir "alternative-output-cssxss")
             hostile ".a{}</style><script>alert('xss')</script><style>.b{}"]
         (write-result! results-dir "uuid-x1" "passed" "t" 1000 2000)
         (alternative-report/generate!
@@ -545,8 +545,8 @@
         (clean-dir! output-dir)))
 
     (it "parses ISO-8601 :build-date strings (not just epoch millis)"
-      (let [results-dir (tmp-dir "block-results-iso")
-            output-dir (tmp-dir "block-output-iso")]
+      (let [results-dir (tmp-dir "alternative-results-iso")
+            output-dir (tmp-dir "alternative-output-iso")]
         (write-result! results-dir "uuid-i1" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -563,8 +563,8 @@
         (clean-dir! output-dir)))
 
     (it "accepts :logo-alt and omits aria-hidden on the logo itself"
-      (let [results-dir (tmp-dir "block-results-logoalt")
-            output-dir (tmp-dir "block-output-logoalt")]
+      (let [results-dir (tmp-dir "alternative-results-logoalt")
+            output-dir (tmp-dir "alternative-output-logoalt")]
         (write-result! results-dir "uuid-la1" "passed" "t" 1000 2000)
         (alternative-report/generate!
           (.getAbsolutePath results-dir)
@@ -586,8 +586,8 @@
         (clean-dir! output-dir)))
 
     (it "skips logo files larger than the 2 MB cap and logs to stderr"
-      (let [results-dir (tmp-dir "block-results-logobig")
-            output-dir (tmp-dir "block-output-logobig")
+      (let [results-dir (tmp-dir "alternative-results-logobig")
+            output-dir (tmp-dir "alternative-output-logobig")
             big (io/file results-dir "huge.png")]
         (write-result! results-dir "uuid-lb1" "passed" "t" 1000 2000)
         ;; 2.5 MB of zeros — above the cap
@@ -613,8 +613,8 @@
         (clean-dir! output-dir)))
 
     (it "reads report.logo / report.description / build.* from environment.properties"
-      (let [results-dir (tmp-dir "block-results-env-custom")
-            output-dir (tmp-dir "block-output-env-custom")]
+      (let [results-dir (tmp-dir "alternative-results-env-custom")
+            output-dir (tmp-dir "alternative-output-env-custom")]
         (write-result! results-dir "uuid-e1" "passed" "t" 1000 2000)
         (spit (io/file results-dir "environment.properties")
           (str "report.logo=data:image/svg+xml,<svg/>\n"

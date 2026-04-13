@@ -1297,13 +1297,16 @@
 ;; =============================================================================
 
 (defn- report-renderer
-  "Which report renderer to use: :allure (npm) or :block (native Clojure).
-   Defaults to :allure for backward compatibility."
+  "Which report renderer to use: :allure (npm) or :alternative (native Clojure).
+   Defaults to :allure for backward compatibility.
+   The legacy value `block` is still accepted as an alias for `alternative`."
   []
-  (keyword
-    (or (System/getProperty "lazytest.allure.report-renderer")
-      (System/getenv "LAZYTEST_ALLURE_REPORT_RENDERER")
-      "allure")))
+  (let [raw (or (System/getProperty "lazytest.allure.report-renderer")
+              (System/getenv "LAZYTEST_ALLURE_REPORT_RENDERER")
+              "allure")]
+    (case raw
+      "block" :alternative
+      (keyword raw))))
 
 (defn- merge-environment-properties
   "Merge multiple environment.properties files. Later values win for
@@ -1401,7 +1404,7 @@
         (println (str "  " result-count " test results"))
         ;; Generate HTML report if requested
         (when report
-          (if (= :block (report-renderer))
+          (if (= :alternative (report-renderer))
             (alternative-report/generate! output-dir report-dir
               {:title (or (report-name) "Test Report")})
             (generate-html-report! output-dir report-dir)))
@@ -1492,7 +1495,7 @@
     (write-categories-json! dir)
     (println (str "\nAllure results written to " (output-dir) "/ (" n " test cases)"))
     (when (generate-report?)
-      (if (= :block (report-renderer))
+      (if (= :alternative (report-renderer))
         (alternative-report/generate! (output-dir) (report-dir)
           {:title (or (report-name) "Test Report")})
         (generate-html-report! (output-dir) (report-dir))))))
@@ -1827,7 +1830,7 @@
       (write-environment-properties! dir)
       (write-categories-json! dir))
     (when (ct-report?)
-      (if (= :block (report-renderer))
+      (if (= :alternative (report-renderer))
         (alternative-report/generate! (ct-output-dir-path) (ct-report-dir)
           {:title (or (report-name) "Test Report")})
         (generate-html-report! (ct-output-dir-path) (ct-report-dir))))
