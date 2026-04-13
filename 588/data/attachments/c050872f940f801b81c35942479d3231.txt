@@ -1,5 +1,0 @@
-Blockether report generated: /tmp/block-output-css15195141214172062802/index.html
-  1 tests: 1 passed, 0 failed, 0 broken, 0 skipped
-  Duration: 1.0s
-  Pass rate: 100%
-  Started: 1970-01-01 00:00:01
