@@ -3461,3 +3461,94 @@
       (let [after (cmd "action_log" {})]
         (expect (= 0 (:count after)))
         (expect (empty? (:entries after)))))))
+
+;; =============================================================================
+;; sci_eval stdout + result pipeline (issue #106)
+;; =============================================================================
+;;
+;; These tests pin the daemon's "sci_eval" handler contract for eval-sci:
+;;   1. `(println ...)` and friends write to :stdout in the response.
+;;   2. Expression return values land in :result as a pr-str string.
+;;   3. Return values NEVER become opaque fn pr-strs like
+;;      "#object[clojure.core$_ ...]" — if the daemon starts leaking the
+;;      SCI context fn / namespace object instead of the user's value,
+;;      these tests catch it.
+;; =============================================================================
+
+(defdescribe sci-eval-stdout-and-result-test
+  "Pins the sci_eval response contract — stdout capture + result pr-str."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (describe "println is captured to :stdout"
+
+    (it "single println call lands in :stdout"
+      (let [r (cmd "sci_eval" {"code" "(println \"hello world\")"})]
+        (expect (= "hello world\n" (:stdout r)))
+        (expect (= "nil" (:result r)))))
+
+    (it "multiple println calls concatenate in order"
+      (let [r (cmd "sci_eval" {"code" "(println \"line 1\") (println \"line 2\")"})]
+        (expect (= "line 1\nline 2\n" (:stdout r)))
+        (expect (= "nil" (:result r)))))
+
+    (it "prn preserves Clojure reader syntax in :stdout"
+      (let [r (cmd "sci_eval" {"code" "(prn {:a 1 :b [2 3]})"})]
+        (expect (str/includes? (:stdout r) ":a 1"))
+        (expect (str/includes? (:stdout r) ":b [2 3]")))))
+
+  (describe ":result carries the expression value as pr-str"
+
+    (it "integer result"
+      (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
+        (expect (= "3" (:result r)))
+        (expect (nil? (:stdout r)))))
+
+    (it "string result"
+      (let [r (cmd "sci_eval" {"code" "\"hello\""})]
+        (expect (= "\"hello\"" (:result r)))))
+
+    (it "map result"
+      (let [r (cmd "sci_eval" {"code" "{:a 1 :b 2}"})]
+        (expect (or (= "{:a 1, :b 2}" (:result r))
+                  (= "{:a 1 :b 2}" (:result r))))))
+
+    (it "nil result"
+      (let [r (cmd "sci_eval" {"code" "nil"})]
+        (expect (= "nil" (:result r)))))
+
+    (it "result is NEVER an opaque fn pr-str (issue #106 regression guard)"
+      (let [r (cmd "sci_eval" {"code" "(+ 1 2)"})]
+        (expect (not (str/includes? (str (:result r)) "#object")))
+        (expect (not (str/includes? (str (:result r)) "clojure.core$_"))))))
+
+  (describe "println and return value coexist"
+
+    (it "println writes to :stdout AND return value lands in :result"
+      (let [r (cmd "sci_eval" {"code" "(do (println \"side-effect\") (+ 10 20))"})]
+        (expect (= "side-effect\n" (:stdout r)))
+        (expect (= "30" (:result r)))))
+
+    (it "the pr-str of the last form is :result, not the println nil"
+      (let [r (cmd "sci_eval" {"code" "(println \"log\") \"final-value\""})]
+        (expect (= "log\n" (:stdout r)))
+        (expect (= "\"final-value\"" (:result r))))))
+
+  (describe "page-accessing scripts (issue #106 reproduction path)"
+
+    (it "returning (.url page) gives the URL string, not an opaque fn"
+      (nav! "/test-page")
+      (let [r (cmd "sci_eval" {"code" "(.url (spel/page))"})]
+        (expect (str/includes? (:result r) "/test-page"))
+        (expect (not (str/includes? (:result r) "#object")))))
+
+    (it "printing then returning the URL still shows both"
+      (nav! "/test-page")
+      (let [r (cmd "sci_eval"
+                {"code" "(let [u (.url (spel/page))]
+                           (println \"URL:\" u)
+                           u)"})]
+        (expect (str/includes? (:stdout r) "URL: "))
+        (expect (str/includes? (:stdout r) "/test-page"))
+        (expect (str/includes? (:result r) "/test-page"))
+        (expect (not (str/includes? (:result r) "#object")))))))
