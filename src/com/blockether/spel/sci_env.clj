@@ -2944,8 +2944,18 @@
        ;; otherwise need full qualification.
        :imports    {'UUID        java.util.UUID
                     'Pattern     java.util.regex.Pattern
+                    ;; java.math
                     'BigDecimal  java.math.BigDecimal
-                    'BigInteger  java.math.BigInteger}
+                    'BigInteger  java.math.BigInteger
+                    'MathContext java.math.MathContext
+                    'RoundingMode java.math.RoundingMode
+                    ;; java.lang math utilities (SCI doesn't auto-resolve these)
+                    'Math        java.lang.Math
+                    'StrictMath  java.lang.StrictMath
+                    ;; Randomness
+                    'Random               java.util.Random
+                    'SplittableRandom     java.util.SplittableRandom
+                    'ThreadLocalRandom    java.util.concurrent.ThreadLocalRandom}
        :bindings   {'slurp     slurp
                     'spit      spit
                     'iteration iteration
@@ -3037,6 +3047,26 @@
                     'java.util.LinkedHashMap java.util.LinkedHashMap
                     'java.util.ArrayList java.util.ArrayList
                     'java.util.HashMap   java.util.HashMap
+                    ;; Math — java.lang static helpers + java.math precision/rounding
+                    'Math                        java.lang.Math
+                    'java.lang.Math              java.lang.Math
+                    'StrictMath                  java.lang.StrictMath
+                    'java.lang.StrictMath        java.lang.StrictMath
+                    'MathContext                 java.math.MathContext
+                    'java.math.MathContext       java.math.MathContext
+                    'RoundingMode                java.math.RoundingMode
+                    'java.math.RoundingMode      java.math.RoundingMode
+                    'BigDecimal                  java.math.BigDecimal
+                    'java.math.BigDecimal        java.math.BigDecimal
+                    'BigInteger                  java.math.BigInteger
+                    'java.math.BigInteger        java.math.BigInteger
+                    ;; Randomness
+                    'Random                      java.util.Random
+                    'java.util.Random            java.util.Random
+                    'SplittableRandom            java.util.SplittableRandom
+                    'java.util.SplittableRandom  java.util.SplittableRandom
+                    'ThreadLocalRandom                       java.util.concurrent.ThreadLocalRandom
+                    'java.util.concurrent.ThreadLocalRandom  java.util.concurrent.ThreadLocalRandom
                     :allow             :all}})))
 
 ;; =============================================================================

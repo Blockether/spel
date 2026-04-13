@@ -493,6 +493,44 @@
         (expect (string? r))
         (expect (str/includes? r ":a")))))
 
+  (describe "Math and java.math classes"
+    (it "Math/PI and Math/E resolve as static fields"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (< 3.14 (double (sci-env/eval-string ctx "(Math/PI)")) 3.15))
+        (expect (< 2.71 (double (sci-env/eval-string ctx "(Math/E)")) 2.72))))
+
+    (it "Math static methods work (sqrt, pow, sin, log)"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (= 4.0 (double (sci-env/eval-string ctx "(Math/sqrt 16)"))))
+        (expect (= 1024.0 (double (sci-env/eval-string ctx "(Math/pow 2 10)"))))
+        (expect (= 0.0 (double (sci-env/eval-string ctx "(Math/sin 0)"))))
+        (expect (< 0.69 (double (sci-env/eval-string ctx "(Math/log 2)")) 0.70))))
+
+    (it "StrictMath is accessible"
+      (let [ctx (sci-env/create-sci-ctx)
+            r   (sci-env/eval-string ctx "(StrictMath/log (Math/E))")]
+        (expect (< 0.999 (double r) 1.001))))
+
+    (it "MathContext and RoundingMode resolve with static fields"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (instance? java.math.MathContext
+                  (sci-env/eval-string ctx "(MathContext/DECIMAL32)")))
+        (expect (instance? java.math.RoundingMode
+                  (sci-env/eval-string ctx "(RoundingMode/HALF_UP)")))))
+
+    (it "BigDecimal and BigInteger work via bare import"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (instance? java.math.BigDecimal
+                  (sci-env/eval-string ctx "(BigDecimal. \"3.14\")")))
+        (expect (instance? java.math.BigInteger
+                  (sci-env/eval-string ctx "(BigInteger. \"100000000000000000000\")")))))
+
+    (it "Random, SplittableRandom, ThreadLocalRandom are usable"
+      (let [ctx (sci-env/create-sci-ctx)]
+        (expect (integer? (sci-env/eval-string ctx "(.nextInt (Random. 42))")))
+        (expect (integer? (sci-env/eval-string ctx "(.nextInt (SplittableRandom. 42))")))
+        (expect (some? (sci-env/eval-string ctx "(ThreadLocalRandom/current)"))))))
+
   (describe "cdp-connect callable"
     (it "spel/cdp-connect with no browser throws with clear message"
       ;; cdp-connect without a running daemon will throw — but the
