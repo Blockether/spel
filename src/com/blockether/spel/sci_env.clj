@@ -482,6 +482,27 @@
   ([expr]     (throw-if-anomaly (page/evaluate-handle (require-page!) expr)))
   ([expr arg] (throw-if-anomaly (page/evaluate-handle (require-page!) expr arg))))
 
+(defn sci-evaluate-file
+  "Loads JavaScript from a file and evaluates it in the current page.
+   Returns the evaluation result converted to Clojure data."
+  ([path]     (throw-if-anomaly (page/evaluate-file (require-page!) path)))
+  ([path arg] (throw-if-anomaly (page/evaluate-file (require-page!) path arg))))
+
+(defn sci-add-init-script!
+  "Registers a JavaScript string to run on every navigation of the
+   current page. Returns the page for threading."
+  [script] (throw-if-anomaly (page/add-init-script! (require-page!) script)))
+
+(defn sci-add-init-script-file!
+  "Registers a JavaScript file to run on every navigation of the
+   current page. Returns the page for threading."
+  [path] (throw-if-anomaly (page/add-init-script-file! (require-page!) path)))
+
+(defn sci-new-cdp-session
+  "Opens a new Chrome DevTools Protocol session bound to the current
+   page. Pair with `cdp-send`, `cdp-on`, `cdp-detach!`."
+  [] (throw-if-anomaly (page/new-cdp-session (require-page!))))
+
 ;; =============================================================================
 ;; Screenshots & PDF
 ;; =============================================================================
@@ -1886,6 +1907,15 @@
                   ['evaluate      sci-eval-js]
                   ['eval-js       sci-eval-js]
                   ['evaluate-handle sci-evaluate-handle]
+                  ['evaluate-file sci-evaluate-file]
+                  ['eval-js-file  sci-evaluate-file]
+                  ['add-init-script!      sci-add-init-script!]
+                  ['add-init-script-file! sci-add-init-script-file!]
+                  ;; CDP (Chrome DevTools Protocol)
+                  ['new-cdp-session sci-new-cdp-session]
+                  ['cdp-send        core/cdp-send]
+                  ['cdp-detach!     core/cdp-detach!]
+                  ['cdp-on          core/cdp-on]
                    ;; Screenshots
                   ['screenshot    sci-screenshot]
                   ['compare-screenshots sci-compare-screenshots]

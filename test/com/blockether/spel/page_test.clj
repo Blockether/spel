@@ -1,13 +1,14 @@
 (ns com.blockether.spel.page-test
   (:require
    [clojure.string :as str]
+   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as sut]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it around]])
   (:import
-   [com.microsoft.playwright Locator Frame Response]
+   [com.microsoft.playwright Locator Frame Response CDPSession]
    [com.microsoft.playwright.options AriaRole]))
 
 ;; =============================================================================
@@ -96,6 +97,74 @@
       (core/with-testing-page [pg]
         (let [result (sut/evaluate pg "x => x + '!'" "hello")]
           (expect (= "hello!" result)))))))
+
+(defdescribe evaluate-file-test
+  "Tests for evaluating JS loaded from disk"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "evaluate-file"
+    (it "runs the JS from the given file in the page"
+      (core/with-testing-page [pg]
+        (let [tmp (java.io.File/createTempFile "spel-eval-" ".js")]
+          (try
+            (spit tmp "({pi: Math.PI, env: 'browser'})")
+            (let [r (sut/evaluate-file pg (.getAbsolutePath tmp))]
+              (expect (= "browser" (get r "env")))
+              (expect (< 3.14 (double (get r "pi")) 3.15)))
+            (finally (.delete tmp))))))
+
+    (it "passes an argument through to the JS expression"
+      (core/with-testing-page [pg]
+        (let [tmp (java.io.File/createTempFile "spel-eval-" ".js")]
+          (try
+            (spit tmp "s => s.toUpperCase()")
+            (let [r (sut/evaluate-file pg (.getAbsolutePath tmp) "hi")]
+              (expect (= "HI" r)))
+            (finally (.delete tmp))))))
+
+    (it "returns an anomaly when the file is missing"
+      (core/with-testing-page [pg]
+        (let [r (sut/evaluate-file pg "/tmp/definitely-not-a-real-spel-js-file.js")]
+          (expect (anomaly/anomaly? r)))))))
+
+(defdescribe add-init-script-test
+  "Tests for Page.addInitScript wrappers"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "add-init-script!"
+    (it "runs before page navigation and is visible from the page"
+      (core/with-testing-page [pg]
+        (sut/add-init-script! pg "window.__spelInjected = 42;")
+        (sut/navigate pg "data:text/html,<h1>init</h1>")
+        (let [r (sut/evaluate pg "window.__spelInjected")]
+          (expect (= 42 (long r)))))))
+
+  (describe "add-init-script-file!"
+    (it "loads the script from disk and exposes it to the page"
+      (core/with-testing-page [pg]
+        (let [tmp (java.io.File/createTempFile "spel-init-" ".js")]
+          (try
+            (spit tmp "window.__spelInjectedFromFile = 'yes';")
+            (sut/add-init-script-file! pg (.getAbsolutePath tmp))
+            (sut/navigate pg "data:text/html,<h1>init-file</h1>")
+            (let [r (sut/evaluate pg "window.__spelInjectedFromFile")]
+              (expect (= "yes" r)))
+            (finally (.delete tmp))))))))
+
+(defdescribe new-cdp-session-test
+  "Tests for page.new-cdp-session + core cdp-send/detach"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "new-cdp-session"
+    (it "opens a CDP session and responds to a no-param command"
+      (core/with-testing-page [pg]
+        (sut/navigate pg "data:text/html,<h1>cdp</h1>")
+        (let [sess (sut/new-cdp-session pg)]
+          (expect (instance? CDPSession sess))
+          (try
+            (let [res (core/cdp-send sess "Page.getNavigationHistory")]
+              (expect (not (anomaly/anomaly? res))))
+            (finally (core/cdp-detach! sess))))))))
 
 ;; =============================================================================
 ;; Screenshots

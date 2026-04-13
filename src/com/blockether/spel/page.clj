@@ -12,9 +12,10 @@
   (:import
    [com.microsoft.playwright Page Locator Frame
     Dialog Download ConsoleMessage Clock
-    Worker FileChooser WebError BrowserContext]
+    Worker FileChooser WebError BrowserContext CDPSession]
    [com.microsoft.playwright.options LoadState
-    FunctionCallback BindingCallback]))
+    FunctionCallback BindingCallback]
+   [java.nio.file Paths]))
 
 ;; =============================================================================
 ;; Navigation
@@ -344,18 +345,89 @@
 
 (defn evaluate-handle
   "Like evaluate, but returns a JSHandle.
-   
+
    Params:
    `page`       - Page instance.
    `expression` - String. JavaScript expression.
    `arg`        - Optional. Argument.
-   
+
    Returns:
    JSHandle or anomaly map."
   ([^Page page ^String expression]
    (safe (.evaluateHandle page expression)))
   ([^Page page ^String expression arg]
    (safe (.evaluateHandle page expression arg))))
+
+(defn evaluate-file
+  "Reads a JavaScript file from disk and evaluates it in the page context.
+
+   Thin sugar over `evaluate` — equivalent to
+   `(evaluate page (slurp path))`, with the slurp wrapped in `safe` so a
+   missing file surfaces as an anomaly instead of a raw IOException.
+
+   Params:
+   `page` - Page instance.
+   `path` - String. Filesystem path to a JavaScript file.
+   `arg`  - Optional. Argument passed to the JS expression.
+
+   Returns:
+   Result of JavaScript evaluation (converted to Clojure data) or
+   anomaly map on failure."
+  ([^Page page ^String path]
+   (let [result (safe (.evaluate page ^String (slurp path)))]
+     (if (anomaly/anomaly? result) result (java->clj result))))
+  ([^Page page ^String path arg]
+   (let [result (safe (.evaluate page ^String (slurp path) arg))]
+     (if (anomaly/anomaly? result) result (java->clj result)))))
+
+(defn add-init-script!
+  "Adds a JavaScript string to run before every page script on navigation.
+
+   The script runs before any DOM is constructed, before every page load —
+   ideal for polyfills, feature flags, fetch/XHR stubs, or evasion logic.
+
+   Params:
+   `page`   - Page instance.
+   `script` - String. JavaScript source.
+
+   Returns:
+   `page` (for threading) or anomaly map on failure."
+  [^Page page ^String script]
+  (let [result (safe (.addInitScript page script))]
+    (if (anomaly/anomaly? result) result page)))
+
+(defn add-init-script-file!
+  "Like add-init-script!, but loads the JavaScript from a file on disk.
+
+   Uses Playwright's native Path overload so the script can be read lazily
+   on each page init. Equivalent to reading the file and passing the
+   contents to `add-init-script!`, but avoids slurping into memory.
+
+   Params:
+   `page` - Page instance.
+   `path` - String. Filesystem path to a JavaScript file.
+
+   Returns:
+   `page` (for threading) or anomaly map on failure."
+  [^Page page ^String path]
+  (let [p      (Paths/get path (into-array String []))
+        result (safe (.addInitScript page p))]
+    (if (anomaly/anomaly? result) result page)))
+
+(defn new-cdp-session
+  "Opens a new Chrome DevTools Protocol session bound to this page.
+
+   Use with `com.blockether.spel.core/cdp-send`, `cdp-on`, and
+   `cdp-detach!` to issue CDP commands and subscribe to CDP events.
+   Remember to detach the session when done to avoid protocol leaks.
+
+   Params:
+   `page` - Page instance.
+
+   Returns:
+   CDPSession or anomaly map on failure."
+  [^Page page]
+  (safe (-> page (.context) (.newCDPSession page))))
 
 (defn scroll
   "Scrolls the page by the given amount in the given direction.

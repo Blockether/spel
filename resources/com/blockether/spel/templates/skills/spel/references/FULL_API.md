@@ -121,6 +121,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 | Function | Args | Description |
 |----------|------|-------------|
+| `add-init-script!` | [page script] | Adds a JavaScript string to run before every page script on navigation. |
+| `add-init-script-file!` | [page path] | Like add-init-script!, but loads the JavaScript from a file on disk. |
 | `add-script-tag` | [page opts] | Adds a script tag to the page. |
 | `add-style-tag` | [page opts] | Adds a style tag to the page. |
 | `bring-to-front` | [page] | Brings page to front (activates tab). |
@@ -153,6 +155,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `download-url` | [download] | Returns the download URL. |
 | `emulate-media!` | [page media-opts] | Emulates media type and features. |
 | `evaluate` | [page expression] \| [page expression arg] | Evaluates JavaScript expression in the page context. |
+| `evaluate-file` | [page path] \| [page path arg] | Reads a JavaScript file from disk and evaluates it in the page context. |
 | `evaluate-handle` | [page expression] \| [page expression arg] | Like evaluate, but returns a JSHandle. |
 | `expose-binding!` | [page name f] | Exposes a Clojure function as a binding. |
 | `expose-function!` | [page name f] | Exposes a Clojure function to JavaScript. |
@@ -179,6 +182,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `locator` | [page selector] | Creates a Locator for finding elements on the page. |
 | `main-frame` | [page] | Returns the main frame of the page. |
 | `navigate` | [page url] \| [page url nav-opts] | Navigates the page to a URL. |
+| `new-cdp-session` | [page] | Opens a new Chrome DevTools Protocol session bound to this page. |
 | `off-dialog` | [page handler] | Removes a previously registered dialog handler. |
 | `on-close` | [page handler] | Registers a handler for page close. |
 | `on-console` | [page handler] | Registers a handler for console messages. |
@@ -718,6 +722,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | Function | Args | Description |
 |----------|------|-------------|
 | `spel/action-log` | [] | Returns the current action log entries. |
+| `spel/add-init-script!` | [script] | Registers a JavaScript string to run on every navigation of the |
+| `spel/add-init-script-file!` | [path] | Registers a JavaScript file to run on every navigation of the |
 | `spel/add-script-tag` | [opts] | Adds a script tag to the page. |
 | `spel/add-style-tag` | [opts] | Adds a style tag to the page. |
 | `spel/all-inner-texts` | [sel] | Returns all inner texts for matching elements. |
@@ -767,10 +773,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/capture-full-snapshot` | [] \| [page] | Captures a snapshot of the page and all its iframes. |
 | `spel/capture-snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/cdp-connect` | [] \| [url] | Connects to a Chrome/Edge browser via CDP (Chrome DevTools Protocol). |
+| `spel/cdp-detach!` | [session] | Detaches the CDP session. |
 | `spel/cdp-disconnect` | [] | Temporarily disconnects from the CDP endpoint. |
 | `spel/cdp-idle-timeout` | [] | Returns the current CDP idle timeout in milliseconds. |
 | `spel/cdp-lock-wait` | [] | Returns the current CDP route lock wait timeout in seconds. |
+| `spel/cdp-on` | [session event handler] | Registers a handler for CDP events. |
 | `spel/cdp-reconnect` | [] \| [url] | Reconnects to the CDP endpoint after a disconnect. |
+| `spel/cdp-send` | [session method] \| [session method params] | Sends a Chrome DevTools Protocol command. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
 | `spel/clear` | [sel] | Clears input field content. |
@@ -814,8 +823,10 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/emulate-media!` | [opts] | Emulates media type and features. |
 | `spel/enabled?` | [sel] | Returns whether the element is enabled. |
 | `spel/eval-js` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
+| `spel/eval-js-file` | [path] \| [path arg] | Loads JavaScript from a file and evaluates it in the current page. |
 | `spel/evaluate` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
 | `spel/evaluate-all` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
+| `spel/evaluate-file` | [path] \| [path arg] | Loads JavaScript from a file and evaluates it in the current page. |
 | `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
 | `spel/evaluate-locator` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on the element found by this locator. |
 | `spel/export-srt` | [] \| [opts] | Exports the current action log as an SRT subtitle string. |
@@ -875,6 +886,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/markdownify` | [] \| [html] | Converts the current page HTML into Markdown. |
 | `spel/mouse` | [] | Returns the Mouse for this page. |
 | `spel/navigate` | [url] \| [url opts] | Navigates the current page to a URL. |
+| `spel/new-cdp-session` | [] | Opens a new Chrome DevTools Protocol session bound to the current |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
 | `spel/nth-element` | [sel n] | Returns the nth element matching the locator. |
 | `spel/off-dialog` | [handler] | Removes a previously registered dialog handler. |
@@ -916,6 +928,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/set-content!` | [html] \| [html opts] | Sets the HTML content of the page. |
 | `spel/set-default-navigation-timeout!` | [ms] | Sets the default navigation timeout. |
 | `spel/set-default-timeout!` | [ms] | Sets the default timeout for page operations. |
+| `spel/set-device!` | [device] | Switch the current session to a device preset programmatically. |
 | `spel/set-extra-http-headers!` | [headers] | Sets extra HTTP headers for all requests on this page. |
 | `spel/set-input-files!` | [sel files] | Sets the value of a file input element. |
 | `spel/set-session-idle-timeout!` | [ms] | Sets the session idle timeout in milliseconds. |
