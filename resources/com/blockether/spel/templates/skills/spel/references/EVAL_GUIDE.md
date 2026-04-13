@@ -126,7 +126,7 @@ See `CONSTANTS.md` for the full keyword reference.
 | `clojure.core` | Full stdlib |
 | `clojure.string` (alias `str/`) | `split`, `join`, `replace`, `trim`, `includes?`, `starts-with?`, `blank?`, … |
 | `clojure.set` / `clojure.walk` / `clojure.edn` / `clojure.repl` / `clojure.template` | Usual suspects |
-| `pprint/` (alias `clojure.pprint/`) | [fipp](https://github.com/brandonbloom/fipp) — GraalVM-safe |
+| `zp/` (alias `zprint.core/`) | [zprint](https://github.com/kkinnear/zprint) — `zprint-str`, `czprint-str`. Use instead of `clojure.pprint`. |
 | `json/` | [charred](https://github.com/cnuernber/charred): `read-json`, `write-json-str` |
 | `*json-encoder*` | Dynamic, defaults to `json/write-json-str`; rebind to customize |
 

@@ -2838,12 +2838,7 @@
                   ['czprint-str     (zp-resolve 'czprint-str)]
                   ['zprint          (zp-resolve 'zprint)]
                   ['czprint         (zp-resolve 'czprint)]
-                  ['zprint-file-str (zp-resolve 'zprint-file-str)]])
-
-        ;; clojure.pprint alias → zprint (same convention as svar)
-        pprint-map (make-ns-map (sci/create-ns 'clojure.pprint nil)
-                     [['pprint     (zp-resolve 'zprint)]
-                      ['pprint-str (zp-resolve 'zprint-str)]])]
+                  ['zprint-file-str (zp-resolve 'zprint-file-str)]])]
 
     (sci/init
       {:namespaces {;; Short aliases (original)
@@ -2889,7 +2884,6 @@
                     'clojure.set                         set-map
                     'clojure.walk                        walk-map
                     'zprint.core                         zp-map
-                    'clojure.pprint                      pprint-map
                      ;; Dynamic vars exposed to eval scripts
                     'clojure.core                        {'*command-line-args* sci-command-line-args-var}}
        ;; Namespace aliases — users can write (str/join ...) without
@@ -2899,8 +2893,6 @@
                     'set    'clojure.set
                     'walk   'clojure.walk
                     'zp     'zprint.core
-                    'pprint 'clojure.pprint
-                    'pp     'clojure.pprint
                     'io     'clojure.java.io
                     'md     'markdown}
        ;; Bare class imports for types NOT already in SCI's default
@@ -3026,18 +3018,3 @@
                       sci/in  *in*}
     (sci/eval-string* ctx code)))
 
-(defn fork-sci-ctx
-  "Creates a lightweight fork of a SCI context for isolated evaluation.
-
-   New var definitions in the fork do not leak back to the parent context.
-   Useful for parallel or per-request evaluation (e.g. concurrent sci_eval
-   daemon requests). Shared atoms (!page, !context, etc.) are still visible
-   because they are module-level JVM atoms, not SCI vars.
-
-   Params:
-   `ctx` - SCI context from create-sci-ctx.
-
-   Returns:
-   Forked SCI context."
-  [ctx]
-  (sci/fork ctx))

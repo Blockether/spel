@@ -493,16 +493,6 @@
         (expect (string? r))
         (expect (str/includes? r ":a")))))
 
-  (describe "sci/fork isolation"
-    (it "forked context does not leak vars to parent"
-      (let [ctx    (sci-env/create-sci-ctx)
-            forked (sci-env/fork-sci-ctx ctx)]
-        (sci-env/eval-string forked "(def test-leak-var 42)")
-        (expect (= 42 (sci-env/eval-string forked "test-leak-var")))
-        (let [parent-err (try (sci-env/eval-string ctx "test-leak-var")
-                              (catch Exception _ :not-found))]
-          (expect (= :not-found parent-err))))))
-
   (describe "cdp-connect callable"
     (it "spel/cdp-connect with no browser throws with clear message"
       ;; cdp-connect without a running daemon will throw — but the
