@@ -205,6 +205,9 @@
             results-path (.getAbsolutePath results-dir)
             output-path (.getAbsolutePath output-dir)]
         (write-result-with-attachments! results-dir "uuid-att" "passed" "test-with-attachments" 1000 2000)
+        ;; Second result forces the report out of single-test mode so the
+        ;; full toolbar (Expand/Collapse/filter pills) is rendered.
+        (write-result! results-dir "uuid-att-2" "passed" "test-companion" 1000 2000)
         (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "Expand"))
@@ -328,6 +331,9 @@
       (let [results-dir (tmp-dir "alternative-results-sort")
             output-dir (tmp-dir "alternative-output-sort")]
         (write-result! results-dir "uuid-s" "passed" "t" 1000 2000)
+        ;; Second result so the toolbar (sort menu) is rendered — single
+        ;; test mode intentionally suppresses the full toolbar.
+        (write-result! results-dir "uuid-s2" "passed" "t2" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
         (let [html (slurp (io/file output-dir "index.html"))]
