@@ -20,6 +20,12 @@
    "passed" 3
    "unknown" 4})
 
+;; When true, all collapsible attachment panels (markdown/image/json/text/log)
+;; render with `open` so users don't have to click through each one. Bound to
+;; `single?` during generation so single-test reports show every HTTP exchange
+;; (request/response markdown, screenshots, logs) inline by default.
+(def ^:dynamic *auto-open-attachments?* false)
+
 (defn load-results
   "Load all *-result.json files from the given directory."
   [^String results-dir]
@@ -748,22 +754,22 @@
           "<button type=\"button\" class=\"attachment-link attachment-link-button trace-launch\""
           " data-trace-url=\"" (trace-viewer-href attachment) "\""
           " data-trace-title=\"" att-name "\">Open Trace</button>"
-          "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download zip</a>"
+          "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" download>Download trace zip</a>"
           "</div>"))
 
       (markdown-attachment? attachment)
-      (str "<details class=\"attachment-panel attachment-panel-markdown\">"
+      (str "<details class=\"attachment-panel attachment-panel-markdown\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        "<div class=\"attachment-actions attachment-actions-top\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
         (if content
           (str "<pre data-testid=\"code-attachment-content\" class=\"language-md\"><code>"
             (html-escape content)
             "</code></pre>")
           "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
-        "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
         "</details>")
 
       (image-attachment? attachment)
-      (str "<details class=\"attachment-panel attachment-panel-image\">"
+      (str "<details class=\"attachment-panel attachment-panel-image\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
         "<a class=\"attachment-image-link\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">"
         "<img class=\"attachment-image\" src=\"" href "\" alt=\"" att-name "\" />"
@@ -776,7 +782,7 @@
         "</div>")
 
       (json-attachment? attachment)
-      (str "<details class=\"attachment-panel attachment-panel-json\">"
+      (str "<details class=\"attachment-panel attachment-panel-json\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
         (if content
           (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
@@ -785,7 +791,7 @@
         "</details>")
 
       (text-attachment? attachment)
-      (str "<details class=\"attachment-panel attachment-panel-log\">"
+      (str "<details class=\"attachment-panel attachment-panel-log\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
         (if content
           (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
@@ -834,9 +840,16 @@
       "</ul>")))
 
 (defn- render-test-card
-  "Render a single test result as a compact details card."
-  [result results-dir]
-  (let [name (html-escape (get result "name" "unnamed"))
+  "Render a single test result as a compact details card.
+
+   When `opts` has `:open? true`, the card (and its Execution steps panel)
+   is rendered expanded — used by single-test reports so the only result
+   is visible without an extra click."
+  ([result results-dir] (render-test-card result results-dir nil))
+  ([result results-dir opts]
+  (let [open? (:open? opts)
+        hide-trace? (:hide-trace? opts)
+        name (html-escape (get result "name" "unnamed"))
         full-name (html-escape (get result "fullName" ""))
         status (get result "status" "unknown")
         start (get result "start")
@@ -855,8 +868,11 @@
         severity (label-value result "severity")
         tags (->> labels (filter #(= "tag" (get % "name"))) (map #(get % "value")))
         step-count (count-nested-steps steps)
-        attachment-count (long (count attachments))]
-    (str "<details class=\"test-card " (status-class status) "\" data-status=\"" status "\""
+        attachment-count (long (count attachments))
+        trace-atts (filter trace-attachment? (or attachments []))
+        other-atts (remove trace-attachment? (or attachments []))]
+    (str "<details class=\"test-card " (status-class status) (when open? " test-card-flat") "\" data-status=\"" status "\""
+      (when open? " open")
       " data-duration=\"" (or duration 0) "\""
       " data-name=\"" (str/lower-case (or name "")) "\""
       (when epic     (str " data-epic=\""     (html-escape epic)     "\""))
@@ -878,6 +894,10 @@
         (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
       "</summary>"
       "<div class=\"test-card-body\">"
+      (when (and (not hide-trace?) (seq trace-atts))
+        (str "<div class=\"test-trace-actions\">"
+          (str/join "" (map #(render-attachment-html % results-dir) trace-atts))
+          "</div>"))
       (when (seq full-name)
         (str "<div class=\"test-full-name\">" full-name "</div>"))
       (when (or epic feature story severity (seq tags))
@@ -893,18 +913,17 @@
       (when (and message (not= status "passed"))
         (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
       (when (seq trace)
-        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\">"
+        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\"" (when *auto-open-attachments?* " open") ">"
           "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
           "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
           "</details>"))
       (when (seq steps)
-        (str "<details class=\"test-steps\">"
-          "<summary>" (detail-marker) "<span>Execution steps</span></summary>"
+        (str "<div class=\"test-steps test-steps-inline\">"
           (render-steps-html steps results-dir)
-          "</details>"))
-      (render-attachments-html attachments results-dir)
+          "</div>"))
+      (render-attachments-html other-atts results-dir)
       "</div>"
-      "</details>")))
+      "</details>"))))
 
 (defn- suite-metadata-json
   "Emit a compact JSON array of `{n, s, d, e?, f?, y?, v?, t?}` entries —
@@ -972,9 +991,15 @@
    `<template class=\"suite-template\">` which lives in a detached document
    fragment and does NOT count toward `document.querySelectorAll(\"*\")`.
    The suite body is left empty until the user toggles the `<details>` open,
-   at which point client-side JS clones the template into the placeholder."
-  [suite-name results results-dir]
-  (let [cts (count-by-status results)
+   at which point client-side JS clones the template into the placeholder.
+
+   When `opts` has `:single? true` the suite is rendered expanded and
+   pre-hydrated — the single test card is inlined directly, its own
+   `<details>` is open, and no client-side template cloning is needed."
+  ([suite-name results results-dir] (render-suite-section suite-name results results-dir nil))
+  ([suite-name results results-dir opts]
+  (let [single? (:single? opts)
+        cts (count-by-status results)
         meta-json (-> (suite-metadata-json results)
                     ;; Escape `</` so an inlined `</script>` can't break out.
                     (str/replace "</" "<\\/"))
@@ -990,7 +1015,8 @@
                     results)
         max-dur (if (seq durations) (long (apply max durations)) 0)
         total-dur (long (reduce + 0 durations))]
-    (str "<details class=\"suite-section\" data-suite"
+    (str "<details class=\"suite-section" (when single? " suite-section-static") "\" data-suite"
+      (when single? " open")
       " data-suite-name=\"" (str/lower-case (html-escape suite-name)) "\""
       " data-suite-total=\"" (:total cts) "\""
       " data-suite-failed=\"" (:failed cts) "\""
@@ -999,8 +1025,10 @@
       " data-suite-passed=\"" (:passed cts) "\""
       " data-suite-duration-max=\"" max-dur "\""
       " data-suite-duration-total=\"" total-dur "\">"
-      "<summary class=\"suite-summary\">"
-      (detail-marker)
+      "<summary class=\"suite-summary\""
+      (when single? " onclick=\"event.preventDefault()\"")
+      ">"
+      (when-not single? (detail-marker))
       "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
       "<span class=\"suite-summary-meta\">"
       "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"
@@ -1014,13 +1042,15 @@
         (str "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"))
       "</span>"
       "</summary>"
-      "<div class=\"suite-body\" data-suite-hydrated=\"false\">"
+      "<div class=\"suite-body\" data-suite-hydrated=\"" (if single? "true" "false") "\">"
       "<script type=\"application/json\" class=\"suite-meta\">" meta-json "</script>"
-      "<template class=\"suite-template\">"
-      (str/join "" (map #(render-test-card % results-dir) results))
-      "</template>"
+      (if single?
+        (str/join "" (map #(render-test-card % results-dir {:open? true :hide-trace? true}) results))
+        (str "<template class=\"suite-template\">"
+          (str/join "" (map #(render-test-card % results-dir) results))
+          "</template>"))
       "</div>"
-      "</details>")))
+      "</details>"))))
 
 (defn- css
   "Clean neutral stylesheet for the Blockether alternative report."
@@ -1051,9 +1081,9 @@
     --accent-teal: #0891b2;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
-    --radius-lg: 12px;
-    --radius-md: 8px;
-    --radius-sm: 6px;
+    --radius-lg: 0;
+    --radius-md: 0;
+    --radius-sm: 0;
   }
   html[data-theme='dark'] {
     --bg: #0f1117;
@@ -1161,10 +1191,9 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    /* Extra right padding (3.5rem vs default 1.5rem) reserves space
-       for the icon-only theme toggle button so summary chips don't
-       collide with it. */
-    padding: 1.25rem 3.5rem 1.25rem 1.5rem;
+    /* Extra right padding reserves space for the icon-only theme
+       toggle button so summary chips don't collide with it. */
+    padding: 1.25rem 2.75rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -1293,7 +1322,58 @@
   .summary-chip-suites .summary-chip-value { color: var(--accent); }
   .summary-chip-duration .summary-chip-value { color: var(--accent-teal); }
 
+  /* Single-test trace hero — oversized Open Trace / Download buttons
+     rendered right under the report header so the trace is the first
+     thing a reader can jump into. */
+  .single-trace-hero {
+    /* Break out of the report-header's side padding so the border-top
+       spans edge-to-edge. `flex-basis: auto` releases the flex sizing
+       so the explicit `width: calc(100% + side-padding)` is honored,
+       and negative margins anchor it to the card edges. */
+    flex: 0 0 auto;
+    flex-basis: auto;
+    width: calc(100% + 2.75rem + 1.5rem);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.75rem -2.75rem -1.25rem -1.5rem;
+    padding: 0.75rem 1.5rem 0.85rem;
+    border-top: 1px solid var(--border);
+    background: transparent;
+    box-shadow: none;
+  }
+  .single-trace-hero .attachment-link-button {
+    font-size: 0.95rem;
+    padding: 0.65rem 1.1rem;
+    border-radius: var(--radius-md);
+  }
+  .single-trace-hero .attachment-link-subtle {
+    font-size: 0.9rem;
+    padding: 0.55rem 0.9rem;
+  }
+  .single-trace-hero .attachment-actions,
+  .single-trace-hero .attachment-actions-trace {
+    display: contents;
+  }
+
   /* Toolbar */
+  .toolbar[hidden] { display: none !important; }
+
+  /* Single-test mode — every collapsible <details> stays expanded and
+     the summary disclosure affordance is suppressed so users never see
+     or hit the toggle. See the matching JS hook in js-ui that
+     preventDefaults summary clicks on `body.single-mode`. */
+  body.single-mode details > summary { cursor: default; }
+  body.single-mode details > summary .disclosure-marker { display: none; }
+  /* Environment panel stays interactive — users can still collapse it
+     to reduce clutter, so restore the pointer cursor + marker. */
+  body.single-mode details.environment-panel > summary { cursor: pointer; }
+  body.single-mode details.environment-panel > summary .disclosure-marker { display: inline-block; }
+  /* In single mode the HTTP attachment panel is always open and its
+     content already shows method + URL + status, so the redundant
+     HTTP summary pill is suppressed. */
+  body.single-mode .attachment-panel-markdown > summary { display: none; }
   .toolbar {
     position: sticky;
     top: 0;
@@ -1482,6 +1562,8 @@
     list-style: none;
   }
   .suite-section > summary::-webkit-details-marker { display: none; }
+  .suite-section-static > summary { cursor: default; user-select: text; }
+  .suite-section-static > summary .disclosure-marker { display: none; }
   .suite-body {
     padding: 0 0.65rem 0.65rem;
     border-top: 1px solid var(--border);
@@ -1542,6 +1624,24 @@
   .test-card-body {
     padding: 0.5rem 0.7rem 0.7rem;
     border-top: 1px solid var(--border);
+  }
+  /* Flat mode — used in single-test reports so the test isn't visually
+     wrapped in a redundant card (the header + suite summary already
+     identify the run). Strips border, background, shadow, padding, and
+     the status border-left, and hides the card's own summary row. */
+  .test-card-flat {
+    margin-top: 0;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+  .test-card-flat:hover { box-shadow: none !important; }
+  .test-card-flat > summary { display: none !important; }
+  .test-card-flat > .test-card-body {
+    padding: 0;
+    border-top: none;
   }
 
   /* Status badges */
@@ -1629,6 +1729,44 @@
     background: var(--bg-panel-strong);
     overflow: hidden;
   }
+  .test-steps.test-steps-inline {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+    margin-top: 0;
+  }
+  /* Attachments that live inside a step (HTTP exchange markdown, logs,
+     images) need breathing room so they don't glue to the step row. */
+  .step-item > .attachment-list,
+  .step-item > .attachment-panel {
+    margin-top: 0.6rem;
+    margin-bottom: 0.2rem;
+    margin-right: 0.75rem;
+  }
+  .step-item > .attachment-list > .attachment-panel + .attachment-panel {
+    margin-top: 0.5rem;
+  }
+  /* HTTP summary label — subtle, small, accent-tinted pill instead of
+     the generic uppercase summary style. */
+  .attachment-panel-markdown > summary {
+    gap: 0.45rem;
+    padding: 0.45rem 0.65rem;
+    background: var(--bg-panel-strong);
+  }
+  .attachment-panel-markdown > summary > span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 0;
+    background: var(--bg-accent);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
   .test-steps > summary,
   .attachment-panel > summary {
     display: flex;
@@ -1664,7 +1802,7 @@
   .step-tree {
     list-style: none;
     margin: 0;
-    padding: 0.35rem 0.6rem 0.6rem 1rem;
+    padding: 0;
   }
   .step-item .step-tree {
     padding: 0.25rem 0 0.25rem 1.25rem;
@@ -1980,7 +2118,7 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.2rem 0.5rem;
-    border-radius: 999px;
+    border-radius: 0;
     font-size: 0.7rem;
     font-family: 'JetBrains Mono', monospace;
     font-weight: 600;
@@ -1994,7 +2132,7 @@
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 0; }
   ::-webkit-scrollbar-track { background: transparent; }
 
   /* Print */
@@ -2017,12 +2155,25 @@
   .spel-md .code-wrap pre { background: var(--bg-code) !important; color: var(--text) !important; border: 1px solid var(--border); }
   .spel-md .copy-btn { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
   .spel-md .copy-btn:hover { background: var(--bg-accent) !important; color: var(--text) !important; }
-  .spel-badge { display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: var(--radius-sm) !important; padding: 2px 8px !important; font-size: 0.68rem !important; font-weight: 600 !important; line-height: 1.2 !important; border: 1px solid var(--border) !important; margin-right: 6px !important; margin-bottom: 2px !important; }
-  .spel-md .http-title { align-items: center !important; flex-wrap: wrap !important; }
-  .spel-md .http-url { margin-left: 2px; }
-  .spel-badge.api { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; }
-  .spel-badge.ui { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; }
-  .spel-badge.ui-api { background: rgba(79, 70, 229, 0.08) !important; color: var(--accent) !important; }
+  .spel-badge { display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 0 !important; padding: 1px 8px !important; font-family: 'JetBrains Mono', monospace !important; font-size: 0.62rem !important; font-weight: 700 !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; line-height: 1.4 !important; border: none !important; box-shadow: none !important; vertical-align: baseline !important; margin-right: 8px !important; margin-bottom: 0 !important; }
+  .spel-md .http-title { align-items: center !important; flex-wrap: wrap !important; gap: 0.5rem !important; }
+  .spel-md .http-url { margin-left: 2px; flex: 1 1 auto; min-width: 0; }
+  .spel-md .http-title .attachment-link-in-title {
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 0;
+  }
+  .spel-md .http-title .attachment-link-in-title:hover {
+    color: var(--text);
+    background: var(--bg-accent);
+  }
+  .spel-badge.api { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; box-shadow: none !important; }
+  .spel-badge.ui { background: #7c3aed !important; color: #fff !important; border-color: #7c3aed !important; box-shadow: none !important; }
+  .spel-badge.ui-api { background: #059669 !important; color: #fff !important; border-color: #059669 !important; box-shadow: none !important; }
 
   /* Mobile */
   @media (max-width: 768px) {
@@ -2096,6 +2247,45 @@
   []
   "
   (function() {
+    // Single-test mode — every <details> is pre-opened. Prevent the
+    // user from collapsing anything by intercepting summary clicks on
+    // body.single-mode. Scoped to the summary of THIS report (not
+    // nested third-party content) so attachment-internal interactions
+    // (raw-file links, image popups) keep working.
+    if (document.body && document.body.classList.contains('single-mode')) {
+      document.addEventListener('click', function(e) {
+        var s = e.target.closest('summary');
+        if (!s || !document.body.contains(s)) return;
+        // Keep the Environment panel togglable — users can still collapse it
+        // even in single-mode. Everything else stays locked open.
+        if (s.parentElement && s.parentElement.classList.contains('environment-panel')) return;
+        e.preventDefault();
+      }, true);
+    }
+    // Flatten the HTTP exchange title: move the `Raw file` link that
+    // renders above the spel-md block into the .http-title row so the
+    // first visible line reads `Raw file | GET | <url> | 200 OK` in a
+    // single flex row instead of stacking.
+    function inlineRawFileIntoHttpTitle(){
+      document.querySelectorAll('.attachment-panel-markdown').forEach(function(panel){
+        var title = panel.querySelector('.spel-md .http-title');
+        if (!title) return;
+        var actionsTop = panel.querySelector(':scope > .attachment-actions-top');
+        if (!actionsTop) return;
+        var link = actionsTop.querySelector('a');
+        if (link && !title.contains(link)){
+          link.classList.add('attachment-link-in-title');
+          title.appendChild(link);
+          actionsTop.remove();
+        }
+      });
+    }
+    if (document.readyState !== 'loading') inlineRawFileIntoHttpTitle();
+    else document.addEventListener('DOMContentLoaded', inlineRawFileIntoHttpTitle);
+    // Re-run after the .spel-md post-processor converts the markdown
+    // `<pre><code>` into the structured .http-title DOM.
+    var mutObs = new MutationObserver(function(){ inlineRawFileIntoHttpTitle(); });
+    mutObs.observe(document.body, { childList: true, subtree: true });
     var statusOrder = {failed: 0, broken: 1, skipped: 2, passed: 3, unknown: 4};
     var currentFilter = 'all';
     var currentSearch = '';
@@ -2857,6 +3047,7 @@
              total-ms (total-duration-ms results)
              total (long (get cts :total 0))
              passed (long (get cts :passed 0))
+             single? (= 1 total)
              pass-rate (if (pos? total)
                          (int (* 100.0 (/ (double passed) (double total))))
                          0)
@@ -2867,7 +3058,8 @@
            ;; Self-contained so the report has zero external asset deps
            ;; and no /favicon.ico 404 in the console.
              favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E"
-             html (str "<!DOCTYPE html>
+             html (binding [*auto-open-attachments?* single?]
+                    (str "<!DOCTYPE html>
 <html lang=\"en\">
 <head>
   <meta charset=\"UTF-8\">
@@ -2920,7 +3112,7 @@
                       (str/replace "</" "<\\/")) "
   </script>
 </head>
-<body>
+<body" (when single? " class=\"single-mode\"") ">
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
     <button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
@@ -2969,21 +3161,34 @@
                     (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
                     (render-summary-chip "Suites" (count suites) "summary-chip-suites")
                     (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
-                    "</div>
+                    "</div>"
+                    (when single?
+                      (let [single-trace-atts (filter trace-attachment?
+                                                (concat (get (first results) "attachments" [])
+                                                  (collect-step-attachments (get (first results) "steps" []))))]
+                        (when (seq single-trace-atts)
+                          (str "<div class=\"single-trace-hero\">"
+                            (str/join "" (map #(render-attachment-html % results-dir) single-trace-atts))
+                            "</div>"))))
+                    "
   </header>
 
-  <div class=\"toolbar\">
-    <div class=\"filter-bar\">
-      <button class=\"filter-btn active\" data-filter=\"all\">All (" (:total cts) ")</button>
-      <button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>
-      <button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>
-      <button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
-                    (when (pos? (long (get cts :skipped 0)))
-                      (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))
+  <div class=\"toolbar\"" (when single? " hidden") ">
+    <div class=\"filter-bar\">"
+                    (when-not single?
+                      (str
+                        "<button class=\"filter-btn active\" data-filter=\"all\">All (" (:total cts) ")</button>"
+                        "<button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>"
+                        "<button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>"
+                        "<button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
+                        (when (pos? (long (get cts :skipped 0)))
+                          (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))))
                     "</div>
-    <div class=\"toolbar-actions\">
-      <input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />
-      <div class=\"toolbar-sort\" id=\"sortControl\" data-sort=\"status\" aria-expanded=\"false\">
+    <div class=\"toolbar-actions\">"
+                    (when-not single?
+                      "<input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />")
+                    (when-not single?
+                      "<div class=\"toolbar-sort\" id=\"sortControl\" data-sort=\"status\" aria-expanded=\"false\">
         <button type=\"button\" class=\"filter-btn toolbar-sort-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">
           <span class=\"toolbar-sort-label\">Sort: Status</span>
         </button>
@@ -2993,8 +3198,8 @@
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"shortest\">Shortest first</li>
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"name\">Name A–Z</li>
         </ul>
-      </div>"
-                    (when (seq label-index)
+      </div>")
+                    (when (and (not single?) (seq label-index))
                       (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
                                           "severity" "Severity" "tag" "Tag"}
                           ;; Render in a stable order
@@ -3019,13 +3224,17 @@
                                 "</div>")))
                           "</div>"
                           "</div>"))) "
-      <button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>
-      <button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>
+"
+                    (when-not single?
+                      (str
+                        "<button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>"
+                        "<button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>"))
+                    "
     </div>
   </div>
   <div id=\"activeLabelPills\" class=\"toolbar-active-labels\" style=\"padding: 0 1rem 0.5rem;\" hidden></div>
 
-  <details class=\"panel environment-panel\" id=\"environment\">
+  <details class=\"panel environment-panel\" id=\"environment\"" (when single? " open") ">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
     <div class=\"panel-body\">"
                     (if (seq env)
@@ -3039,14 +3248,15 @@
                     "</div>
   </details>
 
-  <section id=\"suites\">
-    <h2 class=\"section-heading\">Test suites</h2>
-    <div id=\"suitesRoot\">"
+  <section id=\"suites\">"
+                    (when-not single?
+                      "<h2 class=\"section-heading\">Test suites</h2>")
+                    "<div id=\"suitesRoot\">"
                     (if (seq suites)
                       (let [suite-names (keys suites)
                             common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
                         (str
-                          (when (and common-prefix (not (str/blank? common-prefix)))
+                          (when (and (not single?) common-prefix (not (str/blank? common-prefix)))
                             (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
                           (str/join ""
                             (for [[suite-name suite-results] suites]
@@ -3054,7 +3264,7 @@
                                     display-name (if (str/blank? short-name)
                                                    (last (str/split suite-name #"\."))
                                                    short-name)]
-                                (render-suite-section display-name suite-results results-dir))))))
+                                (render-suite-section display-name suite-results results-dir {:single? single?}))))))
                       "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
                     "
     </div>
@@ -3068,7 +3278,7 @@
 
 <script>" (js-ui) "</script>
 </body>
-</html>")]
+</html>"))]
          (spit (io/file out "index.html") html)
          (enhance-report-shell! out)
        ;; Machine-readable JSON outputs — same data the HTML renders,

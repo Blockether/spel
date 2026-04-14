@@ -945,3 +945,93 @@
                     text      (locator/text-content result-el)]
                 (allure/parameter "result" text)
                 (expect (str/includes? text "Saved: users-api"))))))))))
+
+;; =============================================================================
+;; API Showcase — Rich Request Headers + Body (cURL reproducibility)
+;; =============================================================================
+
+(defdescribe api-rich-headers-showcase
+  "Showcase: API calls with custom request headers and JSON bodies so the
+   HTTP exchange markdown / cURL command is fully reproducible from the
+   Allure report."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (describe "Authenticated JSON API calls"
+
+    (it "issues GET and POST with auth, content-type, correlation headers and JSON body"
+      (core/with-testing-page [pg]
+        (allure/epic "Mixed API + UI")
+        (allure/feature "Request Headers")
+        (allure/story "Auth + JSON body → reproducible cURL")
+        (allure/severity :critical)
+        (allure/tag "api")
+        (allure/tag "headers")
+        (allure/tag "curl")
+        (allure/description
+          "Exercises the full request-meta capture: Authorization bearer
+          token, Content-Type, Accept, User-Agent and an X-Request-ID
+          correlation header, plus a JSON request body on POST. The
+          resulting HTTP markdown attachment must include a Request
+          Headers section, a Request Body section, and a cURL command
+          with `-H` flags + `-d` payload so a developer can replay the
+          call straight from the report.")
+
+        (let [ctx     (.request (.context pg))
+              base    *test-server-url*
+              bearer  "Bearer eyJhbGciOiJIUzI1NiJ9.fake-jwt.signature"
+              req-id  "req-a1b2c3d4-1111"
+              ua      "spel-showcase/1.0 (+https://github.com/blockether/spel)"]
+
+          (allure/step "GET /echo with auth + correlation headers"
+            (allure/api-step "GET /echo — authenticated read"
+              (api/api-get ctx (str base "/echo?view=summary")
+                {:headers {"Authorization"   bearer
+                           "Accept"          "application/json"
+                           "User-Agent"      ua
+                           "X-Request-ID"    req-id
+                           "X-Tenant-ID"     "acme-42"}})))
+
+          (allure/step "POST /echo with JSON body + headers"
+            (let [payload (simple-json-encode
+                            {:user   "alice@example.com"
+                             :action "create-order"
+                             :items  [{:sku "SKU-123" :qty 2}
+                                      {:sku "SKU-999" :qty 1}]
+                             :total  199.95})
+                  resp (allure/api-step "POST /echo — create order"
+                         (api/api-post ctx (str base "/echo")
+                           {:headers {"Authorization"    bearer
+                                      "Content-Type"     "application/json"
+                                      "Accept"           "application/json"
+                                      "User-Agent"       ua
+                                      "X-Request-ID"     req-id
+                                      "X-Idempotency-Key" "order-7f3a"}
+                            :data    payload}))]
+              (allure/parameter "status" (api/api-response-status resp))
+              (expect (= 200 (api/api-response-status resp)))))
+
+          (allure/step "Render request summary in browser"
+            (let [html (str "<html><head><title>Request Audit</title></head>"
+                         "<body>"
+                         "<h1>Request Audit Log</h1>"
+                         "<table id='audit'>"
+                         "<tr><th>Field</th><th>Value</th></tr>"
+                         "<tr><td>Correlation ID</td>"
+                         "<td id='rid'>" req-id "</td></tr>"
+                         "<tr><td>Auth scheme</td>"
+                         "<td id='auth'>Bearer (JWT)</td></tr>"
+                         "<tr><td>User agent</td>"
+                         "<td id='ua'>" ua "</td></tr>"
+                         "</table>"
+                         "</body></html>")]
+              (allure/ui-step "Load audit view"
+                (page/set-content! pg html))
+
+              (allure/ui-step "Verify correlation id rendered"
+                (let [text (locator/text-content (page/locator pg "#rid"))]
+                  (allure/parameter "rendered-rid" text)
+                  (expect (= req-id text))))
+
+              (allure/step "Audit screenshot"
+                (allure/screenshot pg "Request Audit Log")))))))))
