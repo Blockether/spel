@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.3] - 2026-04-14
+
+### Changed
+- test(alt-report): add second result in toolbar tests to leave single mode
+- feat(alt-report): polish single-test mode + rich-headers showcase test
+- release: update version files for v0.9.2, bump to next dev version
+
+
 ## [v0.9.2] - 2026-04-13
 
 ### Changed
@@ -1535,7 +1543,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.3...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1597,3 +1605,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.0]: https://github.com/Blockether/spel/releases/tag/v0.9.0
 [v0.9.1]: https://github.com/Blockether/spel/releases/tag/v0.9.1
 [v0.9.2]: https://github.com/Blockether/spel/releases/tag/v0.9.2
+[v0.9.3]: https://github.com/Blockether/spel/releases/tag/v0.9.3
