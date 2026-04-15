@@ -816,18 +816,50 @@
         st (get step "status" "unknown")
         child-steps (get step "steps")
         attachments (get step "attachments")
-        params (get step "parameters")]
+        params (get step "parameters")
+        status-detail (get step "statusDetails")
+        step-message (when status-detail (get status-detail "message"))
+        step-trace (when status-detail (get status-detail "trace"))
+        expected (some #(when (= "expected" (get % "name")) (get % "value")) params)
+        actual   (some #(when (= "actual"   (get % "name")) (get % "value")) params)
+        assertion? (and expected actual)
+        other-params (if assertion?
+                       (remove #(#{"expected" "actual"} (get % "name")) params)
+                       params)]
     (str "<li class=\"step-item " (status-class st) "\">"
       "<div class=\"step-header\">"
       "<span class=\"step-icon\">" (status-icon st) "</span>"
       "<span class=\"step-name\" data-testid=\"test-result-step-title\">" name "</span>"
-      (when (seq params)
+      (when (seq other-params)
         (str "<span class=\"step-params\">"
           (str/join ", "
-            (for [p params]
+            (for [p other-params]
               (str (html-escape (get p "name")) "=" (html-escape (get p "value")))))
           "</span>"))
       "</div>"
+      (when assertion?
+        (str "<div class=\"step-assertion " (status-class st) "\">"
+          "<div class=\"assertion-row\">"
+          "<span class=\"assertion-label assertion-label-expected\">expected</span>"
+          "<code class=\"assertion-value\">" (html-escape expected) "</code>"
+          "</div>"
+          "<div class=\"assertion-row\">"
+          "<span class=\"assertion-label assertion-label-actual\">actual</span>"
+          "<code class=\"assertion-value\">" (html-escape actual) "</code>"
+          "</div>"
+          "</div>"))
+      ;; Skip the bare message when we also have a trace — the trace
+       ;; already carries the message in its first line.
+      (when (and step-message (not= st "passed") (not (seq step-trace)))
+        (str "<div class=\"step-error\">"
+          "<div class=\"error-message\">" (html-escape step-message) "</div>"
+          "</div>"))
+      (when (seq step-trace)
+        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\""
+          (when *auto-open-attachments?* " open") ">"
+          "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
+          "<pre class=\"attachment-pre\"><code>" (html-escape step-trace) "</code></pre>"
+          "</details>"))
       (when (seq child-steps)
         (render-steps-html child-steps results-dir))
       (render-attachments-html attachments results-dir)
@@ -910,11 +942,18 @@
           "</div>"))
       (when (seq desc)
         (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
-      (when (and message (not= status "passed"))
+      ;; Only surface the bare message when there is no trace — the
+       ;; trace already contains the message as its first line, so
+       ;; rendering both is just noise.
+      (when (and message (not= status "passed") (not (seq trace)))
         (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
+      ;; Top-of-body trace — readers land on the failure first, then
+      ;; can scroll through the steps for context. Labelled as the
+      ;; wrapping test exception so it's distinguishable from any
+      ;; per-step trace inside the step list.
       (when (seq trace)
-        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\"" (when *auto-open-attachments?* " open") ">"
-          "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
+        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
+          "<summary>" (detail-marker) "<span>Test failure — thrown exception</span></summary>"
           "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
           "</details>"))
       (when (seq steps)
@@ -1192,8 +1231,10 @@
     justify-content: space-between;
     gap: 1rem;
     /* Extra right padding reserves space for the icon-only theme
-       toggle button so summary chips don't collide with it. */
-    padding: 1.25rem 2.75rem 1.25rem 1.5rem;
+       toggle button so summary chips don't collide with it (toggle is
+       32px wide at right:10px, so content must stop ~3.25rem before
+       the card edge). */
+    padding: 1.25rem 5rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
@@ -1332,12 +1373,12 @@
        and negative margins anchor it to the card edges. */
     flex: 0 0 auto;
     flex-basis: auto;
-    width: calc(100% + 2.75rem + 1.5rem);
+    width: calc(100% + 5rem + 1.5rem);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
-    margin: 0.75rem -2.75rem -1.25rem -1.5rem;
+    margin: 0.75rem -5rem -1.25rem -1.5rem;
     padding: 0.75rem 1.5rem 0.85rem;
     border-top: 1px solid var(--border);
     background: transparent;
@@ -1656,12 +1697,14 @@
     letter-spacing: 0.06em;
     flex-shrink: 0;
   }
-  .status-passed { background: var(--accent-green-light); color: var(--accent-green); }
-  .status-failed { background: var(--accent-red); }
-  .status-broken { background: var(--accent-yellow); }
-  .status-skipped { background: var(--text-muted); }
-  .status-unknown { background: var(--text-secondary); }
-  .test-status-badge.status-passed { color: var(--accent-green); }
+  /* Status pill colors — scoped to the badge element so `.status-*`
+     classes on `.step-item` / `.suite-section` / etc. don't get a
+     solid red/yellow background that would swallow the step text. */
+  .test-status-badge.status-passed { background: var(--accent-green-light); color: var(--accent-green); }
+  .test-status-badge.status-failed { background: var(--accent-red); color: #fff; }
+  .test-status-badge.status-broken { background: var(--accent-yellow); color: #fff; }
+  .test-status-badge.status-skipped { background: var(--text-muted); color: #fff; }
+  .test-status-badge.status-unknown { background: var(--text-secondary); color: #fff; }
   .test-name {
     flex: 1;
     min-width: 150px;
@@ -1719,6 +1762,59 @@
   .test-description { background: var(--bg-panel-strong); color: var(--text-muted); font-weight: 400; }
   .test-error { background: rgba(220, 38, 38, 0.05); border-color: rgba(220, 38, 38, 0.15); }
   .error-message { color: var(--accent-red); white-space: pre-wrap; word-break: break-word; }
+  /* Per-step error block — surfaces the step's statusDetails.message
+     inline so failures don't hide behind a collapsed stack trace. */
+  .step-error {
+    margin: 0.35rem 0 0;
+    padding: 0.35rem 0.55rem;
+    border-left: 2px solid var(--accent-red);
+    background: rgba(220, 38, 38, 0.05);
+    font-size: 0.78rem;
+  }
+  .step-error .error-message { color: var(--accent-red); }
+  /* expected / actual assertion highlight — laid out as two rows so
+     both values are easy to compare at a glance. Color coding: green
+     for expected, red for actual (failed). On passing steps the actual
+     line is green too. */
+  .step-assertion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: 0.35rem 0 0;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-panel-strong);
+    border: 1px solid var(--border);
+    font-size: 0.78rem;
+  }
+  .assertion-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .assertion-label {
+    flex: 0 0 4.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .assertion-label-expected { color: var(--accent-green); }
+  .step-assertion.status-failed .assertion-label-actual { color: var(--accent-red); }
+  .step-assertion.status-broken .assertion-label-actual { color: var(--accent-yellow); }
+  .step-assertion.status-passed .assertion-label-actual { color: var(--accent-green); }
+  .assertion-value {
+    flex: 1 1 auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .step-assertion.status-failed .assertion-row:nth-child(2) .assertion-value { color: var(--accent-red); }
+  .step-assertion.status-broken .assertion-row:nth-child(2) .assertion-value { color: var(--accent-yellow); }
+  .step-assertion.status-passed .assertion-row:nth-child(2) .assertion-value { color: var(--accent-green); }
 
   /* Steps & attachments */
   .test-steps,
@@ -1805,12 +1901,12 @@
     padding: 0;
   }
   .step-item .step-tree {
-    padding: 0.25rem 0 0.25rem 1.25rem;
+    padding: 0.25rem 0 0.25rem 0.5rem;
   }
   .step-item {
     position: relative;
     margin-top: 0.35rem;
-    padding: 0.3rem 0 0.3rem 1rem;
+    padding: 0.3rem 0 0.3rem 0.6rem;
     border-left: 2px solid var(--border);
   }
   .step-item::before {
@@ -1818,7 +1914,7 @@
     position: absolute;
     left: 0;
     top: 0.9rem;
-    width: 0.75rem;
+    width: 0.4rem;
     height: 1px;
     background: var(--border);
   }
@@ -1891,6 +1987,12 @@
     font-size: 0.72rem;
     line-height: 1.5;
     color: var(--text);
+  }
+  /* Stack traces must render in full — no scroll, no max-height clip.
+     A truncated trace is useless for debugging. */
+  .stacktrace-panel .attachment-pre {
+    max-height: none;
+    overflow: visible;
   }
   .attachment-missing {
     padding: 0.65rem;
@@ -3232,22 +3334,21 @@
                     "
     </div>
   </div>
-  <div id=\"activeLabelPills\" class=\"toolbar-active-labels\" style=\"padding: 0 1rem 0.5rem;\" hidden></div>
-
+  <div id=\"activeLabelPills\" class=\"toolbar-active-labels\" style=\"padding: 0 1rem 0.5rem;\" hidden></div>"
+                    (when (seq env)
+                      (str "
   <details class=\"panel environment-panel\" id=\"environment\"" (when single? " open") ">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
     <div class=\"panel-body\">"
-                    (if (seq env)
-                      (str "<div class=\"env-grid\">"
+                        "<div class=\"env-grid\">"
                         (str/join ""
                           (for [[k v] (sort-by first env)]
                             (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
                               "<div class=\"env-value\">" (html-escape v) "</div></div>")))
-                        "</div>")
-                      "<div class=\"empty-state\"><p>No environment data</p></div>")
-                    "</div>
-  </details>
-
+                        "</div>"
+                        "</div>
+  </details>"))
+                    "
   <section id=\"suites\">"
                     (when-not single?
                       "<h2 class=\"section-heading\">Test suites</h2>")

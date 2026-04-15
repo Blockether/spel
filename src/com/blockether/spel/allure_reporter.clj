@@ -178,12 +178,31 @@
     (apply str (map #(format "%02x" (bit-and (int %) 0xff)) bytes))))
 
 (defn- stacktrace-str
+  "Serializes a Throwable (plus its cause chain) as a full stack trace
+   string with NO `... N common frames omitted` elision.
+
+   `Throwable.printStackTrace` deduplicates frames that appear at the
+   tail of a cause's stack when they match the wrapping exception, but
+   in CI reports we want the complete frames for every cause — the
+   abbreviated output hides the actual call path in the caused-by
+   exception, which is exactly what an on-call reader needs."
   ^String [^Throwable t]
   (when t
-    (let [sw (StringWriter.)
-          pw (PrintWriter. sw)]
-      (.printStackTrace t pw)
-      (str sw))))
+    (let [sb (StringBuilder.)
+          append-exception (fn append-exception [^Throwable ex prefix]
+                             (.append sb ^String prefix)
+                             (.append sb (str ex))
+                             (.append sb \newline)
+                             (doseq [^StackTraceElement el (.getStackTrace ex)]
+                               (.append sb "\tat ")
+                               (.append sb (str el))
+                               (.append sb \newline))
+                             (doseq [^Throwable s (.getSuppressed ex)]
+                               (append-exception s "\tSuppressed: "))
+                             (when-let [c (.getCause ex)]
+                               (append-exception c "Caused by: ")))]
+      (append-exception t "")
+      (str sb))))
 
 ;; =============================================================================
 ;; JSON Emitter (no external deps)
