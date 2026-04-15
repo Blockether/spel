@@ -1651,7 +1651,9 @@
   .test-card:hover { box-shadow: var(--shadow-md); }
   .test-card.status-failed { border-left: 3px solid var(--accent-red); }
   .test-card.status-broken { border-left: 3px solid var(--accent-yellow); }
-  .test-card.status-passed { border-left: 3px solid var(--accent-green-border); }
+  /* Passed test-cards keep the default neutral border — only failures
+     and broken deserve a colored accent rail. */
+  .test-card.status-passed { border-left: 1px solid var(--border); }
   .test-card.status-skipped { border-left: 3px solid var(--text-muted); }
   .test-card > summary {
     display: flex;
@@ -1700,7 +1702,14 @@
   /* Status pill colors — scoped to the badge element so `.status-*`
      classes on `.step-item` / `.suite-section` / etc. don't get a
      solid red/yellow background that would swallow the step text. */
-  .test-status-badge.status-passed { background: var(--accent-green-light); color: var(--accent-green); }
+  /* Passed is the default/expected state — render as an outlined pill
+     with just green text, no background tint. Failures (red/yellow)
+     stay solid so they visually dominate in a failing report. */
+  .test-status-badge.status-passed {
+    background: transparent;
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green-border);
+  }
   .test-status-badge.status-failed { background: var(--accent-red); color: #fff; }
   .test-status-badge.status-broken { background: var(--accent-yellow); color: #fff; }
   .test-status-badge.status-skipped { background: var(--text-muted); color: #fff; }
@@ -1922,7 +1931,9 @@
   .step-item.status-failed::before { background: var(--accent-red); }
   .step-item.status-broken { border-left-color: var(--accent-yellow); }
   .step-item.status-broken::before { background: var(--accent-yellow); }
-  .step-item.status-passed { border-left-color: var(--accent-green-border); }
+  /* Passed step-items keep the default neutral rail — only failures
+     stand out with a colored border. */
+  .step-item.status-passed { border-left-color: var(--border); }
   .step-header {
     display: flex;
     flex-wrap: wrap;
