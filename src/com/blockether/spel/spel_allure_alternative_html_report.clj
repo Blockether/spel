@@ -557,6 +557,11 @@
 (defn- json-attachment? [attachment]
   (= "application/json" (get attachment "type")))
 
+(defn- html-attachment? [attachment]
+  (let [t (or (get attachment "type") "")]
+    (or (= t "text/html")
+      (= t "application/xhtml+xml"))))
+
 (defn- text-attachment? [attachment]
   (str/starts-with? (or (get attachment "type") "") "text/"))
 
@@ -788,6 +793,12 @@
           (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
           "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
         "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
+        "</details>")
+
+      (html-attachment? attachment)
+      (str "<details class=\"attachment-panel attachment-panel-html\"" (when *auto-open-attachments?* " open") ">"
+        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
+        "<iframe class=\"attachment-iframe\" src=\"" href "\" sandbox=\"allow-same-origin\" loading=\"lazy\" title=\"" att-name "\"></iframe>"
         "</details>")
 
       (text-attachment? attachment)
@@ -1384,18 +1395,97 @@
     background: transparent;
     box-shadow: none;
   }
-  .single-trace-hero .attachment-link-button {
-    font-size: 0.95rem;
-    padding: 0.65rem 1.1rem;
-    border-radius: var(--radius-md);
+  /* Big 50/50 trace buttons — OPEN TRACE and DOWNLOAD TRACE ZIP each
+     take half the row so the hero doesn't feel empty. Applied to
+     both single-mode `.single-trace-hero` and each multi-mode
+     per-test `.test-trace-actions` block so every test gets the same
+     prominent trace launcher. */
+  .test-trace-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 0 0.75rem;
   }
-  .single-trace-hero .attachment-link-subtle {
-    font-size: 0.9rem;
-    padding: 0.55rem 0.9rem;
+  .single-trace-hero .attachment-link-button,
+  .single-trace-hero .attachment-link-subtle,
+  .test-trace-actions .attachment-link-button,
+  .test-trace-actions .attachment-link-subtle {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-size: 0.95rem;
+    padding: 0.8rem 1rem;
+  }
+  .single-trace-hero .attachment-link-button,
+  .test-trace-actions .attachment-link-button {
+    font-size: 1rem;
   }
   .single-trace-hero .attachment-actions,
-  .single-trace-hero .attachment-actions-trace {
+  .single-trace-hero .attachment-actions-trace,
+  .test-trace-actions .attachment-actions,
+  .test-trace-actions .attachment-actions-trace {
     display: contents;
+  }
+  /* Merged step-header (has exactly one HTTP attachment): the whole
+     row becomes the expand/collapse handle. The HTTP title (method +
+     URL + status + Raw file) stays inside the panel body and is only
+     visible once the step is expanded. */
+  .step-header-expandable {
+    cursor: pointer;
+  }
+  .step-header-expandable .step-chevron {
+    margin-left: auto;
+  }
+  .step-header-expandable.is-open .step-chevron {
+    transform: rotate(45deg);
+  }
+  /* Merged-mode HTTP panel renders flush with the step — a thin
+     outer border and zero top margin so the panel and the step-header
+     above it read as one continuous component instead of two floating
+     cards. */
+  .attachment-panel.attachment-panel-flat {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    margin: 0.35rem 0 0;
+    overflow: visible;
+  }
+  .attachment-panel-flat > .spel-md {
+    background: transparent;
+    /* Kill the 12px margin-top baked into the allure_reporter's
+       .spel-md rule — we want the HTTP title row to sit flush with
+       the step-header above it. */
+    margin-top: 0 !important;
+  }
+  /* Also kill the 6px margin-top on nested .http-card so Request /
+     Response / cURL stack tight together with a single divider. */
+  .attachment-panel-flat .http-card {
+    margin: 0 !important;
+    border-top: 1px solid var(--border) !important;
+  }
+  .attachment-panel-flat .http-card:first-of-type {
+    border-top: none !important;
+  }
+  /* Normalize the HTTP method + status pills (injected by the allure
+     reporter post-processor) so they look exactly like our .spel-badge
+     pills — same mono font, tighter padding, uppercase, no rounds. */
+  .spel-md .http-method,
+  .spel-md .http-status {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 1px 8px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    line-height: 1.4 !important;
+    border: none !important;
+    box-shadow: none !important;
+    vertical-align: baseline !important;
   }
 
   /* Toolbar */
@@ -1852,25 +1942,34 @@
   .step-item > .attachment-list > .attachment-panel + .attachment-panel {
     margin-top: 0.5rem;
   }
-  /* HTTP summary label — subtle, small, accent-tinted pill instead of
-     the generic uppercase summary style. */
+  /* Merged step row — attachment-list sits flush under the step-header
+     (no top/right margin) so the chevron, header, and expanded body
+     read as one continuous component. */
+  .step-item:has(.step-header-expandable) > .attachment-list {
+    margin: 0;
+  }
+  /* HTTP attachment summary — the http-title row (method + URL +
+     status + Raw file) is moved INTO the <summary> via JS so the
+     collapsed header reads on a single line without expanding. Reset
+     the generic uppercase/mono summary styling so the inline title
+     renders at normal case. */
   .attachment-panel-markdown > summary {
     gap: 0.45rem;
     padding: 0.45rem 0.65rem;
     background: var(--bg-panel-strong);
+    text-transform: none;
+    letter-spacing: normal;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    font-weight: inherit;
   }
-  .attachment-panel-markdown > summary > span {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.15rem 0.55rem;
-    border-radius: 0;
-    background: var(--bg-accent);
-    color: var(--accent);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  .attachment-panel-markdown > summary > .http-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
   }
   .test-steps > summary,
   .attachment-panel > summary {
@@ -1889,16 +1988,22 @@
   }
   .test-steps > summary::-webkit-details-marker,
   .attachment-panel > summary::-webkit-details-marker { display: none; }
+  /* Thin chevron — two borders rotated 45° to form a `>` arrow. Sits
+     at 50% opacity so it doesn't compete with the summary content, and
+     rotates downward when the details is open. */
   .disclosure-marker {
-    width: 0;
-    height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 5px solid currentColor;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transform-origin: 55% 55%;
     transition: transform 0.15s ease;
     flex-shrink: 0;
+    opacity: 0.55;
+    margin-right: 0.2rem;
   }
-  details[open] > summary .disclosure-marker { transform: rotate(90deg); }
+  details[open] > summary .disclosure-marker { transform: rotate(45deg); }
 
   /* Step tree — each nesting level adds 1rem of indent via .step-tree's
      own padding, and every .step-item carries a left border rail plus a
@@ -2004,6 +2109,18 @@
   .stacktrace-panel .attachment-pre {
     max-height: none;
     overflow: visible;
+  }
+  /* Live HTML attachment preview — embed the attachment via iframe so
+     the page renders with its own CSS instead of a blob of escaped
+     source. Sandboxed to `allow-same-origin` only (no scripts). */
+  .attachment-iframe {
+    width: 100%;
+    min-height: 360px;
+    border: none;
+    border-top: 1px solid var(--border);
+    background: #fff;
+    resize: vertical;
+    display: block;
   }
   .attachment-missing {
     padding: 0.65rem;
@@ -2257,12 +2374,21 @@
   }
 
   /* Markdown HTTP & badge overrides */
+  /* Global no-radius for the HTTP markdown shell — overrides the
+     baked-in 8px / 6px / 4px radii from allure_reporter's inline
+     stylesheet. Matches the rest of the alt report's flat square look. */
+  .spel-md,
+  .spel-md * { border-radius: 0 !important; }
   .spel-md .http-title { background: var(--bg-panel-strong) !important; border-bottom: 1px solid var(--border) !important; color: var(--text) !important; }
   .spel-md .http-url { color: var(--text) !important; }
-  .spel-md .http-card { border-color: var(--border) !important; background: var(--bg-panel) !important; box-shadow: var(--shadow); }
-  .spel-md .http-card.req .card-hdr { background: var(--accent-green-light) !important; color: var(--accent-green) !important; border-bottom-color: var(--border) !important; }
-  .spel-md .http-card.res .card-hdr { background: rgba(8, 145, 178, 0.08) !important; color: var(--accent-teal) !important; border-bottom-color: var(--border) !important; }
-  .spel-md .http-card.curl .card-hdr { background: rgba(217, 119, 6, 0.08) !important; color: var(--accent-yellow) !important; border-bottom-color: var(--border) !important; }
+  .spel-md .http-card { border-color: var(--border) !important; background: var(--bg-panel) !important; box-shadow: none !important; }
+  /* Request / Response / cURL card headers all share the same neutral
+     tint so they read as section separators without painting three
+     competing hues on one page. */
+  .spel-md .http-card .card-hdr,
+  .spel-md .http-card.req .card-hdr,
+  .spel-md .http-card.res .card-hdr,
+  .spel-md .http-card.curl .card-hdr { background: var(--bg-panel-strong) !important; color: var(--text-secondary) !important; border-bottom-color: var(--border) !important; }
   .spel-md .http-section { border-top-color: var(--border) !important; }
   .spel-md .section-hdr { color: var(--text-muted) !important; }
   .spel-md .code-wrap pre { background: var(--bg-code) !important; color: var(--text) !important; border: 1px solid var(--border); }
@@ -2375,21 +2501,52 @@
         e.preventDefault();
       }, true);
     }
-    // Flatten the HTTP exchange title: move the `Raw file` link that
-    // renders above the spel-md block into the .http-title row so the
-    // first visible line reads `Raw file | GET | <url> | 200 OK` in a
-    // single flex row instead of stacking.
+    // Flatten the HTTP exchange title into the parent step's header
+    // when the step has exactly one HTTP markdown attachment — the
+    // step row itself becomes the expand/collapse handle, showing:
+    //   ✓ API  GET /echo — fetch user data   GET <url> 200 OK  Raw file  ›
+    // Clicking anywhere on the row toggles the req/res/cURL body.
+    // Falls back to inlining the title into the attachment's own
+    // <summary> when the step contains multiple attachments (keeps
+    // each HTTP exchange independently collapsible).
     function inlineRawFileIntoHttpTitle(){
       document.querySelectorAll('.attachment-panel-markdown').forEach(function(panel){
         var title = panel.querySelector('.spel-md .http-title');
         if (!title) return;
         var actionsTop = panel.querySelector(':scope > .attachment-actions-top');
-        if (!actionsTop) return;
-        var link = actionsTop.querySelector('a');
+        var link = actionsTop && actionsTop.querySelector('a');
         if (link && !title.contains(link)){
           link.classList.add('attachment-link-in-title');
           title.appendChild(link);
           actionsTop.remove();
+        }
+        var panelSummary = panel.querySelector(':scope > summary');
+        if (!panelSummary || panelSummary.dataset.httpInlined) return;
+        // Try to merge into the step-header when the step owns exactly
+        // one HTTP attachment (the common api-step case).
+        var step = panel.closest('.step-item');
+        var stepHeader = step && step.querySelector(':scope > .step-header');
+        var attList = panel.closest('.attachment-list');
+        var siblingPanels = attList
+          ? attList.querySelectorAll(':scope > .attachment-panel-markdown').length
+          : 0;
+        if (stepHeader && siblingPanels === 1 && !stepHeader.dataset.httpMerged){
+          // Always-open layout: the panel body stays visible under the
+          // step-header, no chevron, no click-to-toggle. The step row
+          // + HTTP body read as one static component.
+          panelSummary.style.display = 'none';
+          panel.classList.add('attachment-panel-flat');
+          panel.open = true;
+          stepHeader.dataset.httpMerged = '1';
+          panelSummary.dataset.httpInlined = '1';
+          return;
+        }
+        // Fallback: no step (or multiple attachments) — inline the
+        // title into the panel's own summary row.
+        var label = panelSummary.querySelector('span:not(.disclosure-marker)');
+        if (label && title.parentElement !== panelSummary){
+          label.replaceWith(title);
+          panelSummary.dataset.httpInlined = '1';
         }
       });
     }
