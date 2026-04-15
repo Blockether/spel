@@ -1,0 +1,6 @@
+No allure results found in /tmp/alternative-results-empty888276700142006160/
+Generating an empty report placeholder.
+Blockether report generated: /tmp/alternative-output-empty2127321474148881/index.html
+  0 tests: 0 passed, 0 failed, 0 broken, 0 skipped
+  Duration: 0.0s
+  Pass rate: 0%
