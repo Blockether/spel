@@ -12,6 +12,16 @@
   (:import
    [java.net HttpURLConnection URL]))
 
+(def ^:const common-cdp-ports
+  "Default TCP ports scanned when auto-discovering a running CDP browser.
+   Single source of truth — referenced from daemon.clj, sci_env.clj, and
+   the discover-cdp default below.
+
+   - 9222: Chrome / Edge / Chromium default --remote-debugging-port
+   - 9223: common Windows proxy fallback when 9222 is already bound
+   - 9229: Node.js inspector / Electron devtools"
+  [9222 9223 9229])
+
 (defn wsl?
   "Returns true when running inside Windows Subsystem for Linux.
    Checks /proc/version for \"microsoft\"/\"WSL\" markers and the WSL_DISTRO_NAME
@@ -117,8 +127,8 @@
 
    Probes [hosts] × [ports] with the given timeout per probe. Hosts
    are determined by `cdp-candidate-hosts` (WSL-aware). Default ports
-   are 9222 and 9229."
-  ([] (discover-cdp [9222 9229] 2000))
+   come from `common-cdp-ports`."
+  ([] (discover-cdp common-cdp-ports 2000))
   ([ports timeout-ms]
    (let [hosts (cdp-candidate-hosts)]
      (first

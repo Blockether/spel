@@ -1291,7 +1291,7 @@
      (let [hosts (platform/cdp-candidate-hosts)]
        (throw (ex-info
                 (str "No running browser with remote debugging found.\n"
-                  "Probed: " (str/join ", " (for [h hosts, p [9222 9229]] (str h ":" p))) "\n"
+                  "Probed: " (str/join ", " (for [h hosts, p platform/common-cdp-ports] (str h ":" p))) "\n"
                   (if (platform/wsl?)
                     (str "\nWSL detected — gateway IP: " (or (platform/wsl-default-gateway-ip) "<unresolved>") "\n"
                       "Launch Chrome/Edge on Windows with:\n"
@@ -1299,7 +1299,7 @@
                       "             --remote-debugging-address=0.0.0.0 \\\n"
                       "             --remote-allow-origins=*\n")
                     "Launch Chrome/Edge with:\n  chrome --remote-debugging-port=9222 --no-first-run\n"))
-                {:hosts hosts :ports [9222 9229] :wsl? (platform/wsl?)})))))
+                {:hosts hosts :ports platform/common-cdp-ports :wsl? (platform/wsl?)})))))
   ([url]
    (sci-cdp-reconnect url)))
 

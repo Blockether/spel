@@ -479,7 +479,8 @@
    Checks DevToolsActivePort files first across every known chromium-family
    user-data dir on the current OS (Chrome, Chromium, Edge, Brave, Vivaldi,
    Opera, Arc, Thorium — including snap/flatpak variants on Linux) and the
-   ms-playwright cache, then probes common ports (9222, 9229).
+   ms-playwright cache, then probes common ports (9222, 9223, 9229).
+   9223 is added to catch Windows proxy setups where 9222 is taken.
    Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
 
    WSL awareness: when the DevToolsActivePort file was read from a
@@ -519,7 +520,7 @@
       ;; (Port-scanning every host×port combo would be slow and noisy;
       ;; users with a Windows-side browser but no WSL-projected DTAP file
       ;; should pass --cdp http://<win-ip>:<port> explicitly.)
-      (let [found (some #(probe-http-cdp % 1000) [9222 9229])]
+      (let [found (some #(probe-http-cdp % 1000) platform/common-cdp-ports)]
         (if found
           (let [http-url (str "http://127.0.0.1:" found)
                  ;; M144+ returns 404 for /json/version (WebSocket-only).
@@ -576,7 +577,7 @@
                                 "the WSL default gateway (" (or (wsl-default-gateway-ip) "<unresolved>") ") — whichever answers /json/version first wins.\n"
                                 "Run ./dev/wsl-cdp-diag.sh for a step-by-step diagnosis.\n")))
                    {:devtools-active-port-files (mapv :file (chromium-devtools-active-port-files))
-                    :probed-ports               [9222 9229]
+                    :probed-ports               platform/common-cdp-ports
                     :wsl?                       (wsl?)
                     :wsl-gateway                (wsl-default-gateway-ip)})))))))
 
@@ -688,7 +689,7 @@
    (:browser (read-cdp-json-version host port 200))))
 
 (defn discover-external-cdp-endpoints
-  "Scans for running CDP browsers. Probes common ports (9222, 9229),
+  "Scans for running CDP browsers. Probes common ports (9222, 9223, 9229),
    the spel auto-launch port range, and any ports advertised in
    DevToolsActivePort files (Chrome/Edge/Chromium/Brave/Vivaldi/Opera/Arc/
    Thorium data dirs + ms-playwright cache). Excludes any ports in
@@ -708,7 +709,7 @@
   (let [excluded (set (map long excluded-ports))
         dt-entries (list-devtools-active-ports)
         dt-by-port (into {} (map (juxt :port identity) dt-entries))
-        common-ports [9222 9229]
+        common-ports platform/common-cdp-ports
         base (long auto-launch-base-port)
         span (long auto-launch-port-range)
         range-ports (range base (+ base span))
