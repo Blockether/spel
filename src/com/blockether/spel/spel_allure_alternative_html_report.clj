@@ -916,7 +916,19 @@
         tags (->> labels (filter #(= "tag" (get % "name"))) (map #(get % "value")))
         step-count (count-nested-steps steps)
         attachment-count (long (count attachments))
-        trace-atts (filter trace-attachment? (or attachments []))
+        ;; Dedupe trace attachments by source filename — tests that use
+        ;; both a browser fixture and an in-test API context can end up
+        ;; with two `Playwright Trace` entries on the result (one from
+        ;; each tracing lane), which would render as duplicate Open
+        ;; Trace + Download buttons. Keep only the first per source.
+        trace-atts (->> attachments
+                     (filter trace-attachment?)
+                     (reduce (fn [acc a]
+                               (if (some #(= (get % "source") (get a "source")) acc)
+                                 acc
+                                 (conj acc a)))
+                       [])
+                     vec)
         other-atts (remove trace-attachment? (or attachments []))]
     (str "<details class=\"test-card " (status-class status) (when open? " test-card-flat") "\" data-status=\"" status "\""
       (when open? " open")
@@ -942,7 +954,13 @@
       "</summary>"
       "<div class=\"test-card-body\">"
       (when (and (not hide-trace?) (seq trace-atts))
-        (str "<div class=\"test-trace-actions\">"
+        (str
+          (when (> (count trace-atts) 1)
+            (str "<div class=\"trace-multi-warning\">"
+              "⚠ " (count trace-atts) " distinct Playwright traces captured for this test "
+              "(likely from separate browser + API contexts). All are shown below."
+              "</div>"))
+          "<div class=\"test-trace-actions\">"
           (str/join "" (map #(render-attachment-html % results-dir) trace-atts))
           "</div>"))
       (when (seq full-name)
@@ -1410,6 +1428,20 @@
     align-items: center;
     gap: 0.75rem;
     margin: 0 0 0.75rem;
+  }
+  /* Warning banner when a single test ends up with multiple distinct
+     Playwright traces (usually: a browser fixture trace + an in-test
+     API context trace). Both are still rendered so nothing is lost,
+     but the user is told this is unusual. */
+  .trace-multi-warning {
+    margin: 0 0 0.6rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(217, 119, 6, 0.1);
+    border: 1px solid var(--accent-yellow);
+    color: var(--accent-yellow);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
   .single-trace-hero .attachment-link-button,
   .single-trace-hero .attachment-link-subtle,
@@ -3485,11 +3517,22 @@
                     (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
                     "</div>"
                     (when single?
-                      (let [single-trace-atts (filter trace-attachment?
-                                                (concat (get (first results) "attachments" [])
-                                                  (collect-step-attachments (get (first results) "steps" []))))]
+                      (let [single-trace-atts (->> (concat (get (first results) "attachments" [])
+                                                     (collect-step-attachments (get (first results) "steps" [])))
+                                                (filter trace-attachment?)
+                                                (reduce (fn [acc a]
+                                                          (if (some #(= (get % "source") (get a "source")) acc)
+                                                            acc
+                                                            (conj acc a)))
+                                                  []))]
                         (when (seq single-trace-atts)
-                          (str "<div class=\"single-trace-hero\">"
+                          (str
+                            (when (> (count single-trace-atts) 1)
+                              (str "<div class=\"trace-multi-warning\">"
+                                "⚠ " (count single-trace-atts) " distinct Playwright traces captured for this test "
+                                "(likely from separate browser + API contexts). All are shown below."
+                                "</div>"))
+                            "<div class=\"single-trace-hero\">"
                             (str/join "" (map #(render-attachment-html % results-dir) single-trace-atts))
                             "</div>"))))
                     "
