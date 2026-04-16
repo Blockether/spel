@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.5] - 2026-04-16
+
+### Changed
+- feat(alt-report): markdown + HTML attachments, merged HTTP step, assertion polish
+- feat(cdp): scan 9223 alongside 9222/9229, extract to platform/common-cdp-ports
+- feat(alt-report): merge HTTP step + body, live iframe for HTML attachments
+- release: update version files for v0.9.4, bump to next dev version
+
+
 ## [v0.9.4] - 2026-04-15
 
 ### Changed
@@ -1551,7 +1560,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.5...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1615,3 +1624,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.2]: https://github.com/Blockether/spel/releases/tag/v0.9.2
 [v0.9.3]: https://github.com/Blockether/spel/releases/tag/v0.9.3
 [v0.9.4]: https://github.com/Blockether/spel/releases/tag/v0.9.4
+[v0.9.5]: https://github.com/Blockether/spel/releases/tag/v0.9.5
