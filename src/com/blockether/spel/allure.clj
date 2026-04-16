@@ -34,7 +34,8 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.visual-diff :as visual-diff-core]
-   [lazytest.core :as lt-core])
+   [lazytest.core :as lt-core]
+   [lazytest.hooks :as lt-hooks])
   (:import
    [com.microsoft.playwright Request Response Tracing Tracing$GroupOptions]
    [com.microsoft.playwright.options Location]
@@ -1317,11 +1318,56 @@
   `(lt-core/after-each ~@body))
 
 (defmacro around
-  "Re-export of `lazytest.core/around`.
-   Wraps nested execution in a function, useful for `binding` forms."
+  "Re-export of `lazytest.core/around`. Wraps nested execution in a
+   function — useful for `binding` forms or macro-style fixtures (e.g.
+   `core/with-testing-browser`) that need a callback to delimit the
+   test body.
+
+   Typical spel usage (pattern used throughout the test suite):
+
+     (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+   If you need guaranteed per-test scope use `around-each` instead."
   {:arglists '([[f] & body])}
   [param & body]
   `(lt-core/around ~param ~@body))
+
+(defmacro around-each
+  "Re-export of `lazytest.core/around-each` (lazytest 2.0+). Like
+   `around`, but the body is guaranteed to run for EVERY nested test
+   case, not once for the whole `describe`. Use it when you need truly
+   fresh fixture state per `it`."
+  {:arglists '([[f] & body])}
+  [param & body]
+  `(lt-core/around-each ~param ~@body))
+
+;; ---------------------------------------------------------------------------
+;; Plugins / hooks (lazytest 2.0+)
+;; ---------------------------------------------------------------------------
+
+(defmacro defhook
+  "Re-export of `lazytest.hooks/defhook`.
+   Defines a Lazytest hook — a multimethod that can observe / transform
+   the run at well-known stages. Allowed stages:
+     :cli-opts, :config,
+     :pre-test-run, :post-test-run,
+     :pre-test-suite, :post-test-suite,
+     :pre-test-case, :post-test-case
+
+   Each method takes [config m] and returns (possibly-updated) m.
+   Registered via `--hook` CLI flag or `:hooks` in the Lazytest config.
+
+   Example:
+     (defhook tag-allure-run
+       \"Stamps every test result with an Allure build-id label.\"
+       (pre-test-case [config m]
+         (update m :labels conj {:name \"build-id\" :value (System/getenv \"BUILD_ID\")}))
+       (post-test-run [config m]
+         (println \"done — results:\" (count m))
+         m))"
+  {:arglists '([hook-name & hook-methods] [hook-name docstring & hook-methods])}
+  [& args]
+  `(lt-hooks/defhook ~@args))
 
 ;; ---------------------------------------------------------------------------
 ;; Assertion helpers (function re-exports)
