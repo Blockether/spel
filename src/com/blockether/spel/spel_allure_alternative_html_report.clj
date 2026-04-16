@@ -848,7 +848,11 @@
               (str (html-escape (get p "name")) "=" (html-escape (get p "value")))))
           "</span>"))
       "</div>"
-      (when assertion?
+      ;; Passed assertions hide the expected/actual detail — the green
+       ;; checkmark already communicates success and the two lines are
+       ;; identical by definition. Only surface both when the step
+       ;; failed or is broken so the reader can diff them.
+      (when (and assertion? (not= st "passed"))
         (str "<div class=\"step-assertion " (status-class st) "\">"
           "<div class=\"assertion-row\">"
           "<span class=\"assertion-label assertion-label-expected\">expected</span>"
@@ -1943,10 +1947,12 @@
     margin-top: 0.5rem;
   }
   /* Merged step row — attachment-list sits flush under the step-header
-     (no top/right margin) so the chevron, header, and expanded body
-     read as one continuous component. */
-  .step-item:has(.step-header-expandable) > .attachment-list {
+     so the row + expanded body read as one continuous component. JS
+     stamps `data-http-merged` on the step-header when a step owns
+     exactly one HTTP markdown attachment. */
+  .step-item:has(> .step-header[data-http-merged]) > .attachment-list {
     margin: 0;
+    margin-right: 0;
   }
   /* HTTP attachment summary — the http-title row (method + URL +
      status + Raw file) is moved INTO the <summary> via JS so the
@@ -2379,6 +2385,52 @@
      stylesheet. Matches the rest of the alt report's flat square look. */
   .spel-md,
   .spel-md * { border-radius: 0 !important; }
+  /* Plain-markdown attachment bodies (non-HTTP) need breathing room
+     and list/heading typography — allure_reporter's spelMd renderer
+     emits h1..h6, p, ul/ol, li, blockquote, code, hr, but without any
+     styling of its own. */
+  .attachment-panel-markdown .spel-md { padding: 0.9rem 1rem !important; }
+  .attachment-panel-markdown .spel-md h1,
+  .attachment-panel-markdown .spel-md h2,
+  .attachment-panel-markdown .spel-md h3,
+  .attachment-panel-markdown .spel-md h4,
+  .attachment-panel-markdown .spel-md h5,
+  .attachment-panel-markdown .spel-md h6 {
+    margin: 0.9rem 0 0.35rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .attachment-panel-markdown .spel-md h1 { font-size: 1.2rem; }
+  .attachment-panel-markdown .spel-md h2 { font-size: 1.05rem; }
+  .attachment-panel-markdown .spel-md h3 { font-size: 0.95rem; }
+  .attachment-panel-markdown .spel-md h4,
+  .attachment-panel-markdown .spel-md h5,
+  .attachment-panel-markdown .spel-md h6 { font-size: 0.88rem; color: var(--text-secondary); }
+  .attachment-panel-markdown .spel-md > *:first-child { margin-top: 0; }
+  .attachment-panel-markdown .spel-md p { margin: 0.35rem 0; line-height: 1.5; }
+  .attachment-panel-markdown .spel-md ul,
+  .attachment-panel-markdown .spel-md ol { margin: 0.35rem 0; padding-left: 1.5rem; }
+  .attachment-panel-markdown .spel-md li { margin: 0.15rem 0; line-height: 1.5; }
+  .attachment-panel-markdown .spel-md a { color: var(--accent); text-decoration: none; }
+  .attachment-panel-markdown .spel-md a:hover { text-decoration: underline; }
+  .attachment-panel-markdown .spel-md blockquote {
+    margin: 0.5rem 0;
+    padding: 0.25rem 0.75rem;
+    border-left: 3px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .attachment-panel-markdown .spel-md code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    padding: 1px 4px;
+    background: var(--bg-accent);
+  }
+  .attachment-panel-markdown .spel-md hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.75rem 0;
+  }
   .spel-md .http-title { background: var(--bg-panel-strong) !important; border-bottom: 1px solid var(--border) !important; color: var(--text) !important; }
   .spel-md .http-url { color: var(--text) !important; }
   .spel-md .http-card { border-color: var(--border) !important; background: var(--bg-panel) !important; box-shadow: none !important; }

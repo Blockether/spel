@@ -977,6 +977,41 @@
           with `-H` flags + `-d` payload so a developer can replay the
           call straight from the report.")
 
+        ;; Attach a plain markdown note + a rendered HTML snapshot so
+        ;; the alt report's text/markdown and text/html attachment paths
+        ;; are both exercised alongside the HTTP exchange attachments.
+        (allure/attach "Integration Notes"
+          (str "# Integration Notes\n\n"
+            "This test checks the **order pipeline** from submission to fulfillment.\n\n"
+            "## Steps\n\n"
+            "1. Submit an order with `POST /orders`.\n"
+            "2. Poll `/orders/:id/status` until it's `fulfilled`.\n"
+            "3. Verify the shipping label was generated.\n\n"
+            "## Sample Response\n\n"
+            "```json\n"
+            "{\n  \"orderId\": \"ord-1234\",\n  \"status\": \"fulfilled\",\n  \"tracking\": \"1Z999AA10123456784\"\n}\n"
+            "```\n\n"
+            "## References\n\n"
+            "- [Order API Spec](https://example.com/api/orders)\n"
+            "- See also the `checkout` domain notes.\n"
+            "> Heads up: the tracking number format depends on the carrier.\n")
+          "text/markdown")
+
+        (allure/attach "Rendered Dashboard"
+          (str "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+            "<style>body{font-family:sans-serif;padding:1rem;background:#f6f6f8}"
+            "h1{color:#4f46e5;margin:0 0 .5rem}"
+            "table{border-collapse:collapse;width:100%}"
+            "th,td{border:1px solid #ccc;padding:.4rem .6rem;font-size:.9rem}"
+            ".ok{color:#16a34a;font-weight:700}</style></head>"
+            "<body><h1>Service Dashboard</h1>"
+            "<table><tr><th>Service</th><th>Status</th></tr>"
+            "<tr><td>Health</td><td class='ok'>200 OK</td></tr>"
+            "<tr><td>Echo</td><td class='ok'>200 OK</td></tr>"
+            "<tr><td>Status</td><td class='ok'>200 OK</td></tr>"
+            "</table></body></html>")
+          "text/html")
+
         (let [ctx     (.request (.context pg))
               base    *test-server-url*
               bearer  "Bearer eyJhbGciOiJIUzI1NiJ9.fake-jwt.signature"
