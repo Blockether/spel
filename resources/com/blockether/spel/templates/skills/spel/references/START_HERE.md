@@ -18,7 +18,7 @@ Quick map of spel skill.
 - Browser/profile/CDP setup: `references/PROFILES_AGENTS.md` + `references/BROWSER_OPTIONS.md`
 - Network routing/interception: `references/NETWORK_ROUTING.md`
 - Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/TESTING_CONVENTIONS.md`
-- Product discovery/reporting: `references/PRODUCT_DISCOVERY.md`, `references/spel-report.html`, `references/spel-report.md`
+- Report templates: `references/spel-report.html`, `references/spel-report.md`
 
 ## Critical operating rules
 

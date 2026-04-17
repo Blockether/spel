@@ -2041,7 +2041,89 @@
 
   (it "returns empty dirs for no args"
     (let [{:keys [dirs]} (#'com.blockether.spel.native/parse-merge-reports-args [])]
-      (expect (empty? dirs)))))
+      (expect (empty? dirs))))
+
+  (it "parses --renderer flag with space"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--renderer" "alternative"])]
+      (expect (= ["dir1"] dirs))
+      (expect (= :alternative (:renderer opts)))))
+
+  (it "parses --renderer= flag"
+    (let [{:keys [dirs opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                               ["dir1" "--renderer=alternative"])]
+      (expect (= ["dir1"] dirs))
+      (expect (= :alternative (:renderer opts)))))
+
+  (it "defaults to no renderer when not specified"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-merge-reports-args
+                           ["dir1"])]
+      (expect (nil? (:renderer opts))))))
+
+;; =============================================================================
+;; Report CLI Arg Parsing Tests
+;; =============================================================================
+
+(defdescribe report-args-test
+  "Tests for parse-report-args"
+
+  (it "parses --renderer flag with space"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--renderer" "alternative"])]
+      (expect (= "alternative" (:renderer opts)))))
+
+  (it "parses --renderer= flag"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--renderer=alternative"])]
+      (expect (= "alternative" (:renderer opts)))))
+
+  (it "parses --renderer allure"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--renderer" "allure"])]
+      (expect (= "allure" (:renderer opts)))))
+
+  (it "defaults to no renderer when not specified"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args [])]
+      (expect (nil? (:renderer opts)))))
+
+  (it "parses --results-dir"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--results-dir" "my-results"])]
+      (expect (= "my-results" (:results-dir opts)))))
+
+  (it "parses --results-dir= form"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--results-dir=my-results"])]
+      (expect (= "my-results" (:results-dir opts)))))
+
+  (it "parses --output-dir"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--output-dir" "my-report"])]
+      (expect (= "my-report" (:output-dir opts)))))
+
+  (it "parses --from-json"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--from-json" "results.json"])]
+      (expect (= "results.json" (:from-json opts)))))
+
+  (it "parses --title"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--title" "My Report"])]
+      (expect (= "My Report" (:title opts)))))
+
+  (it "parses --help"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args ["--help"])]
+      (expect (true? (:help opts)))))
+
+  (it "parses all options together"
+    (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
+                           ["--renderer" "alternative" "--results-dir" "res"
+                            "--output-dir" "out" "--title" "Test" "--kicker" "CI"])]
+      (expect (= "alternative" (:renderer opts)))
+      (expect (= "res" (:results-dir opts)))
+      (expect (= "out" (:output-dir opts)))
+      (expect (= "Test" (:title opts)))
+      (expect (= "CI" (:kicker opts))))))
 
 ;; =============================================================================
 ;; Stitch CLI Tests

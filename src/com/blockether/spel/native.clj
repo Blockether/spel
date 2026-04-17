@@ -261,7 +261,7 @@
 
   (println "  search <query> [opts]     Google search from the CLI (--help for details)")
   (println "  markdownify [opts]        Convert current page, URL, file, or input HTML to Markdown")
-  (println "  init-agents [opts]        Scaffold E2E testing agents (--help for details)")
+  (println "  init-agents [opts]        Scaffold spel agent + skill (--help for details)")
   (println "  codegen record [url]      Record browser session (interactive Playwright Codegen)")
   (println "  codegen [opts] [file]     Transform JSONL recording to Clojure code (--help for details)")
   (println "  ci-assemble [opts]        Assemble Allure site for CI deployment (--help for details)")
@@ -918,6 +918,7 @@
      "Options:"
      "  --output DIR          Output directory (default: allure-results)"
      "  --report-dir DIR      HTML report directory (default: allure-report)"
+     "  --renderer NAME       Report renderer: allure (default), alternative"
      "  --no-report           Skip HTML report generation"
      "  --no-clean            Don't clean output directory before merging"
      "  --help, -h            Show this help"
@@ -926,6 +927,7 @@
      "  spel merge-reports results-lazytest results-ct"
      "  spel merge-reports results-* --output combined-results"
      "  spel merge-reports dir1 dir2 dir3 --no-report"
+     "  spel merge-reports dir1 dir2 --renderer alternative"
      "  spel merge-reports dir1 dir2 --output merged --report-dir report"]))
 
 (defn- parse-merge-reports-args
@@ -959,6 +961,12 @@
           (= arg "--no-clean")
           (recur (rest args) dirs (assoc opts :clean false))
 
+          (str/starts-with? arg "--renderer=")
+          (recur (rest args) dirs (assoc opts :renderer (keyword (subs arg 11))))
+
+          (= arg "--renderer")
+          (recur (drop 2 args) dirs (assoc opts :renderer (keyword (second args))))
+
           (str/starts-with? arg "--")
           (recur (rest args) dirs opts)
 
@@ -966,95 +974,72 @@
           (recur (rest args) (conj dirs arg) opts))))))
 
 ;; =============================================================================
-;; report helpers (Blockether native report)
+;; report helpers
 ;; =============================================================================
 
 (defn- report-help
   "Help text for the report subcommand."
   ^String []
   (str/join \newline
-    ["report - Generate a Blockether-themed HTML report from allure-results"
+    ["report - Generate an HTML report from allure-results"
      ""
      "Usage:"
      "  spel report [options]"
      ""
-     "Reads allure-results/ JSON files and generates a standalone HTML report"
-     "with the Blockether design system (warm earth tones, no Node.js required)."
+     "Reads allure-results/ and generates an HTML report. By default uses the"
+     "standard Allure renderer (requires allure CLI). Use --renderer alternative"
+     "for the built-in Blockether-themed report (no external dependencies)."
      ""
      "Options:"
      "  --results-dir DIR       Allure results directory (default: allure-results)"
-     "  --from-json FILE        Read results from a single JSON file containing an"
-     "                          array of Allure result maps (ideal for lambda /"
-     "                          single-test runs). Takes precedence over"
-     "                          --results-dir when both are given."
-     "  --output-dir DIR        Output directory for HTML report (default: alternative-report)"
-     "  --title TEXT            Report title shown in <h1> (default: \"Allure Report\")"
-     "  --kicker TEXT           Small mono heading above the title"
-     "  --subtitle TEXT         One-line subtitle under the title"
-     ""
-     "Branding:"
-     "  --logo SRC              Logo shown above the title. Accepts:"
-     "                            • filesystem path (abs or relative to results-dir)"
-     "                            • data:image/… URL"
-     "                            • http(s):// URL"
-     "                            • inline <svg …>…</svg> markup"
-     "                          File paths are copied into <output-dir>/assets/."
-     "  --logo-alt TEXT         alt text for the logo <img> (default: report title)"
-     "  --description TEXT      Description block rendered under the title."
-     "                          Plain text is html-escaped. Strings starting with"
-     "                          '<' are treated as HTML and sanitized (scripts,"
-     "                          iframes, event handlers and javascript: URLs are"
-     "                          stripped)."
-     "  --custom-css CSS        Extra CSS appended after the built-in stylesheet"
-     "                          (hostile </style> closures are neutralized)."
-     "  --custom-css-file FILE  Path to a CSS file whose contents are inlined."
-     ""
-     "Build metadata:"
-     "  --build-id ID           Build/run identifier shown in the header kicker"
-     "                          (e.g. '#544')."
-     "  --build-date VALUE      Build timestamp. Accepts epoch-millis Long or"
-     "                          ISO-8601 string (e.g. '2026-04-10T12:00:00Z')."
-     "  --build-url URL         Link to the CI run; rendered as a chip in the"
-     "                          header subtitle."
-     ""
+     "  --output-dir DIR        Output directory for HTML report"
+     "                          (default: allure-report for allure, alternative-report for alternative)"
+     "  --renderer NAME         Report renderer: allure (default), alternative"
      "  --help, -h              Show this help"
      ""
-     "Every branding / metadata flag can also be set via environment.properties"
-     "keys under the corresponding `report.*` / `build.*` names. See"
-     "`generate!` docstring in the spel-allure-alternative-html-report namespace"
-     "for the full list."
+     "Alternative renderer options (only with --renderer alternative):"
+     "  --from-json FILE        Read results from a JSON file instead of"
+     "                          allure-results directory"
+     "  --title TEXT            Report title (default: \"Allure Report\")"
+     "  --kicker TEXT           Small mono heading above the title"
+     "  --subtitle TEXT         One-line subtitle under the title"
+     "  --logo SRC              Logo above the title (path, URL, data URI, or SVG)"
+     "  --logo-alt TEXT         Alt text for the logo"
+     "  --description TEXT      Description block under the title"
+     "  --custom-css CSS        Extra CSS appended after the built-in stylesheet"
+     "  --custom-css-file FILE  Path to a CSS file to inline"
+     "  --build-id ID           Build/run identifier (e.g. '#544')"
+     "  --build-date VALUE      Build timestamp (epoch-millis or ISO-8601)"
+     "  --build-url URL         Link to the CI run"
      ""
      "Examples:"
      "  spel report"
-     "  spel report --results-dir test-results --output-dir my-report"
-     "  spel report --from-json results.json --title 'Lambda Run'"
-     "  spel report --title 'My Project Tests' --description 'Nightly smoke run'"
-     "  spel report --logo brand/logo.svg --logo-alt 'Acme Co.'"
-     "  spel report --build-id '#544' --build-date 2026-04-10T12:00:00Z \\"
-     "              --build-url https://ci.example/run/544"]))
+     "  spel report --results-dir test-results"
+     "  spel report --renderer alternative"
+     "  spel report --renderer alternative --title 'Nightly' --output-dir my-report"
+     "  spel report --renderer alternative --from-json results.json"]))
 
 (defn- parse-report-args
   "Parse report CLI arguments into {:opts {...}}.
    Accepts both `--flag VALUE` and `--flag=VALUE` forms."
   [args]
   (let [flag-keys
-        ;; Map of `--flag` → [:opt-key body-length-for-prefix-form]
-        ;; body-length = count of the `--flag=` prefix, used for the
-        ;; `subs` call when the inline form is used.
-        {"--results-dir"     [:results-dir     14]
-         "--output-dir"      [:output-dir      13]
-         "--from-json"       [:from-json       12]
-         "--title"           [:title           8]
-         "--kicker"          [:kicker          9]
-         "--subtitle"        [:subtitle        11]
-         "--logo"            [:logo            7]
-         "--logo-alt"        [:logo-alt        11]
-         "--description"     [:description     14]
-         "--custom-css"      [:custom-css      13]
-         "--custom-css-file" [:custom-css-file 18]
-         "--build-id"        [:build-id        11]
-         "--build-date"      [:build-date      13]
-         "--build-url"       [:build-url       12]}]
+        ;; Map of `--flag` → [:opt-key]
+        {"--results-dir"     [:results-dir]
+         "--output-dir"      [:output-dir]
+         "--renderer"        [:renderer]
+         "--from-json"       [:from-json]
+         "--title"           [:title]
+         "--kicker"          [:kicker]
+         "--subtitle"        [:subtitle]
+         "--logo"            [:logo]
+         "--logo-alt"        [:logo-alt]
+         "--description"     [:description]
+         "--custom-css"      [:custom-css]
+         "--custom-css-file" [:custom-css-file]
+         "--build-id"        [:build-id]
+         "--build-date"      [:build-date]
+         "--build-url"       [:build-url]}]
     (loop [args args
            opts {}]
       (if (empty? args)
@@ -1068,12 +1053,12 @@
             (let [eq (str/index-of arg "=")]
               (and eq (contains? flag-keys (subs arg 0 eq))))
             (let [eq (long (str/index-of arg "="))
-                  [k _] (get flag-keys (subs arg 0 eq))]
+                  [k] (get flag-keys (subs arg 0 eq))]
               (recur (rest args) (assoc opts k (subs arg (inc eq)))))
 
             ;; --flag VALUE
             (contains? flag-keys arg)
-            (let [[k _] (get flag-keys arg)]
+            (let [[k] (get flag-keys arg)]
               (recur (drop 2 args) (assoc opts k (second args))))
 
             :else
@@ -1125,22 +1110,25 @@
         (if (some #{"--help" "-h"} sub-args)
           (println (report-help))
           (let [{:keys [opts]} (parse-report-args sub-args)
+                renderer (keyword (or (:renderer opts) "allure"))
+                results-dir (:results-dir opts "allure-results")
                 from-json (:from-json opts)
-                clean-opts (dissoc opts :results-dir :output-dir :from-json :help)]
-            (if from-json
-              ;; Single-run / lambda mode: read a JSON file containing
-              ;; an array of result maps and generate the report from
-              ;; them directly. No allure-results directory needed.
-              (let [results (json/read-json (slurp from-json))]
-                (alternative-report/generate-from-results!
-                  results
-                  (:output-dir opts "alternative-report")
-                  clean-opts))
-              ;; Standard mode: read from allure-results directory.
-              (alternative-report/generate!
-                (:results-dir opts "allure-results")
-                (:output-dir opts "alternative-report")
-                clean-opts)))))
+                clean-opts (dissoc opts :results-dir :output-dir :from-json :help :renderer)]
+            (if (= :alternative renderer)
+              ;; Alternative renderer — built-in Blockether-themed HTML
+              (let [output-dir (:output-dir opts "alternative-report")]
+                (if from-json
+                  (let [results (json/read-json (slurp from-json))]
+                    (alternative-report/generate-from-results!
+                      results output-dir clean-opts))
+                  (alternative-report/generate!
+                    results-dir output-dir clean-opts)))
+              ;; Standard Allure renderer (default)
+              (let [output-dir (:output-dir opts "allure-report")]
+                (when from-json
+                  (binding [*out* *err*]
+                    (println "Warning: --from-json is only supported with --renderer alternative, ignoring.")))
+                (allure-reporter/generate-html-report! results-dir output-dir))))))
 
       (= "codegen" first-arg)
       (let [sub-args (rest cmd-args)]

@@ -1343,140 +1343,71 @@ assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
 
 OUT=$("$SPEL" init-agents --help 2>&1)
 assert_contains "init-agents --help mentions scaffold" "$OUT" "Scaffold"
-assert_contains "init-agents --help mentions --learnings" "$OUT" "--learnings"
-
-OUT=$("$SPEL" init-agents --loop=vscode 2>&1 || true)
-assert_contains "init-agents --loop=vscode shows deprecation error" "$OUT" "removed"
+assert_contains "init-agents --help mentions auto-learnings" "$OUT" "auto-learnings"
 
 CLAUDE_TMP=$(mktemp -d)
 TEMP_FILES+=("$CLAUDE_TMP")
 OUT=$(cd "$CLAUDE_TMP" && "$SPEL" init-agents --ns demo-app --loop=claude --force 2>&1)
-assert_contains "init-agents --loop=claude creates .claude agents" "$OUT" ".claude/agents/spel-orchestrator.md"
+assert_contains "init-agents --loop=claude creates .claude agent" "$OUT" ".claude/agents/spel.md"
 
-CLAUDE_ORCH_FILE="$CLAUDE_TMP/.claude/agents/spel-orchestrator.md"
-CLAUDE_DISC_FILE="$CLAUDE_TMP/.claude/agents/spel-product-analyst.md"
+CLAUDE_AGENT_FILE="$CLAUDE_TMP/.claude/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q 'Read `.claude/docs/spel/SKILL.md` before any action\.' "$CLAUDE_ORCH_FILE"; then
+if grep -q 'read `.claude/docs/spel/SKILL.md` first' "$CLAUDE_AGENT_FILE"; then
   pass "claude agent reads local SKILL.md"
 else
   fail "claude agent reads local SKILL.md" "Expected Claude agent to read local SKILL.md"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^name: spel-orchestrator$' "$CLAUDE_ORCH_FILE"; then
+if grep -q '^name: spel$' "$CLAUDE_AGENT_FILE"; then
   pass "claude agent frontmatter uses name field"
 else
   fail "claude agent frontmatter uses name field" "Missing Claude name frontmatter"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^description: "Analyzes a web product' "$CLAUDE_DISC_FILE" && ! grep -q '^description: "\\"' "$CLAUDE_DISC_FILE"; then
+if grep -q '^description: "Browser automation' "$CLAUDE_AGENT_FILE" && ! grep -q '^description: "\\"' "$CLAUDE_AGENT_FILE"; then
   pass "claude description does not double-quote"
 else
   fail "claude description does not double-quote" "Expected clean quoted description in Claude frontmatter"
 fi
 
-LEARN_TMP=$(mktemp -d)
-TEMP_FILES+=("$LEARN_TMP")
-OUT=$(cd "$LEARN_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --learnings --force 2>&1)
+# Agent has built-in learnings section
+OC_TMP=$(mktemp -d)
+TEMP_FILES+=("$OC_TMP")
+OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --force 2>&1)
 
-LEARNINGS_FILE="$LEARN_TMP/LEARNINGS.md"
-LEARN_ORCH_FILE="$LEARN_TMP/.opencode/agents/spel-orchestrator.md"
-LEARN_HUNTER_FILE="$LEARN_TMP/.opencode/agents/spel-bug-hunter.md"
-
+OC_AGENT_FILE="$OC_TMP/.opencode/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if [ ! -f "$LEARNINGS_FILE" ]; then
-  pass "--learnings does not precreate LEARNINGS.md"
+if grep -q '^## Learnings$' "$OC_AGENT_FILE" && grep -q '.spel/learnings.md' "$OC_AGENT_FILE"; then
+  pass "agent has built-in learnings section"
 else
-  fail "--learnings does not precreate LEARNINGS.md" "Expected LEARNINGS.md to be created lazily by agents, not scaffolded up front"
+  fail "agent has built-in learnings section" "Expected Learnings section baked into agent template"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^## Meta Learnings (enabled via --learnings)$' "$LEARN_HUNTER_FILE" && grep -q '^### Exact Reproductions$' "$LEARN_HUNTER_FILE" && grep -q '^### Root Cause and Corrective Action$' "$LEARN_HUNTER_FILE" && grep -q 'create it first with these top-level sections' "$LEARN_HUNTER_FILE"; then
-  pass "specialist agent gets scoped learnings contract"
+if grep -q '^## Completion gate$' "$OC_AGENT_FILE"; then
+  pass "agent has built-in completion gate"
 else
-  fail "specialist agent gets scoped learnings contract" "Expected scoped learnings + exact reproductions in specialist agent"
+  fail "agent has built-in completion gate" "Expected Completion gate section baked into agent template"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^### Orchestrator Synthesis (required)$' "$LEARN_ORCH_FILE" && grep -q '## High-Level Issues (cross-agent synthesis)' "$LEARN_ORCH_FILE" && grep -q 'Append/update learnings after each completed pipeline gate' "$LEARN_ORCH_FILE"; then
-  pass "orchestrator gets synthesis learnings contract"
+if grep -q '.claude/docs/spel/SKILL.md' "$OC_AGENT_FILE"; then
+  fail "opencode agent avoids claude skill path" "Expected OpenCode scaffold to avoid Claude skill path"
 else
-  fail "orchestrator gets synthesis learnings contract" "Expected orchestrator synthesis contract with high-level issues guidance"
+  pass "opencode agent avoids claude skill path"
 fi
 
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If a promised JSON artifact is missing, the pipeline is incomplete' "$LEARN_ORCH_FILE"; then
-  pass "meta orchestrator enforces artifact-first handoffs"
-else
-  fail "meta orchestrator enforces artifact-first handoffs" "Expected write access plus handoff JSON and fail-closed artifact guidance"
-fi
-
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^  write: true$' "$LEARN_ORCH_FILE" && grep -q 'Embedded automation coordination flow' "$LEARN_ORCH_FILE" && grep -q 'orchestration/automation-pipeline.json' "$LEARN_ORCH_FILE" && grep -q 'If the user asked for JSON/report outputs and any are missing' "$LEARN_ORCH_FILE"; then
-  pass "orchestrator embeds automation coordination and JSON output gates"
-else
-  fail "orchestrator embeds automation coordination and JSON output gates" "Expected merged orchestrator to enforce automation handoff JSON and requested output gates"
-fi
-
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '.claude/docs/spel/SKILL.md' "$LEARN_ORCH_FILE"; then
-  fail "opencode orchestrator avoids claude skill path" "Expected OpenCode scaffold to avoid Claude skill path"
-else
-  pass "opencode orchestrator avoids claude skill path"
-fi
-
-# --only test --dry-run: includes test agents, excludes others
-OUT=$("$SPEL" init-agents --only test --dry-run 2>&1)
-assert_contains "init-agents --only test includes test-writer" "$OUT" "spel-test-writer"
-assert_contains "init-agents --only test includes SKILL" "$OUT" "SKILL.md"
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "spel-explorer"; then
-  fail "init-agents --only test excludes explorer"
-else
-  pass "init-agents --only test excludes explorer"
-fi
-
-# --only automation --dry-run: includes automation agents, excludes test
-OUT=$("$SPEL" init-agents --only automation --dry-run 2>&1)
-assert_contains "init-agents --only automation includes explorer" "$OUT" "spel-explorer"
-assert_contains "init-agents --only automation includes automator" "$OUT" "spel-automator"
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "agents/spel-test-writer"; then
-  fail "init-agents --only automation excludes test-writer"
-else
-  pass "init-agents --only automation excludes test-writer"
-fi
-
-# --only invalid: shows error with valid values
-OUT=$("$SPEL" init-agents --only invalid 2>&1 || true)
-assert_contains "init-agents --only invalid shows error" "$OUT" "Unknown --only"
-
-# --help mentions --only
-OUT=$("$SPEL" init-agents --help 2>&1)
-assert_contains "init-agents --help mentions --only" "$OUT" "--only"
-
-# --no-tests --dry-run: includes ALL agents but no seed test or specs
+# --no-tests --dry-run: includes agent but no seed test
 OUT=$("$SPEL" init-agents --no-tests --dry-run 2>&1)
-assert_contains "--no-tests includes orchestrator" "$OUT" "spel-orchestrator"
-assert_contains "--no-tests includes test-writer" "$OUT" "spel-test-writer"
-assert_contains "--no-tests includes explorer" "$OUT" "spel-explorer"
+assert_contains "--no-tests includes spel agent" "$OUT" "spel agent"
 assert_contains "--no-tests includes SKILL" "$OUT" "SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if echo "$OUT" | grep -q "seed_test.clj"; then
   fail "--no-tests excludes seed test file"
 else
   pass "--no-tests excludes seed test file"
-fi
-
-# --no-tests + --only: both flags work together
-OUT=$("$SPEL" init-agents --no-tests --only bugfind --dry-run 2>&1)
-assert_contains "--no-tests --only bugfind includes bug-hunter" "$OUT" "spel-bug-hunter"
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "spel-test-writer"; then
-  fail "--no-tests --only bugfind excludes test-writer"
-else
-  pass "--no-tests --only bugfind excludes test-writer"
 fi
 
 OUT=$("$SPEL" ci-assemble --help 2>&1)
@@ -1486,11 +1417,17 @@ OUT=$("$SPEL" merge-reports --help 2>&1)
 assert_contains "merge-reports --help mentions merge" "$OUT" "merge"
 
 OUT=$("$SPEL" report --help 2>&1)
-assert_contains "report --help mentions Blockether" "$OUT" "Blockether"
+assert_contains "report --help mentions renderer" "$OUT" "renderer"
 assert_contains "report --help mentions results-dir" "$OUT" "results-dir"
 assert_contains "report --help mentions output-dir" "$OUT" "output-dir"
+assert_contains "report --help mentions alternative" "$OUT" "alternative"
+assert_contains "report --help mentions allure default" "$OUT" "allure (default)"
 
-# report: generate from mock allure-results
+OUT=$("$SPEL" merge-reports --help 2>&1)
+assert_contains "merge-reports --help mentions renderer" "$OUT" "renderer"
+assert_contains "merge-reports --help mentions alternative" "$OUT" "alternative"
+
+# report --renderer alternative: generate from mock allure-results
 REPORT_RESULTS_DIR=$(mktemp -d)
 TEMP_FILES+=("$REPORT_RESULTS_DIR")
 REPORT_OUTPUT_DIR=$(mktemp -d)
@@ -1501,16 +1438,78 @@ REPORTJSON
 cat > "$REPORT_RESULTS_DIR/$(uuidgen)-result.json" << 'REPORTJSON'
 {"uuid":"test-2","status":"failed","name":"failing-test","fullName":"suite.failing-test","start":3000,"stop":4000,"labels":[{"name":"suite","value":"my-suite"}],"statusDetails":{"message":"Expected 42"},"steps":[],"attachments":[]}
 REPORTJSON
-OUT=$("$SPEL" report --results-dir "$REPORT_RESULTS_DIR" --output-dir "$REPORT_OUTPUT_DIR" 2>&1)
-assert_contains "report generates HTML" "$OUT" "Blockether report generated"
-assert_contains "report shows test count" "$OUT" "2 tests"
-assert_contains "report shows passed" "$OUT" "1 passed"
-assert_contains "report shows failed" "$OUT" "1 failed"
+OUT=$("$SPEL" report --renderer alternative --results-dir "$REPORT_RESULTS_DIR" --output-dir "$REPORT_OUTPUT_DIR" 2>&1)
+assert_contains "report alternative generates HTML" "$OUT" "Blockether report generated"
+assert_contains "report alternative shows test count" "$OUT" "2 tests"
+assert_contains "report alternative shows passed" "$OUT" "1 passed"
+assert_contains "report alternative shows failed" "$OUT" "1 failed"
 REPORT_HTML="$REPORT_OUTPUT_DIR/index.html"
-assert_contains "report HTML file exists" "$(cat "$REPORT_HTML" 2>/dev/null)" "Allure Report"
-assert_contains "report HTML has test name" "$(cat "$REPORT_HTML")" "sample-test"
-assert_contains "report HTML has failing test" "$(cat "$REPORT_HTML")" "failing-test"
-assert_contains "report HTML has theme" "$(cat "$REPORT_HTML")" "Inter"
+assert_contains "report alternative HTML file exists" "$(cat "$REPORT_HTML" 2>/dev/null)" "Allure Report"
+assert_contains "report alternative HTML has test name" "$(cat "$REPORT_HTML")" "sample-test"
+assert_contains "report alternative HTML has failing test" "$(cat "$REPORT_HTML")" "failing-test"
+assert_contains "report alternative HTML has theme" "$(cat "$REPORT_HTML")" "Inter"
+
+# report default (allure renderer) — attempts allure CLI
+REPORT_ALLURE_DIR=$(mktemp -d)
+TEMP_FILES+=("$REPORT_ALLURE_DIR")
+OUT=$("$SPEL" report --results-dir "$REPORT_RESULTS_DIR" --output-dir "$REPORT_ALLURE_DIR" 2>&1 || true)
+assert_contains "report default attempts allure" "$OUT" "Generating Allure HTML report"
+
+# report --renderer=alternative (= form)
+REPORT_EQ_DIR=$(mktemp -d)
+TEMP_FILES+=("$REPORT_EQ_DIR")
+OUT=$("$SPEL" report --renderer=alternative --results-dir "$REPORT_RESULTS_DIR" --output-dir "$REPORT_EQ_DIR" 2>&1)
+assert_contains "report --renderer=alternative works" "$OUT" "Blockether report generated"
+
+# merge-reports --renderer alternative: two source dirs → merged alternative HTML
+MERGE_SRC_A=$(mktemp -d)
+TEMP_FILES+=("$MERGE_SRC_A")
+MERGE_SRC_B=$(mktemp -d)
+TEMP_FILES+=("$MERGE_SRC_B")
+MERGE_OUT=$(mktemp -d)
+TEMP_FILES+=("$MERGE_OUT")
+MERGE_REPORT=$(mktemp -d)
+TEMP_FILES+=("$MERGE_REPORT")
+cat > "$MERGE_SRC_A/$(uuidgen)-result.json" << 'MERGEJSON'
+{"uuid":"merge-a","status":"passed","name":"alpha-test","fullName":"suite.alpha-test","start":1000,"stop":2000,"labels":[{"name":"suite","value":"alpha"}],"steps":[],"attachments":[]}
+MERGEJSON
+cat > "$MERGE_SRC_B/$(uuidgen)-result.json" << 'MERGEJSON'
+{"uuid":"merge-b","status":"failed","name":"beta-test","fullName":"suite.beta-test","start":3000,"stop":4000,"labels":[{"name":"suite","value":"beta"}],"statusDetails":{"message":"beta broke"},"steps":[],"attachments":[]}
+MERGEJSON
+OUT=$("$SPEL" merge-reports "$MERGE_SRC_A" "$MERGE_SRC_B" --output "$MERGE_OUT" --report-dir "$MERGE_REPORT" --renderer alternative 2>&1)
+assert_contains "merge-reports alternative merges results" "$OUT" "Merged 2 files"
+assert_contains "merge-reports alternative generates HTML" "$OUT" "Blockether report generated"
+MERGE_HTML="$MERGE_REPORT/index.html"
+assert_contains "merge-reports alternative HTML has alpha" "$(cat "$MERGE_HTML" 2>/dev/null)" "alpha-test"
+assert_contains "merge-reports alternative HTML has beta" "$(cat "$MERGE_HTML" 2>/dev/null)" "beta-test"
+assert_contains "merge-reports alternative HTML has theme" "$(cat "$MERGE_HTML" 2>/dev/null)" "Inter"
+
+# merge-reports --renderer=alternative (= form)
+MERGE_REPORT_EQ=$(mktemp -d)
+TEMP_FILES+=("$MERGE_REPORT_EQ")
+MERGE_OUT_EQ=$(mktemp -d)
+TEMP_FILES+=("$MERGE_OUT_EQ")
+OUT=$("$SPEL" merge-reports "$MERGE_SRC_A" "$MERGE_SRC_B" --output "$MERGE_OUT_EQ" --report-dir "$MERGE_REPORT_EQ" --renderer=alternative 2>&1)
+assert_contains "merge-reports --renderer=alternative works" "$OUT" "Blockether report generated"
+
+# merge-reports default renderer attempts allure CLI
+MERGE_OUT_DEFAULT=$(mktemp -d)
+TEMP_FILES+=("$MERGE_OUT_DEFAULT")
+MERGE_REPORT_DEFAULT=$(mktemp -d)
+TEMP_FILES+=("$MERGE_REPORT_DEFAULT")
+OUT=$("$SPEL" merge-reports "$MERGE_SRC_A" "$MERGE_SRC_B" --output "$MERGE_OUT_DEFAULT" --report-dir "$MERGE_REPORT_DEFAULT" 2>&1 || true)
+assert_contains "merge-reports default attempts allure" "$OUT" "Generating Allure HTML report"
+
+# merge-reports --no-report skips HTML generation but still merges
+MERGE_OUT_NOREPORT=$(mktemp -d)
+TEMP_FILES+=("$MERGE_OUT_NOREPORT")
+OUT=$("$SPEL" merge-reports "$MERGE_SRC_A" "$MERGE_SRC_B" --output "$MERGE_OUT_NOREPORT" --no-report 2>&1)
+assert_contains "merge-reports --no-report merges" "$OUT" "Merged 2 files"
+if echo "$OUT" | grep -qE "Blockether report generated|Generating Allure HTML"; then
+  fail "merge-reports --no-report should not generate HTML"
+else
+  pass "merge-reports --no-report skips HTML"
+fi
 
 OUT=$("$SPEL" show-trace --help 2>&1)
 assert_contains "show-trace --help mentions trace" "$OUT" "trace"
@@ -1905,81 +1904,29 @@ OUT=$("$SPEL" --help 2>&1)
 assert_contains "help mentions auto-connect" "$OUT" "auto-connect"
 
 # =============================================================================
-# DISCOVERY GROUP SCAFFOLDING (42)
+# SINGLE AGENT SCAFFOLDING (42)
 # =============================================================================
-section "Discovery group scaffolding (42)"
+section "Single agent scaffolding (42)"
 
-# 1. dry-run exits 0 and lists product-analyst
-OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
-assert_contains "discovery dry-run lists product-analyst" "$OUT" "spel-product-analyst"
+# dry-run shows single spel agent
+OUT=$("$SPEL" init-agents --ns test-app --dry-run 2>&1)
+assert_contains "dry-run lists spel agent" "$OUT" "spel agent"
+assert_contains "dry-run lists SKILL" "$OUT" "SKILL.md"
+assert_contains "dry-run lists spel-report refs" "$OUT" "spel-report"
 
-# 2. product-analyst NOT in test group
-OUT=$("$SPEL" init-agents --only test --ns test-app --dry-run 2>&1)
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "product-analyst"; then
-  fail "product-analyst not in test group"
-else
-  pass "product-analyst not in test group"
-fi
+# force-create and verify content
+SINGLE_TMP=$(mktemp -d)
+TEMP_FILES+=("$SINGLE_TMP")
+OUT=$(cd "$SINGLE_TMP" && "$SPEL" init-agents --ns test-app --force 2>&1)
+assert_contains "force creates spel agent" "$OUT" "spel agent"
 
-# 3. force-create the agent file
-DISC_AGENT_FILE=".opencode/agents/spel-product-analyst.md"
-TEMP_FILES+=("$DISC_AGENT_FILE")
-OUT=$("$SPEL" init-agents --only discovery --ns test-app --force 2>&1)
-assert_contains "discovery force creates product-analyst" "$OUT" "spel-product-analyst"
+SINGLE_AGENT_FILE="$SINGLE_TMP/.opencode/agents/spel.md"
+assert_contains "agent mentions session discipline" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Session discipline"
+assert_contains "agent mentions snapshot" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "snapshot -i"
+assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Find bugs"
+assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Generate E2E tests"
 
-# 4. created file contains expected content
-assert_contains "product-analyst file references PRODUCT_DISCOVERY" "$(cat "$DISC_AGENT_FILE" 2>/dev/null)" "PRODUCT_DISCOVERY"
-assert_contains "product-analyst file references spel-report.md" "$(cat "$DISC_AGENT_FILE" 2>/dev/null)" "spel-report.md"
-
-# 5. help shows discovery group
-OUT=$("$SPEL" init-agents --help 2>&1)
-assert_contains "init-agents --help shows discovery group" "$OUT" "discovery"
-
-# 6. discovery workflow prompt is scaffolded
-DISC_WORKFLOW_FILE=".opencode/prompts/spel-discovery-workflow.md"
-TEMP_FILES+=("$DISC_WORKFLOW_FILE")
-OUT=$("$SPEL" init-agents --only discovery --ns test-app --force 2>&1)
-assert_contains "discovery scaffolds discovery workflow prompt" "$OUT" "spel-discovery-workflow"
-
-section "Unified Report Template (43)"
-
-# 1. bugfind group scaffolds spel-report.html
-OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
-assert_contains "bugfind scaffolds spel-report.html" "$OUT" "spel-report.html"
-assert_contains "bugfind scaffolds spel-report.md" "$OUT" "spel-report.md"
-
-# 2. discovery group scaffolds spel-report.html
-OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
-assert_contains "discovery scaffolds spel-report.html" "$OUT" "spel-report.html"
-assert_contains "discovery scaffolds spel-report.md" "$OUT" "spel-report.md"
-
-# 3. old qa-report.html NOT scaffolded for bugfind
-OUT=$("$SPEL" init-agents --only bugfind --ns test-app --dry-run 2>&1)
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "qa-report.html"; then
-  fail "old qa-report.html should not be scaffolded"
-else
-  pass "old qa-report.html not scaffolded"
-fi
-
-# 4. old product-report.html NOT scaffolded for discovery
-OUT=$("$SPEL" init-agents --only discovery --ns test-app --dry-run 2>&1)
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | grep -q "product-report.html"; then
-  fail "old product-report.html should not be scaffolded"
-else
-  pass "old product-report.html not scaffolded"
-fi
-
-# 5. force-created bug-hunter file references spel-report.html
-BUGFIND_FILE=".opencode/agents/spel-bug-hunter.md"
-TEMP_FILES+=("$BUGFIND_FILE")
-OUT=$("$SPEL" init-agents --only bugfind --ns test-app --force 2>&1)
-assert_contains "bug-hunter references spel-report" "$(cat "$BUGFIND_FILE" 2>/dev/null)" "spel-report.html"
-assert_contains "bug-hunter references spel-report markdown" "$(cat "$BUGFIND_FILE" 2>/dev/null)" "spel-report.md"
-
-section "Helpers (44)"
+section "Helpers (43)"
 
 "$SPEL" open https://example.com >/dev/null 2>&1
 

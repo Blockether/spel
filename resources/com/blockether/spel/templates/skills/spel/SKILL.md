@@ -10,16 +10,10 @@ compatibility: opencode
 
 Skill generated for spel **{{version}}**. Verify with `spel version`. Mismatch → run `spel init-agents` to reinitialize.
 
-## Entry point: `@spel-orchestrator`
+## Agent: `@spel`
 
-**Never call specialists directly.** Orchestrator routes + enforces gates/artifacts:
-
-- Tests: `@spel-test-writer` (explores → generates → self-heals in one pass)
-- Bugs:  `@spel-bug-hunter` (explore → hunt → self-challenge → HTML + MD report)
-- Automation: `@spel-explorer` → `@spel-automator` → `@spel-presenter`
-- Discovery: `@spel-product-analyst`
-
-Falls back to plain `spel` CLI + `eval-sci` when specialists unavailable.
+Single agent for all browser tasks — exploration, testing, bug finding, automation.
+Use the `spel` CLI directly or via `eval-sci` for scripted workflows.
 
 ## CLI commands (obvious form)
 
@@ -52,7 +46,7 @@ spel <cmd> --help                   # help per subcommand
 | `spel state save/load [path]` | Persist/restore browser state |
 | `spel codegen record -o rec.jsonl <url>` | Record session |
 | `spel stitch a.png b.png -o out.png` | Stitch vertically |
-| `spel init-agents [--loop=opencode\|claude]` | Scaffold agents (vscode DEPRECATED — errors) |
+| `spel init-agents [--loop=opencode\|claude]` | Scaffold agents |
 | `spel report [flags]` | **Generate alt HTML report** — see Reporting below |
 | `spel merge-reports <dirs...>` | Merge multiple `allure-results/` dirs |
 | `spel ci-assemble` | CI artifact assembly |
@@ -142,9 +136,9 @@ Blocked nav → anomaly `blockedbyclient`. stderr never wrapped/truncated.
 
 ## Examples
 
-1. **E2E tests** — "Test login at http://localhost:3000" → orchestrator → test-writer (explore → generate → heal) → Allure report.
-2. **Bug audit** — "Find bugs on https://example.com" → orchestrator → explorer → bug-hunter → qa-report.{html,md}.
-3. **Automation** — "Automate registration form" → orchestrator → explorer → automator → reusable `.clj` script.
+1. **E2E tests** — "Test login at http://localhost:3000" → explore live app → generate test file → run → Allure report.
+2. **Bug audit** — "Find bugs on https://example.com" → open → audit → capture evidence → report.
+3. **Automation** — "Automate registration form" → explore → write reusable `.clj` script.
 4. **One-shot screenshot** — `spel open <url> && spel wait --load load && spel screenshot out.png`.
 5. **Visual + refs in one call** — `spel screenshot -a` → PNG with labels + `@ref role "name"` list in reading order.
 6. **Deterministic multi-step** —
@@ -179,7 +173,6 @@ Start with `references/START_HERE.md` + `references/CAPABILITIES.md`.
 | Frames + keyboard/mouse | `FRAMES_INPUT.md` |
 | Test conventions (flavour) | `TESTING_CONVENTIONS.md` |
 | Assertions + events | `ASSERTIONS_EVENTS.md` |
-| Snapshot testing | `SNAPSHOT_TESTING.md` |
 | API testing | `API_TESTING.md` |
 | **Allure reporting + `spel report`** | `ALLURE_REPORTING.md` |
 | CI workflows | `CI_WORKFLOWS.md` |
@@ -187,11 +180,8 @@ Start with `references/START_HERE.md` + `references/CAPABILITIES.md`.
 | Presenter workflow | `PRESENTER_SKILL.md` |
 | Slide engine | `SLIDE_PATTERNS.md` |
 | External libs (Mermaid, Chart.js, …) | `LIBRARIES.md` |
-| Bug-finding pipeline + schemas | `BUGFIND_GUIDE.md` |
-| Visual regression methodology | `VISUAL_QA_GUIDE.md` |
 | Unified report template (HTML) | `spel-report.html` |
 | Unified report template (MD) | `spel-report.md` |
-| Product discovery schemas | `PRODUCT_DISCOVERY.md` |
 | Codegen record/transform | `CODEGEN_CLI.md` |
 | PDF / stitch / video | `PDF_STITCH_VIDEO.md` |
 | Profiles, stealth, CDP | `PROFILES_AGENTS.md` |

@@ -5,8 +5,8 @@ Schema for `LEARNINGS.md` created lazily during `--learnings` run.
 Purpose:
 - Capture what worked, failed, confused each agent.
 - Preserve exact reproductions for high-level issues.
-- Feed evidence back into template/prompt refinement.
-- Produce corrective actions applicable to prompts/skills/templates.
+- Feed evidence back into template/skill refinement.
+- Produce corrective actions applicable to agents/skills/templates.
 
 ## High-Level Issues (cross-agent synthesis)
 
@@ -43,7 +43,7 @@ Write/update after each completed stage/pipeline, not only at end.
 
 #### Root Cause and Corrective Action
 - Root cause hypothesis: <why failed/confused>
-- Correction proposal (prompt/skill/template): <specific edit>
+- Correction proposal (agent/skill/template): <specific edit>
 - Expected effect: <how behavior should improve>
 
 #### Instruction Confusions (quote exact text)
@@ -70,7 +70,7 @@ Write/update after each completed stage/pipeline, not only at end.
 Prioritize concrete fixes discovered across agents.
 
 ### C-001: <fix title>
-- Scope: <prompt|skill|template|tooling>
+- Scope: <agent|skill|template|tooling>
 - Priority: <P0|P1|P2>
 - Confidence: <high|medium|low>
 - Change: <exact proposed edit>

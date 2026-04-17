@@ -164,7 +164,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -820,7 +820,9 @@
                   "overflow:hidden}\n"
                   ".spel-md .http-card:first-of-type{margin-top:0}\n"
                   ".spel-md .http-card .card-hdr{display:flex;align-items:center;gap:6px;padding:6px 12px;"
-                  "font-size:.75em;font-weight:700;text-transform:uppercase;letter-spacing:.6px}\n"
+                  "font-size:.75em;font-weight:700;text-transform:uppercase;letter-spacing:.6px;"
+                  "cursor:pointer;list-style:none;user-select:none}\n"
+                  ".spel-md .http-card .card-hdr::-webkit-details-marker{display:none}\n"
                   ".spel-md .http-card.req .card-hdr{background:rgba(73,204,144,.12);color:#1a7f37;"
                   "border-bottom:1px solid rgba(73,204,144,.25)}\n"
                   ".spel-md .http-card.res .card-hdr{background:rgba(97,175,254,.12);color:#1565c0;"
@@ -828,6 +830,8 @@
                   ".spel-md .http-card.curl .card-hdr{background:rgba(252,161,48,.12);color:#a35d00;"
                   "border-bottom:1px solid rgba(252,161,48,.25)}\n"
                   ".spel-md .card-icon{font-size:1.1em}\n"
+                  ".spel-md .card-chevron{margin-left:auto;font-size:1.1em;transition:transform .15s ease}\n"
+                  ".spel-md .http-card[open] .card-chevron{transform:rotate(90deg)}\n"
                   ".spel-md .http-card .card-body{padding:0}\n"
 
                   ;; Sections inside cards
@@ -955,13 +959,13 @@
                   ;; Pass 2: group sections into cards, render HTML
                   "  var out=[],j=0,curCard=null;\n"
                   "  function openCard(type){\n"
-                  "    if(curCard)out.push('</div></div>');\n"
+                  "    if(curCard)out.push('</div></details>');\n"
                   "    curCard=type;\n"
-                  "    out.push('<div class=\"http-card '+type+'\">');\n"
-                  "    out.push('<div class=\"card-hdr\"><span class=\"card-icon\">'+(cardIcon[type]||'')+'</span>'+cardTitle[type]+'</div>');\n"
+                  "    out.push('<details class=\"http-card '+type+'\">');\n"
+                  "    out.push('<summary class=\"card-hdr\"><span class=\"card-icon\">'+(cardIcon[type]||'')+'</span>'+cardTitle[type]+'<span class=\"card-chevron\">›</span></summary>');\n"
                   "    out.push('<div class=\"card-body\">');\n"
                   "  }\n"
-                  "  function closeCard(){if(curCard){out.push('</div></div>');curCard=null}}\n"
+                  "  function closeCard(){if(curCard){out.push('</div></details>');curCard=null}}\n"
 
                   "  var curList=null;\n"
                   "  function closeList(){if(curList){out.push('</'+curList+'>');curList=null}}\n"
@@ -1128,27 +1132,27 @@
     ;; 1. Global allure on PATH — fast, no npx cache writes (works on read-only FS)
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure")
-        ["allure"])
+      ["allure"])
 
     ;; 2. npx available → use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither allure nor npx found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: allure, npx, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -1409,13 +1413,15 @@
      :clean       - whether to clean output dir first (default: true)
      :report      - whether to generate HTML report after merge (default: true)
      :report-dir  - HTML report output dir (default: \"allure-report\")
+     :renderer    - :allure (default) or :alternative
 
    Returns map with :merged count and :output-dir path."
-  [source-dirs {:keys [output-dir clean report report-dir]
+  [source-dirs {:keys [output-dir clean report report-dir renderer]
                 :or   {output-dir "allure-results"
                        clean      true
                        report     true
-                       report-dir "allure-report"}}]
+                       report-dir "allure-report"
+                       renderer   nil}}]
   (let [out     (io/file output-dir)
         sources (mapv io/file source-dirs)
         valid   (filterv #(.isDirectory ^File %) sources)]
@@ -1448,10 +1454,11 @@
         (println (str "  " result-count " test results"))
         ;; Generate HTML report if requested
         (when report
-          (if (= :alternative (report-renderer))
-            (alternative-report/generate! output-dir report-dir
-              {:title (or (report-name) "Test Report")})
-            (generate-html-report! output-dir report-dir)))
+          (let [effective-renderer (or renderer (report-renderer))]
+            (if (= :alternative effective-renderer)
+              (alternative-report/generate! output-dir report-dir
+                {:title (or (report-name) "Test Report")})
+              (generate-html-report! output-dir report-dir))))
         {:merged @copied
          :results result-count
          :output-dir output-dir}))))

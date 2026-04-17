@@ -1,9 +1,9 @@
 (ns com.blockether.spel.init-agents
-  "CLI command to scaffold agent definitions for E2E testing.
+  "CLI command to scaffold the spel agent + skill for browser automation.
 
    Supports multiple agent loop targets via --loop:
-   - opencode (default) — .opencode/agents/, .opencode/prompts/, .opencode/skills/
-   - claude             — .claude/agents/, .claude/prompts/, .claude/docs/
+   - opencode (default) — .opencode/agents/, .opencode/skills/
+   - claude             — .claude/agents/, .claude/docs/
 
    Supports test framework flavours via --flavour:
    - lazytest (default) — defdescribe/it/expect from spel.allure, :context fixtures
@@ -17,7 +17,6 @@
      spel init-agents --ns my-app --loop=claude
      spel init-agents --ns my-app --flavour=clojure-test
      spel init-agents --ns my-app --no-tests
-     spel init-agents --ns my-app --test-dir test-e2e
      spel init-agents --dry-run"
   (:require
    [clojure.java.io :as io]
@@ -41,106 +40,40 @@
 
 (def ^:private loop-targets
   "Configuration for each supported agent loop target.
-    Keys: agent-dir, prompt-dir, skill-dir, agent-ext, agent-ref-fmt, desc.
-    agent-ref-fmt is a format string for agent references in prompts (takes agent name)."
+   Keys: agent-dir, skill-dir, agent-ext, desc."
   {"opencode" {:agent-dir ".opencode/agents"
-               :prompt-dir ".opencode/prompts"
                :skill-dir ".opencode/skills/spel"
                :agent-ext ".md"
-               :agent-ref-fmt "@%s"
                :desc "OpenCode"}
    "claude"   {:agent-dir ".claude/agents"
-               :prompt-dir ".claude/prompts"
                :skill-dir ".claude/docs/spel"
                :agent-ext ".md"
-               :agent-ref-fmt "@%s"
                :desc "Claude Code"}})
 
 (def ^:private valid-flavours
   "Supported test framework flavours."
   #{"lazytest" "clojure-test"})
 
-(def ^:private subagent-ref-map
-  "Maps subagent group keywords to their relevant ref file names.
-   :core refs are ALWAYS included regardless of agent selection."
-  {:core ["START_HERE.md" "CAPABILITIES.md" "FULL_API.md" "CONSTANTS.md"
-          "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md" "AGENT_COMMON.md"]
-   :test ["ASSERTIONS_EVENTS.md" "API_TESTING.md"
-          "ALLURE_REPORTING.md" "SNAPSHOT_TESTING.md" "CI_WORKFLOWS.md"]
-   :explorer ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
-              "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_AGENTS.md"
-              "BROWSER_OPTIONS.md"]
-   :automator ["EVAL_GUIDE.md" "NETWORK_ROUTING.md" "BROWSER_OPTIONS.md"
-               "CODEGEN_CLI.md" "FRAMES_INPUT.md" "PDF_STITCH_VIDEO.md"]
-   :presenter ["PRESENTER_SKILL.md" "CSS_PATTERNS.md" "LIBRARIES.md"
-               "SLIDE_PATTERNS.md" "PDF_STITCH_VIDEO.md"]
-   :bug-hunter ["EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "VISUAL_QA_GUIDE.md"
-                "BUGFIND_GUIDE.md" "NAVIGATION_WAIT.md" "NETWORK_ROUTING.md"
-                "PAGE_LOCATORS.md" "SNAPSHOT_TESTING.md"
-                "spel-report.html" "spel-report.md"]
-   :orchestrator ["AGENT_COMMON.md" "spel-report.html" "spel-report.md"]
-   :product-analyst ["PRODUCT_DISCOVERY.md" "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md"
-                     "PAGE_LOCATORS.md" "NAVIGATION_WAIT.md" "spel-report.html" "spel-report.md"]})
-
-(def ^:private subagent-groups
-  "Maps --only group keywords to sets of subagent keywords.
-   Used to resolve which agents and refs to scaffold."
-  {:test #{:test}
-   :explorer #{:explorer}
-   :automator #{:automator}
-   :presenter #{:presenter}
-   :bug-hunter #{:bug-hunter}
-   :orchestrator #{:orchestrator}
-   :automation #{:explorer :automator}
-   :visual #{:presenter}
-   :bugfind #{:bug-hunter}
-   :discovery #{:product-analyst}
-   :product-analyst #{:product-analyst}
-   ;; Simplified helper-first setup: six core agents only
-   :core #{:orchestrator :test :explorer
-           :bug-hunter :product-analyst}})
-
-(def ^:private agent-to-subagent
-  "Maps agent template names to their subagent group keyword."
-  {"spel-test-writer" :test
-   "spel-explorer" :explorer
-   "spel-automator" :automator
-   "spel-presenter" :presenter
-   "spel-bug-hunter" :bug-hunter
-   "spel-orchestrator" :orchestrator
-   "spel-product-analyst" :product-analyst})
-
-(def ^:private workflow-required-agents
-  "Maps workflow prompt resource paths to the set of subagent keywords they require.
-   A workflow is only scaffolded if ALL its required agents are selected."
-  {"prompts/spel-test-workflow.md" #{:test}
-   "prompts/spel-visual-workflow.md" #{:presenter}
-   "prompts/spel-automation-workflow.md" #{:explorer :automator}
-   "prompts/spel-bugfind-workflow.md" #{:bug-hunter}
-   "prompts/spel-discovery-workflow.md" #{:product-analyst}})
+(def ^:private reference-files
+  "All reference files to scaffold alongside the skill and agent."
+  ["START_HERE.md" "CAPABILITIES.md" "FULL_API.md" "CONSTANTS.md"
+   "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md" "AGENT_COMMON.md"
+   "ASSERTIONS_EVENTS.md" "API_TESTING.md"
+   "ALLURE_REPORTING.md" "CI_WORKFLOWS.md"
+   "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
+   "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_AGENTS.md"
+   "BROWSER_OPTIONS.md" "NETWORK_ROUTING.md" "CODEGEN_CLI.md"
+   "PDF_STITCH_VIDEO.md" "PRESENTER_SKILL.md" "CSS_PATTERNS.md"
+   "LIBRARIES.md" "SLIDE_PATTERNS.md" "SEARCH_API.md"
+   "spel-report.html" "spel-report.md"])
 
 (defn- files-to-create
-  "Returns file specs based on loop target, flavour, --only filter.
+  "Returns file specs for the single agent + skill + references.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
-   agent-name is non-nil for agent templates that need frontmatter transformation.
-   resolved-only: nil for all agents, or a set of resolved subagent keywords to filter by."
-  [loop-target flavour resolved-only _learnings?]
-  (let [{:keys [agent-dir prompt-dir skill-dir agent-ext]} (get loop-targets loop-target)
-        ct? (= "clojure-test" flavour)
-        writer-template (if ct?
-                          "agents/spel-test-writer-ct.md"
-                          "agents/spel-test-writer.md")
+   agent-name is non-nil for the agent template (needs frontmatter transformation)."
+  [loop-target flavour]
+  (let [{:keys [agent-dir skill-dir agent-ext]} (get loop-targets loop-target)
         testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
-        active-keys (if resolved-only
-                      resolved-only
-                      (reduce into #{} (vals subagent-groups)))
-        ordered-subagent-keys (filter #(and (not= :core %)
-                                         (contains? active-keys %))
-                                (keys subagent-ref-map))
-        selected-ref-files (->> (concat (:core subagent-ref-map)
-                                  (mapcat #(get subagent-ref-map %) ordered-subagent-keys))
-                             distinct
-                             vec)
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
                             "API reference skill"
@@ -157,77 +90,13 @@
                                (str "ref: " (str/replace filename #"\.[^.]+$" ""))
                                "+"
                                nil])
-                        selected-ref-files))
-        all-test-files [[writer-template
-                         (str agent-dir "/spel-test-writer" agent-ext)
-                         "test writer agent"
-                         "+"
-                         "spel-test-writer"]
-                        ["agents/spel-explorer.md"
-                         (str agent-dir "/spel-explorer" agent-ext)
-                         "explorer agent"
-                         "+"
-                         "spel-explorer"]
-                        ["agents/spel-automator.md"
-                         (str agent-dir "/spel-automator" agent-ext)
-                         "automator agent"
-                         "+"
-                         "spel-automator"]
-                        ["agents/spel-presenter.md"
-                         (str agent-dir "/spel-presenter" agent-ext)
-                         "presenter agent"
-                         "+"
-                         "spel-presenter"]
-                        ["prompts/spel-test-workflow.md"
-                         (str prompt-dir "/spel-test-workflow.md")
-                         "coverage workflow"
-                         "+"
-                         nil]
-                        ["prompts/spel-visual-workflow.md"
-                         (str prompt-dir "/spel-visual-workflow.md")
-                         "visual workflow"
-                         "+"
-                         nil]
-                        ["prompts/spel-automation-workflow.md"
-                         (str prompt-dir "/spel-automation-workflow.md")
-                         "automation workflow"
-                         "+"
-                         nil]
-                        ["agents/spel-bug-hunter.md"
-                         (str agent-dir "/spel-bug-hunter" agent-ext)
-                         "bug hunter agent"
-                         "+"
-                         "spel-bug-hunter"]
-                        ["prompts/spel-bugfind-workflow.md"
-                         (str prompt-dir "/spel-bugfind-workflow.md")
-                         "bugfind workflow"
-                         "+"
-                         nil]
-                        ["agents/spel-orchestrator.md"
-                         (str agent-dir "/spel-orchestrator" agent-ext)
-                         "orchestrator agent"
-                         "+"
-                         "spel-orchestrator"]
-                        ["agents/spel-product-analyst.md"
-                         (str agent-dir "/spel-product-analyst" agent-ext)
-                         "product analyst agent"
-                         "+"
-                         "spel-product-analyst"]
-                        ["prompts/spel-discovery-workflow.md"
-                         (str prompt-dir "/spel-discovery-workflow.md")
-                         "discovery workflow"
-                         "+"
-                         nil]]
-        test-files (if resolved-only
-                     (filterv (fn [[resource-path _ _ _ agent-name]]
-                                (if agent-name
-                                  (contains? active-keys (get agent-to-subagent agent-name))
-                                  (if-let [required (get workflow-required-agents resource-path)]
-                                    (every? #(contains? active-keys %) required)
-                                    true)))
-                       all-test-files)
-                     all-test-files)]
-    (into skill-files test-files)))
+                        reference-files))
+        agent-file [["agents/spel.md"
+                     (str agent-dir "/spel" agent-ext)
+                     "spel agent"
+                     "+"
+                     "spel"]]]
+    (into skill-files agent-file)))
 
 (defn- seed-template-resource
   "Resource path for the seed test template based on flavour.
@@ -349,37 +218,20 @@
     (subs s 1 (dec (count s)))
     s))
 
-(def ^:private agent-ref-names
-  "Agent names that may be referenced in templates via @name syntax."
-  ["spel-orchestrator"
-   "spel-test-writer"
-   "spel-explorer"
-   "spel-automator"
-   "spel-bug-hunter"
-   "spel-presenter"
-   "spel-product-analyst"])
-
-(defn- transform-agent-references
-  "Replaces @agent-name references in template content with the
-   target-appropriate agent invocation syntax based on agent-ref-fmt."
-  [content loop-target]
-  (let [fmt (:agent-ref-fmt (get loop-targets loop-target))]
-    (reduce (fn [c agent-name]
-              (str/replace c (str "@" agent-name) (format fmt agent-name)))
-      content
-      agent-ref-names)))
-
 (defn- replace-skill-instruction
   "Replaces the OpenCode skill loading instruction with a file-read instruction
    for non-OpenCode targets."
   [body skill-dir]
   (-> body
     (str/replace
+      "load the `spel` skill first"
+      (str "read `" skill-dir "/SKILL.md` first"))
+    (str/replace
       "Load the `spel` skill before any action."
       (str "Read `" skill-dir "/SKILL.md` before any action."))
     (str/replace
-      "You MUST load the `spel` skill before performing any action. This skill contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without loading it first."
-      (str "You MUST read the file `" skill-dir "/SKILL.md` before performing any action. This file contains the complete API reference for browser automation, assertions, locators, and test fixtures. Do not proceed without reading it first."))))
+      "load `spel` skill first"
+      (str "read `" skill-dir "/SKILL.md` first"))))
 
 (defn- transform-for-claude
   "Transforms OpenCode agent template to Claude Code format.
@@ -401,7 +253,7 @@
 
 (defn- transform-agent-template
   "Transforms an agent template for the target loop format.
-    Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
+   Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
   [content loop-target agent-name]
   (if (nil? agent-name)
     content
@@ -411,93 +263,18 @@
         "claude"   (transform-for-claude content agent-name skill-dir)
         content))))
 
-(defn- orchestrator-agent?
-  "Returns true when the scaffolded template is an orchestrator agent."
-  [agent-name]
-  (and (string? agent-name)
-    (str/includes? agent-name "orchestrator")))
-
-(defn- append-learnings-contract
-  "Appends opt-in learnings instructions to generated agent templates."
-  [content agent-name]
-  (let [base-contract (str
-                        "\n\n## Meta Learnings (enabled via --learnings)\n"
-                        "For every run, append your scoped learnings to `LEARNINGS.md` at repository root.\n"
-                        "If `LEARNINGS.md` does not exist yet, create it first with these top-level sections in order:\n"
-                        "- `# LEARNINGS`\n"
-                        "- `## High-Level Issues (cross-agent synthesis)`\n"
-                        "- `## Agent-Scoped Learnings`\n"
-                        "- `## Corrective Backlog`\n"
-                        "Write your section immediately after your stage/pipeline completes. Do NOT defer learnings until the end of the whole run.\n"
-                        "Do not overwrite other agent sections. Always append under this header:\n\n"
-                        "```markdown\n"
-                        "## Agent: " agent-name "\n"
-                        "### What worked\n"
-                        "- ...\n"
-                        "### What went wrong\n"
-                        "- ...\n"
-                        "### Confusions (skills/instructions/tooling)\n"
-                        "- ...\n"
-                        "### Beneficial patterns\n"
-                        "- ...\n"
-                        "### Exact Reproductions\n"
-                        "#### ISSUE-<id>\n"
-                        "- Context: <page/feature/state>\n"
-                        "- Preconditions: <required setup>\n"
-                        "- Steps:\n"
-                        "  1. ...\n"
-                        "  2. ...\n"
-                        "- Expected: ...\n"
-                        "- Actual: ...\n"
-                        "- Evidence: <screenshot path / log / ref>\n"
-                        "### Root Cause and Corrective Action\n"
-                        "- Root cause hypothesis: ...\n"
-                        "- Correction proposal (prompt/skill/template): ...\n"
-                        "- Expected effect of correction: ...\n"
-                        "### Instruction Confusions (quote exact text)\n"
-                        "- Confusing instruction: \"...\"\n"
-                        "- Why confusing: ...\n"
-                        "- Proposed rewrite: \"...\"\n"
-                        "```\n")
-        orchestrator-contract (str
-                                "\n"
-                                "### Orchestrator Synthesis (required)\n"
-                                "You must maintain these top-level sections in `LEARNINGS.md`:\n"
-                                "- `## High-Level Issues (cross-agent synthesis)`\n"
-                                "- `## Agent-Scoped Learnings`\n"
-                                "For every high-level issue, include exact reproduction with Context, Preconditions, Steps, Expected, Actual, and Evidence.\n"
-                                "Cross-check subagent findings for duplicates, contradictions, and confidence before finalizing.\n"
-                                "Append/update learnings after each completed pipeline gate, not only in the final wrap-up.\n"
-                                "You must include `## Corrective Backlog` with prompt/skill/template fixes prioritized by impact and confidence.\n")]
-    (str content
-      base-contract
-      (when (orchestrator-agent? agent-name)
-        orchestrator-contract))))
-
 ;; =============================================================================
 ;; CLI Argument Parsing
 ;; =============================================================================
 
-(defn- parse-only-value
-  "Parses a comma-separated --only value into a set of keywords.
-   E.g. \"test,automation\" => #{:test :automation}"
-  [s]
-  (->> (str/split s #",")
-    (map str/trim)
-    (remove str/blank?)
-    (map keyword)
-    set))
-
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --only AGENTS, --simplified, --learnings"
+   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --flavour"
   [args]
   (loop [remaining args
          opts {:dry-run false
                :force false
                :no-tests false
-               :simplified false
-               :learnings false
                :flavour "lazytest"
                :ns nil
                :loop "opencode"
@@ -514,20 +291,6 @@
 
           (= "--no-tests" arg)
           (recur (rest remaining) (assoc opts :no-tests true))
-
-          (= "--learnings" arg)
-          (recur (rest remaining) (assoc opts :learnings true))
-
-          (= "--simplified" arg)
-          (recur (rest remaining) (assoc opts :simplified true))
-
-          (= "--only" arg)
-          (recur (drop 2 remaining)
-            (assoc opts :only (parse-only-value (second remaining))))
-
-          (str/starts-with? arg "--only=")
-          (recur (rest remaining)
-            (assoc opts :only (parse-only-value (subs arg (count "--only=")))))
 
           (= "--flavour" arg)
           (recur (drop 2 remaining)
@@ -591,10 +354,7 @@
       :else
       (let [content (-> (read-template resource-path)
                       (process-template ns-name flavour)
-                      (transform-agent-references loop-target)
-                      (transform-agent-template loop-target agent-name)
-                      (cond-> (and (:learnings opts) agent-name)
-                        (append-learnings-contract agent-name)))
+                      (transform-agent-template loop-target agent-name))
             written? (write-file! output-path content dry-run)]
         (if dry-run
           {:created false :skipped false :dry-run true :reason "(dry-run)"}
@@ -609,14 +369,14 @@
   [loop-target no-tests]
   (let [desc (:desc (get loop-targets loop-target))]
     (if no-tests
-      (println (str "Initializing Playwright agents for " desc " (no seed test)..."))
-      (println (str "Initializing Playwright E2E testing agents for " desc "...")))
+      (println (str "Initializing spel agent for " desc " (no seed test)..."))
+      (println (str "Initializing spel agent for " desc "...")))
     (println "")))
 
 (defn- print-help
   "Prints CLI help."
   []
-  (println "spel init-agents — Scaffold E2E testing agents for your editor")
+  (println "spel init-agents — Scaffold the spel browser automation agent")
   (println "")
   (println "Usage:")
   (println "  spel init-agents --ns my-app")
@@ -624,7 +384,6 @@
   (println "  spel init-agents --ns my-app --test-dir test/e2e")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
-  (println "  spel init-agents --ns my-app --learnings")
   (println "  spel init-agents --ns my-app --dry-run")
   (println "  spel init-agents --ns my-app --force")
   (println "")
@@ -635,34 +394,20 @@
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
   (println "                    lazytest: defdescribe/it/expect from spel.allure, :context fixtures")
   (println "                    clojure-test: deftest/testing/is from clojure.test, use-fixtures")
-  (println "  --no-tests        Skip seed test — scaffold agents + SKILL only.")
-  (println "                    Use this when you don't need a starter test file.")
-  (println "  --learnings       Inject mandatory per-agent learnings contracts.")
-  (println "                    Agents create/update LEARNINGS.md lazily on first write; orchestrators synthesize high-level issues with exact reproductions.")
-  (println "  --only AGENTS     Scaffold only specific agent groups (comma-separated)")
-  (println "                    Values: test, explorer, automator, presenter,")
-  (println "                            bug-hunter, orchestrator, product-analyst,")
-  (println "                            automation, visual, bugfind, discovery, core")
-  (println "                    Groups: automation (explorer+automator),")
-  (println "                            visual (presenter),")
-  (println "                            bugfind (bug-hunter),")
-  (println "                            orchestrator (spel-orchestrator),")
-  (println "                            discovery (product-analyst),")
-  (println "                            core (simplified 6-agent setup)")
-  (println "                    Example: --only test,bugfind")
-  (println "                    SKILL.md and core refs are always included")
-  (println "  --simplified      Use simplified template set (equivalent to --only core)")
+  (println "  --no-tests        Skip seed test — scaffold agent + skill only.")
   (println "  --test-dir DIR    Root test directory for E2E tests (default: test-e2e)")
   (println "  --dry-run         Show what would be created without writing")
   (println "  --force           Overwrite existing files")
   (println "  -h, --help        Show this help")
   (println "")
   (println "Loop targets:")
-  (println "  opencode          .opencode/agents/, .opencode/prompts/, .opencode/skills/")
-  (println "  claude            .claude/agents/, .claude/prompts/, .claude/docs/")
+  (println "  opencode          .opencode/agents/, .opencode/skills/")
+  (println "  claude            .claude/agents/, .claude/docs/")
   (println "")
-  (println "Also generates (skipped by --no-tests):")
-  (println "  test-e2e/<ns>/e2e/seed_test.clj — Seed test (path derived from --ns)"))
+  (println "Scaffolds:")
+  (println "  - spel agent (browser automation, testing, bug finding, auto-learnings)")
+  (println "  - spel skill (API reference + all reference docs)")
+  (println "  - seed test (unless --no-tests)"))
 
 (defn- print-result
   "Prints a result line with icon and description."
@@ -677,13 +422,13 @@
 
 (defn- print-footer
   "Prints the completion message and next steps for the user."
-  [loop-target test-dir no-tests flavour learnings?]
+  [loop-target test-dir no-tests flavour]
   (println "")
   (if no-tests
     (do
       (if (= "opencode" loop-target)
-        (println "Done! Use @spel-orchestrator to get started, or any scaffolded agent directly.")
-        (println "Done! Use the spel-orchestrator agent to get started, or any scaffolded agent directly."))
+        (println "Done! Use @spel to get started.")
+        (println "Done! Use the spel agent to get started."))
       (println "")
       (println "Next steps:")
       (println "")
@@ -695,16 +440,11 @@
       (println (str "     :deps {com.blockether/spel {:mvn/version \"" @spel-version "\"}}"))
       (println "")
       (println "  3. Use spel for browser automation:")
-      (println "     spel open https://example.org")
-      (println "     spel eval-sci '(page/navigate \"https://example.org\")')")
-      (when learnings?
-        (println "")
-        (println "  4. Capture meta learnings in LEARNINGS.md when a run produces them")
-        (println "     Agents now create/update the file lazily; orchestrators must synthesize high-level issues.")))
+      (println "     spel open https://example.org"))
     (let [ct? (= "clojure-test" flavour)]
       (if (= "opencode" loop-target)
-        (println "Done! Use @spel-orchestrator to get started, or @spel-test-writer to generate tests directly.")
-        (println "Done! Use the spel-orchestrator agent to get started, or spel-test-writer to generate tests directly."))
+        (println "Done! Use @spel to get started.")
+        (println "Done! Use the spel agent to get started."))
       (println "")
       (println "Next steps:")
       (println "")
@@ -730,29 +470,19 @@
       (println "")
       (println "  4. Update the seed test URL in")
       (println (str "     " test-dir "/<ns>/e2e/seed_test.clj"))
-      (println "     to point to your development server.")
-      (when learnings?
-        (println "")
-        (println "  5. Capture meta learnings in LEARNINGS.md when a run produces them")
-        (println "     Agents now create/update the file lazily; orchestrators must synthesize high-level issues.")))))
+      (println "     to point to your development server."))))
 
 ;; =============================================================================
 ;; Main Entry Point
 ;; =============================================================================
 
 (defn -main
-  "CLI entry point. Scaffolds agent definitions for E2E testing."
+  "CLI entry point. Scaffolds agent + skill for browser automation."
   [& args]
   (let [opts (parse-args args)]
     (cond
       (:help opts)
       (print-help)
-
-      (= "vscode" (:loop opts))
-      (do
-        (binding [*out* *err*]
-          (println "Error: --loop=vscode has been removed. Use --loop=opencode (default) or --loop=claude instead."))
-        (System/exit 1))
 
       (not (contains? loop-targets (:loop opts)))
       (do
@@ -768,24 +498,10 @@
           (println (str "Valid flavours: " (str/join ", " (sort valid-flavours)))))
         (System/exit 1))
 
-      (and (:only opts)
-        (some #(not (contains? subagent-groups %)) (:only opts)))
-      (let [invalid (first (remove #(contains? subagent-groups %) (:only opts)))]
-        (binding [*out* *err*]
-          (println (str "Error: Unknown --only value: '" (name invalid)
-                     "'. Valid values: "
-                     (str/join ", " (sort (map name (keys subagent-groups)))))))
-        (System/exit 1))
-
       :else
       (let [loop-target (:loop opts)
             no-tests (:no-tests opts)
-            learnings? (:learnings opts)
             flavour (:flavour opts)
-            only-set (or (:only opts)
-                       (when (:simplified opts) #{:core}))
-            resolved-only (when only-set
-                            (reduce into #{} (map #(get subagent-groups %) only-set)))
             ns-name (or (:ns opts)
                       (do (when-not no-tests
                             (println "Warning: No --ns provided, deriving from directory name.")
@@ -795,17 +511,15 @@
             test-dir (:test-dir opts)]
         (print-banner loop-target no-tests)
 
-        ;; Scaffold files (agents + skill; --only filters which agents)
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour resolved-only learnings?)]
+        ;; Scaffold agent + skill + references
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour)]
           (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
             (print-result icon output-path description result)))
 
         (when-not no-tests
-          ;; Scaffold test directory with seed test
-          ;; Path derived from namespace: unbound.e2e.seed-test → test/unbound/e2e/seed_test.clj
           (let [seed-ns (str ns-name ".e2e.seed-test")
                 seed-path (ns->path test-dir seed-ns)
                 seed-result (scaffold-file (seed-template-resource flavour) seed-path "seed test" "+" opts ns-name loop-target nil)]
             (print-result "+" seed-path "seed test" seed-result)))
 
-        (print-footer loop-target test-dir no-tests flavour learnings?)))))
+        (print-footer loop-target test-dir no-tests flavour)))))

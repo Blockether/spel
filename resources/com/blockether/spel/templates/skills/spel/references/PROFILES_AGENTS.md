@@ -343,7 +343,6 @@ Capture cookies + localStorage as JSON. Lighter than a profile, easy to share be
 ```bash
 spel init-agents                              # OpenCode (default)
 spel init-agents --loop=claude                # Claude Code
-spel init-agents --loop=vscode                # DEPRECATED — exits with error
 spel init-agents --flavour=clojure-test       # clojure.test instead of Lazytest
 spel init-agents --no-tests                   # SKILL only, no test agents
 ```
@@ -352,7 +351,7 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--loop TARGET` | `opencode` | `opencode`, `claude` (`vscode` deprecated) |
+| `--loop TARGET` | `opencode` | `opencode`, `claude` |
 | `--ns NS` | directory name | Base namespace for generated tests |
 | `--flavour FLAVOUR` | `lazytest` | `lazytest` or `clojure-test` |
 | `--no-tests` | off | Only SKILL (API reference), skip test agents |
@@ -364,8 +363,7 @@ spel init-agents --no-tests                   # SKILL only, no test agents
 
 | File | Purpose |
 |------|---------|
-| `agents/spel-test-writer` | Explores, generates, verifies selectors, self-heals failures |
-| `prompts/spel-test-workflow` | Orchestrator prompt: generate + heal cycle |
+| `agents/spel` | Explores, generates tests, finds bugs, automates browser tasks |
 | `skills/spel/SKILL.md` | API reference for agents |
 | `<test-dir>/<ns>/e2e/seed_test.clj` | Seed test file with a working example |
 
@@ -373,8 +371,7 @@ With `--no-tests`, only SKILL is generated — useful when you want the API refe
 
 ### File locations by target
 
-| Target | Agents | Skills | Prompts |
-|--------|--------|--------|---------|
-| `opencode` | `.opencode/agents/` | `.opencode/skills/spel/` | `.opencode/prompts/` |
-| `claude` | `.claude/agents/` | `.claude/docs/spel/` | `.claude/prompts/` |
-| `vscode` ⚠️ deprecated | `.github/agents/` | `.github/docs/spel/` | `.github/prompts/` |
+| Target | Agents | Skills |
+|--------|--------|--------|
+| `opencode` | `.opencode/agents/` | `.opencode/skills/spel/` |
+| `claude` | `.claude/agents/` | `.claude/docs/spel/` |

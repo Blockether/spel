@@ -1537,10 +1537,10 @@
      to reduce clutter, so restore the pointer cursor + marker. */
   body.single-mode details.environment-panel > summary { cursor: pointer; }
   body.single-mode details.environment-panel > summary .disclosure-marker { display: inline-block; }
-  /* In single mode the HTTP attachment panel is always open and its
-     content already shows method + URL + status, so the redundant
-     HTTP summary pill is suppressed. */
-  body.single-mode .attachment-panel-markdown > summary { display: none; }
+  /* In single mode, attachment panels (HTTP exchanges, logs, stack traces)
+     remain toggleable so users can fold/unfold individual sections. */
+  body.single-mode details.attachment-panel > summary { cursor: pointer; }
+  body.single-mode details.attachment-panel > summary .disclosure-marker { display: inline-block; }
   .toolbar {
     position: sticky;
     top: 0;
@@ -1617,18 +1617,7 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  /* Stronger affordance for the Open Trace button so it reads as a real
-     button — the default ghost style is too faint on the panel background. */
-  .trace-launch {
-    background: var(--bg-accent);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .trace-launch:hover {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-  }
+  /* trace-launch: same ghost style as Download trace zip — no accent override. */
   .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .filter-btn[data-filter='passed'].active { background: var(--accent-green-light); border-color: var(--accent-green-border); color: var(--accent-green); }
   .filter-btn[data-filter='failed'].active { background: var(--accent-red); border-color: var(--accent-red); }
@@ -2581,7 +2570,7 @@
         if (!s || !document.body.contains(s)) return;
         // Keep the Environment panel togglable — users can still collapse it
         // even in single-mode. Everything else stays locked open.
-        if (s.parentElement && s.parentElement.classList.contains('environment-panel')) return;
+        if (s.parentElement && (s.parentElement.classList.contains('environment-panel') || s.parentElement.classList.contains('attachment-panel'))) return;
         e.preventDefault();
       }, true);
     }
@@ -2615,14 +2604,28 @@
           ? attList.querySelectorAll(':scope > .attachment-panel-markdown').length
           : 0;
         if (stepHeader && siblingPanels === 1 && !stepHeader.dataset.httpMerged){
-          // Always-open layout: the panel body stays visible under the
-          // step-header, no chevron, no click-to-toggle. The step row
-          // + HTTP body read as one static component.
-          panelSummary.style.display = 'none';
-          panel.classList.add('attachment-panel-flat');
-          panel.open = true;
-          stepHeader.dataset.httpMerged = '1';
-          panelSummary.dataset.httpInlined = '1';
+          var isSingleMode = document.body.classList.contains('single-mode');
+          if (isSingleMode) {
+            // Single mode: flat styling but keep summary visible + toggleable
+            panel.classList.add('attachment-panel-flat');
+            panel.open = true;
+            stepHeader.dataset.httpMerged = '1';
+            panelSummary.dataset.httpInlined = '1';
+            // Inline title into the panel summary for a nice label
+            var label = panelSummary.querySelector('span:not(.disclosure-marker)');
+            if (label && title.parentElement !== panelSummary){
+              label.replaceWith(title);
+            }
+          } else {
+            // Always-open layout: the panel body stays visible under the
+            // step-header, no chevron, no click-to-toggle. The step row
+            // + HTTP body read as one static component.
+            panelSummary.style.display = 'none';
+            panel.classList.add('attachment-panel-flat');
+            panel.open = true;
+            stepHeader.dataset.httpMerged = '1';
+            panelSummary.dataset.httpInlined = '1';
+          }
           return;
         }
         // Fallback: no step (or multiple attachments) — inline the

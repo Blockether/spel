@@ -43,7 +43,6 @@ Primary references:
 - `references/TESTING_CONVENTIONS.md`
 - `references/ASSERTIONS_EVENTS.md`
 - `references/API_TESTING.md`
-- `references/SNAPSHOT_TESTING.md`
 - `references/ALLURE_REPORTING.md`
 
 ## Automation and CDP
@@ -58,15 +57,10 @@ Primary references:
 - `references/NETWORK_ROUTING.md`
 - `references/AGENT_COMMON.md`
 
-## QA, reports, and discovery
+## Reports
 
-- Bug finding and visual QA workflows
-- Product discovery analysis and structured reports
 - Shared HTML/Markdown report templates
 
 Primary references:
-- `references/BUGFIND_GUIDE.md`
-- `references/VISUAL_QA_GUIDE.md`
-- `references/PRODUCT_DISCOVERY.md`
 - `references/spel-report.html`
 - `references/spel-report.md`

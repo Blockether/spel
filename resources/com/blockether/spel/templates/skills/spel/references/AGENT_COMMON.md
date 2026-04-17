@@ -153,7 +153,7 @@ A GATE is valid only when: required artifacts exist, `missing_artifacts` is empt
 | Session conflict | `--session` error | Generate fresh unique name, retry |
 | CDP attach flake | `TargetClosedError` / `ECONNREFUSED` | One-owner session per endpoint; relaunch only the dedicated debug browser |
 | Edit tool denied by policy | Tool-permission error on artifact write | Write with `bash`/`python`, then read back + verify content/paths |
-| Auth required | Login form detected | Report + suggest `@spel-explorer` auth bootstrap or `--load-state` |
+| Auth required | Login form detected | Report + suggest auth bootstrap or `--load-state` |
 | JS errors / network failures | Console / network log | Capture, continue unless page is non-functional; distinguish blocking vs non-blocking |
 
 ```bash
@@ -337,4 +337,4 @@ QA report embeds video via `<video>` + SRT track — see `spel-report.html` / `s
 
 ## See also
 
-- `FULL_API.md` · `EVAL_GUIDE.md` · `SELECTORS_SNAPSHOTS.md` · `VISUAL_QA_GUIDE.md`
+- `FULL_API.md` · `EVAL_GUIDE.md` · `SELECTORS_SNAPSHOTS.md`

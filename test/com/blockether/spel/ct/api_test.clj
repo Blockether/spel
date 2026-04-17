@@ -9,7 +9,16 @@
   (:import
    [com.microsoft.playwright APIRequestContext]))
 
-(clojure.test/use-fixtures :each ts/with-test-server)
+(clojure.test/use-fixtures :each
+  (fn [f]
+    (let [server (ts/start-test-server)
+          port   (ts/server-port server)
+          url    (str "http://localhost:" port)]
+      (try
+        (binding [ts/*test-server-url* url]
+          (f))
+        (finally
+          (ts/stop-test-server server))))))
 
 ;; page-api
 
@@ -26,7 +35,8 @@
   (testing "makes GET requests"
     (api/with-testing-page [pg]
       (let [api-ctx (api/page-api pg)
-            resp (api/api-get api-ctx (str ts/*test-server-url* "/health"))]
+            resp (allure/api-step "GET /health via page-api"
+                   (api/api-get api-ctx (str ts/*test-server-url* "/health")))]
         (is (= 200 (api/api-response-status resp)))))))
 
 ;; context-api
@@ -47,7 +57,8 @@
   (allure/feature "with-testing-api")
   (testing "creates working API context"
     (api/with-testing-api {:base-url ts/*test-server-url*} [ctx]
-      (let [resp (api/api-get ctx "/health")]
+      (let [resp (allure/api-step "GET /health"
+                   (api/api-get ctx "/health"))]
         (is (= 200 (api/api-response-status resp)))))))
 
 (deftest with-testing-api-post-test
@@ -55,7 +66,10 @@
   (allure/feature "with-testing-api")
   (testing "supports POST"
     (api/with-testing-api {:base-url ts/*test-server-url*} [ctx]
-      (let [resp (api/api-post ctx "/echo" {:data "test"})]
+      (let [resp (allure/api-step "POST /echo"
+                   (api/api-post ctx "/echo"
+                     {:data "{\"action\":\"test\"}"
+                      :headers {"Content-Type" "application/json"}}))]
         (is (= 200 (api/api-response-status resp)))))))
 
 ;; with-page-api
@@ -66,7 +80,8 @@
   (testing "creates API context with custom base-url"
     (api/with-testing-page [pg]
       (api/with-page-api pg {:base-url ts/*test-server-url*} [ctx]
-        (let [resp (api/api-get ctx "/health")]
+        (let [resp (allure/api-step "GET /health via page-api"
+                     (api/api-get ctx "/health"))]
           (is (= 200 (api/api-response-status resp))))))))
 
 ;; run-with-testing-api
