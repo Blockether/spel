@@ -246,9 +246,9 @@ eval-sci equivalent:
 
 > In library test code (not SCI/CLI) use `page/get-by-role page role/button`, not `spel/get-by-role role/button`.
 
-## Mandatory viewport audit
+## Mandatory viewport check
 
-Every audited page at all three viewports. No exceptions.
+Every tested page at all three viewports. No exceptions.
 
 | Viewport | Size | Set via |
 |----------|------|---------|
@@ -266,7 +266,7 @@ Per viewport, capture annotated screenshot + snapshot JSON + overflow check:
 
 ## Mandatory exploratory pass
 
-After structured audit, 30–90 s unscripted exploration:
+After structured testing, 30–90 s unscripted exploration:
 
 1. Click without a plan, try unlikely paths.
 2. Submit forms with empty / too-long / special-char data.
