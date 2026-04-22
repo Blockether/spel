@@ -195,12 +195,12 @@
   (it "replaces short skill loading instruction"
     (let [result (#'sut/replace-skill-instruction
                   "Load the `spel` skill before any action."
-                  ".claude/docs/spel")]
-      (expect (= "Read `.claude/docs/spel/SKILL.md` before any action." result))))
+                  ".claude/skills/spel")]
+      (expect (= "Read `.claude/skills/spel/SKILL.md` before any action." result))))
 
   (it "passes through content without skill instructions"
     (let [body "No skill instructions here"
-          result (#'sut/replace-skill-instruction body ".claude/docs/spel")]
+          result (#'sut/replace-skill-instruction body ".claude/skills/spel")]
       (expect (= body result)))))
 
 ;; =============================================================================
@@ -212,7 +212,7 @@
 
   (it "transforms frontmatter with description and default color"
     (let [content "---\ndescription: \"A test agent\"\n---\nBody text"
-          result (#'sut/transform-for-claude content "spel" ".claude/docs/spel")]
+          result (#'sut/transform-for-claude content "spel" ".claude/skills/spel")]
       (expect (str/includes? result "name: spel"))
       (expect (str/includes? result "description: \"A test agent\""))
       (expect (str/includes? result "tools: Bash, Read, Write, Edit, Glob, Grep"))
@@ -221,23 +221,23 @@
 
   (it "preserves custom color from frontmatter"
     (let [content "---\ndescription: \"Agent\"\ncolor: \"#FF0000\"\n---\nBody"
-          result (#'sut/transform-for-claude content "spel" ".claude/docs/spel")]
+          result (#'sut/transform-for-claude content "spel" ".claude/skills/spel")]
       (expect (str/includes? result "color: \"#FF0000\""))))
 
   (it "uses default color when none specified"
     (let [content "---\ndescription: \"Agent\"\n---\nBody"
-          result (#'sut/transform-for-claude content "spel" ".claude/docs/spel")]
+          result (#'sut/transform-for-claude content "spel" ".claude/skills/spel")]
       (expect (str/includes? result "color: \"#22C55E\""))))
 
   (it "returns content unchanged when no frontmatter"
     (let [content "No frontmatter here"
-          result (#'sut/transform-for-claude content "spel" ".claude/docs/spel")]
+          result (#'sut/transform-for-claude content "spel" ".claude/skills/spel")]
       (expect (= content result))))
 
   (it "replaces skill loading instruction in body"
     (let [content "---\ndescription: \"Agent\"\n---\nLoad the `spel` skill before any action."
-          result (#'sut/transform-for-claude content "spel" ".claude/docs/spel")]
-      (expect (str/includes? result "Read `.claude/docs/spel/SKILL.md` before any action.")))))
+          result (#'sut/transform-for-claude content "spel" ".claude/skills/spel")]
+      (expect (str/includes? result "Read `.claude/skills/spel/SKILL.md` before any action.")))))
 
 ;; =============================================================================
 ;; 6. Agent Template Transformation Dispatch
@@ -322,7 +322,7 @@
     (it "includes all reference files"
       (let [paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest")))]
         (expect (some #(str/includes? % "EVAL_GUIDE.md") paths))
-        (expect (some #(str/includes? % "BUGFIND_GUIDE.md") paths))
+        (expect (some #(str/includes? % "SESSION_COMMON.md") paths))
         (expect (some #(str/includes? % "ASSERTIONS_EVENTS.md") paths))))
 
     (it "does not duplicate reference files"
@@ -336,9 +336,9 @@
         (expect (some #(str/starts-with? % ".claude/") paths))
         (expect (not (some #(str/starts-with? % ".opencode/") paths)))))
 
-    (it "includes SKILL.md under .claude/docs/spel"
+    (it "includes SKILL.md under .claude/skills/spel"
       (let [paths (output-paths (#'sut/files-to-create "claude" "lazytest"))]
-        (expect (some #(= ".claude/docs/spel/SKILL.md" %) paths)))))
+        (expect (some #(= ".claude/skills/spel/SKILL.md" %) paths)))))
 
   (describe "clojure-test flavour"
     (it "uses clojure-test testing conventions"
