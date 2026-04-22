@@ -59,23 +59,6 @@ CDP attach fails (`TargetClosedError`, `ECONNREFUSED`):
 3. Relaunch only the dedicated debug browser, reattach.
 4. Re-snapshot, continue.
 
-## Audit commands
-
-`spel audit` runs every page-quality audit; subcommands run individual checks.
-
-| CLI | eval-sci | Checks |
-|---|---|---|
-| `spel audit` | — | All 7 combined |
-| `spel audit structure` | `(audit)` | Page landmarks and sections |
-| `spel audit contrast` | `(text-contrast)` | WCAG text contrast |
-| `spel audit colors` | `(color-palette)` | Color palette |
-| `spel audit layout` | `(layout-check)` | Overflow, overlap, alignment |
-| `spel audit fonts` | `(font-audit)` | Font consistency |
-| `spel audit links` | `(link-health)` | Broken links (HEAD) |
-| `spel audit headings` | `(heading-structure)` | Heading hierarchy |
-
-Subset: `spel audit --only contrast,layout`.
-
 ## I/O contracts
 
 ### Contract format

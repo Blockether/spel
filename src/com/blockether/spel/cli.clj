@@ -511,34 +511,6 @@
       "  --overlap PX              Pixel overlap between frames"
       "  --max-frames N            Maximum frames to capture"])
 
-   "audit"
-   (str/join \newline
-     ["audit - Run page quality audits (all or specific)"
-      ""
-      "Usage:"
-      "  spel audit                    Run all audits at once"
-      "  spel audit <subcommand>       Run a specific audit"
-      ""
-      "Subcommands:"
-      "  structure    Discover page landmarks and sections"
-      "  contrast     Audit WCAG text contrast for all visible text"
-      "  colors       Extract the color palette used on the page"
-      "  layout       Detect layout issues (overflow, overlap, alignment)"
-      "  fonts        Audit font usage consistency across the page"
-      "  links        Check all links for health (status codes, broken links)"
-      "  headings     Analyze heading hierarchy (h1-h6) for structure issues"
-      ""
-      "Flags:"
-      "  --all         Run all audits explicitly (same as bare `spel audit`)"
-      "  --only LIST   Comma-separated list of audits to run (e.g. --only contrast,layout)"
-      ""
-      "Examples:"
-      "  spel audit                        # run all 7 audits"
-      "  spel audit --all                  # explicit all-audits mode"
-      "  spel audit structure              # page landmarks only"
-      "  spel audit contrast               # WCAG contrast only"
-      "  spel audit --only fonts,links     # selective"])
-
    "markdownify"
    (str/join \newline
      ["markdownify - Convert page or HTML input into Markdown"
@@ -1107,24 +1079,6 @@
       "  spel session list"
       "  spel --session work open https://example.org"])
 
-   "dashboard"
-   (str/join \newline
-     ["dashboard - Observability dashboard"
-      ""
-      "Usage:"
-      "  spel dashboard [subcommand]"
-      ""
-      "Subcommands:"
-      "  start [port]  Start dashboard HTTP server (default port: 4848)"
-      "  stop          Stop the dashboard"
-      "  status        Check if dashboard is running"
-      ""
-      "Examples:"
-      "  spel dashboard start"
-      "  spel dashboard start 9090"
-      "  spel dashboard stop"
-      "  spel dashboard status"])
-
    "connect"
    (str/join \newline
      ["connect - Connect to a browser via Chrome DevTools Protocol"
@@ -1493,7 +1447,7 @@
      "  annotate                Inject annotation overlays"
      "  unannotate              Remove annotation overlays"
      "  survey                  Sweep viewport screenshots down page"
-     "  audit                   Page quality audits (structure, contrast, layout, fonts, links, headings, colors)"
+
      "  markdownify             Convert page or HTML input into Markdown"
      "  routes                  Extract links from page"
      "  inspect                 Interactive styled snapshot"
@@ -2306,35 +2260,6 @@
                        (assoc :max-frames (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--max-frames"))]
                                             (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "50"))))))
 
-          ;; Audit (umbrella: runs all audits or a specific subcommand)
-            "audit" (let [sub      (first cmd-args)
-                          args-v   (vec cmd-args)
-                          only-val (when (some #{"--only"} args-v)
-                                     (let [idx (.indexOf ^java.util.List args-v "--only")]
-                                       (when (>= idx 0) (nth args-v (inc idx) nil))))
-                          all?     (some #{"--all"} args-v)
-                          report?  (some #{"--report"} args-v)
-                          ;; --report optionally takes a path (next arg if not a flag)
-                          report-val (when report?
-                                       (let [idx (.indexOf ^java.util.List args-v "--report")
-                                             nxt (when (>= idx 0) (nth args-v (inc idx) nil))]
-                                         (if (and nxt (not (str/starts-with? nxt "--")))
-                                           nxt
-                                           true)))]
-                      (case sub
-                        "structure" {:action "audit"}
-                        "contrast"  {:action "text-contrast"}
-                        "colors"    {:action "color-palette"}
-                        "layout"    {:action "layout-check"}
-                        "fonts"     {:action "font-audit"}
-                        "links"     {:action "link-health"}
-                        "headings"  {:action "heading-structure"}
-                       ;; No subcommand or unknown → run all
-                        (cond-> {:action "audit" :all true}
-                          all?       (assoc :all true)
-                          only-val   (assoc :only only-val)
-                          report-val (assoc :report report-val))))
-
             "markdownify" (let [args-v    (vec cmd-args)
                                 flag-val  (fn [flag]
                                             (let [i (.indexOf ^java.util.List args-v flag)]
@@ -2785,16 +2710,6 @@
                            "disconnect" {:action "cdp_disconnect"}
                            "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
                            {:error (str "Unknown cdp command: " sub)}))
-
-          ;; Dashboard
-            "dashboard" (let [sub (first cmd-args)]
-                          (case sub
-                            "start"  {:action "dashboard_start"
-                                      :port   (or (second cmd-args) "4848")}
-                            "stop"   {:action "dashboard_stop"}
-                            "status" {:action "dashboard_status"}
-                            (nil)    {:action "dashboard_status"}
-                            {:error (str "Unknown dashboard command: " sub)}))
 
           ;; Utility: free local TCP port
             "find-free-port" {:action "find_free_port"}

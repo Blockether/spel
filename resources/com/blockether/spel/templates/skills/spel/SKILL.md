@@ -137,7 +137,7 @@ Blocked nav → anomaly `blockedbyclient`. stderr never wrapped/truncated.
 ## Examples
 
 1. **E2E tests** — "Test login at http://localhost:3000" → explore live app → generate test file → run → Allure report.
-2. **Bug audit** — "Find bugs on https://example.com" → open → audit → capture evidence → report.
+2. **Bug finding** — "Find bugs on https://example.com" → open → inspect → capture evidence → report.
 3. **Automation** — "Automate registration form" → explore → write reusable `.clj` script.
 4. **One-shot screenshot** — `spel open <url> && spel wait --load load && spel screenshot out.png`.
 5. **Visual + refs in one call** — `spel screenshot -a` → PNG with labels + `@ref role "name"` list in reading order.

@@ -72,16 +72,13 @@ Test rules:
 
 ### Find bugs
 
-Open the page, run audits, capture evidence.
+Open the page, inspect and capture evidence.
 
 ```bash
 spel --session $SESSION open <url>
-spel --session $SESSION eval-sci '(audit)'       # page structure
 spel --session $SESSION eval-sci '(debug)'       # console errors + failed resources
-spel audit layout                                 # layout issues
-spel audit links                                  # broken links
-spel audit contrast                               # WCAG contrast
-spel audit headings                               # heading structure
+spel --session $SESSION snapshot -i               # interactive snapshot
+spel --session $SESSION screenshot                # capture screenshot
 ```
 
 Check 3 viewports (desktop 1280×720, tablet 768×1024, mobile 375×667):

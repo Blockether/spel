@@ -1681,36 +1681,6 @@
       (let [result (cmd "survey" {"max-frames" 2})]
         (expect (<= (count (:frames result)) 2)))))
 
-  (describe "audit"
-
-    (it "returns page structure with sections"
-      (cmd "navigate" {"url" "https://example.com"})
-      (let [result (cmd "audit" {})]
-        (expect (string? (:url result)))
-        (expect (string? (:title result)))
-        (expect (pos? (:scroll-height result)))
-        (expect (map? (:viewport result)))
-        (expect (vector? (:sections result)))))
-
-    (it "runs all audits when all flag is set"
-      (cmd "navigate" {"url" "https://example.com"})
-      (let [result (cmd "audit" {"all" true})]
-        (expect (map? (:structure result)))
-        (expect (map? (:contrast result)))
-        (expect (map? (:colors result)))
-        (expect (map? (:layout result)))
-        (expect (map? (:fonts result)))
-        (expect (map? (:links result)))
-        (expect (map? (:headings result)))))
-
-    (it "runs only requested audits when only is set"
-      (cmd "navigate" {"url" "https://example.com"})
-      (let [result (cmd "audit" {"only" "contrast,layout"})]
-        (expect (nil? (:structure result)))
-        (expect (map? (:contrast result)))
-        (expect (map? (:layout result)))
-        (expect (nil? (:fonts result))))))
-
   (describe "markdownify"
 
     (it "returns markdown for current page"

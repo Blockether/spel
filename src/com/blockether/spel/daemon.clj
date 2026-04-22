@@ -31,7 +31,6 @@
    [com.blockether.spel.security :as security]
    [com.blockether.spel.stealth :as stealth]
    [com.blockether.spel.vault :as vault]
-   [com.blockether.spel.dashboard :as dashboard]
    [com.blockether.spel.visual-diff :as visual-diff]
    [com.blockether.spel.platform :as platform])
   (:import
@@ -1113,7 +1112,6 @@
    These are read-only queries, session management, or local buffer operations
    that don't drive the page and should never queue."
   #{"close" "session_info" "session_list"
-    "dashboard_start" "dashboard_stop" "dashboard_status"
     "cdp_disconnect" "cdp_reconnect"
     "network_list" "network_requests" "network_get_ref"
     "console_list" "console_get_ref"
@@ -1314,7 +1312,7 @@
   "Set of user-facing browser commands that should be recorded in the action log."
   #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
     "select" "dblclick" "focus" "clear" "screenshot" "scroll"
-    "survey" "audit" "routes" "inspect" "overview" "debug" "emulate" "markdownify"
+    "survey" "routes" "inspect" "overview" "debug" "emulate" "markdownify"
     "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
 
 (defn- track-action!
@@ -2600,44 +2598,6 @@
         results (helpers/survey! (pg) opts)]
     {:frames results :count (count results)}))
 
-(defmethod handle-cmd "audit" [_ params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (let [all?   (boolean (get params "all"))
-        only   (when-let [o (get params "only")]
-                 (if (string? o) (set (str/split o #",")) (set o)))
-        report (get params "report")
-        pg     (pg)
-        ;; 1) Produce audit data — single code path
-        result (if (or all? (nil? only) report)
-                 ;; --all / --report / no subcommand → run everything
-                 (if (and only (not report))
-                   ;; --only subset (without --report)
-                   (let [run? (fn [k] (contains? only (name k)))
-                         safe (fn [f] (try (f) (catch Exception e {:error (.getMessage e)})))]
-                     (cond-> {}
-                       (run? :structure) (assoc :structure (safe #(helpers/audit! pg)))
-                       (run? :contrast)  (assoc :contrast  (safe #(helpers/text-contrast! pg)))
-                       (run? :colors)    (assoc :colors    (safe #(helpers/color-palette! pg)))
-                       (run? :layout)    (assoc :layout    (safe #(helpers/layout-check! pg)))
-                       (run? :fonts)     (assoc :fonts     (safe #(helpers/font-audit! pg)))
-                       (run? :links)     (assoc :links     (safe #(helpers/link-health! pg)))
-                       (run? :headings)  (assoc :headings  (safe #(helpers/heading-structure! pg)))))
-                   ;; Full audit-all
-                   (helpers/audit-all! pg))
-                 ;; Structure-only (bare `spel audit`)
-                 (helpers/audit! pg))]
-    ;; 2) If --report, generate HTML from the SAME data that was just produced
-    (if report
-      (let [path     (if (string? report) report "spel-audit-report.html")
-            ss-bytes (try (annotate/audit-screenshot pg "Spel Audit")
-                       (catch Exception _ nil))
-            rpt      (helpers/write-audit-report! result path
-                       (cond-> {:url (page/url pg) :title (page/title pg)}
-                         ss-bytes (assoc :screenshot ss-bytes)))]
-        (assoc rpt :audits result))
-      result)))
-
 (defmethod handle-cmd "markdownify" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
@@ -2729,36 +2689,6 @@
                  :total_issues (+ (count console-errs)
                                  (count page-errs)
                                  (count failed-net))}})))
-
-(defmethod handle-cmd "text-contrast" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/text-contrast! (pg)))
-
-(defmethod handle-cmd "color-palette" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/color-palette! (pg)))
-
-(defmethod handle-cmd "layout-check" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/layout-check! (pg)))
-
-(defmethod handle-cmd "font-audit" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/font-audit! (pg)))
-
-(defmethod handle-cmd "link-health" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/link-health! (pg)))
-
-(defmethod handle-cmd "heading-structure" [_ _params]
-  (ensure-browser!)
-  (ensure-page-loaded!)
-  (helpers/heading-structure! (pg)))
 
 (defmethod handle-cmd "emulate" [_ params]
   (ensure-browser!)
@@ -4151,43 +4081,6 @@
   (cond-> {:closed true :shutdown true}
     (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))
 
-;; --- Dashboard ---
-
-(defn dashboard-state
-  "Returns a read-only snapshot of daemon state for the dashboard.
-   Called by the dashboard HTTP server (runs in the same process)."
-  []
-  {:page-fn  pg
-   :state    @!state
-   :console  @!console-messages
-   :errors   @!page-errors
-   :network  @!tracked-requests
-   :activity @sci-env/!action-log})
-
-(defmethod handle-cmd "dashboard_start" [_ {:strs [port]}]
-  (let [p (long (if (string? port) (parse-long port) (or port 4848)))]
-    (if (dashboard/dashboard-running?)
-      {:error "Dashboard already running"
-       :port  (dashboard/dashboard-port)}
-      (do
-        (dashboard/start-dashboard! p dashboard-state)
-        {:dashboard "started"
-         :port      p
-         :url       (str "http://localhost:" p)}))))
-
-(defmethod handle-cmd "dashboard_stop" [_ _]
-  (if (dashboard/dashboard-running?)
-    (do
-      (dashboard/stop-dashboard!)
-      {:dashboard "stopped"})
-    {:error "Dashboard is not running"}))
-
-(defmethod handle-cmd "dashboard_status" [_ _]
-  {:running (dashboard/dashboard-running?)
-   :port    (dashboard/dashboard-port)
-   :url     (when (dashboard/dashboard-running?)
-              (str "http://localhost:" (dashboard/dashboard-port)))})
-
 (defmethod handle-cmd :default [action _]
   {:error (str "Unknown action: " action)})
 
@@ -4396,8 +4289,7 @@
    a fresh daemon. Only deletes PID/socket files if they still belong to
    THIS process (prevents nuking a replacement daemon's files)."
   []
-  ;; 0. Stop dashboard & cancel idle timers
-  (when (dashboard/dashboard-running?) (try (dashboard/stop-dashboard!) (catch Exception e (warn "stop-dashboard" e))))
+  ;; 0. Cancel idle timers
   (cancel-cdp-idle-shutdown!)
   (cancel-session-idle-shutdown!)
   (let [session (:session @!state)]
