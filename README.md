@@ -32,7 +32,7 @@
 <td width="25%" align="center"><b>Page Snapshots</b></td>
 <td width="25%" align="center"><b>Inline&nbsp;Scripting</b></td>
 <td width="25%" align="center"><b>Visual Annotations</b></td>
-<td width="25%" align="center"><b>Video Recording</b></td>
+<td width="25%" align="center"><b>Test Reporting</b></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/cli-snapshot.png" alt="spel snapshot demo"/></td>
@@ -369,9 +369,9 @@ Browser and API tests can feed the same Allure report with traces, screenshots, 
 See the [full API reference](resources/com/blockether/spel/templates/skills/spel/references/FULL_API.md), [browser options](resources/com/blockether/spel/templates/skills/spel/references/BROWSER_OPTIONS.md), [Allure reporting](resources/com/blockether/spel/templates/skills/spel/references/ALLURE_REPORTING.md), and [API testing](resources/com/blockether/spel/templates/skills/spel/references/API_TESTING.md).
 
 
-## Video Recording
+## Test Reporting
 
-Record browser sessions as WebM files for debugging and CI artifacts.
+Generate rich HTML reports with embedded screenshots, traces, and test results via Allure.
 
 ```clojure
 (def ctx (core/new-context browser {:record-video-dir "videos"}))
