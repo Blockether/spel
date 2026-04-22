@@ -362,4 +362,4 @@ Prefer these over reading SKILL.md while writing `eval-sci`.
 |---------|---------|
 | `spel <command>` | Browser automation CLI (100+ commands) |
 | `spel codegen` | Record + transform sessions to Clojure |
-| `spel init-agents` | Scaffold E2E agents (`--loop=opencode|claude`) |
+

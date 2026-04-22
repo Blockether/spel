@@ -862,7 +862,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
 | `spel/input-value` | [sel] | Returns the input value of an input element. |
-| `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles - the 'agent view'. |
+| `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles for interactive debugging. |
 | `spel/keyboard` | [] | Presses a key or key combination on the page keyboard. |
 | `spel/keyboard-press` | [key] | Presses a key on the page keyboard (no selector needed). |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |
@@ -1567,7 +1567,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `--session <name>` | Named session (default: \"default\") |
 | `--no-persist` | Disable auto-persist of cookies/storage |
-| `--json` | JSON output (for agents) |
+| `--json` | JSON output |
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
 | `--browser <engine>` | Browser engine: chromium, firefox, webkit |
@@ -1593,7 +1593,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `search <query> [opts]` | Google search from the CLI (--help for details) |
 | `markdownify [opts]` | Convert current page, URL, file, or input HTML to Markdown |
-| `init-agents [opts]` | Scaffold E2E testing agents (--help for details) |
+
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
 | `ci-assemble [opts]` | Assemble Allure site for CI deployment (--help for details) |

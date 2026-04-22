@@ -1352,7 +1352,7 @@ assert_contains "init-agents --loop=claude creates .claude agent" "$OUT" ".claud
 
 CLAUDE_AGENT_FILE="$CLAUDE_TMP/.claude/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q 'read `.claude/docs/spel/SKILL.md` first' "$CLAUDE_AGENT_FILE"; then
+if grep -q 'read `.claude/skills/spel/SKILL.md` first' "$CLAUDE_AGENT_FILE"; then
   pass "claude agent reads local SKILL.md"
 else
   fail "claude agent reads local SKILL.md" "Expected Claude agent to read local SKILL.md"
@@ -1393,7 +1393,7 @@ else
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '.claude/docs/spel/SKILL.md' "$OC_AGENT_FILE"; then
+if grep -q '.claude/skills/spel/SKILL.md' "$OC_AGENT_FILE"; then
   fail "opencode agent avoids claude skill path" "Expected OpenCode scaffold to avoid Claude skill path"
 else
   pass "opencode agent avoids claude skill path"
@@ -2031,26 +2031,10 @@ assert_contains "markdownify --help mentions --input" "$OUT" "--input"
 assert_contains "markdownify --help mentions --full" "$OUT" "--full"
 assert_contains "markdownify --help mentions --no-title" "$OUT" "--no-title"
 
-section "Agent Evals (46)"
-
-OUT=$(python3 evals/run.py --binary "$SPEL" --help 2>&1)
-assert_contains "evals --help mentions binary" "$OUT" "--binary"
-assert_contains "evals --help mentions strict-advisory" "$OUT" "--strict-advisory"
-
-OUT=$(python3 evals/run.py --binary "$SPEL" --case orchestrator-core-opencode --json 2>&1)
-assert_jq "evals smoke → case count" "$OUT" '.summary.case_count == 1'
-assert_jq "evals smoke → required failures == 0" "$OUT" '.summary.required_failed == 0'
-assert_jq "evals smoke → case status pass" "$OUT" '.cases[0].status == "pass"'
-
-OUT=$(python3 evals/run_real.py --binary "$SPEL" --case orchestrator-automation-blocked-no-url --json 2>&1)
-assert_jq "real evals smoke → case count" "$OUT" '.summary.case_count == 1'
-assert_jq "real evals smoke → no hard fail" "$OUT" '.summary.fail == 0'
-assert_jq "real evals smoke → classified status" "$OUT" '(.cases[0].status == "pass") or (.cases[0].status == "blocked_runtime_billing") or (.cases[0].status == "blocked_runtime_auth") or (.cases[0].status == "blocked_runtime_timeout")'
-
 # =============================================================================
-# AUTO-LAUNCH (47)
+# AUTO-LAUNCH (46)
 # =============================================================================
-section "Auto-Launch (47)"
+section "Auto-Launch (46)"
 
 # 1. --help mentions auto-launch
 OUT=$("$SPEL" --help 2>&1)

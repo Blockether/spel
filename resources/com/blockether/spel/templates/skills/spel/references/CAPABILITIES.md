@@ -17,11 +17,11 @@ Primary references:
 
 - Accessibility snapshots with element refs
 - Interactive snapshots, compact snapshots, annotated screenshots
-- Selector and ref-first workflows for agents
+- Selector and ref-first workflows for reliable automation
 
 Primary references:
 - `references/SELECTORS_SNAPSHOTS.md`
-- `references/AGENT_COMMON.md`
+- `references/START_HERE.md`
 
 ## SCI eval and scripting
 
@@ -52,10 +52,9 @@ Primary references:
 - Network routing and response inspection
 
 Primary references:
-- `references/PROFILES_AGENTS.md`
+- `references/PROFILES_CDP.md`
 - `references/BROWSER_OPTIONS.md`
 - `references/NETWORK_ROUTING.md`
-- `references/AGENT_COMMON.md`
 
 ## Reports
 

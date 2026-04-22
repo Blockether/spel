@@ -87,7 +87,7 @@ export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/zscaler.pem
 spel open https://internal.company.com
 ```
 
-### JSON Output for Agents
+### JSON Output for Automation
 
 ```bash
 export SPEL_JSON=true
@@ -97,7 +97,7 @@ spel open https://example.com  # outputs JSON instead of human-readable
 ### Unique Session for Parallel Automation
 
 ```bash
-export SPEL_SESSION=agent-$(date +%s)
+export SPEL_SESSION=run-$(date +%s)
 spel open https://example.com
 # ... do work ...
 spel close

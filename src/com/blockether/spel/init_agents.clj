@@ -3,7 +3,7 @@
 
    Supports multiple agent loop targets via --loop:
    - opencode (default) — .opencode/agents/, .opencode/skills/
-   - claude             — .claude/agents/, .claude/docs/
+   - claude             — .claude/agents/, .claude/skills/
 
    Supports test framework flavours via --flavour:
    - lazytest (default) — defdescribe/it/expect from spel.allure, :context fixtures
@@ -46,7 +46,7 @@
                :agent-ext ".md"
                :desc "OpenCode"}
    "claude"   {:agent-dir ".claude/agents"
-               :skill-dir ".claude/docs/spel"
+               :skill-dir ".claude/skills/spel"
                :agent-ext ".md"
                :desc "Claude Code"}})
 
@@ -57,11 +57,11 @@
 (def ^:private reference-files
   "All reference files to scaffold alongside the skill and agent."
   ["START_HERE.md" "CAPABILITIES.md" "FULL_API.md" "CONSTANTS.md"
-   "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md" "AGENT_COMMON.md"
+   "COMMON_PROBLEMS.md" "ENVIRONMENT_VARIABLES.md" "SESSION_COMMON.md"
    "ASSERTIONS_EVENTS.md" "API_TESTING.md"
    "ALLURE_REPORTING.md" "CI_WORKFLOWS.md"
    "EVAL_GUIDE.md" "SELECTORS_SNAPSHOTS.md" "PAGE_LOCATORS.md"
-   "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_AGENTS.md"
+   "NAVIGATION_WAIT.md" "FRAMES_INPUT.md" "PROFILES_CDP.md"
    "BROWSER_OPTIONS.md" "NETWORK_ROUTING.md" "CODEGEN_CLI.md"
    "PDF_STITCH_VIDEO.md" "PRESENTER_SKILL.md" "CSS_PATTERNS.md"
    "LIBRARIES.md" "SLIDE_PATTERNS.md" "SEARCH_API.md"
@@ -402,7 +402,7 @@
   (println "")
   (println "Loop targets:")
   (println "  opencode          .opencode/agents/, .opencode/skills/")
-  (println "  claude            .claude/agents/, .claude/docs/")
+  (println "  claude            .claude/agents/, .claude/skills/")
   (println "")
   (println "Scaffolds:")
   (println "  - spel agent (browser automation, testing, bug finding, auto-learnings)")

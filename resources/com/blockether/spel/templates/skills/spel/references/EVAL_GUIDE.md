@@ -184,7 +184,7 @@ Interop-only enum classes: `ColorScheme`, `ForcedColors`, `HarContentPolicy`, `H
 - Arbitrary Java class construction — only registered classes work.
 - `defmacro`.
 - Loading external libraries (no deps / Maven).
-- STM / concurrency primitives (`ref`, `dosync`, `future`, `agent`). Use `atom`, `volatile!`, `promise`.
+- STM / concurrency primitives (`ref`, `dosync`, `future`). Use `atom`, `volatile!`, `promise`.
 
 Need something unavailable → write a `.clj` library file and use the library API (JVM mode).
 

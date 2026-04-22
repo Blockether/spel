@@ -8,11 +8,8 @@ compatibility: opencode
 
 # spel — Clojure Playwright wrapper
 
-Skill generated for spel **{{version}}**. Verify with `spel version`. Mismatch → run `spel init-agents` to reinitialize.
+Skill generated for spel **{{version}}**. Verify with `spel version`.
 
-## Agent: `@spel`
-
-Single agent for all browser tasks — exploration, testing, bug finding, automation.
 Use the `spel` CLI directly or via `eval-sci` for scripted workflows.
 
 ## CLI commands (obvious form)
@@ -46,7 +43,6 @@ spel <cmd> --help                   # help per subcommand
 | `spel state save/load [path]` | Persist/restore browser state |
 | `spel codegen record -o rec.jsonl <url>` | Record session |
 | `spel stitch a.png b.png -o out.png` | Stitch vertically |
-| `spel init-agents [--loop=opencode\|claude]` | Scaffold agents |
 | `spel report [flags]` | **Generate alt HTML report** — see Reporting below |
 | `spel merge-reports <dirs...>` | Merge multiple `allure-results/` dirs |
 | `spel ci-assemble` | CI artifact assembly |
@@ -108,7 +104,7 @@ Daemon running → `eval-sci` reuses the open browser. No `spel/start!` / `spel/
 - Longer click timeouts = last resort.
 - After navigation, **re-snapshot**. Never reuse old refs.
 
-## Agent safety (opt-in flags)
+## CLI safety (opt-in flags)
 
 | Flag | Purpose | Env |
 |------|---------|-----|
@@ -184,7 +180,5 @@ Start with `references/START_HERE.md` + `references/CAPABILITIES.md`.
 | Unified report template (MD) | `spel-report.md` |
 | Codegen record/transform | `CODEGEN_CLI.md` |
 | PDF / stitch / video | `PDF_STITCH_VIDEO.md` |
-| Profiles, stealth, CDP | `PROFILES_AGENTS.md` |
-| Shared agent patterns | `AGENT_COMMON.md` |
 | Env vars | `ENVIRONMENT_VARIABLES.md` |
 | Common problems | `COMMON_PROBLEMS.md` |

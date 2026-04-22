@@ -821,9 +821,9 @@
     .steps { margin: 0.75rem 0; padding-left: 1.5rem; }
     .steps li { margin-bottom: 0.25rem; }
 
-    /* Agent narrative */
-    .agent-block { border-left: 3px solid var(--mc-accent); padding: 0.75rem 1rem; margin: 0.75rem 0; background: var(--mc-bg-secondary); }
-    .agent-label { font-size: 11px; font-weight: 600; color: var(--mc-accent); text-transform: uppercase; margin-bottom: 0.25rem; }
+    /* Analysis narrative */
+    .analysis-block { border-left: 3px solid var(--mc-accent); padding: 0.75rem 1rem; margin: 0.75rem 0; background: var(--mc-bg-secondary); }
+    .analysis-label { font-size: 11px; font-weight: 600; color: var(--mc-accent); text-transform: uppercase; margin-bottom: 0.25rem; }
 
     /* Evidence figure */
     figure { margin: 0.75rem 0; }
@@ -1123,7 +1123,7 @@
     <ul class="sidebar-nav">
       <li><a href="#executive-summary">Executive Summary</a></li>
       <li><a href="#reading-guide">How To Read</a></li>
-      <!-- PRODUCER: spel-product-analyst -->
+      <!-- PRODUCER: product-discovery -->
       <li><a href="#product-overview">Product Overview</a></li>
       <li><a href="#feature-inventory">Feature Inventory</a></li>
       <li><a href="#user-roles">User Roles</a></li>
@@ -1133,7 +1133,7 @@
       <li><a href="#navigation-map">Navigation Map</a></li>
       <!-- PRODUCER: spel audit (CLI) -->
       <li><a href="#automated-audit">Automated Audit</a></li>
-      <!-- PRODUCER: spel-bug-hunter -->
+      <!-- PRODUCER: qa-validation -->
       <li><a href="#visual-checks">Visual Checks</a></li>
       <li><a href="#viewports">Viewport Audit</a></li>
       <li><a href="#heatmap">Heatmap</a></li>
@@ -1141,7 +1141,7 @@
       <li><a href="#findings">Findings</a></li>
       <li><a href="#disputed">Disputed</a></li>
       <li><a href="#coverage">Coverage</a></li>
-      <!-- PRODUCER: spel-product-analyst -->
+      <!-- PRODUCER: product-discovery -->
       <li><a href="#recommendations">Recommendations</a></li>
       <li><a href="#appendix">Appendix</a></li>
     </ul>
@@ -1191,7 +1191,7 @@
         <span><strong>Session:</strong> {SESSION_ID}</span>
       </div>
       <div class="pipeline-info">
-        <strong>Pipeline:</strong> {PIPELINE_AGENTS}
+        <strong>Pipeline:</strong> {PIPELINE_STAGES}
       </div>
     </header>
 
@@ -1259,7 +1259,7 @@
           <div class="confidence-strip">
             <div class="strip-row"><strong>Verified</strong><div class="strip-track"><div class="strip-fill" style="--value: {VERIFIED_COUNT};"></div></div><span class="strip-value">{VERIFIED_COUNT}</span></div>
             <div class="strip-row"><strong>Reported</strong><div class="strip-track"><div class="strip-fill" style="--value: {REPORTED_COUNT};"></div></div><span class="strip-value">{REPORTED_COUNT}</span></div>
-            <div class="strip-row"><strong>Agents Succeeded</strong><div class="strip-track"><div class="strip-fill" style="--value: {AGENTS_SUCCEEDED};"></div></div><span class="strip-value">{AGENTS_SUCCEEDED}</span></div>
+            <div class="strip-row"><strong>Checks Passed</strong><div class="strip-track"><div class="strip-fill" style="--value: {CHECKS_PASSED};"></div></div><span class="strip-value">{CHECKS_PASSED}</span></div>
           </div>
         </div>
       </div>
@@ -1271,9 +1271,9 @@
           <span>Viewports: <span class="metric-value">{VIEWPORTS_TESTED}</span></span>
         </div>
         <div class="metrics">
-          <span>Agents succeeded: <span class="metric-value">{AGENTS_SUCCEEDED}</span></span>
-          <span>Agents failed: <span class="metric-value">{AGENTS_FAILED}</span></span>
-          <span>Agents skipped: <span class="metric-value">{AGENTS_SKIPPED}</span></span>
+          <span>Checks passed: <span class="metric-value">{CHECKS_PASSED}</span></span>
+          <span>Checks failed: <span class="metric-value">{CHECKS_FAILED}</span></span>
+          <span>Checks skipped: <span class="metric-value">{CHECKS_SKIPPED}</span></span>
         </div>
       </div>
     </section>
@@ -1310,7 +1310,7 @@
       </div>
     </section>
 
-    <!-- PRODUCER: spel-product-analyst — sections: Product Overview, Feature Inventory, User Roles, Feature Matrix, Coherence Audit, FAQ, Navigation Map, Recommendations, Appendix -->
+    <!-- PRODUCER: product-discovery — sections: Product Overview, Feature Inventory, User Roles, Feature Matrix, Coherence Audit, FAQ, Navigation Map, Recommendations, Appendix -->
 
     <!-- ===== SECTION 3: PRODUCT OVERVIEW ===== -->
     <section id="product-overview" class="section">
@@ -1862,7 +1862,7 @@
       </details>
     </section>
 
-    <!-- PRODUCER: spel-bug-hunter — sections: Visual Checks, Viewport Comparison, Heatmap, Timeline, Findings, Disputed Findings, Coverage Matrix -->
+    <!-- PRODUCER: qa-validation — sections: Visual Checks, Viewport Comparison, Heatmap, Timeline, Findings, Disputed Findings, Coverage Matrix -->
 
     <!-- ===== SECTION 10: VISUAL CHECKS ===== -->
     <section id="visual-checks" class="section">
@@ -2038,8 +2038,8 @@
           <img src="evidence/login-focus-order.png" alt="Screenshot showing focus order skipping Submit button">
           <figcaption>Focus indicator jumps from password field to footer link, skipping Submit</figcaption>
         </figure>
-        <div class="agent-block">
-          <div class="agent-label">Agent Analysis</div>
+        <div class="analysis-block">
+          <div class="analysis-label">Analysis</div>
           <p>The submit button uses a &lt;div&gt; with an onclick handler instead of a native &lt;button&gt; element. It has no tabindex attribute and no role="button" ARIA role, making it invisible to keyboard navigation and screen readers.</p>
         </div>
         <pre class="console"><span class="error">[a11y] Element div.submit-btn is not focusable — missing tabindex or native interactive element</span></pre>
@@ -2191,7 +2191,7 @@
 5. Role inference from navigation patterns
 6. Coherence scoring via heuristics
 
-Agents used: Explorer, Analyzer, Cataloger
+Checks used: discovery, analysis, cataloging
 Session duration: {SESSION_DURATION}
 Pages crawled: {PAGES_CRAWLED}
 Elements analyzed: {ELEMENTS_ANALYZED}</div>
@@ -2230,11 +2230,11 @@ Network requests: {NETWORK_REQUESTS}</div>
     <footer class="report-footer">
       <div class="footer-pipeline">
         <strong>Unified Report Pipeline</strong><br>
-        Product discovery by spel-product-analyst. QA by spel-bug-hunter.
-        Only findings with evidence survive the adversarial pipeline.
+        Product discovery and QA are consolidated into one evidence-driven workflow.
+        Only findings with evidence are retained.
       </div>
       <div class="metrics" style="justify-content: center; margin-bottom: 0.75rem">
-        <span>Hunter score: <span class="metric-value">{HUNTER_SCORE}</span></span>
+        <span>Quality score: <span class="metric-value">{QUALITY_SCORE}</span></span>
         <span>Verified bugs: <span class="metric-value">{VERIFIED_COUNT}</span> / {REPORTED_COUNT}</span>
         <span>Disputed: <span class="metric-value">{DISPUTED_COUNT}</span></span>
       </div>

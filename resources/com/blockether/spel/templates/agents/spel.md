@@ -121,6 +121,16 @@ spel eval-sci spel-scripts/example.clj -- https://example.com
 - Session stuck → `spel session list`, close stale session, retry with new one.
 - Never `pkill` Chrome globally — kills the user's browser.
 
+## Report templates (use when delivering audits/bug reports)
+
+When producing a structured report, use the built-in templates from the spel skill references:
+- `references/spel-report.md` (Markdown report template)
+- `references/spel-report.html` (HTML report template)
+
+If scaffolded paths are needed, these are typically:
+- OpenCode: `.opencode/skills/spel/references/spel-report.md` and `.opencode/skills/spel/references/spel-report.html`
+- Claude: `.claude/skills/spel/references/spel-report.md` and `.claude/skills/spel/references/spel-report.html`
+
 ## Completion gate
 
 Before finishing any task, present a summary:

@@ -51,7 +51,7 @@ Library + stealth:
         (page/navigate pg "https://protected-site.com")))))
 ```
 
-See `PROFILES_AGENTS.md` for full stealth patches.
+See `PROFILES_CDP.md` for full stealth patches.
 
 ## 3. `assert-url` fails with partial URLs
 
@@ -280,7 +280,7 @@ spel --profile /tmp/fresh-profile open https://example.com
 ### Prevention
 
 - Always close sessions when done.
-- Use named sessions (`spel --session agent-$(date +%s) …`).
+- Use named sessions (`spel --session run-$(date +%s) …`).
 - Never share profiles between concurrent processes — Chromium locks the dir.
 - `spel session list` before starting if a stale daemon is suspected.
 

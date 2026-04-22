@@ -11,11 +11,11 @@ Quick map of spel skill.
 ## Fast routing
 
 - Full API surface: `references/FULL_API.md`
-- Common agent/session rules: `references/AGENT_COMMON.md`
+- Session rules and safe defaults: `references/PROFILES_CDP.md`
 - SCI eval patterns: `references/EVAL_GUIDE.md`
 - Selectors + snapshots: `references/SELECTORS_SNAPSHOTS.md`
 - Navigation + wait behavior: `references/NAVIGATION_WAIT.md`
-- Browser/profile/CDP setup: `references/PROFILES_AGENTS.md` + `references/BROWSER_OPTIONS.md`
+- Browser/profile/CDP setup: `references/PROFILES_CDP.md` + `references/BROWSER_OPTIONS.md`
 - Network routing/interception: `references/NETWORK_ROUTING.md`
 - Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/TESTING_CONVENTIONS.md`
 - Report templates: `references/spel-report.html`, `references/spel-report.md`

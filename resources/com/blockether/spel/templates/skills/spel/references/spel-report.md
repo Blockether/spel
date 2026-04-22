@@ -4,7 +4,7 @@ URL: {APP_URL}
 Date: {DATE}
 Scope: {SCOPE}
 Session: {SESSION_ID}
-Pipeline agents: {PIPELINE_AGENTS}
+Pipeline stages: {PIPELINE_STAGES}
 
 ## Executive Summary
 
@@ -103,7 +103,7 @@ Overall coherence score: {COHERENCE_SCORE}
 - Category: {CATEGORY}
 - Page: {PAGE_URL}
 - Audience tags: {AUDIENCE_TAGS}
-- Agent provenance: {AGENT_PROVENANCE}
+- Provenance: {PROVENANCE}
 - Confidence: {CONFIDENCE}
 - Impact: {IMPACT}
 
@@ -125,8 +125,8 @@ Evidence:
 - Screenshots/refs: {EVIDENCE_SCREENSHOTS}
 - Console/log output: {CONSOLE_OUTPUT}
 
-Agent analysis:
-{AGENT_NARRATIVE}
+Analysis:
+{NARRATIVE}
 
 {FINDINGS}
 
@@ -145,12 +145,12 @@ Agent analysis:
 
 {RECOMMENDATIONS}
 
-## Agent Learnings Snapshot
+## Learnings Snapshot
 
-- Hunter score: {HUNTER_SCORE}
+- Quality score: {QUALITY_SCORE}
 - Verified bugs: {VERIFIED_COUNT} / {REPORTED_COUNT}
 - Disputed bugs: {DISPUTED_COUNT}
-- See `LEARNINGS.md` for full cross-agent learning synthesis + corrective backlog.
+- See `LEARNINGS.md` for full learning synthesis + corrective backlog.
 
 ## Appendix
 

@@ -1,6 +1,6 @@
 .PHONY: test test-cli test-cli-clj test-watch test-junit test-allure allure-serve allure \
 	clean jar install deploy lint repl format preview \
-	spel uberjar install-local gen-docs init-agents validate-safe-graal evals real-evals
+	spel uberjar install-local gen-docs init-agents validate-safe-graal
 
 REPL_PORT ?= 7600
 
@@ -74,11 +74,6 @@ gen-docs: ## Regenerate references/FULL_API.md from source introspection (run BE
 init-agents: ## Scaffold OpenCode E2E testing agents (via spel)
 	./target/spel init-agents $(ARGS)
 
-evals: ## Run agent scaffold eval harness
-	python3 evals/run.py --binary ./target/spel
-
-real-evals: ## Run real OpenCode behavioral eval probes
-	python3 evals/run_real.py --binary ./target/spel
 
 # =============================================================================
 # Publish
