@@ -2603,22 +2603,40 @@
 (defmethod handle-cmd "audit" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  (let [all? (boolean (get params "all"))
-        only (when-let [o (get params "only")]
-               (if (string? o) (set (str/split o #",")) (set o)))
-        pg   (pg)
-        run? (fn [k] (or all? (nil? only) (contains? only (name k))))
-        safe (fn [f] (try (f) (catch Exception e {:error (.getMessage e)})))]
-    (if (or all? only)
-      (cond-> {}
-        (run? :structure) (assoc :structure (safe #(helpers/audit! pg)))
-        (run? :contrast)  (assoc :contrast  (safe #(helpers/text-contrast! pg)))
-        (run? :colors)    (assoc :colors    (safe #(helpers/color-palette! pg)))
-        (run? :layout)    (assoc :layout    (safe #(helpers/layout-check! pg)))
-        (run? :fonts)     (assoc :fonts     (safe #(helpers/font-audit! pg)))
-        (run? :links)     (assoc :links     (safe #(helpers/link-health! pg)))
-        (run? :headings)  (assoc :headings  (safe #(helpers/heading-structure! pg))))
-      (helpers/audit! pg))))
+  (let [all?   (boolean (get params "all"))
+        only   (when-let [o (get params "only")]
+                 (if (string? o) (set (str/split o #",")) (set o)))
+        report (get params "report")
+        pg     (pg)
+        ;; 1) Produce audit data — single code path
+        result (if (or all? (nil? only) report)
+                 ;; --all / --report / no subcommand → run everything
+                 (if (and only (not report))
+                   ;; --only subset (without --report)
+                   (let [run? (fn [k] (contains? only (name k)))
+                         safe (fn [f] (try (f) (catch Exception e {:error (.getMessage e)})))]
+                     (cond-> {}
+                       (run? :structure) (assoc :structure (safe #(helpers/audit! pg)))
+                       (run? :contrast)  (assoc :contrast  (safe #(helpers/text-contrast! pg)))
+                       (run? :colors)    (assoc :colors    (safe #(helpers/color-palette! pg)))
+                       (run? :layout)    (assoc :layout    (safe #(helpers/layout-check! pg)))
+                       (run? :fonts)     (assoc :fonts     (safe #(helpers/font-audit! pg)))
+                       (run? :links)     (assoc :links     (safe #(helpers/link-health! pg)))
+                       (run? :headings)  (assoc :headings  (safe #(helpers/heading-structure! pg)))))
+                   ;; Full audit-all
+                   (helpers/audit-all! pg))
+                 ;; Structure-only (bare `spel audit`)
+                 (helpers/audit! pg))]
+    ;; 2) If --report, generate HTML from the SAME data that was just produced
+    (if report
+      (let [path     (if (string? report) report "spel-audit-report.html")
+            ss-bytes (try (annotate/audit-screenshot pg "Spel Audit")
+                       (catch Exception _ nil))
+            rpt      (helpers/write-audit-report! result path
+                       (cond-> {:url (page/url pg) :title (page/title pg)}
+                         ss-bytes (assoc :screenshot ss-bytes)))]
+        (assoc rpt :audits result))
+      result)))
 
 (defmethod handle-cmd "markdownify" [_ params]
   (ensure-browser!)

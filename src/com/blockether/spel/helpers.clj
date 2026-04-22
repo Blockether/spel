@@ -10,6 +10,7 @@
    SCI wrappers in sci_env.clj provide implicit-page versions."
   (:require
    [com.blockether.spel.annotate :as annotate]
+   [com.blockether.spel.audit-report :as audit-report]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot])
   (:import
@@ -1567,3 +1568,496 @@
                   :h4 (long (or (get s "h4") 0))
                   :h5 (long (or (get s "h5") 0))
                   :h6 (long (or (get s "h6") 0))})}))
+
+;; =============================================================================
+;; page-insights! — Performance, meta, SEO, DOM stats in one shot
+;; =============================================================================
+
+(def ^:private page-insights-js
+  "JavaScript to collect page insights: performance timing, meta tags,
+   DOM stats, images, forms, scripts, SEO signals in one evaluation."
+  "(function() {
+    var r = {};
+    // Performance timing
+    try {
+      var nav = performance.getEntriesByType('navigation')[0];
+      if (nav) {
+        r.timing = {
+          dns_ms: Math.round(nav.domainLookupEnd - nav.domainLookupStart),
+          connect_ms: Math.round(nav.connectEnd - nav.connectStart),
+          ttfb_ms: Math.round(nav.responseStart - nav.requestStart),
+          dom_interactive_ms: Math.round(nav.domInteractive - nav.startTime),
+          dom_complete_ms: Math.round(nav.domComplete - nav.startTime),
+          load_ms: Math.round(nav.loadEventEnd - nav.startTime),
+          transfer_size: nav.transferSize || 0,
+          encoded_size: nav.encodedBodySize || 0,
+          decoded_size: nav.decodedBodySize || 0
+        };
+      }
+    } catch(e) { r.timing = null; }
+    // Resource summary
+    try {
+      var res = performance.getEntriesByType('resource');
+      var byType = {};
+      var totalSize = 0;
+      res.forEach(function(e) {
+        var t = e.initiatorType || 'other';
+        if (!byType[t]) byType[t] = { count: 0, size: 0, duration: 0 };
+        byType[t].count++;
+        byType[t].size += (e.transferSize || 0);
+        byType[t].duration += e.duration;
+        totalSize += (e.transferSize || 0);
+      });
+      var summary = [];
+      for (var k in byType) {
+        summary.push({ type: k, count: byType[k].count,
+          size_bytes: Math.round(byType[k].size),
+          avg_duration_ms: Math.round(byType[k].duration / byType[k].count) });
+      }
+      summary.sort(function(a,b) { return b.size_bytes - a.size_bytes; });
+      r.resources = { total_count: res.length, total_size_bytes: Math.round(totalSize), by_type: summary };
+    } catch(e) { r.resources = null; }
+    // DOM stats
+    var all = document.querySelectorAll('*');
+    r.dom = {
+      total_elements: all.length,
+      forms: document.forms.length,
+      images: document.images.length,
+      scripts: document.scripts.length,
+      stylesheets: document.styleSheets.length,
+      iframes: document.querySelectorAll('iframe').length
+    };
+    // Images without alt
+    var imgs = Array.from(document.images);
+    var noAlt = imgs.filter(function(i) { return !i.getAttribute('alt') || i.alt.trim() === ''; });
+    r.images = {
+      total: imgs.length,
+      missing_alt: noAlt.length,
+      missing_alt_samples: noAlt.slice(0, 10).map(function(i) { return i.src ? i.src.substring(0, 120) : ''; })
+    };
+    // Meta tags
+    var getMeta = function(name) {
+      var el = document.querySelector('meta[name=\"' + name + '\"]') || document.querySelector('meta[property=\"' + name + '\"]');
+      return el ? el.getAttribute('content') : null;
+    };
+    r.meta = {
+      title: document.title,
+      title_length: document.title.length,
+      description: getMeta('description'),
+      description_length: getMeta('description') ? getMeta('description').length : 0,
+      viewport: getMeta('viewport'),
+      charset: document.characterSet,
+      canonical: (function() { var l = document.querySelector('link[rel=\"canonical\"]'); return l ? l.href : null; })(),
+      robots: getMeta('robots'),
+      og_title: getMeta('og:title'),
+      og_description: getMeta('og:description'),
+      og_image: getMeta('og:image'),
+      lang: document.documentElement.lang || null
+    };
+    // Forms
+    var forms = Array.from(document.forms);
+    var inputsWithoutLabel = 0;
+    forms.forEach(function(f) {
+      Array.from(f.elements).forEach(function(el) {
+        if (['INPUT','SELECT','TEXTAREA'].indexOf(el.tagName) >= 0 && el.type !== 'hidden') {
+          var id = el.id;
+          var hasLabel = id && document.querySelector('label[for=\"' + id + '\"]');
+          var hasAria = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby');
+          var wrapped = el.closest('label');
+          if (!hasLabel && !hasAria && !wrapped) inputsWithoutLabel++;
+        }
+      });
+    });
+    r.forms = { total: forms.length, inputs_without_label: inputsWithoutLabel };
+    // Viewport
+    r.viewport = {
+      width: window.innerWidth, height: window.innerHeight,
+      scroll_width: document.documentElement.scrollWidth,
+      scroll_height: document.documentElement.scrollHeight,
+      device_pixel_ratio: window.devicePixelRatio
+    };
+    // Third-party analysis
+    var origin = location.origin;
+    var scripts = Array.from(document.querySelectorAll('script[src]'));
+    var thirdParty = [];
+    var renderBlocking = [];
+    var domainSet = {};
+    scripts.forEach(function(s) {
+      var src = s.getAttribute('src') || '';
+      var isExternal = false;
+      try { isExternal = src.startsWith('http') && !src.startsWith(origin); } catch(e) {}
+      var hasAsync = s.hasAttribute('async');
+      var hasDefer = s.hasAttribute('defer');
+      var inHead = s.closest('head') !== null;
+      if (isExternal) {
+        try { var u = new URL(src); domainSet[u.hostname] = (domainSet[u.hostname] || 0) + 1; } catch(e) {}
+        thirdParty.push({ src: src.substring(0, 150), async: hasAsync, defer: hasDefer, in_head: inHead });
+      }
+      if (inHead && !hasAsync && !hasDefer && src) {
+        renderBlocking.push({ src: src.substring(0, 150), external: isExternal });
+      }
+    });
+    var rbCss = [];
+    Array.from(document.querySelectorAll('link[rel=stylesheet]')).forEach(function(l) {
+      var href = l.getAttribute('href') || '';
+      if (l.closest('head') && !l.hasAttribute('media') || l.getAttribute('media') === 'all') {
+        rbCss.push({ href: href.substring(0, 150) });
+      }
+    });
+    var domains = [];
+    for (var d in domainSet) domains.push({ domain: d, count: domainSet[d] });
+    domains.sort(function(a,b) { return b.count - a.count; });
+    r.third_party = { scripts: thirdParty.length, domains: domains, render_blocking_scripts: renderBlocking, render_blocking_css: rbCss };
+    // Mixed content
+    var mixed = [];
+    if (location.protocol === 'https:') {
+      document.querySelectorAll('img[src],script[src],link[href],iframe[src],video[src],audio[src]').forEach(function(el) {
+        var u = el.getAttribute('src') || el.getAttribute('href') || '';
+        if (u.startsWith('http:')) mixed.push({ tag: el.tagName.toLowerCase(), url: u.substring(0, 150) });
+      });
+    }
+    r.mixed_content = { count: mixed.length, items: mixed.slice(0, 20) };
+    // Structured data
+    var jsonLd = []; try { jsonLd = document.querySelectorAll('script[type]'); jsonLd = Array.from(jsonLd).filter(function(s) { return (s.getAttribute('type') || '').indexOf('ld+json') > -1; }); } catch(e) {}
+    var schemaTypes = [];
+    jsonLd.forEach(function(s) { try { var j = JSON.parse(s.textContent); schemaTypes.push(j['@type'] || 'unknown'); } catch(e) {} });
+    var microdata = document.querySelectorAll('[itemscope]').length;
+    r.structured_data = { json_ld_count: jsonLd.length, types: schemaTypes, microdata_count: microdata };
+    // Cookies
+    var cookies = document.cookie ? document.cookie.split(';') : [];
+    r.cookies = { count: cookies.length, total_size: document.cookie.length };
+    // Duplicate IDs
+    var idMap = {};
+    var dupIds = [];
+    document.querySelectorAll('[id]').forEach(function(el) {
+      var id = el.id;
+      if (id) { idMap[id] = (idMap[id] || 0) + 1; }
+    });
+    for (var id in idMap) { if (idMap[id] > 1) dupIds.push({ id: id, count: idMap[id] }); }
+    r.duplicate_ids = { count: dupIds.length, items: dupIds.slice(0, 20) };
+    // ARIA / a11y extended
+    var skipNav = document.querySelector('a[href*=main],a[href*=content],[class*=skip]');
+    var ariaRoles = {};
+    document.querySelectorAll('[role]').forEach(function(el) {
+      var role = el.getAttribute('role');
+      ariaRoles[role] = (ariaRoles[role] || 0) + 1;
+    });
+    var emptyLinks = Array.from(document.querySelectorAll('a')).filter(function(a) { return !a.textContent.trim() && !a.querySelector('img[alt]') && !a.getAttribute('aria-label'); }).length;
+    var emptyBtns = Array.from(document.querySelectorAll('button')).filter(function(b) { return !b.textContent.trim() && !b.getAttribute('aria-label'); }).length;
+    r.a11y_extended = { skip_nav: !!skipNav, aria_roles: ariaRoles, empty_links: emptyLinks, empty_buttons: emptyBtns };
+    // Image optimization extended
+    var imgStats = { missing_dimensions: 0, no_lazy_below_fold: 0, large_src: 0, formats: {} };
+    var vpH = window.innerHeight;
+    imgs.forEach(function(img) {
+      if (!img.getAttribute('width') || !img.getAttribute('height')) imgStats.missing_dimensions++;
+      var rect = img.getBoundingClientRect();
+      if (rect.top > vpH && img.getAttribute('loading') !== 'lazy') imgStats.no_lazy_below_fold++;
+      var src = (img.currentSrc || img.src || '').toLowerCase();
+      var ext = 'other';
+      if (src.indexOf('.webp') > -1 || src.indexOf('format=webp') > -1) ext = 'webp';
+      else if (src.indexOf('.avif') > -1) ext = 'avif';
+      else if (src.indexOf('.jpg') > -1 || src.indexOf('.jpeg') > -1) ext = 'jpeg';
+      else if (src.indexOf('.png') > -1) ext = 'png';
+      else if (src.indexOf('.gif') > -1) ext = 'gif';
+      else if (src.indexOf('.svg') > -1) ext = 'svg';
+      else if (src.indexOf('data:') === 0) ext = 'data-uri';
+      imgStats.formats[ext] = (imgStats.formats[ext] || 0) + 1;
+    });
+    r.images_extended = imgStats;
+    try {
+    // Font loading
+    var fontLinks = document.querySelectorAll('link[rel=stylesheet][href*=font],link[rel=preload][as=font],link[href*=fonts.googleapis],link[href*=fonts.gstatic]');
+    var preloadedFonts = document.querySelectorAll('link[rel=preload][as=font]').length;
+    var fontFaceCount = 0;
+    try { fontFaceCount = document.fonts ? document.fonts.size : 0; } catch(e) {}
+    r.font_loading = { font_links: fontLinks.length, preloaded: preloadedFonts, font_faces_loaded: fontFaceCount };
+    // HTTPS
+    r.https = { is_https: location.protocol === 'https:', protocol: location.protocol };
+    // Sitemap / robots hints
+    var sitemapLink = document.querySelector('link[rel=sitemap]');
+    r.seo_extended = {
+      has_sitemap_link: !!sitemapLink,
+      sitemap_href: sitemapLink ? sitemapLink.href : null,
+      internal_links: Array.from(document.querySelectorAll('a[href]')).filter(function(a) { try { return new URL(a.href).origin === origin; } catch(e) { return false; } }).length,
+      external_links: Array.from(document.querySelectorAll('a[href]')).filter(function(a) { try { return a.href.startsWith('http') && new URL(a.href).origin !== origin; } catch(e) { return false; } }).length
+    };
+    // Preconnect / prefetch
+    var preconnects = document.querySelectorAll('link[rel=preconnect]');
+    var prefetches = document.querySelectorAll('link[rel=prefetch],link[rel=dns-prefetch]');
+    r.resource_hints = {
+      preconnect: Array.from(preconnects).map(function(l) { return l.href; }).slice(0, 10),
+      prefetch: Array.from(prefetches).map(function(l) { return l.href; }).slice(0, 10)
+    };
+    // Inline styles
+    r.inline_styles = { count: document.querySelectorAll('[style]').length };
+    // Deprecated HTML
+    var deprecated = ['font','center','marquee','blink','frame','frameset','noframes','applet','basefont','dir','isindex','listing','plaintext','strike','tt','xmp','big','bgsound'];
+    var depFound = [];
+    deprecated.forEach(function(tag) { var c = document.querySelectorAll(tag).length; if (c > 0) depFound.push({ tag: tag, count: c }); });
+    r.deprecated_html = { count: depFound.length, items: depFound };
+    // Responsive images
+    var withSrcset = Array.from(document.querySelectorAll('img[srcset]')).length;
+    var withSizes = Array.from(document.querySelectorAll('img[sizes]')).length;
+    var withPicture = document.querySelectorAll('picture').length;
+    r.responsive_images = { srcset: withSrcset, sizes: withSizes, picture_elements: withPicture, total_images: imgs.length };
+    // Page weight
+    var pageWeight = 0;
+    try { performance.getEntriesByType('resource').forEach(function(e) { pageWeight += (e.transferSize || 0); }); } catch(e) {}
+    r.page_weight = { total_bytes: Math.round(pageWeight), budget_1500kb: pageWeight <= 1536000 };
+    // Focus visible
+    var hasFocusVisible = false;
+    try {
+      for (var si = 0; si < document.styleSheets.length; si++) {
+        try {
+          var rules = document.styleSheets[si].cssRules || [];
+          for (var ri = 0; ri < rules.length; ri++) {
+            if (rules[ri].selectorText && rules[ri].selectorText.indexOf('focus-visible') > -1) { hasFocusVisible = true; break; }
+            if (rules[ri].selectorText && rules[ri].selectorText.indexOf(':focus') > -1) { hasFocusVisible = true; break; }
+          }
+        } catch(ce) {}
+        if (hasFocusVisible) break;
+      }
+    } catch(e) {}
+    r.focus_visible = { has_focus_styles: hasFocusVisible };
+    // Tab order
+    var positiveTabindex = Array.from(document.querySelectorAll('[tabindex]')).filter(function(el) {
+      var ti = parseInt(el.getAttribute('tabindex'), 10);
+      return ti > 0;
+    });
+    var focusableCount = document.querySelectorAll('a[href],button,input,select,textarea,[tabindex]').length;
+    var negativeTabindex = Array.from(document.querySelectorAll('[tabindex]')).filter(function(el){return el.getAttribute('tabindex')==='-1'}).length;
+    r.tab_order = { positive_tabindex: positiveTabindex.length, focusable_elements: focusableCount, negative_tabindex: negativeTabindex,
+      positive_samples: positiveTabindex.slice(0, 5).map(function(el) { return { tag: el.tagName.toLowerCase(), tabindex: el.getAttribute('tabindex'), text: (el.textContent || '').trim().substring(0, 60) }; }) };
+    // Oversized images
+    var oversized = [];
+    try {
+      performance.getEntriesByType('resource').forEach(function(re) {
+        if (re.initiatorType === 'img' && re.transferSize > 204800) {
+          oversized.push({ url: re.name.substring(0, 150), size_bytes: Math.round(re.transferSize), duration_ms: Math.round(re.duration) });
+        }
+      });
+    } catch(e) {}
+    r.oversized_images = { count: oversized.length, items: oversized.slice(0, 20) };
+    // Unused CSS/JS estimation via Coverage API (if available)
+    var coverageAvailable = typeof window.__coverage__ !== 'undefined';
+    var totalCSSBytes = 0, totalJSBytes = 0;
+    try {
+      performance.getEntriesByType('resource').forEach(function(re) {
+        if (re.initiatorType === 'link' || re.initiatorType === 'css') totalCSSBytes += (re.transferSize || 0);
+        if (re.initiatorType === 'script') totalJSBytes += (re.transferSize || 0);
+      });
+    } catch(e) {}
+    r.asset_sizes = { css_total_bytes: Math.round(totalCSSBytes), js_total_bytes: Math.round(totalJSBytes), coverage_available: coverageAvailable };
+    } catch(ex) { r._extended_error = ex.message; }
+    return r;
+  })()")
+
+(defn page-insights!
+  "Collects page performance, meta tags, DOM stats, image accessibility,
+   form labels, and resource loading summary in one evaluation.
+
+   Params:
+   `page` - Playwright Page instance.
+
+   Returns:
+   Map with :timing, :resources, :dom, :images, :meta, :forms, :viewport."
+  [^Page page]
+  (let [raw (page/evaluate page page-insights-js)]
+    {:timing    (when-let [t (get raw "timing")]
+                 {:dns-ms            (long (or (get t "dns_ms") 0))
+                  :connect-ms        (long (or (get t "connect_ms") 0))
+                  :ttfb-ms           (long (or (get t "ttfb_ms") 0))
+                  :dom-interactive-ms (long (or (get t "dom_interactive_ms") 0))
+                  :dom-complete-ms   (long (or (get t "dom_complete_ms") 0))
+                  :load-ms           (long (or (get t "load_ms") 0))
+                  :transfer-size     (long (or (get t "transfer_size") 0))
+                  :encoded-size      (long (or (get t "encoded_size") 0))
+                  :decoded-size      (long (or (get t "decoded_size") 0))})
+     :resources (when-let [r (get raw "resources")]
+                  {:total-count     (long (or (get r "total_count") 0))
+                   :total-size-bytes (long (or (get r "total_size_bytes") 0))
+                   :by-type         (mapv (fn [t]
+                                            {:type            (get t "type")
+                                             :count           (long (or (get t "count") 0))
+                                             :size-bytes      (long (or (get t "size_bytes") 0))
+                                             :avg-duration-ms (long (or (get t "avg_duration_ms") 0))})
+                                     (get r "by_type" []))})
+     :dom       (let [d (get raw "dom")]
+                  {:total-elements (long (or (get d "total_elements") 0))
+                   :forms          (long (or (get d "forms") 0))
+                   :images         (long (or (get d "images") 0))
+                   :scripts        (long (or (get d "scripts") 0))
+                   :stylesheets    (long (or (get d "stylesheets") 0))
+                   :iframes        (long (or (get d "iframes") 0))})
+     :images    (let [im (get raw "images")]
+                  {:total              (long (or (get im "total") 0))
+                   :missing-alt        (long (or (get im "missing_alt") 0))
+                   :missing-alt-samples (vec (get im "missing_alt_samples" []))})
+     :meta      (let [m (get raw "meta")]
+                  {:title              (get m "title")
+                   :title-length       (long (or (get m "title_length") 0))
+                   :description        (get m "description")
+                   :description-length (long (or (get m "description_length") 0))
+                   :viewport           (get m "viewport")
+                   :charset            (get m "charset")
+                   :canonical          (get m "canonical")
+                   :robots             (get m "robots")
+                   :og-title           (get m "og_title")
+                   :og-description     (get m "og_description")
+                   :og-image           (get m "og_image")
+                   :lang               (get m "lang")})
+     :forms     (let [f (get raw "forms")]
+                  {:total                (long (or (get f "total") 0))
+                   :inputs-without-label (long (or (get f "inputs_without_label") 0))})
+     :viewport  (let [v (get raw "viewport")]
+                  {:width              (long (or (get v "width") 0))
+                   :height             (long (or (get v "height") 0))
+                   :scroll-width       (long (or (get v "scroll_width") 0))
+                   :scroll-height      (long (or (get v "scroll_height") 0))
+                   :device-pixel-ratio (double (or (get v "device_pixel_ratio") 1.0))})
+     :third-party (let [tp (get raw "third_party")]
+                    {:scripts              (long (or (get tp "scripts") 0))
+                     :domains              (mapv (fn [d] {:domain (get d "domain") :count (long (or (get d "count") 0))})
+                                             (get tp "domains" []))
+                     :render-blocking-scripts (mapv (fn [s] {:src (get s "src") :external (boolean (get s "external"))})
+                                               (get tp "render_blocking_scripts" []))
+                     :render-blocking-css    (mapv (fn [s] {:href (get s "href")})
+                                               (get tp "render_blocking_css" []))})
+     :mixed-content (let [mc (get raw "mixed_content")]
+                      {:count (long (or (get mc "count") 0))
+                       :items (mapv (fn [m] {:tag (get m "tag") :url (get m "url")})
+                                (get mc "items" []))})
+     :structured-data (let [sd (get raw "structured_data")]
+                        {:json-ld-count  (long (or (get sd "json_ld_count") 0))
+                         :types          (vec (get sd "types" []))
+                         :microdata-count (long (or (get sd "microdata_count") 0))})
+     :cookies   (let [c (get raw "cookies")]
+                  {:count      (long (or (get c "count") 0))
+                   :total-size (long (or (get c "total_size") 0))})
+     :duplicate-ids (let [di (get raw "duplicate_ids")]
+                      {:count (long (or (get di "count") 0))
+                       :items (mapv (fn [d] {:id (get d "id") :count (long (or (get d "count") 0))})
+                                (get di "items" []))})
+     :a11y-extended (let [a (get raw "a11y_extended")]
+                      {:skip-nav      (boolean (get a "skip_nav"))
+                       :aria-roles    (into {} (map (fn [[k v]] [(keyword k) (long v)])
+                                                 (get a "aria_roles" {})))
+                       :empty-links   (long (or (get a "empty_links") 0))
+                       :empty-buttons (long (or (get a "empty_buttons") 0))})
+     :images-extended (let [ie (get raw "images_extended")]
+                        {:missing-dimensions   (long (or (get ie "missing_dimensions") 0))
+                         :no-lazy-below-fold   (long (or (get ie "no_lazy_below_fold") 0))
+                         :formats              (into {} (map (fn [[k v]] [(keyword k) (long v)])
+                                                         (get ie "formats" {})))})
+     :font-loading (let [fl (get raw "font_loading")]
+                     {:font-links       (long (or (get fl "font_links") 0))
+                      :preloaded        (long (or (get fl "preloaded") 0))
+                      :font-faces-loaded (long (or (get fl "font_faces_loaded") 0))})
+     :https         (let [h (get raw "https")]
+                     {:is-https (boolean (get h "is_https"))
+                      :protocol (get h "protocol")})
+     :seo-extended  (let [s (get raw "seo_extended")]
+                     {:has-sitemap-link (boolean (get s "has_sitemap_link"))
+                      :sitemap-href    (get s "sitemap_href")
+                      :internal-links  (long (or (get s "internal_links") 0))
+                      :external-links  (long (or (get s "external_links") 0))})
+     :resource-hints (let [rh (get raw "resource_hints")]
+                       {:preconnect (vec (get rh "preconnect" []))
+                        :prefetch   (vec (get rh "prefetch" []))})
+     :inline-styles {:count (long (or (get-in raw ["inline_styles" "count"]) 0))}
+     :deprecated-html (let [dh (get raw "deprecated_html")]
+                        {:count (long (or (get dh "count") 0))
+                         :items (mapv (fn [d] {:tag (get d "tag") :count (long (or (get d "count") 0))})
+                                  (get dh "items" []))})
+     :responsive-images (let [ri (get raw "responsive_images")]
+                          {:srcset          (long (or (get ri "srcset") 0))
+                           :sizes           (long (or (get ri "sizes") 0))
+                           :picture-elements (long (or (get ri "picture_elements") 0))
+                           :total-images    (long (or (get ri "total_images") 0))})
+     :page-weight (let [pw (get raw "page_weight")]
+                    {:total-bytes  (long (or (get pw "total_bytes") 0))
+                     :budget-ok    (boolean (get pw "budget_1500kb"))})
+     :focus-visible (let [fv (get raw "focus_visible")]
+                      {:has-focus-styles (boolean (get fv "has_focus_styles"))})
+     :tab-order (let [to (get raw "tab_order")]
+                  {:positive-tabindex  (long (or (get to "positive_tabindex") 0))
+                   :focusable-elements (long (or (get to "focusable_elements") 0))
+                   :negative-tabindex  (long (or (get to "negative_tabindex") 0))
+                   :positive-samples   (mapv (fn [s] {:tag (get s "tag") :tabindex (get s "tabindex") :text (get s "text")})
+                                          (get to "positive_samples" []))})
+     :oversized-images (let [oi (get raw "oversized_images")]
+                         {:count (long (or (get oi "count") 0))
+                          :items (mapv (fn [o] {:url (get o "url") :size-bytes (long (or (get o "size_bytes") 0))
+                                                :duration-ms (long (or (get o "duration_ms") 0))})
+                                   (get oi "items" []))})
+     :asset-sizes (let [as (get raw "asset_sizes")]
+                    {:css-total-bytes    (long (or (get as "css_total_bytes") 0))
+                     :js-total-bytes     (long (or (get as "js_total_bytes") 0))
+                     :coverage-available (boolean (get as "coverage_available"))})}))
+
+
+;; =============================================================================
+;; audit-all! — Run every audit sub-check, return combined data map
+;; =============================================================================
+
+(defn audit-all!
+  "Runs every audit sub-check and returns the combined results map.
+
+   This is the canonical way to collect all audit data from a page.
+   Individual audit failures are caught and returned as {:error \"msg\"}
+   so the caller always gets a complete map.
+
+   Params:
+   `page` - Playwright Page instance.
+
+   Returns:
+   Map with keys :structure, :contrast, :colors, :layout, :fonts, :links,
+   :headings — each containing the result map from the corresponding audit
+   function, or {:error \"msg\"} if that audit failed."
+  [^Page page]
+  (let [safe (fn [f] (try (f) (catch Exception e {:error (.getMessage e)})))]
+    {:structure (safe #(audit! page))
+     :contrast  (safe #(text-contrast! page))
+     :colors    (safe #(color-palette! page))
+     :layout    (safe #(layout-check! page))
+     :fonts     (safe #(font-audit! page))
+     :links     (safe #(link-health! page))
+     :headings  (safe #(heading-structure! page))
+     :insights  (safe #(page-insights! page))}))
+
+;; =============================================================================
+;; write-audit-report! — Generate HTML report from audit data
+;; =============================================================================
+
+(defn write-audit-report!
+  "Generates an HTML audit report from pre-computed audit data and writes it
+   to a file. The report is fully deterministic — same data in, same HTML out
+   (modulo timestamp).
+
+   The audit data map is exactly what `audit-all!` returns, or equivalently
+   the JSON output of `spel audit --all`. This function never runs audits
+   itself.
+
+   Params:
+   `audit-data` - Map with keys :structure, :contrast, :colors, :layout,
+                  :fonts, :links, :headings.
+   `path`       - String. Output file path for the HTML report.
+   `opts`       - Map, optional:
+     :url        - String. Page URL (fallback if not in audit data).
+     :title      - String. Page title.
+     :screenshot - byte[]. PNG screenshot to embed.
+
+   Returns:
+   Map with:
+     :path - String. Output file path.
+     :size - Long. File size in bytes."
+  ([audit-data ^String path]
+   (write-audit-report! audit-data path {}))
+  ([audit-data ^String path opts]
+   (let [html       (audit-report/generate audit-data opts)
+         html-bytes (.getBytes ^String html "UTF-8")
+         out-path   (Path/of ^String path (into-array String []))]
+     (Files/write out-path html-bytes
+       ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+     {:path path
+      :size (alength html-bytes)})))

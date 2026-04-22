@@ -2307,11 +2307,20 @@
                                             (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "50"))))))
 
           ;; Audit (umbrella: runs all audits or a specific subcommand)
-            "audit" (let [sub (first cmd-args)
-                          only-val (when (some #{"--only"} cmd-args)
-                                     (let [idx (.indexOf ^java.util.List (vec cmd-args) "--only")]
-                                       (when (>= idx 0) (nth cmd-args (inc idx) nil))))
-                          all? (some #{"--all"} cmd-args)]
+            "audit" (let [sub      (first cmd-args)
+                          args-v   (vec cmd-args)
+                          only-val (when (some #{"--only"} args-v)
+                                     (let [idx (.indexOf ^java.util.List args-v "--only")]
+                                       (when (>= idx 0) (nth args-v (inc idx) nil))))
+                          all?     (some #{"--all"} args-v)
+                          report?  (some #{"--report"} args-v)
+                          ;; --report optionally takes a path (next arg if not a flag)
+                          report-val (when report?
+                                       (let [idx (.indexOf ^java.util.List args-v "--report")
+                                             nxt (when (>= idx 0) (nth args-v (inc idx) nil))]
+                                         (if (and nxt (not (str/starts-with? nxt "--")))
+                                           nxt
+                                           true)))]
                       (case sub
                         "structure" {:action "audit"}
                         "contrast"  {:action "text-contrast"}
@@ -2322,8 +2331,9 @@
                         "headings"  {:action "heading-structure"}
                        ;; No subcommand or unknown → run all
                         (cond-> {:action "audit" :all true}
-                          all?     (assoc :all true)
-                          only-val (assoc :only only-val))))
+                          all?       (assoc :all true)
+                          only-val   (assoc :only only-val)
+                          report-val (assoc :report report-val))))
 
             "markdownify" (let [args-v    (vec cmd-args)
                                 flag-val  (fn [flag]

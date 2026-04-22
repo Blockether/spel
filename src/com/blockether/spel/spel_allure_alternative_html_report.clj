@@ -894,108 +894,108 @@
    is visible without an extra click."
   ([result results-dir] (render-test-card result results-dir nil))
   ([result results-dir opts]
-  (let [open? (:open? opts)
-        hide-trace? (:hide-trace? opts)
-        name (html-escape (get result "name" "unnamed"))
-        full-name (html-escape (get result "fullName" ""))
-        status (get result "status" "unknown")
-        start (get result "start")
-        stop (get result "stop")
-        duration (when (and start stop) (- (long stop) (long start)))
-        steps (get result "steps")
-        desc (get result "description")
-        status-detail (get result "statusDetails")
-        message (when status-detail (get status-detail "message"))
-        trace (when status-detail (get status-detail "trace"))
-        attachments (get result "attachments")
-        labels (get result "labels")
-        epic (label-value result "epic")
-        feature (label-value result "feature")
-        story (label-value result "story")
-        severity (label-value result "severity")
-        tags (->> labels (filter #(= "tag" (get % "name"))) (map #(get % "value")))
-        step-count (count-nested-steps steps)
-        attachment-count (long (count attachments))
+   (let [open? (:open? opts)
+         hide-trace? (:hide-trace? opts)
+         name (html-escape (get result "name" "unnamed"))
+         full-name (html-escape (get result "fullName" ""))
+         status (get result "status" "unknown")
+         start (get result "start")
+         stop (get result "stop")
+         duration (when (and start stop) (- (long stop) (long start)))
+         steps (get result "steps")
+         desc (get result "description")
+         status-detail (get result "statusDetails")
+         message (when status-detail (get status-detail "message"))
+         trace (when status-detail (get status-detail "trace"))
+         attachments (get result "attachments")
+         labels (get result "labels")
+         epic (label-value result "epic")
+         feature (label-value result "feature")
+         story (label-value result "story")
+         severity (label-value result "severity")
+         tags (->> labels (filter #(= "tag" (get % "name"))) (map #(get % "value")))
+         step-count (count-nested-steps steps)
+         attachment-count (long (count attachments))
         ;; Dedupe trace attachments by source filename — tests that use
         ;; both a browser fixture and an in-test API context can end up
         ;; with two `Playwright Trace` entries on the result (one from
         ;; each tracing lane), which would render as duplicate Open
         ;; Trace + Download buttons. Keep only the first per source.
-        trace-atts (->> attachments
-                     (filter trace-attachment?)
-                     (reduce (fn [acc a]
-                               (if (some #(= (get % "source") (get a "source")) acc)
-                                 acc
-                                 (conj acc a)))
-                       [])
-                     vec)
-        other-atts (remove trace-attachment? (or attachments []))]
-    (str "<details class=\"test-card " (status-class status) (when open? " test-card-flat") "\" data-status=\"" status "\""
-      (when open? " open")
-      " data-duration=\"" (or duration 0) "\""
-      " data-name=\"" (str/lower-case (or name "")) "\""
-      (when epic     (str " data-epic=\""     (html-escape epic)     "\""))
-      (when feature  (str " data-feature=\""  (html-escape feature)  "\""))
-      (when story    (str " data-story=\""    (html-escape story)    "\""))
-      (when severity (str " data-severity=\"" (html-escape severity) "\""))
-      (when (seq tags)
-        (str " data-tags=\"" (html-escape (str/join "," tags)) "\""))
-      ">"
-      "<summary class=\"test-card-summary\">"
-      (detail-marker)
-      "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
-      "<span class=\"test-name\">" name "</span>"
-      (when (pos? step-count)
-        (str "<span class=\"test-chip\">" step-count " steps</span>"))
-      (when (pos? attachment-count)
-        (str "<span class=\"test-chip\">" attachment-count " attachments</span>"))
-      (when duration
-        (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
-      "</summary>"
-      "<div class=\"test-card-body\">"
-      (when (and (not hide-trace?) (seq trace-atts))
-        (str
-          (when (> (count trace-atts) 1)
-            (str "<div class=\"trace-multi-warning\">"
-              "⚠ " (count trace-atts) " distinct Playwright traces captured for this test "
-              "(likely from separate browser + API contexts). All are shown below."
-              "</div>"))
-          "<div class=\"test-trace-actions\">"
-          (str/join "" (map #(render-attachment-html % results-dir) trace-atts))
-          "</div>"))
-      (when (seq full-name)
-        (str "<div class=\"test-full-name\">" full-name "</div>"))
-      (when (or epic feature story severity (seq tags))
-        (str "<div class=\"test-labels\">"
-          (when epic (str "<span class=\"label-pill label-epic\">" (html-escape epic) "</span>"))
-          (when feature (str "<span class=\"label-pill label-feature\">" (html-escape feature) "</span>"))
-          (when story (str "<span class=\"label-pill label-story\">" (html-escape story) "</span>"))
-          (when severity (str "<span class=\"label-pill label-severity\">" (html-escape severity) "</span>"))
-          (str/join "" (for [t tags] (str "<span class=\"label-pill label-tag\">" (html-escape t) "</span>")))
-          "</div>"))
-      (when (seq desc)
-        (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
+         trace-atts (->> attachments
+                      (filter trace-attachment?)
+                      (reduce (fn [acc a]
+                                (if (some #(= (get % "source") (get a "source")) acc)
+                                  acc
+                                  (conj acc a)))
+                        [])
+                      vec)
+         other-atts (remove trace-attachment? (or attachments []))]
+     (str "<details class=\"test-card " (status-class status) (when open? " test-card-flat") "\" data-status=\"" status "\""
+       (when open? " open")
+       " data-duration=\"" (or duration 0) "\""
+       " data-name=\"" (str/lower-case (or name "")) "\""
+       (when epic     (str " data-epic=\""     (html-escape epic)     "\""))
+       (when feature  (str " data-feature=\""  (html-escape feature)  "\""))
+       (when story    (str " data-story=\""    (html-escape story)    "\""))
+       (when severity (str " data-severity=\"" (html-escape severity) "\""))
+       (when (seq tags)
+         (str " data-tags=\"" (html-escape (str/join "," tags)) "\""))
+       ">"
+       "<summary class=\"test-card-summary\">"
+       (detail-marker)
+       "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
+       "<span class=\"test-name\">" name "</span>"
+       (when (pos? step-count)
+         (str "<span class=\"test-chip\">" step-count " steps</span>"))
+       (when (pos? attachment-count)
+         (str "<span class=\"test-chip\">" attachment-count " attachments</span>"))
+       (when duration
+         (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
+       "</summary>"
+       "<div class=\"test-card-body\">"
+       (when (and (not hide-trace?) (seq trace-atts))
+         (str
+           (when (> (count trace-atts) 1)
+             (str "<div class=\"trace-multi-warning\">"
+               "⚠ " (count trace-atts) " distinct Playwright traces captured for this test "
+               "(likely from separate browser + API contexts). All are shown below."
+               "</div>"))
+           "<div class=\"test-trace-actions\">"
+           (str/join "" (map #(render-attachment-html % results-dir) trace-atts))
+           "</div>"))
+       (when (seq full-name)
+         (str "<div class=\"test-full-name\">" full-name "</div>"))
+       (when (or epic feature story severity (seq tags))
+         (str "<div class=\"test-labels\">"
+           (when epic (str "<span class=\"label-pill label-epic\">" (html-escape epic) "</span>"))
+           (when feature (str "<span class=\"label-pill label-feature\">" (html-escape feature) "</span>"))
+           (when story (str "<span class=\"label-pill label-story\">" (html-escape story) "</span>"))
+           (when severity (str "<span class=\"label-pill label-severity\">" (html-escape severity) "</span>"))
+           (str/join "" (for [t tags] (str "<span class=\"label-pill label-tag\">" (html-escape t) "</span>")))
+           "</div>"))
+       (when (seq desc)
+         (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
       ;; Only surface the bare message when there is no trace — the
        ;; trace already contains the message as its first line, so
        ;; rendering both is just noise.
-      (when (and message (not= status "passed") (not (seq trace)))
-        (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
+       (when (and message (not= status "passed") (not (seq trace)))
+         (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
       ;; Top-of-body trace — readers land on the failure first, then
       ;; can scroll through the steps for context. Labelled as the
       ;; wrapping test exception so it's distinguishable from any
       ;; per-step trace inside the step list.
-      (when (seq trace)
-        (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
-          "<summary>" (detail-marker) "<span>Test failure — thrown exception</span></summary>"
-          "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
-          "</details>"))
-      (when (seq steps)
-        (str "<div class=\"test-steps test-steps-inline\">"
-          (render-steps-html steps results-dir)
-          "</div>"))
-      (render-attachments-html other-atts results-dir)
-      "</div>"
-      "</details>"))))
+       (when (seq trace)
+         (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
+           "<summary>" (detail-marker) "<span>Test failure — thrown exception</span></summary>"
+           "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
+           "</details>"))
+       (when (seq steps)
+         (str "<div class=\"test-steps test-steps-inline\">"
+           (render-steps-html steps results-dir)
+           "</div>"))
+       (render-attachments-html other-atts results-dir)
+       "</div>"
+       "</details>"))))
 
 (defn- suite-metadata-json
   "Emit a compact JSON array of `{n, s, d, e?, f?, y?, v?, t?}` entries —
@@ -1070,59 +1070,59 @@
    `<details>` is open, and no client-side template cloning is needed."
   ([suite-name results results-dir] (render-suite-section suite-name results results-dir nil))
   ([suite-name results results-dir opts]
-  (let [single? (:single? opts)
-        cts (count-by-status results)
-        meta-json (-> (suite-metadata-json results)
+   (let [single? (:single? opts)
+         cts (count-by-status results)
+         meta-json (-> (suite-metadata-json results)
                     ;; Escape `</` so an inlined `</script>` can't break out.
-                    (str/replace "</" "<\\/"))
+                     (str/replace "</" "<\\/"))
         ;; Aggregate per-test durations so sortCards() can reorder the
         ;; suites themselves (longest-first / shortest-first) without
         ;; having to hydrate the template. Previously sorting only
         ;; reshuffled cards inside each suite, leaving the suites
         ;; themselves in alphabetical order — so the 5020ms test was
         ;; still buried at the bottom of the page on "Longest first".
-        durations (map (fn [r]
-                         (let [s (get r "start") e (get r "stop")]
-                           (if (and s e) (- (long e) (long s)) 0)))
-                    results)
-        max-dur (if (seq durations) (long (apply max durations)) 0)
-        total-dur (long (reduce + 0 durations))]
-    (str "<details class=\"suite-section" (when single? " suite-section-static") "\" data-suite"
-      (when single? " open")
-      " data-suite-name=\"" (str/lower-case (html-escape suite-name)) "\""
-      " data-suite-total=\"" (:total cts) "\""
-      " data-suite-failed=\"" (:failed cts) "\""
-      " data-suite-broken=\"" (:broken cts) "\""
-      " data-suite-skipped=\"" (:skipped cts) "\""
-      " data-suite-passed=\"" (:passed cts) "\""
-      " data-suite-duration-max=\"" max-dur "\""
-      " data-suite-duration-total=\"" total-dur "\">"
-      "<summary class=\"suite-summary\""
-      (when single? " onclick=\"event.preventDefault()\"")
-      ">"
-      (when-not single? (detail-marker))
-      "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
-      "<span class=\"suite-summary-meta\">"
-      "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"
-      (when (pos? (long (:failed cts)))
-        (str "<span class=\"suite-stat stat-failed\">" (:failed cts) " failed</span>"))
-      (when (pos? (long (:broken cts)))
-        (str "<span class=\"suite-stat stat-broken\">" (:broken cts) " broken</span>"))
-      (when (pos? (long (:skipped cts)))
-        (str "<span class=\"suite-stat stat-skipped\">" (:skipped cts) " skipped</span>"))
-      (when (pos? (long (:passed cts)))
-        (str "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"))
-      "</span>"
-      "</summary>"
-      "<div class=\"suite-body\" data-suite-hydrated=\"" (if single? "true" "false") "\">"
-      "<script type=\"application/json\" class=\"suite-meta\">" meta-json "</script>"
-      (if single?
-        (str/join "" (map #(render-test-card % results-dir {:open? true :hide-trace? true}) results))
-        (str "<template class=\"suite-template\">"
-          (str/join "" (map #(render-test-card % results-dir) results))
-          "</template>"))
-      "</div>"
-      "</details>"))))
+         durations (map (fn [r]
+                          (let [s (get r "start") e (get r "stop")]
+                            (if (and s e) (- (long e) (long s)) 0)))
+                     results)
+         max-dur (if (seq durations) (long (apply max durations)) 0)
+         total-dur (long (reduce + 0 durations))]
+     (str "<details class=\"suite-section" (when single? " suite-section-static") "\" data-suite"
+       (when single? " open")
+       " data-suite-name=\"" (str/lower-case (html-escape suite-name)) "\""
+       " data-suite-total=\"" (:total cts) "\""
+       " data-suite-failed=\"" (:failed cts) "\""
+       " data-suite-broken=\"" (:broken cts) "\""
+       " data-suite-skipped=\"" (:skipped cts) "\""
+       " data-suite-passed=\"" (:passed cts) "\""
+       " data-suite-duration-max=\"" max-dur "\""
+       " data-suite-duration-total=\"" total-dur "\">"
+       "<summary class=\"suite-summary\""
+       (when single? " onclick=\"event.preventDefault()\"")
+       ">"
+       (when-not single? (detail-marker))
+       "<span class=\"suite-title\">" (html-escape suite-name) "</span>"
+       "<span class=\"suite-summary-meta\">"
+       "<span class=\"suite-stat stat-total\">" (:total cts) " total</span>"
+       (when (pos? (long (:failed cts)))
+         (str "<span class=\"suite-stat stat-failed\">" (:failed cts) " failed</span>"))
+       (when (pos? (long (:broken cts)))
+         (str "<span class=\"suite-stat stat-broken\">" (:broken cts) " broken</span>"))
+       (when (pos? (long (:skipped cts)))
+         (str "<span class=\"suite-stat stat-skipped\">" (:skipped cts) " skipped</span>"))
+       (when (pos? (long (:passed cts)))
+         (str "<span class=\"suite-stat stat-passed\">" (:passed cts) " passed</span>"))
+       "</span>"
+       "</summary>"
+       "<div class=\"suite-body\" data-suite-hydrated=\"" (if single? "true" "false") "\">"
+       "<script type=\"application/json\" class=\"suite-meta\">" meta-json "</script>"
+       (if single?
+         (str/join "" (map #(render-test-card % results-dir {:open? true :hide-trace? true}) results))
+         (str "<template class=\"suite-template\">"
+           (str/join "" (map #(render-test-card % results-dir) results))
+           "</template>"))
+       "</div>"
+       "</details>"))))
 
 (defn- css
   "Clean neutral stylesheet for the Blockether alternative report."
@@ -3465,8 +3465,8 @@
                                 "</style>")
                               "") "
   <script id=\"labelIndex\" type=\"application/json\">"
-                    (-> (json/write-json-str label-index)
-                      (str/replace "</" "<\\/")) "
+                      (-> (json/write-json-str label-index)
+                        (str/replace "</" "<\\/")) "
   </script>
 </head>
 <body" (when single? " class=\"single-mode\"") ">
@@ -3510,53 +3510,53 @@
       </div>
     </div>
     <div class=\"report-meta\">"
-                    (render-summary-chip "Total" (:total cts) "summary-chip-total")
-                    (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
-                    (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
-                    (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
-                    (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
-                    (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
-                    (render-summary-chip "Suites" (count suites) "summary-chip-suites")
-                    (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
-                    "</div>"
-                    (when single?
-                      (let [single-trace-atts (->> (concat (get (first results) "attachments" [])
-                                                     (collect-step-attachments (get (first results) "steps" [])))
-                                                (filter trace-attachment?)
-                                                (reduce (fn [acc a]
-                                                          (if (some #(= (get % "source") (get a "source")) acc)
-                                                            acc
-                                                            (conj acc a)))
-                                                  []))]
-                        (when (seq single-trace-atts)
-                          (str
-                            (when (> (count single-trace-atts) 1)
-                              (str "<div class=\"trace-multi-warning\">"
-                                "⚠ " (count single-trace-atts) " distinct Playwright traces captured for this test "
-                                "(likely from separate browser + API contexts). All are shown below."
-                                "</div>"))
-                            "<div class=\"single-trace-hero\">"
-                            (str/join "" (map #(render-attachment-html % results-dir) single-trace-atts))
-                            "</div>"))))
-                    "
+                      (render-summary-chip "Total" (:total cts) "summary-chip-total")
+                      (render-summary-chip "Passed" (:passed cts) "summary-chip-passed")
+                      (render-summary-chip "Failed" (:failed cts) "summary-chip-failed")
+                      (render-summary-chip "Broken" (:broken cts) "summary-chip-broken")
+                      (render-summary-chip "Skipped" (:skipped cts) "summary-chip-skipped")
+                      (render-summary-chip "Duration" (format-duration total-ms) "summary-chip-duration")
+                      (render-summary-chip "Suites" (count suites) "summary-chip-suites")
+                      (render-summary-chip "Pass rate" (str pass-rate "%") "summary-chip-total")
+                      "</div>"
+                      (when single?
+                        (let [single-trace-atts (->> (concat (get (first results) "attachments" [])
+                                                       (collect-step-attachments (get (first results) "steps" [])))
+                                                  (filter trace-attachment?)
+                                                  (reduce (fn [acc a]
+                                                            (if (some #(= (get % "source") (get a "source")) acc)
+                                                              acc
+                                                              (conj acc a)))
+                                                    []))]
+                          (when (seq single-trace-atts)
+                            (str
+                              (when (> (count single-trace-atts) 1)
+                                (str "<div class=\"trace-multi-warning\">"
+                                  "⚠ " (count single-trace-atts) " distinct Playwright traces captured for this test "
+                                  "(likely from separate browser + API contexts). All are shown below."
+                                  "</div>"))
+                              "<div class=\"single-trace-hero\">"
+                              (str/join "" (map #(render-attachment-html % results-dir) single-trace-atts))
+                              "</div>"))))
+                      "
   </header>
 
   <div class=\"toolbar\"" (when single? " hidden") ">
     <div class=\"filter-bar\">"
-                    (when-not single?
-                      (str
-                        "<button class=\"filter-btn active\" data-filter=\"all\">All (" (:total cts) ")</button>"
-                        "<button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>"
-                        "<button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>"
-                        "<button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
-                        (when (pos? (long (get cts :skipped 0)))
-                          (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))))
-                    "</div>
+                      (when-not single?
+                        (str
+                          "<button class=\"filter-btn active\" data-filter=\"all\">All (" (:total cts) ")</button>"
+                          "<button class=\"filter-btn\" data-filter=\"passed\">Passed (" (:passed cts) ")</button>"
+                          "<button class=\"filter-btn\" data-filter=\"failed\">Failed (" (:failed cts) ")</button>"
+                          "<button class=\"filter-btn\" data-filter=\"broken\">Broken (" (:broken cts) ")</button>"
+                          (when (pos? (long (get cts :skipped 0)))
+                            (str "<button class=\"filter-btn\" data-filter=\"skipped\">Skipped (" (:skipped cts) ")</button>"))))
+                      "</div>
     <div class=\"toolbar-actions\">"
-                    (when-not single?
-                      "<input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />")
-                    (when-not single?
-                      "<div class=\"toolbar-sort\" id=\"sortControl\" data-sort=\"status\" aria-expanded=\"false\">
+                      (when-not single?
+                        "<input type=\"text\" id=\"searchInput\" class=\"toolbar-search\" placeholder=\"Search tests...\" autocomplete=\"off\" />")
+                      (when-not single?
+                        "<div class=\"toolbar-sort\" id=\"sortControl\" data-sort=\"status\" aria-expanded=\"false\">
         <button type=\"button\" class=\"filter-btn toolbar-sort-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">
           <span class=\"toolbar-sort-label\">Sort: Status</span>
         </button>
@@ -3567,73 +3567,73 @@
           <li role=\"menuitem\" tabindex=\"-1\" data-value=\"name\">Name A–Z</li>
         </ul>
       </div>")
-                    (when (and (not single?) (seq label-index))
-                      (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
-                                          "severity" "Severity" "tag" "Tag"}
+                      (when (and (not single?) (seq label-index))
+                        (let [type-display {"epic" "Epic" "feature" "Feature" "story" "Story"
+                                            "severity" "Severity" "tag" "Tag"}
                           ;; Render in a stable order
-                            ordered-types (filter label-index ["epic" "feature" "story" "severity" "tag"])]
-                        (str
-                          "<div class=\"toolbar-labels\" id=\"labelControl\" aria-expanded=\"false\">"
-                          "<button type=\"button\" class=\"filter-btn toolbar-label-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">Labels</button>"
-                          "<div class=\"toolbar-label-menu\" hidden>"
-                          (str/join ""
-                            (for [ltype ordered-types
-                                  :let [values (get label-index ltype)]
-                                  :when (seq values)]
-                              (str "<div class=\"label-filter-group\" data-label-type=\"" (html-escape ltype) "\">"
-                                "<div class=\"label-filter-title\">" (get type-display ltype ltype) "</div>"
-                                (str/join ""
-                                  (for [v values]
-                                    (str "<button class=\"label-filter-item\" type=\"button\""
-                                      " data-label-type=\"" (html-escape ltype) "\""
-                                      " data-label-value=\"" (html-escape v) "\">"
-                                      (html-escape v)
-                                      "</button>")))
-                                "</div>")))
-                          "</div>"
-                          "</div>"))) "
+                              ordered-types (filter label-index ["epic" "feature" "story" "severity" "tag"])]
+                          (str
+                            "<div class=\"toolbar-labels\" id=\"labelControl\" aria-expanded=\"false\">"
+                            "<button type=\"button\" class=\"filter-btn toolbar-label-button\" aria-haspopup=\"menu\" aria-expanded=\"false\">Labels</button>"
+                            "<div class=\"toolbar-label-menu\" hidden>"
+                            (str/join ""
+                              (for [ltype ordered-types
+                                    :let [values (get label-index ltype)]
+                                    :when (seq values)]
+                                (str "<div class=\"label-filter-group\" data-label-type=\"" (html-escape ltype) "\">"
+                                  "<div class=\"label-filter-title\">" (get type-display ltype ltype) "</div>"
+                                  (str/join ""
+                                    (for [v values]
+                                      (str "<button class=\"label-filter-item\" type=\"button\""
+                                        " data-label-type=\"" (html-escape ltype) "\""
+                                        " data-label-value=\"" (html-escape v) "\">"
+                                        (html-escape v)
+                                        "</button>")))
+                                  "</div>")))
+                            "</div>"
+                            "</div>"))) "
 "
-                    (when-not single?
-                      (str
-                        "<button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>"
-                        "<button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>"))
-                    "
+                      (when-not single?
+                        (str
+                          "<button type=\"button\" class=\"toolbar-btn\" data-action=\"expand-suites\">Expand</button>"
+                          "<button type=\"button\" class=\"toolbar-btn\" data-action=\"collapse-suites\">Collapse</button>"))
+                      "
     </div>
   </div>
   <div id=\"activeLabelPills\" class=\"toolbar-active-labels\" style=\"padding: 0 1rem 0.5rem;\" hidden></div>"
-                    (when (seq env)
-                      (str "
+                      (when (seq env)
+                        (str "
   <details class=\"panel environment-panel\" id=\"environment\"" (when single? " open") ">
     <summary>" (detail-marker) "<span>Environment (" (count env) ")</span></summary>
     <div class=\"panel-body\">"
-                        "<div class=\"env-grid\">"
-                        (str/join ""
-                          (for [[k v] (sort-by first env)]
-                            (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
-                              "<div class=\"env-value\">" (html-escape v) "</div></div>")))
-                        "</div>"
-                        "</div>
-  </details>"))
-                    "
-  <section id=\"suites\">"
-                    (when-not single?
-                      "<h2 class=\"section-heading\">Test suites</h2>")
-                    "<div id=\"suitesRoot\">"
-                    (if (seq suites)
-                      (let [suite-names (keys suites)
-                            common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
-                        (str
-                          (when (and (not single?) common-prefix (not (str/blank? common-prefix)))
-                            (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
+                          "<div class=\"env-grid\">"
                           (str/join ""
-                            (for [[suite-name suite-results] suites]
-                              (let [short-name (strip-prefix common-prefix suite-name)
-                                    display-name (if (str/blank? short-name)
-                                                   (last (str/split suite-name #"\."))
-                                                   short-name)]
-                                (render-suite-section display-name suite-results results-dir {:single? single?}))))))
-                      "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
-                    "
+                            (for [[k v] (sort-by first env)]
+                              (str "<div class=\"env-item\"><div class=\"env-key\">" (html-escape k) "</div>"
+                                "<div class=\"env-value\">" (html-escape v) "</div></div>")))
+                          "</div>"
+                          "</div>
+  </details>"))
+                      "
+  <section id=\"suites\">"
+                      (when-not single?
+                        "<h2 class=\"section-heading\">Test suites</h2>")
+                      "<div id=\"suitesRoot\">"
+                      (if (seq suites)
+                        (let [suite-names (keys suites)
+                              common-prefix (longest-common-prefix (map suite-prefix-candidate suite-names))]
+                          (str
+                            (when (and (not single?) common-prefix (not (str/blank? common-prefix)))
+                              (str "<div class=\"suite-common-prefix\">" (html-escape common-prefix) "</div>"))
+                            (str/join ""
+                              (for [[suite-name suite-results] suites]
+                                (let [short-name (strip-prefix common-prefix suite-name)
+                                      display-name (if (str/blank? short-name)
+                                                     (last (str/split suite-name #"\."))
+                                                     short-name)]
+                                  (render-suite-section display-name suite-results results-dir {:single? single?}))))))
+                        "<div class=\"empty-state\"><p>No test result files were found for this run.</p></div>")
+                      "
     </div>
     <div id=\"suitesEmptyState\" class=\"empty-state\" hidden>
       <strong>No tests match the current filter.</strong>

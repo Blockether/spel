@@ -6,7 +6,8 @@
       {"pattern": "trace-viewer/.*"},
       {"pattern": "clj-kondo.exports/.*"},
       {"pattern": "SPEL_VERSION"},
-      {"pattern": "com/blockether/spel/help-registry.edn"}
+      {"pattern": "com/blockether/spel/help-registry.edn"},
+      {"pattern": "com/blockether/spel/audit-report.css"}
     ]
   }
 }

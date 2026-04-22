@@ -2057,7 +2057,7 @@
 
   (it "defaults to no renderer when not specified"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-merge-reports-args
-                           ["dir1"])]
+                          ["dir1"])]
       (expect (nil? (:renderer opts))))))
 
 ;; =============================================================================
@@ -2069,17 +2069,17 @@
 
   (it "parses --renderer flag with space"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--renderer" "alternative"])]
+                          ["--renderer" "alternative"])]
       (expect (= "alternative" (:renderer opts)))))
 
   (it "parses --renderer= flag"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--renderer=alternative"])]
+                          ["--renderer=alternative"])]
       (expect (= "alternative" (:renderer opts)))))
 
   (it "parses --renderer allure"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--renderer" "allure"])]
+                          ["--renderer" "allure"])]
       (expect (= "allure" (:renderer opts)))))
 
   (it "defaults to no renderer when not specified"
@@ -2088,27 +2088,27 @@
 
   (it "parses --results-dir"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--results-dir" "my-results"])]
+                          ["--results-dir" "my-results"])]
       (expect (= "my-results" (:results-dir opts)))))
 
   (it "parses --results-dir= form"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--results-dir=my-results"])]
+                          ["--results-dir=my-results"])]
       (expect (= "my-results" (:results-dir opts)))))
 
   (it "parses --output-dir"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--output-dir" "my-report"])]
+                          ["--output-dir" "my-report"])]
       (expect (= "my-report" (:output-dir opts)))))
 
   (it "parses --from-json"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--from-json" "results.json"])]
+                          ["--from-json" "results.json"])]
       (expect (= "results.json" (:from-json opts)))))
 
   (it "parses --title"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--title" "My Report"])]
+                          ["--title" "My Report"])]
       (expect (= "My Report" (:title opts)))))
 
   (it "parses --help"
@@ -2117,8 +2117,8 @@
 
   (it "parses all options together"
     (let [{:keys [opts]} (#'com.blockether.spel.native/parse-report-args
-                           ["--renderer" "alternative" "--results-dir" "res"
-                            "--output-dir" "out" "--title" "Test" "--kicker" "CI"])]
+                          ["--renderer" "alternative" "--results-dir" "res"
+                           "--output-dir" "out" "--title" "Test" "--kicker" "CI"])]
       (expect (= "alternative" (:renderer opts)))
       (expect (= "res" (:results-dir opts)))
       (expect (= "out" (:output-dir opts)))
