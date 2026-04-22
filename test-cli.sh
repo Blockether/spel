@@ -1352,7 +1352,7 @@ assert_contains "init-agents --loop=claude creates .claude agent" "$OUT" ".claud
 
 CLAUDE_AGENT_FILE="$CLAUDE_TMP/.claude/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q 'read `.claude/skills/spel/SKILL.md` first' "$CLAUDE_AGENT_FILE"; then
+if grep -q 'Read `.claude/skills/spel/SKILL.md` before any action\.' "$CLAUDE_AGENT_FILE"; then
   pass "claude agent reads local SKILL.md"
 else
   fail "claude agent reads local SKILL.md" "Expected Claude agent to read local SKILL.md"

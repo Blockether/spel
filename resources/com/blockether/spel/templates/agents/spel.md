@@ -127,9 +127,9 @@ When producing a structured report, use the built-in templates from the spel ski
 - `references/spel-report.md` (Markdown report template)
 - `references/spel-report.html` (HTML report template)
 
-If scaffolded paths are needed, these are typically:
-- OpenCode: `.opencode/skills/spel/references/spel-report.md` and `.opencode/skills/spel/references/spel-report.html`
-- Claude: `.claude/skills/spel/references/spel-report.md` and `.claude/skills/spel/references/spel-report.html`
+If scaffolded paths are needed, they live under your generated skill directory:
+- `<skill-dir>/references/spel-report.md`
+- `<skill-dir>/references/spel-report.html`
 
 ## Completion gate
 
