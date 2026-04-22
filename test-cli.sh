@@ -1923,8 +1923,8 @@ assert_contains "force creates spel agent" "$OUT" "spel agent"
 SINGLE_AGENT_FILE="$SINGLE_TMP/.opencode/agents/spel.md"
 assert_contains "agent mentions session discipline" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Session discipline"
 assert_contains "agent mentions snapshot" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "snapshot -i"
-assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Find bugs"
-assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Generate E2E tests"
+assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Bug Hunt"
+assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "generate E2E tests"
 
 section "Helpers (43)"
 
@@ -1934,14 +1934,6 @@ OUT=$("$SPEL" --json survey 2>&1)
 assert_jq "survey → has frames" "$OUT" '.frames | length > 0'
 assert_jq "survey → frame has path" "$OUT" '.frames[0].path'
 
-OUT=$("$SPEL" --json audit 2>&1)
-assert_jq "audit → has structure" "$OUT" '.structure.url'
-assert_jq "audit → has contrast" "$OUT" '.contrast["total-elements"] >= 0'
-assert_jq "audit → has sections" "$OUT" '.structure.sections | type == "array"'
-
-OUT=$("$SPEL" --json audit --all 2>&1)
-assert_jq "audit --all → has structure" "$OUT" '.structure.url'
-assert_jq "audit --all → has headings" "$OUT" '.headings.headings | type == "array"'
 
 OUT=$("$SPEL" --json markdownify --input '<h1>Hello</h1><p>World</p>' 2>&1)
 assert_jq_contains "markdownify --input → heading" "$OUT" '.markdown' '# Hello'
@@ -2005,23 +1997,18 @@ assert_jq "emulate → has size" "$OUT" '.size > 0'
 assert_jq "emulate → has preset" "$OUT" '.preset'
 
 # =============================================================================
-# AUDIT COMMAND (45)
+# DEBUG COMMAND (45)
 # =============================================================================
-section "Audit Command (45)"
+section "Debug Command (45)"
 
-# spel audit --help shows unified audit help
-OUT=$("$SPEL" audit --help 2>&1)
-assert_contains "audit --help mentions audit" "$OUT" "audit"
-assert_contains "audit --help mentions subcommands" "$OUT" "Subcommands"
-assert_contains "audit --help mentions structure" "$OUT" "structure"
-assert_contains "audit --help mentions contrast" "$OUT" "contrast"
-assert_contains "audit --help mentions colors" "$OUT" "colors"
-assert_contains "audit --help mentions layout" "$OUT" "layout"
-assert_contains "audit --help mentions fonts" "$OUT" "fonts"
-assert_contains "audit --help mentions links" "$OUT" "links"
-assert_contains "audit --help mentions headings" "$OUT" "headings"
-assert_contains "audit --help mentions --all" "$OUT" "--all"
-assert_contains "audit --help mentions --only" "$OUT" "--only"
+# spel debug --help shows diagnostic help
+OUT=$("$SPEL" debug --help 2>&1)
+assert_contains "debug --help mentions debug" "$OUT" "debug"
+assert_contains "debug --help mentions timing" "$OUT" "Performance timing"
+assert_contains "debug --help mentions console" "$OUT" "Console errors"
+assert_contains "debug --help mentions network" "$OUT" "Failed network requests"
+assert_contains "debug --help mentions --clear" "$OUT" "--clear"
+assert_contains "debug --help mentions --json" "$OUT" "--json"
 
 OUT=$("$SPEL" markdownify --help 2>&1)
 assert_contains "markdownify --help mentions markdownify" "$OUT" "markdownify"

@@ -2090,13 +2090,13 @@
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
             survey-r  (cmd "sci_eval" {"code" "(vector? (spel/survey {:max-frames 1}))"})
-            audit-r   (cmd "sci_eval" {"code" "(map? (spel/audit))"})
+            debug-r   (cmd "sci_eval" {"code" "(map? (spel/debug))"})
             md-r      (cmd "sci_eval" {"code" "(string? (spel/markdownify))"})
             routes-r  (cmd "sci_eval" {"code" "(map? (spel/routes))"})
             inspect-r (cmd "sci_eval" {"code" "(map? (spel/inspect))"})
             over-r    (cmd "sci_eval" {"code" "(map? (spel/overview))"})]
         (expect (= "true" (:result survey-r)))
-        (expect (= "true" (:result audit-r)))
+        (expect (= "true" (:result debug-r)))
         (expect (= "true" (:result md-r)))
         (expect (= "true" (:result routes-r)))
         (expect (= "true" (:result inspect-r)))

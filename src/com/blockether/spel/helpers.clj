@@ -726,15 +726,15 @@
   [^Page page]
   (let [raw (page/evaluate page page-insights-js)]
     {:timing    (when-let [t (get raw "timing")]
-                 {:dns-ms            (long (or (get t "dns_ms") 0))
-                  :connect-ms        (long (or (get t "connect_ms") 0))
-                  :ttfb-ms           (long (or (get t "ttfb_ms") 0))
-                  :dom-interactive-ms (long (or (get t "dom_interactive_ms") 0))
-                  :dom-complete-ms   (long (or (get t "dom_complete_ms") 0))
-                  :load-ms           (long (or (get t "load_ms") 0))
-                  :transfer-size     (long (or (get t "transfer_size") 0))
-                  :encoded-size      (long (or (get t "encoded_size") 0))
-                  :decoded-size      (long (or (get t "decoded_size") 0))})
+                  {:dns-ms            (long (or (get t "dns_ms") 0))
+                   :connect-ms        (long (or (get t "connect_ms") 0))
+                   :ttfb-ms           (long (or (get t "ttfb_ms") 0))
+                   :dom-interactive-ms (long (or (get t "dom_interactive_ms") 0))
+                   :dom-complete-ms   (long (or (get t "dom_complete_ms") 0))
+                   :load-ms           (long (or (get t "load_ms") 0))
+                   :transfer-size     (long (or (get t "transfer_size") 0))
+                   :encoded-size      (long (or (get t "encoded_size") 0))
+                   :decoded-size      (long (or (get t "decoded_size") 0))})
      :resources (when-let [r (get raw "resources")]
                   {:total-count     (long (or (get r "total_count") 0))
                    :total-size-bytes (long (or (get r "total_size_bytes") 0))
@@ -743,7 +743,7 @@
                                              :count           (long (or (get t "count") 0))
                                              :size-bytes      (long (or (get t "size_bytes") 0))
                                              :avg-duration-ms (long (or (get t "avg_duration_ms") 0))})
-                                     (get r "by_type" []))})
+                                      (get r "by_type" []))})
      :dom       (let [d (get raw "dom")]
                   {:total-elements (long (or (get d "total_elements") 0))
                    :forms          (long (or (get d "forms") 0))
@@ -782,7 +782,7 @@
                      :domains              (mapv (fn [d] {:domain (get d "domain") :count (long (or (get d "count") 0))})
                                              (get tp "domains" []))
                      :render-blocking-scripts (mapv (fn [s] {:src (get s "src") :external (boolean (get s "external"))})
-                                               (get tp "render_blocking_scripts" []))
+                                                (get tp "render_blocking_scripts" []))
                      :render-blocking-css    (mapv (fn [s] {:href (get s "href")})
                                                (get tp "render_blocking_css" []))})
      :mixed-content (let [mc (get raw "mixed_content")]
@@ -810,19 +810,19 @@
                         {:missing-dimensions   (long (or (get ie "missing_dimensions") 0))
                          :no-lazy-below-fold   (long (or (get ie "no_lazy_below_fold") 0))
                          :formats              (into {} (map (fn [[k v]] [(keyword k) (long v)])
-                                                         (get ie "formats" {})))})
+                                                          (get ie "formats" {})))})
      :font-loading (let [fl (get raw "font_loading")]
                      {:font-links       (long (or (get fl "font_links") 0))
                       :preloaded        (long (or (get fl "preloaded") 0))
                       :font-faces-loaded (long (or (get fl "font_faces_loaded") 0))})
      :https         (let [h (get raw "https")]
-                     {:is-https (boolean (get h "is_https"))
-                      :protocol (get h "protocol")})
+                      {:is-https (boolean (get h "is_https"))
+                       :protocol (get h "protocol")})
      :seo-extended  (let [s (get raw "seo_extended")]
-                     {:has-sitemap-link (boolean (get s "has_sitemap_link"))
-                      :sitemap-href    (get s "sitemap_href")
-                      :internal-links  (long (or (get s "internal_links") 0))
-                      :external-links  (long (or (get s "external_links") 0))})
+                      {:has-sitemap-link (boolean (get s "has_sitemap_link"))
+                       :sitemap-href    (get s "sitemap_href")
+                       :internal-links  (long (or (get s "internal_links") 0))
+                       :external-links  (long (or (get s "external_links") 0))})
      :resource-hints (let [rh (get raw "resource_hints")]
                        {:preconnect (vec (get rh "preconnect" []))
                         :prefetch   (vec (get rh "prefetch" []))})
@@ -846,7 +846,7 @@
                    :focusable-elements (long (or (get to "focusable_elements") 0))
                    :negative-tabindex  (long (or (get to "negative_tabindex") 0))
                    :positive-samples   (mapv (fn [s] {:tag (get s "tag") :tabindex (get s "tabindex") :text (get s "text")})
-                                          (get to "positive_samples" []))})
+                                         (get to "positive_samples" []))})
      :oversized-images (let [oi (get raw "oversized_images")]
                          {:count (long (or (get oi "count") 0))
                           :items (mapv (fn [o] {:url (get o "url") :size-bytes (long (or (get o "size_bytes") 0))

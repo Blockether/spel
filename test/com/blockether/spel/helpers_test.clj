@@ -1,7 +1,7 @@
 (ns com.blockether.spel.helpers-test
   (:require
    [clojure.string :as str]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]
+   [com.blockether.spel.allure :refer [defdescribe expect it]]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.markdownify :as markdownify]
    [com.blockether.spel.page :as page]))
