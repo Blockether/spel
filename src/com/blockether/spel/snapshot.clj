@@ -756,9 +756,10 @@
 
    Returns:
    Map with:
-     :tree    - String. YAML-like accessibility tree with [@eXXXXX] annotations.
-     :refs    - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
-     :counter - Long. Total number of refs assigned."
+     :tree     - String. YAML-like accessibility tree with [@eXXXXX] annotations.
+     :raw-tree - The raw nested tree structure from the accessibility snapshot JS.
+     :refs     - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
+     :counter  - Long. Total number of refs assigned."
   ([^Page page]
    (capture-snapshot page {}))
   ([^Page page opts]
@@ -797,6 +798,7 @@
                            (get info "styles")  (assoc :styles (into {} (get info "styles"))))]))
 
                  raw-refs)
+      :raw-tree raw-tree
       :counter  (or counter 0)
       :viewport vp
       :device   (:device opts)})))

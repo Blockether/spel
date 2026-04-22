@@ -53,14 +53,22 @@
 
   (describe "snapshot structure"
 
-    (it "returns map with :tree :refs :counter keys"
+    (it "returns map with :tree :raw-tree :refs :counter keys"
 
       (core/with-testing-page [pg] (page/navigate pg "https://example.org")
         (let [snap (sut/capture-snapshot pg)]
           (expect (map? snap))
           (expect (contains? snap :tree))
+          (expect (contains? snap :raw-tree))
           (expect (contains? snap :refs))
           (expect (contains? snap :counter)))))
+
+    (it "raw-tree is a non-nil nested structure"
+
+      (core/with-testing-page [pg] (page/navigate pg "https://example.org")
+        (let [snap (sut/capture-snapshot pg)]
+          (expect (some? (:raw-tree snap)))
+          (expect (instance? java.util.Map (:raw-tree snap))))))
 
     (it "tree is a non-empty string"
 
