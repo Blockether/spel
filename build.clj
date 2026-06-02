@@ -34,7 +34,11 @@
                            [:licenses
                             [:license
                              [:name "Apache License, Version 2.0"]
-                             [:url "https://www.apache.org/licenses/LICENSE-2.0"]]]]})
+                             [:url "https://www.apache.org/licenses/LICENSE-2.0"]]]
+                           [:scm
+                            [:url "https://github.com/Blockether/spel"]
+                            [:connection "scm:git:https://github.com/Blockether/spel.git"]
+                            [:developerConnection "scm:git:ssh://git@github.com/Blockether/spel.git"]]]})
   (b/copy-dir {:src-dirs ["src" "resources"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir
