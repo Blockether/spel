@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.8] - 2026-06-02
+
+### Changed
+- build: add <scm> to POM so Clojars links the GitHub repo
+- Update Clojure library version to 0.9.7
+- Rename Video Recording to Test Reporting in README
+
+
 ## [v0.9.5] - 2026-04-16
 
 ### Changed
@@ -1560,7 +1568,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.5...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.8...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1625,3 +1633,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.3]: https://github.com/Blockether/spel/releases/tag/v0.9.3
 [v0.9.4]: https://github.com/Blockether/spel/releases/tag/v0.9.4
 [v0.9.5]: https://github.com/Blockether/spel/releases/tag/v0.9.5
+[v0.9.8]: https://github.com/Blockether/spel/releases/tag/v0.9.8
