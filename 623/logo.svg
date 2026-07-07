@@ -1,0 +1,63 @@
+<svg width="400" height="350" viewBox="0 0 400 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="spotlight" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2EAD33" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#2EAD33" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="curtainL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#C04B41"/>
+      <stop offset="100%" stop-color="#E2574C"/>
+    </linearGradient>
+    <linearGradient id="curtainR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#C04B41"/>
+      <stop offset="100%" stop-color="#E2574C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Comedy mask (red, left) -->
+  <g transform="translate(162, 28)">
+    <path d="M 4,0 C 0,0 -2,4 0,8 L 6,30 C 8,36 14,40 20,40 C 26,40 30,36 30,30 L 30,8 C 30,3 26,0 22,0 Z"
+          fill="#E2574C"/>
+    <ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="white" opacity="0.9"/>
+    <ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="white" opacity="0.9"/>
+    <path d="M 9,28 Q 16,35 23,28" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/>
+  </g>
+
+  <!-- Tragedy mask (green, right) -->
+  <g transform="translate(206, 28)">
+    <path d="M 8,0 C 4,0 0,3 0,8 L 0,30 C 0,36 4,40 10,40 C 16,40 22,36 24,30 L 30,8 C 32,4 30,0 26,0 Z"
+          fill="#2EAD33"/>
+    <ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="white" opacity="0.9"/>
+    <ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="white" opacity="0.9"/>
+    <path d="M 9,32 Q 16,25 23,32" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/>
+  </g>
+
+  <!-- Left paren / curtain -->
+  <path d="M 148,60 C 68,102 68,184 148,226"
+        stroke="url(#curtainL)" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M 143,68 C 80,104 80,182 143,218"
+        stroke="#E8766D" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- Right paren / curtain -->
+  <path d="M 252,60 C 332,102 332,184 252,226"
+        stroke="url(#curtainR)" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <path d="M 257,68 C 320,104 320,182 257,218"
+        stroke="#E8766D" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- Spotlight glow -->
+  <circle cx="205" cy="143" r="50" fill="url(#spotlight)"/>
+
+  <!-- Play triangle -->
+  <path d="M 183,102 L 237,143 L 183,184 Z" fill="#2EAD33"/>
+  <path d="M 183,102 L 237,143 L 183,125 Z" fill="#34C43B" opacity="0.25"/>
+
+  <!-- "spel" wordmark -->
+  <text x="200" y="300" text-anchor="middle"
+        font-family="'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', serif"
+        font-size="58" font-weight="bold" fill="#2D4552" letter-spacing="5">spel</text>
+
+  <!-- Tagline -->
+  <text x="200" y="340" text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif"
+        font-size="13" fill="#6B7280" letter-spacing="2">Clojure × Playwright</text>
+</svg>

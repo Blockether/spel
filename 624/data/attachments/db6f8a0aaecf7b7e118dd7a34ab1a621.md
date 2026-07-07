@@ -1,0 +1,26 @@
+## GET http://localhost:45989/health → 200 OK
+
+### Request Headers
+```
+X-Service: users
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Tue, 02 Jun 2026 10:45:27 GMT
+```
+
+### Response Body
+```json
+{
+  "status": "ok"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:45989/health' \
+  -H 'X-Service: users'
+```
