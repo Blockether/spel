@@ -164,7 +164,7 @@
 (defn- hostname
   ^String []
   (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
+    (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -1132,27 +1132,27 @@
     ;; 1. Global allure on PATH — fast, no npx cache writes (works on read-only FS)
     (cmd-exists? "allure")
     (do (println "  Using globally installed allure")
-        ["allure"])
+      ["allure"])
 
     ;; 2. npx available → use the pinned version
     (cmd-exists? "npx")
     (do (println (str "  Using npx " allure-npm-pkg))
-        ["npx" "--yes" allure-npm-pkg])
+      ["npx" "--yes" allure-npm-pkg])
 
     ;; 3. npm available → install globally, then use allure
     (cmd-exists? "npm")
     (do (println (str "  Neither allure nor npx found. Installing " allure-npm-pkg " globally..."))
-        (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
-          (do (println (str "  Installed " allure-npm-pkg " successfully."))
-              ["allure"])
-          (do (println "  x npm install failed - cannot generate report.")
-              nil)))
+      (if (zero? (long (run-proc! ["npm" "install" "-g" allure-npm-pkg])))
+        (do (println (str "  Installed " allure-npm-pkg " successfully."))
+          ["allure"])
+        (do (println "  x npm install failed - cannot generate report.")
+          nil)))
 
     ;; 4. Nothing available
     :else
     (do (println "  x Cannot generate report: allure, npx, and npm are all missing.")
-        (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
-        nil)))
+      (println (str "    Install Node.js (https://nodejs.org) or: npm i -g " allure-npm-pkg))
+      nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; Report generation
@@ -1278,6 +1278,19 @@
     (println (str "  Generated badge.svg: " message))
     message))
 
+(defn- delete-tree!
+  "Recursively delete `f` (file or directory). Forces writability so read-only
+  allure outputs delete cleanly, and recurses before unlinking so non-empty
+  directories are removed too. Returns true when `f` no longer exists afterwards."
+  [^java.io.File f]
+  (when (.exists f)
+    (when (.isDirectory f)
+      (doseq [^java.io.File child (or (seq (.listFiles f)) [])]
+        (delete-tree! child)))
+    (try (.setWritable f true true) (catch Exception _))
+    (.delete f))
+  (not (.exists f)))
+
 (defn generate-html-report!
   "Resolve the Allure CLI, run `allure awesome` (with history when
    available), optionally embed the local trace viewer, and patch the
@@ -1305,14 +1318,14 @@
               exit    (long (run-proc! cmd))]
           (if (zero? exit)
             (do
-              ;; Remove awesome/ — it duplicates data/ and doubles report size
-              ;; (allure awesome generates a root report AND an awesome/ sub-report
-              ;;  with byte-identical attachments, inflating ~63 MB → ~127 MB per build)
+              ;; Remove the awesome/ sub-report — allure "awesome" emits BOTH a
+              ;; root report AND an embedded awesome/ copy carrying byte-identical
+              ;; attachments (~2x report size). The root index.html never links
+              ;; into awesome/, so dropping it is safe.
               (let [awesome (io/file report "awesome")]
-                (when (.isDirectory awesome)
-                  (doseq [^File f (reverse (file-seq awesome))]
-                    (.delete f))
-                  (println "  Removed awesome/ (saves ~50% report size)")))
+                (when (.exists awesome)
+                  (delete-tree! awesome)
+                  (println "  Removed awesome/ sub-report (dedupes attachments)")))
               ;; Embed trace viewer from classpath resources
               (when (copy-trace-viewer! (io/file report "trace-viewer"))
                 (patch-trace-viewer-url! report)
@@ -1333,6 +1346,13 @@
               (run-proc! (into allure-cmd ["history" results-dir
                                            "-h" history-file
                                            "--history-limit" (history-limit)]))
+              ;; allure history (3.3.1+) can recreate the awesome/ sub-report while
+              ;; writing trend history — re-check right before handing the report off,
+              ;; so the deployed site never ships the duplicated attachments.
+              (let [awesome (io/file report "awesome")]
+                (when (.exists awesome)
+                  (delete-tree! awesome)
+                  (println "  Removed late-recreated awesome/ sub-report")))
               (println (str "  Report ready at " report-dir-path "/"))
               true)
             (do

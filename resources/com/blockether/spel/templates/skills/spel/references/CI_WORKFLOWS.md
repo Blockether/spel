@@ -77,7 +77,7 @@ on:
 | `concurrency.group` | `allure-report` |
 | `concurrency.cancel-in-progress` | `false` |
 | `env.PAGES_BASE_URL` | `https://blockether.github.io/spel` |
-| `env.MAX_REPORTS` | `15` |
+| `env.MAX_REPORTS` | `5` |
 | `env.MAX_PR_REPORTS` | `3` |
 
 | Job | Runs on | Gate |

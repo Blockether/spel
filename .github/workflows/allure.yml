@@ -17,7 +17,7 @@ concurrency:
 env:
   PAGES_BASE_URL: https://blockether.github.io/spel
   MAX_REPORTS: 5
-  MAX_PR_REPORTS: 50
+  MAX_PR_REPORTS: 3
 
 jobs:
   report:
