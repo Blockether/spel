@@ -81,6 +81,7 @@ You can! If Claude Code's built-in browser works for you, keep using it. spel of
 | Write E2E tests | Clojure test framework with Allure reports, or record-and-generate |
 | Control a browser from scripts or the terminal | CLI commands + accessibility snapshots for reliable interaction |
 | Run browser tests in CI | Headless mode + Allure reporting + video recording |
+| Automate where CDP is disabled (corporate/managed browsers) | `spel bridge` — embed `spel.js` + drive over a loopback bridge |
 
 ## Rationale
 
@@ -293,6 +294,35 @@ spel open https://github.com    # opens with your logged-in session
 ```
 
 Run `spel --help` for the full command list (~150 commands covering navigation, interaction, content extraction, network interception, cookies, tabs, frames, debugging, and more).
+
+**No CDP? Drive a page over the loopback bridge:**
+
+Where the Chrome DevTools Protocol is disabled (locked-down corporate machines,
+managed browsers), classic CDP automation cannot attach. `spel bridge` instead
+serves a tiny, dependency-free engine (`spel.js`) plus a loopback SSE/POST
+transport on `127.0.0.1` — no DevTools Protocol, no extension, no bundler.
+Loopback traffic never leaves the machine, so an embedded page can be driven
+from spel anyway.
+
+```bash
+spel bridge                        # serve spel.js + the transport on 127.0.0.1:8787
+spel bridge use                    # route regular `spel <verb>` through the bridge
+spel bridge --eject -o spel.js     # unpack the engine (also ships inside the binary)
+spel bridge --eject --bookmarklet  # a draggable javascript: loader for any page
+```
+
+Embed it (load first in `<head>` for full network capture):
+
+```html
+<script src="http://127.0.0.1:8787/spel.js"></script>
+<script>window.__spel.connect({url:"http://127.0.0.1:8787/spel"})</script>
+```
+
+The engine installs `window.__spel` with one `invoke(command)` covering ~80
+verbs (click/fill/type, snapshot refs, ARIA, checks, in-page fetch/XHR network
+capture) plus an overlay element picker (**Ctrl+Shift+L**). It cannot do what
+needs CDP (real route/mock, cross-origin frames, OS-level tabs/downloads).
+Details: `spel bridge --help`.
 
 ### Clojure Library
 

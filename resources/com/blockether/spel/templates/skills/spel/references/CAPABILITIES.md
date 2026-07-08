@@ -56,6 +56,17 @@ Primary references:
 - `references/BROWSER_OPTIONS.md`
 - `references/NETWORK_ROUTING.md`
 
+## Bridge — CDP-free in-page automation
+
+- Drive a real tab where CDP is disabled: embed a pure-JS engine that talks to
+  spel over a loopback server (no DevTools Protocol, no extension, no bundler)
+- `spel bridge` serve / `--eject` (ships inside the native image) / bookmarklet
+  + console loaders / route regular commands via `spel bridge use`
+- In-page network capture (fetch/XHR), overlay element picker keymap
+
+Primary references:
+- `references/BRIDGE.md`
+
 ## Reports
 
 - Shared HTML/Markdown report templates

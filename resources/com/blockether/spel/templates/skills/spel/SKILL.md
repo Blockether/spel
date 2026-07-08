@@ -46,6 +46,7 @@ spel <cmd> --help                   # help per subcommand
 | `spel report [flags]` | **Generate alt HTML report** — see Reporting below |
 | `spel merge-reports <dirs...>` | Merge multiple `allure-results/` dirs |
 | `spel ci-assemble` | CI artifact assembly |
+| `spel bridge` | **CDP-free in-page automation** — serve/eject `spel.js`, route commands through a loopback bridge (see Bridge below) |
 
 ### Reporting — `spel report`
 
@@ -120,6 +121,33 @@ spel --content-boundaries --max-output 50000 \
 
 Blocked nav → anomaly `blockedbyclient`. stderr never wrapped/truncated.
 
+## Bridge — CDP-free in-page automation
+
+When CDP is disabled (locked-down/corporate boxes), drive a real tab by
+embedding a pure-JS engine that talks to spel over a **loopback** server — no
+DevTools Protocol, no extension, no bundler.
+
+```bash
+spel bridge                       # serve spel.js + SSE/POST transport on 127.0.0.1:8787
+spel bridge use                   # route regular `spel <verb>` through the bridge (saved in ~/.spel/bridge.json)
+spel bridge off | status          # stop routing / inspect the saved target + tab reachability
+spel bridge --eject [-o f]        # unpack the embedded spel.js (ships inside the native image)
+spel bridge --eject --bookmarklet # draggable javascript: loader (--console = paste into DevTools)
+```
+
+Embed (load **first** in `<head>` for full network capture):
+```html
+<script src="http://127.0.0.1:8787/spel.js"></script>
+<script>window.__spel.connect({url:"http://127.0.0.1:8787/spel"})</script>
+```
+
+Installs `window.__spel` with one `invoke(command)` covering ~80 verbs
+(click/fill/type/press, snapshot `@eXXX` refs, ARIA, checks, overflow, geometry,
+in-page **network capture** of fetch/XHR, storage, wait_for). Overlay element
+picker: **Ctrl+Shift+L**; choose server: **Ctrl+Shift+K**. Limits (no CDP): no
+real route/mock, no cross-origin frames, no OS-level tabs/downloads/trusted
+input, no traffic before the script loads. Full detail: `references/BRIDGE.md`.
+
 ## Rules
 
 | Rule | Detail |
@@ -179,6 +207,7 @@ Start with `references/START_HERE.md` + `references/CAPABILITIES.md`.
 | Unified report template (HTML) | `spel-report.html` |
 | Unified report template (MD) | `spel-report.md` |
 | Codegen record/transform | `CODEGEN_CLI.md` |
+| **Bridge — CDP-free in-page automation** | `BRIDGE.md` |
 | PDF / stitch / video | `PDF_STITCH_VIDEO.md` |
 | Env vars | `ENVIRONMENT_VARIABLES.md` |
 | Common problems | `COMMON_PROBLEMS.md` |

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- feat(bridge): CDP-free in-page automation — `spel bridge` serves a loopback
+  SSE/POST transport + the embedded `spel.js` engine (`window.__spel.invoke`,
+  ~80 verbs, in-page network capture, overlay picker keymap). `--eject` unpacks
+  the engine (ships inside the native image); `--eject --bookmarklet`/`--console`
+  emit loaders; `spel bridge use|off|status` routes regular `spel <verb>`
+  commands through the bridge (saved in `~/.spel/bridge.json`).
+- docs(bridge): `references/BRIDGE.md`, browser `spel.js` README, SKILL +
+  CAPABILITIES coverage (documents limits vs CDP upfront).
+
 ## [v0.9.8] - 2026-06-02
 
 ### Changed
