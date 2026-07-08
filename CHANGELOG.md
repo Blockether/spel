@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(bridge): the overlay picker now wears spel's theatrical brand — a
+  tragedy-green (`#2EAD33`) highlight box with a softly breathing glow and
+  rounded corners, a Playwright-style label chip (role · accessible name ·
+  size) that follows the cursor, a centred HUD pill (🎭 masks, "click to
+  select · Esc to cancel"), and a crosshair cursor while picking. `spel.js`
+  → v0.5.0.
 - feat(bridge): CDP-free in-page automation — `spel bridge` serves a loopback
   SSE/POST transport + the embedded `spel.js` engine (`window.__spel.invoke`,
   ~80 verbs, in-page network capture, overlay picker keymap). `--eject` unpacks

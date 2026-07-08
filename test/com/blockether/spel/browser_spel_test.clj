@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.4.0" (setup! pg)))))
+      (expect (= "0.5.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -321,6 +321,34 @@
       (expect (true? (page/evaluate pg "window.__spel.picker.active")))
       (expect (true? (value pg {:action "pick_stop"})))
       (expect (false? (page/evaluate pg "window.__spel.picker.active")))))
+
+  (it "the overlay chrome is spel-branded and cleans up on stop"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "pick"})
+      ;; Hover over the Go button to render the highlight box + label chip.
+      (page/evaluate pg
+        (str "(() => {"
+          "  const el = document.getElementById('go');"
+          "  const r = el.getBoundingClientRect();"
+          "  const x = r.left + r.width/2, y = r.top + r.height/2;"
+          "  document.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:x, clientY:y}));"
+          "})()"))
+      ;; HUD pill is shown while picking.
+      (expect (= "flex" (page/evaluate pg "window.__spel.picker.hud.style.display")))
+      ;; Highlight box wears the tragedy-green border, not the old blue.
+      (expect (re-find #"46, ?173, ?51"
+                (page/evaluate pg "window.__spel.picker.box.style.borderColor")))
+      (expect (= "block" (page/evaluate pg "window.__spel.picker.box.style.display")))
+      ;; Label chip is visible and carries the element's role.
+      (expect (= "block" (page/evaluate pg "window.__spel.picker.label.style.display")))
+      (expect (re-find #"button" (page/evaluate pg "window.__spel.picker.label.textContent")))
+      ;; The breathing-glow keyframes were injected once.
+      (expect (true? (page/evaluate pg "!!window.__spel.picker.styleEl")))
+      (value pg {:action "pick_stop"})
+      (expect (= "none" (page/evaluate pg "window.__spel.picker.hud.style.display")))
+      (expect (= "none" (page/evaluate pg "window.__spel.picker.label.style.display")))
+      (expect (= "none" (page/evaluate pg "window.__spel.picker.box.style.display")))))
 
   (it "clicking during a pick records the selected element"
     (core/with-testing-page [pg]

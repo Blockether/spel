@@ -711,18 +711,111 @@
 
   var activeConn = null;
 
+  var SPEL_SLATE = "#2D4552";
+  var SPEL_SERIF =
+    "'Iowan Old Style','Palatino Linotype','Palatino',Georgia,serif";
+
+  function escHtml(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function spelEl(css) {
+    var d = document.createElement("div");
+    d.setAttribute("data-spel-overlay", "1");
+    d.style.cssText = css;
+    return d;
+  }
+
+  // Inject the theatrical-brand keyframes once (breathing green glow + blink).
+  function ensureStyle() {
+    if (picker.styleEl || !document.head) return;
+    var s = document.createElement("style");
+    s.setAttribute("data-spel-overlay", "1");
+    s.textContent =
+      "@keyframes spel-breathe{" +
+      "0%,100%{box-shadow:0 0 0 1px rgba(46,173,51,.35)," +
+      "0 6px 20px rgba(46,173,51,.22),inset 0 0 10px rgba(46,173,51,.10)}" +
+      "50%{box-shadow:0 0 0 1px rgba(46,173,51,.55)," +
+      "0 10px 30px rgba(46,173,51,.40),inset 0 0 16px rgba(46,173,51,.18)}}" +
+      "@keyframes spel-blink{0%,100%{opacity:1}50%{opacity:.35}}";
+    document.head.appendChild(s);
+    picker.styleEl = s;
+  }
+
   function ensureBox() {
     if (picker.box) return picker.box;
-    var box = document.createElement("div");
-    box.setAttribute("data-spel-overlay", "1");
-    box.style.cssText = [
-      "position:fixed", "z-index:2147483647", "pointer-events:none",
-      "background:rgba(59,130,246,0.25)", "border:2px solid #3b82f6",
-      "border-radius:2px", "transition:all 40ms ease", "display:none"
-    ].join(";");
+    ensureStyle();
+    // Highlight box — tragedy-green, rounded, softly breathing glow.
+    var box = spelEl([
+      "position:fixed", "z-index:2147483646", "pointer-events:none",
+      "background:rgba(46,173,51,0.14)",
+      "border:1.5px solid rgba(46,173,51,0.92)", "border-radius:6px",
+      "transition:all 55ms cubic-bezier(.4,0,.2,1)",
+      "animation:spel-breathe 1.7s ease-in-out infinite", "display:none"
+    ].join(";"));
     document.documentElement.appendChild(box);
     picker.box = box;
+
+    // Floating label chip — role / accessible name / size (Playwright-style).
+    var label = spelEl([
+      "position:fixed", "z-index:2147483647", "pointer-events:none",
+      "display:none", "max-width:360px", "padding:5px 9px",
+      "border-radius:6px",
+      "background:linear-gradient(180deg," + SPEL_SLATE + ",#22333d)",
+      "color:#eaf6ea", "font:600 12px/1.35 " + SPEL_SERIF,
+      "box-shadow:0 6px 20px rgba(45,69,82,0.42)", "white-space:nowrap",
+      "overflow:hidden", "text-overflow:ellipsis",
+      "border:1px solid rgba(46,173,51,0.55)"
+    ].join(";"));
+    document.documentElement.appendChild(label);
+    picker.label = label;
+
+    // HUD pill — theatrical masks + status, centred at the top while picking.
+    var hud = spelEl([
+      "position:fixed", "top:16px", "left:50%",
+      "transform:translateX(-50%)", "z-index:2147483647",
+      "pointer-events:none", "display:none", "align-items:center",
+      "gap:8px", "padding:7px 15px", "border-radius:999px",
+      "background:linear-gradient(180deg," + SPEL_SLATE + ",#1f2e36)",
+      "color:#f4faf4", "font:600 12.5px/1 " + SPEL_SERIF,
+      "letter-spacing:.3px",
+      "box-shadow:0 10px 34px rgba(45,69,82,0.5)," +
+      "0 0 0 1px rgba(46,173,51,0.45)"
+    ].join(";"));
+    hud.innerHTML =
+      '<span style="animation:spel-blink 1.2s ease-in-out infinite;' +
+      'font-size:14px">\uD83C\uDFAD</span>' +
+      '<span style="color:#7fe08a">spel picker</span>' +
+      '<span style="opacity:.72;font-weight:500">click to select ' +
+      '\u00b7 Esc to cancel</span>';
+    document.documentElement.appendChild(hud);
+    picker.hud = hud;
     return box;
+  }
+
+  // Fill + position the label chip above (or below, near the top) an element.
+  function showLabel(el) {
+    if (!picker.label) return;
+    var lb = picker.label, r = el.getBoundingClientRect();
+    var role = roleOf(el) || el.tagName.toLowerCase();
+    var name = accessibleName(el) || "";
+    lb.innerHTML =
+      '<span style="color:#7fe08a;font-weight:700">' + escHtml(role) +
+      '</span>' +
+      (name
+        ? '<span style="opacity:.95"> \u201c' +
+          escHtml(name.slice(0, 60)) + '\u201d</span>'
+        : '') +
+      '<span style="opacity:.6;font-weight:500"> ' +
+      Math.round(r.width) + '\u00d7' + Math.round(r.height) + '</span>';
+    lb.style.display = "block";
+    var lh = lb.offsetHeight || 24;
+    var top = r.top - lh - 6;
+    if (top < 4) top = r.bottom + 6;
+    lb.style.top = top + "px";
+    lb.style.left = (r.left < 4 ? 4 : r.left) + "px";
   }
 
   function moveBox(el) {
@@ -737,7 +830,10 @@
 
   function pickerMove(e) {
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (el && el !== picker.box) moveBox(el);
+    if (el && el !== picker.box && !el.hasAttribute("data-spel-overlay")) {
+      moveBox(el);
+      showLabel(el);
+    }
   }
 
   function pickerClick(e) {
@@ -772,6 +868,9 @@
     picker.active = true;
     picker._lastPicked = null;
     ensureBox();
+    if (picker.hud) picker.hud.style.display = "flex";
+    picker._prevCursor = document.body ? document.body.style.cursor : "";
+    if (document.body) document.body.style.cursor = "crosshair";
     document.addEventListener("mousemove", pickerMove, true);
     document.addEventListener("click", pickerClick, true);
     document.addEventListener("keydown", pickerKey, true);
@@ -782,6 +881,9 @@
     if (!picker.active) return false;
     picker.active = false;
     if (picker.box) picker.box.style.display = "none";
+    if (picker.label) picker.label.style.display = "none";
+    if (picker.hud) picker.hud.style.display = "none";
+    if (document.body) document.body.style.cursor = picker._prevCursor || "";
     document.removeEventListener("mousemove", pickerMove, true);
     document.removeEventListener("click", pickerClick, true);
     document.removeEventListener("keydown", pickerKey, true);
@@ -1298,7 +1400,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.4.0",
+    version: "0.5.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,
