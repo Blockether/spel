@@ -1204,6 +1204,16 @@
           (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "bridge"))
 
+          ;; Unpack the embedded service worker (spel-sw.js). Same-origin only,
+          ;; so drop it next to your page to add passive-subresource capture.
+          (some #{"--eject-sw"} rest-args)
+          (let [out (or (flag "-o") (flag "--output"))
+                src (bridge/sw-source)]
+            (if out
+              (do (spit out src)
+                (println (str "Wrote " (count src) " bytes to " out)))
+              (do (print src) (flush))))
+
           (some #{"--eject"} rest-args)
           (let [out     (or (flag "-o") (flag "--output"))
                 tok     (or (flag "--token") (:token (bridge/read-runtime)))

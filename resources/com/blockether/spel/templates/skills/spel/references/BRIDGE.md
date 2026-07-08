@@ -220,6 +220,25 @@ original, unwrapped functions and is invisible. So: synchronous first
 `<script>` in `<head>` for full capture; a late bookmarklet only sees traffic
 from click-time onward.
 
+### Service worker — passive subresources with real status/headers
+
+`fetch`/XHR wrapping and `PerformanceObserver` leave one gap: passive
+subresources the browser loader pulls on its own (`<img>`, `<script>`,
+`<link rel=stylesheet>`, fonts, media) never touch the wrappers, and
+`PerformanceObserver` sees only their timing/size — no status, headers or body.
+A **service worker** (`spel-sw.js`) sits in front of the network for its whole
+scope, so it *does* see them. Registered via `sw_register`, it intercepts those
+passive requests, does the real fetch, and forwards a full network entry
+(status, headers, body) back to the page tagged `via:"sw"`; the engine merges
+them into the same `network_list`/`network_har` store (and steps the
+`PerformanceObserver` path aside to avoid double counting).
+
+A service worker is **same-origin only** and needs a secure context (https or
+localhost). The bridge serves it at `/spel-sw.js`; for a page you control,
+`spel bridge --eject-sw` unpacks it so you can drop it next to your HTML on its
+own origin. Handlers: `sw_register` (`{:url … :scope …}`, defaults
+`/spel-sw.js`), `sw_status`, `sw_unregister`.
+
 ## Overlay element picker (keymap)
 
 The engine installs a global keydown listener:
@@ -239,6 +258,9 @@ Both hotkeys are configurable via the `configure` handler
 so it ships **inside the native binary** — the resource pattern
 `com/blockether/spel/browser/.*` is listed in `resource-config.json`.
 `spel bridge --eject` unpacks it from the running binary for standalone hosting.
+The service worker `spel-sw.js` sits in the same dir (covered by the same
+`com/blockether/spel/browser/.*` pattern) and unpacks with
+`spel bridge --eject-sw`.
 
 ## Limitations — document these upfront
 
@@ -246,10 +268,12 @@ Pure in-page JS cannot replicate everything Playwright's driver does. These do
 **not** work through the bridge (by design, no CDP):
 
 - **Protocol-level / cross-origin network interception** — `route` mocks
-  **same-origin `fetch`/XHR** in-page (abort or fulfil), but it cannot touch
-  requests that don't go through `fetch`/XHR (img/script/css/beacon), nor
-  cross-origin requests, nor rewrite at the protocol layer. Use
-  `references/NETWORK_ROUTING.md` (daemon/CDP path) for real interception.
+  **same-origin `fetch`/XHR** in-page (abort or fulfil); it cannot *mock*
+  passive subresources (img/script/css) or cross-origin requests, nor rewrite
+  at the protocol layer. (Passive **same-origin** subresources can now be
+  *captured* — real status/headers/body — via the `spel-sw.js` service worker;
+  that is observation, not mocking.) Use `references/NETWORK_ROUTING.md`
+  (daemon/CDP path) for real cross-origin / protocol interception.
 - **Cross-origin iframe reach** — same-origin frames only; the browser's
   same-origin policy blocks the rest.
 - **New tabs / popups / downloads / file chooser at the OS level** — no driver

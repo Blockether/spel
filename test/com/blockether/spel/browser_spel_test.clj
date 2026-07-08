@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.8.0" (setup! pg)))))
+      (expect (= "0.9.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -555,6 +555,66 @@
       (page/evaluate pg (str "fetch(" (json/write-json-str *test-server-url*) ").then(r => r.text())"))
       (value pg {:action "network_clear"})
       (expect (empty? (get (value pg {:action "network_list"}) "entries"))))))
+
+;; ---------------------------------------------------------------------------
+;; Service worker (spel-sw.js) — same-origin passive-subresource capture
+;; ---------------------------------------------------------------------------
+
+(defdescribe service-worker-test
+  "spel-sw.js registers, controls the page, and forwards passive subresources
+   (which the fetch/XHR wrappers never see) into the network capture."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (it "captures a passive <script> subresource via the service worker"
+    (core/with-testing-page [pg]
+      ;; Real same-origin HTTP page so the worker (served at /spel-sw.js) can
+      ;; register and claim control (localhost is a secure context).
+      (page/navigate pg (str *test-server-url* "/test-page"))
+      (load-spel! pg)
+      (let [reg (page/evaluate pg
+                  (str "(async () => {"
+                    "  const r = await window.__spel.invoke({action:'sw_register'});"
+                    "  for (let i=0;i<60 && !navigator.serviceWorker.controller;i++)"
+                    "    { await new Promise(f=>setTimeout(f,100)); }"
+                    "  return { registered: !!(r.ok && r.value && r.value.registered),"
+                    "           controlling: !!navigator.serviceWorker.controller };"
+                    "})()"))]
+        (expect (true? (get reg "registered")))
+        (expect (true? (get reg "controlling"))))
+      (value pg {:action "network_clear"})
+      ;; Pull a passive subresource the wrappers cannot see (a <script> element,
+      ;; destination \"script\"). The worker intercepts it and posts it back.
+      (page/evaluate pg
+        (str "new Promise(res => {"
+          "  const s = document.createElement('script');"
+          "  s.src = '/passive-asset.js?t=' + Date.now();"
+          "  s.onload = () => setTimeout(() => res(true), 300);"
+          "  s.onerror = () => setTimeout(() => res(false), 300);"
+          "  document.head.appendChild(s);"
+          "})"))
+      (let [entries (get (value pg {:action "network_list"}) "entries")
+            hit (some (fn [e] (when (= "sw" (get e "via")) e)) entries)]
+        (expect (some? hit))
+        (expect (= "script" (get hit "resourceType")))
+        (expect (= 200 (get hit "status")))
+        (expect (re-find #"passive-asset" (get hit "url"))))))
+
+  (it "sw_status reports control and sw_unregister tears it down"
+    (core/with-testing-page [pg]
+      (page/navigate pg (str *test-server-url* "/test-page"))
+      (load-spel! pg)
+      (page/evaluate pg
+        (str "(async () => {"
+          "  await window.__spel.invoke({action:'sw_register'});"
+          "  for (let i=0;i<60 && !navigator.serviceWorker.controller;i++)"
+          "    { await new Promise(f=>setTimeout(f,100)); }"
+          "  return true;"
+          "})()"))
+      (let [st (value pg {:action "sw_status"})]
+        (expect (true? (get st "supported")))
+        (expect (true? (get st "controlling"))))
+      (let [r (value pg {:action "sw_unregister"})]
+        (expect (>= (long (get r "unregistered")) 1))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Dialogs, console, waits, uploads, events, frames (pure-JS Playwright parity)

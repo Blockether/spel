@@ -29,7 +29,15 @@
     (let [src (bridge/engine-source)]
       (expect (string? src))
       (expect (re-find #"__spel" src))
-      (expect (re-find #"version: \"0\.4\.0\"" src)))))
+      (expect (re-find #"version: \"\d+\.\d+\.\d+\"" src)))))
+
+(defdescribe bridge-sw-source-test
+  "The bridge exposes the embedded service worker source (spel-sw.js)."
+  (it "sw-source returns the installable spel-sw.js"
+    (let [src (bridge/sw-source)]
+      (expect (string? src))
+      (expect (re-find #"__spel_sw" src))
+      (expect (re-find #"\"fetch\"" src)))))
 
 (defdescribe bridge-eject-loader-test
   "The ejected loader/bookmarklet target the right origin + connect URL."
@@ -94,7 +102,7 @@
         (core/with-testing-page [pg]
           (page/navigate pg (:page b))
           (wait-for-client! b 8000)
-          (expect (= "0.4.0" (page/evaluate pg "window.__spel.version")))
+          (expect (re-find #"\d+\.\d+\.\d+" (page/evaluate pg "window.__spel.version")))
           ;; the tab holds a live SSE connection back to this bridge
           (expect (= "sse" (page/evaluate pg "window.__spel.connection() && window.__spel.connection().transport"))))
         (finally ((:stop b)))))))

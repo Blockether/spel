@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(bridge): **service worker** (`spel-sw.js`) for same-origin capture of
+  passive subresources the `fetch`/XHR wrappers can't see — `<img>`, `<script>`,
+  `<link rel=stylesheet>`, fonts, media (`spel.js` → v0.9.0):
+  - New handlers `sw_register` (`{:url … :scope …}`, defaults `/spel-sw.js`),
+    `sw_status`, `sw_unregister`. Once the worker controls the page it fetches
+    those passive requests itself and forwards a full entry (status, headers,
+    body) into the same `network_list`/`network_har` store, tagged `via:"sw"`;
+    the `PerformanceObserver` path steps aside to avoid double counting.
+  - Bridge serves the worker at `/spel-sw.js`; `spel bridge --eject-sw`
+    (`-o <file>`) unpacks it for hosting on your own origin (service workers are
+    same-origin only + need https/localhost). Ships inside the native image via
+    the existing `com/blockether/spel/browser/.*` resource pattern.
+  - Tested on live Chromium (registers, claims control, captures a passive
+    `<script>` with real status/headers, then unregisters).
 - feat(bridge): cross-validation pass — three capabilities previously
   documented as CDP-only turned out doable in pure in-page JS and are now
   implemented + tested on live Chromium (`spel.js` → v0.8.0):

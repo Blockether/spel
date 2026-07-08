@@ -4,6 +4,7 @@
    Provides HTML pages, echo/health/status endpoints, and request logging.
    NOT part of the public API — only used by our own test suite."
   (:require
+   [clojure.java.io :as io]
    [com.blockether.spel.allure :refer [around]])
   (:import
    [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
@@ -13,6 +14,11 @@
   *test-server-url* nil)
 
 (def ^:private request-log (atom []))
+
+(def ^:private spel-sw-js
+  "The service worker source, served same-origin so headless Chromium can
+   register it for passive-subresource capture tests."
+  (slurp (io/resource "com/blockether/spel/browser/spel-sw.js")))
 
 (defn test-server-requests [] @request-log)
 
@@ -213,12 +219,18 @@
           (and (= "GET" method) (= "/scrollable-page" path))
           (send-response exchange 200 scrollable-page-html "text/html; charset=UTF-8")
 
+          (and (= "GET" method) (= "/spel-sw.js" path))
+          (send-response exchange 200 spel-sw-js "application/javascript; charset=UTF-8")
+
+          (and (= "GET" method) (= "/passive-asset.js" path))
+          (send-response exchange 200 "window.__spelPassiveLoaded = true;" "application/javascript; charset=UTF-8")
+
           (and (= "GET" method) (= "/health" path))
           (send-response exchange 200 "{\"status\":\"ok\"}" "application/json")
 
           (and (= "HEAD" method) (= "/health" path))
           (do (.sendResponseHeaders exchange 200 -1)
-              (.close (.getResponseBody exchange)))
+            (.close (.getResponseBody exchange)))
 
           (= "/echo" path)
           (let [resp-body (str "{\"method\":\"" method "\""
@@ -242,7 +254,7 @@
 
           (= "/slow" path)
           (do (Thread/sleep 2000)
-              (send-response exchange 200 "{\"slow\":true}" "application/json"))
+            (send-response exchange 200 "{\"slow\":true}" "application/json"))
 
           :else
           (send-response exchange 404

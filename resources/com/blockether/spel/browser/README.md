@@ -39,7 +39,8 @@ Selectors: `@eNN` resolves a snapshot ref (`[data-pw-ref="eNN"]`); `text=…` /
 
 ~100 handlers grouped as: interaction, read/props, state checks,
 geometry/overflow, ARIA + snapshot, navigation (`goto`), waits (`wait_for*`),
-refs, storage, cookies, network capture + same-origin `route` mocking, dialogs,
+refs, storage, cookies, network capture + same-origin `route` mocking +
+service-worker passive capture (`sw_register`), dialogs,
 console/error capture, input (`upload`/`tap`/`dispatch_event`), same-origin
 frames, env emulation (`emulate`), HAR export (`network_har`), DOM `screenshot`,
 overlay picker, and server/transport (plus an `evaluate` escape hatch).
@@ -58,12 +59,19 @@ Both are configurable via the `configure` handler.
 time; a `PerformanceObserver` picks up passive resources. So **only traffic
 after this script runs is visible** — inject it as the first `<script>` in
 `<head>` for a complete picture. Cross-origin bodies/headers are limited to what
-CORS exposes; opaque (no-cors) bodies are unreadable.
+CORS exposes; opaque (no-cors) bodies are unreadable. **Passive subresources**
+(img/script/css/fonts/media) skip the wrappers entirely — register the
+`spel-sw.js` service worker (`sw_register`; the bridge serves it at
+`/spel-sw.js`, or `spel bridge --eject-sw` for your own origin) to capture those
+with real status/headers/body. Same-origin only, secure context (https/
+localhost) required.
 
 ## What it cannot do (no CDP)
 
 Cross-origin/protocol-level interception (`route` mocks only same-origin
-fetch/XHR), cross-origin iframes, OS-level tabs / downloads / file chooser,
+fetch/XHR; passive same-origin subresources are *captured* — not mocked — via
+the `spel-sw.js` service worker), cross-origin iframes, OS-level tabs /
+downloads / file chooser,
 trusted (`isTrusted`) input, PDF/video/trace capture, HAR **replay**, real
 viewport resize / permission grants, and traffic before load. (`screenshot`,
 `network_har` and JS-level `emulate` cover the DOM-reachable half of Playwright's

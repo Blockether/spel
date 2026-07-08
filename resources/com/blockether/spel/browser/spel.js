@@ -71,6 +71,14 @@
   var netCounter = 0;
   var netInstalled = false;
 
+  // Service worker (spel-sw.js) — same-origin interception of PASSIVE
+  // subresources (img/script/css/font/media) the fetch/XHR wrappers can't see.
+  // When one is registered + controlling this page it forwards network entries
+  // here via postMessage; see installSWListener + the sw_* handlers.
+  var swActive = false; // a spel service worker is controlling this page
+  var swReg = null; // the ServiceWorkerRegistration, when we registered one
+  var swListenerInstalled = false;
+
   function netCap(s) {
     if (s == null) return s;
     s = String(s);
@@ -125,7 +133,7 @@
       ref: entry.ref, url: entry.url, method: entry.method,
       status: entry.status, statusText: entry.statusText,
       resourceType: entry.resourceType, ok: entry.ok,
-      fromCache: entry.fromCache, size: entry.size, mocked: entry.mocked,
+      fromCache: entry.fromCache, size: entry.size, mocked: entry.mocked, via: entry.via,
       startTime: entry.startTime, duration: entry.duration,
       error: entry.error
     });
@@ -288,6 +296,7 @@
         var ents = list.getEntries();
         for (var i = 0; i < ents.length; i++) {
           var e = ents[i], it = e.initiatorType;
+          if (swActive) continue; // the service worker covers passive resources
           if (it === "xmlhttprequest" || it === "fetch") continue; // covered by wrappers
           netRecord({
             url: e.name, method: "GET", status: null, statusText: null,
@@ -309,6 +318,22 @@
     wrapFetch();
     wrapXHR();
     wrapPerf();
+    return true;
+  }
+
+  // Listen once for network entries forwarded by spel-sw.js and merge them into
+  // the same capture store the wrappers feed, so network_list/network_har see
+  // passive subresources with real status + headers (tagged via:"sw").
+  function installSWListener() {
+    if (swListenerInstalled) return false;
+    if (!global.navigator || !global.navigator.serviceWorker) return false;
+    swListenerInstalled = true;
+    try {
+      global.navigator.serviceWorker.addEventListener("message", function (ev) {
+        var d = ev && ev.data;
+        if (d && d.__spel_sw && d.type === "net" && d.entry) netRecord(d.entry);
+      });
+    } catch (e) { return false; }
     return true;
   }
 
@@ -1515,6 +1540,59 @@
     },
     network_capture: function () { return { installed: installNetwork(), capturing: netInstalled }; },
 
+    // --- service worker (spel-sw.js): same-origin capture of passive subresources ---
+    //   Registers the worker, wires the message listener, and (once it controls
+    //   the page) surfaces img/script/css/font/media requests via network_list
+    //   with real status/headers (via:"sw"). Same-origin only; needs https or
+    //   localhost. The script defaults to "/spel-sw.js" (bridge serves it; or
+    //   `spel bridge --eject-sw` to drop it on your own origin).
+    sw_register: function (c) {
+      c = c || {};
+      var nav = global.navigator;
+      if (!nav || !nav.serviceWorker) {
+        return { supported: false, error: "serviceWorker unavailable (needs https or localhost)" };
+      }
+      installSWListener();
+      var url = c.url || c.script || "/spel-sw.js";
+      var opts = c.scope ? { scope: c.scope } : undefined;
+      return nav.serviceWorker.register(url, opts).then(function (reg) {
+        swReg = reg;
+        swActive = true;
+        return nav.serviceWorker.ready.then(function () {
+          return {
+            supported: true, registered: true, scope: reg.scope,
+            controlling: !!nav.serviceWorker.controller
+          };
+        });
+      }, function (e) {
+        return { supported: true, registered: false, error: String((e && e.message) || e) };
+      });
+    },
+    sw_status: function () {
+      var nav = global.navigator;
+      if (!nav || !nav.serviceWorker) return { supported: false };
+      return {
+        supported: true,
+        controlling: !!nav.serviceWorker.controller,
+        active: swActive,
+        scope: swReg ? swReg.scope : null
+      };
+    },
+    sw_unregister: function () {
+      var nav = global.navigator;
+      if (!nav || !nav.serviceWorker) return { supported: false };
+      var fin = function (n) { swActive = false; swReg = null; return { unregistered: n }; };
+      if (nav.serviceWorker.getRegistrations) {
+        return nav.serviceWorker.getRegistrations().then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); })).then(function (res) {
+            return fin(res.filter(Boolean).length);
+          });
+        });
+      }
+      if (swReg) return swReg.unregister().then(function (ok) { return fin(ok ? 1 : 0); });
+      return fin(0);
+    },
+
     // --- overlay picker ---
 
     pick: function (c) { return startPicker(c); },
@@ -2079,7 +2157,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.8.0",
+    version: "0.9.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,
@@ -2099,6 +2177,16 @@
   }
 
   installNetwork();
+
+  // Wire the service-worker message listener now so a worker registered on an
+  // earlier page (they persist across navigations) is heard immediately. If one
+  // already controls this page, mark capture active so the PerformanceObserver
+  // path steps aside for it.
+  installSWListener();
+  if (global.navigator && global.navigator.serviceWorker &&
+      global.navigator.serviceWorker.controller) {
+    swActive = true;
+  }
 
   // Re-inject survival: a previous page on this tab connected, so re-subscribe
   // automatically after a full-page navigation re-loaded this script. SPA route

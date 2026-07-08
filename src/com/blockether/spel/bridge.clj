@@ -53,6 +53,20 @@
     (throw (ex-info (str "embedded engine resource not found: " engine-resource)
              {:resource engine-resource}))))
 
+(def ^:private sw-engine-resource
+  "Classpath location of the embedded service worker (spel-sw.js), which does
+   same-origin capture of passive subresources the in-page wrappers miss."
+  "com/blockether/spel/browser/spel-sw.js")
+
+(defn sw-source
+  "Returns the embedded `spel-sw.js` source as a string, or throws if it is
+   missing from the classpath / native image."
+  ^String []
+  (if-let [r (io/resource sw-engine-resource)]
+    (slurp r)
+    (throw (ex-info (str "embedded service worker resource not found: " sw-engine-resource)
+             {:resource sw-engine-resource}))))
+
 (defn eject-origin
   "Resolves the (origin, path) an ejected loader/bookmarklet should target.
    With an explicit `url` (e.g. http://host:port/spel) it is split into an
@@ -397,6 +411,7 @@
     (.createContext server result-path (result-handler pending token))
     (.createContext server path (sse-handler clients token))
     (.createContext server "/spel.js" (static-handler "application/javascript; charset=utf-8" (engine-source)))
+    (.createContext server "/spel-sw.js" (static-handler "application/javascript; charset=utf-8" (sw-source)))
     (.createContext server "/" (static-handler "text/html; charset=utf-8" (harness-html path token)))
     (.start server)
     (let [actual-port (.getPort (.getAddress server))
