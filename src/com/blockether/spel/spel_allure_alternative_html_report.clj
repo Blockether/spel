@@ -173,14 +173,14 @@
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo source not found, skipping: "
                              (.getPath src-file))))
-                nil)
+              nil)
 
             (> (.length src-file) max-bytes)
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo " (.getPath src-file)
                              " is " (.length src-file) " bytes, exceeds "
                              max-bytes " byte cap — skipping")))
-                nil)
+              nil)
 
             :else
             (let [ext (logo-ext s)
@@ -614,7 +614,7 @@
 
 (defn- parse-long-safe [^String s]
   (try (Long/parseLong (str/trim s))
-       (catch Exception _ nil)))
+    (catch Exception _ nil)))
 
 (defn- trace-chunk-size-bytes
   "Resolve trace chunk size in bytes. Returns nil when chunking is disabled.
@@ -1134,17 +1134,17 @@
   :root,
   html[data-theme='light'],
   html[data-theme='auto'] {
-    --bg: #f8f9fa;
-    --bg-panel: rgba(255, 255, 255, 0.97);
-    --bg-panel-strong: rgba(248, 249, 250, 0.98);
-    --bg-code: #f1f3f5;
-    --bg-accent: rgba(55, 65, 81, 0.06);
-    --border: rgba(0, 0, 0, 0.10);
-    --border-strong: rgba(0, 0, 0, 0.18);
-    --text: #111827;
-    --text-secondary: #4b5563;
-    --text-muted: #6b7280;
-    --accent: #4f46e5;
+    --bg: #faf3eb;
+    --bg-panel: rgba(255, 253, 248, 0.98);
+    --bg-panel-strong: rgba(250, 243, 235, 0.98);
+    --bg-code: #f2ebdf;
+    --bg-accent: rgba(240, 173, 0, 0.10);
+    --border: rgba(63, 63, 63, 0.14);
+    --border-strong: rgba(63, 63, 63, 0.26);
+    --text: #262626;
+    --text-secondary: #3f3f3f;
+    --text-muted: #6f6a63;
+    --accent: #f0ad00;
     --accent-green: #16a34a;
     --accent-green-light: rgba(22, 163, 74, 0.08);
     --accent-green-border: rgba(22, 163, 74, 0.25);
@@ -1162,13 +1162,13 @@
     --bg-panel: rgba(22, 24, 32, 0.98);
     --bg-panel-strong: rgba(28, 31, 40, 0.98);
     --bg-code: #1e2028;
-    --bg-accent: rgba(99, 102, 241, 0.10);
+    --bg-accent: rgba(255, 196, 32, 0.12);
     --border: rgba(255, 255, 255, 0.10);
     --border-strong: rgba(255, 255, 255, 0.18);
     --text: #f3f4f6;
     --text-secondary: #d1d5db;
     --text-muted: #9ca3af;
-    --accent: #818cf8;
+    --accent: #ffc420;
     --accent-green: #4ade80;
     --accent-green-light: rgba(74, 222, 128, 0.08);
     --accent-green-border: rgba(74, 222, 128, 0.20);
@@ -1185,13 +1185,13 @@
       --bg-panel: rgba(22, 24, 32, 0.98);
       --bg-panel-strong: rgba(28, 31, 40, 0.98);
       --bg-code: #1e2028;
-      --bg-accent: rgba(99, 102, 241, 0.10);
+      --bg-accent: rgba(255, 196, 32, 0.12);
       --border: rgba(255, 255, 255, 0.10);
       --border-strong: rgba(255, 255, 255, 0.18);
       --text: #f3f4f6;
       --text-secondary: #d1d5db;
       --text-muted: #9ca3af;
-      --accent: #818cf8;
+      --accent: #ffc420;
       --accent-green: #4ade80;
       --accent-green-light: rgba(74, 222, 128, 0.08);
       --accent-green-border: rgba(74, 222, 128, 0.20);
@@ -1204,17 +1204,17 @@
     html[data-theme='light'] {
       /* Force light palette even when the OS is dark. Re-assert the light
          values so @media dark doesn't win by specificity. */
-      --bg: #f8f9fa;
-      --bg-panel: rgba(255, 255, 255, 0.97);
-      --bg-panel-strong: rgba(248, 249, 250, 0.98);
-      --bg-code: #f1f3f5;
-      --bg-accent: rgba(55, 65, 81, 0.06);
-      --border: rgba(0, 0, 0, 0.10);
-      --border-strong: rgba(0, 0, 0, 0.18);
-      --text: #111827;
-      --text-secondary: #4b5563;
-      --text-muted: #6b7280;
-      --accent: #4f46e5;
+      --bg: #faf3eb;
+      --bg-panel: rgba(255, 253, 248, 0.98);
+      --bg-panel-strong: rgba(250, 243, 235, 0.98);
+      --bg-code: #f2ebdf;
+      --bg-accent: rgba(240, 173, 0, 0.10);
+      --border: rgba(63, 63, 63, 0.14);
+      --border-strong: rgba(63, 63, 63, 0.26);
+      --text: #262626;
+      --text-secondary: #3f3f3f;
+      --text-muted: #6f6a63;
+      --accent: #f0ad00;
       --accent-green: #16a34a;
       --accent-green-light: rgba(22, 163, 74, 0.08);
       --accent-green-border: rgba(22, 163, 74, 0.25);
@@ -2484,7 +2484,7 @@
     background: var(--bg-accent);
   }
   .spel-badge.api { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; box-shadow: none !important; }
-  .spel-badge.ui { background: #7c3aed !important; color: #fff !important; border-color: #7c3aed !important; box-shadow: none !important; }
+  .spel-badge.ui { background: #3f3f3f !important; color: #ffc420 !important; border-color: #3f3f3f !important; box-shadow: none !important; }
   .spel-badge.ui-api { background: #059669 !important; color: #fff !important; border-color: #059669 !important; box-shadow: none !important; }
 
   /* Mobile */
@@ -3344,11 +3344,11 @@
                              ;; instant — matches the docstring.
                              (or (try (Long/parseLong s) (catch Exception _ nil))
                                (try (.toEpochMilli (java.time.Instant/parse s))
-                                    (catch Exception _ nil))
+                                 (catch Exception _ nil))
                                (try (.toEpochMilli
                                       (.toInstant
                                         (java.time.OffsetDateTime/parse s)))
-                                    (catch Exception _ nil))))
+                                 (catch Exception _ nil))))
                            :else nil))
          run-info (let [m (cond-> (or base-run-info {})
                             (:build-id opts)   (assoc :run-name (:build-id opts))
@@ -3411,10 +3411,10 @@
              suites (group-by-suite results)
              label-index (collect-label-index results)
              start-ts (reduce min Long/MAX_VALUE (keep #(get % "start") results))
-           ;; Inline SVG favicon — a simple indigo orb matching --accent.
+           ;; Inline SVG favicon — an amber orb matching --accent (Blockether brand).
            ;; Self-contained so the report has zero external asset deps
            ;; and no /favicon.ico 404 in the console.
-             favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%234f46e5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23fff'/%3E%3C/svg%3E"
+             favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23f0ad00'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23262626'/%3E%3C/svg%3E"
              html (binding [*auto-open-attachments?* single?]
                     (str "<!DOCTYPE html>
 <html lang=\"en\">

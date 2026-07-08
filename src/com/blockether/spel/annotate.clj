@@ -17,40 +17,19 @@
    [com.microsoft.playwright Page]))
 
 ;; =============================================================================
-;; Role → Color mapping (CSS hex)
+;; Brand palette (Blockether) — mirrors the ejected browser overlay
+;; (resources/com/blockether/spel/browser/spel.js). Amber accent, ink chips,
+;; JetBrains Mono, hard offset shadow, sharp corners, no animation.
 ;; =============================================================================
 
-(def ^:private role-colors
-  {"button"       "#4CAF50"    ;; green
-   "link"         "#2196F3"    ;; blue
-   "textbox"      "#FF9800"    ;; orange
-   "searchbox"    "#FF9800"    ;; orange
-   "combobox"     "#FF9800"    ;; orange
-   "checkbox"     "#9C27B0"    ;; purple
-   "radio"        "#9C27B0"    ;; purple
-   "heading"      "#E91E63"    ;; pink
-   "img"          "#00BCD4"    ;; cyan
-   "navigation"   "#795548"    ;; brown
-   "dialog"       "#FF5722"    ;; deep orange
-   "tab"          "#3F51B5"    ;; indigo
-   "menuitem"     "#3F51B5"    ;; indigo
-   "slider"       "#CDDC39"    ;; lime
-   "spinbutton"   "#FF9800"    ;; orange
-   "switch"       "#9C27B0"    ;; purple
-   "progressbar"  "#009688"    ;; teal
-   "table"        "#607D8B"    ;; blue-grey
-   "list"         "#607D8B"    ;; blue-grey
-   "listitem"     "#607D8B"    ;; blue-grey
-   "span"         "#78909C"    ;; grey
-   "p"            "#78909C"    ;; grey
-   "paragraph"    "#78909C"    ;; grey
-   "text"         "#78909C"    ;; grey (text-bearing generic elements)
-   })
-
-(def ^:private default-color "#F44336") ;; red
-
-(defn- color-for-role [role]
-  (get role-colors role default-color))
+(def ^:private brand-amber "#ffc420")
+(def ^:private brand-ink "#262626")
+(def ^:private brand-charcoal "#3f3f3f")
+(def ^:private brand-mono
+  ;; Double-quote the family name: the generated cssText is a single-quoted JS
+  ;; string, so a single-quoted 'JetBrains Mono' would close it and break the
+  ;; injected script. Double quotes are valid CSS and safe inside 'single' JS.
+  "\"JetBrains Mono\",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace")
 
 ;; =============================================================================
 ;; Annotation filtering (reduce clutter by skipping structural elements)
@@ -334,8 +313,7 @@
         (for [[ref-id info] items
               :let [{:keys [role bbox]} info
                     {:keys [width height]} bbox
-                    width (double width) height (double height)
-                    color (color-for-role role)]
+                    width (double width) height (double height)]
               :when (and (pos? width) (pos? height))]
           (str
           ;; Find the actual DOM element and get its real position
@@ -352,9 +330,9 @@
                   "    var box = document.createElement('div');"
                   "    box.setAttribute('data-spel-annotate', 'box');"
                   "    box.style.cssText = 'position:absolute;pointer-events:none;"
-                  "border:1px solid " color ";"
+                  "border:1.5px solid " brand-amber ";"
                   (when-not is-container
-                    (str "background:" color "80;"))
+                    "background:rgba(255,196,32,0.18);")
                   "box-sizing:border-box;';"
                   "    box.style.top = dy + 'px';"
                   "    box.style.left = dx + 'px';"
@@ -372,8 +350,8 @@
                   "    lbl.setAttribute('data-spel-annotate', 'label');"
                   "    lbl.textContent = '" label-text "';"
                   "    lbl.style.cssText = 'position:absolute;pointer-events:none;"
-                  "background:" color ";opacity:1;"
-                  "color:#fff;font:bold 9px/1 sans-serif;padding:1px 3px;white-space:nowrap;';"
+                  "background:" brand-ink ";"
+                  "color:" brand-amber ";font:700 10px/15px " brand-mono ";padding:0 4px;white-space:nowrap;box-shadow:1px 1px 0 0 " brand-charcoal ";';"
                   (if is-container
                     ;; Container labels: top-right (avoid overlapping child labels at top-left)
                     (str "    lbl.style.top = dy + 'px';"
@@ -583,15 +561,14 @@
 ;; =============================================================================
 
 (def ^:private remove-action-markers-js
-  "document.querySelectorAll('[data-spel-action-marker]').forEach(function(el){ el.remove(); });
-   var ss = document.getElementById('spel-marker-style'); if(ss) ss.remove();")
+  "document.querySelectorAll('[data-spel-action-marker]').forEach(function(el){ el.remove(); });")
 
 (defn- build-action-marker-js
   "Builds JavaScript that injects prominent action markers on specific refs.
 
    Each marker consists of:
-   - A pulsing red/orange border (3px solid, CSS animation)
-   - A semi-transparent red fill
+   - A heavier amber border (2.5px solid, Blockether brand)
+   - A semi-transparent amber fill
    - A label '→ eN' at top-left identifying the target
 
    Markers use `data-spel-action-marker` (independent of annotation overlays)."
@@ -600,13 +577,7 @@
                 (str "{id:'" ref-id "'}"))]
     (str
       "(function(){"
-      ;; Inject keyframe animation via <style> tag (once)
-      "if(!document.getElementById('spel-marker-style')){"
-      "  var style=document.createElement('style');"
-      "  style.id='spel-marker-style';"
-      "  style.textContent='@keyframes spel-pulse{0%,100%{border-color:#FF4444;box-shadow:0 0 8px rgba(255,68,68,0.6);}50%{border-color:#FF8800;box-shadow:0 0 12px rgba(255,136,0,0.8);}}';"
-      "  document.head.appendChild(style);"
-      "}"
+      ;; No animation — matches the ejected overlay's static brand style.
       "var sx=window.scrollX||0,sy=window.scrollY||0;"
       "var items=[" (apply str (interpose "," items)) "];"
       "var count=0;"
@@ -619,8 +590,7 @@
       "  var mk=document.createElement('div');"
       "  mk.setAttribute('data-spel-action-marker','box');"
       "  mk.style.cssText='position:absolute;pointer-events:none;z-index:2147483646;"
-      "border:3px solid #FF4444;background:rgba(255,68,68,0.12);box-sizing:border-box;"
-      "animation:spel-pulse 2s ease-in-out infinite;';"
+      "border:2.5px solid " brand-amber ";background:rgba(255,196,32,0.14);box-sizing:border-box;';"
       "  mk.style.top=(r.top+sy)+'px';"
       "  mk.style.left=(r.left+sx)+'px';"
       "  mk.style.width=r.width+'px';"
@@ -629,8 +599,8 @@
       "  var lbl=document.createElement('div');"
       "  lbl.setAttribute('data-spel-action-marker','label');"
       "  lbl.textContent='\\u2192 '+item.id;"
-      "  lbl.style.cssText='position:absolute;top:-18px;left:0;background:#FF4444;color:#fff;"
-      "font:bold 10px/1 sans-serif;padding:2px 6px;white-space:nowrap;border-radius:2px;"
+      "  lbl.style.cssText='position:absolute;top:-18px;left:0;background:" brand-ink ";color:" brand-amber ";"
+      "font:700 10px/15px " brand-mono ";padding:0 5px;white-space:nowrap;box-shadow:1px 1px 0 0 " brand-charcoal ";"
       "pointer-events:none;';"
       "  mk.appendChild(lbl);"
       "  document.documentElement.appendChild(mk);"
@@ -642,8 +612,8 @@
 (defn inject-action-markers!
   "Injects prominent pre-action markers on specific snapshot refs.
 
-   Markers are visually distinct from annotation overlays: bright red/orange
-   pulsing border with a '→ eN' label. Used to highlight elements before
+   Markers are visually distinct from annotation overlays: a heavier amber
+   (Blockether-brand) border with a '→ eN' label. Used to highlight elements before
    interacting with them, making screenshots self-documenting.
 
    Markers use `data-spel-action-marker` attribute and are independent of

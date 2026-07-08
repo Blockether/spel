@@ -62,15 +62,15 @@
         ;; Dims are now computed in JS via Math.round(dw) + 'x' + Math.round(dh)
                                       (expect (.contains ^String js "Math.round(dw)")))))
 
-    (it "uses role-specific colors"
+    (it "uses the Blockether brand palette (amber box, ink chip)"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-        ;; button → green
-                                      (expect (.contains ^String js "#4CAF50"))
-        ;; link → blue
-                                      (expect (.contains ^String js "#2196F3"))
-        ;; heading → pink
-                                      (expect (.contains ^String js "#E91E63"))))))
+        ;; box border → amber accent
+                                      (expect (.contains ^String js "#ffc420"))
+        ;; label chip → ink background
+                                      (expect (.contains ^String js "#262626"))
+        ;; label chip → JetBrains Mono
+                                      (expect (.contains ^String js "JetBrains Mono"))))))
 
   (describe "compact label placement"
     (it "places label inside box for tall elements (dh >= 16)"
@@ -110,7 +110,7 @@
         ;; No label elements
                                       (expect (not (.contains ^String js "lbl.textContent")))
         ;; But should still have boxes with border
-                                      (expect (.contains ^String js "border:1px solid")))))
+                                      (expect (.contains ^String js "border:1.5px solid")))))
 
     (it "excludes dimensions from label when :show-dimensions false"
 
