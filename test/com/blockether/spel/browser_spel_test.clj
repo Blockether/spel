@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.11.0" (setup! pg)))))
+      (expect (= "0.12.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -366,7 +366,10 @@
         (expect (some? picked))
         (expect (= "button" (get picked "role")))
         (expect (= "Go" (get picked "name")))
-        (expect (re-find #"^@e" (get picked "selector"))))))
+        (expect (re-find #"^@e" (get picked "selector")))
+        ;; The picked selector is copied to the clipboard and recorded.
+        (expect (= (get picked "selector")
+                  (page/evaluate pg "window.__spel.picker._lastCopied"))))))
 
   (it "configure changes the hotkey"
     (core/with-testing-page [pg]

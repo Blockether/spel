@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat(bridge): **picker copies the picked selector to the clipboard** and shows
+  a branded confirmation toast on click (spel.js v0.12.0). Previously clicking an
+  element during a pick recorded it silently — nothing landed in the clipboard,
+  so "nic się nie działo". Now `pickerClick` writes `@ref` via
+  `navigator.clipboard` (with a `document.execCommand('copy')` textarea fallback
+  for non-secure/http origins), records it on `picker._lastCopied`, and flashes a
+  top-centre "copied @eXXXX" pill.
+- feat(bridge): **overlay + connect modal re-themed to a light palette** — the
+  label chip, HUD pill, connect modal card and its input/buttons moved off the
+  dark slate gradient onto white/paper backgrounds with dark-ink text, keeping
+  the tragedy-green accent (`#2EAD33` / darkened `#249329` for text-on-light) and
+  serif wordmark. The highlight box stays green.
+
 - feat(bridge): **branded connect modal** for the Ctrl+Shift+K server chooser
   (spel.js v0.11.0). Replaces the native `prompt()` with a spel-themed dialog
   (slate/tragedy-green palette, serif wordmark, theatrical-mask header, focus
