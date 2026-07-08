@@ -70,3 +70,49 @@
           ;; the tab holds a live SSE connection back to this bridge
           (expect (= "sse" (page/evaluate pg "window.__spel.connection() && window.__spel.connection().transport"))))
         (finally ((:stop b)))))))
+
+(defdescribe bridge-target-test
+  "The saved target profile round-trips and drives which transport a command
+   takes (daemon vs. bridge)."
+
+  (it "save/load/clear a bridge target on an explicit path"
+    (let [tmp (str (System/getProperty "java.io.tmpdir")
+                "/spel-target-test-" (System/currentTimeMillis) ".json")]
+      (try
+        (expect (nil? (bridge/load-target tmp)))
+        (bridge/save-target! {:url "http://127.0.0.1:8787/spel"} tmp)
+        (expect (= "http://127.0.0.1:8787/spel" (:url (bridge/load-target tmp))))
+        (expect (= true (bridge/clear-target! tmp)))
+        (expect (nil? (bridge/load-target tmp)))
+        (finally (.delete (java.io.File. tmp)))))))
+
+(defdescribe bridge-route-command-test
+  "`route-command!` is the CLI-side client: it POSTs one command to the bridge's
+   /command endpoint and gets the browser's result back in daemon shape. This is
+   exactly the path a regular `spel <verb>` follows once a target is saved."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "routes a command to a live tab and adapts the result"
+    (let [b (bridge/create-bridge :port 0)]
+      (try
+        (core/with-testing-page [pg]
+          (page/navigate pg (:page b))
+          (wait-for-client! b 8000)
+          ;; meta ping straight through the HTTP /command endpoint
+          (let [r (bridge/route-command! (:url b) {:action "ping"} 8000)]
+            (expect (= true (:success r)))
+            (expect (= "pong" (:data r))))
+          ;; read the live DOM from the CLI side
+          (let [r (bridge/route-command! (:url b) {:action "get_text" :selector "h1"} 8000)]
+            (expect (= true (:success r)))
+            (expect (= "spel bridge" (:data r))))
+          ;; an unknown action comes back as a structured failure
+          (let [r (bridge/route-command! (:url b) {:action "no-such-action"} 8000)]
+            (expect (= false (:success r)))
+            (expect (re-find #"unknown action" (:error r)))))
+        (finally ((:stop b))))))
+
+  (it "reports a clear error when no bridge is listening"
+    (let [r (bridge/route-command! "http://127.0.0.1:1/spel" {:action "ping"} 1000)]
+      (expect (= false (:success r)))
+      (expect (re-find #"not reachable" (:error r))))))

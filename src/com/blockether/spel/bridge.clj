@@ -19,6 +19,10 @@
    Endpoints (all under the configurable `:path`, default `/spel`):
      GET  /spel          → SSE stream; each browser tab that connects is a client
      POST /spel/result   → browser posts an invoke result here (correlated by id)
+     POST /spel/command  → an external client (the spel CLI) submits one command;
+                           it is pushed to the connected tab and the browser's
+                           result is returned as the HTTP response (this is what
+                           lets regular `spel <verb>` route through the bridge)
      GET  /spel.js       → the embedded engine source (same file that ships in
                            the native image)
      GET  /              → a tiny harness page that loads the engine and connects"
@@ -48,8 +52,91 @@
     (throw (ex-info (str "embedded engine resource not found: " engine-resource)
              {:resource engine-resource}))))
 
+;; =============================================================================
+;; Target profile — the persisted route for regular `spel <verb>` commands
+;; =============================================================================
+;;
+;; When a target is saved (via `spel bridge use`), the CLI sends every browser
+;; command to the bridge's /command endpoint instead of the Playwright daemon,
+;; so a locked-down / CDP-disabled box can still drive a real tab through the
+;; embedded engine. "Where we send / how we communicate" lives in one small
+;; JSON file at ~/.spel/bridge.json.
+
+(defn target-path
+  "Filesystem location of the saved bridge target (the route regular spel
+   commands follow when set)."
+  ^String []
+  (str (System/getProperty "user.home") "/.spel/bridge.json"))
+
+(defn load-target
+  "Reads the persisted bridge target, or nil when none is set. Shape:
+   `{:url \"http://127.0.0.1:8787/spel\"}`."
+  ([] (load-target (target-path)))
+  ([^String path]
+   (let [f (io/file path)]
+     (when (.isFile f)
+       (try (json/read-json (slurp f) :key-fn keyword)
+         (catch Exception _ nil))))))
+
+(defn save-target!
+  "Persists the active bridge target so subsequent `spel <verb>` invocations
+   route through the bridge. Returns the saved map."
+  ([target] (save-target! target (target-path)))
+  ([target ^String path]
+   (let [f (io/file path)]
+     (when-let [parent (.getParentFile f)] (.mkdirs parent))
+     (spit f (json/write-json-str target))
+     target)))
+
+(defn clear-target!
+  "Removes the persisted bridge target; regular commands go back to the daemon.
+   Returns true if a target file was removed."
+  ([] (clear-target! (target-path)))
+  ([^String path]
+   (let [f (io/file path)]
+     (boolean (and (.isFile f) (.delete f))))))
+
 (defn- ->bytes ^bytes [^String s]
   (.getBytes s StandardCharsets/UTF_8))
+
+(defn route-command!
+  "Submits ONE spel command map to a running bridge's /command endpoint and
+   returns the browser's result adapted to the daemon `{:success :data :error}`
+   shape, so CLI output is identical whether a command hit the daemon or the
+   bridge. `url` is the bridge connect URL (e.g. http://127.0.0.1:8787/spel)."
+  ([url command] (route-command! url command 30000))
+  ([^String url command timeout-ms]
+   (let [endpoint (str url "/command")
+         body     (->bytes (json/write-json-str
+                             (into {} (map (fn [[k v]] [(name k) v]) command))))]
+     (try
+       (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. endpoint))]
+         (doto conn
+           (.setRequestMethod "POST")
+           (.setConnectTimeout 3000)
+           (.setReadTimeout (int (or timeout-ms 30000)))
+           (.setDoOutput true)
+           (.setRequestProperty "Content-Type" "application/json"))
+         (with-open [os (.getOutputStream conn)]
+           (.write os body))
+         (let [code (.getResponseCode conn)
+               ins  (if (and (>= code 200) (< code 400))
+                      (.getInputStream conn)
+                      (.getErrorStream conn))
+               resp (when ins (slurp ins))
+               r    (try (json/read-json resp) (catch Exception _ nil))]
+           (if (map? r)
+             {:success (boolean (get r "ok"))
+              :data    (get r "value")
+              :error   (get r "error")}
+             {:success false
+              :error   (str "bridge: unexpected response (HTTP " code ")")})))
+       (catch java.net.ConnectException _
+         {:success false
+          :error   (str "bridge not reachable at " url
+                     " — is `spel bridge` running? (start it, or run `spel bridge off`)")})
+       (catch Exception e
+         {:success false :error (str "bridge error: " (.getMessage e))})))))
 
 (defn- respond!
   "Writes a one-shot response with the given status, content-type and body."
@@ -150,6 +237,28 @@
           (respond! ex 200 content-type body))
         (catch Exception _ (try (.close ex) (catch Exception _ nil)))))))
 
+(defn- command-handler
+  "POST ← an external client (the spel CLI) submits one command map. It is
+   pushed to the connected tab(s) via `send!` and the browser's result is
+   returned as the JSON response. With no tab subscribed `send!` times out and
+   a structured `{ok:false,error}` is returned so the caller gets a clear error."
+  [send!]
+  (reify HttpHandler
+    (handle [_ ex]
+      (try
+        (cond
+          (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not= "POST" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
+          :else
+          (let [body   (slurp (io/reader (.getRequestBody ex)))
+                cmd    (json/read-json body)
+                result (try (send! cmd 30000)
+                         (catch Exception e
+                           {"ok" false "error" (or (.getMessage e) "bridge command failed")}))]
+            (respond! ex 200 "application/json" (json/write-json-str result))))
+        (catch Exception e
+          (respond! ex 500 "text/plain" (str "error: " (.getMessage e))))))))
+
 (defn create-bridge
   "Creates and starts a loopback bridge. Returns a map:
      :url    the SSE/connect URL to hand to `spel.js` `connect({url})`
@@ -195,7 +304,16 @@
                      (long 60) TimeUnit/SECONDS)
                    (doseq [q (vals clients)]
                      (.offer ^LinkedBlockingQueue q js))
-                   p))]
+                   p))
+          send! (fn send-sync
+                  ([command] (send-sync command 10000))
+                  ([command timeout-ms]
+                   (let [r (deref (send command) timeout-ms ::timeout)]
+                     (if (= r ::timeout)
+                       (throw (ex-info "spel bridge: timed out waiting for browser result"
+                                {:command command :timeout-ms timeout-ms}))
+                       r))))]
+      (.createContext server (str path "/command") (command-handler send!))
       {:server  server
        :host    host
        :port    actual-port
@@ -204,14 +322,7 @@
        :page    (str "http://" host ":" actual-port "/")
        :clients (fn [] (.size clients))
        :send    send
-       :send!   (fn send-sync
-                  ([command] (send-sync command 10000))
-                  ([command timeout-ms]
-                   (let [r (deref (send command) timeout-ms ::timeout)]
-                     (if (= r ::timeout)
-                       (throw (ex-info "spel bridge: timed out waiting for browser result"
-                                {:command command :timeout-ms timeout-ms}))
-                       r))))
+       :send!   send!
        :stop    (fn []
                   ;; Wake every blocked SSE loop so it unwinds cleanly, then
                   ;; release the cleanup thread and the port.

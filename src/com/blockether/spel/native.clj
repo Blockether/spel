@@ -329,12 +329,12 @@
   []
   (try
     (let [conn (doto ^java.net.HttpURLConnection
-                (.openConnection ^java.net.URL (java.net.URL. upgrade-release-api))
-                 (.setRequestMethod "GET")
-                 (.setRequestProperty "Accept" "application/vnd.github+json")
-                 (.setRequestProperty "User-Agent" "spel-upgrade")
-                 (.setConnectTimeout 5000)
-                 (.setReadTimeout 10000))
+                 (.openConnection ^java.net.URL (java.net.URL. upgrade-release-api)
+                   (.setRequestMethod "GET")
+                   (.setRequestProperty "Accept" "application/vnd.github+json")
+                   (.setRequestProperty "User-Agent" "spel-upgrade")
+                   (.setConnectTimeout 5000)
+                   (.setReadTimeout 10000)))
           body (with-open [is (.getInputStream conn)] (slurp is))
           raw  (charred.api/read-json body)
           tag  (get raw "tag_name")
@@ -399,16 +399,16 @@
     (cond
       (nil? latest)
       (do (println (str "spel " current))
-          (println "spel: unable to reach GitHub Releases API (network error). Try again later.")
-          (System/exit 1))
+        (println "spel: unable to reach GitHub Releases API (network error). Try again later.")
+        (System/exit 1))
 
       (zero? (long (compare-versions current (:version latest))))
       (do (println (str "spel " current " — up to date."))
-          (System/exit 0))
+        (System/exit 0))
 
       (pos? (long (compare-versions current (:version latest))))
       (do (println (str "spel " current " is ahead of the latest release (" (:version latest) ")."))
-          (System/exit 0))
+        (System/exit 0))
 
       :else
       (let [method (detect-install-method)
@@ -419,18 +419,18 @@
           (println (str "  asset: " (:name asset))))
         (if check-only?
           (do (println "Run `spel upgrade` to install.")
-              (System/exit 0))
+            (System/exit 0))
           (do (case method
                 :brew    (println "Upgrade via Homebrew:\n  brew upgrade spel")
                 :cargo   (println "Upgrade via Cargo:\n  cargo install --force spel")
                 :local   (do (println "Upgrade manually (local install):")
-                             (when asset
-                               (println (str "  curl -L -o ~/.local/bin/spel " (:url asset)))
-                               (println "  chmod +x ~/.local/bin/spel")))
+                           (when asset
+                             (println (str "  curl -L -o ~/.local/bin/spel " (:url asset)))
+                             (println "  chmod +x ~/.local/bin/spel")))
                 :unknown (do (println "Upgrade manually:")
-                             (when asset
-                               (println (str "  " (:url asset))))))
-              (System/exit 0)))))))
+                           (when asset
+                             (println (str "  " (:url asset))))))
+            (System/exit 0)))))))
 
 (defn- driver-cli-path
   "Returns the path to the Playwright Node.js CLI entry point.
@@ -847,28 +847,28 @@
                 ;; Snapshot result — format like 'spel snapshot' output
                 (do (when-not (str/blank? (str snap-tree))
                       (println (str/trim (str snap-tree))))
-                    (when-let [url (get data :url)]
-                      (println (str "\n  URL: " url)))
-                    (when-let [title (get data :title)]
-                      (println (str "  Title: " title)))
-                    (when-let [desc (get data :description)]
-                      (println (str "  Description: " desc))))
+                  (when-let [url (get data :url)]
+                    (println (str "\n  URL: " url)))
+                  (when-let [title (get data :title)]
+                    (println (str "  Title: " title)))
+                  (when-let [desc (get data :description)]
+                    (println (str "  Description: " desc))))
                 (println result-str))))
           ;; Error from daemon
           (do (vreset! exit-code 1)
-              (let [error-msg (or (get-in response [:data :error])
-                                (:error response)
-                                "unexpected browser error (no details from runtime)")]
-                (if (:json? global)
+            (let [error-msg (or (get-in response [:data :error])
+                              (:error response)
+                              "unexpected browser error (no details from runtime)")]
+              (if (:json? global)
                   ;; --json mode: structured error with call_log/selector
-                  (let [err-map (cond-> {:error error-msg}
-                                  (:hint response) (assoc :hint (:hint response))
-                                  (:error_code response) (assoc :error_code (:error_code response))
-                                  (:call_log response) (assoc :call_log (:call_log response))
-                                  (:selector response) (assoc :selector (:selector response)))]
-                    (println (json/write-json-str err-map :escape-slash false)))
+                (let [err-map (cond-> {:error error-msg}
+                                (:hint response) (assoc :hint (:hint response))
+                                (:error_code response) (assoc :error_code (:error_code response))
+                                (:call_log response) (assoc :call_log (:call_log response))
+                                (:selector response) (assoc :selector (:selector response)))]
+                  (println (json/write-json-str err-map :escape-slash false)))
                   ;; text mode: print full error message as-is
-                  (eprintln (str "Error: " error-msg)))))))
+                (eprintln (str "Error: " error-msg)))))))
       (catch Exception e
         (vreset! exit-code 1)
         (eprintln (str "Error: " (.getMessage e))))
@@ -1096,10 +1096,10 @@
           (let [{:keys [dirs opts]} (parse-merge-reports-args sub-args)]
             (if (empty? dirs)
               (do (println "Error: at least one source directory is required")
-                  (println "")
-                  (println "Usage: spel merge-reports <dir1> <dir2> ... [options]")
-                  (println "Run 'spel merge-reports --help' for details.")
-                  (System/exit 1))
+                (println "")
+                (println "Usage: spel merge-reports <dir1> <dir2> ... [options]")
+                (println "Run 'spel merge-reports --help' for details.")
+                (System/exit 1))
               (allure-reporter/merge-results! dirs opts)))))
 
       (= "report" first-arg)
@@ -1180,11 +1180,11 @@
         (if (some #{"--help" "-h"} sub-args)
           (println (get cli/command-help "search"))
           (do (driver/ensure-driver!)
-              (apply search/-main sub-args))))
+            (apply search/-main sub-args))))
 
       (= "install" first-arg)
       (do (driver/ensure-driver!)
-          (run-install! (rest cmd-args)))
+        (run-install! (rest cmd-args)))
 
       ;; Bridge — serve the loopback bridge (SSE + POST) so a page can embed
       ;; spel.js and subscribe to this box, sidestepping CDP lockdowns. With
@@ -1195,7 +1195,12 @@
       (= "bridge" first-arg)
       (let [rest-args (vec (rest cmd-args))
             flag      (fn [nm] (let [i (long (.indexOf ^java.util.List rest-args nm))]
-                                 (when (>= i 0) (nth rest-args (inc i) nil))))]
+                                 (when (>= i 0) (nth rest-args (inc i) nil))))
+            sub       (first rest-args)
+            host      (or (flag "--host") "127.0.0.1")
+            port      (if-let [p (or (flag "--port") (flag "-p"))] (Long/parseLong p) 8787)
+            path      (or (flag "--path") "/spel")
+            local-url (str "http://" host ":" port path)]
         (cond
           (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "bridge"))
@@ -1205,14 +1210,39 @@
                 src (bridge/engine-source)]
             (if out
               (do (spit out src)
-                  (println (str "Wrote " (count src) " bytes to " out)))
+                (println (str "Wrote " (count src) " bytes to " out)))
               (do (print src) (flush))))
 
+          ;; Route regular `spel <verb>` commands through the bridge. Saves the
+          ;; target URL so subsequent invocations reach the in-page engine
+          ;; instead of the Playwright daemon. Bare `use` takes the local URL.
+          (= "use" sub)
+          (let [url (or (second rest-args) local-url)]
+            (bridge/save-target! {:url url})
+            (println (str "spel commands now route through the bridge: " url))
+            (println "Turn this off with `spel bridge off`."))
+
+          (= "off" sub)
+          (if (bridge/clear-target!)
+            (println "Bridge routing off — spel commands go back to the daemon.")
+            (println "Bridge routing was not enabled."))
+
+          (= "status" sub)
+          (let [target (bridge/load-target)]
+            (if target
+              (let [url  (:url target)
+                    resp (bridge/route-command! url {:action "ping"} 3000)]
+                (println "Bridge routing: ON")
+                (println (str "  target:  " url))
+                (println (str "  browser: "
+                           (if (:success resp)
+                             "connected (ping ok)"
+                             (str "not reachable — " (:error resp))))))
+              (do (println "Bridge routing: OFF")
+                (println "Enable with `spel bridge use [url]` (default the local bridge)."))))
+
           :else
-          (let [host (or (flag "--host") "127.0.0.1")
-                port (if-let [p (or (flag "--port") (flag "-p"))] (Long/parseLong p) 8787)
-                path (or (flag "--path") "/spel")]
-            (bridge/serve! :host host :port (int port) :path path))))
+          (bridge/serve! :host host :port (int port) :path path)))
 
       ;; Self-upgrade — compares SPEL_VERSION to the latest GitHub release and
       ;; prints the command to run (brew/cargo/manual curl). `--check` reports
@@ -1226,7 +1256,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "inspector"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["open"] rest-args)))))
+            (run-playwright-cmd! (into ["open"] rest-args)))))
 
       ;; Show-trace — launch Playwright Trace Viewer
       (= "show-trace" first-arg)
@@ -1234,7 +1264,7 @@
         (if (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "show-trace"))
           (do (driver/ensure-driver!)
-              (run-playwright-cmd! (into ["show-trace"] rest-args)))))
+            (run-playwright-cmd! (into ["show-trace"] rest-args)))))
 
       ;; Stitch — local image stitching, no daemon needed
       (= "stitch" first-arg)
@@ -1250,7 +1280,7 @@
                 ovl-idx    (long (.indexOf ^java.util.List args-v "--overlap"))
                 overlap-px (when (>= ovl-idx 0)
                              (try (Long/parseLong (nth args-v (inc ovl-idx)))
-                                  (catch Exception _ 0)))
+                               (catch Exception _ 0)))
                 ;; Collect input paths (everything that's not a flag or flag value)
                 skip-idxs  (cond-> #{}
                              (>= out-idx 0)   (conj out-idx (inc out-idx))
@@ -1265,8 +1295,8 @@
             (cond
               (< (count inputs) 2)
               (do (eprintln "Error: stitch requires at least 2 input images")
-                  (eprintln "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]")
-                  (System/exit 1))
+                (eprintln "Usage: spel stitch <img1> <img2> [img3...] [-o output.png]")
+                (System/exit 1))
 
               (some #(not (.exists (java.io.File. ^String %))) inputs)
               (let [missing (first (filter #(not (.exists (java.io.File. ^String %))) inputs))]
@@ -1275,10 +1305,10 @@
 
               :else
               (do (driver/ensure-driver!)
-                  (stitch/stitch-vertical-overlap inputs output
-                    (cond-> {:overlap-px (or overlap-px 0)}
-                      (:browser global) (assoc :browser-type (:browser global))))
-                  (println output))))))
+                (stitch/stitch-vertical-overlap inputs output
+                  (cond-> {:overlap-px (or overlap-px 0)}
+                    (:browser global) (assoc :browser-type (:browser global))))
+                (println output))))))
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
@@ -1294,16 +1324,16 @@
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
       (do (driver/ensure-driver!)
-          (let [opts (parse-daemon-args (rest cmd-args))
+        (let [opts (parse-daemon-args (rest cmd-args))
                 ;; parse-global-flags may have consumed --session/--browser/--headed
                 ;; before they reached cmd-args; prefer global values for the daemon.
-                opts (cond-> opts
-                       (:session global) (assoc :session (:session global))
-                       (:interactive? global) (assoc :headless false)
-                       (:cdp global) (assoc :cdp (:cdp global))
-                       (and (:browser global) (not (:browser opts)))
-                       (assoc :browser (:browser global)))]
-            (daemon/start-daemon! opts)))
+              opts (cond-> opts
+                     (:session global) (assoc :session (:session global))
+                     (:interactive? global) (assoc :headless false)
+                     (:cdp global) (assoc :cdp (:cdp global))
+                     (and (:browser global) (not (:browser opts)))
+                     (assoc :browser (:browser global)))]
+          (daemon/start-daemon! opts)))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       ;; Supports both inline code and .clj file paths:
@@ -1319,10 +1349,10 @@
                        code-or-file)]
             (run-eval! code script-args global))
           (do (eprintln "Error: eval-sci requires a code argument or .clj file path")
-              (System/exit 1))))
+            (System/exit 1))))
 
       ;; CLI command — pass NORMALIZED args (cli.clj has its own flag parser)
       :else
       (do (driver/ensure-driver!)
-          (cli/run-cli! args)))
+        (cli/run-cli! args)))
     (System/exit 0)))
