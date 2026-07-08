@@ -1759,6 +1759,213 @@
       return { count: out.length, frames: out };
     },
 
+    // --- HAR export (serialize the in-page network capture as HAR 1.2) ---
+    //   Cross-validation: "no HAR record" was overstated. We already capture
+    //   fetch/XHR with headers + bodies + timing, so we can emit real HAR JSON.
+    network_har: function () {
+      function harHeaders(obj) {
+        var out = [];
+        if (obj) {
+          for (var k in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, k)) out.push({ name: k, value: String(obj[k]) });
+          }
+        }
+        return out;
+      }
+      function queryOf(u) {
+        var out = [];
+        try {
+          var q = (String(u).split("?")[1] || "").split("#")[0];
+          if (q) {
+            q.split("&").forEach(function (p) {
+              var i = p.indexOf("=");
+              out.push({
+                name: decodeURIComponent(i < 0 ? p : p.slice(0, i)),
+                value: decodeURIComponent(i < 0 ? "" : p.slice(i + 1))
+              });
+            });
+          }
+        } catch (e) {}
+        return out;
+      }
+      var epoch = Date.now() - Math.round(netNow());
+      var entries = [];
+      for (var i = 0; i < netWindow.length; i++) {
+        var id = netWindow[i].ref.replace(/^@/, "");
+        var e = netFull[id];
+        if (!e) continue;
+        var reqBody = e.requestBody;
+        var respBody = e.responseBody;
+        var respCt = (e.responseHeaders && e.responseHeaders["content-type"]) || "";
+        var req = {
+          method: e.method, url: e.url, httpVersion: "HTTP/1.1",
+          headers: harHeaders(e.requestHeaders), queryString: queryOf(e.url),
+          cookies: [], headersSize: -1, bodySize: reqBody == null ? 0 : reqBody.length
+        };
+        if (reqBody != null) {
+          req.postData = {
+            mimeType: (e.requestHeaders && e.requestHeaders["content-type"]) || "text/plain",
+            text: reqBody
+          };
+        }
+        var content = { size: respBody == null ? 0 : respBody.length, mimeType: respCt || "text/plain" };
+        if (respBody != null) content.text = respBody;
+        entries.push({
+          startedDateTime: new Date(epoch + (e.startTime || 0)).toISOString(),
+          time: e.duration || 0,
+          request: req,
+          response: {
+            status: e.status || 0, statusText: e.statusText || "", httpVersion: "HTTP/1.1",
+            headers: harHeaders(e.responseHeaders), cookies: [], content: content,
+            redirectURL: "", headersSize: -1, bodySize: e.size == null ? -1 : e.size,
+            _fromCache: !!e.fromCache, _mocked: !!e.mocked
+          },
+          cache: {},
+          timings: { send: 0, wait: e.duration || 0, receive: 0 },
+          _ref: e.ref, _resourceType: e.resourceType, _error: e.error || null
+        });
+      }
+      return {
+        log: {
+          version: "1.2",
+          creator: { name: "spel-bridge", version: (api && api.version) || "" },
+          pages: [], entries: entries
+        }
+      };
+    },
+
+    // --- environment emulation (JS-level overrides; no CDP) ---
+    //   Cross-validation: geolocation / timezone / locale / userAgent / device
+    //   are all monkey-patchable at the JS layer (like a matchMedia override).
+    //   This changes what page *scripts* read, NOT the real network stack or CSS
+    //   @media evaluation. Playwright does these over CDP; we do the JS half.
+    emulate: function (c) {
+      c = c || {};
+      var applied = {};
+      if (c.geolocation && global.navigator && navigator.geolocation) {
+        var g = c.geolocation;
+        var pos = {
+          coords: {
+            latitude: g.latitude, longitude: g.longitude,
+            accuracy: g.accuracy == null ? 10 : g.accuracy,
+            altitude: g.altitude == null ? null : g.altitude,
+            altitudeAccuracy: null, heading: null, speed: null
+          },
+          timestamp: Date.now()
+        };
+        try {
+          navigator.geolocation.getCurrentPosition = function (ok) { if (ok) ok(pos); };
+          navigator.geolocation.watchPosition = function (ok) { if (ok) ok(pos); return 0; };
+          applied.geolocation = { latitude: g.latitude, longitude: g.longitude };
+        } catch (e) { applied.geolocationError = String(e); }
+      }
+      if (c.timezone && global.Intl && Intl.DateTimeFormat) {
+        try {
+          var OrigDTF = Intl.DateTimeFormat;
+          var tz = c.timezone;
+          var PatchedDTF = function (locale, opts) {
+            opts = opts || {};
+            if (!opts.timeZone) opts.timeZone = tz;
+            return new OrigDTF(locale, opts);
+          };
+          PatchedDTF.prototype = OrigDTF.prototype;
+          PatchedDTF.supportedLocalesOf = OrigDTF.supportedLocalesOf;
+          Intl.DateTimeFormat = PatchedDTF;
+          applied.timezone = tz;
+        } catch (e) { applied.timezoneError = String(e); }
+      }
+      if ((c.locale || c.languages) && global.navigator) {
+        try {
+          var langs = c.languages || [c.locale];
+          Object.defineProperty(navigator, "language", { get: function () { return langs[0]; }, configurable: true });
+          Object.defineProperty(navigator, "languages", { get: function () { return langs.slice(); }, configurable: true });
+          applied.locale = langs[0];
+          applied.languages = langs.slice();
+        } catch (e) { applied.localeError = String(e); }
+      }
+      var navKeys = ["userAgent", "platform", "vendor", "hardwareConcurrency", "deviceMemory", "maxTouchPoints"];
+      for (var ni = 0; ni < navKeys.length; ni++) {
+        (function (k) {
+          if (c[k] === undefined || !global.navigator) return;
+          var v = c[k];
+          try {
+            Object.defineProperty(navigator, k, { get: function () { return v; }, configurable: true });
+            applied[k] = v;
+          } catch (e) { applied[k + "Error"] = String(e); }
+        })(navKeys[ni]);
+      }
+      if ((c.colorScheme || c.reducedMotion || c.media) && global.matchMedia !== undefined) {
+        try {
+          var overrides = c.media || {};
+          if (c.colorScheme) overrides["prefers-color-scheme"] = c.colorScheme;
+          if (c.reducedMotion) overrides["prefers-reduced-motion"] = c.reducedMotion;
+          var origMM = global.matchMedia;
+          global.matchMedia = function (q) {
+            for (var feat in overrides) {
+              if (Object.prototype.hasOwnProperty.call(overrides, feat) && q.indexOf(feat) >= 0) {
+                var matches = q.indexOf(overrides[feat]) >= 0;
+                return {
+                  media: q, matches: matches, onchange: null,
+                  addListener: function () {}, removeListener: function () {},
+                  addEventListener: function () {}, removeEventListener: function () {},
+                  dispatchEvent: function () { return false; }
+                };
+              }
+            }
+            return origMM ? origMM.call(global, q) : { media: q, matches: false,
+              addListener: function () {}, removeListener: function () {},
+              addEventListener: function () {}, removeEventListener: function () {} };
+          };
+          applied.media = overrides;
+        } catch (e) { applied.mediaError = String(e); }
+      }
+      return applied;
+    },
+
+    // --- DOM screenshot (pure JS via SVG <foreignObject>; no CDP) ---
+    //   Cross-validation: "no screenshots" was overstated. Serializing the DOM
+    //   into an SVG foreignObject and drawing it to a canvas yields real pixels
+    //   without the renderer/CDP. Caveats: cross-origin/external images taint the
+    //   canvas (png then null, svg still returned); only inline + same-origin
+    //   styles render; not a true device rasterization.
+    screenshot: function (c) {
+      c = c || {};
+      var el = c.selector ? must(c.selector) : document.documentElement;
+      var rect = el.getBoundingClientRect();
+      var w = Math.max(1, Math.ceil(rect.width || el.scrollWidth || (global.innerWidth || 800)));
+      var h = Math.max(1, Math.ceil(rect.height || el.scrollHeight || (global.innerHeight || 600)));
+      var xhtml;
+      try {
+        xhtml = new XMLSerializer().serializeToString(el.cloneNode(true));
+      } catch (e) {
+        return { error: "serialize failed: " + String(e && e.message || e) };
+      }
+      var svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
+        '<foreignObject width="100%" height="100%">' +
+        '<div xmlns="http://www.w3.org/1999/xhtml">' + xhtml + '</div>' +
+        '</foreignObject></svg>';
+      var svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () {
+          var out = { width: w, height: h, svg: svgUrl, png: null };
+          try {
+            var canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0);
+            out.png = canvas.toDataURL("image/png");
+          } catch (e) { out.pngError = String(e && e.message || e); }
+          resolve(out);
+        };
+        img.onerror = function () {
+          resolve({ width: w, height: h, svg: svgUrl, png: null, pngError: "image load failed" });
+        };
+        img.src = svgUrl;
+      });
+    },
+
     // --- meta ---
     ping: function () { return "pong"; },
     ready: function () { return true; }
@@ -1872,7 +2079,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.7.0",
+    version: "0.8.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

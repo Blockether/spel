@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.7.0" (setup! pg)))))
+      (expect (= "0.8.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -784,3 +784,84 @@
       (expect (= "Buy"
                 (value pg {:action "get_text"
                            :selector ".card >> button >> has-text=Buy"}))))))
+
+;; ---------------------------------------------------------------------------
+;; Cross-validation additions — capabilities once documented as CDP-only that
+;; are in fact doable in pure in-page JS: HAR export, JS-level environment
+;; emulation, and a DOM screenshot.
+;; ---------------------------------------------------------------------------
+
+(defdescribe har-export-test
+  "network_har serializes the in-page capture as HAR 1.2."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (it "emits a HAR log with a real captured entry"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      (page/evaluate pg (str "fetch(" (json/write-json-str (str *test-server-url* "/health"))
+                          ").then(r => r.text())"))
+      (let [har (get (value pg {:action "network_har"}) "log")
+            entries (get har "entries")
+            entry (some (fn [e] (when (re-find #"/health" (get e "_ref" "")) e))
+                    entries)
+            entry (or entry (first entries))]
+        (expect (= "1.2" (get har "version")))
+        (expect (= "spel-bridge" (get-in har ["creator" "name"])))
+        (expect (pos? (count entries)))
+        (expect (= "GET" (get-in entry ["request" "method"])))
+        (expect (re-find #"/health" (get-in entry ["request" "url"])))
+        (expect (= 200 (long (get-in entry ["response" "status"]))))
+        (expect (sequential? (get-in entry ["request" "headers"])))
+        (expect (vector? (get-in entry ["response" "headers"])))
+        (expect (string? (get-in entry ["startedDateTime"])))))))
+
+(defdescribe emulate-test
+  "emulate overrides what page JS reads (no CDP): geolocation / timezone /
+   locale / device / prefers-color-scheme."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "overrides geolocation, locale and device metrics"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [applied (value pg {:action "emulate"
+                               :geolocation {:latitude 51.5 :longitude -0.12}
+                               :locale "pl-PL"
+                               :languages ["pl-PL" "en-US"]
+                               :userAgent "SpelBot/1.0"
+                               :hardwareConcurrency 12
+                               :colorScheme "dark"})]
+        (expect (= "pl-PL" (get applied "locale")))
+        (expect (= "SpelBot/1.0" (get applied "userAgent"))))
+      (expect (= "pl-PL" (page/evaluate pg "navigator.language")))
+      (expect (= "SpelBot/1.0" (page/evaluate pg "navigator.userAgent")))
+      (expect (= 12 (long (page/evaluate pg "navigator.hardwareConcurrency"))))
+      (expect (true? (page/evaluate pg "matchMedia('(prefers-color-scheme: dark)').matches")))
+      (expect (= 51.5 (page/evaluate pg
+                        (str "new Promise(res => navigator.geolocation"
+                          ".getCurrentPosition(p => res(p.coords.latitude)))"))))))
+
+  (it "overrides the reported timezone for Intl"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "emulate" :timezone "Asia/Tokyo"})
+      (expect (= "Asia/Tokyo"
+                (page/evaluate pg
+                  "new Intl.DateTimeFormat().resolvedOptions().timeZone"))))))
+
+(defdescribe screenshot-test
+  "screenshot serializes the DOM into an SVG (and rasterizes to PNG when the
+   canvas is not tainted) — pure JS, no CDP."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "returns an SVG data URL sized to the element"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [shot (value pg {:action "screenshot" :selector "#out"})]
+        (expect (re-find #"^data:image/svg\+xml" (get shot "svg")))
+        (expect (pos? (long (get shot "width"))))
+        (expect (pos? (long (get shot "height"))))
+        ;; PNG rasterization succeeds on a clean (untainted) canvas.
+        (when-let [png (get shot "png")]
+          (expect (re-find #"^data:image/png" png)))))))

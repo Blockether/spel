@@ -41,7 +41,8 @@ Selectors: `@eNN` resolves a snapshot ref (`[data-pw-ref="eNN"]`); `text=…` /
 geometry/overflow, ARIA + snapshot, navigation (`goto`), waits (`wait_for*`),
 refs, storage, cookies, network capture + same-origin `route` mocking, dialogs,
 console/error capture, input (`upload`/`tap`/`dispatch_event`), same-origin
-frames, overlay picker, and server/transport (plus an `evaluate` escape hatch).
+frames, env emulation (`emulate`), HAR export (`network_har`), DOM `screenshot`,
+overlay picker, and server/transport (plus an `evaluate` escape hatch).
 
 ## Keymap
 
@@ -63,7 +64,10 @@ CORS exposes; opaque (no-cors) bodies are unreadable.
 
 Cross-origin/protocol-level interception (`route` mocks only same-origin
 fetch/XHR), cross-origin iframes, OS-level tabs / downloads / file chooser,
-trusted (`isTrusted`) input, and traffic before load. `console`/`dialog`/errors
+trusted (`isTrusted`) input, PDF/video/trace capture, HAR **replay**, real
+viewport resize / permission grants, and traffic before load. (`screenshot`,
+`network_har` and JS-level `emulate` cover the DOM-reachable half of Playwright's
+screenshot/HAR/emulation.) `console`/`dialog`/errors
 are captured in-page but read by polling, not pushed as live events.
 When those matter, use the daemon + CDP path (`--cdp`/`--auto-connect`).
 

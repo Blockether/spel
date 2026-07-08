@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(bridge): cross-validation pass — three capabilities previously
+  documented as CDP-only turned out doable in pure in-page JS and are now
+  implemented + tested on live Chromium (`spel.js` → v0.8.0):
+  - **`network_har`** — serializes the in-page fetch/XHR capture as HAR 1.2
+    (`{log:{version,creator,entries[]}}`), so the captured traffic exports to
+    any HAR viewer. "No HAR record" was overstated.
+  - **`emulate`** — JS-level overrides of `geolocation`, `timezone` (Intl),
+    `locale`/`languages`, `userAgent`/`platform`/`vendor`/device metrics, and
+    `prefers-color-scheme`/`reduced-motion` via a `matchMedia` override.
+    Affects what page scripts read (not the real network stack or CSS
+    `@media`) — the JS half of Playwright's env emulation, no CDP.
+  - **`screenshot`** — rasterizes the DOM via an SVG `<foreignObject>` →
+    canvas → PNG data URL (falls back to the SVG data URL when a cross-origin
+    image taints the canvas). "No screenshots" was overstated.
 - feat(bridge): locator composition in the selector engine (`spel.js` →
   v0.7.0) — Playwright-style `>>` chains (`.card >> button`) plus `nth=N`
   (negative from end), `first`, `last`, `has-text="…"` and `visible[=…]` filter

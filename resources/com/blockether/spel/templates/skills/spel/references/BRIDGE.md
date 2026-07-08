@@ -184,6 +184,12 @@ uniform `{action, ok, value|error}` promise (never rejects). ~100 handlers:
   touch), `dispatch_event` (any `type` + `init`).
 - **Frames** — `frames` lists same-origin iframes; any selector may be
   prefixed `frame=<iframe-sel> >> <inner-sel>` to act inside it.
+- **Env emulation** — `emulate` (JS-level `geolocation`, `timezone`,
+  `locale`/`languages`, `userAgent`/device metrics,
+  `prefers-color-scheme`/`reduced-motion`).
+- **HAR export** — `network_har` (the in-page capture → HAR 1.2 JSON).
+- **Screenshot** — `screenshot` (DOM → SVG `<foreignObject>` → PNG data URL,
+  SVG fallback on canvas taint).
 - **Escape hatch** — `evaluate` (arbitrary in-page JS).
 
 ### Selector convention
@@ -251,15 +257,21 @@ Pure in-page JS cannot replicate everything Playwright's driver does. These do
 - **Real trusted input at the OS level** — events are synthetic
   (`dispatchEvent` + native value setters); most apps accept them, but a site
   checking `event.isTrusted` will not.
-- **Page capture** — no screenshots, PDF export, video or trace recording;
-  those need the renderer/CDP, not the DOM.
-- **Environment emulation** — no network throttling, geolocation/permission
-  grants, timezone/locale/device or real viewport resize, and only limited
-  media emulation (a `matchMedia` override affects JS that reads it, not CSS
-  `@media` rules). Playwright does these over CDP.
-- **HAR / init-script** — no HAR record/replay and no true `addInitScript`
-  before the page's own scripts (the engine loads in runtime; the closest thing
-  is embedding `spel.js` as the first `<script>`).
+- **Page capture** — `screenshot` rasterizes the DOM via an SVG
+  `<foreignObject>` → canvas → PNG (pure JS, no CDP; cross-origin images taint
+  the canvas so it falls back to an SVG data URL, and it captures inline +
+  same-origin styles, not a true device rasterization). **PDF export, video and
+  trace recording** still need the renderer/CDP.
+- **Environment emulation** — `emulate` overrides `geolocation`, `timezone`,
+  `locale`/`languages`, `userAgent`/device metrics and
+  `prefers-color-scheme`/`reduced-motion` at the **JS layer** (what page scripts
+  read), like the `matchMedia` override — it does NOT affect the real network
+  stack, CSS `@media` evaluation, permission grants or a real viewport resize.
+  Those last ones need CDP.
+- **HAR / init-script** — `network_har` exports the in-page capture as HAR 1.2
+  (record); there is no HAR **replay**, and no true `addInitScript` before the
+  page's own scripts (the engine loads at runtime; the closest thing is
+  embedding `spel.js` as the first `<script>`).
 - **Traffic before the engine loads** — see "Network capture" (load first).
 - **Pages that forbid injection** — a strict `Content-Security-Policy` or a
   managed-browser policy can block the `<script>`/bookmarklet outright.
