@@ -84,9 +84,19 @@
   "A tiny, minified in-page loader (plain JS, no `javascript:` prefix) that
    injects the embedded engine from `<origin>/spel.js` and subscribes it to the
    bridge at `<origin><path>`. Idempotent: if `window.__spel` is already
-   installed it just (re)connects. Returned WITHOUT a prefix so it serves two
-   uses — pasted into the DevTools Console (or saved as a Sources Snippet), or
-   prefixed with `javascript:` to form a draggable bookmarklet."
+   installed it just (re)connects.
+
+   Local Network Access aware: modern Chromium (Edge 143+/Chrome 142+) gates a
+   public origin reaching `127.0.0.1` behind a per-origin permission, and a bare
+   `<script src>` no-cors subresource to loopback is DENIED silently instead of
+   prompting. So the loader fetches the engine with `targetAddressSpace:'loopback'`
+   — the sanctioned call that actually raises the grantable prompt (and is exempt
+   from mixed-content once allowed) — then inline-injects the text. It falls back
+   to a `<script src>` tag on older browsers where either path works.
+
+   Returned WITHOUT a prefix so it serves two uses — pasted into the DevTools
+   Console (or saved as a Sources Snippet), or prefixed with `javascript:` to
+   form a draggable bookmarklet."
   [^String origin ^String path token]
   (let [o (json/write-json-str origin)
         c (json/write-json-str (str origin path))
@@ -95,10 +105,10 @@
       "var o=" o ",c=" c ",t=" t ";"
       "function go(){try{window.__spel&&window.__spel.connect({url:c,token:t});}catch(e){console.error('spel:',e);}}"
       "if(window.__spel){go();return;}"
-      "var s=document.createElement('script');"
-      "s.src=o+'/spel.js';s.onload=go;"
-      "s.onerror=function(){console.error('spel: failed to load '+s.src+' (is `spel bridge` running?)');};"
-      "(document.head||document.documentElement).appendChild(s);"
+      "function inject(code){var s=document.createElement('script');s.textContent=code;(document.head||document.documentElement).appendChild(s);go();}"
+      "function tag(){var s=document.createElement('script');s.src=o+'/spel.js';s.onload=go;s.onerror=fail;(document.head||document.documentElement).appendChild(s);}"
+      "function fail(){console.error('spel: could not load '+o+'/spel.js (is `spel bridge` running, and did you Allow local network access? see edge://settings/content/localNetworkAccess)');}"
+      "try{fetch(o+'/spel.js',{mode:'cors',targetAddressSpace:'loopback'}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(inject).catch(tag);}catch(e){tag();}"
       "})();")))
 
 (defn bookmarklet
@@ -241,7 +251,11 @@
     (.set h "Content-Type" content-type)
     (.set h "Access-Control-Allow-Origin" "*")
     (.set h "Access-Control-Allow-Headers" "Content-Type")
-    (.set h "Access-Control-Allow-Methods" "GET, POST, OPTIONS"))
+    (.set h "Access-Control-Allow-Methods" "GET, POST, OPTIONS")
+    ;; Older Private Network Access (pre-LNA Chromium): a public origin reaching
+    ;; loopback wants this on the preflight. Harmless on newer LNA browsers,
+    ;; which gate loopback by user permission instead (see loader-script).
+    (.set h "Access-Control-Allow-Private-Network" "true"))
   (let [bytes (->bytes body)]
     (.sendResponseHeaders ex status (long (alength bytes)))
     (with-open [os (.getResponseBody ex)]

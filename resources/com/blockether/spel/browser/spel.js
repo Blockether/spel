@@ -2140,6 +2140,11 @@
         global.fetch(resultUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          // targetAddressSpace lets this POST reach loopback from a public origin
+          // under Local Network Access once the tab has been granted the
+          // permission (the loader's engine fetch raises that prompt). Ignored
+          // by pre-LNA browsers.
+          targetAddressSpace: "loopback",
           body: JSON.stringify(res)
         });
       });
@@ -2157,7 +2162,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.9.0",
+    version: "0.10.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

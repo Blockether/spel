@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.9.0" (setup! pg)))))
+      (expect (= "0.10.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]

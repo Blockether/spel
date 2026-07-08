@@ -64,6 +64,10 @@
       (expect (re-find #"connect" loader))
       ;; the token rides into the connect call
       (expect (re-find #"tok123" loader))
+      ;; LNA-aware: fetches the engine with targetAddressSpace to raise the
+      ;; grantable local-network permission prompt, with a <script src> fallback
+      (expect (re-find #"targetAddressSpace" loader))
+      (expect (re-find #"fetch\(" loader))
       ;; without a token the loader emits t=null (auth disabled)
       (expect (re-find #"t=null" (bridge/loader-script "http://x" "/spel" nil))))))
 

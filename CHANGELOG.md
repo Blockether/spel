@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- fix(bridge): **Local Network Access (LNA)** support so the ejected loader
+  works on Edge 143+/Chrome 142+, which gate a public origin reaching
+  `127.0.0.1` behind a per-origin user permission (the "Permission was denied
+  for this request to access the `loopback` address space" error). The loader
+  now fetches `spel.js` with `fetch(url, {targetAddressSpace:'loopback'})` — the
+  call that raises the grantable prompt instead of the silent no-cors deny — and
+  inline-injects it, falling back to `<script src>` on older browsers. `spel.js`
+  result POSTs carry the same flag (→ v0.10.0), and the bridge emits
+  `Access-Control-Allow-Private-Network: true` for pre-LNA browsers. Documented
+  the browser toggle + managed-policy limit in `references/BRIDGE.md`.
 - feat(bridge): **service worker** (`spel-sw.js`) for same-origin capture of
   passive subresources the `fetch`/XHR wrappers can't see — `<img>`, `<script>`,
   `<link rel=stylesheet>`, fonts, media (`spel.js` → v0.9.0):

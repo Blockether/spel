@@ -78,6 +78,41 @@ Caveat: bookmarklets load **late** (you click manually), so they are good for
 inline/bookmarklet execution — that is policy, not network, and cannot be
 worked around from the script.
 
+### Local Network Access (LNA) — the loopback permission gate
+
+Modern Chromium (**Edge 143+ / Chrome 142+**) gates *any* request from a public
+origin (e.g. `https://www.onet.pl`) to `127.0.0.1` behind a per-origin **user
+permission** — the successor to the older Private Network Access. The tell-tale
+error is:
+
+```
+blocked by CORS policy: Permission was denied for this request to access the
+`loopback` address space.
+```
+
+This is **not** a server bug and no response header fixes it — LNA is a user
+grant, not a CORS negotiation. What the bridge does about it:
+
+- The ejected loader fetches `spel.js` with `fetch(url, {targetAddressSpace:
+  'loopback'})` — the sanctioned call that actually *raises the grantable
+  prompt* (a bare `<script src>` no-cors subresource to loopback is denied
+  silently). `spel.js`'s result POST carries the same flag; once the origin is
+  granted, EventSource/WebSocket to loopback are allowed for that origin too.
+- The bridge still emits `Access-Control-Allow-Private-Network: true` for
+  pre-LNA browsers.
+
+What the **user/operator** must do when they hit the error:
+
+1. Open `edge://settings/content/localNetworkAccess` (Chrome:
+   `chrome://settings/content/localNetworkAccess`) and set it to *"Sites can
+   ask"* (not "Don't allow"), or add the target origin to the *Allowed* list.
+2. Re-run the bookmarklet and click **Allow** on the prompt.
+
+If the setting is greyed out or no prompt appears, the box is **managed** and
+IT policy blocks LNA (`LocalNetworkAccessRestrictions` /
+`InsecurePrivateNetworkRequestsAllowedForUrls`). That can only be allow-listed
+by the admin — it is the one case this bridge genuinely cannot route around.
+
 ## Routing regular `spel` commands through the bridge
 
 Once you run `spel bridge use`, every regular `spel <verb>` (`click`, `fill`,
