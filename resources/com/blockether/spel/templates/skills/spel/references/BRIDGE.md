@@ -251,6 +251,15 @@ Pure in-page JS cannot replicate everything Playwright's driver does. These do
 - **Real trusted input at the OS level** — events are synthetic
   (`dispatchEvent` + native value setters); most apps accept them, but a site
   checking `event.isTrusted` will not.
+- **Page capture** — no screenshots, PDF export, video or trace recording;
+  those need the renderer/CDP, not the DOM.
+- **Environment emulation** — no network throttling, geolocation/permission
+  grants, timezone/locale/device or real viewport resize, and only limited
+  media emulation (a `matchMedia` override affects JS that reads it, not CSS
+  `@media` rules). Playwright does these over CDP.
+- **HAR / init-script** — no HAR record/replay and no true `addInitScript`
+  before the page's own scripts (the engine loads in runtime; the closest thing
+  is embedding `spel.js` as the first `<script>`).
 - **Traffic before the engine loads** — see "Network capture" (load first).
 - **Pages that forbid injection** — a strict `Content-Security-Policy` or a
   managed-browser policy can block the `<script>`/bookmarklet outright.
