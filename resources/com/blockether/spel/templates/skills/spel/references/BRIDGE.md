@@ -189,7 +189,15 @@ uniform `{action, ok, value|error}` promise (never rejects). ~100 handlers:
 ### Selector convention
 
 `@eXXX` (regex `@e[a-z0-9]+`) resolves a snapshot ref
-(`[data-pw-ref='eXXX']`); anything else is treated as a CSS selector.
+(`[data-pw-ref='eXXX']`); `text=…`, `css=…`, `xpath=…` / `//…` pick the matching
+engine; anything else is a CSS selector.
+
+**Locator composition** (Playwright's `>>`): chain segments with `>>`. A base
+segment matches within the previous match set (`.card >> button`), and these
+filter segments narrow it: `nth=N` (negative counts from the end), `first`,
+`last`, `has-text="…"`, `visible[=true|false]`. `frame=<iframe-sel>` drills into
+a same-origin iframe. E.g. `#list li >> has-text=Total >> nth=0`,
+`frame=#app >> button >> visible`.
 
 ## Network capture (no CDP)
 

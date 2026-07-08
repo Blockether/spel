@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(bridge): locator composition in the selector engine (`spel.js` →
+  v0.7.0) — Playwright-style `>>` chains (`.card >> button`) plus `nth=N`
+  (negative from end), `first`, `last`, `has-text="…"` and `visible[=…]` filter
+  segments; `frame=` steps unified into the same chain resolver. Tested on live
+  Chromium.
 - feat(bridge): fill the real Playwright-parity gaps in the in-page engine
   (`spel.js` → v0.6.0), all doable in pure JS without CDP and tested against
   live Chromium (61/61):

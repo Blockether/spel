@@ -380,19 +380,7 @@
     return out;
   }
 
-  function resolveOne(selector, root) {
-    if (selector == null) throw new Error("selector is required");
-    if (typeof selector === "string" && selector.indexOf("frame=") === 0) {
-      var fsep = selector.indexOf(">>");
-      var frameSel = (fsep < 0 ? selector.slice(6) : selector.slice(6, fsep)).trim();
-      var innerSel = fsep < 0 ? "" : selector.slice(fsep + 2).trim();
-      var frameEl = resolveOne(frameSel, root);
-      if (!frameEl) return null;
-      var fdoc;
-      try { fdoc = frameEl.contentDocument; } catch (e) { fdoc = null; }
-      if (!fdoc) throw new Error("frame not accessible (cross-origin?): " + frameSel);
-      return innerSel ? resolveOne(innerSel, fdoc) : frameEl;
-    }
+  function baseOne(selector, root) {
     if (isRef(selector)) {
       return (root || document).querySelector(
         "[" + REF_ATTR + '="' + selector.slice(1) + '"]'
@@ -409,20 +397,9 @@
     return (root || document).querySelector(selector);
   }
 
-  function resolveAll(selector, root) {
-    if (typeof selector === "string" && selector.indexOf("frame=") === 0) {
-      var afsep = selector.indexOf(">>");
-      var aFrameSel = (afsep < 0 ? selector.slice(6) : selector.slice(6, afsep)).trim();
-      var aInner = afsep < 0 ? "" : selector.slice(afsep + 2).trim();
-      var aFrame = resolveOne(aFrameSel, root);
-      if (!aFrame) return [];
-      var afdoc;
-      try { afdoc = aFrame.contentDocument; } catch (e) { afdoc = null; }
-      if (!afdoc) return [];
-      return aInner ? resolveAll(aInner, afdoc) : [aFrame];
-    }
+  function baseAll(selector, root) {
     if (isRef(selector)) {
-      var one = resolveOne(selector, root);
+      var one = baseOne(selector, root);
       return one ? [one] : [];
     }
     if (selector.indexOf("text=") === 0) {
@@ -440,6 +417,104 @@
     if (selector.indexOf("//") === 0) return allByXpath(selector, root);
     if (selector.indexOf("css=") === 0) selector = selector.slice(4);
     return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+  }
+
+  // Locator composition: `A >> B` (descendant chain), `>> nth=N|first|last`,
+  // `>> has-text="…"`, `>> visible[=true|false]`, and `frame=<sel>` steps
+  // (same-origin iframe drill-down). Playwright's `>>` engine, minimal subset.
+  function chainSegs(selector) {
+    return String(selector)
+      .split(">>")
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length; });
+  }
+
+  function isChain(selector) {
+    return (
+      typeof selector === "string" &&
+      (selector.indexOf(">>") !== -1 || selector.indexOf("frame=") === 0)
+    );
+  }
+
+  // Returns a filtered node array, or null when `seg` is not a filter segment.
+  function applyFilterSeg(nodes, seg) {
+    if (seg === "first") return nodes.slice(0, 1);
+    if (seg === "last") return nodes.length ? [nodes[nodes.length - 1]] : [];
+    if (seg.indexOf("nth=") === 0) {
+      var n = parseInt(seg.slice(4), 10);
+      if (n < 0) n += nodes.length;
+      return nodes[n] ? [nodes[n]] : [];
+    }
+    if (seg.indexOf("has-text=") === 0) {
+      var raw = seg.slice(9);
+      var exact = raw[0] === '"' && raw[raw.length - 1] === '"';
+      var needle = exact ? raw.slice(1, -1) : raw;
+      return nodes.filter(function (el) { return textMatches(el, needle, exact); });
+    }
+    if (seg === "visible" || seg === "visible=true") return nodes.filter(isVisible);
+    if (seg === "visible=false") {
+      return nodes.filter(function (el) { return !isVisible(el); });
+    }
+    return null;
+  }
+
+  function frameDoc(frameEl, frameSel) {
+    var fdoc;
+    try { fdoc = frameEl.contentDocument; } catch (e) { fdoc = null; }
+    if (!fdoc) throw new Error("frame not accessible (cross-origin?): " + frameSel);
+    return fdoc;
+  }
+
+  function resolveChain(selector, root) {
+    var segs = chainSegs(selector);
+    var searchRoots = [root || document];
+    var current = null; // matched nodes so far (null → search within searchRoots)
+    for (var i = 0; i < segs.length; i++) {
+      var seg = segs[i];
+      if (seg.indexOf("frame=") === 0) {
+        var fsel = seg.slice(6).trim();
+        var frameEls = [];
+        var frameDocs = [];
+        for (var r = 0; r < searchRoots.length; r++) {
+          var fe = baseOne(fsel, searchRoots[r]);
+          if (fe) {
+            frameEls.push(fe);
+            frameDocs.push(frameDoc(fe, fsel));
+          }
+        }
+        current = frameEls;
+        searchRoots = frameDocs;
+        continue;
+      }
+      var filtered = current === null ? null : applyFilterSeg(current, seg);
+      if (filtered !== null) {
+        current = filtered;
+        searchRoots = current;
+        continue;
+      }
+      var next = [];
+      for (var s = 0; s < searchRoots.length; s++) {
+        next = next.concat(baseAll(seg, searchRoots[s]));
+      }
+      current = next;
+      searchRoots = current;
+    }
+    return current === null ? searchRoots : current;
+  }
+
+  function resolveOne(selector, root) {
+    if (selector == null) throw new Error("selector is required");
+    if (isChain(selector)) {
+      var arr = resolveChain(selector, root);
+      return arr.length ? arr[0] : null;
+    }
+    return baseOne(selector, root);
+  }
+
+  function resolveAll(selector, root) {
+    if (selector == null) throw new Error("selector is required");
+    if (isChain(selector)) return resolveChain(selector, root);
+    return baseAll(selector, root);
   }
 
   function must(selector, root) {
@@ -1797,7 +1872,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.6.0",
+    version: "0.7.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

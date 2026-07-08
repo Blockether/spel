@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.6.0" (setup! pg)))))
+      (expect (= "0.7.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -747,3 +747,40 @@
       (let [r (value pg {:action "wait_for_response" :url "/health" :timeout 3000})]
         (expect (= 200 (long (get r "status"))))
         (expect (re-find #"/health" (get r "url")))))))
+
+;; ---------------------------------------------------------------------------
+;; Locator composition — `>>` chains + nth/first/last/has-text/visible filters
+;; ---------------------------------------------------------------------------
+
+(defdescribe composition-test
+  "Playwright-style `>>` locator chaining and index/text/visibility filters."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "resolves nth / first / last / has-text / visible over a matched set"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg
+        (str "document.body.insertAdjacentHTML('beforeend',"
+          "'<ul id=\"lst\"><li>Alpha</li><li>Beta</li><li>Gamma</li>"
+          "<li style=\"display:none\">Hidden</li></ul>'); true"))
+      (expect (= 4 (value pg {:action "count" :selector "#lst li"})))
+      (expect (= "Beta" (value pg {:action "get_text" :selector "#lst li >> nth=1"})))
+      (expect (= "Alpha" (value pg {:action "get_text" :selector "#lst li >> first"})))
+      (expect (= "Hidden" (value pg {:action "get_text" :selector "#lst li >> last"})))
+      (expect (= "Gamma"
+                (value pg {:action "get_text" :selector "#lst li >> has-text=Gamma"})))
+      (expect (= 3 (value pg {:action "count" :selector "#lst li >> visible"})))))
+
+  (it "chains a descendant selector across every match in the set"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg
+        (str "document.body.insertAdjacentHTML('beforeend',"
+          "'<div class=\"card\"><button>Buy</button></div>"
+          "<div class=\"card\"><button>Sell</button></div>'); true"))
+      (expect (= 2 (value pg {:action "count" :selector ".card >> button"})))
+      (expect (= "Sell"
+                (value pg {:action "get_text" :selector ".card >> button >> nth=1"})))
+      (expect (= "Buy"
+                (value pg {:action "get_text"
+                           :selector ".card >> button >> has-text=Buy"}))))))
