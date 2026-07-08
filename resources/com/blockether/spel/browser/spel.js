@@ -52,6 +52,215 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Network capture — pure in-page, no CDP.
+  //   fetch + XMLHttpRequest are wrapped to record method/url/status/headers/
+  //   bodies + timing; a PerformanceObserver picks up passive resources
+  //   (img/script/css/beacon) that never travel through fetch/XHR.
+  //
+  //   DOCUMENTED LIMITS vs the CDP-based daemon (`network_list`):
+  //     * only traffic AFTER this script loads is seen (install early);
+  //     * cross-origin response headers are limited to the CORS-exposed set;
+  //     * opaque (no-cors) response bodies are unreadable -> null;
+  //     * wire `size` is best-effort (Resource Timing transferSize, else null);
+  //     * request/response bodies are capped at NET_BODY_CAP bytes.
+  // ---------------------------------------------------------------------------
+  var NET_MAX = 500; // sliding-window cap (entries)
+  var NET_BODY_CAP = 65536; // per-body char cap kept in the full store
+  var netWindow = []; // light entries (no bodies)
+  var netFull = {}; // ref (no @) -> full entry (headers + bodies)
+  var netCounter = 0;
+  var netInstalled = false;
+
+  function netCap(s) {
+    if (s == null) return s;
+    s = String(s);
+    return s.length > NET_BODY_CAP ? s.slice(0, NET_BODY_CAP) + "\u2026[truncated]" : s;
+  }
+
+  function netHeadersToObj(h) {
+    var out = {};
+    try {
+      if (h && typeof h.forEach === "function") {
+        h.forEach(function (v, k) { out[String(k).toLowerCase()] = v; });
+      } else if (typeof h === "string") {
+        h.trim().split(/[\r\n]+/).forEach(function (line) {
+          var i = line.indexOf(":");
+          if (i > 0) out[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+        });
+      } else if (h && typeof h === "object") {
+        for (var k in h) {
+          if (Object.prototype.hasOwnProperty.call(h, k)) out[String(k).toLowerCase()] = h[k];
+        }
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function netNow() {
+    return (global.performance && global.performance.now) ? global.performance.now() : Date.now();
+  }
+
+  function netSizeFor(url) {
+    try {
+      var perf = global.performance;
+      if (!perf || !perf.getEntriesByName) return null;
+      var es = perf.getEntriesByName(url, "resource");
+      if (es && es.length) {
+        var e = es[es.length - 1];
+        return {
+          size: e.transferSize || e.encodedBodySize || null,
+          fromCache: e.transferSize === 0 && e.decodedBodySize > 0
+        };
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function netRecord(entry) {
+    netCounter += 1;
+    var id = "n" + netCounter;
+    entry.ref = "@" + id;
+    netFull[id] = entry;
+    netWindow.push({
+      ref: entry.ref, url: entry.url, method: entry.method,
+      status: entry.status, statusText: entry.statusText,
+      resourceType: entry.resourceType, ok: entry.ok,
+      fromCache: entry.fromCache, size: entry.size,
+      startTime: entry.startTime, duration: entry.duration,
+      error: entry.error
+    });
+    if (netWindow.length > NET_MAX) {
+      var dropped = netWindow.shift();
+      if (dropped && dropped.ref) delete netFull[dropped.ref.replace(/^@/, "")];
+    }
+    return entry;
+  }
+
+  function wrapFetch() {
+    var orig = global.fetch;
+    if (typeof orig !== "function" || orig.__spelWrapped) return;
+    function wrapped(input, init) {
+      var start = netNow();
+      var url = (typeof input === "string") ? input : (input && input.url) || String(input);
+      var method = (init && init.method) || (input && input.method) || "GET";
+      var reqHeaders = netHeadersToObj((init && init.headers) || (input && input.headers));
+      var reqBody = (init && init.body != null)
+        ? netCap(typeof init.body === "string" ? init.body : "[non-text body]") : null;
+      return orig.apply(this, arguments).then(function (resp) {
+        var entry = netRecord({
+          url: url, method: String(method).toUpperCase(),
+          status: resp.status, statusText: resp.statusText,
+          resourceType: "fetch", ok: resp.ok,
+          requestHeaders: reqHeaders, requestBody: reqBody,
+          responseHeaders: netHeadersToObj(resp.headers), responseBody: null,
+          fromCache: false, startTime: Math.round(start),
+          duration: Math.round(netNow() - start), size: null
+        });
+        var meta = netSizeFor(url);
+        if (meta) { entry.size = meta.size; entry.fromCache = meta.fromCache; }
+        try {
+          resp.clone().text().then(function (t) { entry.responseBody = netCap(t); }, function () {});
+        } catch (e) {}
+        return resp;
+      }, function (err) {
+        netRecord({
+          url: url, method: String(method).toUpperCase(), status: 0,
+          statusText: "network error", resourceType: "fetch", ok: false,
+          requestHeaders: reqHeaders, requestBody: reqBody,
+          responseHeaders: {}, responseBody: null, fromCache: false,
+          error: String((err && err.message) || err),
+          startTime: Math.round(start), duration: Math.round(netNow() - start), size: null
+        });
+        throw err;
+      });
+    }
+    wrapped.__spelWrapped = true;
+    global.fetch = wrapped;
+  }
+
+  function wrapXHR() {
+    var XHR = global.XMLHttpRequest;
+    if (!XHR || !XHR.prototype || XHR.prototype.__spelWrapped) return;
+    var open = XHR.prototype.open;
+    var send = XHR.prototype.send;
+    var setHeader = XHR.prototype.setRequestHeader;
+    XHR.prototype.open = function (method, url) {
+      this.__spelNet = { method: String(method || "GET").toUpperCase(), url: String(url), reqHeaders: {} };
+      return open.apply(this, arguments);
+    };
+    XHR.prototype.setRequestHeader = function (k, v) {
+      if (this.__spelNet) this.__spelNet.reqHeaders[String(k).toLowerCase()] = v;
+      return setHeader.apply(this, arguments);
+    };
+    XHR.prototype.send = function (body) {
+      var self = this, info = this.__spelNet;
+      if (info) {
+        var start = netNow();
+        info.reqBody = body != null ? netCap(typeof body === "string" ? body : "[non-text body]") : null;
+        this.addEventListener("loadend", function () {
+          var respBody = null;
+          try {
+            if (self.responseType === "" || self.responseType === "text") respBody = netCap(self.responseText);
+          } catch (e) {}
+          var entry = netRecord({
+            url: info.url, method: info.method,
+            status: self.status, statusText: self.statusText,
+            resourceType: "xhr", ok: self.status >= 200 && self.status < 400,
+            requestHeaders: info.reqHeaders, requestBody: info.reqBody,
+            responseHeaders: netHeadersToObj(self.getAllResponseHeaders && self.getAllResponseHeaders()),
+            responseBody: respBody, fromCache: false,
+            startTime: Math.round(start), duration: Math.round(netNow() - start), size: null
+          });
+          var meta = netSizeFor(info.url);
+          if (meta) { entry.size = meta.size; entry.fromCache = meta.fromCache; }
+        });
+      }
+      return send.apply(this, arguments);
+    };
+    XHR.prototype.__spelWrapped = true;
+  }
+
+  function wrapPerf() {
+    try {
+      if (!global.PerformanceObserver) return;
+      var obs = new global.PerformanceObserver(function (list) {
+        var ents = list.getEntries();
+        for (var i = 0; i < ents.length; i++) {
+          var e = ents[i], it = e.initiatorType;
+          if (it === "xmlhttprequest" || it === "fetch") continue; // covered by wrappers
+          netRecord({
+            url: e.name, method: "GET", status: null, statusText: null,
+            resourceType: it || "resource", ok: true,
+            requestHeaders: {}, requestBody: null, responseHeaders: {}, responseBody: null,
+            size: e.transferSize || e.encodedBodySize || null,
+            fromCache: e.transferSize === 0 && e.decodedBodySize > 0,
+            startTime: Math.round(e.startTime), duration: Math.round(e.duration)
+          });
+        }
+      });
+      obs.observe({ type: "resource", buffered: true });
+    } catch (e) {}
+  }
+
+  function installNetwork() {
+    if (netInstalled) return false;
+    netInstalled = true;
+    wrapFetch();
+    wrapXHR();
+    wrapPerf();
+    return true;
+  }
+
+  function netMatches(e, c) {
+    if (c.filter && String(e.url).indexOf(c.filter) < 0) return false;
+    if (c.type && e.resourceType !== c.type) return false;
+    if (c.method && String(e.method).toUpperCase() !== String(c.method).toUpperCase()) return false;
+    if (c.status != null && e.status !== Number(c.status)) return false;
+    if (c.failed && !(e.status === 0 || (e.status >= 400))) return false;
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
   // Selector engine.
   // ---------------------------------------------------------------------------
   function isRef(sel) {
@@ -933,7 +1142,29 @@
       return true;
     },
 
+    // --- network (in-page capture; see installNetwork) ---
+    network_list: function (c) {
+      c = c || {};
+      return { entries: netWindow.filter(function (e) { return netMatches(e, c); }) };
+    },
+    network_requests: function (c) { return HANDLERS.network_list(c); },
+    network_get: function (c) {
+      var id = String((c && (c.ref || c.selector)) || "").replace(/^@/, "");
+      var e = netFull[id];
+      return e || { error: "network ref @" + id + " not found" };
+    },
+    network_get_ref: function (c) { return HANDLERS.network_get(c); },
+    network_clear: function () {
+      var n = netWindow.length;
+      netWindow.length = 0;
+      netFull = {};
+      netCounter = 0;
+      return { cleared: n };
+    },
+    network_capture: function () { return { installed: installNetwork(), capturing: netInstalled }; },
+
     // --- overlay picker ---
+
     pick: function (c) { return startPicker(c); },
     pick_stop: function () { return stopPicker(); },
     pick_toggle: function () { return togglePicker(); },
@@ -1026,7 +1257,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.2.0",
+    version: "0.3.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,
@@ -1044,6 +1275,8 @@
   if (document && document.addEventListener) {
     document.addEventListener("keydown", globalHotkey, true);
   }
+
+  installNetwork();
 
   global.__spel = api;
   return api;

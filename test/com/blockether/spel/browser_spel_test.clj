@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.2.0" (setup! pg)))))
+      (expect (= "0.3.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -462,3 +462,68 @@
       (let [r (invoke pg {:action "wait_for" :selector "#never" :state "visible" :timeout 200})]
         (expect (false? (get r "ok")))
         (expect (re-find #"timeout" (get r "error")))))))
+
+;; ---------------------------------------------------------------------------
+;; Network capture (in-page, no CDP)
+;; ---------------------------------------------------------------------------
+
+(defdescribe network-test
+  "fetch / XMLHttpRequest are wrapped and surfaced via network_* commands."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (it "captures a fetch() with method, status and response body"
+    (core/with-testing-page [pg]
+      ;; Real HTTP origin so fetch is same-origin and bodies are readable.
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      ;; Drive a real request and await it before asserting.
+      (page/evaluate pg (str "fetch(" (json/write-json-str (str *test-server-url* "/health"))
+                          ").then(r => r.text())"))
+      (let [entries (get (value pg {:action "network_list"}) "entries")
+            hit (some (fn [e] (when (= "fetch" (get e "resourceType")) e)) entries)]
+        (expect (some? hit))
+        (expect (= 200 (get hit "status")))
+        (expect (= "GET" (get hit "method")))
+        (expect (true? (get hit "ok")))
+        (expect (re-find #"^@n\d+" (get hit "ref")))
+        ;; Full entry carries the response body.
+        (let [full (value pg {:action "network_get" :ref (get hit "ref")})]
+          (expect (string? (get full "responseBody")))))))
+
+  (it "filters by method and reports failed requests"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      (page/evaluate pg (str "fetch(" (json/write-json-str (str *test-server-url* "/nope-404"))
+                          ").then(r => r.text()).catch(() => {})"))
+      (let [entries (get (value pg {:action "network_list" :method "GET"}) "entries")]
+        (expect (pos? (count entries)))
+        (expect (every? #(= "GET" (get % "method")) entries)))
+      (let [failed (get (value pg {:action "network_list" :failed true}) "entries")]
+        (expect (some #(>= (long (get % "status")) 400) failed)))))
+
+  (it "captures an XMLHttpRequest"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      (page/evaluate pg
+        (str "new Promise(res => {"
+          "  const x = new XMLHttpRequest();"
+          "  x.open('GET', " (json/write-json-str (str *test-server-url* "/health")) ");"
+          "  x.addEventListener('loadend', () => res(true));"
+          "  x.send();"
+          "})"))
+      (let [entries (get (value pg {:action "network_list" :type "xhr"}) "entries")]
+        (expect (pos? (count entries)))
+        (expect (= 200 (get (first entries) "status"))))))
+
+  (it "network_clear empties the window"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (page/evaluate pg (str "fetch(" (json/write-json-str *test-server-url*) ").then(r => r.text())"))
+      (value pg {:action "network_clear"})
+      (expect (empty? (get (value pg {:action "network_list"}) "entries"))))))
