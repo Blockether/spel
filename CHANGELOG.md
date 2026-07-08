@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.9] - 2026-07-08
+
 ### Added
 
 - feat(bridge): **`reveal` overlay — a "what is what" map** (spel.js v0.14.0).

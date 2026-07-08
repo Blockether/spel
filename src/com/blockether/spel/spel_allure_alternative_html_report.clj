@@ -173,14 +173,14 @@
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo source not found, skipping: "
                              (.getPath src-file))))
-              nil)
+                nil)
 
             (> (.length src-file) max-bytes)
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo " (.getPath src-file)
                              " is " (.length src-file) " bytes, exceeds "
                              max-bytes " byte cap — skipping")))
-              nil)
+                nil)
 
             :else
             (let [ext (logo-ext s)
@@ -614,7 +614,7 @@
 
 (defn- parse-long-safe [^String s]
   (try (Long/parseLong (str/trim s))
-    (catch Exception _ nil)))
+       (catch Exception _ nil)))
 
 (defn- trace-chunk-size-bytes
   "Resolve trace chunk size in bytes. Returns nil when chunking is disabled.
@@ -3344,11 +3344,11 @@
                              ;; instant — matches the docstring.
                              (or (try (Long/parseLong s) (catch Exception _ nil))
                                (try (.toEpochMilli (java.time.Instant/parse s))
-                                 (catch Exception _ nil))
+                                    (catch Exception _ nil))
                                (try (.toEpochMilli
                                       (.toInstant
                                         (java.time.OffsetDateTime/parse s)))
-                                 (catch Exception _ nil))))
+                                    (catch Exception _ nil))))
                            :else nil))
          run-info (let [m (cond-> (or base-run-info {})
                             (:build-id opts)   (assoc :run-name (:build-id opts))
