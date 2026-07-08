@@ -141,11 +141,14 @@ Embed (load **first** in `<head>` for full network capture):
 <script>window.__spel.connect({url:"http://127.0.0.1:8787/spel"})</script>
 ```
 
-Installs `window.__spel` with one `invoke(command)` covering ~80 verbs
+Installs `window.__spel` with one `invoke(command)` covering ~100 verbs
 (click/fill/type/press, snapshot `@eXXX` refs, ARIA, checks, overflow, geometry,
-in-page **network capture** of fetch/XHR, storage, wait_for). Overlay element
+in-page **network capture** + same-origin `route` mocking, dialogs,
+console/error capture, cookies, `goto`, upload/tap/dispatch_event, same-origin
+`frame=` drill-down, storage, the `wait_for*` family). Overlay element
 picker: **Ctrl+Shift+L**; choose server: **Ctrl+Shift+K**. Limits (no CDP): no
-real route/mock, no cross-origin frames, no OS-level tabs/downloads/trusted
+protocol/cross-origin interception (`route` is same-origin fetch/XHR only), no
+cross-origin frames, no OS-level tabs/downloads/trusted
 input, no traffic before the script loads. Full detail: `references/BRIDGE.md`.
 
 ## Rules

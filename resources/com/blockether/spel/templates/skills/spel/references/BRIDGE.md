@@ -140,7 +140,7 @@ true re-inject across full navigations.
 ## What the engine can do (`window.__spel.invoke`)
 
 All driven through the single `invoke(command)` entry point, returning a
-uniform `{action, ok, value|error}` promise (never rejects). ~80 handlers:
+uniform `{action, ok, value|error}` promise (never rejects). ~100 handlers:
 
 - **Interaction** — `click`, `dblclick`, `hover`, `focus`, `fill`, `clear`,
   `type`, `press` (modifier parsing), `keyboard_type`, `keydown`, `keyup`,
@@ -156,7 +156,11 @@ uniform `{action, ok, value|error}` promise (never rejects). ~80 handlers:
 - **ARIA** — `get_role`, `get_accessible_name`, `get_aria`, `aria_snapshot`,
   plus the interactive `snapshot` (`@eXXX` refs via `data-pw-ref`).
 - **Navigation** — `url`, `title`, `content`, `reload`, `back`, `forward`,
-  `wait_for` (state `visible|hidden|attached|detached`, timeout).
+  `goto`/`navigate` (any URL, survives via sessionStorage re-inject).
+- **Waits** — `wait_for` (state `visible|hidden|attached|detached`, timeout),
+  `wait_for_timeout`, `wait_for_function` (predicate script), `wait_for_url`,
+  `wait_for_load_state`, `wait_for_response`, `wait_for_request` (poll the
+  in-page network record).
 - **Refs** — `resolve_ref`, `clear_refs`, `find`.
 - **Storage** — `storage_get`, `storage_set`, `storage_clear`.
 - **Network capture** — `network_list`, `network_requests`, `network_get`,
@@ -164,6 +168,22 @@ uniform `{action, ok, value|error}` promise (never rejects). ~80 handlers:
 - **Overlay picker** — `pick`, `pick_stop`, `pick_toggle`, `picked`.
 - **Server/transport** — `configure`, `set_server`, `get_server`,
   `choose_server`, `connect`, `disconnect`, `is_connected`, `ping`, `ready`.
+- **Dialogs** — `dialog_handler` (policy `accept|dismiss`, `promptText`),
+  `dialogs`, `dialogs_clear`: `window.alert/confirm/prompt/beforeunload` are
+  wrapped, auto-answered per policy and recorded.
+- **Console/errors** — `console_capture`, `console_list` (filter by level),
+  `console_clear`: wraps `console.*` + `window.onerror` +
+  `unhandledrejection`.
+- **Cookies** — `cookies` (all or by name), `set_cookie`/`add_cookie`,
+  `clear_cookies` (via `document.cookie`; HttpOnly cookies are invisible).
+- **Request mocking** — `route` (match URL/method → `abort`, or fulfil with
+  `status`/`body`/`headers`/`contentType`), `unroute`, `routes`. Same-origin
+  `fetch`/XHR only, short-circuited in the wrapper before the network call.
+- **Input/events** — `upload`/`set_input_files`
+  (`files:[{name,content,mimeType,base64}]` → `DataTransfer`), `tap` (pointer/
+  touch), `dispatch_event` (any `type` + `init`).
+- **Frames** — `frames` lists same-origin iframes; any selector may be
+  prefixed `frame=<iframe-sel> >> <inner-sel>` to act inside it.
 - **Escape hatch** — `evaluate` (arbitrary in-page JS).
 
 ### Selector convention
@@ -211,10 +231,11 @@ so it ships **inside the native binary** — the resource pattern
 Pure in-page JS cannot replicate everything Playwright's driver does. These do
 **not** work through the bridge (by design, no CDP):
 
-- **True cross-origin isolation / real network interception & mocking** — you
-  can *observe* fetch/XHR, not block or rewrite them at the protocol layer
-  (that is CDP/`route`). Use `references/NETWORK_ROUTING.md` (daemon path) when
-  you need real interception.
+- **Protocol-level / cross-origin network interception** — `route` mocks
+  **same-origin `fetch`/XHR** in-page (abort or fulfil), but it cannot touch
+  requests that don't go through `fetch`/XHR (img/script/css/beacon), nor
+  cross-origin requests, nor rewrite at the protocol layer. Use
+  `references/NETWORK_ROUTING.md` (daemon/CDP path) for real interception.
 - **Cross-origin iframe reach** — same-origin frames only; the browser's
   same-origin policy blocks the rest.
 - **New tabs / popups / downloads / file chooser at the OS level** — no driver
@@ -228,9 +249,11 @@ Pure in-page JS cannot replicate everything Playwright's driver does. These do
 - **Multi-tab targeting** — a routed command is broadcast to every subscribed
   tab and the *first* result wins; there is no per-tab addressing yet. Keep one
   tab connected per bridge for deterministic routing.
-- **Server-pushed events** — the transport is pull-only. There is no server-side
-  subscription to `console` / `dialog` / JS errors / navigation events; poll
-  in-page state (`wait_for`, `network_list`) instead.
+- **Server-pushed events** — the transport is pull-only; there is no push
+  channel from the tab. `console`, `dialog`, JS errors and network are
+  captured **in-page** (once `console_capture`/`dialog_handler` are armed) and
+  read by **polling** (`console_list`, `dialogs`, `network_list`,
+  `wait_for_*`), not delivered as live events.
 
 When any of these matter, prefer the daemon + CDP path (`--cdp`,
 `--auto-connect`, `--auto-launch`) documented in `references/PROFILES_CDP.md`.

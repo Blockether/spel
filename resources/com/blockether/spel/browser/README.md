@@ -37,9 +37,11 @@ window.__spel.invoke({ action: "click", selector: "@e5" })
 Selectors: `@eNN` resolves a snapshot ref (`[data-pw-ref="eNN"]`); `text=…` /
 `css=…` / `xpath=…` (or a bare CSS/`//xpath`) use the matching engine.
 
-~80 handlers grouped as: interaction, read/props, state checks,
-geometry/overflow, ARIA + snapshot, navigation, refs, storage, network capture,
-overlay picker, and server/transport (plus an `evaluate` escape hatch).
+~100 handlers grouped as: interaction, read/props, state checks,
+geometry/overflow, ARIA + snapshot, navigation (`goto`), waits (`wait_for*`),
+refs, storage, cookies, network capture + same-origin `route` mocking, dialogs,
+console/error capture, input (`upload`/`tap`/`dispatch_event`), same-origin
+frames, overlay picker, and server/transport (plus an `evaluate` escape hatch).
 
 ## Keymap
 
@@ -59,8 +61,10 @@ CORS exposes; opaque (no-cors) bodies are unreadable.
 
 ## What it cannot do (no CDP)
 
-Real route/mock (only observe fetch/XHR), cross-origin iframes, OS-level tabs /
-downloads / file chooser, trusted (`isTrusted`) input, and traffic before load.
+Cross-origin/protocol-level interception (`route` mocks only same-origin
+fetch/XHR), cross-origin iframes, OS-level tabs / downloads / file chooser,
+trusted (`isTrusted`) input, and traffic before load. `console`/`dialog`/errors
+are captured in-page but read by polling, not pushed as live events.
 When those matter, use the daemon + CDP path (`--cdp`/`--auto-connect`).
 
 Full docs: the skill reference `references/BRIDGE.md`.

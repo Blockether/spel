@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat(bridge): fill the real Playwright-parity gaps in the in-page engine
+  (`spel.js` → v0.6.0), all doable in pure JS without CDP and tested against
+  live Chromium (61/61):
+  - **Dialogs** — `dialog_handler` (policy `accept|dismiss`, `promptText`),
+    `dialogs`, `dialogs_clear`: wraps `alert/confirm/prompt/beforeunload`.
+  - **Console/errors** — `console_capture`, `console_list`, `console_clear`
+    (wraps `console.*` + `onerror` + `unhandledrejection`).
+  - **Navigation** — `goto`/`navigate` to any URL (survives via the
+    sessionStorage re-inject).
+  - **Cookies** — `cookies`, `set_cookie`/`add_cookie`, `clear_cookies`.
+  - **Waits** — `wait_for_timeout`, `wait_for_function`, `wait_for_url`,
+    `wait_for_load_state`, `wait_for_response`, `wait_for_request`.
+  - **Request mocking** — `route`/`unroute`/`routes` (same-origin `fetch`/XHR
+    abort or fulfil, short-circuited in the wrapper).
+  - **Input/events** — `upload`/`set_input_files` (base64 → `DataTransfer`),
+    `tap`, `dispatch_event`.
+  - **Frames** — `frames` + `frame=<sel> >> <inner>` same-origin drill-down.
+- docs(bridge): documented the new verbs and the revised CDP limits (protocol/
+  cross-origin interception, in-page-but-polled events) in `references/BRIDGE.md`
+  and the browser `README.md`.
 - feat(bridge): the overlay picker now wears spel's theatrical brand — a
   tragedy-green (`#2EAD33`) highlight box with a softly breathing glow and
   rounded corners, a Playwright-style label chip (role · accessible name ·

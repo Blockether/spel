@@ -125,7 +125,7 @@
       ref: entry.ref, url: entry.url, method: entry.method,
       status: entry.status, statusText: entry.statusText,
       resourceType: entry.resourceType, ok: entry.ok,
-      fromCache: entry.fromCache, size: entry.size,
+      fromCache: entry.fromCache, size: entry.size, mocked: entry.mocked,
       startTime: entry.startTime, duration: entry.duration,
       error: entry.error
     });
@@ -134,6 +134,35 @@
       if (dropped && dropped.ref) delete netFull[dropped.ref.replace(/^@/, "")];
     }
     return entry;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Request routing / mocking — page.route() equivalent for fetch + XHR.
+  //   Pure in-page: only requests issued through window.fetch / XMLHttpRequest
+  //   can be short-circuited (fulfill/abort). Passive resources (img/script/css
+  //   pulled by the browser loader) are NOT interceptable without CDP.
+  // ---------------------------------------------------------------------------
+  var routes = [];
+
+  function urlMatch(pattern, url) {
+    if (pattern == null || pattern === "" || pattern === "*" || pattern === "**") return true;
+    url = String(url);
+    if (String(pattern).indexOf("*") !== -1) {
+      var re = new RegExp(
+        "^" + String(pattern).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$"
+      );
+      return re.test(url);
+    }
+    return url.indexOf(pattern) !== -1;
+  }
+
+  function matchRoute(url, method) {
+    for (var i = 0; i < routes.length; i++) {
+      var r = routes[i];
+      if (r.method && String(r.method).toUpperCase() !== String(method || "GET").toUpperCase()) continue;
+      if (urlMatch(r.url, url)) return r;
+    }
+    return null;
   }
 
   function wrapFetch() {
@@ -146,6 +175,38 @@
       var reqHeaders = netHeadersToObj((init && init.headers) || (input && input.headers));
       var reqBody = (init && init.body != null)
         ? netCap(typeof init.body === "string" ? init.body : "[non-text body]") : null;
+      var mock = matchRoute(url, method);
+      if (mock) {
+        return Promise.resolve().then(function () {
+          if ((mock.action || "fulfill") === "abort") {
+            netRecord({
+              url: url, method: String(method).toUpperCase(), status: 0,
+              statusText: "aborted by route", resourceType: "fetch", ok: false,
+              requestHeaders: reqHeaders, requestBody: reqBody,
+              responseHeaders: {}, responseBody: null, fromCache: false, mocked: true,
+              error: "aborted by route", startTime: Math.round(start),
+              duration: Math.round(netNow() - start), size: null
+            });
+            throw new Error("aborted by route: " + url);
+          }
+          var status = mock.status || 200;
+          var body = mock.body == null ? ""
+            : (typeof mock.body === "string" ? mock.body : JSON.stringify(mock.body));
+          var headers = mock.headers || { "content-type": mock.contentType || "application/json" };
+          netRecord({
+            url: url, method: String(method).toUpperCase(),
+            status: status, statusText: mock.statusText || "OK",
+            resourceType: "fetch", ok: status >= 200 && status < 400,
+            requestHeaders: reqHeaders, requestBody: reqBody,
+            responseHeaders: netHeadersToObj(headers), responseBody: netCap(body),
+            fromCache: false, mocked: true, startTime: Math.round(start),
+            duration: Math.round(netNow() - start), size: body.length
+          });
+          return new global.Response(body, {
+            status: status, statusText: mock.statusText || "", headers: headers
+          });
+        });
+      }
       return orig.apply(this, arguments).then(function (resp) {
         var entry = netRecord({
           url: url, method: String(method).toUpperCase(),
@@ -321,6 +382,17 @@
 
   function resolveOne(selector, root) {
     if (selector == null) throw new Error("selector is required");
+    if (typeof selector === "string" && selector.indexOf("frame=") === 0) {
+      var fsep = selector.indexOf(">>");
+      var frameSel = (fsep < 0 ? selector.slice(6) : selector.slice(6, fsep)).trim();
+      var innerSel = fsep < 0 ? "" : selector.slice(fsep + 2).trim();
+      var frameEl = resolveOne(frameSel, root);
+      if (!frameEl) return null;
+      var fdoc;
+      try { fdoc = frameEl.contentDocument; } catch (e) { fdoc = null; }
+      if (!fdoc) throw new Error("frame not accessible (cross-origin?): " + frameSel);
+      return innerSel ? resolveOne(innerSel, fdoc) : frameEl;
+    }
     if (isRef(selector)) {
       return (root || document).querySelector(
         "[" + REF_ATTR + '="' + selector.slice(1) + '"]'
@@ -338,6 +410,17 @@
   }
 
   function resolveAll(selector, root) {
+    if (typeof selector === "string" && selector.indexOf("frame=") === 0) {
+      var afsep = selector.indexOf(">>");
+      var aFrameSel = (afsep < 0 ? selector.slice(6) : selector.slice(6, afsep)).trim();
+      var aInner = afsep < 0 ? "" : selector.slice(afsep + 2).trim();
+      var aFrame = resolveOne(aFrameSel, root);
+      if (!aFrame) return [];
+      var afdoc;
+      try { afdoc = aFrame.contentDocument; } catch (e) { afdoc = null; }
+      if (!afdoc) return [];
+      return aInner ? resolveAll(aInner, afdoc) : [aFrame];
+    }
     if (isRef(selector)) {
       var one = resolveOne(selector, root);
       return one ? [one] : [];
@@ -939,6 +1022,97 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Dialogs — alert/confirm/prompt/beforeunload (page.on("dialog") equivalent).
+  //   Native modal dialogs freeze automation, so we replace them with
+  //   non-blocking stand-ins that follow a policy and record every occurrence.
+  // ---------------------------------------------------------------------------
+  var dialogLog = [];
+  var dialogPolicy = { action: "accept", promptText: null };
+  var dialogsInstalled = false;
+
+  function recordDialog(type, message, dflt) {
+    var accept = dialogPolicy.action !== "dismiss";
+    var entry = {
+      type: type, message: message == null ? "" : String(message),
+      defaultValue: dflt == null ? null : String(dflt),
+      accepted: accept, at: Date.now()
+    };
+    dialogLog.push(entry);
+    if (dialogLog.length > 200) dialogLog.shift();
+    return entry;
+  }
+
+  function installDialogs() {
+    if (dialogsInstalled) return true;
+    global.alert = function (msg) { recordDialog("alert", msg, null); };
+    global.confirm = function (msg) { return recordDialog("confirm", msg, null).accepted; };
+    global.prompt = function (msg, dflt) {
+      var e = recordDialog("prompt", msg, dflt);
+      if (!e.accepted) return null;
+      return dialogPolicy.promptText != null ? dialogPolicy.promptText : (dflt == null ? "" : dflt);
+    };
+    global.addEventListener("beforeunload", function () { recordDialog("beforeunload", "", null); }, true);
+    dialogsInstalled = true;
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Console + page errors (page.on("console") / page.on("pageerror")).
+  // ---------------------------------------------------------------------------
+  var consoleLog = [];
+  var consoleInstalled = false;
+
+  function recordConsole(level, args) {
+    var text;
+    try {
+      text = Array.prototype.map.call(args, function (a) {
+        if (typeof a === "string") return a;
+        try { return JSON.stringify(a); } catch (e) { return String(a); }
+      }).join(" ");
+    } catch (e2) { text = String(args); }
+    consoleLog.push({ type: level, text: text, at: Date.now() });
+    if (consoleLog.length > 500) consoleLog.shift();
+  }
+
+  function installConsole() {
+    if (consoleInstalled) return true;
+    var c = global.console || (global.console = {});
+    ["log", "info", "warn", "error", "debug"].forEach(function (level) {
+      var orig = c[level];
+      c[level] = function () {
+        recordConsole(level, arguments);
+        if (typeof orig === "function") return orig.apply(c, arguments);
+      };
+    });
+    global.addEventListener("error", function (ev) {
+      recordConsole("pageerror", [ev && ev.message ? ev.message : String(ev),
+        ev && ev.filename ? (ev.filename + ":" + ev.lineno) : ""]);
+    }, true);
+    global.addEventListener("unhandledrejection", function (ev) {
+      recordConsole("pageerror", ["unhandledrejection:", ev && ev.reason ? String(ev.reason) : ""]);
+    }, true);
+    consoleInstalled = true;
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cookies — document.cookie (httpOnly + Secure-only cookies stay invisible).
+  // ---------------------------------------------------------------------------
+  function parseCookies() {
+    var out = {};
+    String(document.cookie || "").split(";").forEach(function (p) {
+      var i = p.indexOf("=");
+      if (i < 0) return;
+      var k = p.slice(0, i).trim();
+      if (k) {
+        try { out[k] = decodeURIComponent(p.slice(i + 1).trim()); }
+        catch (e) { out[k] = p.slice(i + 1).trim(); }
+      }
+    });
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
   // Command handlers.
   // ---------------------------------------------------------------------------
   var HANDLERS = {
@@ -1287,6 +1461,229 @@
     disconnect: function () { return disconnect(); },
     is_connected: function () { return !!activeConn; },
 
+    // --- dialogs ---
+    dialog_handler: function (c) {
+      c = c || {};
+      if (c.policy) dialogPolicy.action = String(c.policy).toLowerCase();
+      if (c.promptText !== undefined) dialogPolicy.promptText = c.promptText;
+      installDialogs();
+      return { action: dialogPolicy.action, promptText: dialogPolicy.promptText };
+    },
+    dialogs: function () { installDialogs(); return { entries: dialogLog.slice() }; },
+    dialogs_clear: function () { var n = dialogLog.length; dialogLog.length = 0; return { cleared: n }; },
+
+    // --- console / page errors ---
+    console_capture: function () { return { installed: installConsole() }; },
+    console_list: function (c) {
+      c = c || {};
+      var out = consoleLog;
+      if (c.level) out = out.filter(function (e) { return e.type === String(c.level).toLowerCase(); });
+      return { entries: out.slice() };
+    },
+    console_clear: function () { var n = consoleLog.length; consoleLog.length = 0; return { cleared: n }; },
+
+    // --- navigation to an arbitrary URL (reinject rides in sessionStorage) ---
+    goto: function (c) {
+      var url = c.url || c.value;
+      if (!url) throw new Error("goto requires a url");
+      global.location.href = url;
+      return { navigating: url };
+    },
+    navigate: function (c) { return HANDLERS.goto(c); },
+
+    // --- cookies ---
+    cookies: function (c) {
+      var jar = parseCookies();
+      if (c && c.name) return jar[c.name] != null ? [{ name: c.name, value: jar[c.name] }] : [];
+      return Object.keys(jar).map(function (k) { return { name: k, value: jar[k] }; });
+    },
+    set_cookie: function (c) {
+      var s = encodeURIComponent(c.name) + "=" + encodeURIComponent(c.value == null ? "" : String(c.value));
+      s += "; path=" + (c.path || "/");
+      if (c.domain) s += "; domain=" + c.domain;
+      if (c.maxAge != null) s += "; max-age=" + c.maxAge;
+      if (c.expires) s += "; expires=" + c.expires;
+      if (c.sameSite) s += "; samesite=" + c.sameSite;
+      if (c.secure) s += "; secure";
+      document.cookie = s;
+      return true;
+    },
+    add_cookie: function (c) { return HANDLERS.set_cookie(c); },
+    clear_cookies: function () {
+      var jar = parseCookies(), n = 0;
+      Object.keys(jar).forEach(function (k) {
+        document.cookie = encodeURIComponent(k) + "=; path=/; max-age=0";
+        document.cookie = encodeURIComponent(k) + "=; max-age=0";
+        n += 1;
+      });
+      return { cleared: n };
+    },
+
+    // --- waiting (Playwright wait_for* family) ---
+    wait_for_timeout: function (c) {
+      var ms = Number((c && (c.timeout != null ? c.timeout : c.ms)) || 0);
+      return new Promise(function (resolve) { global.setTimeout(function () { resolve(true); }, ms); });
+    },
+    wait_for_function: function (c) {
+      var expr = c.base64 ? global.atob(c.script || c.expression) : (c.script || c.expression);
+      var timeout = c.timeout == null ? 5000 : Number(c.timeout);
+      var start = Date.now();
+      var fn = Function('"use strict"; return (' + expr + "\n);");
+      return new Promise(function (resolve, reject) {
+        function poll() {
+          var v;
+          try { v = fn(); } catch (e) { v = undefined; }
+          if (v) { resolve(typeof v === "object" ? true : v); return; }
+          if (Date.now() - start > timeout) { reject(new Error("wait_for_function timeout")); return; }
+          global.setTimeout(poll, 50);
+        }
+        poll();
+      });
+    },
+    wait_for_url: function (c) {
+      var want = c.url || c.value || "";
+      var timeout = c.timeout == null ? 5000 : Number(c.timeout);
+      var start = Date.now();
+      return new Promise(function (resolve, reject) {
+        function poll() {
+          if (urlMatch(want, global.location.href)) { resolve(global.location.href); return; }
+          if (Date.now() - start > timeout) { reject(new Error("wait_for_url timeout: " + want)); return; }
+          global.setTimeout(poll, 50);
+        }
+        poll();
+      });
+    },
+    wait_for_load_state: function (c) {
+      var want = (c && c.state ? c.state : "load").toLowerCase();
+      var timeout = c && c.timeout != null ? Number(c.timeout) : 5000;
+      var start = Date.now();
+      return new Promise(function (resolve, reject) {
+        function done() {
+          var rs = document.readyState;
+          if (want === "domcontentloaded") return rs === "interactive" || rs === "complete";
+          return rs === "complete";
+        }
+        function poll() {
+          if (done()) { resolve(document.readyState); return; }
+          if (Date.now() - start > timeout) { reject(new Error("wait_for_load_state timeout")); return; }
+          global.setTimeout(poll, 50);
+        }
+        poll();
+      });
+    },
+    wait_for_response: function (c) {
+      installNetwork();
+      var want = c.url || c.value || "";
+      var timeout = c.timeout == null ? 5000 : Number(c.timeout);
+      var start = Date.now(), base = netCounter;
+      return new Promise(function (resolve, reject) {
+        function poll() {
+          for (var i = netWindow.length - 1; i >= 0; i--) {
+            var e = netWindow[i];
+            var num = parseInt(String(e.ref).replace(/[^0-9]/g, ""), 10);
+            if (num > base && e.status != null && urlMatch(want, e.url)) { resolve(e); return; }
+          }
+          if (Date.now() - start > timeout) { reject(new Error("wait_for_response timeout: " + want)); return; }
+          global.setTimeout(poll, 50);
+        }
+        poll();
+      });
+    },
+    wait_for_request: function (c) {
+      installNetwork();
+      var want = c.url || c.value || "";
+      var timeout = c.timeout == null ? 5000 : Number(c.timeout);
+      var start = Date.now(), base = netCounter;
+      return new Promise(function (resolve, reject) {
+        function poll() {
+          for (var i = netWindow.length - 1; i >= 0; i--) {
+            var e = netWindow[i];
+            var num = parseInt(String(e.ref).replace(/[^0-9]/g, ""), 10);
+            if (num > base && urlMatch(want, e.url)) { resolve(e); return; }
+          }
+          if (Date.now() - start > timeout) { reject(new Error("wait_for_request timeout: " + want)); return; }
+          global.setTimeout(poll, 50);
+        }
+        poll();
+      });
+    },
+
+    // --- request routing / mocking (fetch + XHR only) ---
+    route: function (c) {
+      installNetwork();
+      routes.push({
+        url: c.url || c.pattern || "*", method: c.method || null,
+        action: c.abort ? "abort" : "fulfill",
+        status: c.status, statusText: c.statusText,
+        body: c.body, headers: c.headers, contentType: c.contentType
+      });
+      return { routes: routes.length };
+    },
+    unroute: function (c) {
+      if (c && (c.url || c.pattern)) {
+        var pat = c.url || c.pattern;
+        routes = routes.filter(function (r) { return r.url !== pat; });
+      } else {
+        routes.length = 0;
+      }
+      return { routes: routes.length };
+    },
+    routes: function () { return { routes: routes.slice() }; },
+
+    // --- file uploads (set_input_files) ---
+    upload: function (c) {
+      var el = must(c.selector);
+      var files = c.files || c.value || [];
+      if (!Array.isArray(files)) files = [files];
+      var dt = new global.DataTransfer();
+      files.forEach(function (f) {
+        var name = (f && f.name) || (typeof f === "string" ? f : "file");
+        var mime = (f && (f.mimeType || f.type)) || "text/plain";
+        var content = f && f.content != null ? f.content : "";
+        if (f && f.base64) { try { content = global.atob(content); } catch (e) {} }
+        var blob = new global.Blob([content], { type: mime });
+        dt.items.add(new global.File([blob], name, { type: mime }));
+      });
+      el.files = dt.files;
+      fireInput(el);
+      el.dispatchEvent(new global.Event("change", { bubbles: true }));
+      return { files: Array.prototype.map.call(el.files, function (x) { return x.name; }) };
+    },
+    set_input_files: function (c) { return HANDLERS.upload(c); },
+
+    // --- touch / generic events ---
+    tap: function (c) {
+      var el = must(c.selector);
+      var pt = centerOf(el);
+      mouseEvent(el, "pointerdown", pt);
+      mouseEvent(el, "pointerup", pt);
+      clickEl(el);
+      return true;
+    },
+    dispatch_event: function (c) {
+      var el = must(c.selector);
+      var type = c.type || c.event;
+      if (!type) throw new Error("dispatch_event requires a type");
+      var init = c.init || c.eventInit || { bubbles: true, cancelable: true };
+      var ev;
+      try { ev = new global.Event(type, init); }
+      catch (e) { ev = document.createEvent("Event"); ev.initEvent(type, !!init.bubbles, !!init.cancelable); }
+      el.dispatchEvent(ev);
+      return true;
+    },
+
+    // --- frames (same-origin) ---
+    frames: function () {
+      var out = [], ifr = document.querySelectorAll("iframe,frame");
+      for (var i = 0; i < ifr.length; i++) {
+        var f = ifr[i], same = false;
+        try { same = !!f.contentDocument; } catch (e) { same = false; }
+        out.push({ ref: "@" + ensureRef(f), src: f.getAttribute("src"),
+          name: f.getAttribute("name"), sameOrigin: same });
+      }
+      return { count: out.length, frames: out };
+    },
+
     // --- meta ---
     ping: function () { return "pong"; },
     ready: function () { return true; }
@@ -1400,7 +1797,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.5.0",
+    version: "0.6.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

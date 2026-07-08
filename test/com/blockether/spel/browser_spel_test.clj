@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.5.0" (setup! pg)))))
+      (expect (= "0.6.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -555,3 +555,195 @@
       (page/evaluate pg (str "fetch(" (json/write-json-str *test-server-url*) ").then(r => r.text())"))
       (value pg {:action "network_clear"})
       (expect (empty? (get (value pg {:action "network_list"}) "entries"))))))
+
+;; ---------------------------------------------------------------------------
+;; Dialogs, console, waits, uploads, events, frames (pure-JS Playwright parity)
+;; ---------------------------------------------------------------------------
+
+(defdescribe dialogs-test
+  "alert/confirm/prompt are intercepted, follow a policy and are recorded."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "accepts confirm and records the dialog by default"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "dialog_handler" :policy "accept"})
+      (expect (true? (page/evaluate pg "window.confirm('sure?')")))
+      (let [entries (get (value pg {:action "dialogs"}) "entries")
+            d (last entries)]
+        (expect (= "confirm" (get d "type")))
+        (expect (= "sure?" (get d "message")))
+        (expect (true? (get d "accepted"))))))
+
+  (it "dismisses confirm/prompt under the dismiss policy"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "dialog_handler" :policy "dismiss"})
+      (expect (false? (page/evaluate pg "window.confirm('no?')")))
+      (expect (nil? (page/evaluate pg "window.prompt('name?')")))))
+
+  (it "feeds promptText back to prompt()"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "dialog_handler" :policy "accept" :promptText "Ada"})
+      (expect (= "Ada" (page/evaluate pg "window.prompt('name?')"))))))
+
+(defdescribe console-test
+  "console.* and page errors are captured after console_capture."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "captures console messages and filters by level"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "console_capture"})
+      (page/evaluate pg "console.log('hello'); console.error('boom'); true")
+      (let [all (get (value pg {:action "console_list"}) "entries")]
+        (expect (some #(= "hello" (get % "text")) all))
+        (expect (some #(= "error" (get % "type")) all)))
+      (let [errs (get (value pg {:action "console_list" :level "error"}) "entries")]
+        (expect (every? #(= "error" (get % "type")) errs))
+        (expect (some #(= "boom" (get % "text")) errs)))))
+
+  (it "captures an uncaught page error"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "console_capture"})
+      (page/evaluate pg "setTimeout(() => { throw new Error('kaboom'); }, 0); true")
+      (value pg {:action "wait_for_timeout" :timeout 100})
+      (let [errs (get (value pg {:action "console_list" :level "pageerror"}) "entries")]
+        (expect (some #(re-find #"kaboom" (get % "text")) errs))))))
+
+(defdescribe waits-test
+  "wait_for_function / _load_state / _timeout resolve on real conditions."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "wait_for_function resolves when the predicate turns truthy"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg "setTimeout(() => { window.__flag = 42; }, 120); true")
+      (expect (= 42 (long (value pg {:action "wait_for_function"
+                                     :script "window.__flag" :timeout 3000}))))))
+
+  (it "wait_for_function times out to ok:false"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (invoke pg {:action "wait_for_function" :script "window.__never" :timeout 150})]
+        (expect (false? (get r "ok")))
+        (expect (re-find #"timeout" (get r "error"))))))
+
+  (it "wait_for_load_state resolves for an already-complete document"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "complete" (value pg {:action "wait_for_load_state" :state "load"})))))
+
+  (it "wait_for_timeout just delays"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (true? (value pg {:action "wait_for_timeout" :timeout 50}))))))
+
+(defdescribe upload-events-test
+  "set_input_files, dispatch_event and tap drive real DOM state."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "upload sets files on a file input"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg
+        (str "const i = document.createElement('input'); i.type='file'; i.id='up';"
+          "document.body.appendChild(i); true"))
+      (let [r (value pg {:action "upload" :selector "#up"
+                         :files [{:name "a.txt" :content "hello" :mimeType "text/plain"}]})]
+        (expect (= ["a.txt"] (get r "files")))
+        (expect (= 1 (long (page/evaluate pg "document.getElementById('up').files.length")))))))
+
+  (it "dispatch_event fires an arbitrary event"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg "document.getElementById('go').addEventListener('customping', () => { window.__ping = 1; }); true")
+      (value pg {:action "dispatch_event" :selector "#go" :type "customping"})
+      (expect (= 1 (long (page/evaluate pg "window.__ping"))))))
+
+  (it "tap clicks through pointer events"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "tap" :selector "#go"})
+      (expect (= "clicked" (page/evaluate pg "document.getElementById('out').textContent"))))))
+
+(defdescribe frames-test
+  "same-origin iframe drill-down via frame= selectors."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "lists frames and acts inside a same-origin iframe"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg
+        (str "const fr = document.createElement('iframe'); fr.id='fr';"
+          "document.body.appendChild(fr);"
+          "const d = fr.contentDocument;"
+          "d.body.innerHTML = '<button id=\"inner\">Inner</button>';"
+          "d.getElementById('inner').addEventListener('click', function () {"
+          "  d.body.setAttribute('data-hit', 'yes'); });"
+          "true"))
+      (let [frames (get (value pg {:action "frames"}) "frames")]
+        (expect (pos? (count frames)))
+        (expect (true? (get (first frames) "sameOrigin"))))
+      (expect (= "button" (value pg {:action "tag_name" :selector "frame=#fr >> #inner"})))
+      (value pg {:action "click" :selector "frame=#fr >> #inner"})
+      (expect (= "yes" (page/evaluate pg "document.getElementById('fr').contentDocument.body.getAttribute('data-hit')"))))))
+
+;; ---------------------------------------------------------------------------
+;; Cookies + request routing (server-backed, real origin)
+;; ---------------------------------------------------------------------------
+
+(defdescribe cookies-routing-test
+  "cookies + page.route()-style fetch mocking against a real HTTP origin."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (it "sets, reads and clears cookies"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "set_cookie" :name "tok" :value "abc123"})
+      (let [jar (value pg {:action "cookies"})]
+        (expect (some #(and (= "tok" (get % "name")) (= "abc123" (get % "value"))) jar)))
+      (expect (= [{"name" "tok" "value" "abc123"}]
+                (value pg {:action "cookies" :name "tok"})))
+      (value pg {:action "clear_cookies"})
+      (expect (empty? (value pg {:action "cookies" :name "tok"})))))
+
+  (it "route fulfills a fetch without hitting the network"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      (value pg {:action "route" :url "*/mock-api" :status 202 :body "{\"ok\":true}"})
+      (page/evaluate pg "fetch('/mock-api').then(r => r.text()).then(t => { window.__m = t; })")
+      (value pg {:action "wait_for_function" :script "window.__m !== undefined" :timeout 3000})
+      (expect (= "{\"ok\":true}" (page/evaluate pg "window.__m")))
+      (let [entries (get (value pg {:action "network_list"}) "entries")
+            mock (some (fn [e] (when (get e "mocked") e)) entries)]
+        (expect (some? mock))
+        (expect (= 202 (long (get mock "status")))))))
+
+  (it "route abort rejects the fetch"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "route" :url "*/blocked" :abort true})
+      (page/evaluate pg
+        (str "fetch('/blocked').then(() => { window.__b = 'ok'; })"
+          ".catch(() => { window.__b = 'aborted'; })"))
+      (value pg {:action "wait_for_function" :script "window.__b !== undefined" :timeout 3000})
+      (expect (= "aborted" (page/evaluate pg "window.__b")))))
+
+  (it "wait_for_response resolves on a matching later response"
+    (core/with-testing-page [pg]
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "network_clear"})
+      (page/evaluate pg (str "setTimeout(() => fetch("
+                          (json/write-json-str (str *test-server-url* "/health"))
+                          ").then(r => r.text()), 120)"))
+      (let [r (value pg {:action "wait_for_response" :url "/health" :timeout 3000})]
+        (expect (= 200 (long (get r "status"))))
+        (expect (re-find #"/health" (get r "url")))))))
