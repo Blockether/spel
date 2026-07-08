@@ -21,7 +21,7 @@ on:
 | Step | Path | Key |
 |------|------|-----|
 | `Cache Clojure deps` | `~/.m2/repository`, `~/.gitlibs`, `~/.clojure/.cpcache` | `deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}` |
-| `Cache Playwright browsers` | `~/.cache/ms-playwright` | `playwright-${{ runner.os }}-1.58.0` |
+| `Cache Playwright browsers` | `~/.cache/ms-playwright` | `playwright-${{ runner.os }}-1.61.0` |
 
 Restore key prefixes are the same with the hash dropped.
 

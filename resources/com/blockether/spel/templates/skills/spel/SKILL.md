@@ -1,6 +1,6 @@
 ---
 name: spel
-description: "Clojure Playwright 1.58.0 wrapper. Browser automation, testing, assertions, codegen, CLI. Use for: E2E tests, bug-finding, checkout automation, site exploration, screenshots, scraping, visual regression. NOT for: general web dev, non-browser APIs, non-Playwright frameworks."
+description: "Clojure Playwright 1.61.0 wrapper. Browser automation, testing, assertions, codegen, CLI. Use for: E2E tests, bug-finding, checkout automation, site exploration, screenshots, scraping, visual regression. NOT for: general web dev, non-browser APIs, non-Playwright frameworks."
 version: "{{version}}"
 license: Apache-2.0
 compatibility: opencode

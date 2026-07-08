@@ -67,7 +67,7 @@ Wraps Playwright CLI commands via the `spel` native binary.
 
 > **For multi-step automation, prefer `eval-sci`.** Standalone commands (`spel open`, `spel click @e2yrjz`) are good for one-offs; anything longer should be `spel eval-sci '<code>'` or `spel eval-sci script.clj`. LLM-generated scripts: `echo '(code)' | spel eval-sci --stdin`.
 
-> `spel install` wraps `com.microsoft.playwright.CLI` — same Node.js Playwright CLI that `npx playwright` uses. Driver version is pinned to Playwright Java (1.58.0), so browser versions always match.
+> `spel install` wraps `com.microsoft.playwright.CLI` — same Node.js Playwright CLI that `npx playwright` uses. Driver version is pinned to Playwright Java (1.61.0), so browser versions always match.
 
 ```bash
 spel install                        # install browsers (Chromium default)
