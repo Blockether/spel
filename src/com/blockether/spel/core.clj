@@ -790,7 +790,12 @@
    String path to video file, or nil."
   [^Page page]
   (when-let [^Video v (.video page)]
-    (str (.path v))))
+    (try
+      (str (.path v))
+      (catch com.microsoft.playwright.PlaywrightException e
+        (if (= "Video recording has not been started." (.getMessage e))
+          nil
+          (throw e))))))
 
 (defn video-save-as!
   "Saves the video to the specified path.
