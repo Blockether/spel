@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commands through the bridge (saved in `~/.spel/bridge.json`).
 - docs(bridge): `references/BRIDGE.md`, browser `spel.js` README, SKILL +
   CAPABILITIES coverage (documents limits vs CDP upfront).
+- feat(bridge): token-gated transport — the bridge auto-generates a shared
+  secret and refuses SSE/command/result requests without it (403), so another
+  page in the same browser cannot drive the tab or read captured traffic over
+  loopback. `spel bridge use` (same box) picks up the live token automatically
+  (from `~/.spel/bridge-runtime.json`); remote bridges take `--token`.
+- feat(bridge): re-inject survival — the engine remembers its route per-tab in
+  sessionStorage, so a full-page navigation/reload to a page that re-loads
+  `spel.js` re-subscribes automatically instead of losing the tab. `connect`
+  now replaces any prior connection (single live SSE/WS per tab).
+- feat(bridge): if the fixed port is busy, an ephemeral one is chosen instead
+  of crashing; the live port + token are published to `~/.spel/bridge-runtime.json`.
 
 ## [v0.9.8] - 2026-06-02
 

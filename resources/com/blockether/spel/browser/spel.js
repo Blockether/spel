@@ -798,6 +798,7 @@
       if (activeConn.socket) activeConn.socket.close();
       if (activeConn.source) activeConn.source.close();
     } catch (e) { /* ignore */ }
+    forgetConnect();
     activeConn = null;
     return true;
   }
@@ -1216,11 +1217,47 @@
   // ---------------------------------------------------------------------------
   // Optional daemon transport (two-way): WebSocket first, SSE + POST fallback.
   // ---------------------------------------------------------------------------
+  var CONNECT_KEY = "__spel_connect";
+
+  // Append the shared secret as a query param so the bridge can authorize this
+  // tab. EventSource cannot set headers, so the token has to ride in the URL.
+  function connWith(u, token) {
+    if (!token) return u;
+    return u + (u.indexOf("?") < 0 ? "?" : "&") + "t=" + encodeURIComponent(token);
+  }
+
+  // Remember the route (url + token) for THIS tab so a full-page navigation to
+  // another same-origin page that re-loads spel.js can auto-reconnect. Scoped
+  // to sessionStorage: per-tab, per-origin, cleared when the tab closes.
+  function persistConnect(cfg) {
+    try { global.sessionStorage.setItem(CONNECT_KEY, JSON.stringify(cfg)); } catch (e) { /* no storage */ }
+  }
+  function forgetConnect() {
+    try { global.sessionStorage.removeItem(CONNECT_KEY); } catch (e) { /* no storage */ }
+  }
+  function savedConnect() {
+    try {
+      var s = global.sessionStorage && global.sessionStorage.getItem(CONNECT_KEY);
+      return s ? JSON.parse(s) : null;
+    } catch (e) { return null; }
+  }
+
   function connect(opts) {
     opts = opts || {};
     var base = opts.url || picker.server || "ws://127.0.0.1:9223/spel";
+    var token = opts.token != null ? String(opts.token) : null;
+    persistConnect({ url: base, token: token });
+    // Replace any prior connection (e.g. an auto-reconnect that then gets an
+    // explicit connect) so a tab holds exactly one live SSE/WS, not several.
+    if (activeConn) {
+      try {
+        if (activeConn.socket) activeConn.socket.close();
+        if (activeConn.source) activeConn.source.close();
+      } catch (e) { /* ignore */ }
+      activeConn = null;
+    }
     if (/^wss?:/.test(base) && global.WebSocket) {
-      var ws = new global.WebSocket(base);
+      var ws = new global.WebSocket(connWith(base, token));
       ws.addEventListener("open", function () {
         ws.send(JSON.stringify({ type: "hello", version: api.version, url: global.location.href }));
       });
@@ -1231,12 +1268,12 @@
           ws.send(JSON.stringify(res));
         });
       });
-      activeConn = { transport: "websocket", socket: ws };
+      activeConn = { transport: "websocket", socket: ws, url: base, token: token };
       return activeConn;
     }
     // SSE for inbound commands, fetch POST for outbound results.
-    var resultUrl = opts.resultUrl || base + "/result";
-    var es = new global.EventSource(base);
+    var resultUrl = opts.resultUrl || connWith(base + "/result", token);
+    var es = new global.EventSource(connWith(base, token));
     es.addEventListener("message", function (ev) {
       var msg = JSON.parse(ev.data);
       invoke(msg).then(function (res) {
@@ -1248,7 +1285,11 @@
         });
       });
     });
-    activeConn = { transport: "sse", source: es };
+    es.addEventListener("error", function () {
+      // EventSource reconnects on its own; surface it for debugging only.
+      if (global.console && global.console.debug) global.console.debug("spel: SSE reconnecting");
+    });
+    activeConn = { transport: "sse", source: es, url: base, token: token };
     return activeConn;
   }
 
@@ -1257,7 +1298,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.3.0",
+    version: "0.4.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,
@@ -1277,6 +1318,17 @@
   }
 
   installNetwork();
+
+  // Re-inject survival: a previous page on this tab connected, so re-subscribe
+  // automatically after a full-page navigation re-loaded this script. SPA route
+  // changes keep window.__spel alive and need nothing; real navigations rebuild
+  // the window and land here on the fresh page.
+  (function () {
+    var cfg = savedConnect();
+    if (cfg && cfg.url) {
+      try { connect(cfg); } catch (e) { /* ignore */ }
+    }
+  })();
 
   global.__spel = api;
   return api;

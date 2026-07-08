@@ -73,12 +73,13 @@
    installed it just (re)connects. Returned WITHOUT a prefix so it serves two
    uses — pasted into the DevTools Console (or saved as a Sources Snippet), or
    prefixed with `javascript:` to form a draggable bookmarklet."
-  [^String origin ^String path]
+  [^String origin ^String path token]
   (let [o (json/write-json-str origin)
-        c (json/write-json-str (str origin path))]
+        c (json/write-json-str (str origin path))
+        t (if (and token (seq token)) (json/write-json-str token) "null")]
     (str "(function(){"
-      "var o=" o ",c=" c ";"
-      "function go(){try{window.__spel&&window.__spel.connect({url:c});}catch(e){console.error('spel:',e);}}"
+      "var o=" o ",c=" c ",t=" t ";"
+      "function go(){try{window.__spel&&window.__spel.connect({url:c,token:t});}catch(e){console.error('spel:',e);}}"
       "if(window.__spel){go();return;}"
       "var s=document.createElement('script');"
       "s.src=o+'/spel.js';s.onload=go;"
@@ -91,8 +92,8 @@
    bar (or Edge favorites); clicking it on any page injects + connects the engine.
    Note: a page's Content-Security-Policy or a managed browser policy can still
    block inline/bookmarklet execution — see `spel bridge --help`."
-  [^String origin ^String path]
-  (str "javascript:" (loader-script origin path)))
+  [^String origin ^String path token]
+  (str "javascript:" (loader-script origin path token)))
 
 ;; =============================================================================
 ;; Target profile — the persisted route for regular `spel <verb>` commands
@@ -138,6 +139,40 @@
    (let [f (io/file path)]
      (boolean (and (.isFile f) (.delete f))))))
 
+(defn- gen-token
+  "A short random shared secret gating browser<->bridge traffic on loopback."
+  ^String []
+  (subs (str/replace (str (UUID/randomUUID)) "-" "") 0 16))
+
+(defn runtime-path
+  "Filesystem location of the RUNNING bridge's connection details (port + token),
+   written while `spel bridge` is up so a same-box `spel bridge use` can pick up
+   the live token with zero friction. Cleared on shutdown."
+  ^String []
+  (str (System/getProperty "user.home") "/.spel/bridge-runtime.json"))
+
+(defn write-runtime!
+  "Records the live bridge route (url/port/path/token) for local discovery."
+  [m]
+  (let [f (io/file (runtime-path))]
+    (when-let [parent (.getParentFile f)] (.mkdirs parent))
+    (spit f (json/write-json-str m))
+    m))
+
+(defn read-runtime
+  "Reads the running bridge's route, or nil when no bridge is up."
+  []
+  (let [f (io/file (runtime-path))]
+    (when (.isFile f)
+      (try (json/read-json (slurp f) :key-fn keyword)
+        (catch Exception _ nil)))))
+
+(defn clear-runtime!
+  "Removes the runtime discovery file (bridge shutting down)."
+  []
+  (let [f (io/file (runtime-path))]
+    (boolean (and (.isFile f) (.delete f)))))
+
 (defn- ->bytes ^bytes [^String s]
   (.getBytes s StandardCharsets/UTF_8))
 
@@ -146,9 +181,12 @@
    returns the browser's result adapted to the daemon `{:success :data :error}`
    shape, so CLI output is identical whether a command hit the daemon or the
    bridge. `url` is the bridge connect URL (e.g. http://127.0.0.1:8787/spel)."
-  ([url command] (route-command! url command 30000))
-  ([^String url command timeout-ms]
-   (let [endpoint (str url "/command")
+  ([url command] (route-command! url command 30000 nil))
+  ([url command timeout-ms] (route-command! url command timeout-ms nil))
+  ([^String url command timeout-ms ^String token]
+   (let [endpoint (str url "/command"
+                    (when (and token (seq token))
+                      (str "?t=" (java.net.URLEncoder/encode token "UTF-8"))))
          body     (->bytes (json/write-json-str
                              (into {} (map (fn [[k v]] [(name k) v]) command))))]
      (try
@@ -159,6 +197,8 @@
            (.setReadTimeout (int (or timeout-ms 30000)))
            (.setDoOutput true)
            (.setRequestProperty "Content-Type" "application/json"))
+         (when (and token (seq token))
+           (.setRequestProperty conn "X-Spel-Token" token))
          (with-open [os (.getOutputStream conn)]
            (.write os body))
          (let [code (.getResponseCode conn)
@@ -196,10 +236,34 @@
 (defn- cors-preflight? [^HttpExchange ex]
   (= "OPTIONS" (.getRequestMethod ex)))
 
+(defn- query-param
+  "Reads a query-string parameter from the request URI, URL-decoded."
+  [^HttpExchange ex ^String k]
+  (when-let [q (.getRawQuery (.getRequestURI ex))]
+    (some (fn [^String pair]
+            (let [i (.indexOf pair "=")]
+              (when (and (pos? i) (= k (subs pair 0 i)))
+                (java.net.URLDecoder/decode (subs pair (inc i)) "UTF-8"))))
+      (str/split q #"&"))))
+
+(defn- authorized?
+  "True when the bridge has no token (auth disabled) or the request carries the
+   matching token — either as `?t=` (SSE can only pass it in the URL) or an
+   `X-Spel-Token` header. This is what stops another page open in the same
+   browser from driving the tab / reading captured traffic over loopback."
+  [^String token ^HttpExchange ex]
+  (or (str/blank? token)
+    (= token (query-param ex "t"))
+    (= token (.getFirst (.getRequestHeaders ex) "X-Spel-Token"))))
+
+(defn- forbidden! [^HttpExchange ex]
+  (respond! ex 403 "application/json"
+    "{\"ok\":false,\"error\":\"spel bridge: unauthorized (bad or missing token)\"}"))
+
 (defn- harness-html
   "A minimal self-connecting page, handy for smoke-testing a bridge in a real
    browser: it loads the engine and immediately subscribes to this server."
-  [^String path]
+  [^String path token]
   (str "<!doctype html>\n"
     "<html><head><meta charset=\"utf-8\"><title>spel bridge</title></head>\n"
     "<body>\n"
@@ -207,7 +271,9 @@
     "<p>Engine loaded. This tab is subscribed to the local spel server.</p>\n"
     "<script src=\"/spel.js\"></script>\n"
     "<script>\n"
-    "  window.__spel.connect({ url: window.location.origin + " (json/write-json-str path) " });\n"
+    "  window.__spel.connect({ url: window.location.origin + " (json/write-json-str path)
+    (if (and token (seq token)) (str ", token: " (json/write-json-str token)) "")
+    " });\n"
     "</script>\n"
     "</body></html>\n"))
 
@@ -215,12 +281,13 @@
   "GET → open a Server-Sent-Events stream and register the tab as a client.
    Blocks its worker thread for the life of the connection, draining the
    client's queue (heartbeats keep proxies/`EventSource` from timing out)."
-  [clients]
+  [clients token]
   (reify HttpHandler
     (handle [_ ex]
       (try
         (cond
           (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not (authorized? token ex)) (forbidden! ex)
           (not= "GET" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
           :else
           (let [h (.getResponseHeaders ex)]
@@ -253,12 +320,13 @@
 (defn- result-handler
   "POST ← a browser posts one invoke result `{id, action, ok, value|error}`.
    Correlates it to the waiting promise and delivers."
-  [pending]
+  [pending token]
   (reify HttpHandler
     (handle [_ ex]
       (try
         (cond
           (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not (authorized? token ex)) (forbidden! ex)
           (not= "POST" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
           :else
           (let [body (slurp (io/reader (.getRequestBody ex)))
@@ -284,12 +352,13 @@
    pushed to the connected tab(s) via `send!` and the browser's result is
    returned as the JSON response. With no tab subscribed `send!` times out and
    a structured `{ok:false,error}` is returned so the caller gets a clear error."
-  [send!]
+  [send! token]
   (reify HttpHandler
     (handle [_ ex]
       (try
         (cond
           (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not (authorized? token ex)) (forbidden! ex)
           (not= "POST" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
           :else
           (let [body   (slurp (io/reader (.getRequestBody ex)))
@@ -315,17 +384,20 @@
 
    opts: :host (default \"127.0.0.1\") :port (default 8787) :path (default \"/spel\").
    Binds to loopback only by design — this never listens on a routable address."
-  [& {:keys [host port path] :or {host "127.0.0.1" port 8787 path "/spel"}}]
+  [& {:keys [host port path token] :or {host "127.0.0.1" port 8787 path "/spel"}}]
   (let [clients   (ConcurrentHashMap.)
         pending   (ConcurrentHashMap.)
-        server    (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
+        ^HttpServer server (try (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
+                             (catch java.io.IOException _
+                      ;; Requested port busy — fall back to an ephemeral one.
+                               (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
         ^ScheduledExecutorService scheduler (Executors/newSingleThreadScheduledExecutor)
         result-path (str path "/result")]
     (.setExecutor server (Executors/newCachedThreadPool))
-    (.createContext server result-path (result-handler pending))
-    (.createContext server path (sse-handler clients))
+    (.createContext server result-path (result-handler pending token))
+    (.createContext server path (sse-handler clients token))
     (.createContext server "/spel.js" (static-handler "application/javascript; charset=utf-8" (engine-source)))
-    (.createContext server "/" (static-handler "text/html; charset=utf-8" (harness-html path)))
+    (.createContext server "/" (static-handler "text/html; charset=utf-8" (harness-html path token)))
     (.start server)
     (let [actual-port (.getPort (.getAddress server))
           base-url    (str "http://" host ":" actual-port path)
@@ -355,11 +427,12 @@
                        (throw (ex-info "spel bridge: timed out waiting for browser result"
                                 {:command command :timeout-ms timeout-ms}))
                        r))))]
-      (.createContext server (str path "/command") (command-handler send!))
+      (.createContext server (str path "/command") (command-handler send! token))
       {:server  server
        :host    host
        :port    actual-port
        :path    path
+       :token   token
        :url     base-url
        :page    (str "http://" host ":" actual-port "/")
        :clients (fn [] (.size clients))
@@ -376,21 +449,30 @@
 (defn serve!
   "Starts a bridge and blocks the current thread, printing connection details.
    Used by the `spel bridge` CLI command. Returns never (until interrupted)."
-  [& {:keys [host port path] :or {host "127.0.0.1" port 8787 path "/spel"}}]
-  (let [{:keys [url page stop] :as bridge} (create-bridge :host host :port port :path path)]
+  [& {:keys [host port path token] :or {host "127.0.0.1" port 8787 path "/spel"}}]
+  (let [token       (or token (gen-token))
+        {:keys [url page stop] :as bridge} (create-bridge :host host :port port :path path :token token)
+        actual-port (:port bridge)
+        connect-url (str url "?t=" token)]
     (println "spel bridge — loopback bridge running")
-    (println (str "  engine:  http://" host ":" (:port bridge) "/spel.js"))
-    (println (str "  connect: " url))
+    (when (not= actual-port port)
+      (println (str "  (port " port " was busy — using " actual-port ")")))
+    (println (str "  engine:  http://" host ":" actual-port "/spel.js"))
+    (println (str "  connect: " connect-url))
     (println (str "  harness: " page))
+    (println (str "  token:   " token))
     (println)
     (println "Embed in a page (same box, sidesteps CDP lockdown):")
-    (println "  <script src=\"http://127.0.0.1:8787/spel.js\"></script>")
-    (println (str "  <script>window.__spel.connect({url:\"" url "\"})</script>"))
+    (println (str "  <script src=\"http://" host ":" actual-port "/spel.js\"></script>"))
+    (println (str "  <script>window.__spel.connect({url:\"" url "\",token:\"" token "\"})</script>"))
     (println)
+    (println "Route regular commands from this box: spel bridge use  (picks up the token automatically)")
     (println "Press Ctrl-C to stop.")
     (flush)
-    (.addShutdownHook (Runtime/getRuntime) (Thread. ^Runnable (fn [] (stop))))
+    (write-runtime! {:url url :port actual-port :path path :token token})
+    (.addShutdownHook (Runtime/getRuntime)
+      (Thread. ^Runnable (fn [] (clear-runtime!) (stop))))
     (try
       @(promise) ; block forever
-      (catch InterruptedException _ (stop)))
+      (catch InterruptedException _ (clear-runtime!) (stop)))
     bridge))

@@ -29,7 +29,7 @@
     (let [src (bridge/engine-source)]
       (expect (string? src))
       (expect (re-find #"__spel" src))
-      (expect (re-find #"version: \"0\.3\.0\"" src)))))
+      (expect (re-find #"version: \"0\.4\.0\"" src)))))
 
 (defdescribe bridge-eject-loader-test
   "The ejected loader/bookmarklet target the right origin + connect URL."
@@ -44,8 +44,8 @@
               (bridge/eject-origin "http://box.local:9000" "127.0.0.1" 8787 "/spel"))))
 
   (it "loader-script injects spel.js and connects; bookmarklet just prefixes it"
-    (let [loader (bridge/loader-script "http://127.0.0.1:8787" "/spel")
-          mark   (bridge/bookmarklet "http://127.0.0.1:8787" "/spel")]
+    (let [loader (bridge/loader-script "http://127.0.0.1:8787" "/spel" "tok123")
+          mark   (bridge/bookmarklet "http://127.0.0.1:8787" "/spel" "tok123")]
       (expect (not (.startsWith loader "javascript:")))
       (expect (.startsWith mark "javascript:"))
       (expect (= mark (str "javascript:" loader)))
@@ -53,7 +53,11 @@
       (expect (re-find #"/spel\.js" loader))
       (expect (re-find #"__spel" loader))
       (expect (re-find #"createElement" loader))
-      (expect (re-find #"connect" loader)))))
+      (expect (re-find #"connect" loader))
+      ;; the token rides into the connect call
+      (expect (re-find #"tok123" loader))
+      ;; without a token the loader emits t=null (auth disabled)
+      (expect (re-find #"t=null" (bridge/loader-script "http://x" "/spel" nil))))))
 
 (defdescribe bridge-roundtrip-test
   "A real browser subscribes over SSE and answers commands pushed by the server."
@@ -90,7 +94,7 @@
         (core/with-testing-page [pg]
           (page/navigate pg (:page b))
           (wait-for-client! b 8000)
-          (expect (= "0.3.0" (page/evaluate pg "window.__spel.version")))
+          (expect (= "0.4.0" (page/evaluate pg "window.__spel.version")))
           ;; the tab holds a live SSE connection back to this bridge
           (expect (= "sse" (page/evaluate pg "window.__spel.connection() && window.__spel.connection().transport"))))
         (finally ((:stop b)))))))
@@ -140,3 +144,64 @@
     (let [r (bridge/route-command! "http://127.0.0.1:1/spel" {:action "ping"} 1000)]
       (expect (= false (:success r)))
       (expect (re-find #"not reachable" (:error r))))))
+
+(defdescribe bridge-token-test
+  "A shared token gates browser<->bridge traffic: the right token round-trips,
+   a missing/wrong one is refused with 403 before it reaches the tab."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "authorizes a tab carrying the token and refuses requests without it"
+    (let [b (bridge/create-bridge :port 0 :token "s3cr3t")]
+      (try
+        (core/with-testing-page [pg]
+          (page/navigate pg (:page b))
+          (wait-for-client! b 8000)
+          ;; the harness embedded the token, so the tab subscribed and answers
+          (let [r ((:send! b) {:action "ping"})]
+            (expect (= "pong" (get r "value"))))
+          ;; CLI-side: the correct token routes and adapts the result
+          (let [r (bridge/route-command! (:url b) {:action "ping"} 8000 "s3cr3t")]
+            (expect (= true (:success r)))
+            (expect (= "pong" (:data r))))
+          ;; CLI-side: a missing token is refused before it reaches the tab
+          (let [r (bridge/route-command! (:url b) {:action "ping"} 8000 nil)]
+            (expect (= false (:success r)))
+            (expect (re-find #"unauthorized" (:error r))))
+          ;; and a wrong token is refused too
+          (let [r (bridge/route-command! (:url b) {:action "ping"} 8000 "nope")]
+            (expect (= false (:success r)))
+            (expect (re-find #"unauthorized" (:error r)))))
+        (finally ((:stop b)))))))
+
+(defdescribe bridge-reinject-test
+  "The engine survives a full-page navigation: its connect route (url + token)
+   is persisted per-tab in sessionStorage, so a real reload re-subscribes
+   automatically instead of losing the tab."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "persists the route, clears it on disconnect, and re-subscribes on reload"
+    (let [b (bridge/create-bridge :port 0 :token "tkn")]
+      (try
+        (core/with-testing-page [pg]
+          (page/navigate pg (:page b))
+          (wait-for-client! b 8000)
+          ;; the route is remembered so a fresh page can auto-reconnect
+          (expect (= (:url b)
+                    (page/evaluate pg "JSON.parse(sessionStorage.getItem('__spel_connect')).url")))
+          (expect (= "tkn"
+                    (page/evaluate pg "JSON.parse(sessionStorage.getItem('__spel_connect')).token")))
+          ;; a real reload tears down window.__spel + the SSE; the fresh page
+          ;; must re-subscribe on its own and still answer commands
+          (page/reload pg)
+          (wait-for-client! b 8000)
+          ;; a fresh reload may briefly leave a stale SSE client in the map that
+          ;; the one-shot broadcast hits first; retry until the reloaded tab answers
+          (let [r (loop [n 6]
+                    (let [res (try ((:send! b) {:action "ping"} 3000)
+                                (catch Exception _ ::retry))]
+                      (if (and (= res ::retry) (pos? n)) (recur (dec n)) res)))]
+            (expect (= "pong" (get r "value"))))
+          ;; disconnect forgets the route so it won't reconnect after that
+          (page/evaluate pg "window.__spel.disconnect()")
+          (expect (nil? (page/evaluate pg "sessionStorage.getItem('__spel_connect')"))))
+        (finally ((:stop b)))))))

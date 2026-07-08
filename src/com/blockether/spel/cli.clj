@@ -1296,10 +1296,21 @@
       "                        `javascript:` prefix (paste into DevTools Console)"
       "                        (both accept an optional http://host:port/spel URL"
       "                        to target a remote bridge; default is the local one)"
+      "  --token <token>       Shared secret gating the bridge (default: auto)."
+      "                        Auto-generated on start and picked up by a same-box"
+      "                        `spel bridge use`; pass explicitly for a remote bridge"
+      ""
+      "Security: the bridge auto-generates a token and only accepts SSE / command /"
+      "result requests that carry it, so another page open in the same browser"
+      "cannot drive the tab or read captured traffic over loopback."
+      ""
+      "Navigation: the engine remembers its route per-tab (sessionStorage), so a"
+      "full-page reload/navigation to a page that re-loads spel.js re-subscribes"
+      "automatically. If the fixed port is busy, an ephemeral one is chosen."
       ""
       "Embed in a page (same machine):"
       "  <script src=\"http://127.0.0.1:8787/spel.js\"></script>"
-      "  <script>window.__spel.connect({url:\"http://127.0.0.1:8787/spel\"})</script>"
+      "  <script>window.__spel.connect({url:\"http://127.0.0.1:8787/spel\",token:\"...\"})</script>"
       ""
       "Then open http://127.0.0.1:8787/ for a ready-made harness page."])
 
@@ -3808,7 +3819,7 @@
           timeout-ms (or (:timeout flags) 30000)
           bridge-target (bridge/load-target)
           response (if bridge-target
-                     (bridge/route-command! (:url bridge-target) cmd-with-flags timeout-ms)
+                     (bridge/route-command! (:url bridge-target) cmd-with-flags timeout-ms (:token bridge-target))
                      (loop [retries 0]
                        (let [res (try
                                    (send-command! (:session flags) cmd-with-flags timeout-ms)

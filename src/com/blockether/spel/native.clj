@@ -1199,21 +1199,21 @@
             sub       (first rest-args)
             host      (or (flag "--host") "127.0.0.1")
             port      (if-let [p (or (flag "--port") (flag "-p"))] (Long/parseLong p) 8787)
-            path      (or (flag "--path") "/spel")
-            local-url (str "http://" host ":" port path)]
+            path      (or (flag "--path") "/spel")]
         (cond
           (some #{"--help" "-h"} rest-args)
           (println (get cli/command-help "bridge"))
 
           (some #{"--eject"} rest-args)
           (let [out     (or (flag "-o") (flag "--output"))
+                tok     (or (flag "--token") (:token (bridge/read-runtime)))
                 loader? (or (some #{"--bookmarklet"} rest-args)
                           (some #{"--console"} rest-args))
                 url-arg (first (filter #(re-find #"^https?://" %) rest-args))
                 [origin epath] (bridge/eject-origin url-arg host port path)
                 src     (cond
-                          (some #{"--bookmarklet"} rest-args) (bridge/bookmarklet origin epath)
-                          (some #{"--console"} rest-args)     (bridge/loader-script origin epath)
+                          (some #{"--bookmarklet"} rest-args) (bridge/bookmarklet origin epath tok)
+                          (some #{"--console"} rest-args)     (bridge/loader-script origin epath tok)
                           :else                               (bridge/engine-source))]
             (if out
               (do (spit out src)
@@ -1224,10 +1224,23 @@
           ;; target URL so subsequent invocations reach the in-page engine
           ;; instead of the Playwright daemon. Bare `use` takes the local URL.
           (= "use" sub)
-          (let [url (or (second rest-args) local-url)]
-            (bridge/save-target! {:url url})
-            (println (str "spel commands now route through the bridge: " url))
-            (println "Turn this off with `spel bridge off`."))
+          (let [explicit (second rest-args)
+                tok      (flag "--token")
+                rt       (bridge/read-runtime)
+                target   (cond
+                           ;; explicit URL wins (remote bridge); token optional
+                           explicit {:url explicit :token tok}
+                           ;; bare `use` on the same box: pick up the live token
+                           rt        {:url (:url rt) :token (:token rt)}
+                           ;; no running bridge and no URL — cannot know the token
+                           :else     nil)]
+            (if target
+              (do (bridge/save-target! target)
+                (println (str "spel commands now route through the bridge: " (:url target)))
+                (when (:token target) (println "  (token picked up from the running bridge)"))
+                (println "Turn this off with `spel bridge off`."))
+              (do (println "No running bridge found. Start `spel bridge` first, or give an explicit URL:")
+                (println "  spel bridge use http://host:port/spel --token <token>"))))
 
           (= "off" sub)
           (if (bridge/clear-target!)
@@ -1238,7 +1251,7 @@
           (let [target (bridge/load-target)]
             (if target
               (let [url  (:url target)
-                    resp (bridge/route-command! url {:action "ping"} 3000)]
+                    resp (bridge/route-command! url {:action "ping"} 3000 (:token target))]
                 (println "Bridge routing: ON")
                 (println (str "  target:  " url))
                 (println (str "  browser: "
