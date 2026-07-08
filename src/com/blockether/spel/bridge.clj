@@ -30,7 +30,7 @@
    [java.net InetSocketAddress]
    [java.nio.charset StandardCharsets]
    [java.util UUID]
-   [java.util.concurrent ConcurrentHashMap Executors LinkedBlockingQueue TimeUnit]))
+   [java.util.concurrent ConcurrentHashMap Executors LinkedBlockingQueue ScheduledExecutorService TimeUnit]))
 
 (set! *warn-on-reflection* true)
 
@@ -113,8 +113,8 @@
                       (nil? msg) (do (.write os (->bytes ": ping\n\n")) (.flush os) (recur))
                       (identical? msg ::close) nil
                       :else (do (.write os (->bytes (str "data: " msg "\n\n")))
-                                (.flush os)
-                                (recur)))))
+                              (.flush os)
+                              (recur)))))
                 (catch Exception _ nil)
                 (finally
                   (.remove ^ConcurrentHashMap clients id)
@@ -165,9 +165,10 @@
    opts: :host (default \"127.0.0.1\") :port (default 8787) :path (default \"/spel\").
    Binds to loopback only by design — this never listens on a routable address."
   [& {:keys [host port path] :or {host "127.0.0.1" port 8787 path "/spel"}}]
-  (let [clients  (ConcurrentHashMap.)
-        pending  (ConcurrentHashMap.)
-        server   (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
+  (let [clients   (ConcurrentHashMap.)
+        pending   (ConcurrentHashMap.)
+        server    (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
+        ^ScheduledExecutorService scheduler (Executors/newSingleThreadScheduledExecutor)
         result-path (str path "/result")]
     (.setExecutor server (Executors/newCachedThreadPool))
     (.createContext server result-path (result-handler pending))
@@ -184,6 +185,14 @@
                                  "id" id)
                        js      (json/write-json-str payload)]
                    (.put ^ConcurrentHashMap pending id p)
+                   ;; Bound the pending map: if no browser ever posts a result
+                   ;; (no tab subscribed, tab closed, command died mid-flight)
+                   ;; drop the orphaned promise rather than leak it for the life
+                   ;; of the process. A delivered result is removed earlier by
+                   ;; result-handler; this scheduled removal then no-ops.
+                   (.schedule scheduler
+                     ^Runnable (fn [] (.remove ^ConcurrentHashMap pending id))
+                     (long 60) TimeUnit/SECONDS)
                    (doseq [q (vals clients)]
                      (.offer ^LinkedBlockingQueue q js))
                    p))]
@@ -203,7 +212,13 @@
                        (throw (ex-info "spel bridge: timed out waiting for browser result"
                                 {:command command :timeout-ms timeout-ms}))
                        r))))
-       :stop    (fn [] (.stop server 0))})))
+       :stop    (fn []
+                  ;; Wake every blocked SSE loop so it unwinds cleanly, then
+                  ;; release the cleanup thread and the port.
+                  (doseq [q (vals clients)]
+                    (.offer ^LinkedBlockingQueue q ::close))
+                  (.shutdownNow scheduler)
+                  (.stop server 0))})))
 
 (defn serve!
   "Starts a bridge and blocks the current thread, printing connection details.
