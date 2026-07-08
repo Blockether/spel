@@ -1252,6 +1252,50 @@
       "  spel stitch s1.png s2.png -o full.png"
       "  spel stitch s1.png s2.png --overlap 50"])
 
+   "browser-js"
+   (str/join \newline
+     ["browser-js - Print or eject the embedded in-page automation engine (spel.js)"
+      ""
+      "spel.js is a pure, dependency-free browser script that installs"
+      "window.__spel with a single invoke(command) entry point mapping the"
+      "spel/Playwright verb surface onto real DOM operations. Embed it with a"
+      "plain <script src> tag — no bundler, no extension, no CDP."
+      ""
+      "The engine ships inside the native image; this command unpacks it."
+      ""
+      "Usage:"
+      "  spel browser-js                 Print the engine to stdout"
+      "  spel browser-js -o spel.js      Write the engine to a file"
+      ""
+      "Flags:"
+      "  -o, --output <file>   Write to <file> instead of stdout"
+      ""
+      "Examples:"
+      "  spel browser-js > public/spel.js"
+      "  spel browser-js --output vendor/spel.js"])
+
+   "bridge"
+   (str/join \newline
+     ["bridge - Start the loopback bridge so a web page can subscribe to spel"
+      ""
+      "Serves spel.js and a two-way transport (SSE for commands, POST for"
+      "results) on 127.0.0.1 only. Loopback traffic never leaves the machine,"
+      "so an embedded page can be driven from spel even where CDP is disabled."
+      ""
+      "Usage:"
+      "  spel bridge [options]"
+      ""
+      "Options:"
+      "  --host <host>   Bind address (default: 127.0.0.1)"
+      "  -p, --port <n>  Port (default: 8787)"
+      "  --path <path>   SSE/connect path (default: /spel)"
+      ""
+      "Embed in a page (same machine):"
+      "  <script src=\"http://127.0.0.1:8787/spel.js\"></script>"
+      "  <script>window.__spel.connect({url:\"http://127.0.0.1:8787/spel\"})</script>"
+      ""
+      "Then open http://127.0.0.1:8787/ for a ready-made harness page."])
+
    "search"
    (str/join \newline
      ["search - Search Google from the command line"

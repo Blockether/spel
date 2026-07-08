@@ -1,0 +1,464 @@
+(ns com.blockether.spel.browser-spel-test
+  "Integration tests for browser/spel.js — the pure in-page automation engine.
+
+   Every test injects the real spel.js into a real Chromium page (no mocks,
+   no stubs) and drives it through the single `window.__spel.invoke` entry
+   point, asserting against the actual live DOM."
+  (:require
+   [clojure.java.io :as io]
+   [charred.api :as json]
+   [com.blockether.spel.core :as core]
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.test-server :refer [*test-server-url* with-test-server]]
+   [com.blockether.spel.allure :refer [defdescribe expect it around]]))
+
+;; ---------------------------------------------------------------------------
+;; Harness
+;; ---------------------------------------------------------------------------
+
+(def ^:private spel-js
+  "The engine source, loaded once from the classpath resource that also
+   ships inside the native image."
+  (slurp (io/resource "com/blockether/spel/browser/spel.js")))
+
+(def ^:private test-html
+  "<html>
+     <head><title>Spel JS Test</title></head>
+     <body>
+       <h1>Welcome</h1>
+       <nav aria-label='Main'>
+         <a id='home' href='#home'>Home</a>
+         <a id='docs' href='#docs'>Docs</a>
+       </nav>
+       <form>
+         <label for='name'>Full name</label>
+         <input id='name' type='text' placeholder='Your name'/>
+         <input id='email' type='email' data-testid='email-field'/>
+         <input id='agree' type='checkbox'/>
+         <select id='color'>
+           <option value='r'>Red</option>
+           <option value='g'>Green</option>
+           <option value='b'>Blue</option>
+         </select>
+         <textarea id='bio'></textarea>
+       </form>
+       <button id='go' onclick=\"document.getElementById('out').textContent='clicked'\">Go</button>
+       <button id='disabled-btn' disabled>Nope</button>
+       <div id='out'></div>
+       <div id='scroller' style='height:80px;overflow:auto'>
+         <div style='height:600px'>tall</div>
+       </div>
+     </body>
+   </html>")
+
+(defn- load-spel!
+  "Injects spel.js and returns its reported version."
+  [pg]
+  (page/evaluate pg (str spel-js "\nwindow.__spel && window.__spel.version")))
+
+(defn- invoke
+  "Runs a command through the engine and returns the full result map
+   (string keys: \"action\" \"ok\" \"value\")."
+  [pg cmd]
+  (page/evaluate pg (str "window.__spel.invoke(" (json/write-json-str cmd) ")")))
+
+(defn- value
+  "Runs a command and returns just its :value, asserting ok."
+  [pg cmd]
+  (let [r (invoke pg cmd)]
+    (when-not (get r "ok")
+      (throw (ex-info (str "command failed: " (get r "error")) {:cmd cmd :result r})))
+    (get r "value")))
+
+(defn- setup!
+  "Loads the test page + engine into a fresh page."
+  [pg]
+  (page/set-content! pg test-html)
+  (load-spel! pg))
+
+;; ---------------------------------------------------------------------------
+;; Lifecycle
+;; ---------------------------------------------------------------------------
+
+(defdescribe engine-lifecycle-test
+  "Engine installs and answers to meta commands."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "installs window.__spel and reports a version"
+    (core/with-testing-page [pg]
+      (expect (= "0.2.0" (setup! pg)))))
+
+  (it "responds to ping/ready"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "pong" (value pg {:action "ping"})))
+      (expect (true? (value pg {:action "ready"})))))
+
+  (it "returns ok:false for an unknown action"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (invoke pg {:action "does-not-exist"})]
+        (expect (false? (get r "ok")))
+        (expect (re-find #"unknown action" (get r "error")))))))
+
+;; ---------------------------------------------------------------------------
+;; Snapshot + refs
+;; ---------------------------------------------------------------------------
+
+(defdescribe snapshot-test
+  "Accessibility snapshot assigns refs and describes the tree."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "produces a tree with roles, names and refs"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [snap (value pg {:action "snapshot"})
+            tree (get snap "tree")]
+        (expect (string? tree))
+        (expect (re-find #"heading \"Welcome\"" tree))
+        (expect (re-find #"link \"Home\"" tree))
+        (expect (re-find #"button \"Go\"" tree))
+        (expect (re-find #"\[ref=e\d+\]" tree)))))
+
+  (it "refs resolve back to elements for actions"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [snap (value pg {:action "snapshot"})
+            refs (get snap "refs")
+            go-ref (some (fn [[r m]] (when (= "Go" (get m "name")) (str "@" r))) refs)]
+        (expect (some? go-ref))
+        (value pg {:action "click" :selector go-ref})
+        (expect (= "clicked" (value pg {:action "get_text" :selector "#out"}))))))
+
+  (it "clear_refs removes all pw refs"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "snapshot"})
+      (let [removed (value pg {:action "clear_refs"})]
+        (expect (pos? removed))
+        (expect (zero? (page/evaluate pg "document.querySelectorAll('[data-pw-ref]').length")))))))
+
+;; ---------------------------------------------------------------------------
+;; Interaction
+;; ---------------------------------------------------------------------------
+
+(defdescribe interaction-test
+  "Click / fill / type / press / check / select against the live DOM."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "click triggers the button handler"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "click" :selector "#go"})
+      (expect (= "clicked" (value pg {:action "get_text" :selector "#out"})))))
+
+  (it "click resolves text= selectors"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "click" :selector "text=Go"})
+      (expect (= "clicked" (value pg {:action "get_text" :selector "#out"})))))
+
+  (it "fill sets an input value and fires events"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "fill" :selector "#name" :value "Ada Lovelace"})
+      (expect (= "Ada Lovelace" (value pg {:action "get_value" :selector "#name"})))))
+
+  (it "clear empties an input"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "fill" :selector "#name" :value "temp"})
+      (value pg {:action "clear" :selector "#name"})
+      (expect (= "" (value pg {:action "get_value" :selector "#name"})))))
+
+  (it "type appends character by character"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "type" :selector "#bio" :text "hi"})
+      (expect (= "hi" (value pg {:action "get_value" :selector "#bio"})))))
+
+  (it "press Backspace edits the focused input"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "fill" :selector "#name" :value "abc"})
+      (value pg {:action "focus" :selector "#name"})
+      (value pg {:action "press" :selector "#name" :key "Backspace"})
+      (expect (= "ab" (value pg {:action "get_value" :selector "#name"})))))
+
+  (it "check and uncheck toggle a checkbox"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "check" :selector "#agree"})
+      (expect (true? (value pg {:action "is_checked" :selector "#agree"})))
+      (value pg {:action "uncheck" :selector "#agree"})
+      (expect (false? (value pg {:action "is_checked" :selector "#agree"})))))
+
+  (it "select picks an option by value"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [selected (value pg {:action "select" :selector "#color" :values ["b"]})]
+        (expect (= ["b"] selected))
+        (expect (= "b" (value pg {:action "get_value" :selector "#color"}))))))
+
+  (it "scroll moves a scrollable container"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "scroll" :selector "#scroller" :direction "down" :amount 200})
+      (expect (pos? (page/evaluate pg "document.getElementById('scroller').scrollTop"))))))
+
+;; ---------------------------------------------------------------------------
+;; Queries
+;; ---------------------------------------------------------------------------
+
+(defdescribe query-test
+  "Read-only inspection commands."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "get_text / get_attribute / count"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "Welcome" (value pg {:action "get_text" :selector "h1"})))
+      (expect (= "#home" (value pg {:action "get_attribute" :selector "#home" :name "href"})))
+      (expect (= 2 (value pg {:action "count" :selector "nav a"})))))
+
+  (it "is_visible / is_enabled"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (true? (value pg {:action "is_visible" :selector "#go"})))
+      (expect (true? (value pg {:action "is_enabled" :selector "#go"})))
+      (expect (false? (value pg {:action "is_enabled" :selector "#disabled-btn"})))))
+
+  (it "bounding_box returns numeric geometry"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [box (value pg {:action "bounding_box" :selector "#go"})]
+        (expect (number? (get box "width")))
+        (expect (pos? (get box "height"))))))
+
+  (it "get_styles reads computed style"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [st (value pg {:action "get_styles" :selector "#go" :props ["display"]})]
+        (expect (string? (get st "display"))))))
+
+  (it "title returns the document title"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "Spel JS Test" (value pg {:action "title"}))))))
+
+;; ---------------------------------------------------------------------------
+;; getBy* — the `find` family
+;; ---------------------------------------------------------------------------
+
+(defdescribe find-test
+  "Playwright getBy* mapped onto the `find` action."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "find by role+name returns a usable ref"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (value pg {:action "find" :by "role" :value "button" :name "Go"})]
+        (expect (= 1 (get r "count")))
+        (value pg {:action "click" :selector (get r "ref")})
+        (expect (= "clicked" (value pg {:action "get_text" :selector "#out"}))))))
+
+  (it "find by testid"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (value pg {:action "find" :by "testid" :value "email-field"})]
+        (expect (= 1 (get r "count")))
+        (value pg {:action "fill" :selector (get r "ref") :value "a@b.c"})
+        (expect (= "a@b.c" (value pg {:action "get_value" :selector "#email"}))))))
+
+  (it "find by placeholder"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (value pg {:action "find" :by "placeholder" :value "Your name"})]
+        (expect (= 1 (get r "count"))))))
+
+  (it "find by label"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (value pg {:action "find" :by "label" :value "Full name"})]
+        (expect (pos? (get r "count")))))))
+
+;; ---------------------------------------------------------------------------
+;; Storage + evaluate
+;; ---------------------------------------------------------------------------
+
+(defdescribe misc-test
+  "Storage, evaluate, and page meta."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (it "storage set/get/clear round-trips"
+    (core/with-testing-page [pg]
+      ;; localStorage needs a real (non-opaque) origin, so navigate to the
+      ;; local HTTP test server before setting content.
+      (page/navigate pg *test-server-url*)
+      (setup! pg)
+      (value pg {:action "storage_set" :key "tok" :value "xyz"})
+      (expect (= "xyz" (value pg {:action "storage_get" :key "tok"})))
+      (value pg {:action "storage_clear"})
+      (expect (nil? (value pg {:action "storage_get" :key "tok"})))))
+
+  (it "evaluate runs arbitrary JS"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= 4 (value pg {:action "evaluate" :script "2 + 2"}))))))
+
+;; ---------------------------------------------------------------------------
+;; Overlay picker
+;; ---------------------------------------------------------------------------
+
+(defdescribe picker-test
+  "Interactive overlay element picker."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "pick activates and pick_stop deactivates"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (true? (value pg {:action "pick"})))
+      (expect (true? (page/evaluate pg "window.__spel.picker.active")))
+      (expect (true? (value pg {:action "pick_stop"})))
+      (expect (false? (page/evaluate pg "window.__spel.picker.active")))))
+
+  (it "clicking during a pick records the selected element"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "pick"})
+      ;; Simulate a real mouse click over the Go button's center.
+      (page/evaluate pg
+        (str "(() => {"
+          "  const el = document.getElementById('go');"
+          "  const r = el.getBoundingClientRect();"
+          "  const x = r.left + r.width/2, y = r.top + r.height/2;"
+          "  el.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:x, clientY:y}));"
+          "})()"))
+      (let [picked (value pg {:action "picked"})]
+        (expect (some? picked))
+        (expect (= "button" (get picked "role")))
+        (expect (= "Go" (get picked "name")))
+        (expect (re-find #"^@e" (get picked "selector"))))))
+
+  (it "configure changes the hotkey"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [cfg (value pg {:action "configure" :hotkey {:ctrlKey true :shiftKey true :key "P"}})]
+        (expect (= "P" (get-in cfg ["hotkey" "key"]))))))
+
+  (it "configure sets the server URL and a server hotkey"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [cfg (value pg {:action "configure"
+                           :server "ws://127.0.0.1:9999/spel"
+                           :serverHotkey {:ctrlKey true :shiftKey true :key "J"}})]
+        (expect (= "ws://127.0.0.1:9999/spel" (get cfg "server")))
+        (expect (= "J" (get-in cfg ["serverHotkey" "key"]))))
+      (expect (= "ws://127.0.0.1:9999/spel" (value pg {:action "get_server"})))
+      (expect (= "http://host:1/x" (value pg {:action "set_server" :server "http://host:1/x"}))))))
+
+;; ---------------------------------------------------------------------------
+;; Checks / properties (Playwright parity)
+;; ---------------------------------------------------------------------------
+
+(defdescribe checks-test
+  "is_* / property / aria queries against the live DOM."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "is_editable / is_disabled / is_hidden / is_focused"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (true? (value pg {:action "is_editable" :selector "#name"})))
+      (expect (true? (value pg {:action "is_disabled" :selector "#disabled-btn"})))
+      (expect (false? (value pg {:action "is_disabled" :selector "#go"})))
+      (expect (false? (value pg {:action "is_editable" :selector "#go"})))
+      (value pg {:action "focus" :selector "#name"})
+      (expect (true? (value pg {:action "is_focused" :selector "#name"})))))
+
+  (it "text_content / inner_text / inner_html / tag_name / get_property"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "Welcome" (value pg {:action "text_content" :selector "h1"})))
+      (expect (= "Welcome" (value pg {:action "inner_text" :selector "h1"})))
+      (expect (re-find #"Home" (value pg {:action "inner_html" :selector "nav"})))
+      (expect (= "input" (value pg {:action "tag_name" :selector "#name"})))
+      (value pg {:action "fill" :selector "#name" :value "Ada"})
+      (expect (= "Ada" (value pg {:action "input_value" :selector "#name"})))
+      (expect (= "Ada" (value pg {:action "get_property" :selector "#name" :name "value"})))))
+
+  (it "get_role / get_accessible_name / get_aria / aria_snapshot"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (= "button" (value pg {:action "get_role" :selector "#go"})))
+      (expect (= "Go" (value pg {:action "get_accessible_name" :selector "#go"})))
+      (let [aria (value pg {:action "get_aria" :selector "nav"})]
+        (expect (= "Main" (get aria "aria-label"))))
+      (let [snap (value pg {:action "aria_snapshot"})]
+        (expect (re-find #"button \"Go\"" (get snap "tree")))))))
+
+;; ---------------------------------------------------------------------------
+;; Overflow / clipping / geometry
+;; ---------------------------------------------------------------------------
+
+(defdescribe overflow-test
+  "Overflow + clipping detection, the stuff CDP-based tooling gives us."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "is_overflowing detects a scroll container"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (expect (true? (value pg {:action "is_overflowing" :selector "#scroller"})))
+      (expect (false? (value pg {:action "is_overflowing" :selector "h1"})))
+      (let [info (value pg {:action "overflow_info" :selector "#scroller"})]
+        (expect (true? (get info "overflowsY")))
+        (expect (> (get info "scrollHeight") (get info "clientHeight"))))))
+
+  (it "is_clipped detects an element overflowing its scroll parent"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      ;; The 600px-tall child inside the 80px scroller is clipped.
+      (expect (true? (value pg {:action "is_clipped" :selector "#scroller > div"})))
+      (expect (false? (value pg {:action "is_clipped" :selector "h1"})))))
+
+  (it "scroll_position / viewport_size"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [vp (value pg {:action "viewport_size"})]
+        (expect (pos? (get vp "width")))
+        (expect (pos? (get vp "height"))))
+      (value pg {:action "scroll" :selector "#scroller" :direction "down" :amount 100})
+      (let [pos (value pg {:action "scroll_position" :selector "#scroller"})]
+        (expect (pos? (get pos "y")))))))
+
+;; ---------------------------------------------------------------------------
+;; Waiting
+;; ---------------------------------------------------------------------------
+
+(defdescribe wait-for-test
+  "wait_for polls for element state and resolves/times out."
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "resolves immediately for an already-visible element"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (value pg {:action "wait_for" :selector "#go" :state "visible"})]
+        (expect (= "visible" (get r "matched"))))))
+
+  (it "waits for an element that appears later"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (page/evaluate pg
+        (str "setTimeout(() => {"
+          "  const d = document.createElement('div');"
+          "  d.id = 'late'; d.textContent = 'here';"
+          "  document.body.appendChild(d);"
+          "}, 150)"))
+      (let [r (value pg {:action "wait_for" :selector "#late" :state "visible" :timeout 3000})]
+        (expect (= "visible" (get r "matched"))))))
+
+  (it "times out and reports ok:false when the element never appears"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [r (invoke pg {:action "wait_for" :selector "#never" :state "visible" :timeout 200})]
+        (expect (false? (get r "ok")))
+        (expect (re-find #"timeout" (get r "error")))))))

@@ -23,6 +23,7 @@
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
    [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
+   [com.blockether.spel.bridge :as bridge]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -266,6 +267,8 @@
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
   (println "  version                   Show version")
+  (println "  bridge [--port N]         Serve spel.js + loopback bridge for embedding")
+  (println "  browser-js [-o file]      Print/eject the embedded in-page engine (spel.js)")
   (println "")
   (println "Modes:")
   (println "  eval-sci '<code>'          Evaluate Clojure expression")
@@ -1183,6 +1186,35 @@
       (= "install" first-arg)
       (do (driver/ensure-driver!)
           (run-install! (rest cmd-args)))
+
+      ;; Browser engine — print or eject the embedded spel.js so it can be
+      ;; distributed and <script src>-embedded independently of the daemon.
+      ;; The same file ships inside the native image (classpath resource).
+      (= "browser-js" first-arg)
+      (let [rest-args (vec (rest cmd-args))]
+        (if (some #{"--help" "-h"} rest-args)
+          (println (get cli/command-help "browser-js"))
+          (let [out-idx (long (max (long (.indexOf ^java.util.List rest-args "-o"))
+                                (long (.indexOf ^java.util.List rest-args "--output"))))
+                out     (when (>= out-idx 0) (nth rest-args (inc out-idx) nil))
+                src     (bridge/engine-source)]
+            (if out
+              (do (spit out src)
+                  (println (str "Wrote " (count src) " bytes to " out)))
+              (do (print src) (flush))))))
+
+      ;; Bridge — start the loopback bridge (SSE + POST) so a page can embed
+      ;; spel.js and subscribe to this box, sidestepping CDP lockdowns.
+      (= "bridge" first-arg)
+      (let [rest-args (vec (rest cmd-args))
+            flag      (fn [nm] (let [i (long (.indexOf ^java.util.List rest-args nm))]
+                                 (when (>= i 0) (nth rest-args (inc i) nil))))]
+        (if (some #{"--help" "-h"} rest-args)
+          (println (get cli/command-help "bridge"))
+          (let [host (or (flag "--host") "127.0.0.1")
+                port (if-let [p (or (flag "--port") (flag "-p"))] (Long/parseLong p) 8787)
+                path (or (flag "--path") "/spel")]
+            (bridge/serve! :host host :port (int port) :path path))))
 
       ;; Self-upgrade — compares SPEL_VERSION to the latest GitHub release and
       ;; prints the command to run (brew/cargo/manual curl). `--check` reports
