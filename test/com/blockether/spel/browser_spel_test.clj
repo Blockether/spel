@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.10.0" (setup! pg)))))
+      (expect (= "0.11.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -383,7 +383,34 @@
         (expect (= "ws://127.0.0.1:9999/spel" (get cfg "server")))
         (expect (= "J" (get-in cfg ["serverHotkey" "key"]))))
       (expect (= "ws://127.0.0.1:9999/spel" (value pg {:action "get_server"})))
-      (expect (= "http://host:1/x" (value pg {:action "set_server" :server "http://host:1/x"}))))))
+      (expect (= "http://host:1/x" (value pg {:action "set_server" :server "http://host:1/x"})))))
+
+  (it "choose_server opens a branded connect modal prefilled with the server"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (value pg {:action "set_server" :server "ws://127.0.0.1:8787/spel"})
+      (let [st (page/evaluate
+                 pg
+                 (str "window.__spel.chooseServer();"
+                   "var i=document.querySelector('[data-spel-input]');"
+                   "({present: !!i,"
+                   " value: i ? i.value : null,"
+                   " ok: !!document.querySelector('[data-spel-ok]'),"
+                   " cancel: !!document.querySelector('[data-spel-cancel]')})"))]
+        (expect (get st "present"))
+        (expect (= "ws://127.0.0.1:8787/spel" (get st "value")))
+        (expect (get st "ok"))
+        (expect (get st "cancel")))))
+
+  (it "the connect modal dismisses on Escape"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [gone (page/evaluate
+                   pg
+                   (str "window.__spel.chooseServer();"
+                     "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));"
+                     "(document.querySelector('[data-spel-input]')===null)"))]
+        (expect (true? gone))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Checks / properties (Playwright parity)

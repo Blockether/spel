@@ -281,8 +281,9 @@ The engine installs a global keydown listener:
 - **Ctrl+Shift+L** — toggle the overlay picker: hover highlights elements, a
   click resolves the target to a ref/selector (retrieve with the `picked`
   handler). `Escape` stops it.
-- **Ctrl+Shift+K** — choose a different spel server (`prompt()` for the URL),
-  then (re)connect.
+- **Ctrl+Shift+K** — open the branded connect modal (spel-themed, not a native
+  `prompt()`) to choose/enter a server URL, then (re)connect. `Enter` connects,
+  `Escape` (or clicking the backdrop) cancels.
 
 Both hotkeys are configurable via the `configure` handler
 (`{:hotkey … :serverHotkey … :server …}`).

@@ -922,7 +922,10 @@
       "0 6px 20px rgba(46,173,51,.22),inset 0 0 10px rgba(46,173,51,.10)}" +
       "50%{box-shadow:0 0 0 1px rgba(46,173,51,.55)," +
       "0 10px 30px rgba(46,173,51,.40),inset 0 0 16px rgba(46,173,51,.18)}}" +
-      "@keyframes spel-blink{0%,100%{opacity:1}50%{opacity:.35}}";
+      "@keyframes spel-blink{0%,100%{opacity:1}50%{opacity:.35}}" +
+      "@keyframes spel-fade{0%{opacity:0}100%{opacity:1}}" +
+      "@keyframes spel-pop{0%{opacity:0;transform:translateY(10px) scale(.96)}" +
+      "100%{opacity:1;transform:translateY(0) scale(1)}}";
     document.head.appendChild(s);
     picker.styleEl = s;
   }
@@ -1088,16 +1091,132 @@
     return true;
   }
 
+  // A branded, professional connect-modal (replaces the native prompt). Returns a
+  // Promise resolving to the chosen server URL, or null when cancelled/dismissed.
   function chooseServer() {
-    var current = picker.server || "";
-    var url = global.prompt
-      ? global.prompt("spel server URL (ws:// or http://):", current)
-      : current;
-    if (url == null) return null; // cancelled
-    url = String(url).trim();
-    picker.server = url || null;
-    if (picker.server) { disconnect(); connect({ url: picker.server }); }
-    return picker.server;
+    return new Promise(function (resolve) {
+      ensureStyle();
+      var current = picker.server || "";
+
+      var back = spelEl([
+        "position:fixed", "inset:0", "z-index:2147483647",
+        "display:flex", "align-items:center", "justify-content:center",
+        "background:rgba(15,23,26,0.55)",
+        "backdrop-filter:blur(3px)", "-webkit-backdrop-filter:blur(3px)",
+        "animation:spel-fade .18s ease-out"
+      ].join(";"));
+
+      var card = spelEl([
+        "width:min(440px,92vw)", "box-sizing:border-box",
+        "border-radius:14px", "overflow:hidden",
+        "background:linear-gradient(180deg," + SPEL_SLATE + ",#1f2e36)",
+        "box-shadow:0 24px 70px rgba(0,0,0,0.5),0 0 0 1px rgba(46,173,51,0.45)",
+        "font:400 14px/1.5 " + SPEL_SERIF, "color:#eaf6ea",
+        "animation:spel-pop .2s cubic-bezier(.2,.9,.3,1.2)"
+      ].join(";"));
+
+      card.innerHTML =
+        '<div style="display:flex;align-items:center;gap:11px;padding:16px 20px;' +
+          'border-bottom:1px solid rgba(46,173,51,0.28)">' +
+          '<span style="font-size:21px;animation:spel-blink 1.6s ease-in-out ' +
+            'infinite">\uD83C\uDFAD</span>' +
+          '<div style="display:flex;flex-direction:column">' +
+            '<span style="font-weight:700;font-size:15px;letter-spacing:.2px;' +
+              'color:#f4faf4">spel bridge</span>' +
+            '<span style="font-size:11.5px;opacity:.6;font-weight:500">connect ' +
+              'this tab to a server</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:18px 20px 20px">' +
+          '<label style="display:block;font-size:10.5px;text-transform:uppercase;' +
+            'letter-spacing:.9px;opacity:.6;margin-bottom:7px">Server URL</label>' +
+          '<input data-spel-input="1" type="text" spellcheck="false" ' +
+            'autocomplete="off" ' +
+            'placeholder="ws://127.0.0.1:8787/spel or http://\u2026" ' +
+            'value="' + escHtml(current) + '" ' +
+            'style="width:100%;box-sizing:border-box;padding:11px 13px;' +
+              'border-radius:9px;border:1.5px solid rgba(46,173,51,0.45);' +
+              'background:rgba(0,0,0,0.28);color:#f4faf4;' +
+              'font:500 13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+              'outline:none;transition:border-color .15s,box-shadow .15s">' +
+          '<div style="font-size:11.5px;opacity:.5;margin-top:8px">ws:// for ' +
+            'WebSocket \u00b7 http:// falls back to SSE \u00b7 Enter to connect</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:9px;' +
+            'margin-top:18px">' +
+            '<button data-spel-cancel="1" style="padding:9px 16px;' +
+              'border-radius:8px;border:1px solid rgba(255,255,255,0.16);' +
+              'background:transparent;color:#cfe3d2;font:600 13px ' + SPEL_SERIF +
+              ';cursor:pointer;transition:background .15s">Cancel</button>' +
+            '<button data-spel-ok="1" style="padding:9px 18px;border-radius:8px;' +
+              'border:1px solid rgba(46,173,51,0.65);' +
+              'background:linear-gradient(180deg,#2EAD33,#249329);color:#fff;' +
+              'font:700 13px ' + SPEL_SERIF + ';cursor:pointer;' +
+              'box-shadow:0 4px 14px rgba(46,173,51,0.4);' +
+              'transition:transform .1s,box-shadow .15s">Connect</button>' +
+          '</div>' +
+        '</div>';
+
+      back.appendChild(card);
+      document.documentElement.appendChild(back);
+
+      var input = card.querySelector("[data-spel-input]");
+      var okBtn = card.querySelector("[data-spel-ok]");
+      var cancelBtn = card.querySelector("[data-spel-cancel]");
+
+      input.addEventListener("focus", function () {
+        input.style.borderColor = "rgba(46,173,51,0.95)";
+        input.style.boxShadow = "0 0 0 3px rgba(46,173,51,0.18)";
+      });
+      input.addEventListener("blur", function () {
+        input.style.borderColor = "rgba(46,173,51,0.45)";
+        input.style.boxShadow = "none";
+      });
+      okBtn.addEventListener("mouseenter", function () {
+        okBtn.style.transform = "translateY(-1px)";
+        okBtn.style.boxShadow = "0 6px 18px rgba(46,173,51,0.5)";
+      });
+      okBtn.addEventListener("mouseleave", function () {
+        okBtn.style.transform = "none";
+        okBtn.style.boxShadow = "0 4px 14px rgba(46,173,51,0.4)";
+      });
+      cancelBtn.addEventListener("mouseenter", function () {
+        cancelBtn.style.background = "rgba(255,255,255,0.08)";
+      });
+      cancelBtn.addEventListener("mouseleave", function () {
+        cancelBtn.style.background = "transparent";
+      });
+
+      var done = false;
+      function close(url) {
+        if (done) return;
+        done = true;
+        document.removeEventListener("keydown", onKey, true);
+        if (back.parentNode) back.parentNode.removeChild(back);
+        resolve(url);
+      }
+      function submit() {
+        var url = String(input.value || "").trim();
+        picker.server = url || null;
+        if (picker.server) { disconnect(); connect({ url: picker.server }); }
+        close(picker.server);
+      }
+      function cancel() { close(null); }
+      function onKey(e) {
+        if (e.key === "Escape") { e.preventDefault(); cancel(); }
+        else if (e.key === "Enter") { e.preventDefault(); submit(); }
+      }
+
+      document.addEventListener("keydown", onKey, true);
+      okBtn.addEventListener("click", submit);
+      cancelBtn.addEventListener("click", cancel);
+      back.addEventListener("click", function (e) {
+        if (e.target === back) cancel();
+      });
+
+      setTimeout(function () {
+        try { input.focus(); input.select(); } catch (e) { /* ignore */ }
+      }, 30);
+    });
   }
 
   function hotkeyMatches(e) {
@@ -2162,7 +2281,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.10.0",
+    version: "0.11.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

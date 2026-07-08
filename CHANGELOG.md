@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- feat(bridge): **branded connect modal** for the Ctrl+Shift+K server chooser
+  (spel.js v0.11.0). Replaces the native `prompt()` with a spel-themed dialog
+  (slate/tragedy-green palette, serif wordmark, theatrical-mask header, focus
+  glow, hover states, `spel-fade`/`spel-pop` entrance). `Enter` connects,
+  `Escape` or a backdrop click cancels; input is pre-filled with the current
+  server. Two real-Chromium tests cover open + Escape-dismiss.
 - fix(bridge): **Local Network Access (LNA)** support so the ejected loader
   works on Edge 143+/Chrome 142+, which gate a public origin reaching
   `127.0.0.1` behind a per-origin user permission (the "Permission was denied
