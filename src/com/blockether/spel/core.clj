@@ -28,7 +28,7 @@
    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
-   [com.microsoft.playwright.impl TargetClosedError]
+   [com.microsoft.playwright.impl TargetClosedError VideoImpl]
    [com.microsoft.playwright.options FormData RequestOptions]
    [com.google.gson JsonObject]))
 
@@ -779,6 +779,20 @@
 ;; Video Recording
 ;; =============================================================================
 
+(def ^:private video-artifact-field
+  (delay
+    (doto (.getDeclaredField VideoImpl "artifact")
+      (.setAccessible true))))
+
+(defn- unstarted-video? [^Video v ^PlaywrightException e]
+  (or (try
+        (and (instance? VideoImpl v)
+          (nil? (.get ^java.lang.reflect.Field @video-artifact-field v)))
+        (catch Throwable _
+          false))
+    (some-> (.getMessage e)
+      (str/includes? "Video recording has not been started"))))
+
 (defn video-path
   "Returns the video file path for a page, or nil if not recording.
    Video is finalized when the browser context closes.
@@ -792,8 +806,8 @@
   (when-let [^Video v (.video page)]
     (try
       (str (.path v))
-      (catch com.microsoft.playwright.PlaywrightException e
-        (if (= "Video recording has not been started." (.getMessage e))
+      (catch PlaywrightException e
+        (if (unstarted-video? v e)
           nil
           (throw e))))))
 
