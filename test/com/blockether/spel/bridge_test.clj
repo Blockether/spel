@@ -29,7 +29,31 @@
     (let [src (bridge/engine-source)]
       (expect (string? src))
       (expect (re-find #"__spel" src))
-      (expect (re-find #"version: \"0\.2\.0\"" src)))))
+      (expect (re-find #"version: \"0\.3\.0\"" src)))))
+
+(defdescribe bridge-eject-loader-test
+  "The ejected loader/bookmarklet target the right origin + connect URL."
+
+  (it "eject-origin defaults to the serving host/port, splits an explicit url"
+    (expect (= ["http://127.0.0.1:8787" "/spel"]
+              (bridge/eject-origin nil "127.0.0.1" 8787 "/spel")))
+    (expect (= ["http://box.local:9000" "/spel"]
+              (bridge/eject-origin "http://box.local:9000/spel" "127.0.0.1" 8787 "/spel")))
+    ;; a bare origin (no path) falls back to the default path
+    (expect (= ["http://box.local:9000" "/spel"]
+              (bridge/eject-origin "http://box.local:9000" "127.0.0.1" 8787 "/spel"))))
+
+  (it "loader-script injects spel.js and connects; bookmarklet just prefixes it"
+    (let [loader (bridge/loader-script "http://127.0.0.1:8787" "/spel")
+          mark   (bridge/bookmarklet "http://127.0.0.1:8787" "/spel")]
+      (expect (not (.startsWith loader "javascript:")))
+      (expect (.startsWith mark "javascript:"))
+      (expect (= mark (str "javascript:" loader)))
+      ;; the loader references the engine url and the connect url
+      (expect (re-find #"/spel\.js" loader))
+      (expect (re-find #"__spel" loader))
+      (expect (re-find #"createElement" loader))
+      (expect (re-find #"connect" loader)))))
 
 (defdescribe bridge-roundtrip-test
   "A real browser subscribes over SSE and answers commands pushed by the server."
@@ -66,7 +90,7 @@
         (core/with-testing-page [pg]
           (page/navigate pg (:page b))
           (wait-for-client! b 8000)
-          (expect (= "0.2.0" (page/evaluate pg "window.__spel.version")))
+          (expect (= "0.3.0" (page/evaluate pg "window.__spel.version")))
           ;; the tab holds a live SSE connection back to this bridge
           (expect (= "sse" (page/evaluate pg "window.__spel.connection() && window.__spel.connection().transport"))))
         (finally ((:stop b)))))))

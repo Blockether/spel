@@ -1206,12 +1206,19 @@
           (println (get cli/command-help "bridge"))
 
           (some #{"--eject"} rest-args)
-          (let [out (or (flag "-o") (flag "--output"))
-                src (bridge/engine-source)]
+          (let [out     (or (flag "-o") (flag "--output"))
+                loader? (or (some #{"--bookmarklet"} rest-args)
+                          (some #{"--console"} rest-args))
+                url-arg (first (filter #(re-find #"^https?://" %) rest-args))
+                [origin epath] (bridge/eject-origin url-arg host port path)
+                src     (cond
+                          (some #{"--bookmarklet"} rest-args) (bridge/bookmarklet origin epath)
+                          (some #{"--console"} rest-args)     (bridge/loader-script origin epath)
+                          :else                               (bridge/engine-source))]
             (if out
               (do (spit out src)
                 (println (str "Wrote " (count src) " bytes to " out)))
-              (do (print src) (flush))))
+              (do (print src) (when loader? (println)) (flush))))
 
           ;; Route regular `spel <verb>` commands through the bridge. Saves the
           ;; target URL so subsequent invocations reach the in-page engine

@@ -28,7 +28,8 @@
      GET  /              → a tiny harness page that loads the engine and connects"
   (:require
    [charred.api :as json]
-   [clojure.java.io :as io])
+   [clojure.java.io :as io]
+   [clojure.string :as str])
   (:import
    [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
    [java.net InetSocketAddress]
@@ -51,6 +52,47 @@
     (slurp r)
     (throw (ex-info (str "embedded engine resource not found: " engine-resource)
              {:resource engine-resource}))))
+
+(defn eject-origin
+  "Resolves the (origin, path) an ejected loader/bookmarklet should target.
+   With an explicit `url` (e.g. http://host:port/spel) it is split into an
+   origin (`scheme://authority`) and a path; otherwise the serving
+   `host`/`port`/`path` defaults are used. Returns `[origin path]`."
+  [url ^String host port ^String path]
+  (if (and url (seq url))
+    (let [u (java.net.URL. ^String url)
+          p (.getPath u)]
+      [(str (.getProtocol u) "://" (.getAuthority u))
+       (if (str/blank? p) path p)])
+    [(str "http://" host ":" port) path]))
+
+(defn loader-script
+  "A tiny, minified in-page loader (plain JS, no `javascript:` prefix) that
+   injects the embedded engine from `<origin>/spel.js` and subscribes it to the
+   bridge at `<origin><path>`. Idempotent: if `window.__spel` is already
+   installed it just (re)connects. Returned WITHOUT a prefix so it serves two
+   uses — pasted into the DevTools Console (or saved as a Sources Snippet), or
+   prefixed with `javascript:` to form a draggable bookmarklet."
+  [^String origin ^String path]
+  (let [o (json/write-json-str origin)
+        c (json/write-json-str (str origin path))]
+    (str "(function(){"
+      "var o=" o ",c=" c ";"
+      "function go(){try{window.__spel&&window.__spel.connect({url:c});}catch(e){console.error('spel:',e);}}"
+      "if(window.__spel){go();return;}"
+      "var s=document.createElement('script');"
+      "s.src=o+'/spel.js';s.onload=go;"
+      "s.onerror=function(){console.error('spel: failed to load '+s.src+' (is `spel bridge` running?)');};"
+      "(document.head||document.documentElement).appendChild(s);"
+      "})();")))
+
+(defn bookmarklet
+  "The loader as a ready `javascript:` bookmarklet URL — drag it to the bookmarks
+   bar (or Edge favorites); clicking it on any page injects + connects the engine.
+   Note: a page's Content-Security-Policy or a managed browser policy can still
+   block inline/bookmarklet execution — see `spel bridge --help`."
+  [^String origin ^String path]
+  (str "javascript:" (loader-script origin path)))
 
 ;; =============================================================================
 ;; Target profile — the persisted route for regular `spel <verb>` commands
