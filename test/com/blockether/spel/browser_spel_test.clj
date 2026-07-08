@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.12.0" (setup! pg)))))
+      (expect (= "0.13.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -336,14 +336,14 @@
           "})()"))
       ;; HUD pill is shown while picking.
       (expect (= "flex" (page/evaluate pg "window.__spel.picker.hud.style.display")))
-      ;; Highlight box wears the tragedy-green border, not the old blue.
-      (expect (re-find #"46, ?173, ?51"
+      ;; Highlight box wears the Blockether amber border (#ffc420), not the old green.
+      (expect (re-find #"255, ?196, ?32"
                 (page/evaluate pg "window.__spel.picker.box.style.borderColor")))
       (expect (= "block" (page/evaluate pg "window.__spel.picker.box.style.display")))
       ;; Label chip is visible and carries the element's role.
       (expect (= "block" (page/evaluate pg "window.__spel.picker.label.style.display")))
       (expect (re-find #"button" (page/evaluate pg "window.__spel.picker.label.textContent")))
-      ;; The breathing-glow keyframes were injected once.
+      ;; The brand stylesheet (::selection accent) was injected once.
       (expect (true? (page/evaluate pg "!!window.__spel.picker.styleEl")))
       (value pg {:action "pick_stop"})
       (expect (= "none" (page/evaluate pg "window.__spel.picker.hud.style.display")))

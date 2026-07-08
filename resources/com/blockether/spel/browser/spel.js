@@ -894,12 +894,18 @@
 
   var activeConn = null;
 
-  var SPEL_GREEN = "#2EAD33";
-  var SPEL_GREEN_DK = "#249329";
-  var SPEL_INK = "#2D4552";
-  var SPEL_PAPER = "#ffffff";
-  var SPEL_SERIF =
-    "'Iowan Old Style','Palatino Linotype','Palatino',Georgia,serif";
+  // Blockether brand palette (blockether.com): cream paper, charcoal ink,
+  // amber accent, hard offset shadows, sharp corners, no animation.
+  var SPEL_ACCENT = "#ffc420";
+  var SPEL_ACCENT_DK = "#f0ad00";
+  var SPEL_INK = "#262626";
+  var SPEL_CHARCOAL = "#3f3f3f";
+  var SPEL_PAPER = "#faf3eb";
+  var SPEL_CREAM_LT = "#fdf6e3";
+  var SPEL_SANS =
+    "'Inter Variable','Inter',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+  var SPEL_MONO =
+    "'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
 
   function escHtml(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -914,21 +920,13 @@
     return d;
   }
 
-  // Inject the theatrical-brand keyframes once (breathing green glow + blink).
+  // No entrance/idle animations — flat, brand-consistent overlay chrome.
   function ensureStyle() {
     if (picker.styleEl || !document.head) return;
     var s = document.createElement("style");
     s.setAttribute("data-spel-overlay", "1");
     s.textContent =
-      "@keyframes spel-breathe{" +
-      "0%,100%{box-shadow:0 0 0 1px rgba(46,173,51,.35)," +
-      "0 6px 20px rgba(46,173,51,.22),inset 0 0 10px rgba(46,173,51,.10)}" +
-      "50%{box-shadow:0 0 0 1px rgba(46,173,51,.55)," +
-      "0 10px 30px rgba(46,173,51,.40),inset 0 0 16px rgba(46,173,51,.18)}}" +
-      "@keyframes spel-blink{0%,100%{opacity:1}50%{opacity:.35}}" +
-      "@keyframes spel-fade{0%{opacity:0}100%{opacity:1}}" +
-      "@keyframes spel-pop{0%{opacity:0;transform:translateY(10px) scale(.96)}" +
-      "100%{opacity:1;transform:translateY(0) scale(1)}}";
+      "[data-spel-overlay] ::selection{background:" + SPEL_ACCENT + "}";
     document.head.appendChild(s);
     picker.styleEl = s;
   }
@@ -936,48 +934,46 @@
   function ensureBox() {
     if (picker.box) return picker.box;
     ensureStyle();
-    // Highlight box — tragedy-green, rounded, softly breathing glow.
+    // Highlight box — amber outline, sharp corners, no glow/animation.
     var box = spelEl([
       "position:fixed", "z-index:2147483646", "pointer-events:none",
-      "background:rgba(46,173,51,0.14)",
-      "border:1.5px solid rgba(46,173,51,0.92)", "border-radius:6px",
-      "transition:all 55ms cubic-bezier(.4,0,.2,1)",
-      "animation:spel-breathe 1.7s ease-in-out infinite", "display:none"
+      "background:rgba(255,196,32,0.16)",
+      "border:2px solid " + SPEL_ACCENT, "border-radius:0",
+      "box-shadow:0 0 0 1px rgba(63,63,63,0.35)", "display:none"
     ].join(";"));
     document.documentElement.appendChild(box);
     picker.box = box;
 
-    // Floating label chip — role / accessible name / size (Playwright-style).
+    // Floating label chip — cream card, charcoal border, mono, hard shadow.
     var label = spelEl([
       "position:fixed", "z-index:2147483647", "pointer-events:none",
       "display:none", "max-width:360px", "padding:5px 9px",
-      "border-radius:6px",
+      "border-radius:0",
       "background:" + SPEL_PAPER,
-      "color:" + SPEL_INK, "font:600 12px/1.35 " + SPEL_SERIF,
-      "box-shadow:0 6px 20px rgba(45,69,82,0.20)", "white-space:nowrap",
+      "color:" + SPEL_INK, "font:600 12px/1.35 " + SPEL_MONO,
+      "box-shadow:3px 3px 0 0 " + SPEL_CHARCOAL, "white-space:nowrap",
       "overflow:hidden", "text-overflow:ellipsis",
-      "border:1px solid rgba(46,173,51,0.55)"
+      "border:2px solid " + SPEL_CHARCOAL
     ].join(";"));
     document.documentElement.appendChild(label);
     picker.label = label;
 
-    // HUD pill — theatrical masks + status, centred at the top while picking.
+    // HUD pill — status banner, centred at the top while picking.
     var hud = spelEl([
       "position:fixed", "top:16px", "left:50%",
       "transform:translateX(-50%)", "z-index:2147483647",
       "pointer-events:none", "display:none", "align-items:center",
-      "gap:8px", "padding:7px 15px", "border-radius:999px",
+      "gap:8px", "padding:7px 15px", "border-radius:0",
       "background:" + SPEL_PAPER,
-      "color:" + SPEL_INK, "font:600 12.5px/1 " + SPEL_SERIF,
-      "letter-spacing:.3px",
-      "box-shadow:0 10px 34px rgba(45,69,82,0.28)," +
-      "0 0 0 1px rgba(46,173,51,0.45)"
+      "color:" + SPEL_INK, "font:700 12.5px/1 " + SPEL_SANS,
+      "letter-spacing:.2px",
+      "box-shadow:4px 4px 0 0 " + SPEL_CHARCOAL,
+      "border:2px solid " + SPEL_CHARCOAL
     ].join(";"));
     hud.innerHTML =
-      '<span style="animation:spel-blink 1.2s ease-in-out infinite;' +
-      'font-size:14px">\uD83C\uDFAD</span>' +
-      '<span style="color:' + SPEL_GREEN_DK + '">spel picker</span>' +
-      '<span style="opacity:.72;font-weight:500">click to select ' +
+      '<span style="font-size:14px">\uD83C\uDFAD</span>' +
+      '<span style="color:' + SPEL_ACCENT_DK + ';font-weight:800">spel picker</span>' +
+      '<span style="opacity:.7;font-weight:500">click to select ' +
       '\u00b7 Esc to cancel</span>';
     document.documentElement.appendChild(hud);
     picker.hud = hud;
@@ -991,7 +987,7 @@
     var role = roleOf(el) || el.tagName.toLowerCase();
     var name = accessibleName(el) || "";
     lb.innerHTML =
-      '<span style="color:' + SPEL_GREEN_DK + ';font-weight:700">' + escHtml(role) +
+      '<span style="color:' + SPEL_ACCENT_DK + ';font-weight:700">' + escHtml(role) +
       '</span>' +
       (name
         ? '<span style="opacity:.95"> \u201c' +
@@ -1053,14 +1049,14 @@
       "position:fixed", "top:16px", "left:50%", "transform:translateX(-50%)",
       "z-index:2147483647", "pointer-events:none",
       "display:flex", "align-items:center", "gap:8px",
-      "padding:8px 15px", "border-radius:999px",
+      "padding:8px 15px", "border-radius:0",
       "background:" + SPEL_PAPER, "color:" + SPEL_INK,
-      "font:600 12.5px/1 " + SPEL_SERIF, "letter-spacing:.3px",
-      "box-shadow:0 10px 34px rgba(45,69,82,0.28),0 0 0 1px rgba(46,173,51,0.45)",
-      "animation:spel-pop .18s cubic-bezier(.2,.9,.3,1.2)"
+      "font:700 12.5px/1 " + SPEL_SANS, "letter-spacing:.2px",
+      "box-shadow:4px 4px 0 0 " + SPEL_CHARCOAL,
+      "border:2px solid " + SPEL_CHARCOAL
     ].join(";"));
     t.innerHTML =
-      '<span style="color:' + SPEL_GREEN_DK + ';font-size:14px">\u2713</span>' +
+      '<span style="color:' + SPEL_ACCENT_DK + ';font-size:14px">\u2713</span>' +
       '<span>' + escHtml(msg) + '</span>';
     document.documentElement.appendChild(t);
     setTimeout(function () {
@@ -1154,58 +1150,55 @@
       var back = spelEl([
         "position:fixed", "inset:0", "z-index:2147483647",
         "display:flex", "align-items:center", "justify-content:center",
-        "background:rgba(15,23,26,0.55)",
-        "backdrop-filter:blur(3px)", "-webkit-backdrop-filter:blur(3px)",
-        "animation:spel-fade .18s ease-out"
+        "background:rgba(38,38,38,0.45)"
       ].join(";"));
 
       var card = spelEl([
         "width:min(440px,92vw)", "box-sizing:border-box",
-        "border-radius:14px", "overflow:hidden",
+        "border-radius:0", "overflow:hidden",
         "background:" + SPEL_PAPER,
-        "box-shadow:0 24px 70px rgba(45,69,82,0.28),0 0 0 1px rgba(46,173,51,0.45)",
-        "font:400 14px/1.5 " + SPEL_SERIF, "color:" + SPEL_INK,
-        "animation:spel-pop .2s cubic-bezier(.2,.9,.3,1.2)"
+        "box-shadow:8px 8px 0 0 " + SPEL_ACCENT,
+        "border:2px solid " + SPEL_CHARCOAL,
+        "font:400 14px/1.5 " + SPEL_SANS, "color:" + SPEL_INK
       ].join(";"));
 
       card.innerHTML =
         '<div style="display:flex;align-items:center;gap:11px;padding:16px 20px;' +
-          'border-bottom:1px solid rgba(46,173,51,0.28)">' +
-          '<span style="font-size:21px;animation:spel-blink 1.6s ease-in-out ' +
-            'infinite">\uD83C\uDFAD</span>' +
+          'border-bottom:2px solid ' + SPEL_CHARCOAL + '">' +
+          '<span style="font-size:20px">\uD83C\uDFAD</span>' +
           '<div style="display:flex;flex-direction:column">' +
-            '<span style="font-weight:700;font-size:15px;letter-spacing:.2px;' +
-              'color:' + SPEL_INK + '">spel bridge</span>' +
+            '<span style="font-weight:800;font-size:15px;letter-spacing:-.2px;' +
+              'color:' + SPEL_INK + '">spel bridge' +
+              '<span style="color:' + SPEL_ACCENT_DK + '">.</span></span>' +
             '<span style="font-size:11.5px;opacity:.6;font-weight:500">connect ' +
               'this tab to a server</span>' +
           '</div>' +
         '</div>' +
         '<div style="padding:18px 20px 20px">' +
           '<label style="display:block;font-size:10.5px;text-transform:uppercase;' +
-            'letter-spacing:.9px;opacity:.6;margin-bottom:7px">Server URL</label>' +
+            'letter-spacing:.9px;opacity:.6;margin-bottom:7px;font-weight:700">Server URL</label>' +
           '<input data-spel-input="1" type="text" spellcheck="false" ' +
             'autocomplete="off" ' +
             'placeholder="ws://127.0.0.1:8787/spel or http://\u2026" ' +
             'value="' + escHtml(current) + '" ' +
             'style="width:100%;box-sizing:border-box;padding:11px 13px;' +
-              'border-radius:9px;border:1.5px solid rgba(46,173,51,0.45);' +
-              'background:#f5f7f8;color:' + SPEL_INK + ';' +
-              'font:500 13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-              'outline:none;transition:border-color .15s,box-shadow .15s">' +
+              'border-radius:0;border:2px solid ' + SPEL_CHARCOAL + ';' +
+              'background:' + SPEL_CREAM_LT + ';color:' + SPEL_INK + ';' +
+              'font:500 13.5px/1.4 ' + SPEL_MONO + ';' +
+              'outline:none;transition:box-shadow .12s">' +
           '<div style="font-size:11.5px;opacity:.5;margin-top:8px">ws:// for ' +
             'WebSocket \u00b7 http:// falls back to SSE \u00b7 Enter to connect</div>' +
           '<div style="display:flex;justify-content:flex-end;gap:9px;' +
             'margin-top:18px">' +
             '<button data-spel-cancel="1" style="padding:9px 16px;' +
-              'border-radius:8px;border:1px solid rgba(45,69,82,0.22);' +
-              'background:transparent;color:' + SPEL_INK + ';font:600 13px ' + SPEL_SERIF +
-              ';cursor:pointer;transition:background .15s">Cancel</button>' +
-            '<button data-spel-ok="1" style="padding:9px 18px;border-radius:8px;' +
-              'border:1px solid rgba(46,173,51,0.65);' +
-              'background:linear-gradient(180deg,#2EAD33,#249329);color:#fff;' +
-              'font:700 13px ' + SPEL_SERIF + ';cursor:pointer;' +
-              'box-shadow:0 4px 14px rgba(46,173,51,0.4);' +
-              'transition:transform .1s,box-shadow .15s">Connect</button>' +
+              'border-radius:0;border:2px solid ' + SPEL_CHARCOAL + ';' +
+              'background:transparent;color:' + SPEL_INK + ';font:700 13px ' + SPEL_SANS +
+              ';cursor:pointer;transition:background .12s">Cancel</button>' +
+            '<button data-spel-ok="1" style="padding:9px 18px;border-radius:0;' +
+              'border:2px solid ' + SPEL_CHARCOAL + ';' +
+              'background:' + SPEL_CHARCOAL + ';color:' + SPEL_PAPER + ';' +
+              'font:800 13px ' + SPEL_SANS + ';cursor:pointer;' +
+              'transition:background .12s,color .12s">Connect</button>' +
           '</div>' +
         '</div>';
 
@@ -1217,23 +1210,21 @@
       var cancelBtn = card.querySelector("[data-spel-cancel]");
 
       input.addEventListener("focus", function () {
-        input.style.borderColor = "rgba(46,173,51,0.95)";
-        input.style.boxShadow = "0 0 0 3px rgba(46,173,51,0.18)";
+        input.style.boxShadow = "0 0 0 3px rgba(255,196,32,0.6)";
       });
       input.addEventListener("blur", function () {
-        input.style.borderColor = "rgba(46,173,51,0.45)";
         input.style.boxShadow = "none";
       });
       okBtn.addEventListener("mouseenter", function () {
-        okBtn.style.transform = "translateY(-1px)";
-        okBtn.style.boxShadow = "0 6px 18px rgba(46,173,51,0.5)";
+        okBtn.style.background = SPEL_ACCENT;
+        okBtn.style.color = SPEL_INK;
       });
       okBtn.addEventListener("mouseleave", function () {
-        okBtn.style.transform = "none";
-        okBtn.style.boxShadow = "0 4px 14px rgba(46,173,51,0.4)";
+        okBtn.style.background = SPEL_CHARCOAL;
+        okBtn.style.color = SPEL_PAPER;
       });
       cancelBtn.addEventListener("mouseenter", function () {
-        cancelBtn.style.background = "rgba(45,69,82,0.07)";
+        cancelBtn.style.background = SPEL_ACCENT;
       });
       cancelBtn.addEventListener("mouseleave", function () {
         cancelBtn.style.background = "transparent";
@@ -2334,7 +2325,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.12.0",
+    version: "0.13.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,

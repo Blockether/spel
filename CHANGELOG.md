@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat(bridge): **overlay + connect modal restyled to the Blockether brand**
+  (spel.js v0.13.0) — cream paper (`#faf3eb`), charcoal ink/borders (`#3f3f3f`),
+  amber accent (`#ffc420`), Inter/JetBrains-Mono fonts, hard offset shadows and
+  sharp corners, matching blockether.com. **All entrance/idle animations removed**
+  (breathing glow, blinking masks, pop/fade) — the chrome is now flat and static.
+
 - feat(bridge): **picker copies the picked selector to the clipboard** and shows
   a branded confirmation toast on click (spel.js v0.12.0). Previously clicking an
   element during a pick recorded it silently — nothing landed in the clipboard,
