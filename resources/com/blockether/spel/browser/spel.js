@@ -1068,6 +1068,110 @@
     }, 1400);
   }
 
+  // ---------------------------------------------------------------------------
+  // Reveal overlay: label EVERY interesting ref on the page at once — a
+  // "what is what" map. One amber box + a mono @ref chip per element, kept
+  // in sync with scroll/resize via a throttled rAF. Pure chrome, no interaction.
+  // ---------------------------------------------------------------------------
+  var reveal = { active: false, layer: null, items: null, raf: 0 };
+
+  function revealLayer() {
+    if (reveal.layer) return reveal.layer;
+    ensureStyle();
+    var layer = spelEl([
+      "position:fixed", "inset:0", "z-index:2147483645", "pointer-events:none"
+    ].join(";"));
+    document.documentElement.appendChild(layer);
+    reveal.layer = layer;
+    return layer;
+  }
+
+  function revealPosition() {
+    if (!reveal.active || !reveal.items) return;
+    var vw = global.innerWidth, vh = global.innerHeight;
+    for (var i = 0; i < reveal.items.length; i++) {
+      var it = reveal.items[i];
+      var r = it.el.getBoundingClientRect();
+      var off = r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh ||
+        r.width === 0 || r.height === 0;
+      it.box.style.display = off ? "none" : "block";
+      it.chip.style.display = off ? "none" : "block";
+      if (off) continue;
+      it.box.style.left = r.left + "px";
+      it.box.style.top = r.top + "px";
+      it.box.style.width = r.width + "px";
+      it.box.style.height = r.height + "px";
+      var ctop = r.top - 14;
+      it.chip.style.left = (r.left < 0 ? 0 : r.left) + "px";
+      it.chip.style.top = (ctop < 0 ? r.top + 1 : ctop) + "px";
+    }
+  }
+
+  function revealSchedule() {
+    if (reveal.raf) return;
+    reveal.raf = global.requestAnimationFrame(function () {
+      reveal.raf = 0;
+      revealPosition();
+    });
+  }
+
+  function startReveal(opts) {
+    opts = opts || {};
+    if (reveal.active) stopReveal();
+    var root = opts.selector ? must(opts.selector) : document.body;
+    var layer = revealLayer();
+    var all = root ? root.querySelectorAll("*") : [];
+    reveal.items = [];
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.hasAttribute("data-spel-overlay")) continue;
+      var role = roleOf(el);
+      if (!role || !(INTERESTING[role] || opts.all)) continue;
+      if (!isVisible(el)) continue;
+      var ref = ensureRef(el);
+      var box = spelEl([
+        "position:fixed", "pointer-events:none", "box-sizing:border-box",
+        "border:1.5px solid " + SPEL_ACCENT,
+        "background:rgba(255,196,32,0.07)", "border-radius:0"
+      ].join(";"));
+      var chip = spelEl([
+        "position:fixed", "pointer-events:none", "padding:0 4px",
+        "border-radius:0", "background:" + SPEL_INK, "color:" + SPEL_ACCENT,
+        "font:700 10px/15px " + SPEL_MONO, "white-space:nowrap",
+        "box-shadow:1px 1px 0 0 " + SPEL_CHARCOAL
+      ].join(";"));
+      chip.textContent = "@" + ref;
+      chip.title = role;
+      layer.appendChild(box);
+      layer.appendChild(chip);
+      reveal.items.push({ el: el, ref: ref, role: role, box: box, chip: chip });
+    }
+    layer.style.display = "block";
+    reveal.active = true;
+    global.addEventListener("scroll", revealSchedule, true);
+    global.addEventListener("resize", revealSchedule, true);
+    revealPosition();
+    return { revealed: reveal.items.length };
+  }
+
+  function stopReveal() {
+    if (!reveal.active) return { revealed: 0 };
+    reveal.active = false;
+    if (reveal.raf) { global.cancelAnimationFrame(reveal.raf); reveal.raf = 0; }
+    global.removeEventListener("scroll", revealSchedule, true);
+    global.removeEventListener("resize", revealSchedule, true);
+    if (reveal.layer) {
+      reveal.layer.innerHTML = "";
+      reveal.layer.style.display = "none";
+    }
+    reveal.items = null;
+    return { revealed: 0 };
+  }
+
+  function toggleReveal(opts) {
+    return reveal.active ? stopReveal() : startReveal(opts);
+  }
+
   function pickerClick(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -1762,6 +1866,9 @@
     pick_stop: function () { return stopPicker(); },
     pick_toggle: function () { return togglePicker(); },
     picked: function () { return picker._lastPicked; },
+    reveal: function (c) { return startReveal(c || {}); },
+    reveal_stop: function () { return stopReveal(); },
+    reveal_toggle: function (c) { return toggleReveal(c || {}); },
     configure: function (c) {
       if (c.hotkey) picker.hotkey = c.hotkey;
       if (c.serverHotkey) picker.serverHotkey = c.serverHotkey;
@@ -2325,7 +2432,7 @@
   // ---------------------------------------------------------------------------
   var api = {
     __installed: true,
-    version: "0.13.0",
+    version: "0.14.0",
     invoke: invoke,
     connect: connect,
     disconnect: disconnect,
@@ -2336,6 +2443,7 @@
     stopPicker: stopPicker,
     chooseServer: chooseServer,
     picker: picker,
+    reveal: reveal,
     connection: function () { return activeConn; },
     handlers: HANDLERS
   };

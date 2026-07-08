@@ -86,7 +86,7 @@
 
   (it "installs window.__spel and reports a version"
     (core/with-testing-page [pg]
-      (expect (= "0.13.0" (setup! pg)))))
+      (expect (= "0.14.0" (setup! pg)))))
 
   (it "responds to ping/ready"
     (core/with-testing-page [pg]
@@ -370,6 +370,28 @@
         ;; The picked selector is copied to the clipboard and recorded.
         (expect (= (get picked "selector")
                   (page/evaluate pg "window.__spel.picker._lastCopied"))))))
+
+  (it "reveal labels every interesting ref at once and reveal_stop clears it"
+    (core/with-testing-page [pg]
+      (setup! pg)
+      (let [res (value pg {:action "reveal"})
+            n   (get res "revealed")]
+        ;; The test page has several interactive/heading elements to reveal.
+        (expect (pos? n))
+        ;; One amber box + one @ref chip per revealed element live in the layer.
+        (expect (= (* 2 n)
+                  (page/evaluate pg "window.__spel.reveal.layer.children.length")))
+        (expect (true? (page/evaluate pg "window.__spel.reveal.active")))
+        ;; Chips carry the @ref selector in the brand mono font.
+        (expect (re-find #"^@e"
+                  (page/evaluate pg "window.__spel.reveal.items[0].chip.textContent")))
+        ;; Boxes wear the Blockether amber border, not the old green.
+        (expect (re-find #"255, ?196, ?32"
+                  (page/evaluate pg "window.__spel.reveal.items[0].box.style.borderColor"))))
+      ;; Stopping tears the whole layer down.
+      (expect (= 0 (get (value pg {:action "reveal_stop"}) "revealed")))
+      (expect (false? (page/evaluate pg "window.__spel.reveal.active")))
+      (expect (= 0 (page/evaluate pg "window.__spel.reveal.layer.children.length")))))
 
   (it "configure changes the hotkey"
     (core/with-testing-page [pg]

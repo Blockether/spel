@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat(bridge): **`reveal` overlay — a "what is what" map** (spel.js v0.14.0).
+  New handlers `reveal` / `reveal_stop` / `reveal_toggle` draw one amber box +
+  a mono `@ref` chip over EVERY interesting element at once (branded, no
+  animation), live-repositioned on scroll/resize via a throttled rAF. Optional
+  `selector` scopes it to a subtree; `all` includes non-interesting roles.
+  Exposed as `window.__spel.reveal`. Tested on real Chromium (72/72).
+
 - feat(bridge): **overlay + connect modal restyled to the Blockether brand**
   (spel.js v0.13.0) — cream paper (`#faf3eb`), charcoal ink/borders (`#3f3f3f`),
   amber accent (`#ffc420`), Inter/JetBrains-Mono fonts, hard offset shadows and
