@@ -1285,6 +1285,8 @@
       "  spel bridge --eject --console       Print a paste-into-Console loader"
       "  spel bridge --eject-sw -o spel-sw.js  Write the service worker (passive-"
       "                                        subresource capture; same-origin)"
+      "  spel bridge --eject-extension -o dir  Write an unpacked MV3 browser"
+      "                                        extension (any site, survives restart)"
       ""
       "Options:"
       "  --host <host>         Bind address (default: 127.0.0.1)"
@@ -1303,6 +1305,12 @@
       "                        script/css/font/media). Serve it from your page's own"
       "                        origin (a service worker is same-origin only), then"
       "                        `sw_register` from the page."
+      "  --eject-extension     Write an unpacked Manifest V3 browser extension to the"
+      "                        -o/--output directory (default: spel-extension/). A"
+      "                        content script injects the engine + auto-connects on"
+      "                        every page — no bookmarklet, no Local Network Access"
+      "                        prompt, survives browser restarts. Load it via"
+      "                        chrome://extensions -> Developer mode -> Load unpacked."
       "  --token <token>       Shared secret gating the bridge (default: auto)."
       "                        Auto-generated on start and picked up by a same-box"
       "                        `spel bridge use`; pass explicitly for a remote bridge"
@@ -3211,6 +3219,12 @@
     (let [{:keys [success data error]} response]
       (if success
         (cond
+          ;; Bridge-routed scalar results (get text/value/title/url returned a
+          ;; bare string from the in-page engine, not a daemon-shaped map).
+          ;; Every branch below assumes `data` is a map, so print scalars here.
+          (not (map? data))
+          (println data)
+
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))

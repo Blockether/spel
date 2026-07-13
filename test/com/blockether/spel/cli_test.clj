@@ -2,11 +2,54 @@
   "Tests for the CLI arg parser.
 
    Unit tests for parse-args covering all supported CLI commands,
-   global flags, and edge cases."
+   global flags, and edge cases, plus result rendering for
+   bridge-routed scalar responses."
   (:require
    [com.blockether.spel.cli :as sut]
    [com.blockether.spel.native] ;; for #' access to parse-global-flags
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+
+;; =============================================================================
+;; print-result — rendering bridge-routed responses
+;; =============================================================================
+
+(defn- render-result [response]
+  (let [print-result (var-get #'sut/print-result)]
+    (with-out-str (print-result response false))))
+
+(defdescribe print-result-test
+  "Rendering of CLI results, including scalar bridge responses.
+
+   A bridge-routed get text/value/title/url can return a bare string (not a
+   daemon-shaped map). Every dispatch branch in print-result assumes `data`
+   is a map, so a scalar used to crash with `contains? not supported on type:
+   java.lang.String`. Scalars must now render cleanly."
+
+  (describe "scalar bridge results"
+    (it "renders a bare string without crashing"
+      (expect (= "Spel Dev Test\n"
+                (render-result {:success true :data "Spel Dev Test"}))))
+
+    (it "renders a bare url string"
+      (expect (= "http://127.0.0.1/page\n"
+                (render-result {:success true :data "http://127.0.0.1/page"}))))
+
+    (it "renders a number scalar"
+      (expect (= "42\n"
+                (render-result {:success true :data 42})))))
+
+  (describe "map results still dispatch"
+    (it "renders :title map"
+      (expect (= "Spel Dev Test\n"
+                (render-result {:success true :data {:title "Spel Dev Test"}}))))
+
+    (it "renders :url map"
+      (expect (= "http://127.0.0.1/page\n"
+                (render-result {:success true :data {:url "http://127.0.0.1/page"}}))))
+
+    (it "keeps a nil JS-eval result silent"
+      (expect (= ""
+                (render-result {:success true :data {:result nil}}))))))
 
 ;; =============================================================================
 ;; Helper

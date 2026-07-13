@@ -889,7 +889,9 @@
     serverHotkey: { ctrlKey: true, shiftKey: true, key: "K" },
     server: null,
     onPick: null,
-    _lastPicked: null
+    _lastPicked: null,
+    // Open connect-dialog backdrop element, tracked so two never stack.
+    dialog: null
   };
 
   var activeConn = null;
@@ -898,6 +900,7 @@
   // amber accent, hard offset shadows, sharp corners, no animation.
   var SPEL_ACCENT = "#ffc420";
   var SPEL_ACCENT_DK = "#f0ad00";
+  var SPEL_OK = "#2e9c47";
   var SPEL_INK = "#262626";
   var SPEL_CHARCOAL = "#3f3f3f";
   var SPEL_PAPER = "#faf3eb";
@@ -918,6 +921,30 @@
     d.setAttribute("data-spel-overlay", "1");
     d.style.cssText = css;
     return d;
+  }
+
+  // The spel brand mark (theatre masks + curtains + play triangle) as inline SVG,
+  // matching README's logo.svg. Rendered at a given pixel size for dialog/HUD chrome.
+  function spelLogo(px) {
+    return '<svg width="' + px + '" height="' + Math.round(px * 220 / 280) +
+      '" viewBox="60 18 280 220" fill="none" xmlns="http://www.w3.org/2000/svg" ' +
+      'style="display:block" aria-label="spel">' +
+      '<path d="M148,60 C68,102 68,184 148,226" stroke="#C04B41" stroke-width="18" fill="none" stroke-linecap="round"/>' +
+      '<path d="M252,60 C332,102 332,184 252,226" stroke="#C04B41" stroke-width="18" fill="none" stroke-linecap="round"/>' +
+      '<g transform="translate(162,28)">' +
+        '<path d="M 4,0 C 0,0 -2,4 0,8 L 6,30 C 8,36 14,40 20,40 C 26,40 30,36 30,30 L 30,8 C 30,3 26,0 22,0 Z" fill="#E2574C"/>' +
+        '<ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/>' +
+        '<ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/>' +
+        '<path d="M 9,28 Q 16,35 23,28" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/>' +
+      '</g>' +
+      '<g transform="translate(206,28)">' +
+        '<path d="M 8,0 C 4,0 0,3 0,8 L 0,30 C 0,36 4,40 10,40 C 16,40 22,36 24,30 L 30,8 C 32,4 30,0 26,0 Z" fill="#2EAD33"/>' +
+        '<ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/>' +
+        '<ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/>' +
+        '<path d="M 9,32 Q 16,25 23,32" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/>' +
+      '</g>' +
+      '<path d="M 183,102 L 237,143 L 183,184 Z" fill="#2EAD33"/>' +
+      '</svg>';
   }
 
   // No entrance/idle animations — flat, brand-consistent overlay chrome.
@@ -971,7 +998,7 @@
       "border:2px solid " + SPEL_CHARCOAL
     ].join(";"));
     hud.innerHTML =
-      '<span style="font-size:14px">\uD83C\uDFAD</span>' +
+      '<span style="display:inline-flex;align-items:center">' + spelLogo(16) + '</span>' +
       '<span style="color:' + SPEL_ACCENT_DK + ';font-weight:800">spel picker</span>' +
       '<span style="opacity:.7;font-weight:500">click to select ' +
       '\u00b7 Esc to cancel</span>';
@@ -1066,6 +1093,49 @@
         if (t.parentNode) t.parentNode.removeChild(t);
       }, 320);
     }, 1400);
+  }
+
+  // Persistent connection badge (bottom-right). Gives the user an ongoing,
+  // unmistakable signal that the engine is loaded and WHICH bridge it is wired
+  // to — the bookmarklet otherwise connects silently, so nothing appears on the
+  // page. Clicking it opens the connect / connected-profiles dialog.
+  function badgeHost(url) {
+    try {
+      var m = String(url).replace(/^wss?:\/\//, "").replace(/^https?:\/\//, "");
+      return m.split("/")[0] || String(url);
+    } catch (e) { return String(url || ""); }
+  }
+  function updateBadge(state, url) {
+    if (!document.documentElement) return;
+    ensureStyle();
+    var b = picker.badge;
+    if (!b) {
+      b = spelEl([
+        "position:fixed", "right:16px", "bottom:16px", "z-index:2147483647",
+        "display:flex", "align-items:center", "gap:8px",
+        "padding:7px 12px", "border-radius:0",
+        "background:" + SPEL_PAPER, "color:" + SPEL_INK,
+        "font:800 12px/1 " + SPEL_SANS, "letter-spacing:.2px",
+        "box-shadow:4px 4px 0 0 " + SPEL_CHARCOAL,
+        "border:2px solid " + SPEL_CHARCOAL,
+        "cursor:pointer", "user-select:none"
+      ].join(";"));
+      b.title = "spel bridge \u2014 click to manage \u00b7 Ctrl+Shift+K connect dialog \u00b7 Ctrl+Shift+L pick element";
+      b.addEventListener("click", function () {
+        try { chooseServer(); } catch (e) { /* ignore */ }
+      });
+      document.documentElement.appendChild(b);
+      picker.badge = b;
+    }
+    var connected = state === "connected";
+    var dot = connected ? SPEL_OK : (state === "off" ? SPEL_CHARCOAL : SPEL_ACCENT_DK);
+    var label = connected ? badgeHost(url)
+      : (state === "off" ? "disconnected" : "connecting\u2026");
+    b.innerHTML =
+      '<span style="width:8px;height:8px;border-radius:9px;background:' + dot +
+        ';box-shadow:0 0 0 2px ' + SPEL_INK + '"></span>' +
+      '<span style="color:' + SPEL_INK + '">spel</span>' +
+      '<span style="opacity:.6;font-weight:600">' + escHtml(label) + '</span>';
   }
 
   // ---------------------------------------------------------------------------
@@ -1240,6 +1310,7 @@
       if (activeConn.source) activeConn.source.close();
     } catch (e) { /* ignore */ }
     forgetConnect();
+    updateBadge("off");
     activeConn = null;
     return true;
   }
@@ -1247,9 +1318,19 @@
   // A branded, professional connect-modal (replaces the native prompt). Returns a
   // Promise resolving to the chosen server URL, or null when cancelled/dismissed.
   function chooseServer() {
+    // One connect dialog at a time: repeated Ctrl+Shift+K / badge clicks must
+    // not stack translucent backdrops (they compound into a dark, click-eating
+    // veil that feels broken). If one is already open, just refocus its input.
+    if (picker.dialog && picker.dialog.parentNode) {
+      try { picker.dialog.querySelector("[data-spel-input]").focus(); } catch (e) { /* ignore */ }
+      return Promise.resolve(null);
+    }
     return new Promise(function (resolve) {
       ensureStyle();
-      var current = picker.server || "";
+      // Prefill with the configured server, or — when the tab is already
+      // connected (harness auto-connect) — the live connection's url, so the
+      // profiles panel can immediately list who is connected to this bridge.
+      var current = picker.server || (activeConn && activeConn.url) || "";
 
       var back = spelEl([
         "position:fixed", "inset:0", "z-index:2147483647",
@@ -1269,13 +1350,23 @@
       card.innerHTML =
         '<div style="display:flex;align-items:center;gap:11px;padding:16px 20px;' +
           'border-bottom:2px solid ' + SPEL_CHARCOAL + '">' +
-          '<span style="font-size:20px">\uD83C\uDFAD</span>' +
+          '<span style="display:inline-flex;align-items:center">' + spelLogo(24) + '</span>' +
           '<div style="display:flex;flex-direction:column">' +
             '<span style="font-weight:800;font-size:15px;letter-spacing:-.2px;' +
               'color:' + SPEL_INK + '">spel bridge' +
               '<span style="color:' + SPEL_ACCENT_DK + '">.</span></span>' +
             '<span style="font-size:11.5px;opacity:.6;font-weight:500">connect ' +
               'this tab to a server</span>' +
+          '</div>' +
+        '</div>' +
+        '<div data-spel-profiles="1" style="padding:0 20px;max-height:170px;overflow:auto;' +
+          'border-bottom:2px solid ' + SPEL_CHARCOAL + '">' +
+          '<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;' +
+            'opacity:.6;margin-top:14px;margin-bottom:8px;font-weight:700">' +
+            'Connected profiles</div>' +
+          '<div data-spel-profiles-list="1" style="font:500 12px/1.5 ' + SPEL_MONO + ';' +
+            'color:' + SPEL_INK + '">' +
+            '<div style="opacity:.5;padding:4px 0 12px">Checking who is connected\u2026</div>' +
           '</div>' +
         '</div>' +
         '<div style="padding:18px 20px 20px">' +
@@ -1308,10 +1399,56 @@
 
       back.appendChild(card);
       document.documentElement.appendChild(back);
+      picker.dialog = back;
 
       var input = card.querySelector("[data-spel-input]");
       var okBtn = card.querySelector("[data-spel-ok]");
       var cancelBtn = card.querySelector("[data-spel-cancel]");
+      var profilesList = card.querySelector("[data-spel-profiles-list]");
+
+      // Render the currently-connected profiles for a bridge base URL. Fetches
+      // the `/clients` listing and paints one row per tab (transport, title,
+      // url, connected time). Best-effort: any error degrades to a muted hint.
+      var profileTimer = null;
+      function renderProfiles(host) {
+        if (!host) { profilesList.innerHTML = '<div style="opacity:.5;padding:4px 0 12px">Enter a server URL to see connected profiles.</div>'; return; }
+        HANDLERS.connected_profiles({ url: host }).then(function (res) {
+          var rows = (res && res.clients) || [];
+          if (res && res.error && !rows.length) {
+            profilesList.innerHTML = '<div style="opacity:.5;padding:4px 0 12px">No bridge reachable at <span>' + escHtml(host) + '</span> \u2014 ' + escHtml(res.error) + '</div>';
+            return;
+          }
+          if (!rows.length) {
+            profilesList.innerHTML = '<div style="opacity:.5;padding:4px 0 12px">No tabs connected to this bridge yet.</div>';
+            return;
+          }
+          profilesList.innerHTML = rows.map(function (c) {
+            var transport = escHtml((c.transport || "sse")).toUpperCase();
+            var title = c.title ? escHtml(c.title) : "(untitled tab)";
+            var url = c.url ? escHtml(c.url) : "";
+            var ua = c["user-agent"] || c.userAgent || "";
+            var uaShort = ua ? escHtml(ua.split(")")[0].split("(").pop().split(";")[0].trim() || ua) : "";
+            return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;' +
+              'border-top:1px solid rgba(63,63,63,0.12)">' +
+              '<span style="display:inline-block;min-width:34px;font-size:9.5px;font-weight:800;' +
+                'letter-spacing:.5px;padding:2px 5px;background:' + SPEL_ACCENT + ';' +
+                'color:' + SPEL_INK + '">' + transport + '</span>' +
+              '<div style="flex:1;min-width:0">' +
+                '<div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;' +
+                  'text-overflow:ellipsis">' + title + '</div>' +
+                (url ? '<div style="opacity:.6;font-size:11px;white-space:nowrap;overflow:hidden;' +
+                  'text-overflow:ellipsis">' + url + '</div>' : '') +
+                (uaShort ? '<div style="opacity:.45;font-size:10.5px;margin-top:1px">' + uaShort + '</div>' : '') +
+              '</div>' +
+            '</div>';
+          }).join("");
+        }).catch(function () { /* leave the prior message */ });
+      }
+      function scheduleProfiles() {
+        if (profileTimer) clearTimeout(profileTimer);
+        profileTimer = setTimeout(function () { renderProfiles(String(input.value || "").trim()); }, 250);
+      }
+      input.addEventListener("input", scheduleProfiles);
 
       input.addEventListener("focus", function () {
         input.style.boxShadow = "0 0 0 3px rgba(255,196,32,0.6)";
@@ -1340,6 +1477,7 @@
         done = true;
         document.removeEventListener("keydown", onKey, true);
         if (back.parentNode) back.parentNode.removeChild(back);
+        picker.dialog = null;
         resolve(url);
       }
       function submit() {
@@ -1363,6 +1501,9 @@
 
       setTimeout(function () {
         try { input.focus(); input.select(); } catch (e) { /* ignore */ }
+        // Kick off the first connected-profiles fetch for the prefilled server;
+        // further edits re-fetch on the debounced input handler.
+        renderProfiles(String(input.value || "").trim());
       }, 30);
     });
   }
@@ -1703,7 +1844,17 @@
     back: function () { global.history.back(); return true; },
     forward: function () { global.history.forward(); return true; },
     evaluate: function (c) {
-      var script = c.base64 ? global.atob(c.script) : c.script;
+      var script = c.script;
+      function base64Utf8(value) {
+        var s = value == null ? "" : String(value);
+        if (global.TextEncoder) {
+          var bytes = new global.TextEncoder().encode(s);
+          var bin = "";
+          for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          return global.btoa(bin);
+        }
+        return global.btoa(unescape(encodeURIComponent(s)));
+      }
       // Playwright-like: an expression (`document.title`), or a multi-statement
       // function body with an explicit `return`. Try the expression form first,
       // fall back to a statement body on a syntax error.
@@ -1711,7 +1862,9 @@
       var fn;
       try { fn = Function('"use strict"; return (' + script + "\n);"); }
       catch (e) { fn = Function('"use strict";' + script); }
-      return fn();
+      return Promise.resolve(fn()).then(function (value) {
+        return c.base64 ? base64Utf8(value) : value;
+      });
     },
 
     // --- snapshot / refs ---
@@ -1883,6 +2036,24 @@
     connect: function (c) { connect(c || {}); return { connected: true, server: picker.server }; },
     disconnect: function () { return disconnect(); },
     is_connected: function () { return !!activeConn; },
+    // List the profiles (tabs) currently connected to a bridge. Returns a Promise
+    // resolving to `{clients: [...]}` from the bridge's `/clients` endpoint, or
+    // `{clients: [], error}` when the bridge is unreachable. Used by the connect
+    // dialog (`chooseServer`) to render who is already connected.
+    connected_profiles: function (c) {
+      c = c || {};
+      var base = c.url || c.server || picker.server || "";
+      if (!base) return Promise.resolve({ clients: [], error: "no server url" });
+      if (!global.fetch) return Promise.resolve({ clients: [], error: "fetch unavailable" });
+      // Prefer an explicit token, else fall back to the one this tab connected
+      // with (activeConn carries it) so the dialog can list profiles without the
+      // caller having to thread the token through manually.
+      var token = c.token != null ? String(c.token)
+                 : (activeConn && activeConn.token != null ? String(activeConn.token) : null);
+      return global.fetch(connWith(base + "/clients", token), { targetAddressSpace: "loopback" })
+        .then(function (r) { return r.json(); })
+        .catch(function (e) { return { clients: [], error: String((e && e.message) || e) }; });
+    },
 
     // --- dialogs ---
     dialog_handler: function (c) {
@@ -2355,27 +2526,93 @@
     return u + (u.indexOf("?") < 0 ? "?" : "&") + "t=" + encodeURIComponent(token);
   }
 
-  // Remember the route (url + token) for THIS tab so a full-page navigation to
-  // another same-origin page that re-loads spel.js can auto-reconnect. Scoped
-  // to sessionStorage: per-tab, per-origin, cleared when the tab closes.
+  // Remember the route (url + token) for THIS origin so a page that re-loads
+  // spel.js can auto-reconnect. Stored in localStorage so it SURVIVES A BROWSER
+  // RESTART (per-origin): reopening a page that reloads the engine re-subscribes
+  // without re-entering the token. Falls back to sessionStorage where localStorage
+  // is blocked (private mode). disconnect() clears both.
+  function connectStore() {
+    try { if (global.localStorage) return global.localStorage; } catch (e) { /* blocked */ }
+    try { if (global.sessionStorage) return global.sessionStorage; } catch (e) { /* blocked */ }
+    return null;
+  }
   function persistConnect(cfg) {
-    try { global.sessionStorage.setItem(CONNECT_KEY, JSON.stringify(cfg)); } catch (e) { /* no storage */ }
+    try { var s = connectStore(); if (s) s.setItem(CONNECT_KEY, JSON.stringify(cfg)); } catch (e) { /* no storage */ }
   }
   function forgetConnect() {
-    try { global.sessionStorage.removeItem(CONNECT_KEY); } catch (e) { /* no storage */ }
+    try { if (global.localStorage) global.localStorage.removeItem(CONNECT_KEY); } catch (e) { /* ignore */ }
+    try { if (global.sessionStorage) global.sessionStorage.removeItem(CONNECT_KEY); } catch (e) { /* ignore */ }
   }
   function savedConnect() {
     try {
-      var s = global.sessionStorage && global.sessionStorage.getItem(CONNECT_KEY);
-      return s ? JSON.parse(s) : null;
+      var s = connectStore();
+      var v = s && s.getItem(CONNECT_KEY);
+      return v ? JSON.parse(v) : null;
     } catch (e) { return null; }
   }
+
+  // A stable per-tab id: survives same-tab reloads (sessionStorage), unique per
+  // tab. Sent with /hello so the bridge can collapse a reload's stale SSE entry
+  // into the fresh one instead of listing the same tab twice.
+  var _spelTabId = null;
+  function tabId() {
+    if (_spelTabId) return _spelTabId;
+    try {
+      var s = global.sessionStorage;
+      if (s) {
+        var v = s.getItem("__spel_tab");
+        if (!v) {
+          v = "tab-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+          s.setItem("__spel_tab", v);
+        }
+        _spelTabId = v;
+      }
+    } catch (e) { /* no storage */ }
+    if (!_spelTabId) _spelTabId = "tab-" + Math.random().toString(36).slice(2, 10);
+    return _spelTabId;
+  }
+
+  // Announce this tab's metadata to the bridge so the connect dialog can list
+  // it among the connected profiles. Fire-and-forget: the bridge correlates the
+  // POST to this tab's SSE client id (or stores a metadata-only entry under a
+  // race). Errors are swallowed — the listing is best-effort, never fatal to the
+  // transport itself. Only http(s) bridges carry /hello (WS sends it inline).
+  function announceConnect(base, token, transport) {
+    try {
+      if (!/^https?:/.test(base) || !global.fetch) return;
+      var payload = {
+        transport: transport || "sse",
+        url: global.location ? global.location.href : null,
+        title: document ? document.title : null,
+        userAgent: global.navigator ? global.navigator.userAgent : null,
+        version: api.version,
+        tabId: tabId()
+      };
+      global.fetch(connWith(base + "/hello", token), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        targetAddressSpace: "loopback",
+        body: JSON.stringify(payload)
+      }).catch(function () { /* ignore */ });
+    } catch (e) { /* ignore */ }
+  }
+
+  // Passive-subresource capture via a service worker now lives in the browser
+  // EXTENSION (`spel bridge --eject-extension`), not the bridge engine. A page-scope
+  // worker must be SAME-ORIGIN, so the bridge could never attach its cross-origin
+  // /spel-sw.js to a third-party page anyway. The engine keeps installSWListener +
+  // the sw_* handlers so an extension (or a same-origin host) can still register a
+  // worker and forward passive network entries here.
 
   function connect(opts) {
     opts = opts || {};
     var base = opts.url || picker.server || "ws://127.0.0.1:9223/spel";
     var token = opts.token != null ? String(opts.token) : null;
     persistConnect({ url: base, token: token });
+    // Remember the server so the connect dialog prefills it and can fetch the
+    // connected-profiles listing without a separate set_server call.
+    picker.server = base;
+    updateBadge("connecting", base);
     // Replace any prior connection (e.g. an auto-reconnect that then gets an
     // explicit connect) so a tab holds exactly one live SSE/WS, not several.
     if (activeConn) {
@@ -2388,7 +2625,9 @@
     if (/^wss?:/.test(base) && global.WebSocket) {
       var ws = new global.WebSocket(connWith(base, token));
       ws.addEventListener("open", function () {
-        ws.send(JSON.stringify({ type: "hello", version: api.version, url: global.location.href }));
+        updateBadge("connected", base);
+        flashToast("spel connected \u00b7 " + badgeHost(base));
+        ws.send(JSON.stringify({ type: "hello", version: api.version, url: global.location.href, tabId: tabId() }));
       });
       ws.addEventListener("message", function (ev) {
         var msg = JSON.parse(ev.data);
@@ -2403,6 +2642,14 @@
     // SSE for inbound commands, fetch POST for outbound results.
     var resultUrl = opts.resultUrl || connWith(base + "/result", token);
     var es = new global.EventSource(connWith(base, token));
+    // Announce only after the SSE stream opens, so the bridge has registered
+    // this tab's client entry before the /hello POST lands and can correlate
+    // the metadata to the right id (no duplicate metadata-only entries).
+    es.addEventListener("open", function () {
+      updateBadge("connected", base);
+      flashToast("spel connected \u00b7 " + badgeHost(base));
+      announceConnect(base, token, "sse");
+    });
     es.addEventListener("message", function (ev) {
       var msg = JSON.parse(ev.data);
       invoke(msg).then(function (res) {

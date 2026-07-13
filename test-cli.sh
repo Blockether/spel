@@ -2027,6 +2027,26 @@ section "Auto-Launch (46)"
 OUT=$("$SPEL" --help 2>&1)
 assert_contains "help mentions auto-launch" "$OUT" "auto-launch"
 
+# =============================================================================
+# BRIDGE EXTENSION EJECT (6)
+# =============================================================================
+section "Bridge Extension Eject (6)"
+
+# --help documents the extension eject
+OUT=$("$SPEL" bridge --help 2>&1)
+assert_contains "bridge --help mentions --eject-extension" "$OUT" "--eject-extension"
+
+# Ejecting writes an unpacked MV3 extension folder
+EXT_DIR=$(mktemp -d)
+TEMP_FILES+=("$EXT_DIR")
+OUT=$("$SPEL" bridge --eject-extension -o "$EXT_DIR" 2>&1)
+assert_contains "eject-extension -> reports the MV3 extension write" "$OUT" "MV3 extension"
+EXT_LS=$(ls "$EXT_DIR" 2>&1)
+assert_contains "eject-extension -> manifest.json present" "$EXT_LS" "manifest.json"
+assert_contains "eject-extension -> engine.js present" "$EXT_LS" "engine.js"
+assert_contains "eject-extension -> content.js present" "$EXT_LS" "content.js"
+assert_contains "manifest.json -> is Manifest V3" "$(cat "$EXT_DIR/manifest.json" 2>/dev/null)" "manifest_version"
+
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

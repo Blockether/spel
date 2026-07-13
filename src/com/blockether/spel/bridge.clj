@@ -23,6 +23,11 @@
                            it is pushed to the connected tab and the browser's
                            result is returned as the HTTP response (this is what
                            lets regular `spel <verb>` route through the bridge)
+     POST /spel/hello    → browser announces tab metadata (url, title, ua, transport)
+                           on connect; stored against its SSE client id and surfaced
+                           back as the connected-profiles list
+     GET  /spel/clients  → the connected profiles (tabs) currently subscribed,
+                           as JSON; token-gated like every other endpoint
      GET  /spel.js       → the embedded engine source (same file that ships in
                            the native image)
      GET  /              → a tiny harness page that loads the engine and connects"
@@ -67,6 +72,25 @@
     (throw (ex-info (str "embedded service worker resource not found: " sw-engine-resource)
              {:resource sw-engine-resource}))))
 
+(def ^:private icon-sizes
+  "Extension icon sizes (px). Each is README's logo.svg emblem rendered to a
+   transparent square PNG at com/blockether/spel/browser/icons/icon-<n>.png
+   (also listed in resource-config so it survives into the native binary)."
+  [16 32 48 128])
+
+(defn icon-bytes
+  "Returns the embedded extension icon PNG (`icon-<px>.png`) as a byte array,
+   or throws if the resource is missing from the classpath / native image."
+  ^bytes [px]
+  (let [res (str "com/blockether/spel/browser/icons/icon-" px ".png")]
+    (if-let [r (io/resource res)]
+      (with-open [in  (io/input-stream r)
+                  out (java.io.ByteArrayOutputStream.)]
+        (io/copy in out)
+        (.toByteArray out))
+      (throw (ex-info (str "embedded extension icon resource not found: " res)
+               {:resource res})))))
+
 (defn eject-origin
   "Resolves the (origin, path) an ejected loader/bookmarklet should target.
    With an explicit `url` (e.g. http://host:port/spel) it is split into an
@@ -103,11 +127,12 @@
         t (if (and token (seq token)) (json/write-json-str token) "null")]
     (str "(function(){"
       "var o=" o ",c=" c ",t=" t ";"
-      "function go(){try{window.__spel&&window.__spel.connect({url:c,token:t});}catch(e){console.error('spel:',e);}}"
+      "function banner(m,bg){try{var b=document.createElement('div');b.textContent=m;b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:'+bg+';color:#fff;font:700 13px/1.45 -apple-system,Segoe UI,sans-serif;padding:10px 14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)';(document.body||document.documentElement).appendChild(b);setTimeout(function(){if(b.parentNode)b.parentNode.removeChild(b);},6000);}catch(e){}}"
+      "function go(){try{window.__spel&&window.__spel.connect({url:c,token:t});banner('\u2713 spel installed \u2014 subscribing to '+o+'   \u00b7   Ctrl+Shift+K: manage   \u00b7   Ctrl+Shift+L: pick element','#1f7a3d');}catch(e){console.error('spel:',e);banner('spel: '+e,'#b3261e');}}"
       "if(window.__spel){go();return;}"
       "function inject(code){var s=document.createElement('script');s.textContent=code;(document.head||document.documentElement).appendChild(s);go();}"
       "function tag(){var s=document.createElement('script');s.src=o+'/spel.js';s.onload=go;s.onerror=fail;(document.head||document.documentElement).appendChild(s);}"
-      "function fail(){console.error('spel: could not load '+o+'/spel.js (is `spel bridge` running, and did you Allow local network access? see edge://settings/content/localNetworkAccess)');}"
+      "function fail(){var m='spel: could not reach '+o+'/spel.js \u2014 is `spel bridge` running, and did you Allow local network access? (edge://settings/content/localNetworkAccess)';console.error(m);banner(m,'#b3261e');}"
       "try{fetch(o+'/spel.js',{mode:'cors',targetAddressSpace:'loopback'}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(inject).catch(tag);}catch(e){tag();}"
       "})();")))
 
@@ -118,6 +143,187 @@
    block inline/bookmarklet execution — see `spel bridge --help`."
   [^String origin ^String path token]
   (str "javascript:" (loader-script origin path token)))
+
+;; =============================================================================
+;; Browser extension — the permanent, any-site, restart-proof loader
+;; =============================================================================
+;;
+;; The bookmarklet injects a CROSS-ORIGIN loopback script into a page you don't
+;; own, so it trips every browser guard (Local Network Access prompt, mixed
+;; content, no persistence, re-click after each restart). A Manifest V3 extension
+;; sidesteps all of it: a content script is granted the page by the browser
+;; itself, runs at document_start on every site, survives restarts, and — with a
+;; host permission for 127.0.0.1 — reaches the bridge with no LNA prompt.
+;;
+;; It REUSES the same embedded engine (spel.js) served at /spel.js and shipped in
+;; the native image; the extension is just a thin MV3 wrapper that injects it into
+;; the page's MAIN world and calls window.__spel.connect({url, token}). The engine
+;; is NOT modified. The (moved-here) service worker spel-sw.js rides along as a
+;; web-accessible resource so passive-subresource capture lives with the extension
+;; rather than the regular bridge.
+
+(defn- extension-version
+  "spel version stamped into the MV3 manifest (bare semver from SPEL_VERSION)."
+  ^String []
+  (or (some-> (io/resource "SPEL_VERSION") slurp str/trim not-empty) "0.0.0"))
+
+(defn extension-manifest
+  "The Manifest V3 `manifest.json` for the spel bridge browser extension.
+
+   Two content-script entries run at document_start on every page: engine.js +
+   bootstrap.js in the page's MAIN world (so `window.__spel` is defined on the
+   page), and content.js in the ISOLATED world (it can read chrome.storage for the
+   saved bridge route and hand it to the MAIN world via a CustomEvent). A host
+   permission for loopback lets the injected engine fetch/connect the local bridge
+   without the Local Network Access prompt."
+  ^String []
+  (json/write-json-str
+    (array-map
+      "manifest_version" 3
+      "name" "spel bridge"
+      "version" (extension-version)
+      "description" (str "Injects the spel engine into every page and auto-connects to a local spel "
+                      "bridge — DOM automation that survives browser restarts, with no bookmarklet "
+                      "and no local-network-access prompt.")
+      "permissions" ["storage"]
+      "host_permissions" ["http://127.0.0.1/*" "http://localhost/*"]
+      "icons" (array-map "16" "icons/icon-16.png" "32" "icons/icon-32.png"
+                "48" "icons/icon-48.png" "128" "icons/icon-128.png")
+      "action" (array-map "default_popup" "popup.html" "default_title" "spel bridge"
+                 "default_icon" (array-map "16" "icons/icon-16.png" "32" "icons/icon-32.png"
+                                  "48" "icons/icon-48.png" "128" "icons/icon-128.png"))
+      "content_scripts"
+      [(array-map
+         "matches" ["<all_urls>"]
+         "js" ["engine.js" "bootstrap.js"]
+         "run_at" "document_start"
+         "world" "MAIN"
+         "all_frames" false)
+       (array-map
+         "matches" ["<all_urls>"]
+         "js" ["content.js"]
+         "run_at" "document_start"
+         "world" "ISOLATED"
+         "all_frames" false)]
+      "web_accessible_resources"
+      [(array-map "resources" ["engine.js" "spel-sw.js"] "matches" ["<all_urls>"])])))
+
+(defn extension-bootstrap-script
+  "MAIN-world bootstrap. Runs right after engine.js (which defines `window.__spel`)
+   and waits for the isolated content script to hand over the saved bridge route,
+   then connects the page engine to it."
+  ^String []
+  (str "\"use strict\";\n"
+    "// spel bridge extension — MAIN-world bootstrap (runs after engine.js).\n"
+    "(function(){\n"
+    "  function connect(d){try{if(window.__spel&&d&&d.url){window.__spel.connect({url:d.url,token:d.token||null});}}catch(e){console.error('spel:',e);}}\n"
+    "  window.addEventListener('spel:connect',function(e){connect(e.detail);});\n"
+    "})();\n"))
+
+(defn extension-content-script
+  "ISOLATED-world content script. Reads the saved bridge `{url, token}` from
+   chrome.storage.local (set via the popup), falling back to the values baked in at
+   eject time, and dispatches them to the MAIN-world engine via a `spel:connect`
+   CustomEvent. Re-fires when the stored route changes."
+  [^String origin ^String path token]
+  (let [u (if (and origin (seq origin)) (json/write-json-str (str origin path)) "null")
+        t (if (and token (seq token)) (json/write-json-str token) "null")]
+    (str "\"use strict\";\n"
+      "// spel bridge extension — isolated-world content script.\n"
+      "(function(){\n"
+      "  var DEFAULT_URL=" u ";\n"
+      "  var DEFAULT_TOKEN=" t ";\n"
+      "  function push(cfg){if(!cfg||!cfg.url)return;try{window.dispatchEvent(new CustomEvent('spel:connect',{detail:{url:cfg.url,token:cfg.token||null}}));}catch(e){}}\n"
+      "  function load(){try{chrome.storage.local.get(['spelUrl','spelToken'],function(v){v=v||{};push({url:v.spelUrl||DEFAULT_URL,token:v.spelToken||DEFAULT_TOKEN});});}catch(e){push({url:DEFAULT_URL,token:DEFAULT_TOKEN});}}\n"
+      "  load();\n"
+      "  try{chrome.storage.onChanged.addListener(function(ch,area){if(area==='local'&&(ch.spelUrl||ch.spelToken))load();});}catch(e){}\n"
+      "})();\n")))
+
+(defn logo-mark-svg
+  "The spel brand mark (theatre masks + curtains + play triangle) as an inline
+   SVG string, matching README's logo.svg. `px` sets the rendered width."
+  ^String [px]
+  (let [h (int (Math/round (* (double px) (/ 220.0 280.0))))]
+    (str "<svg width=\"" px "\" height=\"" h "\" viewBox=\"60 18 280 220\" fill=\"none\" "
+      "xmlns=\"http://www.w3.org/2000/svg\" style=\"display:block\" aria-label=\"spel\">"
+      "<path d=\"M148,60 C68,102 68,184 148,226\" stroke=\"#C04B41\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\"/>"
+      "<path d=\"M252,60 C332,102 332,184 252,226\" stroke=\"#C04B41\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\"/>"
+      "<g transform=\"translate(162,28)\">"
+      "<path d=\"M 4,0 C 0,0 -2,4 0,8 L 6,30 C 8,36 14,40 20,40 C 26,40 30,36 30,30 L 30,8 C 30,3 26,0 22,0 Z\" fill=\"#E2574C\"/>"
+      "<ellipse cx=\"10\" cy=\"16\" rx=\"3.5\" ry=\"4.5\" fill=\"#fff\" opacity=\"0.9\"/>"
+      "<ellipse cx=\"22\" cy=\"16\" rx=\"3.5\" ry=\"4.5\" fill=\"#fff\" opacity=\"0.9\"/>"
+      "<path d=\"M 9,28 Q 16,35 23,28\" stroke=\"#fff\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" opacity=\"0.9\"/>"
+      "</g>"
+      "<g transform=\"translate(206,28)\">"
+      "<path d=\"M 8,0 C 4,0 0,3 0,8 L 0,30 C 0,36 4,40 10,40 C 16,40 22,36 24,30 L 30,8 C 32,4 30,0 26,0 Z\" fill=\"#2EAD33\"/>"
+      "<ellipse cx=\"10\" cy=\"16\" rx=\"3.5\" ry=\"4.5\" fill=\"#fff\" opacity=\"0.9\"/>"
+      "<ellipse cx=\"22\" cy=\"16\" rx=\"3.5\" ry=\"4.5\" fill=\"#fff\" opacity=\"0.9\"/>"
+      "<path d=\"M 9,32 Q 16,25 23,32\" stroke=\"#fff\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" opacity=\"0.9\"/>"
+      "</g>"
+      "<path d=\"M 183,102 L 237,143 L 183,184 Z\" fill=\"#2EAD33\"/>"
+      "</svg>")))
+
+(defn extension-popup-html
+  "The extension popup: enter/override the bridge URL + token; saved to
+   chrome.storage.local so it persists across browser restarts on any site."
+  ^String []
+  (str "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>spel bridge</title>\n"
+    "<style>body{font:13px/1.45 -apple-system,Segoe UI,sans-serif;width:280px;margin:0;padding:14px;background:#1e1e1e;color:#eee}"
+    "h1{font-size:14px;margin:0 0 10px}label{display:block;margin:8px 0 3px;color:#aaa}"
+    "input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #444;border-radius:6px;background:#2a2a2a;color:#eee}"
+    "button{margin-top:12px;width:100%;padding:8px;border:0;border-radius:6px;background:#1f7a3d;color:#fff;font-weight:700;cursor:pointer}"
+    ".st{margin-top:10px;font-size:12px;color:#8bd}</style></head>\n"
+    "<body><h1 style=\"display:flex;align-items:center;gap:8px\">" (logo-mark-svg 22) "<span>spel bridge</span></h1>\n"
+    "<label>Bridge URL</label><input id=\"url\" placeholder=\"http://127.0.0.1:8787/spel\">\n"
+    "<label>Token</label><input id=\"token\" placeholder=\"(optional)\">\n"
+    "<button id=\"save\">Save &amp; connect</button>\n<div class=\"st\" id=\"st\"></div>\n"
+    "<script src=\"popup.js\"></script></body></html>\n"))
+
+(defn extension-popup-js
+  "Popup logic: prefill from storage, persist the bridge URL + token on save."
+  ^String []
+  (str "\"use strict\";\n"
+    "(function(){\n"
+    "  var $=function(id){return document.getElementById(id);};\n"
+    "  chrome.storage.local.get(['spelUrl','spelToken'],function(v){v=v||{};if(v.spelUrl)$('url').value=v.spelUrl;if(v.spelToken)$('token').value=v.spelToken;});\n"
+    "  $('save').addEventListener('click',function(){var url=$('url').value.trim();var token=$('token').value.trim();chrome.storage.local.set({spelUrl:url,spelToken:token},function(){$('st').textContent='Saved. Reload the target tab to connect.';});});\n"
+    "})();\n"))
+
+(defn extension-readme
+  "A short install/usage README dropped into the ejected extension folder."
+  [^String origin ^String path token]
+  (let [url (str origin path)]
+    (str "# spel bridge — browser extension (Manifest V3)\n\n"
+      "Unpacked extension that injects the spel engine into every page and\n"
+      "auto-connects to your local `spel bridge`. Unlike the bookmarklet it needs\n"
+      "no Local Network Access prompt, works on any site, and survives restarts.\n\n"
+      "## Install (Chrome / Edge / Brave)\n\n"
+      "1. Open `chrome://extensions` (or `edge://extensions`).\n"
+      "2. Toggle **Developer mode** (top-right).\n"
+      "3. Click **Load unpacked** and pick this folder.\n\n"
+      "## Configure\n\n"
+      "The bridge route is baked in at eject time:\n\n"
+      "    url:   " url "\n"
+      "    token: " (if (and token (seq token)) token "(none)") "\n\n"
+      "To point at a different bridge, click the extension's toolbar icon and set the\n"
+      "**Bridge URL** + **Token** (saved to `chrome.storage.local`, persists across\n"
+      "restarts). Reload the target tab to reconnect.\n\n"
+      "Start a bridge with `spel bridge -p <port>` and re-eject to refresh the token.\n")))
+
+(defn extension-files
+  "Returns the full set of files for the unpacked MV3 extension as an ordered\n   vector of `[relative-path content-string]`. Reuses the embedded engine + service\n   worker verbatim; the rest is thin MV3 glue with the bridge route baked in."
+  [^String origin ^String path token]
+  (into
+    [["manifest.json" (extension-manifest)]
+     ["engine.js" (engine-source)]
+     ["spel-sw.js" (sw-source)]
+     ["bootstrap.js" (extension-bootstrap-script)]
+     ["content.js" (extension-content-script origin path token)]
+     ["popup.html" (extension-popup-html)]
+     ["popup.js" (extension-popup-js)]
+     ["README.md" (extension-readme origin path token)]]
+    (for [n icon-sizes]
+      [(str "icons/icon-" n ".png") (icon-bytes n)])))
 
 ;; =============================================================================
 ;; Target profile — the persisted route for regular `spel <verb>` commands
@@ -167,6 +373,30 @@
   "A short random shared secret gating browser<->bridge traffic on loopback."
   ^String []
   (subs (str/replace (str (UUID/randomUUID)) "-" "") 0 16))
+
+(defn token-path
+  "Filesystem location of the STABLE bridge token, reused across `spel bridge`
+   restarts so a once-loaded bookmarklet / extension keeps working — the token no
+   longer rotates on every start. Delete this file (or pass an explicit --token)
+   to rotate the secret."
+  ^String []
+  (str (System/getProperty "user.home") "/.spel/bridge-token"))
+
+(defn persisted-token!
+  "Returns the stable per-machine bridge token, generating and persisting one to
+   ~/.spel/bridge-token on first use. Because it is reused across restarts, an
+   extension or bookmarklet ejected once stays authorized against every later
+   bridge — killing the 'unauthorized (bad or missing token)' churn you hit when
+   the token was random per start."
+  ^String []
+  (let [f (io/file (token-path))]
+    (or (when (.isFile f)
+          (let [t (str/trim (slurp f))]
+            (when (seq t) t)))
+      (let [t (gen-token)]
+        (when-let [parent (.getParentFile f)] (.mkdirs parent))
+        (spit f t)
+        t))))
 
 (defn runtime-path
   "Filesystem location of the RUNNING bridge's connection details (port + token),
@@ -295,7 +525,7 @@
   (str "<!doctype html>\n"
     "<html><head><meta charset=\"utf-8\"><title>spel bridge</title></head>\n"
     "<body>\n"
-    "<h1>spel bridge</h1>\n"
+    "<h1 style=\"display:flex;align-items:center;gap:10px;font-family:-apple-system,Segoe UI,sans-serif\">" (logo-mark-svg 40) "<span>spel bridge</span></h1>\n"
     "<p>Engine loaded. This tab is subscribed to the local spel server.</p>\n"
     "<script src=\"/spel.js\"></script>\n"
     "<script>\n"
@@ -305,10 +535,34 @@
     "</script>\n"
     "</body></html>\n"))
 
+(defn- client-info
+  "Reads the metadata map stored alongside a client's SSE queue. Returns a
+   profile map for the `/clients` listing, or nil when the entry was removed."
+  [clients id]
+  (some-> ^ConcurrentHashMap clients (.get id) (get :info)))
+
+(defn- client-profiles
+  "Returns the currently-connected profiles (one per subscribed tab) as a vector
+   of plain maps, newest first. Safe to call from any handler thread.
+
+   Entries can be removed concurrently (a tab closing mid-iteration), so we read
+   each info defensively and drop nils; the comparator runs on the materialized
+   info maps, never on bare client-id strings."
+  [clients]
+  (let [infos (into []
+                (comp (map (fn [id] (client-info clients id)))
+                  (remove nil?))
+                (.keySet ^ConcurrentHashMap clients))]
+    (vec (sort-by :connected-at > infos))))
+
 (defn- sse-handler
   "GET → open a Server-Sent-Events stream and register the tab as a client.
    Blocks its worker thread for the life of the connection, draining the
-   client's queue (heartbeats keep proxies/`EventSource` from timing out)."
+   client's queue (heartbeats keep proxies/`EventSource` from timing out).
+
+   Each client entry is a map `{:queue :info}`; `:info` is populated by the
+   `/hello` POST and read by `/clients` so the connect dialog can show the
+   currently-connected profiles."
   [clients token]
   (reify HttpHandler
     (handle [_ ex]
@@ -326,13 +580,21 @@
             (.sendResponseHeaders ex 200 0)
             (let [os (.getResponseBody ex)
                   id (str (UUID/randomUUID))
-                  ^LinkedBlockingQueue q (LinkedBlockingQueue.)]
-              (.put ^ConcurrentHashMap clients id q)
+                  ;; Placeholder info so `/clients` sees the tab before its
+                  ;; `/hello` POST lands; the POST then enriches this map.
+                  base-info {:id id
+                             :connected-at (System/currentTimeMillis)
+                             :transport "sse"
+                             :url nil
+                             :title nil
+                             :user-agent nil}
+                  entry {:queue (LinkedBlockingQueue.) :info base-info}]
+              (.put ^ConcurrentHashMap clients id entry)
               (try
                 (.write os (->bytes ": connected\n\n"))
                 (.flush os)
                 (loop []
-                  (let [msg (.poll q 20 TimeUnit/SECONDS)]
+                  (let [msg (.poll ^LinkedBlockingQueue (:queue entry) 20 TimeUnit/SECONDS)]
                     (cond
                       (nil? msg) (do (.write os (->bytes ": ping\n\n")) (.flush os) (recur))
                       (identical? msg ::close) nil
@@ -364,6 +626,80 @@
               (when-let [p (.remove ^ConcurrentHashMap pending id)]
                 (deliver p msg)))
             (respond! ex 200 "application/json" "{\"ok\":true}")))
+        (catch Exception _ (respond! ex 500 "text/plain" "error"))))))
+
+(defn- hello-handler
+  "POST ← a browser tab announces its metadata (url, title, userAgent, transport)
+   right after subscribing. The bridge correlates it to the most-recent SSE client
+   that still carries the placeholder (nil url) info, and stores it so `/clients`
+   can list the connected profiles.
+
+   The engine fires this POST from the EventSource `open` handler, so its SSE
+   entry already exists by the time we get here; if a race leaves none, we
+   no-op rather than mint a duplicate metadata-only entry — the listing stays
+   accurate (placeholder shows the tab), and the next dialog refresh re-reads it."
+  [clients token]
+  (reify HttpHandler
+    (handle [_ ex]
+      (try
+        (cond
+          (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not (authorized? token ex)) (forbidden! ex)
+          (not= "POST" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
+          :else
+          (let [body (slurp (io/reader (.getRequestBody ex)))
+                msg  (try (json/read-json body) (catch Exception _ nil))
+                info {:connected-at (System/currentTimeMillis)
+                      :transport    (or (get msg "transport") "sse")
+                      :url          (get msg "url")
+                      :title        (get msg "title")
+                      :tab-id       (get msg "tabId")
+                      :user-agent   (get msg "userAgent")}
+                ;; Materialize the live entries once, then pick the newest one
+                ;; whose url is still nil (the just-opened SSE stream). We read
+                ;; defensively so a concurrently-closed tab doesn't NPE.
+                infos (into []
+                        (comp (map (fn [id] [id (client-info clients id)]))
+                          (remove (fn [[_ i]] (nil? i))))
+                        (.keySet ^ConcurrentHashMap clients))
+                target-id (->> infos
+                            (sort-by (fn [[_ i]] (:connected-at i)) >)
+                            (some (fn [[id i]] (when (nil? (:url i)) id))))]
+            (when-let [entry (some-> ^ConcurrentHashMap clients (.get target-id))]
+              (.put ^ConcurrentHashMap clients target-id
+                (assoc entry :info (assoc info :id target-id)))
+              ;; Collapse a reloaded tab: its previous SSE thread stays blocked
+              ;; (draining nothing) until its next ping write finally fails, so
+              ;; drop any OTHER entry sharing this tab-id now — /clients lists one
+              ;; row per tab, not one per stale reconnect.
+              (when-let [tid (:tab-id info)]
+                (doseq [id (vec (.keySet ^ConcurrentHashMap clients))]
+                  (when (not= id target-id)
+                    (when-let [i (client-info clients id)]
+                      (when (= tid (:tab-id i))
+                        (when-let [stale (.get ^ConcurrentHashMap clients id)]
+                          (.remove ^ConcurrentHashMap clients id)
+                          (try (.offer ^LinkedBlockingQueue (:queue stale) ::close)
+                               (catch Exception _ nil)))))))))
+            (respond! ex 200 "application/json" "{\"ok\":true}")))
+        (catch Exception _ (respond! ex 500 "text/plain" "error"))))))
+
+(defn- clients-handler
+  "GET → the connected profiles (tabs) currently subscribed to this bridge, as
+   JSON `{clients: [...]}`. Token-gated like every other endpoint so a foreign
+   page in the same browser cannot enumerate the tabs. This is what the connect
+   dialog (`spel.js` `chooseServer`) fetches to render the profiles list."
+  [clients token]
+  (reify HttpHandler
+    (handle [_ ex]
+      (try
+        (cond
+          (cors-preflight? ex) (respond! ex 204 "text/plain" "")
+          (not (authorized? token ex)) (forbidden! ex)
+          (not= "GET" (.getRequestMethod ex)) (respond! ex 405 "text/plain" "method not allowed")
+          :else
+          (respond! ex 200 "application/json"
+            (json/write-json-str {:clients (client-profiles clients)})))
         (catch Exception _ (respond! ex 500 "text/plain" "error"))))))
 
 (defn- static-handler [content-type ^String body]
@@ -404,6 +740,8 @@
      :page   the harness page URL (open it in a browser to auto-connect)
      :host :port :path
      :clients   count of currently-subscribed tabs (deref-able fn)
+     :clients-list  fn returning the connected profiles (maps with :url,
+                :title, :user-agent, :transport, :connected-at) for the dialog
      :send      (fn [command] promise) — pushes a command to every connected
                 tab; the promise is delivered with the first result posted back
      :send!     (fn [command] result | (fn [command timeout-ms] result)) —
@@ -420,9 +758,13 @@
                       ;; Requested port busy — fall back to an ephemeral one.
                                   (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
         ^ScheduledExecutorService scheduler (Executors/newSingleThreadScheduledExecutor)
-        result-path (str path "/result")]
+        result-path (str path "/result")
+        hello-path  (str path "/hello")
+        clients-path (str path "/clients")]
     (.setExecutor server (Executors/newCachedThreadPool))
     (.createContext server result-path (result-handler pending token))
+    (.createContext server clients-path (clients-handler clients token))
+    (.createContext server hello-path (hello-handler clients token))
     (.createContext server path (sse-handler clients token))
     (.createContext server "/spel.js" (static-handler "application/javascript; charset=utf-8" (engine-source)))
     (.createContext server "/spel-sw.js" (static-handler "application/javascript; charset=utf-8" (sw-source)))
@@ -445,8 +787,11 @@
                    (.schedule scheduler
                      ^Runnable (fn [] (.remove ^ConcurrentHashMap pending id))
                      (long 60) TimeUnit/SECONDS)
-                   (doseq [q (vals clients)]
-                     (.offer ^LinkedBlockingQueue q js))
+                   ;; Client entries are now `{:queue :info}` maps (the SSE
+                   ;; handler stores metadata next to the queue), so reach into
+                   ;; each entry's :queue to fan the command out to every tab.
+                   (doseq [entry (vals clients)]
+                     (.offer ^LinkedBlockingQueue (:queue entry) js))
                    p))
           send! (fn send-sync
                   ([command] (send-sync command 10000))
@@ -465,13 +810,14 @@
        :url     base-url
        :page    (str "http://" host ":" actual-port "/")
        :clients (fn [] (.size clients))
+       :clients-list (fn [] (client-profiles clients))
        :send    send
        :send!   send!
        :stop    (fn []
                   ;; Wake every blocked SSE loop so it unwinds cleanly, then
                   ;; release the cleanup thread and the port.
-                  (doseq [q (vals clients)]
-                    (.offer ^LinkedBlockingQueue q ::close))
+                  (doseq [entry (vals clients)]
+                    (.offer ^LinkedBlockingQueue (:queue entry) ::close))
                   (.shutdownNow scheduler)
                   (.stop server 0))})))
 
@@ -479,7 +825,7 @@
   "Starts a bridge and blocks the current thread, printing connection details.
    Used by the `spel bridge` CLI command. Returns never (until interrupted)."
   [& {:keys [host port path token] :or {host "127.0.0.1" port 8787 path "/spel"}}]
-  (let [token       (or token (gen-token))
+  (let [token       (or token (persisted-token!))
         {:keys [url page stop] :as bridge} (create-bridge :host host :port port :path path :token token)
         actual-port (:port bridge)
         connect-url (str url "?t=" token)]
