@@ -7,22 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- feat(report): **pimp the alternative HTML report to the Blockether brand**.
-  Swapped the generic soft blur shadows for the signature hard offset-shadow
-  system (`--shadow` / `--shadow-md` / `--shadow-brand` amber hero block /
-  `--shadow-hard`); the report header now reads as a hero — 2px ink border,
-  6px amber offset shadow, and a 4px amber top-accent bar. Summary chips became
-  branded stat-tiles (mono tabular-nums value stacked over a mono label, colored
-  left-rail per status, hover lift). Test cards gain a hover lift + offset pop.
-  Real responsive behavior: header stacks and summary chips become a 2-col grid
-  under 768px, the toolbar goes full-width/column, env grid collapses to a
-  single column under 560px. Light + dark themes both retuned. 32/32 alt-report
-  tests green.
-
-## [v0.9.9] - 2026-07-08
-
 ### Added
 
 - feat(bridge): **`reveal` overlay — a "what is what" map** (spel.js v0.14.0).
@@ -31,13 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   animation), live-repositioned on scroll/resize via a throttled rAF. Optional
   `selector` scopes it to a subtree; `all` includes non-interesting roles.
   Exposed as `window.__spel.reveal`. Tested on real Chromium (72/72).
-
 - feat(bridge): **overlay + connect modal restyled to the Blockether brand**
   (spel.js v0.13.0) — cream paper (`#faf3eb`), charcoal ink/borders (`#3f3f3f`),
   amber accent (`#ffc420`), Inter/JetBrains-Mono fonts, hard offset shadows and
   sharp corners, matching blockether.com. **All entrance/idle animations removed**
   (breathing glow, blinking masks, pop/fade) — the chrome is now flat and static.
-
 - feat(bridge): **picker copies the picked selector to the clipboard** and shows
   a branded confirmation toast on click (spel.js v0.12.0). Previously clicking an
   element during a pick recorded it silently — nothing landed in the clipboard,
@@ -50,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dark slate gradient onto white/paper backgrounds with dark-ink text, keeping
   the tragedy-green accent (`#2EAD33` / darkened `#249329` for text-on-light) and
   serif wordmark. The highlight box stays green.
-
 - feat(bridge): **branded connect modal** for the Ctrl+Shift+K server chooser
   (spel.js v0.11.0). Replaces the native `prompt()` with a spel-themed dialog
   (slate/tragedy-green palette, serif wordmark, theatrical-mask header, focus
@@ -145,6 +126,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now replaces any prior connection (single live SSE/WS per tab).
 - feat(bridge): if the fixed port is busy, an ephemeral one is chosen instead
   of crashing; the live port + token are published to `~/.spel/bridge-runtime.json`.
+- build(driver): resolve the Playwright driver from the Playwright Java Maven
+  artifacts (`driver` + `driver-bundle`) instead of the deprecated
+  `cdn.playwright.dev` zips (deleted mid-2026), and bump Playwright Java to
+  `1.61.0`. `driver.clj` assembles `package/cli.js` + the platform Node runtime
+  into the cache dir and points `playwright.cli.dir` at it (prefers `~/.m2`,
+  falls back to Maven Central) — unblocks Linux/Windows CI.
+
+### Changed
+
+- feat(report): **pimp the alternative HTML report to the Blockether brand**.
+  Swapped the generic soft blur shadows for the signature hard offset-shadow
+  system (`--shadow` / `--shadow-md` / `--shadow-brand` amber hero block /
+  `--shadow-hard`); the report header now reads as a hero — 2px ink border,
+  6px amber offset shadow, and a 4px amber top-accent bar. Summary chips became
+  branded stat-tiles (mono tabular-nums value stacked over a mono label, colored
+  left-rail per status, hover lift). Test cards gain a hover lift + offset pop.
+  Real responsive behavior: header stacks and summary chips become a 2-col grid
+  under 768px, the toolbar goes full-width/column, env grid collapses to a
+  single column under 560px. Light + dark themes both retuned. 32/32 alt-report
+  tests green.
+- fix(video): `core/video-path` returns `nil` for a non-recording page again
+  (Playwright 1.61 started throwing "Video recording has not been started.");
+  detected structurally via `VideoImpl`'s missing `artifact` field, not the
+  English message.
 
 ## [v0.9.8] - 2026-06-02
 
