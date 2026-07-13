@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- feat(report): **pimp the alternative HTML report to the Blockether brand**.
+  Swapped the generic soft blur shadows for the signature hard offset-shadow
+  system (`--shadow` / `--shadow-md` / `--shadow-brand` amber hero block /
+  `--shadow-hard`); the report header now reads as a hero — 2px ink border,
+  6px amber offset shadow, and a 4px amber top-accent bar. Summary chips became
+  branded stat-tiles (mono tabular-nums value stacked over a mono label, colored
+  left-rail per status, hover lift). Test cards gain a hover lift + offset pop.
+  Real responsive behavior: header stacks and summary chips become a 2-col grid
+  under 768px, the toolbar goes full-width/column, env grid collapses to a
+  single column under 560px. Light + dark themes both retuned. 32/32 alt-report
+  tests green.
+
 ## [v0.9.9] - 2026-07-08
 
 ### Added

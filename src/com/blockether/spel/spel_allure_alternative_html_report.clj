@@ -1151,8 +1151,10 @@
     --accent-yellow: #d97706;
     --accent-red: #dc2626;
     --accent-teal: #0891b2;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+    --shadow: 2px 2px 0 rgba(63, 63, 63, 0.09);
+    --shadow-md: 4px 4px 0 rgba(63, 63, 63, 0.14);
+    --shadow-brand: 6px 6px 0 var(--accent);
+    --shadow-hard: 5px 5px 0 rgba(63, 63, 63, 0.16);
     --radius-lg: 0;
     --radius-md: 0;
     --radius-sm: 0;
@@ -1175,8 +1177,10 @@
     --accent-yellow: #fbbf24;
     --accent-red: #f87171;
     --accent-teal: #22d3ee;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.20), 0 1px 2px rgba(0, 0, 0, 0.16);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.24), 0 2px 4px rgba(0, 0, 0, 0.16);
+    --shadow: 2px 2px 0 rgba(0, 0, 0, 0.38);
+    --shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.46);
+    --shadow-brand: 6px 6px 0 var(--accent);
+    --shadow-hard: 5px 5px 0 rgba(0, 0, 0, 0.5);
   }
   @media (prefers-color-scheme: dark) {
     :root,
@@ -1198,8 +1202,10 @@
       --accent-yellow: #fbbf24;
       --accent-red: #f87171;
       --accent-teal: #22d3ee;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.20), 0 1px 2px rgba(0, 0, 0, 0.16);
-      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.24), 0 2px 4px rgba(0, 0, 0, 0.16);
+      --shadow: 2px 2px 0 rgba(0, 0, 0, 0.38);
+      --shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.46);
+      --shadow-brand: 6px 6px 0 var(--accent);
+      --shadow-hard: 5px 5px 0 rgba(0, 0, 0, 0.5);
     }
     html[data-theme='light'] {
       /* Force light palette even when the OS is dark. Re-assert the light
@@ -1221,8 +1227,10 @@
       --accent-yellow: #d97706;
       --accent-red: #dc2626;
       --accent-teal: #0891b2;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+      --shadow: 2px 2px 0 rgba(63, 63, 63, 0.09);
+      --shadow-md: 4px 4px 0 rgba(63, 63, 63, 0.14);
+      --shadow-brand: 6px 6px 0 var(--accent);
+      --shadow-hard: 5px 5px 0 rgba(63, 63, 63, 0.16);
     }
   }
   *, *::before, *::after { box-sizing: border-box; }
@@ -1233,7 +1241,12 @@
     font-size: 14px;
     line-height: 1.5;
     color: var(--text);
-    background: var(--bg);
+    background:
+      radial-gradient(60rem 40rem at 12% -8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(55rem 38rem at 92% -6%, color-mix(in srgb, var(--accent-teal) 11%, transparent), transparent 58%),
+      var(--bg);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   h1, h2, h3, h4 {
     margin: 0;
@@ -1269,14 +1282,26 @@
        the card edge). */
     padding: 1.25rem 5rem 1.25rem 1.5rem;
     margin-bottom: 1rem;
-    border: 1px solid var(--border);
+    border: 2px solid var(--text);
     border-radius: var(--radius-lg);
-    background: var(--bg-panel);
-    box-shadow: var(--shadow);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+      linear-gradient(300deg, color-mix(in srgb, var(--accent-teal) 8%, transparent), transparent 50%),
+      var(--bg-panel);
+    box-shadow: var(--shadow-brand);
     /* Positioning context for the theme toggle so it sits pinned at
        the card's own top-right corner, INSIDE the header card
        itself — not floating outside the card in the page shell. */
     position: relative;
+  }
+  .report-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--accent);
   }
   .report-header-left {
     display: flex;
@@ -1298,11 +1323,11 @@
     font-size: 0.75rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--text-muted);
-    font-weight: 600;
+    color: var(--text-secondary);
+    font-weight: 700;
   }
   .report-title {
-    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+    font-size: clamp(1.5rem, 3vw, 2.15rem);
     letter-spacing: -0.02em;
     font-weight: 800;
   }
@@ -1369,16 +1394,18 @@
   /* Summary chips */
   .summary-chip {
     display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.65rem;
-    border-radius: var(--radius-sm);
-    background: var(--bg-accent);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    padding: 0.4rem 0.7rem;
     border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong);
+    background: var(--bg-panel-strong);
     color: var(--text);
     white-space: nowrap;
-    font-size: 0.8rem;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
+  .summary-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
   .summary-chip-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
@@ -1387,14 +1414,21 @@
     color: var(--text-muted);
     font-weight: 600;
   }
-  .summary-chip-value { font-weight: 700; }
+  .summary-chip-value { font-weight: 800; font-size: 1.05rem; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; line-height: 1.15; }
   .summary-chip-passed .summary-chip-value { color: var(--accent-green); }
   .summary-chip-failed .summary-chip-value { color: var(--accent-red); }
   .summary-chip-broken .summary-chip-value { color: var(--accent-yellow); }
   .summary-chip-skipped .summary-chip-value { color: var(--text-muted); }
   .summary-chip-total .summary-chip-value,
-  .summary-chip-suites .summary-chip-value { color: var(--accent); }
+  .summary-chip-suites .summary-chip-value { color: var(--text); }
   .summary-chip-duration .summary-chip-value { color: var(--accent-teal); }
+  .summary-chip-passed { border-left-color: var(--accent-green); }
+  .summary-chip-failed { border-left-color: var(--accent-red); }
+  .summary-chip-broken { border-left-color: var(--accent-yellow); }
+  .summary-chip-skipped { border-left-color: var(--text-muted); }
+  .summary-chip-total,
+  .summary-chip-suites,
+  .summary-chip-duration { border-left-color: var(--accent); }
 
   /* Single-test trace hero — oversized Open Trace / Download buttons
      rendered right under the report header so the trace is the first
@@ -1761,9 +1795,9 @@
     background: var(--bg-panel);
     box-shadow: var(--shadow);
     overflow: hidden;
-    transition: box-shadow 0.12s ease;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
   }
-  .test-card:hover { box-shadow: var(--shadow-md); }
+  .test-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .test-card.status-failed { border-left: 3px solid var(--accent-red); }
   .test-card.status-broken { border-left: 3px solid var(--accent-yellow); }
   /* Passed test-cards keep the default neutral border — only failures
@@ -2490,14 +2524,26 @@
   /* Mobile */
   @media (max-width: 768px) {
     .page-shell { padding: 0.5rem 0.5rem 1.5rem; }
-    .report-header { padding: 0.75rem; gap: 0.75rem; }
+    .report-header { padding: 0.85rem 3rem 0.85rem 0.85rem; gap: 0.75rem; }
+    .report-header-left { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .theme-toggle-fixed { top: 0.85rem; right: 0.85rem; }
     .toolbar { padding: 0.5rem; gap: 0.4rem; top: 0; }
     .toolbar-search { max-width: none; min-width: 100px; }
     .suite-section > summary, .test-card > summary { padding: 0.5rem 0.6rem; }
-    .report-meta { justify-content: flex-start; }
+    .report-meta {
+      justify-content: flex-start;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.4rem;
+      width: 100%;
+    }
+    .summary-chip { width: 100%; }
     .test-card-body { padding: 0.4rem 0.5rem 0.5rem; }
     .attachment-pre { padding: 0.5rem; font-size: 0.68rem; }
-    .summary-chip { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    .summary-chip { padding: 0.4rem 0.6rem; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .toolbar-actions { margin-left: 0; width: 100%; }
+    .toolbar-search { flex: 1 1 auto; width: 100%; max-width: none; }
     .test-card > summary {
       flex-wrap: wrap;
       row-gap: 0.25rem;
@@ -2551,6 +2597,12 @@
       font-size: 0.7rem;
     }
     .spel-md .section-hdr { font-size: 0.68rem; padding: 0.35rem 0.5rem; }
+  }
+  @media (max-width: 560px) {
+    .report-meta { grid-template-columns: 1fr 1fr; }
+    .env-grid { grid-template-columns: 1fr; }
+    .report-title { font-size: 1.4rem; }
+    .single-trace-hero { width: 100%; }
   }
   ")
 
