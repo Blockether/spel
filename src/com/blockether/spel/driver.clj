@@ -16,8 +16,8 @@
      <driver-dir>/package/cli.js    # the driver entry point
 
    Source order:
-     1. Local Maven cache (~/.m2/repository or -Dmaven.repo.local)
-     2. Maven Central as fallback
+     1. Clojure tools.deps resolver (local Maven cache first)
+     2. Configured Maven repositories / mirrors / ~/.m2/settings.xml
 
    Cache: ~/.cache/spel/<version>/<platform>/
 
@@ -26,24 +26,38 @@
      2. SPEL_DRIVER_DIR env var — overrides cache location
      3. Default: ~/.cache/spel/<version>/<platform>/"
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as str]
-   [com.blockether.spel.ssl :as ssl])
+   [clojure.tools.deps :as deps])
   (:import
    [java.io InputStream]
-   [java.net HttpURLConnection URL]
    [java.nio.file Files Path Paths StandardCopyOption]
    [java.nio.file.attribute FileAttribute]
-   [java.util.zip ZipInputStream]
-   [javax.net.ssl HttpsURLConnection SSLSocketFactory]))
+   [java.util.zip ZipInputStream]))
 
 ;; =============================================================================
 ;; Constants
 ;; =============================================================================
 
-;; Must match com.microsoft.playwright/playwright version in deps.edn.
-(def ^:private playwright-version "1.61.0")
+(defn- playwright-version
+  "Returns the version of the Playwright Java artifact currently on the classpath.
 
-(def ^:private maven-base "https://repo1.maven.org/maven2/com/microsoft/playwright")
+   The driver and driver-bundle artifacts must be resolved with this exact version;
+   reading Maven metadata from the dependency avoids a second hardcoded version
+   that can drift when deps.edn is updated."
+  []
+  (let [resource "META-INF/maven/com.microsoft.playwright/playwright/pom.properties"]
+    (or (some-> (io/resource resource)
+          slurp
+          (str/split-lines)
+          (->> (some (fn [line]
+                       (when (str/starts-with? line "version=")
+                         (subs line (count "version="))))))
+          str/trim
+          not-empty)
+      (throw (ex-info "Cannot determine Playwright version from classpath metadata"
+               {:resource resource})))))
+
 (def ^:private no-link-opts (into-array java.nio.file.LinkOption []))
 (def ^:private no-file-attrs (into-array FileAttribute []))
 
@@ -87,7 +101,7 @@
     (if override
       (Paths/get override (into-array String []))
       (Paths/get (System/getProperty "user.home")
-        (into-array String [".cache" "spel" playwright-version])))))
+        (into-array String [".cache" "spel" (playwright-version)])))))
 
 (defn- driver-dir
   "Returns the platform-specific driver directory."
@@ -108,64 +122,29 @@
   []
   (driver-ready-at? (driver-dir)))
 
-(defn- maven-local-repo
-  ^Path []
-  (if-let [repo (System/getProperty "maven.repo.local")]
-    (Paths/get repo (into-array String []))
-    (Paths/get (System/getProperty "user.home")
-      (into-array String [".m2" "repository"]))))
+(defn- artifact-lib
+  "Returns the Maven coordinate symbol for a Playwright driver artifact."
+  [^String artifact]
+  (symbol "com.microsoft.playwright" artifact))
 
-(defn- local-artifact-path
+(defn- resolve-artifact-path
+  "Resolves a Playwright Maven artifact through Clojure's dependency resolver.
+
+   This is intentionally not a hand-rolled HTTP GET: tools.deps is the same
+   resolver the `clojure` CLI uses, so local Maven cache, :mvn/repos,
+   corporate mirrors and ~/.m2/settings.xml are honoured. Returns the resolved
+   jar path in the local Maven repository."
   ^Path [^String artifact]
-  (Paths/get (.toString (maven-local-repo))
-    (into-array String ["com" "microsoft" "playwright"
-                        artifact
-                        playwright-version
-                        (str artifact "-" playwright-version ".jar")])))
-
-(defn- artifact-url
-  ^String [^String artifact]
-  (str maven-base "/" artifact "/" playwright-version "/"
-    artifact "-" playwright-version ".jar"))
-
-;; =============================================================================
-;; HTTP fetch
-;; =============================================================================
-
-(defn- open-conn
-  "Opens an HttpURLConnection following redirects, with the project's custom
-   SSL factory attached (corporate proxy certificate support)."
-  ^HttpURLConnection [^String url-str]
-  (let [url  (URL. url-str)
-        conn ^HttpURLConnection (.openConnection url)]
-    (when (instance? HttpsURLConnection conn)
-      (when-let [^SSLSocketFactory sf (ssl/custom-ssl-factory)]
-        (.setSSLSocketFactory ^HttpsURLConnection conn sf)))
-    (.setInstanceFollowRedirects conn true)
-    (.setRequestMethod conn "GET")
-    (.setConnectTimeout conn 30000)
-    (.setReadTimeout conn 120000)
-    conn))
-
-(defn- http-input-stream
-  "Connects and returns the response InputStream, throwing on non-200."
-  ^InputStream [^String url-str]
-  (let [conn (open-conn url-str)]
-    (let [code (.getResponseCode conn)]
-      (when (not= 200 code)
-        (.disconnect conn)
-        (throw (ex-info (str "Failed to download: HTTP " code)
-                 {:url url-str :status code}))))
-    (.getInputStream conn)))
-
-(defn- download-file
-  "Downloads url-str fully into dest."
-  [^String url-str ^Path dest]
-  (Files/createDirectories (.getParent dest) no-file-attrs)
-  (with-open [in (http-input-stream url-str)]
-    (Files/copy in dest
-      ^"[Ljava.nio.file.CopyOption;"
-      (into-array java.nio.file.CopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+  (let [version (playwright-version)
+        lib     (artifact-lib artifact)
+        basis   (deps/create-basis {:project nil
+                                    :extra   {:deps {lib {:mvn/version version}}}})
+        path    (-> basis :libs (get lib) :paths first)]
+    (when-not path
+      (throw (ex-info (str "Could not resolve Playwright artifact " lib " " version
+                        " via Clojure's dependency resolver. Check Maven repositories / mirrors.")
+               {:lib lib :version version})))
+    (Paths/get ^String path (into-array String []))))
 
 ;; =============================================================================
 ;; Extract helpers
@@ -233,22 +212,17 @@
 (defn- materialize-artifact!
   "Copies an official Playwright Maven artifact into tmp-dir.
 
-   Prefers the local Maven cache (~/.m2 or -Dmaven.repo.local) and falls back
-   to Maven Central when the artifact is absent. Returns the copied file path."
+   Resolves through tools.deps instead of hardcoding Maven Central, so corporate
+   mirrors and ~/.m2/settings.xml are honoured. Returns the copied file path."
   ^Path [^String artifact ^Path tmp-dir]
-  (let [dest  (.resolve tmp-dir (str artifact ".jar"))
-        local (local-artifact-path artifact)]
-    (if (Files/exists local no-link-opts)
-      (do
-        (binding [*out* *err*]
-          (println (str "  - " artifact " (local Maven cache: " local ")")))
-        (Files/copy local dest
-          ^"[Ljava.nio.file.CopyOption;"
-          (into-array java.nio.file.CopyOption [StandardCopyOption/REPLACE_EXISTING])))
-      (do
-        (binding [*out* *err*]
-          (println (str "  - " artifact " (" (artifact-url artifact) ")")))
-        (download-file (artifact-url artifact) dest)))
+  (let [dest   (.resolve tmp-dir (str artifact ".jar"))
+        source (resolve-artifact-path artifact)]
+    (binding [*out* *err*]
+      (println (str "  - " artifact " (resolved via tools.deps: " source ")")))
+    (Files/createDirectories (.getParent dest) no-file-attrs)
+    (Files/copy source dest
+      ^"[Ljava.nio.file.CopyOption;"
+      (into-array java.nio.file.CopyOption [StandardCopyOption/REPLACE_EXISTING]))
     dest))
 
 (defn- extract-driver-package!
@@ -279,7 +253,7 @@
                           no-file-attrs)]
       (try
         (binding [*out* *err*]
-          (println (str "spel: assembling Playwright Java driver v" playwright-version
+          (println (str "spel: assembling Playwright Java driver v" (playwright-version)
                      " for " (platform-name) "...")))
         (let [driver-jar (.resolve tmp-dir "driver.jar")
               bundle-jar (.resolve tmp-dir "driver-bundle.jar")]

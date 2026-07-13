@@ -7,7 +7,9 @@
       {"pattern": "clj-kondo.exports/.*"},
       {"pattern": "SPEL_VERSION"},
       {"pattern": "com/blockether/spel/help-registry.edn"},
-      {"pattern": "com/blockether/spel/browser/.*"}
+      {"pattern": "com/blockether/spel/browser/.*"},
+      {"pattern": "clojure/tools/deps/deps.edn"},
+      {"pattern": "org/apache/maven/model/pom-4.0.0.xml"}
     ]
   }
 }
