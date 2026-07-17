@@ -5,6 +5,7 @@
    global flags, and edge cases, plus result rendering for
    bridge-routed scalar responses."
   (:require
+   [clojure.string :as str]
    [com.blockether.spel.cli :as sut]
    [com.blockether.spel.native] ;; for #' access to parse-global-flags
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
@@ -69,6 +70,50 @@
   "Resolves a relative path to absolute (matches cli/resolve-path behavior)."
   ^String [^String path]
   (str (.toAbsolutePath (java.nio.file.Path/of path (into-array String [])))))
+
+;; =============================================================================
+;; iOS application provider
+;; =============================================================================
+
+(defdescribe ios-application-provider-test
+  "iOS app startup flags and SCI-first provider orchestration"
+
+  (it "parses an installed app bundle target"
+    (let [f (flags ["--provider" "ios" "--bundle-id" "com.example.app"
+                    "snapshot"])]
+      (expect (= "ios" (:provider f)))
+      (expect (= "com.example.app" (:bundle-id f)))))
+
+  (it "resolves an app bundle path"
+    (expect (= (abs-path "build/Demo.app")
+              (:app (flags ["--provider=ios" "--app" "build/Demo.app"
+                            "snapshot"])))))
+
+  (it "rejects removed provider-specific command trees"
+    (doseq [args [["context" "list"]
+                  ["app" "activate" "com.example.app"]
+                  ["doctor" "ios"]]]
+      (expect (str/includes? (:error (cmd args)) "Unknown command"))))
+
+  (it "directs iOS device discovery to SCI"
+    (let [result (cmd ["device" "list" "--provider" "ios"])]
+      (expect (str/includes? (:error result) "spel/ios-devices"))))
+
+  (it "does not recognize persistent auto-webview startup"
+    (let [result (sut/parse-args ["--provider" "ios" "--auto-webview" "snapshot"])]
+      (expect (nil? (:auto-webview (:flags result))))
+      (expect (str/includes? (:error (:command result)) "Unknown command"))))
+
+  (it "uses generic click/scroll instead of provider-specific tap/swipe"
+    (expect (= {:action "click" :x 100 :y 200}
+              (cmd ["click" "100" "200"])))
+    (expect (= "scroll" (:action (cmd ["scroll" "down" "400"]))))
+    (expect (str/includes? (:error (cmd ["tap" "100" "200"])) "Unknown command"))
+    (expect (str/includes? (:error (cmd ["swipe" "up"])) "Unknown command")))
+
+  (it "parses keyboard dismissal"
+    (expect (= {:action "keyboard_hide"} (cmd ["keyboard" "hide"])))))
+
 ;; =============================================================================
 ;; Navigation Commands
 ;; =============================================================================

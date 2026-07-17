@@ -140,7 +140,12 @@
 
    Also generates the help registry EDN for `spel/help` in eval-sci mode.
 
+   Runs in the project JVM (`clojure -M`) because the -T tool classpath
+   does not include the project's src/resources paths.
+
    Usage: clojure -T:build gen-docs"
   [_]
-  (requiring-resolve 'com.blockether.spel.gen-docs/-main)
-  ((resolve 'com.blockether.spel.gen-docs/-main)))
+  (let [{:keys [exit]} (b/process {:command-args ["clojure" "-M" "-m" "com.blockether.spel.gen-docs"]})]
+    (when-not (zero? exit)
+      (println "gen-docs FAILED (exit code:" exit ")")
+      (System/exit 1))))

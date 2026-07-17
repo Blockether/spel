@@ -12,7 +12,8 @@
      (resolve-ref page ref-id) ;; returns Locator for the element"
   (:require
    [clojure.string :as str]
-   [com.blockether.spel.page :as page])
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.webdriver :as webdriver])
   (:import
    [com.microsoft.playwright Frame Page]))
 
@@ -633,7 +634,7 @@
     (str "[data-pw-ref=\"" (str/replace s #"^@" "") "\"]")
     s))
 
-(defn- capture-js
+(defn capture-script
   "Returns the capture-snapshot JS with optional flags injected.
 
    When `:scope` is provided, the JS walks from the element matching
@@ -644,7 +645,11 @@
     in kebab-case CSS property names.  The `:styles-detail` option selects
     the tier: 'minimal' (16 props), 'base' (31, default), or 'max' (44).
 
-    Scope can be a CSS selector or a snapshot ref (@e2yrjz)."
+    Scope can be a CSS selector or a snapshot ref (@e2yrjz).
+
+    Backend-neutral: the returned script is a self-executing expression that
+    works through Playwright `page.evaluate` and (wrapped in `return (...)`)
+    through W3C WebDriver execute-script."
   [opts]
   (let [scope-selector (:scope opts)
         with-styles    (:styles opts)
@@ -740,35 +745,27 @@
 ;; Public API
 ;; =============================================================================
 
-(defn capture-snapshot
-  "Captures an accessibility snapshot of the page with numbered refs.
+(defn parse-capture-result
+  "Parses the raw JS capture result into the public snapshot map.
 
-   Injects JavaScript to walk the DOM, compute ARIA roles and names,
-   assign data-pw-ref attributes, and collect bounding boxes.
+   Backend-neutral: `result` is the map returned by the capture script — a
+   java.util.Map from Playwright evaluate or a Clojure map from WebDriver
+   execute-script (both string-keyed).
 
    Params:
-   `page` - Playwright Page instance.
-   `opts` - Map, optional.
-     :scope - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to scope the
-              snapshot to a subtree. When provided, only elements within the
-              matched element are included in the tree and refs.
-              If the selector matches nothing, returns an empty snapshot.
+   `result` - Map with \"tree\", \"refs\", \"counter\" keys.
+   `opts`   - Map, optional:
+     :viewport - Map {:width :height} for the tree header.
+     :device   - String device label for the tree header.
 
    Returns:
-   Map with:
-     :tree     - String. YAML-like accessibility tree with [@eXXXXX] annotations.
-     :raw-tree - The raw nested tree structure from the accessibility snapshot JS.
-     :refs     - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
-     :counter  - Long. Total number of refs assigned."
-  ([^Page page]
-   (capture-snapshot page {}))
-  ([^Page page opts]
-   (let [js       (capture-js opts)
-         result   (page/evaluate page js)
-         raw-tree (get result "tree")
+   Map with :tree, :raw-tree, :refs, :counter, :viewport, :device."
+  ([result] (parse-capture-result result {}))
+  ([result opts]
+   (let [raw-tree (get result "tree")
          raw-refs (get result "refs")
          counter  (get result "counter")
-         vp       (page/viewport-size page)]
+         vp       (:viewport opts)]
      {:tree    (when raw-tree
                  (let [lines  (render-tree raw-tree 0)
                        dev    (:device opts)
@@ -802,6 +799,61 @@
       :counter  (or counter 0)
       :viewport vp
       :device   (:device opts)})))
+
+(defn capture-snapshot
+  "Captures an accessibility snapshot of the page with numbered refs.
+
+   Injects JavaScript to walk the DOM, compute ARIA roles and names,
+   assign data-pw-ref attributes, and collect bounding boxes.
+
+   Params:
+   `page` - Playwright Page instance.
+   `opts` - Map, optional.
+     :scope - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to scope the
+              snapshot to a subtree. When provided, only elements within the
+              matched element are included in the tree and refs.
+              If the selector matches nothing, returns an empty snapshot.
+
+   Returns:
+   Map with:
+     :tree     - String. YAML-like accessibility tree with [@eXXXXX] annotations.
+     :raw-tree - The raw nested tree structure from the accessibility snapshot JS.
+     :refs     - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
+     :counter  - Long. Total number of refs assigned."
+  ([^Page page]
+   (capture-snapshot page {}))
+  ([^Page page opts]
+   (let [js     (capture-script opts)
+         result (page/evaluate page js)
+         vp     (page/viewport-size page)]
+     (parse-capture-result result (assoc opts :viewport vp)))))
+
+(defn capture-webdriver
+  "Captures an accessibility snapshot through a W3C WebDriver session.
+
+   Reuses the same capture script as the Playwright adapter — the WebDriver
+   evaluate wrapper adds the `return (...)` required by execute-script
+   semantics. Viewport is read from the page via JavaScript because
+   WebDriver has no direct viewport API for web content.
+
+   Frames are NOT walked — this is a main-frame-only snapshot (iOS MVP).
+
+   Params:
+   `driver` - com.blockether.spel.webdriver WebDriverSession.
+   `opts`   - Same options as capture-snapshot (:scope, :styles, ...).
+
+   Returns the same map shape as capture-snapshot."
+  ([driver] (capture-webdriver driver {}))
+  ([driver opts]
+   (let [js     (capture-script opts)
+         result (webdriver/evaluate driver js)
+         vp     (try
+                  (let [v (webdriver/evaluate driver
+                            "({width: window.innerWidth, height: window.innerHeight})")]
+                    {:width  (long (or (get v "width") 0))
+                     :height (long (or (get v "height") 0))})
+                  (catch Exception _ nil))]
+     (parse-capture-result result (assoc opts :viewport vp)))))
 
 (defn capture-snapshot-for-frame
   "Captures an accessibility snapshot for a specific frame.
@@ -872,6 +924,14 @@
    Locator instance for the element."
   [^Page page ^String ref-id]
   (page/locator page (str "[data-pw-ref=\"" ref-id "\"]")))
+
+(defn ref-css-selector
+  "Returns the CSS selector for a snapshot ref id.
+
+   Accepts bare (`e2yrjz`) or prefixed (`@e2yrjz`) refs.
+   Backend-neutral — used by both Playwright and WebDriver ref resolution."
+  ^String [^String ref-id]
+  (str "[data-pw-ref=\"" (str/replace ref-id #"^@" "") "\"]"))
 
 (defn clear-refs!
   "Removes all data-pw-ref attributes from the page.

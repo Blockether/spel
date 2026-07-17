@@ -82,6 +82,7 @@ You can! If Claude Code's built-in browser works for you, keep using it. spel of
 | Control a browser from scripts or the terminal | CLI commands + accessibility snapshots for reliable interaction |
 | Run browser tests in CI | Headless mode + Allure reporting + video recording |
 | Automate where CDP is disabled (corporate/managed browsers) | `spel bridge` — embed `spel.js` + drive over a loopback bridge |
+| Automate an iOS app or inspectable WKWebView | `spel --provider ios --bundle-id ...` — Appium/XCUITest on a real Simulator |
 
 ## Rationale
 
@@ -323,6 +324,56 @@ verbs (click/fill/type, snapshot refs, ARIA, checks, in-page fetch/XHR network
 capture) plus an overlay element picker (**Ctrl+Shift+L**). It cannot do what
 needs CDP (real route/mock, cross-origin frames, OS-level tabs/downloads).
 Details: `spel bridge --help`.
+
+**iOS applications and hybrid WKWebViews in a Simulator:**
+
+With `--provider ios`, spel binds Appium/XCUITest to a specific installed app
+(or installs a simulator-built `.app`). Sessions normally remain in
+`NATIVE_APP`, where compact XCTest snapshots provide clickable `@refs`,
+native semantic roles, and Appium selectors:
+
+```bash
+spel --provider ios --bundle-id com.example.app snapshot -i
+spel click @e1a2b3                                # native XCTest ref
+spel click 'accessibility-id=Sign in'             # or id=/role=/xpath=/predicate=
+spel get text @e1a2b3 && spel get attr @e1a2b3 value
+spel wait 'role=button' --timeout 10000
+spel click 200 400 && spel scroll down 400
+```
+
+Use SCI for provider setup, lifecycle operations, and temporary WebView work:
+
+```clojure
+(spel/ios-doctor)
+(spel/ios-devices)
+
+(spel/with-webview-context
+  {:title (spel/title)
+   :url (spel/url)
+   :button-count (spel/count-of "button")
+   :metadata (spel/evaluate "window.checkoutMetadata")})
+
+(spel/with-webview-context
+  {:timeout-ms 15000
+   :context "WEBVIEW_com.example.app"}
+  {:title (spel/title)
+   :metadata (spel/evaluate "window.checkoutMetadata")})
+;; The exact previous context has been restored here.
+```
+
+Body expressions such as `spel/evaluate` and other DOM operations are
+evaluated only after the temporary WebView becomes active. The final body
+value is returned unchanged, and the exact prior context is restored after
+success or failure. WKWebView DOM access requires the app to set
+`isInspectable = true` (iOS 16.4+); native XCTest automation works without it.
+
+Use `--app build/My.app` instead of `--bundle-id` to install a Simulator
+build. Device selection uses `--device`, `--udid`, or `--platform-version`;
+`--appium-url` reuses an external server. SCI exposes application lifecycle,
+installation, deep-link, permission, and keyboard functions. Requires macOS,
+Xcode, and Appium (`npm install -g appium && appium driver install xcuitest`).
+Playwright-only features such as CDP, tracing, network mocking, frames, and
+tabs return explicit capability errors.
 
 ### Clojure Library
 

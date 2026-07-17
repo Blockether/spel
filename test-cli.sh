@@ -30,6 +30,10 @@ ERROR_COUNT=0
 TOTAL_COUNT=0
 START_TIME=$(date +%s)
 
+# Isolate the regression suite from the user's default daemon/session.
+SESSION="cli-test-$$"
+export SPEL_SESSION="$SESSION"
+
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -781,7 +785,7 @@ assert_contains "eval-sci console → message text" "$OUT" "[console.log] spel-c
 section "State Management (9)"
 
 OUT=$("$SPEL" --json state save 2>&1)
-assert_jq_contains "state save → .path" "$OUT" '.path' 'state-default'
+assert_jq_contains "state save → .path" "$OUT" '.path' "state-$SESSION"
 
 STATE_PATH="/tmp/test-cli-state.json"
 TEMP_FILES+=("$STATE_PATH")
@@ -791,7 +795,7 @@ assert_jq_contains "state save path → .path" "$OUT" '.path' 'test-cli-state'
 OUT=$("$SPEL" --json state list 2>&1)
 assert_jq "state list → success" "$OUT" 'has("error") | not'
 
-OUT=$("$SPEL" --json state show state-default.json 2>&1)
+OUT=$("$SPEL" --json state show "state-$SESSION.json" 2>&1)
 assert_jq "state show → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json state clear 2>&1)
@@ -805,7 +809,7 @@ assert_jq_eq "get url after state load → .url" "$OUT" '.url' 'https://example.
 
 # state rename
 "$SPEL" state save >/dev/null 2>&1
-OUT=$("$SPEL" --json state rename state-default.json state-renamed.json 2>&1)
+OUT=$("$SPEL" --json state rename "state-$SESSION.json" state-renamed.json 2>&1)
 assert_jq_eq "state rename → .renamed.to" "$OUT" '.renamed.to' 'state-renamed.json'
 "$SPEL" state clear --all >/dev/null 2>&1
 
@@ -829,7 +833,7 @@ assert_jq "state clean → success" "$OUT" 'has("error") | not'
 section "Sessions (10)"
 
 OUT=$("$SPEL" --json session 2>&1)
-assert_jq_eq "session → .session" "$OUT" '.session' 'default'
+assert_jq_eq "session → .session" "$OUT" '.session' "$SESSION"
 
 OUT=$("$SPEL" --json session list 2>&1)
 assert_jq "session list → success" "$OUT" 'has("error") | not'
@@ -1868,8 +1872,8 @@ assert_jq "snapshot -S (base) positioned element → has top key" "$OUT" \
 section "Flag Persistence (40)"
 
 # Test that flags-file-path is created and contains persisted flags.
-# The daemon is already running from earlier tests with default session.
-# We can verify the flags file exists for the running session.
+# The daemon is already running from earlier tests in the isolated session.
+# We can verify the flags file exists for that running session.
 FLAGS_FILE="${TMPDIR:-/tmp}/spel-${SESSION}.flags.json"
 if [ -f "$FLAGS_FILE" ]; then
   TOTAL_COUNT=$((TOTAL_COUNT + 1)); pass "flags file exists for running session"
@@ -2046,6 +2050,89 @@ assert_contains "eject-extension -> manifest.json present" "$EXT_LS" "manifest.j
 assert_contains "eject-extension -> engine.js present" "$EXT_LS" "engine.js"
 assert_contains "eject-extension -> content.js present" "$EXT_LS" "content.js"
 assert_contains "manifest.json -> is Manifest V3" "$(cat "$EXT_DIR/manifest.json" 2>/dev/null)" "manifest_version"
+
+# =============================================================================
+# IOS PROVIDER (30)
+# =============================================================================
+section "iOS Provider (30)"
+
+# Help coverage for every new command — works on all platforms (no Xcode,
+# simulator, or Appium needed). Behavior tests requiring macOS/Xcode/Appium
+# are covered by the opt-in ios_e2e_test.clj suite.
+
+OUT=$("$SPEL" click --help 2>&1)
+assert_contains "click --help mentions native refs" "$OUT" "Native snapshot @refs"
+assert_contains "click --help shows coordinate form" "$OUT" "spel click <x> <y>"
+assert_contains "click --help documents accessibility ids" "$OUT" "accessibility-id="
+
+OUT=$("$SPEL" scroll --help 2>&1)
+assert_contains "scroll --help mentions native touch" "$OUT" "native touch gesture"
+assert_contains "scroll --help preserves content direction" "$OUT" "scroll down"
+
+OUT=$("$SPEL" device --help 2>&1)
+assert_contains "device --help describes Playwright presets" "$OUT" "Playwright device emulation presets"
+assert_contains "device --help points iOS discovery to SCI" "$OUT" "spel/ios-devices"
+
+OUT=$("$SPEL" doctor --help 2>&1 || true)
+assert_contains "removed doctor command is rejected" "$OUT" "Unknown command"
+
+OUT=$("$SPEL" context --help 2>&1 || true)
+assert_contains "removed context command is rejected" "$OUT" "Unknown command"
+
+OUT=$("$SPEL" app --help 2>&1 || true)
+assert_contains "removed app command is rejected" "$OUT" "Unknown command"
+
+# Global help documents the iOS provider flags and commands
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help mentions --provider ios" "$OUT" "--provider ios"
+assert_contains "help mentions --bundle-id" "$OUT" "--bundle-id"
+assert_contains "help mentions --app" "$OUT" "--app <path>"
+assert_contains "help mentions --udid" "$OUT" "--udid"
+assert_contains "help mentions --shutdown-simulator" "$OUT" "--shutdown-simulator"
+assert_contains "help points orchestration to SCI" "$OUT" "Scoped WebView/app/device operations"
+assert_contains "help mentions native click" "$OUT" "click <ref|selector|x y>"
+assert_contains "help mentions native scroll" "$OUT" "scroll <dir>"
+
+# Argument validation errors (no daemon/provider needed)
+
+OUT=$("$SPEL" device bogus 2>&1 || true)
+assert_contains "device bogus -> usage error" "$OUT" "Unknown device command"
+
+OUT=$("$SPEL" doctor ios 2>&1 || true)
+assert_contains "doctor ios removed -> unknown command" "$OUT" "Unknown command"
+
+OUT=$("$SPEL" context use webview 2>&1 || true)
+assert_contains "context use removed -> unknown command" "$OUT" "Unknown command"
+
+OUT=$("$SPEL" app launch 2>&1 || true)
+assert_contains "app launch removed -> unknown command" "$OUT" "Unknown command"
+
+OUT=$("$SPEL" device list --provider ios 2>&1 || true)
+assert_contains "iOS device list points to SCI" "$OUT" "spel/ios-devices"
+
+# device list (default provider) — lists Playwright emulation presets via daemon.
+# NOTE: --json prints the DATA PAYLOAD top-level on success, and
+# {"error", "error_code", ...} on failure — no .success/.data envelope.
+OUT=$("$SPEL" --session "$SESSION" device list --json 2>&1)
+assert_jq_eq "device list -> playwright provider" "$OUT" '.provider' 'playwright'
+assert_jq "device list -> has devices" "$OUT" '.count > 0'
+assert_jq "device list -> devices is an array" "$OUT" '.devices | type == "array"'
+# Preset names are lowercase ("iphone 15", ...) — compare case-insensitively.
+assert_jq_contains "device list -> contains iPhone preset" "$OUT" '.devices | join(",") | ascii_downcase' 'iphone'
+
+# --allowed-domains + iOS provider must be rejected by the daemon on EVERY
+# command (checked BEFORE the flags merge), so no simulator/Appium/Xcode is
+# needed — the rejection fires before any iOS tooling is touched.
+IOS_AD_SESSION="ios-ad-$$"
+OUT=$(timeout 30 "$SPEL" --session "$IOS_AD_SESSION" --json --provider ios --allowed-domains "example.com" open https://example.com 2>&1 || true)
+assert_jq_eq "iOS + --allowed-domains -> unsupported_capability" "$OUT" '.error_code' 'unsupported_capability'
+assert_contains "iOS + --allowed-domains error names the flag" "$OUT" "allowed-domains"
+timeout 10 "$SPEL" --session "$IOS_AD_SESSION" close >/dev/null 2>&1 || true
+
+# cookies help documents the iOS read-only surface
+OUT=$("$SPEL" cookies --help 2>&1)
+assert_contains "cookies --help notes iOS read-only" "$OUT" "read-only"
+assert_contains "cookies --help suggests eval-js for iOS set" "$OUT" "document.cookie"
 
 # SUMMARY
 # =============================================================================

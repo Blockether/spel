@@ -117,6 +117,56 @@
         (expect (true? (get-in response ["data" "closed"])))
         (expect (true? (get-in response ["data" "shutdown"])))))))
 
+(defdescribe ios-flag-rejection-test
+  "Unit tests for the per-command iOS --allowed-domains rejection. It must
+   fire on EVERY command — including against an already-running iOS backend
+   — and must never merge the rejected flag into launch-flags."
+
+  (describe "provider=ios + allowed-domains in the same command"
+    (it "rejects with unsupported_capability before the flag merge"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:launch-flags {} :session "ios-flags-test"
+                            :refs {} :counter 0})
+        (let [response (json/read-json
+                         (#'sut/process-command
+                          (json/write-json-str
+                            {"action" "url"
+                             "_flags" {"provider" "ios"
+                                       "allowed-domains" "example.com"}})))]
+          (expect (false? (get response "success")))
+          (expect (= "unsupported_capability" (get response "error_code")))
+          (expect (str/includes? (get response "error") "allowed-domains"))
+          ;; The rejected flag must NOT poison the persisted launch flags.
+          (expect (nil? (get-in @state-atom [:launch-flags "allowed-domains"])))))))
+
+  (describe "allowed-domains against a running iOS session"
+    (it "rejects even when the backend already exists (startup check bypassed)"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:launch-flags {"provider" "ios"}
+                            :session "ios-flags-test2"
+                            :refs {} :counter 0
+                            :backend :fake-running-backend})
+        (let [response (json/read-json
+                         (#'sut/process-command
+                          (json/write-json-str
+                            {"action" "navigate"
+                             "url" "https://example.com"
+                             "_flags" {"allowed-domains" "example.com"}})))]
+          (expect (false? (get response "success")))
+          (expect (= "unsupported_capability" (get response "error_code")))))))
+
+  (describe "Playwright provider is unaffected"
+    (it "allowed-domains with the default provider is not rejected here"
+      (let [state-atom (deref #'sut/!state)]
+        (reset! state-atom {:launch-flags {} :session "ios-flags-test3"
+                            :refs {} :counter 0})
+        (let [response (json/read-json
+                         (#'sut/process-command
+                          (json/write-json-str
+                            {"action" "device_list"
+                             "_flags" {"allowed-domains" "example.com"}})))]
+          (expect (true? (get response "success"))))))))
+
 (defdescribe cdp-lifecycle-command-test
   "Unit tests for cdp_disconnect/cdp_reconnect command handling"
 

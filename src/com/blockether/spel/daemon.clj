@@ -16,7 +16,9 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.action-log :as action-log]
    [com.blockether.spel.annotate :as annotate]
+   [com.blockether.spel.backend :as backend]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.ios :as ios]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.input :as input]
@@ -1313,7 +1315,7 @@
   #{"navigate" "click" "fill" "type" "press" "hover" "check" "uncheck"
     "select" "dblclick" "focus" "clear" "screenshot" "scroll"
     "survey" "routes" "inspect" "overview" "debug" "emulate" "markdownify"
-    "back" "forward" "reload" "drag_to" "tap" "set_input_files"})
+    "back" "forward" "reload" "drag_to" "tap" "swipe" "set_input_files"})
 
 (defn- track-action!
   "Records a user-facing command in the action log with timestamp and page context.
@@ -3665,25 +3667,47 @@
         tab-count (try (when context (count (.pages ^com.microsoft.playwright.BrowserContext context)))
                        (catch Exception _ nil))
         cookies-count (try (when context (count (.cookies ^com.microsoft.playwright.BrowserContext context)))
-                           (catch Exception _ nil))]
-    {:session        (:session state)
-     :browser        (get launch-flags "browser" "chromium")
-     :channel        (get launch-flags "channel")
-     :headless       (:headless state)
-     :persist        (persist-enabled?)
-     :tracing        (boolean (:tracing? state))
-     :har_recording  (boolean (:har-recording? state))
-     :har_path       (:har-path state)
-     :cdp_url        (get launch-flags "cdp")
-     :cdp_connected  (boolean (:cdp-connected state))
-     :device         (:device state)
-     :url            (try (when page (page/url page)) (catch Exception _ nil))
-     :title          (try (when page (page/title page)) (catch Exception _ nil))
-     :viewport       viewport
-     :tab_count      tab-count
-     :cookies_count  cookies-count
-     :refs_count     (:counter state)
-     :socket         (try (.toString (socket-path (:session state))) (catch Exception _ nil))}))
+                           (catch Exception _ nil))
+        ios? (= "ios" (get launch-flags "provider"))
+        ios-sess (:ios-session state)]
+    (if ios?
+      {:session     (:session state)
+       :provider    "ios"
+       :backend     "webdriver"
+       :application (or (:bundle-id ios-sess) (:app ios-sess))
+       :context     (when ios-sess
+                      (try (ios/current-context ios-sess) (catch Exception _ nil)))
+       :device      (when-let [d (:ios-device state)]
+                      {:name (:name d)
+                       :udid (:udid d)
+                       :platform_version (:platform-version d)})
+       :appium_url  (:appium-url ios-sess)
+       :started     (some? (:backend state))
+       :url         (when (:backend state)
+                      (try (backend/current-url (:backend state)) (catch Exception _ nil)))
+       :title       (when (:backend state)
+                      (try (backend/page-title (:backend state)) (catch Exception _ nil)))
+       :refs_count  (:counter state)
+       :socket      (try (.toString (socket-path (:session state))) (catch Exception _ nil))}
+      {:session        (:session state)
+       :provider       "playwright"
+       :browser        (get launch-flags "browser" "chromium")
+       :channel        (get launch-flags "channel")
+       :headless       (:headless state)
+       :persist        (persist-enabled?)
+       :tracing        (boolean (:tracing? state))
+       :har_recording  (boolean (:har-recording? state))
+       :har_path       (:har-path state)
+       :cdp_url        (get launch-flags "cdp")
+       :cdp_connected  (boolean (:cdp-connected state))
+       :device         (:device state)
+       :url            (try (when page (page/url page)) (catch Exception _ nil))
+       :title          (try (when page (page/title page)) (catch Exception _ nil))
+       :viewport       viewport
+       :tab_count      tab-count
+       :cookies_count  cookies-count
+       :refs_count     (:counter state)
+       :socket         (try (.toString (socket-path (:session state))) (catch Exception _ nil))})))
 
 ;; --- CDP idle timeout scheduling ---
 
@@ -4004,7 +4028,10 @@
     :context @sci-env/!context))
 
 (defmethod handle-cmd "sci_eval" [_ params]
-  (ensure-browser!)
+  ;; iOS dispatch initializes its Appium backend before entering this shared
+  ;; handler. Never launch Playwright alongside it.
+  (when-not (= "ios" (get-in @!state [:launch-flags "provider"]))
+    (ensure-browser!))
   (sync-state-to-sci!)
   (let [code (get params "code")
         args-vec (when-let [args (get params "args")]
@@ -4085,6 +4112,497 @@
   {:error (str "Unknown action: " action)})
 
 ;; =============================================================================
+;; iOS application provider (Appium/XCUITest in an iOS Simulator)
+;; =============================================================================
+
+(defn- ios-provider?
+  "Returns true when the session's persisted launch flags select the iOS
+   provider."
+  []
+  (= "ios" (get-in @!state [:launch-flags "provider"])))
+
+(defn- stop-ios-backend!
+  "Idempotent iOS cleanup. Releases only session-owned resources (WebDriver
+   session, spel-started Appium, simulator lock; simulator shutdown only when
+   requested AND spel booted it). Safe from both `close` and shutdown hooks."
+  []
+  (when-let [ios-sess (:ios-session @!state)]
+    (let [flags (get @!state :launch-flags {})]
+      (try
+        (ios/stop! ios-sess {:shutdown-simulator? (boolean (get flags "shutdown-simulator"))})
+        (catch Exception e (warn "stop-ios" e))))
+    (swap! !state assoc :ios-session nil :backend nil)
+    (reset! sci-env/!backend nil)
+    (reset! sci-env/!ios-session nil)))
+
+(defonce ^:private !ios-start-lock
+  ;; Serializes iOS backend startup. Client connections are handled
+  ;; concurrently, and a cold start takes 40s+ — a retried `open` arriving
+  ;; mid-start MUST wait for the in-flight start and reuse its backend.
+  ;; Without this, the duplicate start spawns a second WDA/xcodebuild for
+  ;; the same UDID, which SIGTERMs the first one and severs the remote
+  ;; debugger of the session that was about to succeed.
+  (Object.))
+
+(declare ensure-ios-backend!*)
+
+(defn- ensure-ios-backend!
+  "Lazily starts the iOS application backend from persisted launch flags.
+
+   Validates iOS-only constraints, selects and locks the simulator, boots it
+   when needed, starts/connects Appium, and creates the XCUITest WebDriver
+   session. Startup is serialized and idempotent — concurrent callers block
+   and then reuse the backend started by the winner. Playwright is NEVER
+   initialized on this path."
+  []
+  (locking !ios-start-lock
+    (ensure-ios-backend!*)))
+
+(defn- ensure-ios-backend!*
+  "Unsynchronized body of `ensure-ios-backend!` — only call under
+   `!ios-start-lock`."
+  []
+  (when-not (:backend @!state)
+    (let [flags (get @!state :launch-flags {})]
+      ;; --allowed-domains containment cannot be guaranteed for an app's
+      ;; native networking or before webview scripts run — reject both forms.
+      (when (or (get flags "allowed-domains")
+              (not (str/blank? (System/getenv "SPEL_ALLOWED_DOMAINS"))))
+        (throw (ex-info (str "--allowed-domains / SPEL_ALLOWED_DOMAINS are not supported "
+                          "by the iOS provider: equivalent containment cannot be "
+                          "guaranteed for native app traffic or before webview scripts run. "
+                          "Remove the flag and unset the env var to continue.")
+                 {:error_code "unsupported_capability"
+                  :backend    "ios"})))
+      (let [ios-sess (ios/start! {:session          (:session @!state)
+                                  :device           (get flags "device")
+                                  :udid             (get flags "udid")
+                                  :platform-version (get flags "platform-version")
+                                  :bundle-id        (get flags "bundle-id")
+                                  :app              (get flags "app")
+                                  :appium-url       (get flags "appium-url")})
+            b        (backend/ios-backend ios-sess)]
+        (swap! !state assoc
+          :backend b
+          :ios-session ios-sess
+          :provider "ios"
+          :ios-device (select-keys (:device ios-sess) [:name :udid :platform-version]))
+        ;; Keep sci-env in sync so sci_eval scripts dispatch through the
+        ;; same backend instead of failing on missing Playwright atoms.
+        (reset! sci-env/!backend b)
+        (reset! sci-env/!ios-session ios-sess)))))
+
+(defn- ios-backend
+  "Returns the active iOS backend, starting it lazily."
+  []
+  (ensure-ios-backend!)
+  (:backend @!state))
+
+(defn- ios-snapshot-after-action!
+  "Captures a snapshot through the iOS backend and stores refs in state.
+   Returns the tree string (or nil when capture fails)."
+  [b]
+  (try
+    (let [snap (backend/capture-snapshot! b {})]
+      (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+      (:tree snap))
+    (catch Exception e
+      (warn "ios-snapshot" e)
+      nil)))
+
+(defn- ios-check-ref!
+  "For @refs, verifies the ref exists in the current snapshot ref map,
+   refreshing once before failing with a stale-ref error."
+  [b ^String selector]
+  (when (ref? selector)
+    (let [ref-id (str/replace selector #"^@" "")]
+      (when-not (get (:refs @!state) ref-id)
+        (ios-snapshot-after-action! b)
+        (when-not (get (:refs @!state) ref-id)
+          (throw (ex-info (str "Ref " ref-id " not found.\n"
+                            "  - Element found: No\n"
+                            "  - Suggestion: run 'snapshot -i' and retry.")
+                   {:selector selector :found false :stale-ref true})))))))
+
+(defmulti ^:private handle-ios-cmd
+  "Command dispatch for the iOS application backend. Only backend-neutral
+   commands supported by WebDriver have methods; everything else returns an
+   explicit capability error via :default."
+  (fn [action _params] action))
+
+(defmethod handle-ios-cmd :default [action _]
+  {:success false
+   :error (str "'" action "' is not supported by the ios backend. "
+            "Supported: navigate, snapshot, click, fill, clear, evaluate, "
+            "screenshot, url, title, content, back, forward, reload, wait, "
+            "cookies (read-only), scroll, press, keyboard, element queries, "
+            "device_list, session_info, close. "
+            "Use the default Playwright provider for advanced features "
+            "(network, tracing, tabs, frames, emulation).")
+   :error_code "unsupported_capability"
+   :backend "ios"})
+
+(defmethod handle-ios-cmd "navigate" [_ {:strs [url raw-input]}]
+  (let [b (ios-backend)]
+    (page/validate-url url (or raw-input url))
+    (backend/navigate! b url {})
+    (ios-snapshot-after-action! b)
+    {:url      (backend/current-url b)
+     :title    (try (backend/page-title b) (catch Exception _ nil))
+     :provider "ios"}))
+
+(defmethod handle-ios-cmd "snapshot" [_ params]
+  (let [b       (ios-backend)
+        all?    (get params "all")
+        snap    (backend/capture-snapshot! b (cond-> {}
+                                               (get params "selector")
+                                               (assoc :scope (get params "selector"))))
+        _       (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+        tree    (filter-snapshot-tree (:tree snap) params)
+        context (ios/current-context (:ios-session @!state))]
+    (cond-> {:snapshot tree
+             :refs_count (:counter snap)
+             :refs (build-structured-refs (:refs snap))
+             :context context}
+      (not (:native snap))
+      (assoc :url (backend/current-url b)
+        :title (try (backend/page-title b) (catch Exception _ nil)))
+      (:native snap)
+      (assoc :warning (str "Native XCTest semantic hierarchy. Use @refs or "
+                        "accessibility-id=, id=, role=, xpath=, class-chain=, "
+                        "and predicate= selectors."))
+      (:viewport snap) (assoc :viewport (:viewport snap))
+      ;; Frames are out of scope — a full/frame snapshot degrades explicitly.
+      all? (assoc :warning "Frame snapshots are not supported by the ios backend; returning the active context only."))))
+
+(defmethod handle-ios-cmd "click" [_ {:strs [selector x y]}]
+  (let [b (ios-backend)]
+    (if (and x y)
+      (do
+        (backend/tap! b [(long x) (long y)] {})
+        (ios-snapshot-after-action! b)
+        {:clicked [(long x) (long y)]})
+      (do
+        (when (str/blank? (str selector))
+          (throw (ex-info "click requires a selector, @ref, or x y coordinates" {})))
+        (ios-check-ref! b selector)
+        (backend/click! b selector {})
+        (ios-snapshot-after-action! b)
+        {:clicked selector}))))
+
+(defmethod handle-ios-cmd "fill" [_ {:strs [selector value]}]
+  (let [b (ios-backend)]
+    (ios-check-ref! b selector)
+    (backend/fill! b selector value {})
+    (ios-snapshot-after-action! b)
+    {:filled selector}))
+
+(defmethod handle-ios-cmd "type" [_ {:strs [selector text]}]
+  (let [b (ios-backend)]
+    (ios-check-ref! b selector)
+    (ios/type-element! (:ios-session @!state) selector text)
+    (ios-snapshot-after-action! b)
+    {:typed selector}))
+
+(defmethod handle-ios-cmd "clear" [_ {:strs [selector]}]
+  (let [b (ios-backend)]
+    (ios-check-ref! b selector)
+    (backend/clear! b selector {})
+    {:cleared selector}))
+
+(defmethod handle-ios-cmd "evaluate" [_ {:strs [script base64]}]
+  (let [b      (ios-backend)
+        result (backend/evaluate! b script [])]
+    (if base64
+      {:result (.encodeToString (Base64/getEncoder)
+                 (.getBytes (str result) "UTF-8"))}
+      {:result result})))
+
+(defmethod handle-ios-cmd "screenshot" [_ params]
+  (when (get params "annotate")
+    (throw (ex-info (str "Annotated screenshots are not supported by the ios "
+                      "backend yet. Take a plain screenshot instead.")
+             {:error_code "unsupported_capability" :backend "ios"})))
+  (let [b        (ios-backend)
+        ^bytes bs (backend/screenshot! b {})
+        path-str (or (get params "path")
+                   (str (System/getProperty "java.io.tmpdir")
+                     java.io.File/separator
+                     "spel-screenshot-" (System/currentTimeMillis) ".png"))
+        out-path (Path/of ^String path-str (into-array String []))]
+    (when-let [parent (.getParent out-path)]
+      (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
+    (Files/write out-path bs
+      ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+    {:path path-str :size (alength bs)}))
+
+(defmethod handle-ios-cmd "url" [_ _]
+  {:url (backend/current-url (ios-backend))})
+
+(defmethod handle-ios-cmd "title" [_ _]
+  {:title (backend/page-title (ios-backend))})
+
+(defmethod handle-ios-cmd "content" [_ _]
+  {:content (backend/page-content (ios-backend))})
+
+(defmethod handle-ios-cmd "get_text" [_ {:strs [selector]}]
+  (ios-backend)
+  {:text (ios/element-text (:ios-session @!state) selector)})
+
+(defmethod handle-ios-cmd "get_attribute" [_ {:strs [selector attribute]}]
+  (ios-backend)
+  {:value (ios/element-attribute (:ios-session @!state) selector attribute)})
+
+(defmethod handle-ios-cmd "get_value" [_ {:strs [selector]}]
+  (ios-backend)
+  {:value (ios/element-attribute (:ios-session @!state) selector "value")})
+
+(defmethod handle-ios-cmd "get_count" [_ {:strs [selector]}]
+  (ios-backend)
+  {:count (ios/element-count (:ios-session @!state) selector)})
+
+(defmethod handle-ios-cmd "count" [_ params]
+  (handle-ios-cmd "get_count" params))
+
+(defmethod handle-ios-cmd "get_box" [_ {:strs [selector]}]
+  (ios-backend)
+  {:box (ios/element-rect (:ios-session @!state) selector)})
+
+(defmethod handle-ios-cmd "bounding_box" [_ params]
+  (handle-ios-cmd "get_box" params))
+
+(defmethod handle-ios-cmd "is_visible" [_ {:strs [selector]}]
+  (ios-backend)
+  {:visible (:visible (ios/element-state (:ios-session @!state) selector))})
+
+(defmethod handle-ios-cmd "is_enabled" [_ {:strs [selector]}]
+  (ios-backend)
+  {:enabled (:enabled (ios/element-state (:ios-session @!state) selector))})
+
+(defmethod handle-ios-cmd "is_checked" [_ {:strs [selector]}]
+  (ios-backend)
+  {:checked (:selected (ios/element-state (:ios-session @!state) selector))})
+
+(defmethod handle-ios-cmd "back" [_ _]
+  (let [b (ios-backend)]
+    (backend/go-back! b)
+    (ios-snapshot-after-action! b)
+    {:url (backend/current-url b)}))
+
+(defmethod handle-ios-cmd "forward" [_ _]
+  (let [b (ios-backend)]
+    (backend/go-forward! b)
+    (ios-snapshot-after-action! b)
+    {:url (backend/current-url b)}))
+
+(defmethod handle-ios-cmd "reload" [_ _]
+  (let [b (ios-backend)]
+    (backend/reload! b)
+    (ios-snapshot-after-action! b)
+    {:url (backend/current-url b)}))
+
+(defmethod handle-ios-cmd "cookies_get" [_ {:strs [urls]}]
+  ;; Cookie READ is part of the iOS supported surface (W3C GET /cookie).
+  (let [b (ios-backend)]
+    (cond-> {:cookies (backend/cookies b)}
+      urls (assoc :warning (str "URL filtering is not supported by the "
+                             "ios backend; returning all cookies "
+                             "for the current page.")))))
+
+(defmethod handle-ios-cmd "cookies_set" [_ _]
+  {:success false
+   :error (str "'cookies set' is not supported by the ios backend — "
+            "the WebDriver webview context exposes read-only cookie access. "
+            "Set non-HttpOnly cookies with eval-js "
+            "(document.cookie = \"name=value\") or use the default "
+            "Playwright provider.")
+   :error_code "unsupported_capability"
+   :backend "ios"})
+
+(defmethod handle-ios-cmd "cookies_clear" [_ _]
+  {:success false
+   :error (str "'cookies clear' is not supported by the ios backend — "
+            "the WebDriver webview context exposes read-only cookie access. "
+            "Use the default Playwright provider to clear cookies.")
+   :error_code "unsupported_capability"
+   :backend "ios"})
+
+(defn- ios-poll-until
+  "Polls `pred` every 250ms until it returns truthy or `timeout-ms` expires.
+   Returns true on success, throws ex-info on timeout."
+  [pred timeout-ms desc]
+  (let [deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+    (loop []
+      (cond
+        (try (pred) (catch Exception _ false)) true
+        (> (System/currentTimeMillis) deadline)
+        (throw (ex-info (str "Timed out after " timeout-ms "ms waiting for " desc) {}))
+        :else (do (Thread/sleep 250) (recur))))))
+
+(defmethod handle-ios-cmd "wait" [_ params]
+  (let [b          (ios-backend)
+        timeout-ms (long (or (get params "timeout-ms") 30000))]
+    (cond
+      (get params "selector")
+      (let [sel (get params "selector")]
+        (if (ios/native-context? (:ios-session @!state))
+          (ios/wait-for-element (:ios-session @!state) sel {:timeout-ms timeout-ms})
+          (let [css (backend/resolve-css sel)
+                js  (str "!!document.querySelector(" (json/write-json-str css) ")")]
+            (ios-poll-until #(true? (backend/evaluate! b js [])) timeout-ms
+              (str "selector " sel))))
+        {:found sel})
+
+      (get params "text")
+      (let [text (get params "text")
+            js   (str "(document.body ? document.body.innerText : '').includes("
+                   (json/write-json-str text) ")")]
+        (ios-poll-until #(true? (backend/evaluate! b js [])) timeout-ms
+          (str "text " (pr-str text)))
+        {:found_text text})
+
+      (get params "url")
+      (let [expected (get params "url")]
+        (ios-poll-until #(str/includes? (str (backend/current-url b)) expected)
+          timeout-ms (str "url containing " expected))
+        {:url expected})
+
+      (get params "function")
+      (do
+        (ios-poll-until #(let [r (backend/evaluate! b (get params "function") [])]
+                           (and r (not (false? r))))
+          timeout-ms "JavaScript condition")
+        {:function_completed true})
+
+      (get params "timeout")
+      (do (Thread/sleep (long (get params "timeout")))
+          {:waited (get params "timeout")})
+
+      :else
+      {:error "No wait condition specified"})))
+
+(defmethod handle-ios-cmd "press" [_ {:strs [selector key]}]
+  (ios-backend)
+  (when (str/blank? key) (throw (ex-info "press requires a key" {})))
+  (if selector
+    (ios/press-key! (:ios-session @!state) selector key)
+    (ios/press-key! (:ios-session @!state) key))
+  {:pressed key})
+
+(defmethod handle-ios-cmd "keyboard_type" [_ {:strs [text]}]
+  (ios-backend)
+  {:typed (ios/type-keys! (:ios-session @!state) text)})
+
+(defmethod handle-ios-cmd "keyboard_inserttext" [_ {:strs [text]}]
+  (handle-ios-cmd "keyboard_type" {"text" text}))
+
+(defmethod handle-ios-cmd "keyboard_hide" [_ _]
+  (ios-backend)
+  (ios/hide-keyboard! (:ios-session @!state))
+  {:hidden true})
+
+(defmethod handle-ios-cmd "scroll" [_ {:strs [direction amount selector smooth]}]
+  (let [b         (ios-backend)
+        direction (keyword (or direction "down"))
+        result    (ios/scroll (:ios-session @!state) direction (long (or amount 500))
+                    {:selector selector :smooth? (boolean smooth)})]
+    (ios-snapshot-after-action! b)
+    {:scrolled (name direction) :from (:from result) :to (:to result)}))
+
+(defmethod handle-ios-cmd "tap" [_ {:strs [selector x y]}]
+  (let [b (ios-backend)]
+    (if (and x y)
+      (do (backend/tap! b [(long x) (long y)] {})
+          (ios-snapshot-after-action! b)
+          {:tapped [(long x) (long y)]})
+      (do
+        (when (str/blank? (str selector))
+          (throw (ex-info "tap requires a selector/@ref or x y coordinates" {})))
+        (ios-check-ref! b selector)
+        (let [result (backend/tap! b selector {})]
+          (ios-snapshot-after-action! b)
+          {:tapped selector :x (:x result) :y (:y result)})))))
+
+(defmethod handle-ios-cmd "swipe" [_ {:strs [direction distance from to duration]}]
+  (let [b    (ios-backend)
+        opts (cond-> {}
+               direction (assoc :direction (keyword direction))
+               distance  (assoc :distance (long distance))
+               from      (assoc :from (mapv long from))
+               to        (assoc :to (mapv long to))
+               duration  (assoc :duration (long duration)))
+        result (backend/swipe! b opts)]
+    (ios-snapshot-after-action! b)
+    {:swiped (or direction "coordinates")
+     :from (:from result)
+     :to (:to result)}))
+
+(defmethod handle-ios-cmd "session_info" [_ params]
+  ;; Delegate to the main session_info handler — it is backend-aware.
+  (handle-cmd "session_info" params))
+
+(defmethod handle-ios-cmd "close" [_ params]
+  (handle-cmd "close" params))
+
+(def ^:private ios-passthrough-actions
+  "Actions that bypass iOS dispatch and run their normal handlers even when
+   the iOS provider is active: session management, diagnostics, local buffer
+   reads, and SCI eval (sci-env is backend-aware)."
+  #{"session_list" "device_list" "find_free_port"
+    "action_log" "action_log_srt" "action_log_clear"
+    "sci_eval"})
+
+(defn- with-ios-request-lock
+  "Runs an iOS daemon request under the session operation lock when the
+   session has already been started. The lock is reentrant, so scoped SCI
+   callbacks and backend operations can safely acquire it again."
+  [callback]
+  (if-let [session (:ios-session @!state)]
+    (ios/with-operation session callback)
+    (callback)))
+
+(defn- dispatch-cmd
+  "Routes a command to the iOS dispatch table when the iOS provider is
+   active, otherwise to the regular Playwright handlers."
+  [action params]
+  (if (ios-provider?)
+    (if (contains? ios-passthrough-actions action)
+      (do
+        ;; SCI provider functions need the same lazily-created iOS session
+        ;; even when sci_eval is the first command sent to the daemon.
+        (when (= "sci_eval" action) (ios-backend))
+        (with-ios-request-lock
+          (fn dispatch-ios-passthrough []
+            (handle-cmd action params))))
+      (with-ios-request-lock
+        (fn dispatch-ios-command []
+          (handle-ios-cmd action params))))
+    (handle-cmd action params)))
+
+(defmethod handle-cmd "tap" [_ _]
+  ;; Playwright provider: native touch tap is iOS-only. Fail with an explicit
+  ;; capability error instead of an "Unknown action" fallthrough.
+  {:success false
+   :error (str "'tap' (native touch) requires the iOS provider. "
+            "Start the session with --provider ios, or use 'click' "
+            "with the default Playwright provider.")
+   :error_code "unsupported_capability"
+   :backend "playwright"})
+
+(defmethod handle-cmd "swipe" [_ _]
+  {:success false
+   :error (str "'swipe' (native touch) requires the iOS provider. "
+            "Start the session with --provider ios, or use 'scroll' "
+            "with the default Playwright provider.")
+   :error_code "unsupported_capability"
+   :backend "playwright"})
+
+(defmethod handle-cmd "device_list" [_ _]
+  {:provider "playwright"
+   :devices (vec (sort (devices/available-device-names)))
+   :count (count (devices/available-device-names))})
+
+;; =============================================================================
 ;; Protocol
 ;; =============================================================================
 
@@ -4137,6 +4655,33 @@
   (reset! sci-env/!action-log-start 0)
   {:cleared true})
 
+(defn- ios-flag-rejection
+  "Returns a capability-error map when a command combines the iOS provider
+   with --allowed-domains, else nil.
+
+   Checked on EVERY command BEFORE the incoming flags merge into
+   launch-flags — the startup-time check in `ensure-ios-backend!*` alone is
+   insufficient because it only runs while no backend exists yet, so a
+   later `open --allowed-domains` against a running iOS backend would be
+   silently accepted (and the merged flag would poison the session)."
+  [incoming-flags]
+  (let [persisted (get @!state :launch-flags {})
+        provider  (or (get incoming-flags "provider")
+                    (get persisted "provider"))]
+    (when (and (= "ios" provider)
+            (or (get incoming-flags "allowed-domains")
+              (get persisted "allowed-domains")))
+      {:success false
+       :error (str "--allowed-domains / SPEL_ALLOWED_DOMAINS are not supported "
+                "by the iOS provider: equivalent containment cannot be "
+                "guaranteed before Safari page scripts run. Remove the flag "
+                "and unset the env var, or use the default Playwright "
+                "provider for domain allowlisting.")
+       :error_code "unsupported_capability"
+       :backend "ios"})))
+
+(declare process-command*)
+
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
   [^String line]
@@ -4153,55 +4698,66 @@
           params  (dissoc cmd "action" "_flags")]
       ;; Reset session idle timer — any command counts as activity
       (schedule-session-idle-shutdown!)
-      ;; Store launch flags if present (used by ensure-browser!)
-      ;; Persist to disk so CLI can recover them on daemon restart.
-      (when (seq flags)
-        (swap! !state update :launch-flags merge flags)
-        (persist-launch-flags!))
-      (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
-        (json/write-json-str
-          {:success false
-           :error (str "CDP endpoint is currently controlled by session '" owner-session
-                    "' with active network routes. Timed out waiting for lock release — blocking action '" action
-                    "' in session '" (:session @!state) "'.")
-           :hint (str "Use one session per --cdp endpoint when routes are active. "
-                   "Either run `spel --session " owner-session " network unroute all` "
-                   "or close that session before retrying.")
-           :error_code "cdp_route_lock"
-           :owner_session owner-session
-           :cdp cdp-url})
-        (try
-          (let [result    (handle-cmd action params)
-                anomaly-v (cond
-                            (anomaly/anomaly? result)
-                            result
-                            (map? result)
-                            (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
-            (cond
-            ;; Handler returned an explicit failure map (e.g. sci_eval error path)
-              (and (map? result) (false? (:success result)))
-              (json/write-json-str result)
-              anomaly-v
-              (let [msg  (::anomaly/message anomaly-v)
-                    ex   (:playwright/exception anomaly-v)
-                    hint (when ex (reflection-error-hint ex))
-                    error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
-                (json/write-json-str (error-response error-msg)))
-              :else
-              (do
-              ;; Track user-facing actions for SRT export
-                (when (trackable-actions action)
-                  (track-action! action params result))
-                (json/write-json-str {:success true :data result}))))
-          (catch Throwable e
-            (let [hint (reflection-error-hint e)
-                  msg  (or hint (.getMessage e) (default-error-message e))
-                  data (ex-data e)]
-              (json/write-json-str (cond-> (error-response msg)
-                                     (:stdout data) (assoc :data {:stdout (:stdout data)
-                                                                  :stderr (:stderr data)}))))))))
+      ;; iOS + --allowed-domains is rejected BEFORE the flags merge so the
+      ;; unsupported flag never poisons the persisted launch flags.
+      (if-let [rejection (ios-flag-rejection flags)]
+        (json/write-json-str rejection)
+        (do
+          ;; Store launch flags if present (used by ensure-browser!)
+          ;; Persist to disk so CLI can recover them on daemon restart.
+          (when (seq flags)
+            (swap! !state update :launch-flags merge flags)
+            (persist-launch-flags!))
+          (process-command* action params))))
     (catch Throwable e
       (json/write-json-str {:success false :error (str "Parse error: " (.getMessage e))}))))
+
+(defn- process-command*
+  "Dispatch + response serialization half of `process-command` — runs after
+   flag validation/merge."
+  [action params]
+  (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
+    (json/write-json-str
+      {:success false
+       :error (str "CDP endpoint is currently controlled by session '" owner-session
+                "' with active network routes. Timed out waiting for lock release — blocking action '" action
+                "' in session '" (:session @!state) "'.")
+       :hint (str "Use one session per --cdp endpoint when routes are active. "
+               "Either run `spel --session " owner-session " network unroute all` "
+               "or close that session before retrying.")
+       :error_code "cdp_route_lock"
+       :owner_session owner-session
+       :cdp cdp-url})
+    (try
+      (let [result    (dispatch-cmd action params)
+            anomaly-v (cond
+                        (anomaly/anomaly? result)
+                        result
+                        (map? result)
+                        (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
+        (cond
+            ;; Handler returned an explicit failure map (e.g. sci_eval error path)
+          (and (map? result) (false? (:success result)))
+          (json/write-json-str result)
+          anomaly-v
+          (let [msg  (::anomaly/message anomaly-v)
+                ex   (:playwright/exception anomaly-v)
+                hint (when ex (reflection-error-hint ex))
+                error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
+            (json/write-json-str (error-response error-msg)))
+          :else
+          (do
+              ;; Track user-facing actions for SRT export
+            (when (trackable-actions action)
+              (track-action! action params result))
+            (json/write-json-str {:success true :data result}))))
+      (catch Throwable e
+        (let [hint (reflection-error-hint e)
+              msg  (or hint (.getMessage e) (default-error-message e))
+              data (ex-data e)]
+          (json/write-json-str (cond-> (error-response msg)
+                                 (:stdout data) (assoc :data {:stdout (:stdout data)
+                                                              :stderr (:stderr data)}))))))))
 
 ;; =============================================================================
 ;; Socket Server
@@ -4299,6 +4855,10 @@
       (reset! !server nil))
     ;; 2. Save in-flight trace before closing browser resources
     (save-inflight-trace!)
+    ;; 2b. iOS provider cleanup — idempotent; only session-owned resources.
+    ;;     Same function runs from explicit `close` (which triggers this
+    ;;     shutdown) and from JVM/native shutdown hooks.
+    (try (stop-ios-backend!) (catch Exception e (warn "stop-ios-backend" e)))
     ;; 3. Close browser resources (may take seconds — Chromium shutdown)
     (when-let [p  (:page @!state)]    (try (core/close-page! p)    (catch Exception e (warn "close-page" e))))
     (when-let [c  (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))

@@ -51,4 +51,9 @@ resources/com/blockether/spel/templates/skills/spel/refs/FULL_API.md
 # verify.sh output — never commit
 .verification/
 bugfind-reports/
+
+# Local browser automation screenshots
+/artifacts/
+/unbound-*.png
+
 .omc/

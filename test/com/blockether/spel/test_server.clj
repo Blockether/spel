@@ -185,6 +185,77 @@
   </center>
 </body></html>")
 
+(def ^:private touch-page-html
+  "Observable touch/gesture test page for the iOS provider (and any
+   touch-capable backend). Every interaction leaves visible DOM state:
+   - #last-action     — button taps/clicks write 'button-tapped'
+   - #touch-log       — touchstart/touchend event names accumulate
+   - #input-value     — mirrors the input's live value on input/change
+   - #focus-state     — 'focused'/'blurred' for the input
+   - #scroll-position — window scrollY, updated on scroll
+   - #viewport-size   — innerWidth x innerHeight at load
+   - #user-agent      — navigator.userAgent at load
+
+   LAYOUT STABILITY IS LOAD-BEARING: every status div has a FIXED height.
+   On iOS Safari the synthesized click is hit-tested ~100ms AFTER
+   touchstart — if a touchstart handler grows #touch-log, everything below
+   shifts and the click lands on the WRONG element. Keep it fixed."
+  "<!DOCTYPE html>
+<html><head><title>Touch Test Page</title>
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+<style>
+  #last-action, #touch-log, #input-value, #focus-state, #scroll-position,
+  #viewport-size, #user-agent {
+    height: 20px; overflow: hidden; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <h1>Touch Test</h1>
+  <div id=\"last-action\">none</div>
+  <div id=\"touch-log\"></div>
+  <div id=\"input-value\">empty</div>
+  <div id=\"focus-state\">blurred</div>
+  <div id=\"scroll-position\">0</div>
+  <div id=\"viewport-size\"></div>
+  <div id=\"user-agent\"></div>
+  <button id=\"tap-target\">Tap Me</button>
+  <input type=\"text\" id=\"touch-input\" placeholder=\"Fill me\" />
+  <a id=\"second-link\" href=\"/second-page\">Go to second page</a>
+  <div id=\"tall-area\" style=\"height:3000px;background:linear-gradient(#fff,#ccc)\">tall scroll area</div>
+  <div id=\"bottom-marker\">bottom</div>
+  <script>
+    var btn = document.getElementById('tap-target');
+    btn.addEventListener('click', function() {
+      document.getElementById('last-action').textContent = 'button-tapped';
+    });
+    ['touchstart','touchend'].forEach(function(evt) {
+      btn.addEventListener(evt, function() {
+        var log = document.getElementById('touch-log');
+        log.textContent = (log.textContent ? log.textContent + ',' : '') + evt;
+      });
+    });
+    var input = document.getElementById('touch-input');
+    ['input','change'].forEach(function(evt) {
+      input.addEventListener(evt, function() {
+        document.getElementById('input-value').textContent = input.value || 'empty';
+      });
+    });
+    input.addEventListener('focus', function() {
+      document.getElementById('focus-state').textContent = 'focused';
+    });
+    input.addEventListener('blur', function() {
+      document.getElementById('focus-state').textContent = 'blurred';
+    });
+    window.addEventListener('scroll', function() {
+      document.getElementById('scroll-position').textContent = String(Math.round(window.scrollY));
+    });
+    document.getElementById('viewport-size').textContent =
+      window.innerWidth + 'x' + window.innerHeight;
+    document.getElementById('user-agent').textContent = navigator.userAgent;
+  </script>
+</body></html>")
+
 (defn- make-handler ^HttpHandler []
   (reify HttpHandler
     (handle [_ exchange]
@@ -218,6 +289,9 @@
 
           (and (= "GET" method) (= "/scrollable-page" path))
           (send-response exchange 200 scrollable-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/touch-page" path))
+          (send-response exchange 200 touch-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/spel-sw.js" path))
           (send-response exchange 200 spel-sw-js "application/javascript; charset=UTF-8")

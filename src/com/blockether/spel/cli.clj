@@ -89,6 +89,16 @@
       "                         a timestamped file in the system temp dir if omitted"
       "  --viewport <WxH>       Set viewport size before navigation (e.g. 1200x800)"])
 
+   "device"
+   (str/join \newline
+     ["device - List Playwright device emulation presets"
+      ""
+      "Usage:"
+      "  spel device list"
+      ""
+      "iOS Simulator discovery is available through SCI:"
+      "  (spel/ios-devices)"])
+
    "back"
    (str/join \newline
      ["back - Go back in browser history"
@@ -146,19 +156,27 @@
       "  -a, --all            Include all iframes in snapshot"
       "  -S, --styles         Include computed CSS styles per element"
       "      --minimal        Styles: 16 core properties (with -S)"
-      "      --max            Styles: 44 properties (with -S, default: 31)"])
+      "      --max            Styles: 44 properties (with -S, default: 31)"
+      ""
+      "On iOS NATIVE_APP, returns a compact XCTest semantic tree with @refs."
+      "CSS scope and style flags apply only to DOM/webview snapshots."])
 
    "click"
    (str/join \newline
      ["click - Click an element"
       ""
       "Usage:"
-      "  spel click <selector>"
+      "  spel click <selector-or-ref>"
+      "  spel click <x> <y>                 # iOS screen coordinates"
       ""
       "Examples:"
       "  spel click @ref"
       "  spel click \"#submit-btn\""
-      "  spel click \"text=Login\""])
+      "  spel click 'accessibility-id=Log in'"
+      "  spel click 100 200"
+      ""
+      "iOS native selectors also support id=, role=, xpath=, class-chain=,"
+      "and predicate=. Native snapshot @refs work with click directly."])
 
    "dblclick"
    (str/join \newline
@@ -342,7 +360,10 @@
       "  spel scroll up 500 --smooth          Smooth scroll page up 500px"
       "  spel scroll down 300 @ref           Scroll within element by ref"
       "  spel scroll down 500 --in #sidebar   Scroll within #sidebar element"
-      "  spel scroll -S down 800              Smooth scroll shorthand"])
+      "  spel scroll -S down 800              Smooth scroll shorthand"
+      ""
+      "On iOS, scroll performs a native touch gesture while preserving"
+      "content direction: 'scroll down' swipes upward on the screen."])
 
    "scrollintoview"
    (str/join \newline
@@ -870,7 +891,12 @@
       "Examples:"
       "  spel cookies"
       "  spel cookies set session_id abc123"
-      "  spel cookies clear"])
+      "  spel cookies clear"
+      ""
+      "Notes:"
+      "  iOS provider (--provider ios): read-only — listing works in a"
+      "  WEBVIEW context; set/clear are unsupported (use eval-js"
+      "  document.cookie for non-HttpOnly cookies)."])
 
    "storage"
    (str/join \newline
@@ -1592,6 +1618,11 @@
      "  cdp                     CDP disconnect/reconnect helpers"
      "  find-free-port          Print an available local TCP port"
      ""
+     "iOS Simulator applications (Appium/XCUITest via --provider ios):"
+     "  click <ref|selector>   Native element click (or: click <x> <y>)"
+     "  scroll <dir> [amount]  Native touch scrolling"
+     "  eval-sci <code>        Scoped WebView/app lifecycle/device operations"
+     ""
      "Search:"
      "  search <query>          Google search (web, images, news)"
      ""
@@ -1637,9 +1668,20 @@
      "  --allowed-domains LIST  Comma-separated hostnames; blocks navigation AND"
      "                          sub-resource fetches outside the list. Wildcards:"
      "                          \"*.example.com\" matches example.com + subdomains"
-     "  --device NAME           Device emulation preset (\"iPhone 14\", \"Pixel 7\","
-     "                          \"iPad Pro\", \"Galaxy S23\", ...) — sets viewport,"
-     "                          user-agent, device-scale-factor, is-mobile, has-touch"
+     "  --device NAME           Provider-dependent device selection:"
+     "                          default/Playwright — emulation preset (\"iPhone 14\","
+     "                          \"Pixel 7\", ...) setting viewport/user-agent/touch;"
+     "                          --provider ios — selects a REAL iOS Simulator by name"
+     ""
+     "iOS application provider (iOS Simulator, macOS only):"
+     "  --provider ios          Drive an application via Appium/XCUITest"
+     "  --bundle-id ID          Bind an installed app (e.g. com.example.app)"
+     "  --app PATH              Install/bind a simulator-built .app instead"
+     "  --udid UDID             Select simulator by exact UDID"
+     "  --platform-version V    Narrow simulator selection (e.g. 18.2)"
+     "  --appium-url URL        Connect to an external Appium (never killed by spel)"
+     "  --shutdown-simulator    Shut the simulator down on close (only if spel booted it)"
+     "                          Note: --allowed-domains is NOT supported on iOS"
      ""
      "Environment Variables (CLI flags take priority):"
      "  SPEL_BROWSER             Browser engine: chromium (default), firefox, webkit"
@@ -1665,7 +1707,15 @@
      "  SPEL_CDP                 Connect via Chrome DevTools Protocol URL"
      "  SPEL_ARGS                Extra Chromium launch args (comma-separated)"
      "  SPEL_DRIVER_DIR          Override Playwright browser driver directory"
-     "  SPEL_DEBUG               Set to \"true\" for debug logging"]))
+     "  SPEL_DEBUG               Set to \"true\" for debug logging"
+     "  SPEL_PROVIDER            Browser provider: playwright (default) or ios"
+     "  SPEL_IOS_DEVICE          iOS Simulator name (with SPEL_PROVIDER=ios)"
+     "  SPEL_IOS_UDID            iOS Simulator UDID"
+     "  SPEL_IOS_PLATFORM_VERSION iOS platform version (e.g. 18.2)"
+     "  SPEL_IOS_BUNDLE_ID       Installed application bundle identifier"
+     "  SPEL_IOS_APP             Simulator-built application .app path"
+     "  SPEL_APPIUM_URL          External Appium server URL"
+     "  SPEL_IOS_SHUTDOWN_SIMULATOR Set to \"true\" to shut down spel-booted simulators on close"]))
 
 ;; =============================================================================
 ;; Arg Parsing
@@ -1764,6 +1814,23 @@
                        (assoc :allowed-domains (System/getenv "SPEL_ALLOWED_DOMAINS"))
                        (System/getenv "SPEL_DEVICE")
                        (assoc :device (System/getenv "SPEL_DEVICE"))
+                       ;; iOS provider env vars (CLI flags take priority)
+                       (System/getenv "SPEL_PROVIDER")
+                       (assoc :provider (System/getenv "SPEL_PROVIDER"))
+                       (System/getenv "SPEL_IOS_DEVICE")
+                       (assoc :device (System/getenv "SPEL_IOS_DEVICE"))
+                       (System/getenv "SPEL_IOS_UDID")
+                       (assoc :udid (System/getenv "SPEL_IOS_UDID"))
+                       (System/getenv "SPEL_IOS_PLATFORM_VERSION")
+                       (assoc :platform-version (System/getenv "SPEL_IOS_PLATFORM_VERSION"))
+                       (System/getenv "SPEL_IOS_BUNDLE_ID")
+                       (assoc :bundle-id (System/getenv "SPEL_IOS_BUNDLE_ID"))
+                       (System/getenv "SPEL_IOS_APP")
+                       (assoc :app (resolve-path (System/getenv "SPEL_IOS_APP")))
+                       (System/getenv "SPEL_APPIUM_URL")
+                       (assoc :appium-url (System/getenv "SPEL_APPIUM_URL"))
+                       (= "true" (System/getenv "SPEL_IOS_SHUTDOWN_SIMULATOR"))
+                       (assoc :shutdown-simulator true)
                        (System/getenv "SPEL_SCREENSHOT_FORMAT")
                        (assoc :screenshot-format (System/getenv "SPEL_SCREENSHOT_FORMAT"))
                        (System/getenv "SPEL_SCREENSHOT_QUALITY")
@@ -1942,6 +2009,49 @@
 
                 (str/starts-with? arg "--device=")
                 (recur (rest args) (assoc flags :device (subs arg 9)) remaining)
+
+                ;; ── iOS application provider (real iOS Simulator) ───────
+                ;; --provider ios switches the backend from Playwright to
+                ;; Appium/XCUITest WebDriver. With --provider ios, --device
+                ;; selects an ACTUAL simulator instead of an emulation preset.
+                (= "--provider" arg)
+                (recur (drop 2 args) (assoc flags :provider (second args)) remaining)
+
+                (str/starts-with? arg "--provider=")
+                (recur (rest args) (assoc flags :provider (subs arg 11)) remaining)
+
+                (= "--bundle-id" arg)
+                (recur (drop 2 args) (assoc flags :bundle-id (second args)) remaining)
+
+                (str/starts-with? arg "--bundle-id=")
+                (recur (rest args) (assoc flags :bundle-id (subs arg 12)) remaining)
+
+                (= "--app" arg)
+                (recur (drop 2 args) (assoc flags :app (resolve-path (second args))) remaining)
+
+                (str/starts-with? arg "--app=")
+                (recur (rest args) (assoc flags :app (resolve-path (subs arg 6))) remaining)
+
+                (= "--udid" arg)
+                (recur (drop 2 args) (assoc flags :udid (second args)) remaining)
+
+                (str/starts-with? arg "--udid=")
+                (recur (rest args) (assoc flags :udid (subs arg 7)) remaining)
+
+                (= "--platform-version" arg)
+                (recur (drop 2 args) (assoc flags :platform-version (second args)) remaining)
+
+                (str/starts-with? arg "--platform-version=")
+                (recur (rest args) (assoc flags :platform-version (subs arg 19)) remaining)
+
+                (= "--appium-url" arg)
+                (recur (drop 2 args) (assoc flags :appium-url (second args)) remaining)
+
+                (str/starts-with? arg "--appium-url=")
+                (recur (rest args) (assoc flags :appium-url (subs arg 13)) remaining)
+
+                (= "--shutdown-simulator" arg)
+                (recur (rest args) (assoc flags :shutdown-simulator true) remaining)
 
                 ;; Screenshot output customization (type/quality/default dir).
                 ;; Applied by the daemon's `screenshot` handler when present.
@@ -2127,10 +2237,14 @@
                            (snap-flags "--console")
                            (assoc :console true)))
 
-          ;; Click
-            "click"    (cond-> {:action "click"
-                                :selector (first (remove #(str/starts-with? % "-") cmd-args))}
-                         (some #{"--new-tab"} cmd-args) (assoc :new-tab true))
+          ;; Click (iOS also accepts absolute screen coordinates)
+            "click"    (let [pos  (vec (remove #(str/starts-with? % "-") cmd-args))
+                             x    (some-> (first pos) parse-long)
+                             y    (some-> (second pos) parse-long)]
+                         (cond-> (if (and x y (= 2 (count pos)))
+                                   {:action "click" :x x :y y}
+                                   {:action "click" :selector (first pos)})
+                           (some #{"--new-tab"} cmd-args) (assoc :new-tab true)))
             "dblclick"  {:action "dblclick" :selector (first cmd-args)}
 
           ;; Download
@@ -2150,7 +2264,7 @@
 
           ;; Keyboard (+ aliases)
             ("press" "key")
-            (if (some #(str/starts-with? % "@") cmd-args)
+            (if (>= (count cmd-args) 2)
               {:action "press" :selector (first cmd-args) :key (second cmd-args)}
               {:action "press" :key (first cmd-args)})
 
@@ -2164,6 +2278,7 @@
                          (case sub
                            "type"       {:action "keyboard_type" :text txt}
                            "inserttext" {:action "keyboard_inserttext" :text txt}
+                           "hide"       {:action "keyboard_hide"}
                            {:error (str "Unknown keyboard command: " sub)}))
 
           ;; Window
@@ -2481,7 +2596,8 @@
                            {:action "wait" :timeout (Integer/parseInt (first wait-args))}
 
                            :else
-                           {:action "wait" :selector (first wait-args)}))
+                           (cond-> {:action "wait" :selector (first wait-args)}
+                             (:timeout flags) (assoc :timeout-ms (:timeout flags)))))
 
           ;; Tabs
             "tab"      (let [sub (first cmd-args)]
@@ -2848,6 +2964,17 @@
                                        (>= thr-idx 0)  (assoc :threshold (nth rest-args (inc thr-idx) nil)))))
                            {:error (str "Unknown diff command: " sub)}))
 
+          ;; Device emulation preset discovery. Provider-specific device
+          ;; discovery is intentionally SCI-first.
+            "device"
+            (let [sub (first cmd-args)]
+              (case sub
+                "list" (if (= "ios" (:provider flags))
+                         {:error (str "iOS device discovery is available through SCI: "
+                                   "(spel/ios-devices)")}
+                         {:action "device_list"})
+                {:error (str "Unknown device command: " sub ". Usage: spel device list")}))
+
           ;; Close (+ aliases)
             ("close" "quit" "exit")
             (cond-> {:action "close"}
@@ -3016,18 +3143,25 @@
 
 (defn- close-session!
   "Gracefully closes a single daemon session. Sends close command,
-   waits for the process to exit, then cleans up files."
-  [^String session]
-  (let [old-pid (read-pid session)]
-    (try
-      (send-command! session {:action "close"} 5000)
-      (catch Exception _ nil))
-    (when old-pid
-      (loop [tries 0]
-        (when (and (< tries 100) (process-alive? old-pid))
-          (Thread/sleep 100)
-          (recur (inc tries)))))
-    (cleanup-session-files! session)))
+   waits for the process to exit, then cleans up files.
+
+   `extra-flags` (optional map, string keys) rides along as `_flags` so
+   close-time flags like --shutdown-simulator reach the daemon — the close
+   fast-path bypasses the normal command pipeline that attaches them."
+  ([^String session] (close-session! session nil))
+  ([^String session extra-flags]
+   (let [old-pid (read-pid session)
+         cmd     (cond-> {:action "close"}
+                   (seq extra-flags) (assoc :_flags extra-flags))]
+     (try
+       (send-command! session cmd 5000)
+       (catch Exception _ nil))
+     (when old-pid
+       (loop [tries 0]
+         (when (and (< tries 100) (process-alive? old-pid))
+           (Thread/sleep 100)
+           (recur (inc tries)))))
+     (cleanup-session-files! session))))
 
 (defn- socket-connectable?
   "Tries to connect to the daemon's Unix socket. Returns true if connectable."
@@ -3751,10 +3885,12 @@
 
     ;; Close --all-sessions — close every active daemon (bypasses ensure-daemon!)
     (when (and (= "close" (:action command)) (:all-sessions command))
-      (let [sessions (discover-sessions)]
+      (let [close-flags (when (:shutdown-simulator flags)
+                          {"shutdown-simulator" true})
+            sessions    (discover-sessions)]
         (if (seq sessions)
           (do (doseq [s sessions]
-                (close-session! s)
+                (close-session! s close-flags)
                 (println (str "Closed session: " s)))
               (System/exit 0))
           (do (println "No active sessions.")
@@ -3764,12 +3900,14 @@
     ;; daemon just to immediately close it. If no daemon is running, clean up
     ;; any stale files and exit.
     (when (and (= "close" (:action command)) (not (:all-sessions command)))
-      (let [session (:session flags)]
+      (let [session     (:session flags)
+            close-flags (when (:shutdown-simulator flags)
+                          {"shutdown-simulator" true})]
         (when (:json flags)
           (println (json/write-json-str {:closed true} :escape-slash false))
           (.flush *out*))
         (if (daemon/daemon-running? session)
-          (close-session! session)
+          (close-session! session close-flags)
           (cleanup-session-files! session))
         (System/exit 0)))
 
@@ -3837,7 +3975,12 @@
           cmd-with-flags (if (seq flag-keys)
                            (assoc command :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
                            command)
-          timeout-ms (or (:timeout flags) 30000)
+          ;; iOS cold start (simulator boot + WDA build + app session)
+          ;; routinely exceeds 30s. A client-side timeout would RETRY the
+          ;; command and spawn a second WDA for the same UDID — which kills
+          ;; the first one. Give the iOS provider a cold-start-sized default.
+          timeout-ms (or (:timeout flags)
+                       (if (= "ios" (:provider flags)) 300000 30000))
           bridge-target (bridge/load-target)
           response (if bridge-target
                      (bridge/route-command! (:url bridge-target) cmd-with-flags timeout-ms (:token bridge-target))

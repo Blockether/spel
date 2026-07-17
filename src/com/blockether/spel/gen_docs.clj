@@ -213,8 +213,9 @@
                                    (conj result {:ns-prefix ns-prefix :pos pos})
                                    result)))))
         ;; For each marker, extract the text from its position to the next marker
-        ;; and parse ['sym fn] pairs from it
-        pair-pattern #"\['([\w\-\!\?\$\*]+)\s+([\w\-\!\?\.\$/]+)\]"]
+        ;; and parse ['sym fn] plus ['sym (with-meta named-fn {...})] pairs.
+        ;; Inline anonymous macro functions stay intentionally undocumented.
+        pair-pattern #"\['([\w\-\!\?\$\*]+)\s+(?:([\w\-\!\?\.\$/]+)\]|\(with-meta\s+([\w\-\!\?\.\$/]+)\s+\{)"]
     (reduce
       (fn [acc i]
         (let [i (long i)
@@ -225,7 +226,8 @@
               section-text (subs src pos end-pos)
               pairs (re-seq pair-pattern section-text)
               entries (vec
-                        (for [[_ exposed-name backing-name] pairs]
+                        (for [[_ exposed-name direct-name metadata-name] pairs
+                              :let [backing-name (or direct-name metadata-name)]]
                           {:exposed exposed-name
                            :backing-var (resolve-backing-var backing-name publics)
                            :backing-name backing-name}))]
@@ -280,7 +282,7 @@
                              (str (:ns vm) "/" (:name vm))))))
           wrapper-source (extract-defn-source (str backing-name) src)]
       {:name exposed
-       :arglists (:arglists m)
+       :arglists (or (:sci/arglists m) (:arglists m))
        :doc resolved-doc
        :lib-source lib-source
        :wrapper-source wrapper-source})

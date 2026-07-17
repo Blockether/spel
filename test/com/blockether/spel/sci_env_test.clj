@@ -542,7 +542,16 @@
         (expect (contains? entry :ns))
         (expect (contains? entry :name))
         (expect (contains? entry :arglists))
-        (expect (contains? entry :doc)))))
+        (expect (contains? entry :doc))))
+
+    (it "documents the deferred WebView macro public syntax"
+      (let [entry (some #(when (and (= "spel" (:ns %))
+                                 (= "with-webview-context" (:name %)))
+                           %)
+                    (#'sut/load-help-registry))]
+        (expect (= "[body] | [opts & body]" (:arglists entry)))
+        (expect (= "Defers body until an inspectable iOS WebView is active and restores the exact prior context."
+                  (:doc entry))))))
 
   (describe "spel/help output"
     ;; sci-help prints to JVM *out* (bound via sci/with-bindings in eval-string).

@@ -11,9 +11,11 @@
    [clojure.string :as str]
    [charred.api :as json]
    [clojure.java.io :as io]
+   [com.blockether.spel.backend :as backend]
    [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.ios :as ios]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-server
@@ -1969,6 +1971,24 @@
         (expect (= "listening" (:errors r)))))))
 
 ;; =============================================================================
+;; iOS application daemon actions
+;; =============================================================================
+
+(defdescribe ios-application-daemon-test
+  "Provider-specific orchestration actions are not daemon APIs"
+
+  (around [f]
+    (core/with-testing-browser
+      ((:around with-daemon-state) f)))
+
+  (it "rejects removed context and application actions"
+    (doseq [action ["ios_contexts" "ios_context_use" "ios_app_activate"
+                    "ios_app_launch" "ios_app_permission"]]
+      (let [result (#'daemon/handle-ios-cmd action {})]
+        (expect (false? (:success result)))
+        (expect (= "unsupported_capability" (:error_code result)))))))
+
+;; =============================================================================
 ;; 42. SCI Eval (daemon handler)
 ;; =============================================================================
 
@@ -1991,6 +2011,89 @@
       (let [_ (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
             r (cmd "sci_eval" {"code" "(spel/title)"})]
         (expect (= "\"Test Page\"" (:result r)))))
+
+    (it "defers scoped WebView macro bodies and restores the prior context"
+      (let [old-session @sci-env/!ios-session
+            context*    (atom "NATIVE_APP")
+            calls*      (atom [])]
+        (try
+          (reset! sci-env/!ios-session :fake-ios-session)
+          (with-redefs [ios/contexts (fn [_] ["NATIVE_APP" "WEBVIEW_1"])
+                        ios/current-context (fn [_] @context*)
+                        ios/with-context
+                        (fn [_ requested opts callback]
+                          (let [previous @context*
+                                entered  (if (= :webview requested)
+                                           "WEBVIEW_1"
+                                           requested)]
+                            (swap! calls* conj [:enter requested opts])
+                            (reset! context* entered)
+                            (try
+                              (callback)
+                              (finally
+                                (reset! context* previous)
+                                (swap! calls* conj [:restore previous])))))
+                        ios/list-devices (fn [] [{:name "iPhone Test" :udid "U1"}])
+                        ios/doctor (fn [] [{:check "macOS" :ok true}])]
+            (expect (= "true"
+                      (:result
+                       (cmd "sci_eval"
+                         {"code" (str "(-> (resolve 'spel/with-webview-context) "
+                                   "meta :sci/macro)")}))))
+
+            (expect (= "{:observed-context \"WEBVIEW_1\"}"
+                      (:result
+                       (cmd "sci_eval"
+                         {"code" (str "(spel/with-webview-context "
+                                   "  {:observed-context "
+                                   "   (spel/ios-current-context)})")}))))
+            (expect (= "\"NATIVE_APP\""
+                      (:result
+                       (cmd "sci_eval" {"code" "(spel/ios-current-context)"}))))
+
+            (reset! calls* [])
+            (expect (= "{:title \"Checkout\", :button-count 2}"
+                      (:result
+                       (cmd "sci_eval"
+                         {"code" (str "(spel/with-webview-context "
+                                   "  {:timeout-ms 321 :context \"WEBVIEW_1\"} "
+                                   "  {:title \"Checkout\" :button-count 2})")}))))
+            (expect (= [[:enter "WEBVIEW_1" {:timeout-ms 321}]
+                        [:restore "NATIVE_APP"]]
+                      @calls*))
+
+            (expect (= "[:first :second]"
+                      (:result
+                       (cmd "sci_eval"
+                         {"code" (str "(let [events (atom [])] "
+                                   "  (spel/with-webview-context {} "
+                                   "    (swap! events conj :first) "
+                                   "    (swap! events conj :second) "
+                                   "    @events))")}))))
+
+            (expect (= "{:caught-context \"NATIVE_APP\"}"
+                      (:result
+                       (cmd "sci_eval"
+                         {"code" (str "(try "
+                                   "  (spel/with-webview-context "
+                                   "    (throw (ex-info \"failure\" {}))) "
+                                   "  (catch Exception _ "
+                                   "    {:caught-context "
+                                   "     (spel/ios-current-context)}))")}))))
+            (expect (= [:restore "NATIVE_APP"] (last @calls*)))
+
+            (expect (= "[\"NATIVE_APP\" \"WEBVIEW_1\"]"
+                      (:result (cmd "sci_eval" {"code" "(spel/ios-contexts)"}))))
+            (expect (str/includes?
+                      (:result (cmd "sci_eval" {"code" "(spel/ios-devices)"}))
+                      "iPhone Test"))
+            (expect (= "[{:check \"macOS\", :ok true}]"
+                      (:result (cmd "sci_eval" {"code" "(spel/ios-doctor)"}))))
+            (let [removed (cmd "sci_eval" {"code" "(spel/ios-use-context! :webview)"})]
+              (expect (false? (:success removed)))
+              (expect (str/includes? (:error removed) "Unable to resolve symbol"))))
+          (finally
+            (reset! sci-env/!ios-session old-session)))))
 
     (it "supports wait-for-url options in SCI"
       (let [r (cmd "sci_eval" {"code" (str "(do (spel/navigate \"" *test-server-url* "/test-page\") "

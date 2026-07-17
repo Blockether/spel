@@ -459,7 +459,8 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `after-each` | [& body] | Re-export of `lazytest.core/after-each`. |
 | _(macro)_ `api-step` | [step-name & body] | Execute an API step with automatic request/response logging. |
 | _(macro)_ `are` | [argv expr & args] | Like `clojure.test/are` — tabular assertion macro. |
-| _(macro)_ `around` | [[f] & body] | Re-export of `lazytest.core/around`. |
+| _(macro)_ `around` | [[f] & body] | Re-export of `lazytest.core/around`. Wraps nested execution in a |
+| _(macro)_ `around-each` | [[f] & body] | Re-export of `lazytest.core/around-each` (lazytest 2.0+). Like |
 | `attach` | [att-name content content-type] | Attach string content to the test report. |
 | `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
 | `attach-file` | [att-name source-path content-type] | Attach a file from disk to the test report. |
@@ -471,6 +472,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `causes?` | [c f] | Re-export of `lazytest.core/causes?`. |
 | _(macro)_ `context` | [doc & children] \| [doc attr-map? & children] | Alias for `describe` — includes automatic Allure step nesting. |
 | _(macro)_ `defdescribe` | [test-name & children] \| [test-name doc? attr-map? & children] | Re-export of `lazytest.core/defdescribe`. |
+| _(macro)_ `defhook` | [hook-name & hook-methods] \| [hook-name docstring & hook-methods] | Re-export of `lazytest.hooks/defhook`. |
 | _(macro)_ `deftest` | [name & body] | Like `clojure.test/deftest` — defines a test function. |
 | _(macro)_ `describe` | [doc & children] \| [doc attr-map? & children] | Like `lazytest.core/describe` with automatic Allure step nesting. |
 | `description` | [text] | Set the test description (markdown supported). |
@@ -513,12 +515,16 @@ Auto-generated from source code. Each namespace lists public functions with args
 | Function | Args | Description |
 |----------|------|-------------|
 | `capture-full-snapshot` | [page] | Captures a snapshot of the page and all its iframes. |
+| `capture-script` | [opts] | Returns the capture-snapshot JS with optional flags injected. |
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
+| `capture-webdriver` | [driver] \| [driver opts] | Captures an accessibility snapshot through a W3C WebDriver session. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
 | `diff-snapshots` | [baseline current] | Compares two accessibility snapshot strings line-by-line. |
 | `flatten-tree` | [tree] | Flattens a YAML-like tree string by stripping all leading whitespace. |
+| `parse-capture-result` | [result] \| [result opts] | Parses the raw JS capture result into the public snapshot map. |
 | `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
+| `ref-css-selector` | [ref-id] | Returns the CSS selector for a snapshot ref id. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
 
 ### `annotate` — Page annotation overlays
@@ -781,7 +787,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/cdp-send` | [session method] \| [session method params] | Sends a Chrome DevTools Protocol command. |
 | `spel/check` | [sel] \| [sel opts] | Checks a checkbox or radio button. |
 | `spel/checked?` | [sel] | Returns whether the element is checked. |
-| `spel/clear` | [sel] | Clears input field content. |
+| `spel/clear` | [sel] | Clears an input (backend-aware). |
 | `spel/clear-action-log!` | [] | Clears the action log, resetting the counter and start time. |
 | `spel/clear-dialog-handler!` | [] | Removes the current auto-accept/auto-dismiss dialog handler. |
 | `spel/clear-refs!` | [] | Removes all data-pw-ref attributes from the page. |
@@ -792,11 +798,11 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/compare-pages` | [baseline-page current-page] \| [baseline-page current-page opts] | Compare two live pages: screenshot + snapshot + diff with semantic enrichment. |
 | `spel/compare-screenshot-files` | [baseline-path current-path] \| [baseline-path current-path opts] | Compare two PNG files pixel-by-pixel. See compare-screenshots for details. |
 | `spel/compare-screenshots` | [baseline-bytes current-bytes] \| [baseline-bytes current-bytes opts] | Compare two PNG screenshots pixel-by-pixel using pixelmatch. |
-| `spel/content` | [] | Returns the full HTML content of the page. |
+| `spel/content` | [] | Returns the current page HTML source (backend-aware). |
 | `spel/context` | [] | Returns the current BrowserContext instance. |
-| `spel/context-clear-cookies!` | [] | Clears all cookies in the context. |
+| `spel/context-clear-cookies!` | [] | Clears all cookies (Playwright only — the iOS backend exposes read-only |
 | `spel/context-clear-permissions!` | [] | Clears all granted permissions. |
-| `spel/context-cookies` | [] | Returns all cookies in the context as Clojure maps. |
+| `spel/context-cookies` | [] | Returns the cookie list. Backend-aware: reads Safari's cookies through |
 | `spel/context-grant-permissions!` | [perms] | Grants permissions to the context. |
 | `spel/context-route-from-har!` | [har] \| [har opts] | Routes requests in the context from a HAR file. Replays recorded responses |
 | `spel/context-route-web-socket!` | [pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
@@ -813,7 +819,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/dialog-dismiss!` | [dialog] | Dismisses the dialog. |
 | `spel/dialog-message` | [dialog] | Returns the dialog message text. |
 | `spel/dialog-type` | [dialog] | Returns the dialog type (alert, confirm, prompt, beforeunload). |
-| `spel/disabled?` | [sel] | Returns whether the element is disabled. |
+| `spel/disabled?` | [sel] |  |
 | `spel/dispatch-event` | [sel type] | Dispatches a DOM event on the element. |
 | `spel/drag-by` | [sel dx dy] \| [sel dx dy opts] | Drags an element by pixel offset using mouse events. |
 | `spel/drag-to` | [sel target-sel] \| [sel target-sel opts] | Drags an element to another element. |
@@ -848,11 +854,11 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/get-by-text` | [text] | Locates elements by their text content. |
 | `spel/get-by-title` | [text] | Locates elements by title attribute. |
 | `spel/get-styles` | [sel] \| [sel opts] | Returns computed CSS styles for an element. Pass {:full true} for all properties. |
-| `spel/go-back` | [] | Navigates back in history. |
-| `spel/go-forward` | [] | Navigates forward in history. |
+| `spel/go-back` | [] | Goes back in browser history (backend-aware). |
+| `spel/go-forward` | [] | Goes forward in browser history (backend-aware). |
 | `spel/goto` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/help` | [] \| [query] | Lists all available SCI eval functions with arglists and descriptions. |
-| `spel/hidden?` | [sel] | Returns whether the element is hidden. |
+| `spel/hidden?` | [sel] |  |
 | `spel/highlight` | [sel] | Highlights the element for debugging. |
 | `spel/hover` | [sel] \| [sel opts] | Hovers over an element. |
 | `spel/human-pause` | [] \| [min-ms max-ms] | Pauses for a random duration between min-ms and max-ms (default: 300-700ms). |
@@ -862,9 +868,26 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/inner-html` | [sel] | Returns the inner HTML of the element. |
 | `spel/inner-text` | [sel] | Returns the inner text of the element. |
 | `spel/input-value` | [sel] | Returns the input value of an input element. |
-| `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles for interactive debugging. |
-| `spel/keyboard` | [] | Presses a key or key combination on the page keyboard. |
-| `spel/keyboard-press` | [key] | Presses a key on the page keyboard (no selector needed). |
+| `spel/inspect` | [] \| [opts] | Takes interactive snapshot with styles - the 'agent view'. |
+| `spel/ios-activate-app!` | [] \| [bundle-id] | Activates the bound or requested installed iOS application. |
+| `spel/ios-app-installed?` | [bundle-id] | Returns true when an iOS application is installed. |
+| `spel/ios-app-state` | [bundle-id] | Returns the state of an installed iOS application as a keyword. |
+| `spel/ios-background-app!` | [] \| [seconds] | Moves the active iOS application to the background for N seconds. |
+| `spel/ios-context-details` | [] | Returns detailed context records, including webview URL/title metadata |
+| `spel/ios-contexts` | [] | Returns available iOS automation contexts (NATIVE_APP and inspectable |
+| `spel/ios-current-context` | [] | Returns the active iOS automation context name. |
+| `spel/ios-devices` | [] | Lists available iOS Simulators without requiring an active session. |
+| `spel/ios-doctor` | [] | Runs iOS provider prerequisite diagnostics without installing software. |
+| `spel/ios-hide-keyboard!` | [] | Dismisses the iOS software keyboard. |
+| `spel/ios-install-app!` | [path] | Installs a simulator-compatible .app. |
+| `spel/ios-launch-app!` | [] \| [bundle-id] | Launches the bound or requested installed iOS application. |
+| `spel/ios-open-url!` | [url] \| [url bundle-id] | Opens a deep or universal URL. |
+| `spel/ios-permission` | [service] \| [bundle-id service] | Returns an iOS application permission value. |
+| `spel/ios-set-permission!` | [service access] \| [bundle-id service access] | Sets an app permission. Access accepts :grant, :revoke, or :reset. |
+| `spel/ios-terminate-app!` | [] \| [bundle-id] | Terminates the bound or requested iOS application. |
+| `spel/ios-uninstall-app!` | [bundle-id] | Uninstalls an iOS application by bundle identifier. |
+| `spel/keyboard` | [] |  |
+| `spel/keyboard-press` | [key] | Presses a key on the focused page/native element. |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |
 | `spel/last-response` | [url] | Navigates to URL and returns response info map with :status, :ok?, :url, :headers. |
 | `spel/loc-filter` | [sel opts] | Filters this locator to a narrower set. |
@@ -897,8 +920,8 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/page` | [] | Returns the current Page instance. |
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
 | `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
-| `spel/press` | [key] \| [sel key] \| [sel key opts] | Presses a key. Single-arg form does a page-level keyboard press. |
-| `spel/reload` | [] | Reloads the page. |
+| `spel/press` | [key] \| [sel key] \| [sel key opts] | Presses a key. Single-arg form targets the focused element. Two-arg form |
+| `spel/reload` | [] | Reloads the current page (backend-aware). |
 | `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |
 | `spel/remove-overlays!` | [] | Removes all annotation overlays from the current page. |
 | `spel/resolve-ref` | [ref-id] | Resolves a snapshot ref (e.g. "@e2yrjz") to a Playwright Locator. |
@@ -934,13 +957,13 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |
-| `spel/stop!` | [] | Stops the Playwright session, closing browser and cleaning up resources. |
+| `spel/stop!` | [] | Stops the active session (Playwright or iOS backend), closing the |
 | `spel/survey` | [] \| [opts] | Scrolls through the page taking a screenshot at each viewport position. |
 | `spel/switch-tab!` | [idx] | Switches to the tab at the given index. |
 | `spel/tabs` | [] | Returns a list of all open tabs with their index, url, title, and active status. |
-| `spel/tap-element` | [sel] | Taps an element (for touch devices). |
+| `spel/tap-element` | [sel] | Taps an element. On the iOS backend this is a native touch pointer |
 | `spel/text-content` | [sel] | Returns the text content of the element. |
-| `spel/title` | [] | Returns the page title. |
+| `spel/title` | [] | Returns the current page title (backend-aware). |
 | `spel/touchscreen` | [] | Returns the Touchscreen for this page. |
 | `spel/trace-group` | [name] | Opens a named group in the trace. Groups nest actions visually in Trace Viewer. |
 | `spel/trace-group-end` | [] | Closes the current trace group. |
@@ -949,7 +972,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/type-text` | [sel text] \| [sel text opts] | Types text into an element character by character. |
 | `spel/uncheck` | [sel] \| [sel opts] | Unchecks a checkbox. |
 | `spel/unroute!` | [pattern] | Removes a route handler. |
-| `spel/url` | [] | Returns the current page URL. |
+| `spel/url` | [] | Returns the current URL (backend-aware). |
 | `spel/url-decode` | [s] | Decodes URL-encoded text using UTF-8. |
 | `spel/url-encode` | [s] | Encodes text for use in URL query strings using UTF-8. |
 | `spel/video-path` | [] | Returns the video file path for the current page, or nil if not recording. |
@@ -963,6 +986,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/wait-for-selector` | [sel] \| [sel opts] | Waits for a selector to satisfy a condition. |
 | `spel/wait-for-timeout` | [ms] | Waits for the specified time in milliseconds. |
 | `spel/wait-for-url` | [url] \| [url opts] | Waits for the page to navigate to a URL. |
+| `spel/with-webview-context` | [body] \| [opts & body] | Defers body until an inspectable iOS WebView is active and restores the exact prior context. |
 | `spel/wsl-default-gateway-ip` | [] | Returns the Windows host IP from /proc/net/route when inside WSL, |
 | `spel/wsl?` | [] | Returns true when running inside Windows Subsystem for Linux. |
 
@@ -1552,6 +1576,15 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | Command | Description |
 |---------|-------------|
 | `back / forward / reload` | History navigation |
+| `scroll <dir> [amount]` | Native touch scroll (requires --provider ios) |
+| `eval-sci <code>` | Scoped WebView/app/device operations |
+| `--provider ios` | Drive an app in an iOS Simulator |
+| `--bundle-id <id>` | Bind an installed application |
+| `--app <path>` | Install/bind a simulator-built .app |
+| `--udid <udid>` | Select simulator by UDID |
+| `--platform-version <v>` | Narrow simulator selection (e.g. 18.2) |
+| `--appium-url <url>` | Use an external Appium server |
+| `--shutdown-simulator` | Shut down spel-booted simulator on close |
 
 ### Sessions
 
@@ -1567,7 +1600,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `--session <name>` | Named session (default: \"default\") |
 | `--no-persist` | Disable auto-persist of cookies/storage |
-| `--json` | JSON output |
+| `--json` | JSON output (for agents) |
 | `--load-state <path>` | Load state (cookies/localStorage JSON, alias: --storage-state) |
 | `--profile <path>` | Chrome user data directory (persistent profile) |
 | `--browser <engine>` | Browser engine: chromium, firefox, webkit |
@@ -1593,7 +1626,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `search <query> [opts]` | Google search from the CLI (--help for details) |
 | `markdownify [opts]` | Convert current page, URL, file, or input HTML to Markdown |
-
+| `init-agents [opts]` | Scaffold spel agent + skill (--help for details) |
 | `codegen record [url]` | Record browser session (interactive Playwright Codegen) |
 | `codegen [opts] [file]` | Transform JSONL recording to Clojure code (--help for details) |
 | `ci-assemble [opts]` | Assemble Allure site for CI deployment (--help for details) |
@@ -1606,6 +1639,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `install [--with-deps]` | Install Playwright browsers |
 | `version` | Show version |
+| `bridge [--port N\|--eject]` | Serve spel.js + loopback bridge, or eject the engine |
 
 ### Modes
 

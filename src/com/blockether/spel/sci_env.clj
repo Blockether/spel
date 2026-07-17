@@ -37,7 +37,9 @@
    [com.blockether.spel.markdown :as markdown]
    [com.blockether.spel.markdownify :as markdownify]
    [com.blockether.spel.assertions :as assert]
+   [com.blockether.spel.backend :as backend]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.ios :as ios]
    [com.blockether.spel.frame :as frame]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
@@ -93,6 +95,12 @@
 (defonce !context (atom nil))
 (defonce !page    (atom nil))
 (defonce !device  (atom nil))
+
+;; Active non-Playwright backend (currently: iOS Safari via WebDriver).
+;; nil when the classic Playwright atoms above own the session. Kept in
+;; dedicated atoms so Playwright-documented atoms never hold foreign values.
+(defonce !backend     (atom nil))
+(defonce !ios-session (atom nil))
 
 ;; Action Log — tracks user-facing browser commands with timestamps for SRT export.
 ;; Owned here (alongside other session atoms) so daemon.clj can write and sci fns can read
@@ -169,8 +177,20 @@
 
 (defn- require-page! []
   (when-not @!page
-    (throw (ex-info "No page. Call (spel/start!) first." {})))
+    (if @!backend
+      (throw (ex-info (str "The " (name (backend/backend-kind @!backend))
+                        " backend is active — raw Playwright APIs (page/, loc/, core/)"
+                        " are not available. Use the spel/* simplified API instead.")
+               {:error_code "unsupported_capability"
+                :backend (name (backend/backend-kind @!backend))}))
+      (throw (ex-info "No page. Call (spel/start!) first." {}))))
   @!page)
+
+(defn- active-backend
+  "Returns the active non-Playwright backend, or nil when Playwright
+   atoms own the session."
+  []
+  @!backend)
 
 (defn- require-context! []
   (when-not @!context
@@ -210,13 +230,161 @@
 ;; Lifecycle Functions (exposed to SCI)
 ;; =============================================================================
 
+(defn sci-ios-start!
+  "Starts an Appium/XCUITest application session in an iOS Simulator and
+   installs it as the active backend. Called by
+   (spel/start! {:provider :ios :bundle-id \"com.example.app\"}).
+
+   Opts: :device, :udid, :platform-version, :bundle-id, :app,
+   :extra-capabilities, :appium-url, :session."
+  [opts]
+  (when @!backend
+    (throw (ex-info "Session already running. Call (spel/stop!) first." {})))
+  (let [ios-session (ios/start! {:session          (or (:session opts) "default")
+                                 :device           (:device opts)
+                                 :udid             (:udid opts)
+                                 :platform-version (:platform-version opts)
+                                 :bundle-id        (:bundle-id opts)
+                                 :app              (:app opts)
+                                 :extra-capabilities (:extra-capabilities opts)
+                                 :appium-url       (:appium-url opts)})]
+    (reset! !ios-session ios-session)
+    (reset! !backend (backend/ios-backend ios-session))
+    :started))
+
+(defn- require-ios-session!
+  "Returns the active iOS session or throws a provider-specific error."
+  []
+  (or @!ios-session
+    (throw (ex-info "This operation requires an iOS provider session."
+             {:error_code "unsupported_capability" :backend "playwright"}))))
+
+(defn sci-ios-contexts
+  "Returns available iOS automation contexts (NATIVE_APP and inspectable
+   WEBVIEW_* contexts)."
+  []
+  (ios/contexts (require-ios-session!)))
+
+(defn sci-ios-context-details
+  "Returns detailed context records, including webview URL/title metadata
+   when available."
+  []
+  (ios/context-details (require-ios-session!)))
+
+(defn sci-ios-current-context
+  "Returns the active iOS automation context name."
+  []
+  (ios/current-context (require-ios-session!)))
+
+(defn sci-run-with-webview-context
+  "Runs a deferred body in an inspectable iOS WebView and restores the exact
+   prior context. Options accept :timeout-ms and an exact :context name."
+  [opts callback]
+  (let [session   (require-ios-session!)
+        requested (or (:context opts) :webview)]
+    (ios/with-context session requested
+      (select-keys opts [:timeout-ms]) callback)))
+
+(defn sci-with-webview-context-macro
+  "Defers body until an inspectable iOS WebView is active and restores the exact prior context.
+   Restoration occurs after success or failure."
+  {:sci/arglists '([body] [opts & body])}
+  [_form _env first-form & remaining-forms]
+  (let [[opts body] (if (seq remaining-forms)
+                      [first-form remaining-forms]
+                      [{} [first-form]])]
+    (list sci-run-with-webview-context opts
+      (list 'fn [] (cons 'do body)))))
+
+(defn sci-ios-devices
+  "Lists available iOS Simulators without requiring an active session."
+  []
+  (ios/list-devices))
+
+(defn sci-ios-doctor
+  "Runs iOS provider prerequisite diagnostics without installing software."
+  []
+  (ios/doctor))
+
+(defn sci-ios-activate-app!
+  "Activates the bound or requested installed iOS application."
+  ([]
+   (let [session (require-ios-session!)]
+     (ios/activate-app! session (:bundle-id session))))
+  ([bundle-id]
+   (ios/activate-app! (require-ios-session!) bundle-id)))
+
+(defn sci-ios-app-state
+  "Returns the state of an installed iOS application as a keyword."
+  [bundle-id]
+  (ios/app-state (require-ios-session!) bundle-id))
+
+(defn sci-ios-launch-app!
+  "Launches the bound or requested installed iOS application."
+  ([] (ios/launch-app! (require-ios-session!)))
+  ([bundle-id] (ios/launch-app! (require-ios-session!) bundle-id)))
+
+(defn sci-ios-terminate-app!
+  "Terminates the bound or requested iOS application."
+  ([] (ios/terminate-app! (require-ios-session!)))
+  ([bundle-id] (ios/terminate-app! (require-ios-session!) bundle-id)))
+
+(defn sci-ios-background-app!
+  "Moves the active iOS application to the background for N seconds."
+  ([] (ios/background-app! (require-ios-session!) 3))
+  ([seconds] (ios/background-app! (require-ios-session!) seconds)))
+
+(defn sci-ios-install-app!
+  "Installs a simulator-compatible .app."
+  [path]
+  (ios/install-app! (require-ios-session!) path))
+
+(defn sci-ios-uninstall-app!
+  "Uninstalls an iOS application by bundle identifier."
+  [bundle-id]
+  (ios/uninstall-app! (require-ios-session!) bundle-id))
+
+(defn sci-ios-app-installed?
+  "Returns true when an iOS application is installed."
+  [bundle-id]
+  (ios/app-installed? (require-ios-session!) bundle-id))
+
+(defn sci-ios-open-url!
+  "Opens a deep or universal URL."
+  ([url] (ios/open-url! (require-ios-session!) url))
+  ([url bundle-id] (ios/open-url! (require-ios-session!) url bundle-id)))
+
+(defn sci-ios-permission
+  "Returns an iOS application permission value."
+  ([service] (ios/get-permission (require-ios-session!) service))
+  ([bundle-id service]
+   (ios/get-permission (require-ios-session!) bundle-id service)))
+
+(defn sci-ios-set-permission!
+  "Sets an app permission. Access accepts :grant, :revoke, or :reset."
+  ([service access]
+   (ios/set-permission! (require-ios-session!) service access))
+  ([bundle-id service access]
+   (ios/set-permission! (require-ios-session!) bundle-id service access)))
+
+(defn sci-ios-hide-keyboard!
+  "Dismisses the iOS software keyboard."
+  []
+  (ios/hide-keyboard! (require-ios-session!)))
+
 (defn sci-start!
   ([] (sci-start! {}))
   ([opts]
    ;; In daemon mode, the browser is already running — start! is a no-op.
    ;; This lets old scripts that call (spel/start!) work unchanged.
-   (if @!page
+   (cond
+     (= :ios (:provider opts))
+     (sci-ios-start! opts)
+
+     (or @!page @!backend)
      :started
+
+     :else
      (do
        (when @!pw
          (throw (ex-info "Session already running. Call (spel/stop!) first." {})))
@@ -246,8 +414,15 @@
          :started)))))
 
 (defn sci-stop!
-  "Stops the Playwright session, closing browser and cleaning up resources."
+  "Stops the active session (Playwright or iOS backend), closing the
+   browser and cleaning up resources."
   []
+  (when-let [b @!backend]
+    (try (backend/close-backend! b)
+         (catch Exception e
+           (eprintln (str "spel: warn: close-backend failed: " (.getMessage e)))))
+    (reset! !backend nil)
+    (reset! !ios-session nil))
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
@@ -303,15 +478,54 @@
 
 (defn sci-goto
   "Navigates the current page to a URL.
-   Validates the URL before navigation — throws on invalid URLs."
-  ([url] (page/validate-url url) (throw-if-anomaly (page/navigate (require-page!) url)))
-  ([url opts] (page/validate-url url) (throw-if-anomaly (page/navigate (require-page!) url opts))))
-(defn sci-back      [] (throw-if-anomaly (page/go-back (require-page!))))
-(defn sci-forward   [] (throw-if-anomaly (page/go-forward (require-page!))))
-(defn sci-reload!   [] (throw-if-anomaly (page/reload (require-page!))))
-(defn sci-url       [] (page/url (require-page!)))
-(defn sci-title     [] (page/title (require-page!)))
-(defn sci-html      [] (page/content (require-page!)))
+   Validates the URL before navigation — throws on invalid URLs.
+   Dispatches through the active backend when one is installed (iOS)."
+  ([url]
+   (page/validate-url url)
+   (if-let [b (active-backend)]
+     (backend/navigate! b url {})
+     (throw-if-anomaly (page/navigate (require-page!) url))))
+  ([url opts]
+   (page/validate-url url)
+   (if-let [b (active-backend)]
+     (backend/navigate! b url opts)
+     (throw-if-anomaly (page/navigate (require-page!) url opts)))))
+(defn sci-back
+  "Goes back in browser history (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/go-back! b)
+    (throw-if-anomaly (page/go-back (require-page!)))))
+(defn sci-forward
+  "Goes forward in browser history (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/go-forward! b)
+    (throw-if-anomaly (page/go-forward (require-page!)))))
+(defn sci-reload!
+  "Reloads the current page (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/reload! b)
+    (throw-if-anomaly (page/reload (require-page!)))))
+(defn sci-url
+  "Returns the current URL (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/current-url b)
+    (page/url (require-page!))))
+(defn sci-title
+  "Returns the current page title (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/page-title b)
+    (page/title (require-page!))))
+(defn sci-html
+  "Returns the current page HTML source (backend-aware)."
+  []
+  (if-let [b (active-backend)]
+    (backend/page-content b)
+    (page/content (require-page!))))
 (defn sci-markdownify
   "Converts the current page HTML into Markdown."
   ([] (throw-if-anomaly (markdownify/html->markdown (require-page!) (page/content (require-page!)))))
@@ -347,29 +561,62 @@
 ;; =============================================================================
 
 (defn sci-click
-  ([sel]      (throw-if-anomaly (locator/click (sci-$ sel))))
-  ([sel opts] (throw-if-anomaly (locator/click (sci-$ sel) opts))))
+  ([sel]
+   (if-let [b (active-backend)]
+     (if (vector? sel)
+       (backend/tap! b sel {})
+       (backend/click! b sel {}))
+     (throw-if-anomaly (locator/click (sci-$ sel)))))
+  ([sel opts]
+   (if-let [b (active-backend)]
+     (if (vector? sel)
+       (backend/tap! b sel opts)
+       (backend/click! b sel opts))
+     (throw-if-anomaly (locator/click (sci-$ sel) opts)))))
 (defn sci-dblclick
   ([sel]      (throw-if-anomaly (locator/dblclick (sci-$ sel))))
   ([sel opts] (throw-if-anomaly (locator/dblclick (sci-$ sel) opts))))
 (defn sci-fill
-  ([sel value]      (throw-if-anomaly (locator/fill (sci-$ sel) value)))
-  ([sel value opts] (throw-if-anomaly (locator/fill (sci-$ sel) value opts))))
+  ([sel value]
+   (if-let [b (active-backend)]
+     (backend/fill! b sel value {})
+     (throw-if-anomaly (locator/fill (sci-$ sel) value))))
+  ([sel value opts]
+   (if-let [b (active-backend)]
+     (backend/fill! b sel value opts)
+     (throw-if-anomaly (locator/fill (sci-$ sel) value opts)))))
 (defn sci-type-text
-  ([sel text]      (throw-if-anomaly (locator/type-text (sci-$ sel) text)))
-  ([sel text opts] (throw-if-anomaly (locator/type-text (sci-$ sel) text opts))))
+  ([sel text]
+   (if @!ios-session (ios/type-element! @!ios-session sel text)
+       (throw-if-anomaly (locator/type-text (sci-$ sel) text))))
+  ([sel text opts]
+   (if @!ios-session (ios/type-element! @!ios-session sel text)
+       (throw-if-anomaly (locator/type-text (sci-$ sel) text opts)))))
 (defn sci-keyboard-press
-  "Presses a key on the page keyboard (no selector needed)."
+  "Presses a key on the focused page/native element."
   [key]
-  (throw-if-anomaly (page/keyboard-press (require-page!) key)))
+  (if @!ios-session
+    (ios/press-key! @!ios-session key)
+    (throw-if-anomaly (page/keyboard-press (require-page!) key))))
 
 (defn sci-press
-  "Presses a key. Single-arg form does a page-level keyboard press.
-   Two-arg form presses on a specific element (locator)."
-  ([key]          (sci-keyboard-press key))
-  ([sel key]      (throw-if-anomaly (locator/press (sci-$ sel) key)))
-  ([sel key opts] (throw-if-anomaly (locator/press (sci-$ sel) key opts))))
-(defn sci-clear   [sel] (throw-if-anomaly (locator/clear (sci-$ sel))))
+  "Presses a key. Single-arg form targets the focused element. Two-arg form
+   targets a selector or snapshot ref."
+  ([key] (sci-keyboard-press key))
+  ([sel key]
+   (if @!ios-session
+     (ios/press-key! @!ios-session sel key)
+     (throw-if-anomaly (locator/press (sci-$ sel) key))))
+  ([sel key opts]
+   (if @!ios-session
+     (ios/press-key! @!ios-session sel key)
+     (throw-if-anomaly (locator/press (sci-$ sel) key opts)))))
+(defn sci-clear
+  "Clears an input (backend-aware)."
+  [sel]
+  (if-let [b (active-backend)]
+    (backend/clear! b sel {})
+    (throw-if-anomaly (locator/clear (sci-$ sel)))))
 (defn sci-check
   ([sel]      (throw-if-anomaly (locator/check (sci-$ sel))))
   ([sel opts] (throw-if-anomaly (locator/check (sci-$ sel) opts))))
@@ -382,7 +629,36 @@
 (defn sci-focus     [sel] (throw-if-anomaly (locator/focus (sci-$ sel))))
 (defn sci-select    [sel values] (throw-if-anomaly (locator/select-option (sci-$ sel) values)))
 (defn sci-blur      [sel] (throw-if-anomaly (locator/blur (sci-$ sel))))
-(defn sci-tap       [sel] (throw-if-anomaly (locator/tap-element (sci-$ sel))))
+(defn sci-tap
+  "Taps an element. On the iOS backend this is a native touch pointer
+   action; on Playwright it delegates to locator tap emulation.
+   Also accepts [x y] coordinates on the iOS backend."
+  [sel]
+  (if-let [b (active-backend)]
+    (backend/tap! b sel {})
+    (throw-if-anomaly (locator/tap-element (sci-$ sel)))))
+
+(defn sci-swipe
+  "Performs a native touch swipe (iOS backend only).
+
+   Forms:
+     (spel/swipe :up)            ;; default distance 300
+     (spel/swipe :up 500)
+     (spel/swipe {:from [200 600] :to [200 100] :duration 800})"
+  ([direction-or-opts]
+   (if (map? direction-or-opts)
+     (sci-swipe direction-or-opts nil)
+     (sci-swipe {:direction direction-or-opts} nil)))
+  ([direction-or-opts distance]
+   (let [opts (if (map? direction-or-opts)
+                direction-or-opts
+                (cond-> {:direction direction-or-opts}
+                  distance (assoc :distance distance)))
+         b    (active-backend)]
+     (when-not b
+       (throw (ex-info "swipe requires the iOS backend. Start with (spel/start! {:provider :ios}) or use (spel/scroll ...) on Playwright."
+                {:error_code "unsupported_capability"})))
+     (backend/swipe! b opts))))
 (defn sci-set-input-files! [sel files] (throw-if-anomaly (locator/set-input-files! (sci-$ sel) files)))
 (defn sci-scroll-into-view [sel] (throw-if-anomaly (locator/scroll-into-view (sci-$ sel))))
 (defn sci-scroll
@@ -397,10 +673,12 @@
   ([direction]
    (sci-scroll direction {}))
   ([direction opts]
-   (let [sel (get opts :selector)]
-     (if sel
-       (locator/scroll (sci-$ sel) direction opts)
-       (page/scroll (require-page!) direction opts)))))
+   (if (and (active-backend) @!ios-session)
+     (ios/scroll @!ios-session direction (or (:amount opts) 500) opts)
+     (let [sel (get opts :selector)]
+       (if sel
+         (locator/scroll (sci-$ sel) direction opts)
+         (page/scroll (require-page!) direction opts))))))
 (defn sci-dispatch-event   [sel type] (throw-if-anomaly (locator/dispatch-event (sci-$ sel) type)))
 (defn sci-drag-to
   "Drags an element to another element.
@@ -427,19 +705,39 @@
 ;; Locator Content & State
 ;; =============================================================================
 
-(defn sci-text       [sel] (throw-if-anomaly (locator/text-content (sci-$ sel))))
-(defn sci-inner-text [sel] (throw-if-anomaly (locator/inner-text (sci-$ sel))))
+(defn sci-text [sel]
+  (if @!ios-session (ios/element-text @!ios-session sel)
+      (throw-if-anomaly (locator/text-content (sci-$ sel)))))
+(defn sci-inner-text [sel]
+  (if @!ios-session (ios/element-text @!ios-session sel)
+      (throw-if-anomaly (locator/inner-text (sci-$ sel)))))
 (defn sci-inner-html [sel] (throw-if-anomaly (locator/inner-html (sci-$ sel))))
-(defn sci-attr       [sel name] (throw-if-anomaly (locator/get-attribute (sci-$ sel) name)))
-(defn sci-value      [sel] (throw-if-anomaly (locator/input-value (sci-$ sel))))
-(defn sci-count-of   [sel] (throw-if-anomaly (locator/count-elements (sci-$ sel))))
-(defn sci-visible?   [sel] (locator/is-visible? (sci-$ sel)))
-(defn sci-hidden?    [sel] (locator/is-hidden? (sci-$ sel)))
-(defn sci-enabled?   [sel] (locator/is-enabled? (sci-$ sel)))
-(defn sci-disabled?  [sel] (locator/is-disabled? (sci-$ sel)))
-(defn sci-editable?  [sel] (locator/is-editable? (sci-$ sel)))
-(defn sci-checked?   [sel] (locator/is-checked? (sci-$ sel)))
-(defn sci-bbox       [sel] (locator/bounding-box (sci-$ sel)))
+(defn sci-attr [sel name]
+  (if @!ios-session (ios/element-attribute @!ios-session sel name)
+      (throw-if-anomaly (locator/get-attribute (sci-$ sel) name))))
+(defn sci-value [sel]
+  (if @!ios-session (ios/element-attribute @!ios-session sel "value")
+      (throw-if-anomaly (locator/input-value (sci-$ sel)))))
+(defn sci-count-of [sel]
+  (if @!ios-session (ios/element-count @!ios-session sel)
+      (throw-if-anomaly (locator/count-elements (sci-$ sel)))))
+(defn sci-visible? [sel]
+  (if @!ios-session (:visible (ios/element-state @!ios-session sel))
+      (locator/is-visible? (sci-$ sel))))
+(defn sci-hidden? [sel] (not (sci-visible? sel)))
+(defn sci-enabled? [sel]
+  (if @!ios-session (:enabled (ios/element-state @!ios-session sel))
+      (locator/is-enabled? (sci-$ sel))))
+(defn sci-disabled? [sel] (not (sci-enabled? sel)))
+(defn sci-editable? [sel]
+  (if @!ios-session (:editable (ios/element-state @!ios-session sel))
+      (locator/is-editable? (sci-$ sel))))
+(defn sci-checked? [sel]
+  (if @!ios-session (:selected (ios/element-state @!ios-session sel))
+      (locator/is-checked? (sci-$ sel))))
+(defn sci-bbox [sel]
+  (if @!ios-session (ios/element-rect @!ios-session sel)
+      (locator/bounding-box (sci-$ sel))))
 (defn sci-all-text-contents [sel] (locator/all-text-contents (sci-$ sel)))
 (defn sci-all-inner-texts   [sel] (locator/all-inner-texts (sci-$ sel)))
 
@@ -462,8 +760,12 @@
 ;; =============================================================================
 
 (defn sci-loc-wait-for
-  ([sel]      (throw-if-anomaly (locator/wait-for (sci-$ sel))))
-  ([sel opts] (throw-if-anomaly (locator/wait-for (sci-$ sel) opts))))
+  ([sel]
+   (if @!ios-session (ios/wait-for-element @!ios-session sel)
+       (throw-if-anomaly (locator/wait-for (sci-$ sel)))))
+  ([sel opts]
+   (if @!ios-session (ios/wait-for-element @!ios-session sel opts)
+       (throw-if-anomaly (locator/wait-for (sci-$ sel) opts)))))
 (defn sci-evaluate-locator
   ([sel expr]     (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr)))
   ([sel expr arg] (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr arg))))
@@ -476,8 +778,14 @@
 ;; =============================================================================
 
 (defn sci-eval-js
-  ([expr]     (throw-if-anomaly (page/evaluate (require-page!) expr)))
-  ([expr arg] (throw-if-anomaly (page/evaluate (require-page!) expr arg))))
+  ([expr]
+   (if-let [b (active-backend)]
+     (backend/evaluate! b expr [])
+     (throw-if-anomaly (page/evaluate (require-page!) expr))))
+  ([expr arg]
+   (if-let [b (active-backend)]
+     (backend/evaluate! b expr [arg])
+     (throw-if-anomaly (page/evaluate (require-page!) expr arg)))))
 (defn sci-evaluate-handle
   ([expr]     (throw-if-anomaly (page/evaluate-handle (require-page!) expr)))
   ([expr arg] (throw-if-anomaly (page/evaluate-handle (require-page!) expr arg))))
@@ -508,12 +816,21 @@
 ;; =============================================================================
 
 (defn sci-screenshot
-  ([] (throw-if-anomaly (page/screenshot (require-page!))))
+  ([]
+   (if-let [b (active-backend)]
+     (backend/screenshot! b {})
+     (throw-if-anomaly (page/screenshot (require-page!)))))
   ([path-or-opts]
-   (throw-if-anomaly
-     (if (string? path-or-opts)
-       (page/screenshot (require-page!) {:path path-or-opts})
-       (page/screenshot (require-page!) path-or-opts)))))
+   (if-let [b (active-backend)]
+     (let [bytes ^bytes (backend/screenshot! b (if (map? path-or-opts) path-or-opts {}))]
+       (when (string? path-or-opts)
+         (with-open [out (io/output-stream path-or-opts)]
+           (.write out bytes)))
+       bytes)
+     (throw-if-anomaly
+       (if (string? path-or-opts)
+         (page/screenshot (require-page!) {:path path-or-opts})
+         (page/screenshot (require-page!) path-or-opts))))))
 
 (defn sci-compare-screenshots
   "Compare two PNG screenshots pixel-by-pixel using pixelmatch.
@@ -554,12 +871,21 @@
 ;; =============================================================================
 
 (defn sci-wait-for
-  ([sel]      (throw-if-anomaly (page/wait-for-selector (require-page!) sel)))
-  ([sel opts] (throw-if-anomaly (page/wait-for-selector (require-page!) sel opts))))
+  ([sel]
+   (if @!ios-session (ios/wait-for-element @!ios-session sel)
+       (throw-if-anomaly (page/wait-for-selector (require-page!) sel))))
+  ([sel opts]
+   (if @!ios-session
+     (ios/wait-for-element @!ios-session sel
+       (cond-> opts (:timeout opts) (assoc :timeout-ms (:timeout opts))))
+     (throw-if-anomaly (page/wait-for-selector (require-page!) sel opts)))))
 (defn sci-wait-for-load
   ([]      (throw-if-anomaly (page/wait-for-load-state (require-page!))))
   ([state] (throw-if-anomaly (page/wait-for-load-state (require-page!) state))))
-(defn sci-sleep [ms] (page/wait-for-timeout (require-page!) ms))
+(defn sci-sleep [ms]
+  (if @!ios-session
+    (do (Thread/sleep (long ms)) nil)
+    (page/wait-for-timeout (require-page!) ms)))
 (defn sci-wait-for-url
   ([url] (throw-if-anomaly (page/wait-for-url (require-page!) url)))
   ([url opts] (throw-if-anomaly (page/wait-for-url (require-page!) url opts))))
@@ -953,8 +1279,23 @@
 (defn sci-browser
   "Returns the current Browser instance."
   [] (require-browser!))
-(defn sci-context-cookies          [] (core/context-cookies (require-context!)))
-(defn sci-context-clear-cookies!   [] (core/context-clear-cookies! (require-context!)))
+(defn sci-context-cookies
+  "Returns the cookie list. Backend-aware: reads Safari's cookies through
+   WebDriver on the iOS backend, the BrowserContext on Playwright."
+  []
+  (if-let [b (active-backend)]
+    (backend/cookies b)
+    (core/context-cookies (require-context!))))
+(defn sci-context-clear-cookies!
+  "Clears all cookies (Playwright only — the iOS backend exposes read-only
+   cookie access)."
+  []
+  (if (active-backend)
+    (throw (ex-info (str "cookies clear is not supported on the iOS backend "
+                      "(read-only cookie access). Use the Playwright provider.")
+             {:error_code "unsupported_capability"
+              :backend "ios"}))
+    (core/context-clear-cookies! (require-context!))))
 (defn sci-context-storage-state    [] (core/context-storage-state (require-context!)))
 (defn sci-context-save-storage-state! [path] (core/context-save-storage-state! (require-context!) path))
 (defn sci-context-set-offline!     [offline] (core/context-set-offline! (require-context!) offline))
@@ -1556,23 +1897,38 @@
     (cond-> (assoc snap :url (page/url pg) :title (page/title pg))
       desc (assoc :description desc)
       dev  (assoc :device dev))))
+(defn- backend-snapshot
+  "Captures a snapshot through the active backend and enriches it with
+   :url and :title from that backend."
+  [b snap-opts]
+  (let [snap (backend/capture-snapshot! b snap-opts)]
+    (assoc snap
+      :url   (try (backend/current-url b) (catch Exception _ nil))
+      :title (try (backend/page-title b) (catch Exception _ nil)))))
+
 (defn sci-snapshot
   ([]
-   (let [pg        (require-page!)
-         dev       @!device
-         snap-opts (cond-> {} dev (assoc :device dev))]
-     (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)))
-  ([page-or-opts]
-   (if (map? page-or-opts)
+   (if-let [b (active-backend)]
+     (backend-snapshot b {})
      (let [pg        (require-page!)
            dev       @!device
-           flat?     (:flat page-or-opts)
-           snap-opts (cond-> (dissoc page-or-opts :flat)
-                       (and dev (not (:device page-or-opts))) (assoc :device dev))
-           snap      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)]
-       (if flat?
-         (update snap :tree snapshot/flatten-tree)
-         snap))
+           snap-opts (cond-> {} dev (assoc :device dev))]
+       (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg))))
+  ([page-or-opts]
+   (if (map? page-or-opts)
+     (if-let [b (active-backend)]
+       (let [flat? (:flat page-or-opts)
+             snap  (backend-snapshot b (dissoc page-or-opts :flat))]
+         (if flat? (update snap :tree snapshot/flatten-tree) snap))
+       (let [pg        (require-page!)
+             dev       @!device
+             flat?     (:flat page-or-opts)
+             snap-opts (cond-> (dissoc page-or-opts :flat)
+                         (and dev (not (:device page-or-opts))) (assoc :device dev))
+             snap      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot pg snap-opts)) pg)]
+         (if flat?
+           (update snap :tree snapshot/flatten-tree)
+           snap)))
      (enrich-snapshot (throw-if-anomaly (snapshot/capture-snapshot page-or-opts)) page-or-opts)))
   ([page opts]
    (let [dev       @!device
@@ -1794,6 +2150,26 @@
                   ['new-tab!      sci-new-tab!]
                   ['switch-tab!   sci-switch-tab!]
                   ['tabs          sci-tabs]
+                  ;; iOS application provider
+                  ['ios-contexts          sci-ios-contexts]
+                  ['ios-context-details   sci-ios-context-details]
+                  ['ios-current-context   sci-ios-current-context]
+                  ['with-webview-context  (with-meta sci-with-webview-context-macro
+                                            {:sci/macro true})]
+                  ['ios-devices           sci-ios-devices]
+                  ['ios-doctor            sci-ios-doctor]
+                  ['ios-activate-app!     sci-ios-activate-app!]
+                  ['ios-app-state         sci-ios-app-state]
+                  ['ios-launch-app!       sci-ios-launch-app!]
+                  ['ios-terminate-app!    sci-ios-terminate-app!]
+                  ['ios-background-app!   sci-ios-background-app!]
+                  ['ios-install-app!      sci-ios-install-app!]
+                  ['ios-uninstall-app!    sci-ios-uninstall-app!]
+                  ['ios-app-installed?    sci-ios-app-installed?]
+                  ['ios-open-url!         sci-ios-open-url!]
+                  ['ios-permission        sci-ios-permission]
+                  ['ios-set-permission!   sci-ios-set-permission!]
+                  ['ios-hide-keyboard!    sci-ios-hide-keyboard!]
                   ;; Navigation
                   ['navigate      sci-goto]
                   ['goto          sci-goto]

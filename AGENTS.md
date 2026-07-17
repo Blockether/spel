@@ -253,6 +253,25 @@ Tests use `/keyboard-page` + `keydown` listeners → `#last-key` + `#key-log`. V
 
 ## Learnings
 
+### Always capture full test output to a file
+
+NEVER pipe long test runs straight into `tail`/`grep` — a failure means
+rerunning the whole suite (~6 min for test-cli.sh) just to see WHAT failed.
+
+```bash
+# WRONG — failure details are gone forever:
+./test-cli.sh 2>&1 | tail -6
+
+# CORRECT — run once, inspect as many times as needed:
+./test-cli.sh > /tmp/test-cli-full.log 2>&1; echo "exit=$?"
+grep -E '✗|FAIL' /tmp/test-cli-full.log
+clojure -M:test > /tmp/lazytest-full.log 2>&1; echo "exit=$?"
+tail -3 /tmp/lazytest-full.log
+```
+
+Applies to every long-running command: test suites, `make install-local`,
+native-image builds, E2E runs.
+
 ### Observable HTML test pages
 
 "No error" tests = false confidence. Fn silently does nothing → passes. Instead:
@@ -260,6 +279,21 @@ Tests use `/keyboard-page` + `keydown` listeners → `#last-key` + `#key-log`. V
 1. Dedicated HTML page in `test_server.clj` + JS listeners
 2. Action → read DOM → verify effect
 3. Example: `keydown` listener → `e.key` → `#last-key` → test reads `#last-key`
+
+### Layout-stable observable pages (iOS tap hit-testing)
+
+iOS Safari hit-tests the synthesized `click` ~100ms AFTER `touchstart`. If a
+touch handler mutates layout (e.g. appending text to a zero-height log div),
+elements below shift and the click lands on the WRONG element — for native
+taps AND real fingers. Cost: 3 debug rounds chasing a phantom "Safari swallows
+first tap" bug that was the test page shifting its own button 20px mid-tap.
+Rule: status/log divs on touch test pages get fixed `height` + `overflow:
+hidden; white-space: nowrap`. Diagnose with a document-level capture listener
+recording `e.target` + `e.clientX/Y`.
+
+Corollary: do NOT add click-verify/retap logic to `tap` — legit mobile pages
+`preventDefault()` the synthetic click in touch handlers; a retap would
+double-fire their touch events.
 
 ### Three-layer pattern
 

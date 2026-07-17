@@ -1,5 +1,11 @@
 {:linters
- {:clojure-lsp/unused-public-var
+ {;; Test macros that introduce bindings (fake-server harnesses) — kondo
+  ;; cannot see the bindings without a macroexpand hook.
+  :unresolved-symbol
+  {:exclude [(com.blockether.spel.webdriver-test/with-fake-server)
+             (com.blockether.spel.backend-test/with-ios-backend)]}
+
+  :clojure-lsp/unused-public-var
   {:level :info
    :exclude-when-defined-by
    #{clojure.test/deftest

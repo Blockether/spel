@@ -322,6 +322,7 @@
     (it "includes all reference files"
       (let [paths (set (output-paths (#'sut/files-to-create "opencode" "lazytest")))]
         (expect (some #(str/includes? % "EVAL_GUIDE.md") paths))
+        (expect (some #(str/includes? % "BRIDGE.md") paths))
         (expect (some #(str/includes? % "SESSION_COMMON.md") paths))
         (expect (some #(str/includes? % "ASSERTIONS_EVENTS.md") paths))))
 
