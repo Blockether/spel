@@ -1,3 +1,0 @@
-[PAGEERROR] Error: kaboom
-Error: kaboom
-    at eval (eval at evaluate (:290:30), <anonymous>:1:26)
