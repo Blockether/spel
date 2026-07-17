@@ -1,2 +1,0 @@
-[LOG] hello   (:1450:52)
-[ERROR] boom   (:1450:52)
