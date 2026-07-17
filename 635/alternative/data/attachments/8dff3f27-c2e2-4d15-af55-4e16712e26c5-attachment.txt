@@ -1,0 +1,1 @@
+SPEL_IOS_E2E not set — skipping real-simulator E2E. Enable with SPEL_IOS_E2E=1 (requires macOS + Xcode + Appium + XCUITest).
