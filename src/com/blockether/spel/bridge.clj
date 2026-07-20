@@ -268,13 +268,14 @@
    chrome.storage.local so it persists across browser restarts on any site."
   ^String []
   (str "<!doctype html>\n<html><head><meta charset=\"utf-8\"><meta name=\"color-scheme\" content=\"light\"><title>spel bridge</title>\n"
-    "<style>*{box-sizing:border-box}:root{color-scheme:light only}html,body{background:#eceef1!important;color:#1a1a1a!important}body{font:13px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;width:300px;margin:0;padding:12px}"
-    ".card{background:#fff;border:1px solid #e3e5e8;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}"
-    "h1{font-size:15px;font-weight:700;margin:0 0 14px;color:#111}label{display:block;margin:12px 0 5px;color:#555;font-size:12px;font-weight:600}"
-    "input{width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff!important;color:#1a1a1a!important;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}input:focus{border-color:#1f7a3d;box-shadow:0 0 0 3px rgba(31,122,61,.15)}input::placeholder{color:#aaa}"
-    "button{margin-top:16px;width:100%;padding:10px 12px;border:0;border-radius:8px;background:#1f7a3d!important;color:#fff!important;font-weight:700;font-size:13px;letter-spacing:.2px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12);transition:background .15s,transform .05s}button:hover{background:#1a6b34!important}button:active{transform:translateY(1px)}"
-    ".st{margin-top:12px;font-size:12px;color:#1f7a3d;min-height:16px}</style></head>\n"
-    "<body><div class=\"card\"><h1 style=\"display:flex;align-items:center;gap:8px\">" (logo-mark-svg 22) "<span>spel bridge</span></h1>\n"
+    "<style>*{box-sizing:border-box}:root{color-scheme:light only}html,body{background:#f2f3f5!important;color:#1a1a1a!important}body{font:13px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;width:308px;margin:0;padding:14px;-webkit-font-smoothing:antialiased}"
+    ".card{background:#fff;border:1px solid #e6e8eb;border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.08)}.hd{display:flex;align-items:center;gap:10px}.tt{display:flex;flex-direction:column;line-height:1.2}"
+    "h1{font-size:15px;font-weight:650;margin:0;color:#101828;letter-spacing:-.01em}.sub{font-size:11px;color:#98a2b3;font-weight:500;margin-top:2px}.status{display:flex;align-items:center;gap:7px;margin:15px 0 2px;font-size:11.5px;color:#667085;font-weight:500}.dot{width:7px;height:7px;border-radius:50%;background:#d0d5dd;box-shadow:0 0 0 3px rgba(208,213,221,.28);transition:background .2s,box-shadow .2s}.dot.on{background:#12b76a;box-shadow:0 0 0 3px rgba(18,183,106,.2)}"
+    "label{display:block;margin:13px 0 5px;color:#475467;font-size:11.5px;font-weight:600}input{width:100%;padding:9px 11px;border:1px solid #d0d5dd;border-radius:9px;background:#fff!important;color:#1a1a1a!important;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}input:focus{border-color:#1f7a3d;box-shadow:0 0 0 3px rgba(31,122,61,.14)}input::placeholder{color:#b0b7c3}"
+    "button{margin-top:18px;width:100%;padding:10px 12px;border:0;border-radius:9px;background:#1f7a3d!important;color:#fff!important;font-weight:650;font-size:13px;letter-spacing:.01em;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.16),0 1px 3px rgba(31,122,61,.24);transition:background .15s,transform .05s,box-shadow .15s}button:hover{background:#1b6c36!important;box-shadow:0 2px 8px rgba(31,122,61,.3)}button:active{transform:translateY(1px)}"
+    ".st{margin-top:12px;font-size:11.5px;color:#1f7a3d;min-height:15px;font-weight:500}</style></head>\n"
+    "<body><div class=\"card\"><div class=\"hd\">" (logo-mark-svg 26) "<div class=\"tt\"><h1>spel bridge</h1><span class=\"sub\">Local automation bridge</span></div></div>\n"
+    "<div class=\"status\"><span class=\"dot\" id=\"dot\"></span><span id=\"stt\">Set the bridge URL, then save</span></div>\n"
     "<label>Bridge URL</label><input id=\"url\" placeholder=\"http://127.0.0.1:8787/spel\">\n"
     "<label>Token</label><input id=\"token\" placeholder=\"(optional)\">\n"
     "<button id=\"save\">Save &amp; connect</button>\n<div class=\"st\" id=\"st\"></div>\n"
@@ -286,8 +287,9 @@
   (str "\"use strict\";\n"
     "(function(){\n"
     "  var $=function(id){return document.getElementById(id);};\n"
-    "  chrome.storage.local.get(['spelUrl','spelToken'],function(v){v=v||{};if(v.spelUrl)$('url').value=v.spelUrl;if(v.spelToken)$('token').value=v.spelToken;});\n"
-    "  $('save').addEventListener('click',function(){var url=$('url').value.trim();var token=$('token').value.trim();chrome.storage.local.set({spelUrl:url,spelToken:token},function(){$('st').textContent='Saved. Reload the target tab to connect.';});});\n"
+    "  function lit(on,msg){$('dot').className=on?'dot on':'dot';$('stt').textContent=msg;}\n"
+    "  chrome.storage.local.get(['spelUrl','spelToken'],function(v){v=v||{};if(v.spelUrl){$('url').value=v.spelUrl;lit(true,'Connected · '+v.spelUrl);}if(v.spelToken)$('token').value=v.spelToken;});\n"
+    "  $('save').addEventListener('click',function(){var url=$('url').value.trim();var token=$('token').value.trim();chrome.storage.local.set({spelUrl:url,spelToken:token},function(){lit(!!url,url?('Connected · '+url):'Set the bridge URL, then save');$('st').textContent='Saved \u00b7 reload the target tab to connect.';});});\n"
     "})();\n"))
 
 (defn extension-readme
