@@ -267,12 +267,12 @@
   "The extension popup: enter/override the bridge URL + token; saved to
    chrome.storage.local so it persists across browser restarts on any site."
   ^String []
-  (str "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>spel bridge</title>\n"
-    "<style>body{font:13px/1.45 -apple-system,Segoe UI,sans-serif;width:280px;margin:0;padding:14px;background:#1e1e1e;color:#eee}"
-    "h1{font-size:14px;margin:0 0 10px}label{display:block;margin:8px 0 3px;color:#aaa}"
-    "input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #444;border-radius:6px;background:#2a2a2a;color:#eee}"
+  (str "<!doctype html>\n<html><head><meta charset=\"utf-8\"><meta name=\"color-scheme\" content=\"light\"><title>spel bridge</title>\n"
+    "<style>:root{color-scheme:light}body{font:13px/1.45 -apple-system,Segoe UI,sans-serif;width:280px;margin:0;padding:14px;background:#fff;color:#1a1a1a}"
+    "h1{font-size:14px;margin:0 0 10px}label{display:block;margin:8px 0 3px;color:#666}"
+    "input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#1a1a1a}"
     "button{margin-top:12px;width:100%;padding:8px;border:0;border-radius:6px;background:#1f7a3d;color:#fff;font-weight:700;cursor:pointer}"
-    ".st{margin-top:10px;font-size:12px;color:#8bd}</style></head>\n"
+    ".st{margin-top:10px;font-size:12px;color:#1f7a3d}</style></head>\n"
     "<body><h1 style=\"display:flex;align-items:center;gap:8px\">" (logo-mark-svg 22) "<span>spel bridge</span></h1>\n"
     "<label>Bridge URL</label><input id=\"url\" placeholder=\"http://127.0.0.1:8787/spel\">\n"
     "<label>Token</label><input id=\"token\" placeholder=\"(optional)\">\n"
@@ -349,7 +349,7 @@
    (let [f (io/file path)]
      (when (.isFile f)
        (try (json/read-json (slurp f) :key-fn keyword)
-            (catch Exception _ nil))))))
+         (catch Exception _ nil))))))
 
 (defn save-target!
   "Persists the active bridge target so subsequent `spel <verb>` invocations
@@ -419,7 +419,7 @@
   (let [f (io/file (runtime-path))]
     (when (.isFile f)
       (try (json/read-json (slurp f) :key-fn keyword)
-           (catch Exception _ nil)))))
+        (catch Exception _ nil)))))
 
 (defn clear-runtime!
   "Removes the runtime discovery file (bridge shutting down)."
@@ -599,8 +599,8 @@
                       (nil? msg) (do (.write os (->bytes ": ping\n\n")) (.flush os) (recur))
                       (identical? msg ::close) nil
                       :else (do (.write os (->bytes (str "data: " msg "\n\n")))
-                                (.flush os)
-                                (recur)))))
+                              (.flush os)
+                              (recur)))))
                 (catch Exception _ nil)
                 (finally
                   (.remove ^ConcurrentHashMap clients id)
@@ -680,7 +680,7 @@
                         (when-let [stale (.get ^ConcurrentHashMap clients id)]
                           (.remove ^ConcurrentHashMap clients id)
                           (try (.offer ^LinkedBlockingQueue (:queue stale) ::close)
-                               (catch Exception _ nil)))))))))
+                            (catch Exception _ nil)))))))))
             (respond! ex 200 "application/json" "{\"ok\":true}")))
         (catch Exception _ (respond! ex 500 "text/plain" "error"))))))
 
@@ -728,8 +728,8 @@
           (let [body   (slurp (io/reader (.getRequestBody ex)))
                 cmd    (json/read-json body)
                 result (try (send! cmd 30000)
-                            (catch Exception e
-                              {"ok" false "error" (or (.getMessage e) "bridge command failed")}))]
+                         (catch Exception e
+                           {"ok" false "error" (or (.getMessage e) "bridge command failed")}))]
             (respond! ex 200 "application/json" (json/write-json-str result))))
         (catch Exception e
           (respond! ex 500 "text/plain" (str "error: " (.getMessage e))))))))
@@ -754,9 +754,9 @@
   (let [clients   (ConcurrentHashMap.)
         pending   (ConcurrentHashMap.)
         ^HttpServer server (try (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
-                                (catch java.io.IOException _
+                             (catch java.io.IOException _
                       ;; Requested port busy — fall back to an ephemeral one.
-                                  (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
+                               (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
         ^ScheduledExecutorService scheduler (Executors/newSingleThreadScheduledExecutor)
         result-path (str path "/result")
         hello-path  (str path "/hello")

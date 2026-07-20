@@ -136,6 +136,10 @@
     (let [popup   (bridge/extension-popup-html)]
       (expect (re-find #"<svg" popup))
       (expect (re-find #"#2EAD33" popup))
+      ;; light theme only — never dark-mode the popup chrome
+      (expect (re-find #"color-scheme.{0,12}light" popup))
+      (expect (re-find #"background:#fff" popup))
+      (expect (nil? (re-find #"#1e1e1e" popup)))
       (expect (nil? (re-find #"\uD83C\uDFAD" popup))))))
 
 (defdescribe bridge-eject-loader-test
@@ -326,7 +330,7 @@
           ;; the one-shot broadcast hits first; retry until the reloaded tab answers
           (let [r (loop [n 6]
                     (let [res (try ((:send! b) {:action "ping"} 3000)
-                                   (catch Exception _ ::retry))]
+                                (catch Exception _ ::retry))]
                       (if (and (= res ::retry) (pos? n)) (recur (dec n)) res)))]
             (expect (= "pong" (get r "value"))))
           ;; disconnect forgets the route so it won't reconnect after that
@@ -407,7 +411,7 @@
           (loop [n 40]
             (let [raw (try (page/evaluate pg
                              "(function(){var el=document.querySelector('[data-spel-profiles-list]'); return el ? String(el.textContent||'') : ''; })()")
-                           (catch Exception _ ""))
+                        (catch Exception _ ""))
                   txt (str raw)]
               (cond
                 (.contains txt "SSE") nil
