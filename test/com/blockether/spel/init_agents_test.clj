@@ -258,7 +258,26 @@
 
   (it "returns content unchanged when agent-name is nil"
     (let [content "---\ndescription: \"Workflow\"\n---\nBody"]
-      (expect (= content (#'sut/transform-agent-template content "claude" nil))))))
+      (expect (= content (#'sut/transform-agent-template content "claude" nil)))))
+
+  (it "transforms content for agents target with the .agents skill path"
+    (let [content "---\ndescription: \"Agent\"\n---\nLoad the `spel` skill before any action."
+          result (#'sut/transform-agent-template content "agents" "spel")]
+      (expect (str/includes? result "name: spel"))
+      (expect (str/includes? result "Read `.agents/skills/spel/SKILL.md` before any action.")))))
+
+(defdescribe set-skill-compatibility-test
+  "Unit tests for SKILL.md compatibility rewriting"
+  (it "rewrites the compatibility frontmatter field"
+    (let [content "---\nname: spel\ncompatibility: opencode\n---\nbody"
+          result (#'sut/set-skill-compatibility content "agents")]
+      (expect (str/includes? result "compatibility: agents"))
+      (expect (not (str/includes? result "compatibility: opencode")))))
+
+  (it "only touches the top-level compatibility line"
+    (let [content "---\ncompatibility: opencode\n---\ncompatibility notes stay"
+          result (#'sut/set-skill-compatibility content "agents")]
+      (expect (str/includes? result "compatibility notes stay")))))
 
 ;; =============================================================================
 ;; 7. Template Processing
@@ -340,6 +359,21 @@
     (it "includes SKILL.md under .claude/skills/spel"
       (let [paths (output-paths (#'sut/files-to-create "claude" "lazytest"))]
         (expect (some #(= ".claude/skills/spel/SKILL.md" %) paths)))))
+
+  (describe "agents loop target (tool-agnostic .agents/skills)"
+    (it "uses .agents/skills paths only"
+      (let [paths (output-paths (#'sut/files-to-create "agents" "lazytest"))]
+        (expect (every? #(str/starts-with? % ".agents/skills/spel") paths))
+        (expect (not (some #(str/starts-with? % ".opencode/") paths)))
+        (expect (not (some #(str/starts-with? % ".claude/") paths)))))
+
+    (it "includes SKILL.md at the skill root"
+      (let [paths (output-paths (#'sut/files-to-create "agents" "lazytest"))]
+        (expect (some #(= ".agents/skills/spel/SKILL.md" %) paths))))
+
+    (it "nests the agent under the skill dir"
+      (let [paths (output-paths (#'sut/files-to-create "agents" "lazytest"))]
+        (expect (some #(= ".agents/skills/spel/agents/spel.md" %) paths)))))
 
   (describe "clojure-test flavour"
     (it "uses clojure-test testing conventions"

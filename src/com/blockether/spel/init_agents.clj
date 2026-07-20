@@ -40,15 +40,24 @@
 
 (def ^:private loop-targets
   "Configuration for each supported agent loop target.
-   Keys: agent-dir, skill-dir, agent-ext, desc."
+   Keys: agent-dir, skill-dir, agent-ext, compatibility, desc.
+   The `agents` target is the tool-agnostic `.agents/skills/` layout: a single
+   skill tree with the agent nested under it (compatibility: agents)."
   {"opencode" {:agent-dir ".opencode/agents"
                :skill-dir ".opencode/skills/spel"
                :agent-ext ".md"
+               :compatibility "opencode"
                :desc "OpenCode"}
    "claude"   {:agent-dir ".claude/agents"
                :skill-dir ".claude/skills/spel"
                :agent-ext ".md"
-               :desc "Claude Code"}})
+               :compatibility "opencode"
+               :desc "Claude Code"}
+   "agents"   {:agent-dir ".agents/skills/spel/agents"
+               :skill-dir ".agents/skills/spel"
+               :agent-ext ".md"
+               :compatibility "agents"
+               :desc "Agents (tool-agnostic)"}})
 
 (def ^:private valid-flavours
   "Supported test framework flavours."
@@ -253,7 +262,9 @@
 
 (defn- transform-agent-template
   "Transforms an agent template for the target loop format.
-   Only transforms agent files (agent-name non-nil). Other files pass through unchanged."
+   Only transforms agent files (agent-name non-nil). Other files pass through unchanged.
+   The `claude` and `agents` targets both need markdown frontmatter + a file-read
+   skill instruction pointing at their own SKILL.md location."
   [content loop-target agent-name]
   (if (nil? agent-name)
     content
@@ -261,7 +272,16 @@
       (case loop-target
         "opencode" content
         "claude"   (transform-for-claude content agent-name skill-dir)
+        "agents"   (transform-for-claude content agent-name skill-dir)
         content))))
+
+(defn- set-skill-compatibility
+  "Rewrites the top-level `compatibility:` frontmatter field of a SKILL.md to the
+   target's compatibility value (e.g. opencode → agents for the .agents/ layout)."
+  [content compatibility]
+  (str/replace content
+    #"(?m)^compatibility:.*$"
+    (str "compatibility: " compatibility)))
 
 ;; =============================================================================
 ;; CLI Argument Parsing
@@ -352,9 +372,11 @@
       {:created false :skipped true :reason "Already exists (use --force to overwrite)"}
 
       :else
-      (let [content (-> (read-template resource-path)
-                      (process-template ns-name flavour)
-                      (transform-agent-template loop-target agent-name))
+      (let [content (cond-> (-> (read-template resource-path)
+                              (process-template ns-name flavour)
+                              (transform-agent-template loop-target agent-name))
+                      (str/ends-with? resource-path "SKILL.md")
+                      (set-skill-compatibility (:compatibility (get loop-targets loop-target))))
             written? (write-file! output-path content dry-run)]
         (if dry-run
           {:created false :skipped false :dry-run true :reason "(dry-run)"}
@@ -381,6 +403,7 @@
   (println "Usage:")
   (println "  spel init-agents --ns my-app")
   (println "  spel init-agents --ns my-app --loop=claude")
+  (println "  spel init-agents --ns my-app --loop=agents")
   (println "  spel init-agents --ns my-app --test-dir test/e2e")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
@@ -388,7 +411,7 @@
   (println "  spel init-agents --ns my-app --force")
   (println "")
   (println "Options:")
-  (println "  --loop TARGET     Agent format: opencode (default), claude")
+  (println "  --loop TARGET     Agent format: opencode (default), claude, agents")
   (println "  --ns NS           Base namespace for generated tests (e.g. my-app → my-app.e2e.seed-test)")
   (println "                    If omitted, derived from the current directory name")
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
@@ -403,6 +426,7 @@
   (println "Loop targets:")
   (println "  opencode          .opencode/agents/, .opencode/skills/")
   (println "  claude            .claude/agents/, .claude/skills/")
+  (println "  agents            .agents/skills/spel/ (tool-agnostic; agent nested under skill)")
   (println "")
   (println "Scaffolds:")
   (println "  - spel agent (browser automation, testing, bug finding, auto-learnings)")
@@ -507,7 +531,7 @@
                             (println "Warning: No --ns provided, deriving from directory name.")
                             (println "         Tip: use --ns my-app to set namespace explicitly.")
                             (println ""))
-                          (derive-namespace)))
+                        (derive-namespace)))
             test-dir (:test-dir opts)]
         (print-banner loop-target no-tests)
 

@@ -1403,6 +1403,29 @@ else
   pass "opencode agent avoids claude skill path"
 fi
 
+# --loop=agents: tool-agnostic .agents/skills layout (issue #108)
+AGENTS_TMP=$(mktemp -d)
+TEMP_FILES+=("$AGENTS_TMP")
+OUT=$(cd "$AGENTS_TMP" && "$SPEL" init-agents --ns demo-app --loop=agents --no-tests --force 2>&1)
+assert_contains "init-agents --loop=agents creates skill SKILL.md" "$OUT" ".agents/skills/spel/SKILL.md"
+assert_contains "init-agents --loop=agents nests agent under skill" "$OUT" ".agents/skills/spel/agents/spel.md"
+
+AGENTS_SKILL_FILE="$AGENTS_TMP/.agents/skills/spel/SKILL.md"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q '^compatibility: agents$' "$AGENTS_SKILL_FILE"; then
+  pass "agents skill sets compatibility: agents"
+else
+  fail "agents skill sets compatibility: agents" "Expected compatibility: agents in .agents SKILL.md"
+fi
+
+AGENTS_AGENT_FILE="$AGENTS_TMP/.agents/skills/spel/agents/spel.md"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if grep -q 'Read `.agents/skills/spel/SKILL.md` before any action\.' "$AGENTS_AGENT_FILE"; then
+  pass "agents agent reads nested SKILL.md"
+else
+  fail "agents agent reads nested SKILL.md" "Expected agents agent to read .agents/skills/spel/SKILL.md"
+fi
+
 # --no-tests --dry-run: includes agent but no seed test
 OUT=$("$SPEL" init-agents --no-tests --dry-run 2>&1)
 assert_contains "--no-tests includes spel agent" "$OUT" "spel agent"
