@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.11] - 2026-07-20
+
+### Changed
+- chore: bump SPEL_VERSION to 0.9.11 for release
+- feat(bridge): refined light popup — header/subtitle, live status dot, layered shadow
+- fix(bridge): solid green popup button + soft outer panel, drop gradient
+- feat(bridge): gold gradient popup button (bookmarklet feel), no sparkle glyphs
+- fix(bridge): drop popup sparkles, solid green button
+- feat(bridge): sexy gold gradient popup button + sparkle accents (light theme)
+- fix(bridge): polish popup + force light with color-scheme:light only
+- fix(bridge): light-theme-only extension popup
+
+
 ## [v0.9.9] - 2026-07-20
 
 ### Changed
@@ -1753,7 +1766,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.9...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.11...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1820,3 +1833,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.5]: https://github.com/Blockether/spel/releases/tag/v0.9.5
 [v0.9.8]: https://github.com/Blockether/spel/releases/tag/v0.9.8
 [v0.9.9]: https://github.com/Blockether/spel/releases/tag/v0.9.9
+[v0.9.11]: https://github.com/Blockether/spel/releases/tag/v0.9.11
