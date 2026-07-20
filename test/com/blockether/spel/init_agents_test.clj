@@ -59,6 +59,12 @@
     (it "parses --loop with space-separated value"
       (expect (= "claude" (:loop (#'sut/parse-args ["--loop" "claude"])))))
 
+    (it "parses --loop agents with space-separated value"
+      (expect (= "agents" (:loop (#'sut/parse-args ["--loop" "agents"])))))
+
+    (it "parses --loop=agents syntax"
+      (expect (= "agents" (:loop (#'sut/parse-args ["--loop=agents"])))))
+
     (it "parses --loop= syntax"
       (expect (= "claude" (:loop (#'sut/parse-args ["--loop=claude"]))))))
 
@@ -380,3 +386,46 @@
       (let [specs (#'sut/files-to-create "opencode" "clojure-test")
             resource-paths (map first specs)]
         (expect (some #(str/includes? % "clojure-test/testing-conventions") resource-paths))))))
+
+;; =============================================================================
+;; 9. Agents Loop — End-to-End Scaffolding
+;; =============================================================================
+
+(defn- temp-root
+  "Creates a unique temp directory and returns its absolute path."
+  []
+  (let [dir (java.io.File. (System/getProperty "java.io.tmpdir")
+              (str "spel-agents-test-" (System/nanoTime)))]
+    (.mkdirs dir)
+    (.getAbsolutePath dir)))
+
+(defn- scaffold!
+  "Runs scaffold-file for one spec into `root` and slurps back the written file."
+  [root resource-path out-rel loop-target agent-name]
+  (let [out (str root "/" out-rel)]
+    (#'sut/scaffold-file resource-path out "desc" "+"
+                         {:force true :flavour "lazytest"}
+                         "demo" loop-target agent-name)
+    (slurp out)))
+
+(defdescribe scaffold-agents-e2e-test
+  "End-to-end scaffolding for the tool-agnostic --loop=agents flavour."
+
+  (describe "SKILL.md"
+    (it "is written with compatibility: agents"
+      (let [content (scaffold! (temp-root) "skills/spel/SKILL.md"
+                      ".agents/skills/spel/SKILL.md" "agents" nil)]
+        (expect (str/includes? content "compatibility: agents"))
+        (expect (not (str/includes? content "compatibility: opencode"))))))
+
+  (describe "agent template"
+    (it "is written with markdown frontmatter naming the agent"
+      (let [content (scaffold! (temp-root) "agents/spel.md"
+                      ".agents/skills/spel/agents/spel.md" "agents" "spel")]
+        (expect (str/includes? content "name: spel"))))
+
+    (it "points the skill instruction at the nested .agents SKILL.md"
+      (let [content (scaffold! (temp-root) "agents/spel.md"
+                      ".agents/skills/spel/agents/spel.md" "agents" "spel")]
+        (expect (str/includes? content ".agents/skills/spel/SKILL.md"))
+        (expect (not (str/includes? content "load the `spel` skill first")))))))
