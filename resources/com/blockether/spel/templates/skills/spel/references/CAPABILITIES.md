@@ -61,7 +61,9 @@ Primary references:
 - Drive a real tab where CDP is disabled: embed a pure-JS engine that talks to
   spel over a loopback server (no DevTools Protocol, no extension, no bundler)
 - `spel bridge` serve / `--eject` (ships inside the native image) / bookmarklet
-  + console loaders / route regular commands via `spel bridge use`
+  + console loaders / MV3 browser extension (`--eject-extension`, load unpacked
+  into Chrome/Edge — any site, survives restart, no LNA prompt) / route regular
+  commands via `spel bridge use`
 - In-page network capture (fetch/XHR), overlay element picker keymap
 
 Primary references:

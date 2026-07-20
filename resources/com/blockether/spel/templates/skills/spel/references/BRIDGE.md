@@ -41,6 +41,8 @@ spel bridge --eject                 Print the embedded spel.js to stdout
 spel bridge --eject -o spel.js      Write spel.js to a file
 spel bridge --eject --bookmarklet   Print a `javascript:` bookmarklet loader
 spel bridge --eject --console       Print the same loader without the prefix (paste into DevTools)
+spel bridge --eject-sw -o spel-sw.js  Write the service worker (same-origin passive-subresource capture)
+spel bridge --eject-extension -o dir  Write an unpacked MV3 browser extension (any site, survives restart)
 ```
 
 Options: `--host` (default `127.0.0.1`), `-p/--port` (default `8787`),
@@ -77,6 +79,43 @@ Caveat: bookmarklets load **late** (you click manually), so they are good for
 `Content-Security-Policy` or a managed-browser policy can still block
 inline/bookmarklet execution — that is policy, not network, and cannot be
 worked around from the script.
+
+### 3. Browser extension (any site, survives restart, no LNA prompt)
+
+`spel bridge --eject-extension -o <dir>` writes an **unpacked Manifest V3**
+extension (default `spel-extension/`) — the permanent, any-site, restart-proof
+loader. Load it once and it beats every limitation of the bookmarklet:
+
+```bash
+spel bridge &                                  # start the local bridge
+spel bridge --eject-extension -o spel-extension # bake the route + token into an MV3 extension
+spel bridge use                                # route spel commands through it
+```
+
+Then in the browser — **Chrome, Edge, or Brave** (same Chromium engine):
+
+1. Open `edge://extensions` (Chrome: `chrome://extensions`).
+2. Toggle **Developer mode** (top-right).
+3. Click **Load unpacked** and pick the `spel-extension/` folder.
+
+A content script injects `engine.js` at `document_start` on **every page**
+(`<all_urls>`, MAIN world) and auto-connects to the bridge route baked into the
+extension. Why it beats the bookmarklet:
+
+- **No Local Network Access prompt.** The manifest declares
+  `host_permissions` for `http://127.0.0.1/*` + `http://localhost/*`, so the
+  browser grants loopback itself — no per-origin LNA grant, no greyed-out
+  setting (see the LNA section below, which the extension sidesteps entirely).
+- **Works on any site** and **survives browser restarts** — the route + token
+  live in `chrome.storage.local`, re-injected on every load, no manual re-click.
+- **Loads early** (`document_start`), so it captures network from page start,
+  unlike the late-loading bookmarklet.
+
+To point it at a different bridge (or refresh a rotated token), click the
+extension's toolbar icon and set **Bridge URL** + **Token** in the popup (saved
+to `chrome.storage.local`), then reload the target tab. Re-eject with a fresh
+`--token` to bake a new secret in. The extension reuses the same embedded
+`engine.js` + `spel-sw.js` as `--eject`/`--eject-sw`; the rest is thin MV3 glue.
 
 ### Local Network Access (LNA) — the loopback permission gate
 
@@ -296,7 +335,9 @@ so it ships **inside the native binary** — the resource pattern
 `spel bridge --eject` unpacks it from the running binary for standalone hosting.
 The service worker `spel-sw.js` sits in the same dir (covered by the same
 `com/blockether/spel/browser/.*` pattern) and unpacks with
-`spel bridge --eject-sw`.
+`spel bridge --eject-sw`. `spel bridge --eject-extension` bundles both plus thin
+MV3 glue (manifest, content/bootstrap scripts, popup, icons) into an unpacked
+browser extension you load into Chrome/Edge.
 
 ## Limitations — document these upfront
 
