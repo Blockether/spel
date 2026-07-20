@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.9] - 2026-07-20
+
+### Changed
+- fix(win): normalize CRLF in templates + CLI output so Windows CI is green
+- test(init-agents): cover --loop=agents parsing + e2e scaffolding
+- feat(init-agents): add tool-agnostic --loop=agents flavour (#108)
+- feat(ios): automate native apps and hybrid webviews
+- docs(changelog): fold phantom v0.9.9 section back into Unreleased
+- feat(report): pimp the alternative HTML report to the Blockether brand
+- feat(bridge): ship a Manifest V3 browser extension + stable token + per-tab profiles
+- build(driver): resolve Playwright driver via tools.deps, not a hand-rolled Maven/CDN fetch
+- fix(video): stop matching Playwright's exact English text
+- fix(video): treat non-recording page video-path as nil
+- build(playwright): bump to 1.61.0 and source driver from Maven artifacts\n\nReplace the dead Playwright driver CDN flow with assembly from\nPlaywright Java's official Maven artifacts, and bump the project\nversion/caches/docs to 1.61.0.
+- fix(native): resolve GraalVM reflection warnings in fetch-latest-release
+- chore(release): format source + promote CHANGELOG to v0.9.9
+- feat(annotate,report): unify Java overlay + alt report on Blockether brand
+- feat(bridge): reveal overlay — label every ref at once (v0.14.0)
+- feat(bridge): restyle overlay to the Blockether brand, drop animations (v0.13.0)
+- feat(bridge): clipboard-copy on pick + light-theme overlay (v0.12.0)
+- feat(bridge): branded connect modal for the Ctrl+Shift+K server chooser
+- fix(bridge): Local Network Access support for the ejected loader
+- feat(bridge): service worker (spel-sw.js) for passive-subresource capture
+- feat(bridge): cross-validate CDP-only limits — add network_har, emulate, screenshot (v0.8.0)
+- docs(bridge): document CDP-only limits upfront (capture, emulation, HAR)
+- feat(bridge): Playwright-style locator composition in spel.js (v0.7.0)
+- feat(bridge): close real Playwright-parity gaps in spel.js (v0.6.0)
+- feat(bridge): brand the overlay picker in spel's theatrical style
+- feat(bridge): token auth, re-inject across navigation, port fallback
+- docs(bridge): document the CDP-free bridge across skill + README
+- feat(bridge): --eject --bookmarklet / --console loader generators
+- feat(bridge): in-page network capture (fetch/XHR/resources)
+- feat(bridge): route regular spel commands through the bridge via a saved target
+- refactor(cli): fold browser-js into `spel bridge --eject`
+- fix(bridge): bound pending map + clean SSE shutdown
+- feat(browser): embeddable spel.js engine + loopback bridge, shipped in native image
+- fix(report): drop duplicated awesome/ sub-report + cap PR report retention
+- chore(ci): cap Allure report retention MAX_REPORTS 15 -> 5
+- release: update version files for v0.9.8, bump to next dev version
+
+
 ### Added
 
 - feat(bridge): **`reveal` overlay — a "what is what" map** (spel.js v0.14.0).
@@ -1712,7 +1753,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.8...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.9...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1778,3 +1819,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.4]: https://github.com/Blockether/spel/releases/tag/v0.9.4
 [v0.9.5]: https://github.com/Blockether/spel/releases/tag/v0.9.5
 [v0.9.8]: https://github.com/Blockether/spel/releases/tag/v0.9.8
+[v0.9.9]: https://github.com/Blockether/spel/releases/tag/v0.9.9
