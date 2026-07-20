@@ -1,0 +1,1 @@
+{"id":"e25c949324346c227087e53b33541ef0","fullName":"com.blockether.spel.ios-test.stop! releases only owned resources.kill-process-tree! reaps the process and its descendants","name":"stop! releases only owned resources > kill-process-tree! reaps the process and its descendants","status":"passed","testResultsByEnv":{"default":"fce9b1ee1b3be2f40119b9ed7f445f11"}}

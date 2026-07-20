@@ -1,0 +1,1 @@
+[DEBUG] spel: SSE reconnecting   (http://127.0.0.1:35307/spel.js:2670:65)
