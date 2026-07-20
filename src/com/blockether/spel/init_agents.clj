@@ -146,7 +146,10 @@
   (let [full-path (str template-base resource-path)
         resource (io/resource full-path)]
     (when resource
-      (slurp resource))))
+      ;; Normalize CRLF → LF so templates checked out on Windows (git
+      ;; autocrlf) still match the `---\n` frontmatter delimiters and other
+      ;; LF-anchored transforms downstream. Emitted files are LF everywhere.
+      (str/replace (slurp resource) "\r\n" "\n"))))
 
 (defn- file-exists?
   "Checks if a file exists at the given path."

@@ -16,7 +16,9 @@
 
 (defn- render-result [response]
   (let [print-result (var-get #'sut/print-result)]
-    (with-out-str (print-result response false))))
+    ;; Strip CR so assertions are line-ending agnostic: on Windows `println`
+    ;; emits platform CRLF, but the expected strings use bare LF.
+    (str/replace (with-out-str (print-result response false)) "\r" "")))
 
 (defdescribe print-result-test
   "Rendering of CLI results, including scalar bridge responses.
