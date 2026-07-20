@@ -12,21 +12,6 @@ Skill generated for spel **{{version}}**. Verify with `spel version`.
 
 Use the `spel` CLI directly or via `eval-sci` for scripted workflows.
 
-## Reply style — ADHD-shaped, caveman-terse
-
-Reader has ADHD. Shape EVERY reply to ACT on — code, bugs, plans, chat alike.
-
-1. **Action first.** Line 1 = command / path / `@ref`, never context. e.g. `spel snapshot -i`.
-2. **Number steps.** 2+ steps → numbered list, one bounded action each, max 5; rest → "Later".
-3. **Restate state.** "Step 2 of 4 done. Next: …" every turn — reader lost last turn's memory.
-4. **Time cost.** Concrete units: `~30s`, `10 min`, `an afternoon`. Never "some work".
-5. **Show wins.** Name what works now: "Login works — try `spel open /login`".
-6. **One next action.** End with ONE thing doable in <2 min. Never a menu.
-7. **Cut fluff.** Kill "Great question", "Let me…", "Hope this helps". Answer, then stop.
-8. **Errors flat.** `location → cause → fix`. No "Uh oh".
-
-Words short. Sentences short. Caveman terse — not rude.
-
 ## CLI commands (obvious form)
 
 ```
@@ -143,42 +128,26 @@ Blocked nav → anomaly `blockedbyclient`. stderr never wrapped/truncated.
 
 ## Bridge — CDP-free in-page automation
 
-When CDP is disabled (locked-down/corporate boxes), drive a real tab by
-embedding a pure-JS engine that talks to spel over a **loopback** server — no
-DevTools Protocol, no extension, no bundler.
+Drive a real tab with no DevTools Protocol, extension, or bundler — a pure-JS
+engine talks to spel over a **loopback** server. For locked-down/corporate boxes.
 
 ```bash
-spel bridge                       # serve spel.js + SSE/POST transport on 127.0.0.1:8787
-spel bridge use                   # route regular `spel <verb>` through the bridge (saved in ~/.spel/bridge.json)
-spel bridge off | status          # stop routing / inspect the saved target + tab reachability
-spel bridge --eject [-o f]        # unpack the embedded spel.js (ships inside the native image)
-spel bridge --eject --bookmarklet # one-click javascript: loader for pages you can't edit (--console = paste into DevTools)
+spel bridge                          # serve spel.js on 127.0.0.1:8787
+spel bridge use | off | status       # route `spel <verb>` through the bridge / stop / inspect
+spel bridge --eject [--bookmarklet]  # unpack spel.js, or a one-click javascript: loader
 ```
 
-Embed (load **first** in `<head>` for full network capture):
-```html
-<script src="http://127.0.0.1:8787/spel.js"></script>
-<script>window.__spel.connect({url:"http://127.0.0.1:8787/spel"})</script>
-```
+`window.__spel.invoke(command)` covers ~100 verbs (click/fill/snapshot `@refs`,
+network capture, same-origin `route`, dialogs, frames, `wait_for*`). Overlay
+picker **Ctrl+Shift+L**, server chooser **Ctrl+Shift+K**. Limits (no CDP): no
+cross-origin interception, no traffic before load. Full detail: `references/BRIDGE.md`.
 
-Installs `window.__spel` with one `invoke(command)` covering ~100 verbs
-(click/fill/type/press, snapshot `@eXXX` refs, ARIA, checks, overflow, geometry,
-in-page **network capture** + same-origin `route` mocking, dialogs,
-console/error capture, cookies, `goto`, upload/tap/dispatch_event, same-origin
-`frame=` drill-down, storage, the `wait_for*` family). Overlay element
-picker: **Ctrl+Shift+L**; choose server: **Ctrl+Shift+K**. Limits (no CDP): no
-protocol/cross-origin interception (`route` is same-origin fetch/XHR only), no
-cross-origin frames, no OS-level tabs/downloads/trusted
-input, no traffic before the script loads. Full detail: `references/BRIDGE.md`.
+## iOS provider — native apps + hybrid WKWebViews
 
-## iOS provider — native applications and hybrid WKWebViews
-
-`--provider ios` binds Appium/XCUITest to an installed app (`--bundle-id`) or a
-Simulator `.app` (`--app`); outer context `NATIVE_APP` gives clickable `@refs`
-via compact XCTest snapshots. Hybrid WKWebViews are driven with
-`(spel/with-webview-context …)`. macOS + Xcode + Appium required. Native
-snapshots, queries, waits, `spel/click`, `spel/scroll` reuse the normal APIs.
-Full recipes, selectors, device flags, and limits: `references/IOS_PROVIDER.md`.
+`--provider ios --bundle-id <id>` (or `--app`) binds Appium/XCUITest; the
+`NATIVE_APP` context yields clickable `@refs` via compact XCTest snapshots,
+WKWebViews via `(spel/with-webview-context …)`. macOS + Xcode + Appium required.
+Recipes, selectors, device flags, limits: `references/IOS_PROVIDER.md`.
 
 ## Rules
 
@@ -194,10 +163,7 @@ Full recipes, selectors, device flags, and limits: `references/IOS_PROVIDER.md`.
 
 1. **E2E tests** — "Test login at http://localhost:3000" → explore live app → generate test file → run → Allure report.
 2. **Bug finding** — "Find bugs on https://example.com" → open → inspect → capture evidence → report.
-3. **Automation** — "Automate registration form" → explore → write reusable `.clj` script.
-4. **One-shot screenshot** — `spel open <url> && spel wait --load load && spel screenshot out.png`.
-5. **Visual + refs in one call** — `spel screenshot -a` → PNG with labels + `@ref role "name"` list in reading order.
-6. **Deterministic multi-step** —
+3. **Deterministic multi-step** —
    ```bash
    echo '[["open","https://example.com"],["wait","--load","load"],["screenshot","-a","shot.png"]]' \
      | spel batch --json --bail
@@ -210,6 +176,21 @@ Full recipes, selectors, device flags, and limits: `references/IOS_PROVIDER.md`.
 - **Snapshot refs missing after nav** → ALWAYS `spel snapshot -i` after any navigation or state change.
 
 More: `references/COMMON_PROBLEMS.md`.
+
+## Reply style — ADHD-shaped, caveman-terse
+
+Reader has ADHD. Shape EVERY reply to ACT on — code, bugs, plans, chat alike.
+
+1. **Action first.** Line 1 = command / path / `@ref`, never context. e.g. `spel snapshot -i`.
+2. **Number steps.** 2+ steps → numbered list, one bounded action each, max 5; rest → "Later".
+3. **Restate state.** "Step 2 of 4 done. Next: …" every turn — reader lost last turn's memory.
+4. **Time cost.** Concrete units: `~30s`, `10 min`, `an afternoon`. Never "some work".
+5. **Show wins.** Name what works now: "Login works — try `spel open /login`".
+6. **One next action.** End with ONE thing doable in <2 min. Never a menu.
+7. **Cut fluff.** Kill "Great question", "Let me…", "Hope this helps". Answer, then stop.
+8. **Errors flat.** `location → cause → fix`. No "Uh oh".
+
+Words short. Sentences short. Caveman terse — not rude.
 
 ## Reference docs
 
