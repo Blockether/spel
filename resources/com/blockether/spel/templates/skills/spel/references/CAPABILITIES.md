@@ -69,6 +69,14 @@ Primary references:
 Primary references:
 - `references/BRIDGE.md`
 
+## iOS provider — native + hybrid WKWebView
+
+- `--provider ios` drives installed apps / Simulator `.app` via Appium/XCUITest;
+  `NATIVE_APP` snapshots give `@refs`, `with-webview-context` reaches WKWebViews
+
+Primary references:
+- `references/IOS_PROVIDER.md`
+
 ## Reports
 
 - Shared HTML/Markdown report templates
