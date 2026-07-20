@@ -39,7 +39,7 @@ spel bridge off                     Stop routing — commands go back to the Pla
 spel bridge status                  Show the saved target + whether a browser tab is connected
 spel bridge --eject                 Print the embedded spel.js to stdout
 spel bridge --eject -o spel.js      Write spel.js to a file
-spel bridge --eject --bookmarklet   Print a `javascript:` bookmarklet loader
+spel bridge --eject --bookmarklet   Print a `javascript:` bookmarklet — one-click engine loader for pages you can't edit
 spel bridge --eject --console       Print the same loader without the prefix (paste into DevTools)
 spel bridge --eject-sw -o spel-sw.js  Write the service worker (same-origin passive-subresource capture)
 spel bridge --eject-extension -o dir  Write an unpacked MV3 browser extension (any site, survives restart)
@@ -52,7 +52,7 @@ auto-generated). `--bookmarklet` / `--console` accept an optional
 bridge's token automatically. If the fixed port is busy the bridge falls back to
 an ephemeral one and prints it.
 
-## Two ways to talk to a page
+## Three ways to load the engine into a page
 
 ### 1. Embed the engine (full power, load it FIRST)
 
@@ -66,6 +66,9 @@ this. **Load `spel.js` as the first `<script>` in `<head>`** if you want full
 network capture — see "Network capture" below.
 
 ### 2. Bookmarklet / console loader (when you don't control the HTML)
+
+**What it is:** a browser bookmark whose address is `javascript:…` code instead of a URL — so *clicking it runs code on the page you're already viewing*.
+**What it's for:** injecting the spel engine into a page you can't edit (a live site, someone else's app) with a single click — no file access, no extension, no DevTools required. One click and the page is spel-drivable.
 
 `spel bridge --eject --bookmarklet` emits a draggable `javascript:` bookmarklet
 (Edge favorites / Chrome bookmarks — same Chromium engine). Clicking it on any

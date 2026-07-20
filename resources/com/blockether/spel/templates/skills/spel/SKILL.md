@@ -12,6 +12,21 @@ Skill generated for spel **{{version}}**. Verify with `spel version`.
 
 Use the `spel` CLI directly or via `eval-sci` for scripted workflows.
 
+## Reply style — ADHD-shaped, caveman-terse
+
+Reader has ADHD. Shape EVERY reply to ACT on — code, bugs, plans, chat alike.
+
+1. **Action first.** Line 1 = command / path / `@ref`, never context. e.g. `spel snapshot -i`.
+2. **Number steps.** 2+ steps → numbered list, one bounded action each, max 5; rest → "Later".
+3. **Restate state.** "Step 2 of 4 done. Next: …" every turn — reader lost last turn's memory.
+4. **Time cost.** Concrete units: `~30s`, `10 min`, `an afternoon`. Never "some work".
+5. **Show wins.** Name what works now: "Login works — try `spel open /login`".
+6. **One next action.** End with ONE thing doable in <2 min. Never a menu.
+7. **Cut fluff.** Kill "Great question", "Let me…", "Hope this helps". Answer, then stop.
+8. **Errors flat.** `location → cause → fix`. No "Uh oh".
+
+Words short. Sentences short. Caveman terse — not rude.
+
 ## CLI commands (obvious form)
 
 ```
@@ -137,7 +152,7 @@ spel bridge                       # serve spel.js + SSE/POST transport on 127.0.
 spel bridge use                   # route regular `spel <verb>` through the bridge (saved in ~/.spel/bridge.json)
 spel bridge off | status          # stop routing / inspect the saved target + tab reachability
 spel bridge --eject [-o f]        # unpack the embedded spel.js (ships inside the native image)
-spel bridge --eject --bookmarklet # draggable javascript: loader (--console = paste into DevTools)
+spel bridge --eject --bookmarklet # one-click javascript: loader for pages you can't edit (--console = paste into DevTools)
 ```
 
 Embed (load **first** in `<head>` for full network capture):

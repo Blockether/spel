@@ -2,6 +2,10 @@
 
 Quick map of spel skill.
 
+## Reply style
+
+Shape every reply ADHD-shaped, caveman-terse — see the skill's **Reply style**. Action first, numbered steps (max 5), restate "Step N of M", concrete time, show wins, one <2-min next action, no fluff, errors `location → cause → fix`.
+
 ## What spel does
 
 - Browser automation via Playwright-native Clojure wrappers
