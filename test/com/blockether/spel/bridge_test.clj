@@ -140,8 +140,8 @@
       (expect (re-find #"color-scheme.{0,12}light" popup))
       (expect (re-find #"background:#fff" popup))
       (expect (nil? (re-find #"#1e1e1e" popup)))
-      ;; solid brand-green button, no sparkles
-      (expect (re-find #"background:#1f7a3d" popup))
+      ;; warm gold gradient button (the "feel" of the bookmarklet), no sparkle glyphs
+      (expect (re-find #"linear-gradient\(180deg,#ffd54a,#f5a623\)" popup))
       (expect (nil? (re-find #"\u2726" popup)))
       (expect (nil? (re-find #"\uD83C\uDFAD" popup))))))
 
