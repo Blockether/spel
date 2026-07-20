@@ -1,1 +1,0 @@
-{:status 200, :status-text "OK", :url "http://localhost:40465/health", :ok? true, :headers {"date" "Fri, 17 Jul 2026 19:39:16 GMT", "content-type" "application/json", "content-length" "15"}, :body "{\"status\":\"ok\"}"}
