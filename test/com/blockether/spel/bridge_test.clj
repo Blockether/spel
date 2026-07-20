@@ -140,6 +140,9 @@
       (expect (re-find #"color-scheme.{0,12}light" popup))
       (expect (re-find #"background:#fff" popup))
       (expect (nil? (re-find #"#1e1e1e" popup)))
+      ;; sexy amber/gold accent + sparkles, matching the brand's warm tones
+      (expect (re-find #"linear-gradient.{0,40}#f5a623" popup))
+      (expect (re-find #"\u2726" popup))
       (expect (nil? (re-find #"\uD83C\uDFAD" popup))))))
 
 (defdescribe bridge-eject-loader-test

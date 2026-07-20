@@ -270,13 +270,13 @@
   (str "<!doctype html>\n<html><head><meta charset=\"utf-8\"><meta name=\"color-scheme\" content=\"light\"><title>spel bridge</title>\n"
     "<style>*{box-sizing:border-box}:root{color-scheme:light only}html,body{background:#fff!important;color:#1a1a1a!important}body{font:13px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;width:300px;margin:0;padding:16px}"
     "h1{font-size:15px;font-weight:700;margin:0 0 14px;color:#111}label{display:block;margin:12px 0 5px;color:#555;font-size:12px;font-weight:600}"
-    "input{width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff!important;color:#1a1a1a!important;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}input:focus{border-color:#1f7a3d;box-shadow:0 0 0 3px rgba(31,122,61,.15)}input::placeholder{color:#aaa}"
-    "button{margin-top:16px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:#1f7a3d;color:#fff!important;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(31,122,61,.25);transition:background .15s}button:hover{background:#186331}button:active{background:#145229}"
-    ".st{margin-top:12px;font-size:12px;color:#1f7a3d;min-height:16px}</style></head>\n"
-    "<body><h1 style=\"display:flex;align-items:center;gap:8px\">" (logo-mark-svg 22) "<span>spel bridge</span></h1>\n"
+    "input{width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff!important;color:#1a1a1a!important;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}input:focus{border-color:#f5a623;box-shadow:0 0 0 3px rgba(245,166,35,.2)}input::placeholder{color:#aaa}"
+    "button{margin-top:16px;width:100%;padding:10px 12px;border:0;border-radius:8px;background:linear-gradient(135deg,#ffd54a,#f5a623)!important;color:#4a3200!important;font-weight:800;font-size:13px;letter-spacing:.2px;cursor:pointer;box-shadow:0 2px 10px rgba(245,166,35,.4);transition:filter .15s,transform .05s}button:hover{filter:brightness(1.05)}button:active{transform:translateY(1px)}"
+    ".st{margin-top:12px;font-size:12px;color:#1f7a3d;min-height:16px}.spk{color:#f5a623;text-shadow:0 0 6px rgba(245,166,35,.4)}</style></head>\n"
+    "<body><h1 style=\"display:flex;align-items:center;gap:8px\">" (logo-mark-svg 22) "<span>spel bridge</span><span class=\"spk\" style=\"margin-left:auto;font-size:15px\">\u2726</span></h1>\n"
     "<label>Bridge URL</label><input id=\"url\" placeholder=\"http://127.0.0.1:8787/spel\">\n"
     "<label>Token</label><input id=\"token\" placeholder=\"(optional)\">\n"
-    "<button id=\"save\">Save &amp; connect</button>\n<div class=\"st\" id=\"st\"></div>\n"
+    "<button id=\"save\">\u2726 Save &amp; connect \u2726</button>\n<div class=\"st\" id=\"st\"></div>\n"
     "<script src=\"popup.js\"></script></body></html>\n"))
 
 (defn extension-popup-js
