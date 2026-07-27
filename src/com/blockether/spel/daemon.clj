@@ -3396,15 +3396,16 @@
   (ensure-page-loaded!)
   (let [src-loc    (resolve-selector source)
         tgt-loc    (resolve-selector target)
-        opts       (cond-> {}
+        opts       (cond-> {:timeout (double (or timeout
+                                              (get-in @!state [:launch-flags "timeout"])
+                                              default-action-timeout-ms))}
                      (some? force)           (assoc :force (boolean force))
                      (some? steps)           (assoc :steps (long steps))
-                     (some? timeout)         (assoc :timeout (double timeout))
                      (some? source-position) (assoc :source-position source-position)
                      (some? target-position) (assoc :target-position target-position))]
-    (if (seq opts)
-      (unwrap-anomaly! (locator/drag-to src-loc tgt-loc opts))
-      (unwrap-anomaly! (locator/drag-to src-loc tgt-loc)))
+    ;; Always pass an explicit timeout: on Linux CI `.dragTo` has been observed to
+    ;; ignore the page default timeout and hang until the client transport gives up.
+    (unwrap-anomaly! (locator/drag-to src-loc tgt-loc opts))
     (snapshot-after-action!)
     {:dragged {:from source :to target}}))
 
@@ -5244,13 +5245,14 @@
 
 (defn- command-budget-ms
   "Budget for `action`: at least `default-command-budget-ms`, always at least
-   3x the configured action timeout, and minutes for open-ended work."
+   2x the configured action timeout (kept under the CLI transport timeout so the
+   daemon reports a wedged command first), and minutes for open-ended work."
   [action]
   (if (or (contains? open-ended-actions action)
         (str/starts-with? (str action) "ios"))
     900000
     (max (long default-command-budget-ms)
-      (* 3 (long (or (get-in @!state [:launch-flags "timeout"])
+      (* 2 (long (or (get-in @!state [:launch-flags "timeout"])
                    default-action-timeout-ms))))))
 
 (defn- stuck-command-frames
