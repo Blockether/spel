@@ -56,7 +56,7 @@ Daemon mode: call `spel/navigate`, `spel/screenshot`, … directly. `spel/start!
 | `:base-url` | str | nil | Relative URLs resolve against this |
 | `:user-agent` | str | nil | |
 | `:locale` / `:timezone-id` | str | nil | |
-| `:timeout` | ms | 30000 | Default action timeout |
+| `:timeout` | ms | 10000 | Default action timeout |
 
 ```clojure
 (spel/stop!)                                                ; => :stopped

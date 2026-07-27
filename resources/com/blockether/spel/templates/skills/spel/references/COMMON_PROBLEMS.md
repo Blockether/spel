@@ -84,12 +84,13 @@ Refs from `spel/capture-snapshot` are tied to the DOM at capture time. Any navig
 
 ## 5. `TimeoutError` on navigation
 
-Default timeout is 30 s. Heavy pages can exceed this.
+The CLI/daemon action timeout defaults to 10 s. First choose a precise readiness
+signal; increase the timeout only for a known-slow operation.
 
 ```clojure
-(spel/navigate "https://slow-site.com" {:timeout 60000})
 (spel/navigate "https://slow-site.com" {:wait-until :domcontentloaded})
-(spel/set-default-navigation-timeout! 60000)
+(spel/navigate "https://slow-site.com" {:timeout 15000})
+(spel/set-default-navigation-timeout! 15000)
 ```
 
 Wait states from least → most strict: `:commit` < `:domcontentloaded` < `:load` (default) < `:networkidle`.

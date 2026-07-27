@@ -1203,11 +1203,11 @@
 
    "kill"
    (str/join \newline
-     ["kill - End the daemon immediately (no graceful browser shutdown)"
+     ["kill - Alias for close: end daemon sessions immediately"
       ""
-      "`close` asks politely and waits for Chromium. `kill` is the escape hatch"
-      "for a daemon that stopped answering: force-close, then destroy the"
-      "process. Works the same on macOS, Linux and Windows."
+      "`close` and `kill` are the same operation. Both verify the daemon PID,"
+      "force-terminate the daemon process tree, reap orphaned daemons, and clean"
+      "session files. Use `health` before this when you need diagnostics."
       ""
       "Usage:"
       "  spel kill [--all-sessions]"
@@ -1219,13 +1219,13 @@
 
    "close"
    (str/join \newline
-     ["close - Close the browser and stop the daemon"
+     ["close - End daemon sessions immediately"
       ""
-      "Aliases: close, quit, exit"
+      "Aliases: close, quit, exit, kill"
       ""
       "Usage:"
       "  spel close                    Close current session (default)"
-      "  spel close --all-sessions     Close all active sessions"
+      "  spel close --all-sessions     Close all active sessions, including orphans"
       "  spel --session NAME close     Close a specific named session"
       ""
       "Flags:"
@@ -1709,7 +1709,7 @@
      "  show-trace [trace]      Open Playwright Trace Viewer"
      ""
      "Lifecycle:"
-     "  close, quit, exit       Close browser and daemon"
+     "  close, quit, exit       End daemon immediately (alias: kill)"
      "  install                 Install Playwright browsers"
      ""
      "Global Flags:"
@@ -4339,54 +4339,17 @@
 
           :else nil)))
 
-    ;; Close --all-sessions — close every active daemon (bypasses ensure-daemon!)
-    (when (and (= "close" (:action command)) (:all-sessions command))
-      (let [close-flags (when (:shutdown-simulator flags)
-                          {"shutdown-simulator" true})
-            sessions    (discover-sessions)]
-        (if (seq sessions)
-          (do (doseq [s sessions]
-                (close-session! s close-flags)
-                (println (str "Closed session: " s)))
-            (System/exit 0))
-          (do (println "No active sessions.")
-            (System/exit 0)))))
-
-    ;; Close (single session) — bypass ensure-daemon! to avoid starting a
-    ;; daemon just to immediately close it. If no daemon is running, clean up
-    ;; any stale files and exit.
-    (when (and (= "close" (:action command)) (not (:all-sessions command)))
-      (let [session     (:session flags)
-            close-flags (when (:shutdown-simulator flags)
-                          {"shutdown-simulator" true})]
-        (when (:json flags)
-          (println (json/write-json-str {:closed true} :escape-slash false))
-          (.flush *out*))
-        (if (daemon/daemon-running? session)
-          (close-session! session close-flags)
-          (cleanup-session-files! session))
-        (System/exit 0)))
-
-    ;; Health — the one question a wedged daemon can still answer. Never starts
-    ;; a daemon: "there is none" is a valid health answer, and spawning one to
-    ;; ask how it feels turns a diagnostic into a side effect.
-    (when (= "health" (:action command))
-      (let [session (:session flags)
-            report  (daemon-health session
-                      #(send-command! session {:action "health"} health-probe-timeout-ms))]
-        (if (:json flags)
-          (println (json/write-json-str report :escape-slash false))
-          (println (health-report report)))
-        (System/exit (if (#{"ok" "busy"} (:status report)) 0 1))))
-
-    ;; Kill — end the daemon NOW. Never starts one, never waits on a browser.
-    (when (= "kill" (:action command))
-      (let [sessions (if (:all-sessions command)
+    ;; Close / kill — one lifecycle operation. Never starts a daemon, never waits
+    ;; on a browser. `close` is the friendly spelling; `kill` is kept as an alias
+    ;; for muscle memory and stale-daemon recovery docs.
+    (when (#{"close" "kill"} (:action command))
+      (let [close?   (= "close" (:action command))
+            sessions (if (:all-sessions command)
                        (or (seq (discover-sessions)) [(:session flags)])
                        [(:session flags)])
             results  (mapv force-kill-daemon! sessions)
             ;; Sweep daemons that no longer have files to be discovered by —
-            ;; otherwise "kill every session" leaves the worst ones running.
+            ;; otherwise "close/kill every session" leaves the worst ones running.
             orphans  (when (:all-sessions command)
                        (let [known (set sessions)]
                          (->> (orphan-daemon-processes)
@@ -4399,14 +4362,29 @@
                                     :method  "orphan process (no socket)"})))))
             results  (into results (or orphans []))]
         (if (:json flags)
-          (println (json/write-json-str {:killed results} :escape-slash false))
+          (println (json/write-json-str (if close?
+                                          {:closed true :killed results}
+                                          {:killed results})
+                     :escape-slash false))
           (doseq [{:keys [session pid killed method refused]} results]
             (println (str session ": "
                        (cond
-                         killed  (str "killed pid " pid " (" method ")")
+                         killed  (str (if close? "closed" "killed") " pid " pid " (" method ")")
                          refused (str "REFUSED unsafe stale pid " pid " — unrelated process left alive")
                          :else   "no daemon running")))))
         (System/exit (if (some :refused results) 1 0))))
+
+    ;; Health — the one question a wedged daemon can still answer. Never starts
+    ;; a daemon: "there is none" is a valid health answer, and spawning one to
+    ;; ask how it feels turns a diagnostic into a side effect.
+    (when (= "health" (:action command))
+      (let [session (:session flags)
+            report  (daemon-health session
+                      #(send-command! session {:action "health"} health-probe-timeout-ms))]
+        (if (:json flags)
+          (println (json/write-json-str report :escape-slash false))
+          (println (health-report report)))
+        (System/exit (if (#{"ok" "busy"} (:status report)) 0 1))))
 
     ;; Logs — pure read of the session log file. Never starts a daemon.
     (when (= "logs" (:action command))

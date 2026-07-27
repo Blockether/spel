@@ -940,7 +940,24 @@
         (cmd "tab_new" {})
         (let [r (cmd "tab_close" {})]
           (expect (true? (:closed r)))
-          (expect (= before (:remaining r))))))))
+          (expect (false? (:replacement r)))
+          (expect (= before (:remaining r))))))
+
+    (it "replaces the final tab immediately"
+      (loop []
+        (let [tabs (:tabs (cmd "tab_list" {}))]
+          (when (> (count tabs) 1)
+            (cmd "tab_switch" {"index" (dec (count tabs))})
+            (cmd "tab_close" {})
+            (recur))))
+      (nav! "/test-page")
+      (let [r (cmd "tab_close" {})]
+        (expect (true? (:closed r)))
+        (expect (true? (:replacement r)))
+        (expect (= 1 (:remaining r)))
+        (expect (= "about:blank" (:url r)))
+        (expect (= "about:blank" (:url (cmd "url" {}))))
+        (expect (= 1 (count (:tabs (cmd "tab_list" {})))))))))
 
 ;; =============================================================================
 ;; 25. Console & Errors
@@ -2199,16 +2216,16 @@
         ;; Restore default
         (cmd "sci_eval" {"code" "(spel/set-cdp-lock-wait! 120)"})))
 
-    (it "session-idle-timeout returns current timeout value in SCI"
-      (let [r (cmd "sci_eval" {"code" "(number? (spel/session-idle-timeout))"})]
-        (expect (= "true" (:result r)))))
+    (it "session-idle-timeout returns the five-minute default in SCI"
+      (let [r (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
+        (expect (= "300000" (:result r)))))
 
     (it "set-session-idle-timeout! changes the timeout from SCI"
       (let [_  (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 900000)"})
             r  (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
         (expect (= "900000" (:result r)))
         ;; Restore default
-        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 1800000)"})))
+        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 300000)"})))
 
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})

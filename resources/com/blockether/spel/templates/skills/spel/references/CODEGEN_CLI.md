@@ -277,7 +277,7 @@ clojure -T:build native-image
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--timeout <ms>` | `30000` | Playwright action timeout |
+| `--timeout <ms>` | `10000` | Playwright action timeout |
 | `--session <name>` | `default` | Named browser session |
 | `--json` | off | JSON output |
 | `--debug` | off | Debug output |

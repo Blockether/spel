@@ -13,7 +13,7 @@
      spel click @ref                  # Click by ref
      spel fill @ref \"search text\" # Fill input by ref
      spel screenshot shot.png         # Take screenshot
-     spel close                       # Close browser
+     spel close                       # End daemon session
      spel eval-sci '(+ 1 2)'            # Evaluate and exit
      spel install                     # Install Playwright browsers
      spel --help                      # Show help"
@@ -91,7 +91,7 @@
   (println "  scrollintoview <sel>      Scroll element into view")
   (println "  drag <src> <tgt>          Drag and drop")
   (println "  upload <sel> <files...>   Upload files")
-  (println "  close                     Close browser (aliases: quit, exit)")
+  (println "  close                     End daemon immediately (aliases: quit, exit, kill)")
   (println "")
   (println "Snapshot & Screenshot:")
   (println "  snapshot                  Full accessibility tree with refs")
@@ -239,7 +239,7 @@
   (println "  logs                      Show the session log (CLI + daemon)")
   (println "  health                    Is the daemon alive, busy, or wedged?")
   (println "  cancel [<id>|all]         Interrupt an in-flight daemon command")
-  (println "  kill [--all-sessions]     End the daemon immediately (force; --all-sessions also reaps orphans)")
+  (println "  kill [--all-sessions]     Alias for close; --all-sessions also reaps orphans")
   (println "")
   (println "Options:")
   (println "  --session <name>          Named session (default: \"default\")")

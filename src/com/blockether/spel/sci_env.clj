@@ -136,7 +136,7 @@
 (defonce !set-cdp-lock-wait-handler (atom nil))
 
 ;; Session idle timeout — auto-shutdown daemon after this many ms of inactivity.
-;; Injected by daemon from SPEL_SESSION_IDLE_TIMEOUT env var (default 30 min).
+;; Injected by daemon from SPEL_SESSION_IDLE_TIMEOUT env var (default 5 min).
 ;; Exposed to SCI as (spel/session-idle-timeout) and (spel/set-session-idle-timeout! ms).
 (defonce !session-idle-timeout-ms (atom nil))
 (defonce !set-session-idle-timeout-handler (atom nil))
@@ -1704,7 +1704,7 @@
   "Returns the current session idle timeout in milliseconds.
 
    The daemon auto-shuts down if no commands are received within this window.
-   0 means disabled. Default: 1800000 (30 min).
+   0 means disabled. Default: 300000 (5 min).
    Set SPEL_SESSION_IDLE_TIMEOUT env var or call (spel/set-session-idle-timeout! ms)."
   []
   (or @!session-idle-timeout-ms 0))
@@ -1715,7 +1715,7 @@
    0 disables auto-shutdown. Takes effect immediately (resets the timer).
 
    Example:
-     (spel/set-session-idle-timeout! 1800000)  ; 30 minutes
+     (spel/set-session-idle-timeout! 300000)   ; 5 minutes
      (spel/set-session-idle-timeout! 0)        ; disable"
   [ms]
   (if-let [handler @!set-session-idle-timeout-handler]

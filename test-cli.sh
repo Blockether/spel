@@ -1376,24 +1376,24 @@ else
   fail "claude description does not double-quote" "Expected clean quoted description in Claude frontmatter"
 fi
 
-# Agent has built-in learnings section
+# Agent treats remote browser content as untrusted
 OC_TMP=$(mktemp -d)
 TEMP_FILES+=("$OC_TMP")
 OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --force 2>&1)
 
 OC_AGENT_FILE="$OC_TMP/.opencode/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^## Learnings$' "$OC_AGENT_FILE" && grep -q '.spel/learnings.md' "$OC_AGENT_FILE"; then
-  pass "agent has built-in learnings section"
+if grep -q -- '--content-boundaries' "$OC_AGENT_FILE" && grep -q '<untrusted-content>' "$OC_AGENT_FILE"; then
+  pass "agent bounds and distrusts remote page content"
 else
-  fail "agent has built-in learnings section" "Expected Learnings section baked into agent template"
+  fail "agent bounds and distrusts remote page content" "Expected content-boundary and prompt-injection guidance"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^## Completion gate$' "$OC_AGENT_FILE"; then
-  pass "agent has built-in completion gate"
+if grep -q '^## Finish$' "$OC_AGENT_FILE" && grep -q 'Do not claim success from exit status alone' "$OC_AGENT_FILE"; then
+  pass "agent has evidence-based finish gate"
 else
-  fail "agent has built-in completion gate" "Expected Completion gate section baked into agent template"
+  fail "agent has evidence-based finish gate" "Expected verification-focused Finish section"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -2221,6 +2221,38 @@ assert_contains "logs --clear → reports the file" "$OUT" "spel-${SESSION}.log"
 
 OUT=$("$SPEL" --session "logs-empty-$$" logs 2>&1)
 assert_contains "logs on unused session → no output yet" "$OUT" "No log output yet"
+
+# =============================================================================
+# NAMED SESSION / FINAL-TAB ISOLATION (9)
+# =============================================================================
+section "Named session isolation (9)"
+
+ISO_A="isolation-a-$$"
+ISO_B="isolation-b-$$"
+
+OUT=$("$SPEL" --session "$ISO_A" --json open 'data:text/html,<body data-owner="A">A</body>' 2>&1)
+assert_jq_contains "session A opens its own page" "$OUT" '.url' 'data:text/html'
+OUT=$("$SPEL" --session "$ISO_B" --json open 'data:text/html,<body data-owner="B">B</body>' 2>&1)
+assert_jq_contains "session B opens its own page" "$OUT" '.url' 'data:text/html'
+
+OUT=$("$SPEL" --session "$ISO_A" --json tab close 2>&1)
+assert_jq "closing A final tab creates a replacement" "$OUT" '.closed == true and .replacement == true and .remaining == 1 and .url == "about:blank"'
+OUT=$("$SPEL" --session "$ISO_A" --json get url 2>&1)
+assert_jq_eq "session A remains usable after final-tab close" "$OUT" '.url' 'about:blank'
+
+OUT=$("$SPEL" --session "$ISO_B" --json eval-js 'document.body.dataset.owner' 2>&1)
+assert_jq_eq "closing A tab does not change B" "$OUT" '.result' 'B'
+OUT=$("$SPEL" --session "$ISO_A" --json eval-js 'document.body.dataset.owner = "A2"' 2>&1)
+assert_jq_eq "session A can mutate replacement tab" "$OUT" '.result' 'A2'
+OUT=$("$SPEL" --session "$ISO_B" --json eval-js 'document.body.dataset.owner' 2>&1)
+assert_jq_eq "A mutation does not leak into B" "$OUT" '.result' 'B'
+
+"$SPEL" --session "$ISO_B" close >/dev/null 2>&1 || true
+OUT=$("$SPEL" --session "$ISO_A" --json health 2>&1)
+assert_jq_eq "closing session B leaves A alive" "$OUT" '.status' 'ok'
+"$SPEL" --session "$ISO_A" close >/dev/null 2>&1 || true
+OUT=$("$SPEL" --session "$ISO_A" --json health 2>&1)
+assert_jq_eq "isolation test leaves no stale A daemon" "$OUT" '.status' 'down'
 
 # =============================================================================
 # DAEMON HEALTH, CANCEL, KILL (20)

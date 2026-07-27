@@ -1265,11 +1265,11 @@
 
 ;; --- Session idle timeout ---
 ;; Auto-shutdown daemon if no command is received within the configured window.
-;; Default 30 minutes. Set SPEL_SESSION_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
+;; Default 5 minutes. Set SPEL_SESSION_IDLE_TIMEOUT env var (milliseconds) to override; 0 disables.
 (defonce ^:private !session-idle-timeout-ms
   (atom (let [env-val (System/getenv "SPEL_SESSION_IDLE_TIMEOUT")]
           (if (str/blank? env-val)
-            1800000
+            300000
             (Long/parseLong env-val)))))
 (defonce ^:private ^ScheduledExecutorService !session-idle-scheduler
   (Executors/newSingleThreadScheduledExecutor
@@ -3063,12 +3063,21 @@
     {:tab index :url (page/url pg-inst)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
-  (let [current (pg)]
+  (let [current (pg)
+        context (ctx)]
     (core/close-page! current)
-    (let [remaining (core/context-pages (ctx))]
-      (when (seq remaining)
-        (swap! !state assoc :page (last remaining)))
-      {:closed true :remaining (count remaining)})))
+    (let [remaining   (core/context-pages context)
+          replacement? (empty? remaining)
+          active      (if replacement?
+                        (core/new-page-from-context context)
+                        (last remaining))]
+      ;; Keep every live session usable. Closing its final tab must not leave a
+      ;; closed page handle or stale snapshot refs for the next command.
+      (swap! !state assoc :page active :refs {} :counter 0)
+      {:closed true
+       :remaining (if replacement? 1 (count remaining))
+       :replacement replacement?
+       :url (page/url active)})))
 
 (defmethod handle-cmd "url" [_ _]
   {:url (page/url (pg))})
