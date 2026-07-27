@@ -173,14 +173,14 @@
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo source not found, skipping: "
                              (.getPath src-file))))
-                nil)
+              nil)
 
             (> (.length src-file) max-bytes)
             (do (binding [*out* *err*]
                   (println (str "spel: alt report: logo " (.getPath src-file)
                              " is " (.length src-file) " bytes, exceeds "
                              max-bytes " byte cap — skipping")))
-                nil)
+              nil)
 
             :else
             (let [ext (logo-ext s)
@@ -614,7 +614,7 @@
 
 (defn- parse-long-safe [^String s]
   (try (Long/parseLong (str/trim s))
-       (catch Exception _ nil)))
+    (catch Exception _ nil)))
 
 (defn- trace-chunk-size-bytes
   "Resolve trace chunk size in bytes. Returns nil when chunking is disabled.
@@ -980,11 +980,15 @@
        ;; rendering both is just noise.
        (when (and message (not= status "passed") (not (seq trace)))
          (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
-      ;; Top-of-body trace — readers land on the failure first, then
-      ;; can scroll through the steps for context. Labelled as the
-      ;; wrapping test exception so it's distinguishable from any
-      ;; per-step trace inside the step list.
-       (when (seq trace)
+      ;; Render the top-level trace only when it is not already attached to a
+       ;; step. Allure commonly copies the same thrown exception onto both the
+       ;; test result and its failing step; showing both is pure duplication.
+       (when (and (seq trace)
+               (not ((fn duplicate-trace? [xs]
+                       (some #(or (= trace (get-in % ["statusDetails" "trace"]))
+                                (duplicate-trace? (get % "steps")))
+                         xs))
+                     steps)))
          (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
            "<summary>" (detail-marker) "<span>Test failure — thrown exception</span></summary>"
            "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
@@ -3396,11 +3400,11 @@
                              ;; instant — matches the docstring.
                              (or (try (Long/parseLong s) (catch Exception _ nil))
                                (try (.toEpochMilli (java.time.Instant/parse s))
-                                    (catch Exception _ nil))
+                                 (catch Exception _ nil))
                                (try (.toEpochMilli
                                       (.toInstant
                                         (java.time.OffsetDateTime/parse s)))
-                                    (catch Exception _ nil))))
+                                 (catch Exception _ nil))))
                            :else nil))
          run-info (let [m (cond-> (or base-run-info {})
                             (:build-id opts)   (assoc :run-name (:build-id opts))

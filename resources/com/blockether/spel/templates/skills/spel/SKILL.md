@@ -85,6 +85,12 @@ For auth, captcha, or 2FA, use `--interactive` and let the user complete the pro
 - `sci-eval`-style printed string values may include quotes; plain evaluation returns raw values.
 - `--content-boundaries` protects stdout only; stderr is not wrapped or truncated.
 - `--allowed-domains` covers navigation and subresources; blocked navigation reports `blockedbyclient`.
+- Attaching to a user's own browser requires it to be launched with `--remote-debugging-port` **and** `--remote-allow-origins='*'`; see `references/PROFILES_CDP.md`.
+- On real sites, a successful `click` proves nothing: promo/ad tiles and carousels expose the same buttons as real listings. Re-read the authoritative page (cart, account, list) and diff the count/total before reporting success.
+- Prefer navigating directly to a product/result URL over driving site search widgets; overlay autocomplete swallows keystrokes and adds the wrong item.
+- Long `eval-js`/`eval-sci` runs can exceed the CLI transport timeout. That is not a dead daemon: run `spel health --json`, then `spel cancel <id>` (or `all`), and continue in the same session — do not restart or kill.
+- Pass big scripts with `eval-js --stdin` and use `-b` (base64) when the result would be mangled or truncated.
+
 
 ## Reference routing
 

@@ -188,8 +188,6 @@ Both jobs cache Clojure deps with `deps-${{ runner.os }}-${{ hashFiles('deps.edn
 make test
 make lint
 make validate-safe-graal
-./verify.sh
-
 clojure -T:build jar
 clojure -T:build native-image
 clojure -T:build uberjar

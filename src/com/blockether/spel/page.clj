@@ -429,6 +429,38 @@
   [^Page page]
   (safe (-> page (.context) (.newCDPSession page))))
 
+(def ^:private scroll-settle-js
+  "JS promise that resolves once window scroll position stops changing.
+
+   Replaces blind sleeps: resolves on the first frame after the position has
+   been stable for two animation frames, and self-caps with a timer so a
+   backgrounded tab (no rAF) can never hang the call."
+  "(ms) => new Promise(res => {
+     let last = null, stable = 0, done = false;
+     const finish = (v) => { if (!done) { done = true; res(v); } };
+     const tick = () => {
+       if (done) return;
+       const p = Math.round(window.scrollX) + ',' + Math.round(window.scrollY);
+       if (p === last) { if (++stable >= 2) return finish(true); } else { stable = 0; last = p; }
+       requestAnimationFrame(tick);
+     };
+     setTimeout(() => finish(false), ms);
+     requestAnimationFrame(tick);
+   })")
+
+(defn wait-scroll-settled!
+  "Blocks until the page scroll position is stable, or `timeout-ms` elapses.
+
+   Params:
+   `page`       - Page instance.
+   `timeout-ms` - Upper bound in milliseconds.
+
+   Returns:
+   True when the scroll settled, false on timeout."
+  [^Page page ^long timeout-ms]
+  ;; Playwright's Java binding rejects boxed Longs — pass an Integer arg.
+  (true? (safe (.evaluate page scroll-settle-js (int timeout-ms)))))
+
 (defn scroll
   "Scrolls the page by the given amount in the given direction.
 
@@ -459,7 +491,7 @@
          js-opts  (str "{left: " dx ", top: " dy ", behavior: " behavior "}")]
      (safe (.evaluate page (str "window.scrollBy(" js-opts ")")))
      (when smooth?
-       (Thread/sleep (min (long (* amount 0.8)) 800)))
+       (wait-scroll-settled! page 1000))
      {:scrolled dir :amount amount :smooth smooth?})))
 
 (defn scroll-position
@@ -489,7 +521,7 @@
    Map with :scrolled-to y."
   [^Page page ^long y]
   (safe (.evaluate page (str "window.scrollTo({top: " y ", behavior: 'smooth'})")))
-  (safe (.evaluate page (str "new Promise(r => { const check = () => { if (Math.round(window.scrollY) === " y ") r(); else requestAnimationFrame(check); }; check(); })")))
+  (safe (.evaluate page (str "(ms) => new Promise(res => { const t0 = Date.now(); const check = () => { if (Math.round(window.scrollY) === " y " || Date.now() - t0 > ms) res(null); else requestAnimationFrame(check); }; setTimeout(() => res(null), ms); check(); })") (int 2000)))
   {:scrolled-to y})
 
 (defn smooth-scroll-by
@@ -505,7 +537,7 @@
   [^Page page ^long delta-y]
   (let [target (safe (.evaluate page (str "() => { const t = Math.round(window.scrollY) + " delta-y "; window.scrollTo({top: t, behavior: 'smooth'}); return t; }")))]
     (when (number? target)
-      (safe (.evaluate page (str "new Promise(r => { const check = () => { if (Math.round(window.scrollY) === " (long target) ") r(); else requestAnimationFrame(check); }; check(); })"))))
+      (safe (.evaluate page (str "(ms) => new Promise(res => { const t0 = Date.now(); const check = () => { if (Math.round(window.scrollY) === " (long target) " || Date.now() - t0 > ms) res(null); else requestAnimationFrame(check); }; setTimeout(() => res(null), ms); check(); })") (int 2000))))
     {:scrolled-by delta-y}))
 
 (defn find-scrollable
@@ -1722,4 +1754,4 @@
     (if (anomaly/anomaly? text)
       text
       (do (.press ^com.microsoft.playwright.Keyboard (.keyboard page) "Control+v")
-          {:pasted true :text text}))))
+        {:pasted true :text text}))))

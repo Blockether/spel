@@ -30,8 +30,9 @@
   "Scrolls the page to an absolute Y position and waits for settle."
   [^Page page ^long y]
   (page/evaluate page (str "window.scrollTo({top: " y ", behavior: 'instant'})"))
-  ;; Brief pause for any lazy-loaded content / scroll handlers
-  (Thread/sleep 150))
+  ;; Wait for the scroll to actually land and for scroll handlers / lazy-load
+  ;; work to flush, instead of sleeping a fixed 150ms.
+  (page/wait-scroll-settled! page 500))
 
 (defn- save-bytes!
   "Writes byte[] to a file path string. Returns the path."
@@ -306,7 +307,7 @@
                           (annotate/remove-overlays! page)))]
      (if-let [path (:path opts)]
        (do (save-bytes! ss-bytes path)
-           {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
+         {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
        {:bytes ss-bytes :annotated annotated}))))
 
 ;; =============================================================================

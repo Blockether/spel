@@ -3162,21 +3162,42 @@
 
 (declare daemon-process-at-pid daemon-process-for-session)
 
+(defn- poll-until
+  "Polls `ready?` until it returns truthy or `budget-ms` elapses.
+
+   Backs off 5ms -> 100ms instead of sleeping a flat 100ms, so the common
+   fast case (socket up, process already gone) returns in milliseconds
+   rather than a fixed tick. Returns true when `ready?` succeeded."
+  [ready? ^long budget-ms]
+  (let [deadline (+ (System/currentTimeMillis) budget-ms)]
+    (loop [wait 5]
+      (cond
+        (ready?)                                true
+        (>= (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep (long wait))
+                (recur (min 100 (* 2 wait))))))))
+
+(defonce ^:private !orphan-scan-cache (atom nil))
+
+(def ^:private orphan-scan-ttl-ms 250)
+
+(defn- invalidate-process-scan!
+  "Drops the cached `allProcesses` scan. Called whenever spel changes process
+   state itself, so a killed daemon is never reported as still running."
+  []
+  (reset! !orphan-scan-cache nil))
+
 (defn- wait-for-exit
   "Blocks until `pid` is gone or `budget-ms` elapses. Returns true when gone."
   [^String pid ^long budget-ms]
-  (let [deadline (+ (System/currentTimeMillis) budget-ms)]
-    (loop []
-      (cond
-        (not (process-alive? pid))            true
-        (>= (System/currentTimeMillis) deadline) false
-        :else (do (Thread/sleep 50) (recur))))))
+  (poll-until #(not (process-alive? pid)) budget-ms))
 
 (defn- terminate-pid!
   "Ends process `pid`: a polite terminate first, then a forcible kill if it is
    still alive after `grace-ms`. ProcessHandle behaves the same on Windows,
    Linux and macOS. Returns true when the process is gone."
   [^String pid ^long grace-ms]
+  (invalidate-process-scan!)
   (try
     (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim pid)))]
       (if-not (.isPresent handle)
@@ -3322,10 +3343,7 @@
        (send-command! session cmd 5000)
        (catch Exception _ nil))
      (when old-pid
-       (loop [tries 0]
-         (when (and (< tries 100) (process-alive? old-pid))
-           (Thread/sleep 100)
-           (recur (inc tries)))))
+       (poll-until #(not (process-alive? old-pid)) 10000))
      (cleanup-session-files! session))))
 
 (defn- socket-connectable?
@@ -3360,10 +3378,7 @@
       (catch Exception e (binding [*out* *err*] (println (str "warn: close-command: " (.getMessage e))))))
     ;; Wait for old process to actually die (up to 10s)
     (when old-pid
-      (loop [tries 0]
-        (when (and (< tries 100) (process-alive? old-pid))
-          (Thread/sleep 100)
-          (recur (inc tries)))))
+      (poll-until #(not (process-alive? old-pid)) 10000))
     ;; Clean up stale files
     (cleanup-session-files! session)))
 
@@ -3576,17 +3591,28 @@
    `session list` cannot show it and `kill --all-sessions` cannot kill it, while
    it still holds a browser, a port and hundreds of MB. Asking `ProcessHandle`
    instead is the only way to find those, and behaves the same on macOS, Linux
-   and Windows."
+   and Windows.
+
+   A full `allProcesses` scan costs one `.info` syscall per process, and a single
+   CLI invocation asks for it several times (health, kill, session resolution),
+   so the result is cached for `orphan-scan-ttl-ms` — short enough that a process
+   that just exited is not reported as live."
   []
-  (let [self (.pid (java.lang.ProcessHandle/current))]
-    (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
-      (keep (fn [^java.lang.ProcessHandle h]
-              (let [info (.info h)
-                    cmd  (when (.isPresent (.commandLine info))
-                           (.get (.commandLine info)))]
-                (when-not (= self (.pid h))
-                  (daemon-process-entry (.pid h) cmd)))))
-      (into []))))
+  (let [now    (System/currentTimeMillis)
+        cached @!orphan-scan-cache]
+    (if (and cached (< (- now (long (:at cached))) orphan-scan-ttl-ms))
+      (:entries cached)
+      (let [self    (.pid (java.lang.ProcessHandle/current))
+            entries (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
+                      (keep (fn [^java.lang.ProcessHandle h]
+                              (let [info (.info h)
+                                    cmd  (when (.isPresent (.commandLine info))
+                                           (.get (.commandLine info)))]
+                                (when-not (= self (.pid h))
+                                  (daemon-process-entry (.pid h) cmd)))))
+                      (into []))]
+        (reset! !orphan-scan-cache {:at now :entries entries})
+        entries))))
 
 (defn daemon-process-at-pid
   "Returns the command-line-verified spel daemon entry for `pid`, or nil."
@@ -3669,13 +3695,7 @@
     (log/info! "starting daemon: session=" session " args=" (pr-str args))
     (.start pb)
     ;; Wait for socket to appear AND be connectable (up to 30s)
-    (let [ready? (loop [tries 0]
-                   (if (>= tries 300)
-                     false
-                     (if (socket-connectable? session)
-                       true
-                       (do (Thread/sleep 100)
-                         (recur (inc tries))))))]
+    (let [ready? (poll-until #(socket-connectable? session) 30000)]
       (if ready?
         (log/info! "daemon ready: session=" session)
         (log/error! "daemon did not become connectable within 30s: session=" session))

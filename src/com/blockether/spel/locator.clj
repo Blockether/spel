@@ -256,7 +256,9 @@
          js-opts  (str "{left: " dx ", top: " dy ", behavior: " behavior "}")]
      (safe (.evaluate loc (str "(el) => el.scrollBy(" js-opts ")")))
      (when smooth?
-       (Thread/sleep (min (long (* amount 0.8)) 800)))
+       ;; Event-driven settle instead of a blind sleep: resolves as soon as the
+       ;; element's scroll offsets stop changing (self-capped for hidden tabs).
+       (safe (.evaluate loc "(el, ms) => new Promise(res => { let last = null, stable = 0, done = false; const finish = () => { if (!done) { done = true; res(null); } }; const tick = () => { if (done) return; const p = Math.round(el.scrollLeft) + ',' + Math.round(el.scrollTop); if (p === last) { if (++stable >= 2) return finish(); } else { stable = 0; last = p; } requestAnimationFrame(tick); }; setTimeout(finish, ms); requestAnimationFrame(tick); })" (int 1000))))
      {:scrolled dir :amount amount :smooth smooth?})))
 
 (defn dispatch-event

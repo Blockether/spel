@@ -1048,3 +1048,32 @@
         (expect (not (#'sut/auto-launch-lock-active? port)))
         ;; Lock should have been cleaned up
         (expect (nil? (#'sut/read-auto-launch-lock port)))))))
+(defdescribe cdp-tab-ownership-test
+  "Foreign CDP attachments preserve pre-existing user tabs."
+
+  (it "treats every tab spel did not open as user-owned"
+    (let [state-atom (deref #'sut/!state)
+          user-tab (Object.)
+          spel-tab (Object.)]
+      (reset! state-atom {:cdp-foreign true :adopted-pages #{user-tab}
+                          :spel-pages #{spel-tab}})
+      (expect (true? (#'sut/user-owned-page? user-tab)))
+      (expect (false? (#'sut/user-owned-page? spel-tab)))
+      (expect (true? (#'sut/foreign-browser?)))))
+
+  (it "protects tabs the user opens AFTER spel attached"
+    (let [state-atom (deref #'sut/!state)
+          spel-tab (Object.)
+          later-user-tab (Object.)]
+      (reset! state-atom {:cdp-foreign true :adopted-pages #{}
+                          :spel-pages #{spel-tab}})
+      ;; not adopted at attach time and not opened by spel -> still the user's
+      (expect (true? (#'sut/user-owned-page? later-user-tab)))
+      (expect (false? (#'sut/user-owned-page? spel-tab)))))
+
+  (it "does not treat pages as user-owned outside foreign CDP mode"
+    (let [state-atom (deref #'sut/!state)
+          tab (Object.)]
+      (reset! state-atom {:cdp-foreign false :adopted-pages #{tab} :spel-pages #{}})
+      (expect (false? (#'sut/user-owned-page? tab)))
+      (expect (false? (#'sut/foreign-browser?))))))

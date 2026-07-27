@@ -1956,10 +1956,10 @@ OUT=$(cd "$SINGLE_TMP" && "$SPEL" init-agents --ns test-app --force 2>&1)
 assert_contains "force creates spel agent" "$OUT" "spel agent"
 
 SINGLE_AGENT_FILE="$SINGLE_TMP/.opencode/agents/spel.md"
-assert_contains "agent mentions session discipline" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Session discipline"
+assert_contains "agent mentions session discipline" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "one unique named session"
 assert_contains "agent mentions snapshot" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "snapshot -i"
-assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Bug Hunt"
-assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "generate E2E tests"
+assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Bug hunt"
+assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Test writing"
 
 section "Helpers (43)"
 

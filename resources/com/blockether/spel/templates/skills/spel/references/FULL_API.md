@@ -230,6 +230,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `wait-for-selector` | [page selector] \| [page selector wait-opts] | Waits for a selector to satisfy a condition. |
 | `wait-for-timeout` | [page timeout] | Waits for the specified time in milliseconds. |
 | `wait-for-url` | [page url] \| [page url wait-opts] | Waits for the page to navigate to a URL. |
+| `wait-scroll-settled!` | [page timeout-ms] | Blocks until the page scroll position is stable, or `timeout-ms` elapses. |
 | `web-error-error` | [we] | Returns the underlying error for this web error. |
 | `web-error-page` | [we] | Returns the page that generated this web error, if any. |
 | `worker-evaluate` | [worker expression] \| [worker expression arg] | Evaluates JavaScript in the worker context. |
@@ -1416,7 +1417,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `scrollintoview <sel>` | Scroll element into view |
 | `drag <src> <tgt>` | Drag and drop |
 | `upload <sel> <files...>` | Upload files |
-| `close` | Close browser (aliases: quit, exit) |
+| `close` | End daemon immediately (aliases: quit, exit, kill) |
 
 ### Snapshot & Screenshot
 
@@ -1597,7 +1598,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `logs` | Show the session log (CLI + daemon) |
 | `health` | Is the daemon alive, busy, or wedged? |
 | `cancel [<id>\|all]` | Interrupt an in-flight daemon command |
-| `kill [--all-sessions]` | End the daemon immediately (force; --all-sessions also reaps orphans) |
+| `kill [--all-sessions]` | Alias for close; --all-sessions also reaps orphans |
 
 ### Options
 

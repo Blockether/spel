@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- feat(cdp): spel always opens its own tab when attaching to an external browser; user tabs are never hijacked
+- feat(cdp): positive tab provenance — only spel-opened tabs can be closed (`tab_not_owned` otherwise)
+
+### Fixed
+- fix(cdp): `session list` no longer advertises stale DevTools endpoints (real WebSocket upgrade check)
+- fix(cdp): `connect` preflights the endpoint and fails fast with `cdp_endpoint_unreachable` instead of hanging
+- fix(cdp): disconnect/shutdown no longer close a user-owned browser, context, or tabs
+- fix(page): boxed `Long` args rejected by Playwright `evaluate` are now passed as ints
+
+### Changed
+- perf(cli): deadline-based `poll-until` with backoff replaces flat 100 ms polling; orphan-daemon scan cached (250 ms TTL)
+- perf(page,locator,helpers,sci): smooth-scroll waits are event-driven (rAF settle, self-capped) instead of fixed sleeps
+- chore: remove `verify.sh`; verification is `make lint`, `make test`, `make test-cli`
+- docs(skill): document CDP tab ownership, stale-endpoint recovery, and click-is-not-proof verification
+
+
 ## [v0.9.11] - 2026-07-20
 
 ### Changed

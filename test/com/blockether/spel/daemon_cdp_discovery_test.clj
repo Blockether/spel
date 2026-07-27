@@ -199,7 +199,7 @@
     (it "reports :host in the result so callers know which host answered"
       (let [port 59321
             srv  (try (spin-up-fake-cdp-server! port "HostArityChrome/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             (let [r (#'sut/read-cdp-json-version "127.0.0.1" port 1000)]
@@ -211,7 +211,7 @@
     (it "returns nil for an unreachable host even when port is live on another"
       (let [port 59322
             srv  (try (spin-up-fake-cdp-server! port "IsolatedChrome/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             ;; 10.255.255.1 is the first address of an unroutable /32 —
@@ -224,7 +224,7 @@
     (it "still defaults to 127.0.0.1"
       (let [port 59323
             srv  (try (spin-up-fake-cdp-server! port "CompatChrome/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             (let [r (#'sut/read-cdp-json-version port 1000)]
@@ -246,7 +246,7 @@
       ;; We need a port the scanner actually probes.
       (let [port   9222
             srv    (try (spin-up-fake-cdp-server! port "FakeChrome/1.0")
-                        (catch Exception _ nil))]
+                     (catch Exception _ nil))]
         (when srv
           (try
             (let [result (sut/discover-external-cdp-endpoints [])
@@ -263,7 +263,7 @@
     (it "a port in excluded-ports is not returned even if listening"
       (let [port 9222
             srv  (try (spin-up-fake-cdp-server! port "FakeChrome/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             (let [result (sut/discover-external-cdp-endpoints [port])
@@ -380,7 +380,7 @@
     (it "extracts :host :port :browser :ws-url from /json/version"
       (let [port 59330
             srv  (try (spin-up-fake-cdp-server! port "ProbeCDP/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             (let [r (platform/probe-cdp "127.0.0.1" port 1000)]
@@ -422,7 +422,7 @@
     (it "finds a server on a probed port"
       (let [port 9222
             srv  (try (spin-up-fake-cdp-server! port "DiscoverTest/1.0")
-                      (catch Exception _ nil))]
+                   (catch Exception _ nil))]
         (when srv
           (try
             (let [r (platform/discover-cdp [port] 1000)]
@@ -538,7 +538,7 @@
       ;; "daemon mode", proving the function IS wired up and runs.
       (let [ctx (sci-env/create-sci-ctx)
             err (try (sci-env/eval-string ctx "(spel/cdp-connect)")
-                     (catch Exception e (.getMessage e)))]
+                  (catch Exception e (.getMessage e)))]
         (expect (string? err))
         ;; Either "No running browser" (auto-discover path) or
         ;; "daemon mode" (reconnect handler not injected)
@@ -549,3 +549,56 @@
 ;; CLI-side session list (discover-sessions, active-sessions-on-disk,
 ;; build-session-list-data) — tested by the cli-test ns since they live there.
 ;; =============================================================================
+
+;; =============================================================================
+;; Stale CDP endpoint handling — `session list` must not advertise dead
+;; endpoints and `connect` must fail fast instead of hanging.
+;; =============================================================================
+
+(defdescribe probe-ws-target-test
+  "probe-ws-target only accepts a real WebSocket upgrade (HTTP 101)."
+
+  (it "returns false for a closed port"
+    (let [ss   (java.net.ServerSocket. 0)
+          port (.getLocalPort ss)]
+      (.close ss)
+      (expect (false? (sut/probe-ws-target
+                        (str "ws://127.0.0.1:" port "/devtools/browser/x") 300)))))
+
+  (it "returns false when the port listens but does not upgrade"
+    (let [ss   (java.net.ServerSocket. 0 4 (java.net.InetAddress/getByName "127.0.0.1"))
+          port (.getLocalPort ss)
+          fut  (future (try (with-open [s (.accept ss)]
+                              (.write (.getOutputStream s)
+                                (.getBytes "HTTP/1.1 500 Internal Server Error\r\n\r\n" "UTF-8"))
+                              (.flush (.getOutputStream s)))
+                         (catch Exception _ nil)))]
+      (try
+        (expect (false? (sut/probe-ws-target
+                          (str "ws://127.0.0.1:" port "/devtools/browser/stale") 500)))
+        (finally (future-cancel fut) (.close ss))))))
+
+(defdescribe connect-endpoint-preflight-test
+  "connect preflight fails fast with an actionable error."
+
+  (it "rejects an unreachable endpoint quickly"
+    (let [ss   (java.net.ServerSocket. 0)
+          port (.getLocalPort ss)
+          _    (.close ss)
+          t0   (System/currentTimeMillis)
+          e    (try (#'sut/assert-cdp-endpoint-reachable!
+                     (str "ws://127.0.0.1:" port "/devtools/browser/dead"))
+                 nil
+                 (catch clojure.lang.ExceptionInfo ex ex))]
+      (expect (some? e))
+      (expect (= "cdp_endpoint_unreachable" (:error_code (ex-data e))))
+      (expect (str/includes? (.getMessage e) "unreachable"))
+      (expect (string? (:hint (ex-data e))))
+      (expect (< (- (System/currentTimeMillis) t0) 5000))))
+
+  (it "rejects a malformed URL"
+    (let [e (try (#'sut/assert-cdp-endpoint-reachable! "not a url")
+              nil
+              (catch clojure.lang.ExceptionInfo ex ex))]
+      (expect (some? e))
+      (expect (str/includes? (.getMessage e) "Invalid CDP URL")))))

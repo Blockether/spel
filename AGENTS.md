@@ -23,7 +23,7 @@ Implement behavior once, in order: library (`page.clj`, `input.clj`, `locator.cl
 
 - Test behavior at its owning layer: SCI/daemon in `cli_integration_test.clj`, CLI parsing in `cli_test.clj`, native commands in `test-cli.sh`, other code in matching `*_test.clj`.
 - Verify observable browser/DOM state, not only absence of exceptions.
-- Final verification is `./verify.sh`.
+- Final verification is `make lint`, `make test`, and `make test-cli`.
 
 ## Generated files and release
 

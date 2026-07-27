@@ -695,6 +695,41 @@
   (^String [^String host ^long port]
    (:browser (read-cdp-json-version host port 200))))
 
+(defn probe-ws-target
+  "Verifies that a CDP ws:// URL points at a target that still EXISTS.
+
+   A live TCP socket is not enough: a browser restart leaves stale
+   DevToolsActivePort / session caches behind, and the old browser target id
+   then 500s while the port itself keeps listening. We perform the WebSocket
+   upgrade handshake by hand (no Origin header, so `--remote-allow-origins`
+   isn't required) and accept only `HTTP/1.1 101`.
+
+   Returns true/false, never throws."
+  [^String ws-url ^long timeout-ms]
+  (try
+    (let [uri  (java.net.URI. ws-url)
+          host (or (.getHost uri) "127.0.0.1")
+          port (let [p (.getPort uri)] (if (pos? p) p 80))
+          path (let [p (.getRawPath uri)] (if (str/blank? p) "/" p))
+          key  (.encodeToString (java.util.Base64/getEncoder) (byte-array 16))]
+      (with-open [^java.net.Socket s (java.net.Socket.)]
+        (.connect s (java.net.InetSocketAddress. ^String host (int port)) (int timeout-ms))
+        (.setSoTimeout s (int timeout-ms))
+        (let [out (.getOutputStream s)
+              req (str "GET " path " HTTP/1.1\r\n"
+                    "Host: " host ":" port "\r\n"
+                    "Upgrade: websocket\r\n"
+                    "Connection: Upgrade\r\n"
+                    "Sec-WebSocket-Version: 13\r\n"
+                    "Sec-WebSocket-Key: " key "\r\n\r\n")]
+          (.write out (.getBytes req "UTF-8"))
+          (.flush out)
+          (let [rdr    (java.io.BufferedReader.
+                         (java.io.InputStreamReader. (.getInputStream s) "UTF-8"))
+                status (.readLine rdr)]
+            (boolean (and status (str/includes? status " 101")))))))
+    (catch Exception _ false)))
+
 (defn discover-external-cdp-endpoints
   "Scans for running CDP browsers. Probes common ports (9222, 9223, 9229),
    the spel auto-launch port range, and any ports advertised in
@@ -749,25 +784,24 @@
                               (fetch-cdp-browser-label winner port)
                               "unknown")}
 
-                  ;; No HTTP probe succeeded, but we have a DTAP entry —
-                  ;; build a WS URL using the first candidate host that
-                  ;; has a live TCP socket, falling back to the first host
-                  ;; in the list if none respond (so downstream code sees
-                  ;; a concrete URL even if it'll fail to connect).
+                  ;; No HTTP probe succeeded, but we have a DTAP entry.
+                  ;; A DevToolsActivePort file long outlives the browser that
+                  ;; wrote it, and a restarted browser keeps the port listening
+                  ;; under a NEW target id — so a live TCP socket proves
+                  ;; nothing. Only advertise the ws:// URL when the WebSocket
+                  ;; upgrade handshake actually succeeds; otherwise the entry
+                  ;; is stale and `connect` would hang on it.
                   dt-info
-                  (let [tcp-host (or (some (fn [h]
-                                             (try
-                                               (with-open [^java.net.Socket s (java.net.Socket.)]
-                                                 (.connect s (java.net.InetSocketAddress. ^String h (int port)) 200)
-                                                 h)
-                                               (catch Exception _ nil)))
-                                       hosts)
-                                   (first hosts))]
-                    {:port port
-                     :cdp_url (if-let [ws-path (:ws-path dt-info)]
-                                (str "ws://" tcp-host ":" port ws-path)
-                                (str "http://" tcp-host ":" port))
-                     :label (:label dt-info)})))))
+                  (let [ws-path (:ws-path dt-info)]
+                    (some (fn [h]
+                            (let [url (if ws-path
+                                        (str "ws://" h ":" port ws-path)
+                                        (str "http://" h ":" port))]
+                              (when (and ws-path (probe-ws-target url 500))
+                                {:port    port
+                                 :cdp_url url
+                                 :label   (:label dt-info)})))
+                      hosts))))))
       (into []))))
 
 (defn find-free-cdp-port
@@ -899,9 +933,9 @@
         pid  (.pid proc)]
     (write-auto-launch-lock! port session pid)
     ;; Wait up to 15s for the CDP endpoint to come up
-    (loop [attempts 0]
+    (loop [deadline (+ (System/currentTimeMillis) 15000) wait 5]
       (cond
-        (>= attempts 150)
+        (> (System/currentTimeMillis) deadline)
         (do (.destroyForcibly proc)
           (clear-auto-launch-lock! port)
           (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
@@ -920,8 +954,8 @@
            :browser-pid pid})
 
         :else
-        (do (Thread/sleep 100)
-          (recur (inc attempts)))))))
+        (do (Thread/sleep (long wait))
+          (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (defn auto-launch-browser!
   "Launches a browser with --remote-debugging-port on a free port.
@@ -962,9 +996,9 @@
     ;; Write lock file immediately to claim the port
     (write-auto-launch-lock! port session pid)
     ;; Wait for the CDP endpoint to be ready (up to 15s)
-    (loop [attempts 0]
+    (loop [deadline (+ (System/currentTimeMillis) 15000) wait 5]
       (cond
-        (>= attempts 150)
+        (> (System/currentTimeMillis) deadline)
         (do
           ;; Cleanup on failure
           (.destroyForcibly process)
@@ -988,8 +1022,8 @@
            :tmp-dir     tmp-dir})
 
         :else
-        (do (Thread/sleep 100)
-          (recur (inc attempts)))))))
+        (do (Thread/sleep (long wait))
+          (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -1165,6 +1199,50 @@
         (catch Throwable _ false))
       true)))
 
+(defn- adopt-foreign-pages!
+  "Marks the current CDP attachment as FOREIGN — a browser the user owns — and
+   records the tabs that already existed at attach time. Those tabs stay the
+   user's property: spel never closes them, not on `tab close`, not on
+   disconnect, not on daemon shutdown."
+  [context]
+  (swap! !state assoc
+    :cdp-foreign true
+    :adopted-context context
+    :adopted-pages (into #{} (try (.pages ^BrowserContext context)
+                               (catch Exception _ nil)))
+    :spel-pages #{}))
+
+(defn- new-spel-page!
+  "Creates a tab and records it as spel-owned. Provenance is positive: only tabs
+   opened through this fn may ever be closed by spel in a foreign browser."
+  [context]
+  (let [p (core/new-page-from-context context)]
+    (swap! !state update :spel-pages (fnil conj #{}) p)
+    p))
+
+(defn- user-owned-page?
+  "True when `p` is a tab in a foreign (user-owned) browser that spel did not
+   itself open. Tabs adopted at attach time and tabs the user opens afterwards
+   are both user-owned."
+  [p]
+  (let [{:keys [cdp-foreign spel-pages]} @!state]
+    (boolean (and cdp-foreign p (not (contains? (or spel-pages #{}) p))))))
+
+(defn- foreign-browser?
+  "True when the browser handle points at a browser spel did not launch."
+  []
+  (true? (:cdp-foreign @!state)))
+
+(defn- close-spel-owned-pages!
+  "Closes only the tabs spel itself opened in a foreign browser, leaving every
+   user tab open — both those adopted at attach time and those opened later."
+  []
+  (when-let [context (:context @!state)]
+    (doseq [p (try (vec (.pages ^BrowserContext context)) (catch Exception _ nil))]
+      (when-not (user-owned-page? p)
+        (try (core/close-page! p) (catch Exception _ nil))))
+    (swap! !state assoc :spel-pages #{})))
+
 (defn- drop-browser-handles!
   "Throws away the current Playwright handles so the next `ensure-browser!`
    relaunches from scratch. Reaping the orphaned driver can block, so it runs
@@ -1172,7 +1250,8 @@
   []
   (let [pw (:pw @!state)]
     (swap! !state assoc :pw nil :browser nil :context nil :page nil
-      :refs {} :counter 0 :cdp-connected false)
+      :refs {} :counter 0 :cdp-connected false :cdp-foreign false
+      :adopted-context nil :adopted-pages #{} :spel-pages #{})
     (submit-virtual (fn discard-dead-playwright []
                       (try (when pw (core/close! pw)) (catch Throwable _ nil))))
     :dead))
@@ -1195,7 +1274,7 @@
 
       (and browser context page (not (page-open?)))
       (try
-        (let [fresh (core/new-page-from-context context)]
+        (let [fresh (new-spel-page! context)]
           (swap! !state assoc :page fresh :refs {} :counter 0)
           (log/warn! "page was closed outside the daemon — opened a fresh one")
           :page-reopened)
@@ -1360,13 +1439,16 @@
 
 (defn- await-cdp-route-lock
   "Waits for the CDP route lock to be released by another session.
-   Polls every `!cdp-lock-poll-interval-s` seconds up to `!cdp-lock-wait-s` seconds.
+   Polls on a millisecond deadline (tick <= `!cdp-lock-poll-interval-s`) up to `!cdp-lock-wait-s` seconds.
    Returns nil when lock is cleared (or was never held), or a conflict map on timeout.
    If wait is 0, returns conflict immediately (fail-fast)."
   [^String action]
   (let [max-wait-s  (long @!cdp-lock-wait-s)
         poll-s      (long @!cdp-lock-poll-interval-s)
-        poll-ms     (* poll-s 1000)]
+        wait-ms     (* max-wait-s 1000)
+        ;; Tick fast (<= 100ms) so a released lock is picked up immediately
+        ;; instead of after a whole configured second.
+        tick-ms     (max 10 (min 100 (* poll-s 1000)))]
     (if-let [conflict (cdp-route-lock-conflict action)]
       (if (zero? max-wait-s)
         ;; Fail-fast mode
@@ -1375,21 +1457,21 @@
         (do
           (log/info! "CDP lock held by session '" (:owner-session conflict)
             "' — waiting (0/" max-wait-s "s)...")
-          (loop [waited 0]
-            (if (>= waited max-wait-s)
-              ;; Timeout — return conflict for error response
-              (do
-                (log/info! "CDP lock timeout after " max-wait-s
-                  "s — blocking action '" action "'")
-                conflict)
-              (do
-                (Thread/sleep poll-ms)
-                (let [waited' (+ waited poll-s)]
+          (let [deadline (+ (System/currentTimeMillis) wait-ms)]
+            (loop []
+              (if (>= (System/currentTimeMillis) deadline)
+                ;; Timeout — return conflict for error response
+                (do
+                  (log/info! "CDP lock timeout after " max-wait-s
+                    "s — blocking action '" action "'")
+                  conflict)
+                (do
+                  (Thread/sleep (long tick-ms))
                   (if-let [_still-locked (cdp-route-lock-conflict action)]
-                    (recur waited')
+                    (recur)
                     ;; Lock cleared!
                     (do
-                      (log/info! "CDP lock acquired after " waited' "s wait")
+                      (log/info! "CDP lock acquired while waiting")
                       nil))))))))
       ;; No conflict
       nil)))
@@ -1486,7 +1568,7 @@
         content-length (parse-long-safe (get resp-headers "content-length"))]
     (and (contains? preview-body-resource-types resource-type)
       (or (nil? content-length)
-        (<= (long content-length) (long max-preview-body-bytes)))
+        (<= (long content-length) max-preview-body-bytes))
       (or (str/blank? content-type)
         (re-find #"json|text|javascript|xml|x-www-form-urlencoded" content-type)))))
 
@@ -1760,7 +1842,7 @@
                            (get flags "user-agent")   (assoc :user-agent (get flags "user-agent"))
                            (get flags "ignore-https-errors") (assoc :ignore-https-errors true))
               new-ctx (core/new-context (:browser @!state) ctx-opts)
-              new-pg  (core/new-page-from-context new-ctx)]
+              new-pg  (new-spel-page! new-ctx)]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
           ;; Re-register console, error, and request listeners on new page
           (page/on-console new-pg (fn [msg]
@@ -2001,7 +2083,7 @@
               pg-inst (if (seq pages)
                         (first pages)
                         (check-anomaly!
-                          (core/new-page-from-context context)
+                          (new-spel-page! context)
                           "Lightpanda: failed to create page"))]
           (swap! !state assoc
             :pw pw :browser browser :context context :page pg-inst
@@ -2031,7 +2113,7 @@
               pg-inst         (if (seq (.pages ^BrowserContext context))
                                 (first (.pages ^BrowserContext context))
                                 (check-anomaly!
-                                  (core/new-page-from-context context)
+                                  (new-spel-page! context)
                                   "Failed to create page in persistent context"))]
           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
             :persistent-profile true))
@@ -2058,7 +2140,7 @@
               pg-inst  (if (seq pages)
                          (first pages)
                          (check-anomaly!
-                           (core/new-page-from-context context)
+                           (new-spel-page! context)
                            "Auto-launch: failed to create page"))]
           ;; Store CDP URL in launch flags so subsequent commands know we're CDP-connected
           (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
@@ -2089,21 +2171,20 @@
                               (launch-fn pw launch-opts)
                               "Failed to launch browser"))]
           (if cdp-url
-            ;; CDP: reuse the REAL browser's existing contexts and pages.
-            ;; The whole point of CDP is to control the user's actual Chrome
-            ;; with its real login sessions, cookies, tabs — NOT create new ones.
+            ;; CDP: reuse the REAL browser's existing context (login sessions,
+            ;; cookies), but always drive a fresh spel-owned tab inside it so the
+            ;; user's own tabs are never hijacked or navigated away.
             (let [contexts (.contexts ^com.microsoft.playwright.Browser browser)
                   context  (if (seq contexts)
                              (first contexts)
                              (check-anomaly!
                                (core/new-context browser)
                                "No existing context found via CDP and failed to create one"))
-                  pages    (.pages ^com.microsoft.playwright.BrowserContext context)
-                  pg-inst  (if (seq pages)
-                             (first pages)
-                             (check-anomaly!
-                               (core/new-page-from-context context)
-                               "No existing page found via CDP and failed to create one"))]
+                  _        (adopt-foreign-pages! context)
+                  ;; spel always works in its OWN tab: never hijack a user tab.
+                  pg-inst  (check-anomaly!
+                             (new-spel-page! context)
+                             "Failed to open a spel-owned tab in the CDP browser")]
               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true))
             ;; Normal launch: create fresh context and page as before.
             (let [context (check-anomaly!
@@ -2114,7 +2195,7 @@
                   _       (when (get flags "stealth")
                             (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
                   pg-inst (check-anomaly!
-                            (core/new-page-from-context context)
+                            (new-spel-page! context)
                             "Failed to create page")]
               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
       ;; Common setup for all paths
@@ -2185,7 +2266,7 @@
    {:count long :found boolean :visible boolean? :enabled boolean?}"
   [loc]
   (let [countv (try
-                 (long (locator/count-elements loc))
+                 (locator/count-elements loc)
                  (catch Exception _ 0))
         found? (clojure.core/pos? (long countv))]
     {:count   countv
@@ -3041,7 +3122,7 @@
     {:error "No wait condition specified"}))
 
 (defmethod handle-cmd "tab_new" [_ params]
-  (let [new-pg (core/new-page-from-context (ctx))]
+  (let [new-pg (new-spel-page! (ctx))]
     (swap! !state assoc :page new-pg)
     (when-let [url (get params "url")]
       (page/navigate new-pg url))
@@ -3065,12 +3146,17 @@
 (defmethod handle-cmd "tab_close" [_ _]
   (let [current (pg)
         context (ctx)]
+    (when (user-owned-page? current)
+      (throw (ex-info
+               "Refusing to close a user-owned tab. spel only closes tabs it opened itself in your browser. Switch to a tab opened by spel, or close this tab yourself in the browser."
+               {:error_code "tab_not_owned"
+                :hint "spel only closes tabs it created after attaching to an external CDP browser."})))
     (core/close-page! current)
-    (let [remaining   (core/context-pages context)
+    (let [remaining    (core/context-pages context)
           replacement? (empty? remaining)
-          active      (if replacement?
-                        (core/new-page-from-context context)
-                        (last remaining))]
+          active       (if replacement?
+                         (new-spel-page! context)
+                         (last remaining))]
       ;; Keep every live session usable. Closing its final tab must not leave a
       ;; closed page handle or stale snapshot refs for the next command.
       (swap! !state assoc :page active :refs {} :counter 0)
@@ -3268,7 +3354,7 @@
 (defmethod handle-cmd "window_new" [_ _params]
   (ensure-browser!)
   (let [new-pg (check-anomaly!
-                 (core/new-page-from-context (:context @!state))
+                 (new-spel-page! (:context @!state))
                  "Failed to create new window/page")
         _      (swap! !state assoc :page new-pg)
         _      (page/on-console new-pg (fn [^ConsoleMessage msg]
@@ -3462,7 +3548,7 @@
                         (core/new-context (:browser @!state) ctx-opts)
                         "Failed to create device context")
               new-pg  (check-anomaly!
-                        (core/new-page-from-context new-ctx)
+                        (new-spel-page! new-ctx)
                         "Failed to create page for device")]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false :device device)
           (reset! !console-messages [])
@@ -3500,7 +3586,7 @@
                       {:http-credentials {:username username :password password}})
                     "Failed to create context with credentials")
           new-pg  (check-anomaly!
-                    (core/new-page-from-context new-ctx)
+                    (new-spel-page! new-ctx)
                     "Failed to create page with credentials")]
       (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
       (reset! !console-messages [])
@@ -3640,7 +3726,7 @@
                       (core/new-context browser ctx-opts-with-state)
                       "Failed to recreate browser context")
             new-pg  (check-anomaly!
-                      (core/new-page-from-context new-ctx)
+                      (new-spel-page! new-ctx)
                       "Failed to create page in recreated context")]
         (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
         (reset! !console-messages [])
@@ -3843,7 +3929,7 @@
     (let [new-ctx (core/new-context (:browser @!state) {:storage-state-path state-path})]
       (if (anomaly/anomaly? new-ctx)
         {:error (str "Failed to load state: " (:anomaly/message new-ctx))}
-        (let [new-pg (core/new-page-from-context new-ctx)]
+        (let [new-pg (new-spel-page! new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
               {:error (str "Failed to create page: " (:anomaly/message new-pg))})
@@ -4045,19 +4131,65 @@
 
 ;; --- Phase 5: Connect CDP ---
 
+(defn- assert-cdp-endpoint-reachable!
+  "Fail-fast preflight for `connect`. Playwright's connectOverCDP has no
+   connect timeout: pointing it at a dead ws:// browser URL (typical after the
+   browser restarted and left a stale DevToolsActivePort/session cache behind)
+   blocks the daemon command loop until the client transport times out. So we
+   check the endpoint ourselves first and throw a readable error instead.
+
+   ws://  — requires a live TCP socket on host:port.
+   http:// — additionally requires a valid /json/version DevTools response."
+  [^String url]
+  (let [uri    (try (java.net.URI. url) (catch Exception _ nil))
+        scheme (some-> uri .getScheme str/lower-case)
+        host   (or (some-> uri .getHost) "127.0.0.1")
+        port   (long (let [p (if uri (.getPort ^java.net.URI uri) -1)]
+                       (if (pos? p) p (if (= scheme "https") 443 80))))
+        fail!  (fn [msg hint]
+                 (throw (ex-info msg {:error_code "cdp_endpoint_unreachable"
+                                      :url        url
+                                      :hint       hint})))]
+    (when (nil? scheme)
+      (fail! (str "Invalid CDP URL: " url)
+        "Expected http://host:port or ws://host:port/devtools/browser/<id>"))
+    (when-not (try
+                (with-open [^java.net.Socket s (java.net.Socket.)]
+                  (.connect s (java.net.InetSocketAddress. ^String host (int port)) 1500)
+                  true)
+                (catch Exception _ false))
+      (fail! (str "CDP browser endpoint unreachable: " host ":" port " is not accepting connections")
+        (str "Start the browser with --remote-debugging-port=" port
+          " --remote-debugging-address=" host " --remote-allow-origins='*', "
+          "then verify: curl http://" host ":" port "/json/version")))
+    (when (and (str/starts-with? (str scheme) "http")
+            (not (probe-http-cdp host port 2000)))
+      (fail! (str "CDP endpoint at " host ":" port " is listening but /json/version is not a DevTools endpoint")
+        (str "The port is held by a stale or non-DevTools process. Fully quit the browser "
+          "and relaunch it with --remote-debugging-port=" port " --remote-allow-origins='*'.")))
+    (when (and (str/starts-with? (str scheme) "ws")
+            (not (probe-ws-target url 2000)))
+      (fail! (str "CDP browser target no longer exists at " url)
+        (str "That ws:// browser id is stale — the browser was restarted since it was cached. "
+          "Re-discover the current endpoint: curl http://" host ":" port "/json/version, "
+          "or connect to http://" host ":" port " instead of the cached ws:// URL.")))
+    true))
+
 (defn- connect-cdp!
   "Connects daemon state to a CDP endpoint and returns connection payload."
   [^String url]
   (cancel-cdp-idle-shutdown!)
   (when (str/blank? url)
     (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
+  (assert-cdp-endpoint-reachable! url)
   (let [warning-payload (cdp-route-lock-warning url)
         pw (or (:pw @!state) (core/create))
         browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String url)
         contexts (.contexts ^com.microsoft.playwright.Browser browser)
         context (if (seq contexts) (first contexts) (core/new-context browser))
-        pages (core/context-pages context)
-        pg-inst (if (seq pages) (first pages) (core/new-page-from-context context))]
+        _ (adopt-foreign-pages! context)
+        ;; spel always opens its own tab so user tabs are never hijacked.
+        pg-inst (new-spel-page! context)]
     (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true)
     (swap! !state assoc-in [:launch-flags "cdp"] url)
     (persist-launch-flags!)
@@ -4080,19 +4212,20 @@
   "Disconnects current CDP browser connection while preserving launch flags.
    This is a temporary detach operation used by anti-CDP evasion workflows."
   []
-  (let [{:keys [cdp-connected page context browser pw]} @!state
+  (let [{:keys [cdp-connected pw]} @!state
         cdp-url (current-cdp-url)]
     (when cdp-connected
-      (when page
-        (try (core/close-page! page) (catch Exception e (warn "cdp-disconnect-close-page" e))))
-      (when context
-        (try (.close ^BrowserContext context) (catch Exception e (warn "cdp-disconnect-close-context" e))))
-      (when browser
-        (try (core/close-browser! browser) (catch Exception e (warn "cdp-disconnect-close-browser" e))))
+      ;; Closing a Playwright Browser/Context obtained via connectOverCDP can
+      ;; close the user's real browser or tabs. Close only pages spel created,
+      ;; then close the local Playwright driver to detach the WebSocket.
+      (when (foreign-browser?)
+        (close-spel-owned-pages!))
       (when pw
         (try (core/close! pw) (catch Exception e (warn "cdp-disconnect-close-playwright" e))))
       (release-cdp-route-lock-if-owned!))
-    (swap! !state assoc :pw nil :browser nil :context nil :page nil :cdp-connected false)
+    (swap! !state assoc :pw nil :browser nil :context nil :page nil
+      :cdp-connected false :cdp-foreign false :adopted-context nil :adopted-pages #{}
+      :spel-pages #{})
     ;; Start idle shutdown timer only when we actually disconnected a CDP session
     (when cdp-connected
       (schedule-cdp-idle-shutdown!))
@@ -5348,13 +5481,19 @@
                       ;;     resources. Same function runs from explicit `close`
                       ;;     and from JVM/native shutdown hooks.
                          (try (stop-ios-backend!) (catch Exception e (warn "stop-ios-backend" e)))
-                      ;; 2c. Close browser resources (may take seconds — Chromium)
-                         (when-let [p (:page @!state)]    (try (core/close-page! p)     (catch Exception e (warn "close-page" e))))
-                         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-                         (when-let [b (:browser @!state)] (try (core/close-browser! b)  (catch Exception e (warn "close-browser" e)))))
-                    ;; 2d. The driver owns the browser process, so closing it is
-                    ;;     what actually reaps Chromium — it runs on both paths.
-                       (when-let [pw (:pw @!state)] (try (core/close! pw) (catch Exception e (warn "close-playwright" e))))
+                     ;; 2c. A foreign CDP browser and its pre-existing tabs are
+                     ;; user-owned. Close only pages spel created, then tear down
+                     ;; the local Playwright driver (which detaches the socket).
+                     ;; Locally launched resources retain the normal full teardown.
+                         (if (foreign-browser?)
+                           (close-spel-owned-pages!)
+                           (do
+                             (when-let [p (:page @!state)]    (try (core/close-page! p)     (catch Exception e (warn "close-page" e))))
+                             (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
+                             (when-let [b (:browser @!state)] (try (core/close-browser! b)  (catch Exception e (warn "close-browser" e))))))
+                     ;; 2d. Closing Playwright detaches foreign CDP connections and
+                     ;; reaps browser processes owned by ordinary launch modes.
+                         (when-let [pw (:pw @!state)] (try (core/close! pw) (catch Exception e (warn "close-playwright" e)))))
                     ;; 2e. Clean up temp profile directory if one was created
                        (when-let [tmp-dir (:tmp-profile-dir @!state)]
                          (try

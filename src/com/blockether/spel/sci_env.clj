@@ -1463,8 +1463,9 @@
                (str "window.scrollTo({top: " (or (:top y-or-opts) 0) ", behavior: 'smooth'})"))
              (str "window.scrollTo({top: " y-or-opts ", behavior: 'smooth'})"))]
     (page/evaluate pg js)
-    ;; Wait for smooth scroll to complete (CSS scroll takes ~400-600ms)
-    (Thread/sleep 600)
+    ;; Wait for the smooth scroll animation to actually finish (frame-accurate,
+    ;; capped at 2s) rather than sleeping a fixed 600ms.
+    (page/wait-scroll-settled! pg 2000)
     nil))
 
 (defn sci-scrollable

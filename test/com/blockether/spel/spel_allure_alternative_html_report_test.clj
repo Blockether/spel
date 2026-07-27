@@ -60,8 +60,8 @@
       "\",\"start\":" start
       ",\"stop\":" stop
       ",\"labels\":[{\"name\":\"suite\",\"value\":\"test-suite\"}]"
-      ",\"statusDetails\":{\"message\":\"Expected: 42\\nActual: 43\"}"
-      ",\"steps\":[],\"attachments\":[]}")))
+      ",\"statusDetails\":{\"message\":\"Expected: 42\\nActual: 43\",\"trace\":\"Expected: 42\\nActual: 43\\nduplicate trace\"}"
+      ",\"steps\":[{\"name\":\"failing step\",\"status\":\"failed\",\"statusDetails\":{\"message\":\"Expected: 42\\nActual: 43\",\"trace\":\"Expected: 42\\nActual: 43\\nduplicate trace\"},\"steps\":[],\"attachments\":[]}],\"attachments\":[]}")))
 
 (defn- write-env-props!
   [^File dir props-map]
@@ -183,7 +183,8 @@
         (alternative-report/generate! results-path output-path)
         (let [html (slurp (io/file output-path "index.html"))]
           (expect (str/includes? html "Expected: 42"))
-          (expect (str/includes? html "Actual: 43"))))
+          (expect (str/includes? html "Actual: 43"))
+          (expect (= 1 (count (re-seq #"duplicate trace" html))))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-results-err"))))
       (clean-dir! (io/file (.getAbsolutePath (tmp-dir "alternative-output-err")))))
 
