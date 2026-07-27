@@ -75,7 +75,8 @@ Use the bundled HTML or Markdown report asset when the user requests a formal QA
 
 ## Recovery
 
-- Stuck command: `spel health --json`, identify the in-flight command, then `spel cancel <id>`.
+- Stuck command: `spel health --json` reads the daemon's command ledger — the in-flight command, its id, and how long it has been running — then `spel cancel <id>`.
+- `daemon_busy` means the ledger already holds another command; cancel it instead of retrying. `command_timeout` means the watchdog killed a command that exceeded `SPEL_COMMAND_BUDGET_MS` (default 25s); the daemon stays usable.
 - Stale ref: fresh `snapshot -i`, then retry once with the corrected target.
 - Missing output: inspect `spel logs -n 100`.
 - Browser crash: allow spel's next-command recovery before replacing the session.

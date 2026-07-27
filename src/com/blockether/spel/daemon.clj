@@ -3403,7 +3403,9 @@
       [(+ x (/ w 2.0)) (+ y (/ h 2.0))])))
 
 (defn- drag-js
-  "JavaScript that drags this element onto `tgt` without any CDP input.
+  "JavaScript that drags this element onto whatever sits at the drop point,
+   without any CDP input and without passing an element handle across the
+   protocol (native-image builds reject handle arguments).
 
    `sx`/`sy` and `tx`/`ty` are viewport coordinates for the press and the
    release; `steps` intermediate moves are dispatched in between. Elements
@@ -3412,8 +3414,9 @@
    mouse sequence, which is what drag-and-drop widgets listen for."
   [sx sy tx ty steps]
   (format
-    "(src, tgt) => {
+    "(src) => {
        const sx = %s, sy = %s, tx = %s, ty = %s, steps = %s;
+       const tgt = document.elementFromPoint(tx, ty) || src;
        const base = (x, y) => ({clientX: x, clientY: y, screenX: x, screenY: y,
                                bubbles: true, cancelable: true, composed: true, view: window});
        const draggable = src.draggable === true || !!src.closest('[draggable=\"true\"]')
@@ -3461,6 +3464,8 @@
   ;; wedged the daemon. Synthetic DOM events are deterministic and instant.
   (let [src-loc (resolve-selector source)
         tgt-loc (resolve-selector target)
+        _       (locator/scroll-into-view src-loc)
+        _       (locator/scroll-into-view tgt-loc)
         src-bb  (locator/bounding-box src-loc)
         tgt-bb  (locator/bounding-box tgt-loc)]
     (when-not src-bb
@@ -3472,8 +3477,7 @@
       (unwrap-anomaly!
         (locator/evaluate-locator src-loc
           (drag-js (double sx) (double sy) (double tx) (double ty)
-            (long (or steps 10)))
-          (locator/element-handle tgt-loc)))))
+            (long (or steps 10)))))))
   (snapshot-after-action!)
   {:dragged {:from source :to target}})
 

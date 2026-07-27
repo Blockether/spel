@@ -987,10 +987,10 @@
            "</div>"))
        (when (seq desc)
          (str "<div class=\"test-description\">" (html-escape desc) "</div>"))
-      ;; Only surface the bare message when there is no trace — the
-       ;; trace already contains the message as its first line, so
-       ;; rendering both is just noise.
-       (when (and message (not= status "passed") (not (seq trace)))
+      ;; The failure message is the single most useful line in a failing
+       ;; report, so it is always rendered inline and never hidden behind the
+       ;; collapsed stack-trace panel below.
+       (when (and message (not= status "passed"))
          (str "<div class=\"test-error\"><div class=\"error-message\">" (html-escape message) "</div></div>"))
       ;; Render the top-level trace only when it is not already attached to a
        ;; step. Allure commonly copies the same thrown exception onto both the
@@ -1002,7 +1002,7 @@
                          xs))
                      steps)))
          (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
-           "<summary>" (detail-marker) "<span>Test failure — thrown exception</span></summary>"
+           "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
            "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
            "</details>"))
        (when (seq steps)
@@ -1792,6 +1792,9 @@
     padding: 0.2rem 0.55rem;
     border-radius: var(--radius-sm);
     color: #fff;
+    /* Every badge carries a border, transparent on the solid variants, so the
+       outlined ones line up on the same baseline and share one height. */
+    border: 1px solid transparent;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     flex-shrink: 0;
@@ -1799,9 +1802,8 @@
   /* Status pill colors — scoped to the badge element so `.status-*`
      classes on `.step-item` / `.suite-section` / etc. don't get a
      solid red/yellow background that would swallow the step text. */
-  /* Passed is the default/expected state — render as an outlined pill
-     with just green text, no background tint. Failures (red/yellow)
-     stay solid so they visually dominate in a failing report. */
+  /* Passed and skipped are non-events — render them as outlined pills so the
+     eye slides past them. Failures (red/yellow) stay solid and dominate. */
   .test-status-badge.status-passed {
     background: transparent;
     color: var(--accent-green);
@@ -1809,7 +1811,7 @@
   }
   .test-status-badge.status-failed { background: var(--accent-red); color: #fff; }
   .test-status-badge.status-broken { background: var(--accent-yellow); color: #fff; }
-  .test-status-badge.status-skipped { background: var(--text-muted); color: #fff; }
+  .test-status-badge.status-skipped { background: transparent; color: var(--text-muted); border-color: var(--border); }
   .test-status-badge.status-unknown { background: var(--text-secondary); color: #fff; }
   .test-name {
     flex: 1;
