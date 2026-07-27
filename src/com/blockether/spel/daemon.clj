@@ -3402,13 +3402,36 @@
        (+ y (double (or (get p "y") (:y p) (/ h 2.0))))]
       [(+ x (/ w 2.0)) (+ y (/ h 2.0))])))
 
+(def ^:private native-draggable-js
+  "Truthy when the element would start a *native* browser drag (link, image,
+   or an explicit draggable=true subtree)."
+  "el => el.draggable === true || !!el.closest('[draggable=\"true\"]') || el.tagName === 'A' || el.tagName === 'IMG'")
+
+(def ^:private html5-drag-js
+  "Dispatches a full HTML5 drag sequence from this element onto `tgt`."
+  "(src, tgt) => {
+     const dt = new DataTransfer();
+     const fire = (el, type, pt) => el.dispatchEvent(new DragEvent(type, Object.assign(
+       {bubbles: true, cancelable: true, composed: true, dataTransfer: dt}, pt || {})));
+     const r = tgt.getBoundingClientRect();
+     const pt = {clientX: r.left + r.width / 2, clientY: r.top + r.height / 2};
+     fire(src, 'dragstart', {});
+     fire(tgt, 'dragenter', pt);
+     fire(tgt, 'dragover', pt);
+     fire(tgt, 'drop', pt);
+     fire(src, 'dragend', {});
+     return true;
+   }")
+
 (defmethod handle-cmd "drag" [_ {:strs [source target steps
                                         source-position target-position]}]
   (ensure-page-loaded!)
-  ;; Implemented with explicit mouse events rather than Playwright's `dragTo`:
-  ;; on headless Linux `dragTo` has been observed to block past its own timeout,
-  ;; wedging the daemon. Bounding-box resolution honours the page timeout, and
-  ;; the mouse sequence itself cannot block.
+  ;; Implemented without Playwright's `dragTo`: on headless Linux it has been
+  ;; observed to block far past its own timeout, wedging the daemon.
+  ;; Elements that start a *native* browser drag (links, images, draggable=true)
+  ;; are driven with synthetic HTML5 drag events, because a real mouse press on
+  ;; them hands control to the browser's own drag machinery, which never returns
+  ;; a mouseup to CDP on headless Linux. Everything else uses plain mouse events.
   (let [src-loc (resolve-selector source)
         tgt-loc (resolve-selector target)
         src-bb  (locator/bounding-box src-loc)
@@ -3417,15 +3440,18 @@
       (throw (ex-info (str "drag source is not visible: " source) {:selector source})))
     (when-not tgt-bb
       (throw (ex-info (str "drag target is not visible: " target) {:selector target})))
-    (let [[sx sy] (drag-point src-bb source-position)
-          [tx ty] (drag-point tgt-bb target-position)
-          sx      (double sx) sy (double sy)
-          tx      (double tx) ty (double ty)]
+    (if (true? (locator/evaluate-locator src-loc native-draggable-js))
       (unwrap-anomaly!
-        (input/mouse-drag (.mouse (pg)) sx sy (- tx sx) (- ty sy)
-          {:steps (long (or steps 10))})))
-    (snapshot-after-action!)
-    {:dragged {:from source :to target}}))
+        (locator/evaluate-locator src-loc html5-drag-js (locator/element-handle tgt-loc)))
+      (let [[sx sy] (drag-point src-bb source-position)
+            [tx ty] (drag-point tgt-bb target-position)
+            sx      (double sx) sy (double sy)
+            tx      (double tx) ty (double ty)]
+        (unwrap-anomaly!
+          (input/mouse-drag (.mouse (pg)) sx sy (- tx sx) (- ty sy)
+            {:steps (long (or steps 10))})))))
+  (snapshot-after-action!)
+  {:dragged {:from source :to target}})
 
 (defmethod handle-cmd "drag-by" [_ {:strs [selector dx dy steps]}]
   (ensure-page-loaded!)
