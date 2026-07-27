@@ -1,0 +1,20 @@
+## GET http://localhost:44393/status/301 → 301 Moved Permanently
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Mon, 27 Jul 2026 15:56:38 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 301
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:44393/status/301'
+```
