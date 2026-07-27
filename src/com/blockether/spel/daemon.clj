@@ -5226,6 +5226,98 @@
      :error_code "cancelled"
      :hint       "`spel health` lists what is still running"}))
 
+(def ^:private default-command-budget-ms
+  "Hard ceiling for ONE browser command inside the daemon.
+
+   Playwright's own timeouts cover a call that is merely slow. They do not
+   cover a call that never returns — a dead driver pipe, a crashed renderer,
+   a wedged input sequence. Before this budget existed, one such command kept
+   `!command-lock` forever and every later command in the session timed out in
+   the client with no explanation, so a single wedge failed a whole run."
+  (or (some-> (System/getenv "SPEL_COMMAND_BUDGET_MS") parse-long) 25000))
+
+(def ^:private open-ended-actions
+  "Commands whose runtime is legitimately measured in minutes — user scripts,
+   device provisioning, installs. They get a far larger budget instead of none,
+   so even these cannot wedge the daemon permanently."
+  #{"sci_eval" "script" "install" "codegen" "record"})
+
+(defn- command-budget-ms
+  "Budget for `action`: at least `default-command-budget-ms`, always at least
+   3x the configured action timeout, and minutes for open-ended work."
+  [action]
+  (if (or (contains? open-ended-actions action)
+        (str/starts-with? (str action) "ios"))
+    900000
+    (max (long default-command-budget-ms)
+      (* 3 (long (or (get-in @!state [:launch-flags "timeout"])
+                   default-action-timeout-ms))))))
+
+(defn- stuck-command-frames
+  "Top stack frames of a wedged command — the only way to learn WHERE a
+   never-returning browser call is parked, since it produces no exception."
+  [^Thread t]
+  (->> (.getStackTrace t) (take 12) (mapv str)))
+
+(defn- busy-response
+  [action]
+  (let [in-flight (ledger-entries)]
+    (json/write-json-str
+      {:success    false
+       :error      (str "daemon is busy: '" action "' waited for the command lock but "
+                     (if-let [e (first in-flight)]
+                       (str "'" (:action e) "' (" (:id e) ") has been running for " (:running e))
+                       "another command is still running"))
+       :error_code "daemon_busy"
+       :hint       "Inspect it with `spel health`, then `spel cancel all` to clear it."
+       :in_flight  in-flight})))
+
+(defn- run-guarded-command!
+  "Runs a non-control command on a worker thread under `!command-lock`, bounded
+   by `command-budget-ms`. On expiry the worker is interrupted, its stack is
+   logged, and the client gets an actionable error instead of a silent hang."
+  [cid action params]
+  (let [budget (command-budget-ms action)
+        result (promise)
+        worker (Thread.
+                 ^Runnable
+                 (fn []
+                   (deliver result
+                     (try
+                       (if (.tryLock !command-lock (quot budget 2) TimeUnit/MILLISECONDS)
+                         (try
+                           (swap! !ledger assoc-in [cid :phase] "running")
+                           (process-command* action params)
+                           (finally (.unlock !command-lock)))
+                         (busy-response action))
+                       (catch InterruptedException _
+                         (cancelled-response cid action))
+                       (catch Throwable e
+                         (json/write-json-str
+                           {:success false
+                            :error   (str "daemon command failed: "
+                                       (or (.getMessage e) (str e)))})))))
+                 (str "spel-cmd-" cid))]
+    (.setDaemon worker true)
+    (swap! !ledger assoc-in [cid :thread] worker)
+    (.start worker)
+    (let [r (deref result budget ::timeout)]
+      (if (not= r ::timeout)
+        r
+        (do
+          (log/warn! "command " cid " (" action ") exceeded " budget
+            "ms — interrupting it. Stack: " (str/join " | " (stuck-command-frames worker)))
+          (swap! !ledger assoc-in [cid :cancel-requested] true)
+          (.interrupt worker)
+          (json/write-json-str
+            {:success    false
+             :error      (str "command '" action "' exceeded the daemon budget of "
+                           budget "ms and was interrupted")
+             :error_code "command_timeout"
+             :hint       (str "The daemon is still alive — `spel health` shows what is running. "
+                           "Raise the ceiling with SPEL_COMMAND_BUDGET_MS if the work is genuinely long.")
+             :command_id cid}))))))
+
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
   [^String line]
@@ -5257,13 +5349,7 @@
                 resp  (try
                         (if (contains? control-actions action)
                           (process-command* action params)
-                          (do
-                            (.lockInterruptibly !command-lock)
-                            (try
-                              (swap! !ledger assoc-in [cid :phase] "running")
-                              (process-command* action params)
-                              (finally
-                                (.unlock !command-lock)))))
+                          (run-guarded-command! cid action params))
                         (catch Throwable e
                           (json/write-json-str
                             {:success false
