@@ -3600,7 +3600,7 @@
   []
   (let [now    (System/currentTimeMillis)
         cached @!orphan-scan-cache]
-    (if (and cached (< (- now (long (:at cached))) orphan-scan-ttl-ms))
+    (if (and cached (< (- now (long (:at cached))) (long orphan-scan-ttl-ms)))
       (:entries cached)
       (let [self    (.pid (java.lang.ProcessHandle/current))
             entries (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))

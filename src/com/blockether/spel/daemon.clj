@@ -1568,7 +1568,7 @@
         content-length (parse-long-safe (get resp-headers "content-length"))]
     (and (contains? preview-body-resource-types resource-type)
       (or (nil? content-length)
-        (<= (long content-length) max-preview-body-bytes))
+        (<= (long content-length) (long max-preview-body-bytes)))
       (or (str/blank? content-type)
         (re-find #"json|text|javascript|xml|x-www-form-urlencoded" content-type)))))
 
@@ -4141,10 +4141,10 @@
    ws://  — requires a live TCP socket on host:port.
    http:// — additionally requires a valid /json/version DevTools response."
   [^String url]
-  (let [uri    (try (java.net.URI. url) (catch Exception _ nil))
-        scheme (some-> uri .getScheme str/lower-case)
-        host   (or (some-> uri .getHost) "127.0.0.1")
-        port   (long (let [p (if uri (.getPort ^java.net.URI uri) -1)]
+  (let [^java.net.URI uri (try (java.net.URI. url) (catch Exception _ nil))
+        scheme (when uri (some-> (.getScheme uri) str/lower-case))
+        host   (or (when uri (.getHost uri)) "127.0.0.1")
+        port   (long (let [p (long (if uri (.getPort uri) -1))]
                        (if (pos? p) p (if (= scheme "https") 443 80))))
         fail!  (fn [msg hint]
                  (throw (ex-info msg {:error_code "cdp_endpoint_unreachable"
