@@ -5277,7 +5277,7 @@
    by `command-budget-ms`. On expiry the worker is interrupted, its stack is
    logged, and the client gets an actionable error instead of a silent hang."
   [cid action params]
-  (let [budget (command-budget-ms action)
+  (let [budget (long (command-budget-ms action))
         result (promise)
         worker (Thread.
                  ^Runnable
