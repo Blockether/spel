@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(report): singular step/attachment chips (`1 step`, not `1 steps`)
 - fix(report): the header is now a two-column grid (logo / text), so the summary chips are indented under the title instead of hugging the card edge
 - fix(ci): the release workflow now refuses to publish when the tag does not match `resources/SPEL_VERSION`, and re-checks that the built binaries print the tag version — v0.9.13 shipped binaries that self-reported `0.9.12`
-- docs(readme): document `spel init-agents` (how to scaffold **and regenerate** the agent + skill files after an upgrade) and the release/version-tagging rules
+- docs(readme): document `spel init-agents` (how to scaffold **and regenerate** the agent + skill files after an upgrade)
+- docs(agents): release instructions now live only in `AGENTS.md` ("Releasing"); the README section was removed and the shipped `CI_WORKFLOWS.md` reference points there instead of restating the rules
 
 ## [v0.9.13] - 2026-07-27
 

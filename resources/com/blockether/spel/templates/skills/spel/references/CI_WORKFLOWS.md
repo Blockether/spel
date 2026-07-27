@@ -168,23 +168,24 @@ Both jobs cache Clojure deps with `deps-${{ runner.os }}-${{ hashFiles('deps.edn
 
 ### `release` steps
 
-1. `actions/checkout@v4` (`ref: main`, full history + tags)
-2. `DeLaGuardo/setup-clojure@13.5`
-3. `Cache Clojure deps`
-4. `Generate changelog`
-5. `Download all artifacts`
-6. `Make Unix binaries executable`
-7. `Create GitHub Release`
-8. `Check if version exists on Clojars`
-9. `Build & Deploy to Clojars` *(only when version is new)*
-10. `Update README.md version`
-11. `Update CHANGELOG.md`
-12. `Bump SPEL_VERSION to next patch`
-13. `Commit version updates`
+1. `verify-version` job — fails unless the tag `vX.Y.Z` equals `resources/SPEL_VERSION` at the tagged commit
+2. `actions/checkout@v7` (`ref: main`, full history + tags)
+3. `DeLaGuardo/setup-clojure@13.6.1`
+4. `Cache Clojure deps`
+5. `Generate changelog`
+6. `Download all artifacts`
+7. `Make Unix binaries executable`
+8. `Create GitHub Release`
+9. `Check if version exists on Clojars`
+10. `Build & Deploy to Clojars` *(only when version is new)*
+11. `Update README.md version`
+12. `Update CHANGELOG.md`
+13. `Bump SPEL_VERSION to next patch`
+14. `Commit version updates`
 
 ### Version invariant
 
-The release reuses the binaries CI built for the tagged commit, so `resources/SPEL_VERSION` at that commit is what `spel version` prints forever. The workflow therefore starts with a `verify-version` job that fails unless the tag (`vX.Y.Z`) equals `resources/SPEL_VERSION`, and re-checks the downloaded CI binary before publishing. Tag only a commit at or after the workflow's own `release: update version files ...` bump commit.
+How to cut a release — tag rules, the `SPEL_VERSION` invariant and the ordering constraint — is documented in the repository's `AGENTS.md` ("Releasing") and nowhere else. Do not duplicate it here.
 
 ## Running locally
 

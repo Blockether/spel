@@ -595,21 +595,6 @@ make test-allure
 make repl
 ```
 
-## Releasing
-
-`resources/SPEL_VERSION` is the single source of truth: it is baked into every binary and printed by `spel version`. **A tag must match the `resources/SPEL_VERSION` of the commit it points at**, because the release reuses the binaries CI built for that exact commit.
-
-```bash
-# 1. main must be green (release downloads the CI artifacts of that commit)
-cat resources/SPEL_VERSION          # e.g. 0.9.14 — this is what the binaries will report
-
-# 2. tag that same commit with the matching version
-git tag -a v0.9.14 -m v0.9.14
-git push origin v0.9.14
-```
-
-The Release workflow refuses to publish when the tag and `resources/SPEL_VERSION` disagree, and re-checks that the built binaries actually print the tag version. After publishing it cuts the CHANGELOG, updates the README version, and bumps `resources/SPEL_VERSION` to the next patch on `main` — so always tag *after* that bump commit, never a commit before it.
-
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
