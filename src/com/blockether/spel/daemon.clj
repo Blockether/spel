@@ -20,9 +20,11 @@
    [com.blockether.spel.core :as core]
    [com.blockether.spel.ios :as ios]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.errors :as errors]
    [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
+   [com.blockether.spel.logging :as log]
    [com.blockether.spel.markdownify :as markdownify]
    [com.blockether.spel.network :as network]
    [com.blockether.spel.page :as page]
@@ -44,7 +46,8 @@
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
    [java.nio.file Files Path]
    [java.util Base64]
-   [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]))
+   [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]
+   [java.util.concurrent.locks ReentrantLock]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -52,11 +55,10 @@
 (declare daemon-running?)
 
 (defn- warn
-  "Logs a warning to stderr. Used in cleanup paths where we must continue
-   despite errors but never silently swallow them."
+  "Logs a warning through the one log sink. Used in cleanup paths where we must
+   continue despite errors but never silently swallow them."
   [^String context ^Exception e]
-  (binding [*out* *err*]
-    (println (str "warn: " context ": " (.getMessage e)))))
+  (log/exception! context e))
 
 ;; =============================================================================
 ;; Paths
@@ -79,7 +81,11 @@
   (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))]
     (->> (or (.listFiles tmp-dir) (into-array java.io.File []))
       (keep (fn [^java.io.File f]
-              (when (and (.isFile f)
+              ;; NOT `.isFile`: a Unix domain socket is not a regular file, so
+              ;; `.isFile` was false for every live session and this scan found
+              ;; nothing at all — `session list` showed no sessions and every
+              ;; --all-sessions sweep swept nothing.
+              (when (and (not (.isDirectory f))
                       (str/starts-with? (.getName f) "spel-")
                       (str/ends-with? (.getName f) ".sock"))
                 (let [sess (-> (.getName f)
@@ -99,12 +105,12 @@
     (into-array String [])))
 
 (defn log-file-path
-  "Returns the log file path for a session."
+  "Returns the log file path for a session.
+
+   Delegates to `logging/log-file-path` so the daemon, the CLI, and `spel logs`
+   can never disagree about where a session's log lives."
   ^Path [^String session]
-  (Path/of (str (System/getProperty "java.io.tmpdir")
-             File/separator
-             "spel-" session ".log")
-    (into-array String [])))
+  (log/log-file-path session))
 
 (defn flags-file-path
   "Returns the launch flags persistence file path for a session."
@@ -885,8 +891,7 @@
                         {:engine "lightpanda"})))
         port (find-free-cdp-port)
         cmd  [bin "serve" "--host" "127.0.0.1" "--port" (str port)]
-        _    (binding [*out* *err*]
-               (println (str "spel: [engine] launching Lightpanda on port " port)))
+        _    (log/info! "[engine] launching Lightpanda on port " port)
         pb   (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
                (.redirectOutput ProcessBuilder$Redirect/DISCARD)
                (.redirectErrorStream true))
@@ -898,26 +903,25 @@
       (cond
         (>= attempts 150)
         (do (.destroyForcibly proc)
-            (clear-auto-launch-lock! port)
-            (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
-                     {:port port :engine "lightpanda" :pid pid})))
+          (clear-auto-launch-lock! port)
+          (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
+                   {:port port :engine "lightpanda" :pid pid})))
 
         (not (.isAlive proc))
         (do (clear-auto-launch-lock! port)
-            (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
-                     {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
+          (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
+                   {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
 
         (probe-http-cdp port 500)
-        (do (binding [*out* *err*]
-              (println (str "spel: [engine] Lightpanda ready on port " port)))
-            {:cdp-url (str "ws://127.0.0.1:" port)
-             :port port
-             :process proc
-             :browser-pid pid})
+        (do (log/info! "[engine] Lightpanda ready on port " port)
+          {:cdp-url (str "ws://127.0.0.1:" port)
+           :port port
+           :process proc
+           :browser-pid pid})
 
         :else
         (do (Thread/sleep 100)
-            (recur (inc attempts)))))))
+          (recur (inc attempts)))))))
 
 (defn auto-launch-browser!
   "Launches a browser with --remote-debugging-port on a free port.
@@ -948,9 +952,8 @@
         ;; On macOS we need to use the binary path directly (not `open -a`)
         ;; because `open` spawns in background and we can't get the PID
         cmd       (into [binary] browser-args)
-        _         (binding [*out* *err*]
-                    (println (str "spel: auto-launch: starting " channel " on port " port))
-                    (println (str "spel: auto-launch: temp profile: " tmp-dir)))
+        _         (do (log/info! "auto-launch: starting " channel " on port " port)
+                    (log/info! "auto-launch: temp profile: " tmp-dir))
         pb        (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
                     (.redirectOutput ProcessBuilder$Redirect/DISCARD)
                     (.redirectErrorStream true))
@@ -978,8 +981,7 @@
 
         (probe-http-cdp port 500)
         (do
-          (binding [*out* *err*]
-            (println (str "spel: auto-launch: " channel " ready on port " port " (PID " pid ")")))
+          (log/info! "auto-launch: " channel " ready on port " port " (PID " pid ")")
           {:cdp-url     (str "http://127.0.0.1:" port)
            :port        port
            :browser-pid pid
@@ -987,7 +989,7 @@
 
         :else
         (do (Thread/sleep 100)
-            (recur (inc attempts)))))))
+          (recur (inc attempts)))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -996,8 +998,7 @@
     (try
       (when-let [ph (.orElse (java.lang.ProcessHandle/of browser-pid) nil)]
         (when (.isAlive ^java.lang.ProcessHandle ph)
-          (binding [*out* *err*]
-            (println (str "spel: auto-launch: killing browser PID " browser-pid)))
+          (log/info! "auto-launch: killing browser PID " browser-pid)
           ;; Kill the process tree (browser + child processes)
           (.descendants ^java.lang.ProcessHandle ph)
           (run! (fn [^java.lang.ProcessHandle child]
@@ -1044,6 +1045,191 @@
   "Submits a task to the virtual thread executor."
   [^Runnable f]
   (.submit !vthread-executor f))
+
+(defn- human-duration
+  "Renders a millisecond span the way a person says it: `30 min`, `90s`, `500ms`."
+  [^long ms]
+  (cond
+    (>= ms 60000) (str (quot ms 60000) " min")
+    (>= ms 1000)  (str (quot ms 1000) "s")
+    :else         (str ms "ms")))
+
+;; --- Command ledger ---
+;; Every command is recorded WHILE it runs. Without it a daemon busy inside a
+;; 60-second browser call is indistinguishable from a dead one: the client
+;; times out, kills the daemon, and throws a live browser away. `health` reads
+;; this ledger and touches no Playwright object, so it still answers while
+;; every browser call is stuck.
+(defonce ^:private !ledger (atom {}))
+(defonce ^:private !command-seq (atom 0))
+(defonce ^:private !commands-total (atom 0))
+(defonce ^:private !last-command-at (atom nil))
+(defonce ^:private !daemon-started-at (atom (System/currentTimeMillis)))
+(def ^:private default-action-timeout-ms 10000)
+(defonce ^:private ^ReentrantLock !command-lock (ReentrantLock. true))
+
+(def ^:private control-actions
+  "Commands that must answer even while browser execution is wedged."
+  #{"health" "cancel" "close"})
+
+(defn- ledger-start!
+  "Records a command as in-flight on the calling thread. Returns its id."
+  [^String action]
+  (let [id (str "c" (swap! !command-seq inc))]
+    (swap! !ledger assoc id {:id      id
+                             :action  action
+                             :phase   (if (contains? control-actions action) "running" "queued")
+                             :started (System/currentTimeMillis)
+                             :thread  (Thread/currentThread)})
+    id))
+
+(defn- ledger-finish!
+  "Drops a finished command, stamps the daemon's last-activity time, and returns
+   the entry it removed — the caller reads its cancel flag to explain a command
+   that ended only because someone cancelled it."
+  [id]
+  (when-let [entry (get @!ledger id)]
+    (swap! !ledger dissoc id)
+    (swap! !commands-total inc)
+    (reset! !last-command-at (System/currentTimeMillis))
+    entry))
+
+(def ^:private observer-actions
+  "Diagnostics that watch the daemon rather than do work. They are ledger
+   entries like anything else, but listing them would report every idle daemon
+   as busy — `health` would always find itself running."
+  #{"health" "cancel"})
+
+(defn- ledger-entries
+  "Real in-flight work, longest-running first, as wire-safe maps. Observer
+   actions are left out so an idle daemon never reports itself busy."
+  []
+  (let [now (System/currentTimeMillis)]
+    (->> (vals @!ledger)
+      (remove #(contains? observer-actions (:action %)))
+      (sort-by :started)
+      (mapv (fn [{:keys [id action phase started cancel-requested]}]
+              (let [ms (- now (long started))]
+                (cond-> {:id id :action action :phase phase
+                         :running_ms ms :running (human-duration ms)}
+                  cancel-requested (assoc :cancel_requested true))))))))
+
+(defn- ledger-cancel!
+  "Interrupts in-flight commands — one `id`, or every one for nil/\"all\".
+
+   Never cancels itself: `cancel all` is a ledger entry of its own, and
+   interrupting that thread killed the very connection waiting for the answer.
+   Interruption unblocks waits and sleeps; a call already parked inside the
+   browser keeps running until the browser answers, so its entry stays listed
+   as cancel_requested until it really ends."
+  [id]
+  (let [self    (Thread/currentThread)
+        entries (remove #(or (identical? self (:thread %)) (= "cancel" (:action %)))
+                  (vals @!ledger))
+        targets (vec (if (or (nil? id) (= "all" id))
+                       entries
+                       (filter #(= id (:id %)) entries)))]
+    (doseq [{eid :id t :thread} targets]
+      (swap! !ledger (fn [m] (if (get m eid)
+                               (assoc-in m [eid :cancel-requested] true)
+                               m)))
+      (when t (try (.interrupt ^Thread t) (catch Throwable _ nil))))
+    (mapv (fn [{:keys [id action started]}]
+            {:id id :action action
+             :running_ms (- (System/currentTimeMillis) (long started))})
+      targets)))
+
+;; --- Browser liveness ---
+;; The browser can die OUTSIDE the daemon: the user quits Chromium, it crashes,
+;; the CDP endpoint goes away. `ensure-browser!` only relaunches when :browser
+;; is nil, so stale handles used to make every later command answer
+;; "Target page, context or browser has been closed" — for the rest of the
+;; session, with no way back short of killing the daemon.
+(defn- browser-connected?
+  "True when the launched browser is still connected. Playwright answers from
+   local connection state, so this never round-trips into a wedged browser.
+   An unrecognised handle counts as alive — never tear down on a guess."
+  []
+  (when-let [b (:browser @!state)]
+    (if (instance? com.microsoft.playwright.Browser b)
+      (try (.isConnected ^com.microsoft.playwright.Browser b)
+        (catch Throwable _ false))
+      true)))
+
+(defn- page-open?
+  "True when the current page handle is still open."
+  []
+  (when-let [p (:page @!state)]
+    (if (instance? com.microsoft.playwright.Page p)
+      (try (not (.isClosed ^com.microsoft.playwright.Page p))
+        (catch Throwable _ false))
+      true)))
+
+(defn- drop-browser-handles!
+  "Throws away the current Playwright handles so the next `ensure-browser!`
+   relaunches from scratch. Reaping the orphaned driver can block, so it runs
+   off the command path. Always returns :dead."
+  []
+  (let [pw (:pw @!state)]
+    (swap! !state assoc :pw nil :browser nil :context nil :page nil
+      :refs {} :counter 0 :cdp-connected false)
+    (submit-virtual (fn discard-dead-playwright []
+                      (try (when pw (core/close! pw)) (catch Throwable _ nil))))
+    :dead))
+
+(defn- ensure-live-browser!
+  "Reconciles daemon state with the browser that actually exists.
+   Returns :dead when dead handles were dropped (the next launch recreates
+   them), :page-reopened when only the page had been closed, else nil.
+
+   Playwright flips `isConnected` only once its driver has NOTICED the
+   disconnect, so this catches a browser already known to be gone; the one that
+   dies mid-command is caught by `dispatch-with-recovery`."
+  []
+  (let [{:keys [browser context page]} @!state]
+    (cond
+      (and browser (not (browser-connected?)))
+      (do
+        (log/warn! "browser is gone (closed outside the daemon) — dropping dead handles; the next command relaunches it")
+        (drop-browser-handles!))
+
+      (and browser context page (not (page-open?)))
+      (try
+        (let [fresh (core/new-page-from-context context)]
+          (swap! !state assoc :page fresh :refs {} :counter 0)
+          (log/warn! "page was closed outside the daemon — opened a fresh one")
+          :page-reopened)
+        (catch Throwable _ (drop-browser-handles!)))
+
+      :else nil)))
+
+(def ^:private browser-gone-markers
+  "Playwright/CDP wordings that mean the BROWSER, not the script, ended the
+   call. Each one of them used to poison the session permanently."
+  ["Target page, context or browser has been closed"
+   "Target closed"
+   "Browser has been closed"
+   "Browser closed"
+   "browser has been closed"
+   "has disconnected"
+   "Connection closed"
+   "Playwright connection closed"
+   "Failed to read message from driver"
+   "pipe closed"])
+
+(defn- browser-gone-message?
+  "True when an error message says the browser went away."
+  [msg]
+  (boolean (and msg (some #(str/includes? ^String msg ^String %) browser-gone-markers))))
+
+(defn- throwable-chain-message
+  "Messages of a throwable and its causes, joined — Playwright's real reason is
+   often one cause down."
+  [^Throwable e]
+  (loop [^Throwable t e acc [] n 0]
+    (if (or (nil? t) (> n 8))
+      (str/join " → " (remove nil? acc))
+      (recur (.getCause t) (conj acc (.getMessage t)) (inc n)))))
 
 ;; --- CDP idle timeout ---
 ;; After explicit cdp_disconnect, auto-shutdown the daemon if no reconnect
@@ -1113,7 +1299,7 @@
   "Actions allowed even when another session owns route interception lock.
    These are read-only queries, session management, or local buffer operations
    that don't drive the page and should never queue."
-  #{"close" "session_info" "session_list"
+  #{"close" "health" "cancel" "session_info" "session_list"
     "cdp_disconnect" "cdp_reconnect"
     "network_list" "network_requests" "network_get_ref"
     "console_list" "console_get_ref"
@@ -1187,16 +1373,14 @@
         conflict
         ;; Queue mode — poll until lock clears or timeout
         (do
-          (binding [*out* *err*]
-            (println (str "spel: CDP lock held by session '" (:owner-session conflict)
-                       "' — waiting (0/" max-wait-s "s)...")))
+          (log/info! "CDP lock held by session '" (:owner-session conflict)
+            "' — waiting (0/" max-wait-s "s)...")
           (loop [waited 0]
             (if (>= waited max-wait-s)
               ;; Timeout — return conflict for error response
               (do
-                (binding [*out* *err*]
-                  (println (str "spel: CDP lock timeout after " max-wait-s
-                             "s — blocking action '" action "'")))
+                (log/info! "CDP lock timeout after " max-wait-s
+                  "s — blocking action '" action "'")
                 conflict)
               (do
                 (Thread/sleep poll-ms)
@@ -1205,8 +1389,7 @@
                     (recur waited')
                     ;; Lock cleared!
                     (do
-                      (binding [*out* *err*]
-                        (println (str "spel: CDP lock acquired after " waited' "s wait")))
+                      (log/info! "CDP lock acquired after " waited' "s wait")
                       nil))))))))
       ;; No conflict
       nil)))
@@ -1644,7 +1827,7 @@
                       (if (and (not no-auto?)
                             (contains? #{"alert" "beforeunload"} dtype))
                         (try (.accept d)
-                             (catch Exception _ nil))
+                          (catch Exception _ nil))
                         ;; Park until an explicit response arrives on the
                         ;; promise. Playwright dispatches onDialog on its own
                         ;; event thread so blocking here is safe.
@@ -1705,6 +1888,9 @@
 
    Auto-loads persisted session state unless --no-persist is set."
   []
+  ;; Reconcile with reality first: a browser killed outside the daemon leaves
+  ;; handles that fail every command until they are dropped.
+  (ensure-live-browser!)
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
           ;; --profile can be either a filesystem path (existing behavior) or
@@ -1721,11 +1907,10 @@
           ;; the clone (without this, Chrome always defaults to 'Default').
           profile-clone   (when (and profile-arg (profile/name? profile-arg))
                             (let [result (profile/clone-profile! profile-arg)]
-                              (binding [*out* *err*]
-                                (println (str "spel: [profile] cloned Chrome profile '"
-                                           profile-arg "' (dir="
-                                           (:profile-directory result) ") → "
-                                           (:user-data-dir result))))
+                              (log/info! "[profile] cloned Chrome profile '"
+                                profile-arg "' (dir="
+                                (:profile-directory result) ") → "
+                                (:user-data-dir result))
                               ;; Track the temp clone so `close` can delete it.
                               (swap! !state assoc :profile-temp-dir (:user-data-dir result))
                               result))
@@ -1743,10 +1928,9 @@
                           (when-not (.isDirectory (java.io.File. ^String ext))
                             (throw (ex-info (str "Extension path does not exist or is not a directory: " ext)
                                      {:extension-path ext}))))
-                        (binding [*out* *err*]
-                          (println (str "spel: Loading " (count extensions) " extension(s): "
-                                     (str/join ", " extensions)))
-                          (println "spel: Note: --extension is Chromium-only; extensions are ignored on Firefox/WebKit")))
+                        (log/info! "Loading " (count extensions) " extension(s): "
+                          (str/join ", " extensions))
+                        (log/info! "Note: --extension is Chromium-only; extensions are ignored on Firefox/WebKit"))
           launch-opts (cond-> {:headless (:headless @!state)}
                         (get flags "channel")          (assoc :channel (get flags "channel"))
                         (get flags "executable-path") (assoc :executable-path (get flags "executable-path"))
@@ -1791,7 +1975,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
                         (get flags "download-path")       (assoc :accept-downloads true))
           pw          (core/create)]
@@ -1830,8 +2014,7 @@
         ;; ── Mode 1: --profile with directory → Playwright persistent ──────
         ;; Use Playwright's launchPersistentContext for custom profile dirs.
         profile-dir
-        (let [_           (binding [*out* *err*]
-                            (println (str "spel: [Mode 1] Persistent context with profile: " profile-dir)))
+        (let [_           (log/info! "[Mode 1] Persistent context with profile: " profile-dir)
               launch-opts (update launch-opts :ignore-default-args
                             (fnil into [])
                             ["--use-mock-keychain" "--password-store=basic"])
@@ -1855,8 +2038,7 @@
 
         ;; ── Mode 2: --auto-launch → launch browser + CDP connect ─────────
         (get flags "auto-launch")
-        (let [_       (binding [*out* *err*]
-                        (println "spel: [Mode 2] Auto-launch browser with CDP"))
+        (let [_       (log/info! "[Mode 2] Auto-launch browser with CDP")
               channel (get flags "channel" "chrome")
               session (:session @!state)
               result  (auto-launch-browser!
@@ -1864,8 +2046,7 @@
                          :session  session
                          :headless (:headless @!state)})
               cdp-url (:cdp-url result)
-              _       (binding [*out* *err*]
-                        (println (str "spel: auto-launch: connecting via CDP to " cdp-url)))
+              _       (log/info! "auto-launch: connecting via CDP to " cdp-url)
               browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
               contexts (.contexts ^com.microsoft.playwright.Browser browser)
               context  (if (seq contexts)
@@ -1892,11 +2073,10 @@
 
         ;; ── Mode 3: Normal launch or CDP connect ─────────────────────────
         :else
-        (let [_       (binding [*out* *err*]
-                        (println (str "spel: [Mode 3] "
-                                   (if (get flags "cdp")
-                                     (str "CDP connect: " (get flags "cdp"))
-                                     "Standard launch"))))
+        (let [_       (log/info! "[Mode 3] "
+                        (if (get flags "cdp")
+                          (str "CDP connect: " (get flags "cdp"))
+                          "Standard launch"))
               browser-type (get flags "browser" "chromium")
               launch-fn   (case browser-type
                             "firefox" core/launch-firefox
@@ -1939,6 +2119,8 @@
               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
       ;; Common setup for all paths
       (let [pg-inst (:page @!state)]
+        (page/set-default-timeout! pg-inst
+          (double (or (get flags "timeout") default-action-timeout-ms)))
         ;; Default dialog handler: auto-accept alert/beforeunload unless
         ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
         (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
@@ -2010,10 +2192,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                     (catch Exception _ nil)))
+                  (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                     (catch Exception _ nil)))}))
+                  (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -2196,19 +2378,82 @@
      (str "unexpected browser error (" (.getSimpleName (.getClass e)) ", no details from runtime)")
      (default-error-message))))
 
+(defn- throwable-message
+  "Best text for a throwable. A `nth` past the end of a vector arrives as an
+   ExceptionInfo wrapping a message-less IndexOutOfBoundsException, so a bare
+   `.getMessage` would report nothing at all; the cause's message, then the
+   failing class's name, still tell the caller what happened."
+  [^Throwable e]
+  (let [cause (.getCause e)]
+    (or (.getMessage e)
+      (some-> cause .getMessage)
+      (.getSimpleName (.getClass ^Throwable (or cause e))))))
+
+(def ^:private ^:dynamic *error-source*
+  "`{:source <code> :lang :js|:clj}` for the command currently being dispatched
+   (a JS `script`/`expression`, a SCI `code` form). `error-response` hands it to
+   `errors/concise`, which turns the reported line:column into a numbered
+   excerpt with a caret under the failing position."
+  nil)
+
+(defn- inner-eval-source
+  "Walks a throwable's cause chain for a nested evaluation's `ex-data`.
+
+   SCI re-wraps whatever a form throws in its own ex-info, so the JS source a
+   Clojure form ran (`:spel/source`, tagged by `core/tag-eval-source`) is only
+   reachable through the causes. Bounded, so a self-referencing cause chain
+   cannot loop forever."
+  [^Throwable e]
+  (loop [t e n 0]
+    (when (and t (< n 16))
+      (let [d (ex-data t)]
+        (if (:spel/source d)
+          d
+          (recur (.getCause t) (inc n)))))))
+
+(defn- error-context
+  "Reads the failure position — and, for a nested evaluation, the source that
+   actually failed — out of an `ex-data`/anomaly map and its throwable.
+
+   A SCI form that evaluates JS reports its own {:line :column}, but the
+   failure and the `at <expression>:LINE:COLUMN` frame in its message belong to
+   the inner JS (`:spel/source`). That source therefore wins, and the outer
+   Clojure position is dropped so no caret lands in the wrong language."
+  ([data] (error-context data nil))
+  ([data ^Throwable e]
+   (if-let [inner (if (:spel/source data) data (some-> e inner-eval-source))]
+     {:source (:spel/source inner) :lang (or (:spel/lang inner) :js)}
+     (select-keys data [:line :column]))))
+
 (defn- error-response
   "Creates a structured error response map from an error message string.
-   Parses Playwright error context (call_log, selector) when present.
+
+   The wire `:error` carries the CONCISE message (`errors/concise`): the
+   repeated Playwright `Error { … }` envelopes, driver-internal stack frames
+   and an over-long call log are stripped so the caller reads the failure
+   instead of the runtime. The untouched original is logged at debug level,
+   so `SPEL_LOG_LEVEL=debug` + `spel logs` still shows the full dump.
+
+   Structured context (call_log, selector) and hints are parsed from the RAW
+   text — those patterns match the unfiltered message.
+   The evaluated source (`*error-source*`) is passed along, so an eval failure
+   gains a numbered code excerpt with a caret under the offending column.
+   `pos` optionally carries the {:line :column} SCI reports in `ex-data` for a
+   Clojure form, which has no `at <expression>` frame to read the spot from.
    Returns {:success false :error msg} with optional :call_log and :selector."
-  [^String msg]
-  (let [msg    (if (str/blank? msg) (default-error-message) msg)
-        parsed (parse-playwright-error msg)
-        human  (humanize-error msg)]
-    (cond-> {:success false :error msg}
-      (:call_log parsed) (assoc :call_log (:call_log parsed))
-      (:selector parsed) (assoc :selector (:selector parsed))
-      (:hint human) (assoc :hint (:hint human))
-      (:error_code human) (assoc :error_code (name (:error_code human))))))
+  ([^String msg] (error-response msg nil))
+  ([^String msg pos]
+   (let [raw    (if (str/blank? msg) (default-error-message) msg)
+         short  (or (errors/concise raw (merge *error-source* pos)) raw)
+         parsed (parse-playwright-error raw)
+         human  (humanize-error raw)]
+     (when-not (= raw short)
+       (log/debug! "raw error: " raw))
+     (cond-> {:success false :error short}
+       (:call_log parsed) (assoc :call_log (:call_log parsed))
+       (:selector parsed) (assoc :selector (:selector parsed))
+       (:hint human) (assoc :hint (:hint human))
+       (:error_code human) (assoc :error_code (name (:error_code human)))))))
 
 (defn- humanize-error
   "Adds actionable, human-readable hints to known error patterns.
@@ -2240,6 +2485,10 @@
     (re-find #"(?i)timeout .* exceeded|timed out" msg)
     {:hint "The operation timed out. Verify selector/page state and consider increasing --timeout for slow pages."
      :error_code :timeout}
+
+    (re-find #"\b(ReferenceError|TypeError|SyntaxError|RangeError)\b" msg)
+    {:hint "The page's own JavaScript threw. `at <expression>:line:col` points inside the code you passed — try it in the browser console, and guard optional elements with `?.` (e.g. `document.querySelector('#x')?.textContent`)."
+     :error_code :js_error}
 
     (str/includes? msg "Ref ")
     {:hint "The element ref is stale or missing. Run `spel snapshot -i` and retry with a fresh @ref."
@@ -2763,15 +3012,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -2782,11 +3031,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -3120,13 +3369,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "click"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "fill"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -3273,7 +3522,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -3366,12 +3615,12 @@
                        (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
                        (get flags "headers")             (assoc :extra-http-headers
                                                            (try (json/read-json (get flags "headers"))
-                                                                (catch Exception _ {}))))
+                                                             (catch Exception _ {}))))
         ctx-opts     (merge base-opts extra-opts)]
     ;; Save in-flight trace + storage state before teardown
     (save-inflight-trace!)
     (let [storage-state (try (.storageState ^BrowserContext (:context @!state))
-                             (catch Exception _ nil))]
+                          (catch Exception _ nil))]
       (when-let [p (:page @!state)]
         (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
       (when-let [c (:context @!state)]
@@ -3432,15 +3681,15 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        (when (empty? @!routes)
-          (release-cdp-route-lock-if-owned!))
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      (when (empty? @!routes)
+        (release-cdp-route-lock-if-owned!))
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        (release-cdp-route-lock-if-owned!)
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      (release-cdp-route-lock-if-owned!)
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -3481,34 +3730,34 @@
   ;; dialog fires.
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:accept text])
-        {:dialog_handler "accept" :text text :pending false})
+      {:dialog_handler "accept" :text text :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.accept ^Dialog dialog (or text ""))
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "accept" :text text :pending true})))
+      (let [handler (reify java.util.function.Consumer
+                      (accept [_ dialog]
+                        (try (.accept ^Dialog dialog (or text ""))
+                          (catch Exception _ nil))
+                        (install-default-dialog-handler! (pg)
+                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+        (reset! !dialog-handler handler)
+        (.onDialog ^Page (pg) handler))
+      {:dialog_handler "accept" :text text :pending true})))
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:dismiss nil])
-        {:dialog_handler "dismiss" :pending false})
+      {:dialog_handler "dismiss" :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.dismiss ^Dialog dialog)
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "dismiss" :pending true})))
+      (let [handler (reify java.util.function.Consumer
+                      (accept [_ dialog]
+                        (try (.dismiss ^Dialog dialog)
+                          (catch Exception _ nil))
+                        (install-default-dialog-handler! (pg)
+                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+        (reset! !dialog-handler handler)
+        (.onDialog ^Page (pg) handler))
+      {:dialog_handler "dismiss" :pending true})))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
@@ -3588,7 +3837,7 @@
         (let [new-pg (core/new-page-from-context new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -3665,9 +3914,9 @@
         launch-flags (:launch-flags state)
         viewport (try (when page (page/viewport-size page)) (catch Exception _ nil))
         tab-count (try (when context (count (.pages ^com.microsoft.playwright.BrowserContext context)))
-                       (catch Exception _ nil))
+                    (catch Exception _ nil))
         cookies-count (try (when context (count (.cookies ^com.microsoft.playwright.BrowserContext context)))
-                           (catch Exception _ nil))
+                        (catch Exception _ nil))
         ios? (= "ios" (get launch-flags "provider"))
         ios-sess (:ios-session state)]
     (if ios?
@@ -3709,6 +3958,30 @@
        :refs_count     (:counter state)
        :socket         (try (.toString (socket-path (:session state))) (catch Exception _ nil))})))
 
+;; --- Shutdown state ---
+;; `stop-daemon!` must run EXACTLY once. It ends in `System/exit`, which runs
+;; the JVM shutdown hook, which called `stop-daemon!` again — and `System/exit`
+;; from inside a hook blocks forever while the exiting thread joins that hook.
+;; That three-way deadlock (main ↔ hook ↔ idle timer) left a zombie daemon whose
+;; socket and PID files were already deleted, still holding its browser.
+(defonce ^:private !stopping (atom false))
+
+;; True while the JVM shutdown sequence is running our hook. Cleanup still runs
+;; there; `System/exit` must not.
+(defonce ^:private !in-shutdown-hook (atom false))
+
+;; Delivered once a stop has fully finished. Stops run on VIRTUAL threads, which
+;; are daemon threads: without this latch the JVM could exit mid-teardown and
+;; leave the socket and PID files behind for the next client to dial into.
+(defonce ^:private !stop-finished (promise))
+
+(def ^:private stop-cleanup-timeout-ms
+  "Ceiling on browser cleanup during shutdown. Chromium normally goes in under a
+   second; a wedged one must not hold a daemon that was asked to stop. Override
+   with SPEL_STOP_TIMEOUT (milliseconds)."
+  (let [v (System/getenv "SPEL_STOP_TIMEOUT")]
+    (if (str/blank? v) 5000 (Long/parseLong v))))
+
 ;; --- CDP idle timeout scheduling ---
 
 (defn- cancel-cdp-idle-shutdown!
@@ -3728,11 +4001,9 @@
     (when (pos? timeout-ms)
       (let [fut (.schedule !cdp-idle-scheduler
                   ^Runnable (fn cdp-idle-shutdown []
-                              (binding [*out* *err*]
-                                (println (str "spel: CDP idle timeout ("
-                                           (quot timeout-ms 60000)
-                                           " min) — no reconnect, shutting down daemon")))
-                              (stop-daemon!))
+                              (stop-daemon! (str "CDP idle timeout ("
+                                              (human-duration timeout-ms)
+                                              ") — no reconnect")))
                   timeout-ms
                   TimeUnit/MILLISECONDS)]
         (reset! !cdp-idle-future fut)))))
@@ -3756,11 +4027,9 @@
     (when (pos? timeout-ms)
       (let [fut (.schedule !session-idle-scheduler
                   ^Runnable (fn session-idle-shutdown []
-                              (binding [*out* *err*]
-                                (println (str "spel: session idle timeout ("
-                                           (quot timeout-ms 60000)
-                                           " min) — no commands received, shutting down daemon")))
-                              (stop-daemon!))
+                              (stop-daemon! (str "session idle timeout ("
+                                              (human-duration timeout-ms)
+                                              ") — no commands received")))
                   timeout-ms
                   TimeUnit/MILLISECONDS)]
         (reset! !session-idle-future fut)))))
@@ -4038,75 +4307,125 @@
                    (mapv str args))]
     (when-not code
       (throw (ex-info "sci_eval requires a 'code' parameter" {})))
-    (let [ctx (or @!sci-ctx
-                (let [c (sci-env/create-sci-ctx)]
-                  (reset! !sci-ctx c)
-                  c))
+    ;; Bind the evaluated source here (not only in `process-command*`) so a
+    ;; direct `handle-cmd` call still renders a code frame.
+    (binding [*error-source* {:source code :lang :clj}]
+      (let [ctx (or @!sci-ctx
+                  (let [c (sci-env/create-sci-ctx)]
+                    (reset! !sci-ctx c)
+                    c))
           ;; Capture stdout and stderr during evaluation so println/prn work in eval-sci mode
-          stdout-writer (java.io.StringWriter.)
-          stderr-writer (java.io.StringWriter.)
+            stdout-writer (java.io.StringWriter.)
+            stderr-writer (java.io.StringWriter.)
           ;; Snapshot console/error state before eval to detect new messages
-          console-before (count @!console-messages)
-          errors-before  (count @!page-errors)]
-      (sci-env/set-throw-on-error! true)
-      (try
-        (let [result (binding [*out* stdout-writer
-                               *err* stderr-writer]
-                       (sci/binding [sci-env/sci-command-line-args-var args-vec]
-                         (let [r (sci-env/eval-string ctx code)]
-                           (sync-sci-to-state!)
-                           r)))
-              captured-stdout (str stdout-writer)
-              captured-stderr (str stderr-writer)
-              ;; Collect NEW console messages and page errors from this eval
-              new-console (subvec @!console-messages console-before)
-              new-errors  (subvec @!page-errors errors-before)]
-          (if (anomaly/anomaly? result)
-            (cond-> (error-response (::anomaly/message result))
-              (seq captured-stdout) (assoc :stdout captured-stdout)
-              (seq captured-stderr) (assoc :stderr captured-stderr)
-              (seq new-console)     (assoc :console new-console)
-              (seq new-errors)      (assoc :page-errors new-errors))
-            (let [base (cond-> {:result (pr-str result)}
-                         (seq captured-stdout) (assoc :stdout captured-stdout)
-                         (seq captured-stderr) (assoc :stderr captured-stderr)
-                         (seq new-console)     (assoc :console new-console)
-                         (seq new-errors)      (assoc :page-errors new-errors))]
-              ;; If result looks like a snapshot map, include formatted data
-              ;; so the CLI can display tree + metadata instead of raw EDN.
-              (if (and (map? result) (:tree result))
-                (cond-> (assoc base :snapshot (:tree result)
-                          :url (:url result)
-                          :title (:title result))
-                  (:description result) (assoc :description (:description result)))
-                base))))
-        (catch Exception e
-          (sync-sci-to-state!)
-          (let [captured-stdout (str stdout-writer)
+            console-before (count @!console-messages)
+            errors-before  (count @!page-errors)]
+        (sci-env/set-throw-on-error! true)
+        (try
+          (let [result (binding [*out* stdout-writer
+                                 *err* stderr-writer]
+                         (sci/binding [sci-env/sci-command-line-args-var args-vec]
+                           (let [r (sci-env/eval-string ctx code)]
+                             (sync-sci-to-state!)
+                             r)))
+                captured-stdout (str stdout-writer)
                 captured-stderr (str stderr-writer)
+              ;; Collect NEW console messages and page errors from this eval
                 new-console (subvec @!console-messages console-before)
                 new-errors  (subvec @!page-errors errors-before)]
-            (cond-> (error-response (.getMessage e))
-              (seq captured-stdout) (assoc :stdout captured-stdout)
-              (seq captured-stderr) (assoc :stderr captured-stderr)
-              (seq new-console)     (assoc :console new-console)
-              (seq new-errors)      (assoc :page-errors new-errors))))))))
+            (if (anomaly/anomaly? result)
+              (cond-> (error-response (::anomaly/message result)
+                        (error-context (merge (::anomaly/data result) result)))
+                (seq captured-stdout) (assoc :stdout captured-stdout)
+                (seq captured-stderr) (assoc :stderr captured-stderr)
+                (seq new-console)     (assoc :console new-console)
+                (seq new-errors)      (assoc :page-errors new-errors))
+              (let [base (cond-> {:result (pr-str result)}
+                           (seq captured-stdout) (assoc :stdout captured-stdout)
+                           (seq captured-stderr) (assoc :stderr captured-stderr)
+                           (seq new-console)     (assoc :console new-console)
+                           (seq new-errors)      (assoc :page-errors new-errors))]
+              ;; If result looks like a snapshot map, include formatted data
+              ;; so the CLI can display tree + metadata instead of raw EDN.
+                (if (and (map? result) (:tree result))
+                  (cond-> (assoc base :snapshot (:tree result)
+                            :url (:url result)
+                            :title (:title result))
+                    (:description result) (assoc :description (:description result)))
+                  base))))
+          (catch Exception e
+            (sync-sci-to-state!)
+            (let [captured-stdout (str stdout-writer)
+                  captured-stderr (str stderr-writer)
+                  new-console (subvec @!console-messages console-before)
+                  new-errors  (subvec @!page-errors errors-before)]
+              (cond-> (error-response (throwable-message e)
+                        (error-context (ex-data e) e))
+                (seq captured-stdout) (assoc :stdout captured-stdout)
+                (seq captured-stderr) (assoc :stderr captured-stderr)
+                (seq new-console)     (assoc :console new-console)
+                (seq new-errors)      (assoc :page-errors new-errors)))))))))
+
+;; --- Health & the command ledger ---
+
+(defmethod handle-cmd "health" [_ _]
+  ;; Deliberately free of Playwright calls — this is the ONE answer a client can
+  ;; still get when every browser call is wedged. Everything below is read from
+  ;; daemon-local state.
+  (let [now       (System/currentTimeMillis)
+        started   (long @!daemon-started-at)
+        in-flight (ledger-entries)
+        launched? (some? (:browser @!state))
+        connected (boolean (browser-connected?))
+        last-at   @!last-command-at]
+    {:status         (cond
+                       (and launched? (not connected)) "degraded"
+                       (seq in-flight)                 "busy"
+                       :else                           "ok")
+     :session        (:session @!state)
+     :pid            (.pid (java.lang.ProcessHandle/current))
+     :uptime_ms      (- now started)
+     :uptime         (human-duration (- now started))
+     :in_flight      in-flight
+     :busiest_ms     (or (:running_ms (first in-flight)) 0)
+     :commands_total @!commands-total
+     :idle_ms        (when last-at (- now (long last-at)))
+     :browser        {:launched  launched?
+                      :connected connected
+                      :page_open (boolean (page-open?))
+                      :type      (get-in @!state [:launch-flags "browser"] "chromium")
+                      :headless  (boolean (:headless @!state))
+                      :cdp       (current-cdp-url)}
+     :socket         (try (.toString (socket-path (:session @!state))) (catch Exception _ nil))
+     :session_idle_timeout_ms @!session-idle-timeout-ms}))
+
+(defmethod handle-cmd "cancel" [_ {:strs [id]}]
+  (let [cancelled (ledger-cancel! id)]
+    (cond-> {:cancelled cancelled :count (count cancelled)}
+      (seq cancelled)
+      (assoc :note (str "interrupt sent; a call already parked inside the browser "
+                     "ends when the browser answers — re-check with `spel health`")))))
 
 ;; --- Close & Default ---
 
-(defmethod handle-cmd "close" [_ _]
-  ;; Auto-save session state (unless --no-persist)
-  (auto-save-session-state!)
-  ;; If `--profile <name>` cloned a Chrome profile into a temp dir, delete it
-  ;; now so we don't leak it. Best-effort; failures are logged but not fatal.
-  (when-let [tmp (:profile-temp-dir @!state)]
-    (try
-      (profile/delete-tree! tmp)
-      (swap! !state dissoc :profile-temp-dir)
-      (catch Exception e (warn "profile-temp-cleanup" e))))
-  ;; Note: in-flight trace is saved by stop-daemon! (called after this returns)
-  (cond-> {:closed true :shutdown true}
-    (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))
+(defmethod handle-cmd "close" [_ {:strs [force]}]
+  (if force
+    ;; Force: no state auto-save, no profile cleanup, no graceful browser close.
+    ;; The caller asked for this process to be GONE, not tidy.
+    {:closed true :shutdown true :force true}
+    (do
+      ;; Auto-save session state (unless --no-persist)
+      (auto-save-session-state!)
+      ;; If `--profile <name>` cloned a Chrome profile into a temp dir, delete it
+      ;; now so we don't leak it. Best-effort; failures are logged but not fatal.
+      (when-let [tmp (:profile-temp-dir @!state)]
+        (try
+          (profile/delete-tree! tmp)
+          (swap! !state dissoc :profile-temp-dir)
+          (catch Exception e (warn "profile-temp-cleanup" e))))
+      ;; Note: in-flight trace is saved by stop-daemon! (called after this returns)
+      (cond-> {:closed true :shutdown true}
+        (:tracing? @!state) (assoc :trace-warning "active trace will be auto-saved on shutdown")))))
 
 (defmethod handle-cmd :default [action _]
   {:error (str "Unknown action: " action)})
@@ -4476,7 +4795,7 @@
 
       (get params "timeout")
       (do (Thread/sleep (long (get params "timeout")))
-          {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
       :else
       {:error "No wait condition specified"})))
@@ -4513,8 +4832,8 @@
   (let [b (ios-backend)]
     (if (and x y)
       (do (backend/tap! b [(long x) (long y)] {})
-          (ios-snapshot-after-action! b)
-          {:tapped [(long x) (long y)]})
+        (ios-snapshot-after-action! b)
+        {:tapped [(long x) (long y)]})
       (do
         (when (str/blank? (str selector))
           (throw (ex-info "tap requires a selector/@ref or x y coordinates" {})))
@@ -4548,7 +4867,7 @@
   "Actions that bypass iOS dispatch and run their normal handlers even when
    the iOS provider is active: session management, diagnostics, local buffer
    reads, and SCI eval (sci-env is backend-aware)."
-  #{"session_list" "device_list" "find_free_port"
+  #{"session_list" "device_list" "find_free_port" "health" "cancel"
     "action_log" "action_log_srt" "action_log_clear"
     "sci_eval"})
 
@@ -4578,6 +4897,65 @@
         (fn dispatch-ios-command []
           (handle-ios-cmd action params))))
     (handle-cmd action params)))
+
+(def ^:private no-recovery-actions
+  "Actions never re-run after a browser loss: lifecycle and diagnostics, where
+   a second attempt is meaningless or destructive."
+  #{"close" "health" "cancel" "session_info" "session_list"
+    "connect" "cdp_disconnect" "cdp_reconnect" "state_save"})
+
+(defn- current-url-quietly
+  "The page's URL, or nil. Playwright answers from cached state, so this costs
+   nothing and works even when the browser stopped answering."
+  []
+  (try (when-let [p (:page @!state)] (page/url p))
+    (catch Throwable _ nil)))
+
+(defn- restore-page!
+  "Re-opens `url` on the freshly relaunched browser so a recovered session lands
+   back where it was instead of on a blank page."
+  [url]
+  (when (and url (not (contains? #{"" "about:blank"} url)))
+    (try
+      (page/navigate (pg) url)
+      (page/wait-for-load-state (pg))
+      (log/info! "restored " url " on the relaunched browser")
+      (catch Throwable e
+        (log/warn! "could not restore " url " after relaunch: " (.getMessage e))))))
+
+(defn- dispatch-with-recovery
+  "Runs a command, and when it failed ONLY because the browser died outside the
+   daemon, relaunches the browser, re-opens the page that was open, and runs the
+   command once more.
+
+   `isConnected` lags the real disconnect, so the failed call is the first
+   reliable signal. Without this recovery, quitting the browser left every later
+   command answering 'Target page, context or browser has been closed' for the
+   rest of the session — killing the daemon was the only way out."
+  [action params]
+  (let [attempt (fn run-command []
+                  (try {:ok (dispatch-cmd action params)}
+                    (catch Throwable e {:threw e})))
+        url-before (current-url-quietly)
+        {:keys [ok threw]} (attempt)
+        anomaly (when (anomaly/anomaly? ok) ok)
+        msg     (cond
+                  threw   (throwable-chain-message threw)
+                  anomaly (str (::anomaly/message anomaly) " "
+                            (when-let [ex (:playwright/exception anomaly)]
+                              (throwable-chain-message ex)))
+                  (and (map? ok) (false? (:success ok))) (str (:error ok)))]
+    (if (and (browser-gone-message? msg)
+          (not (contains? no-recovery-actions action)))
+      (do
+        (log/warn! "browser died during '" action "' — relaunching it and retrying once")
+        (drop-browser-handles!)
+        (ensure-browser!)
+        (when-not (= "navigate" action)
+          (restore-page! url-before))
+        (let [{:keys [ok threw]} (attempt)]
+          (if threw (throw threw) ok)))
+      (if threw (throw threw) ok))))
 
 (defmethod handle-cmd "tap" [_ _]
   ;; Playwright provider: native touch tap is iOS-only. Fail with an explicit
@@ -4682,6 +5060,28 @@
 
 (declare process-command*)
 
+(defn- log-command!
+  "Records one command in the session log: action, param NAMES (never values —
+   they can carry credentials), outcome, and duration."
+  [^String action params ^String response ^long ms]
+  (let [head (subs response 0 (min 96 (count response)))
+        ok?  (not (str/includes? head "\"success\":false"))]
+    (log/log! (if ok? :info :warn)
+      (str "cmd " action
+        (when (seq params) (str " " (pr-str (vec (sort (map str (keys params)))))))
+        " -> " (if ok? "ok" "error") " in " ms "ms"))))
+
+(defn- cancelled-response
+  "The answer for a command that ended because it was cancelled. Its own failure
+   text describes a torn-down browser call (\"Failed to read message\") and points
+   a caret at the user's snippet — which reads like a bug in that snippet."
+  [^String cid ^String action]
+  (json/write-json-str
+    {:success    false
+     :error      (str "command " cid " (" action ") was cancelled")
+     :error_code "cancelled"
+     :hint       "`spel health` lists what is still running"}))
+
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
   [^String line]
@@ -4708,7 +5108,30 @@
           (when (seq flags)
             (swap! !state update :launch-flags merge flags)
             (persist-launch-flags!))
-          (process-command* action params))))
+          (let [t0    (System/nanoTime)
+                cid   (ledger-start! action)
+                resp  (try
+                        (if (contains? control-actions action)
+                          (process-command* action params)
+                          (do
+                            (.lockInterruptibly !command-lock)
+                            (try
+                              (swap! !ledger assoc-in [cid :phase] "running")
+                              (process-command* action params)
+                              (finally
+                                (.unlock !command-lock)))))
+                        (catch Throwable e
+                          (json/write-json-str
+                            {:success false
+                             :error   (str "daemon command failed: "
+                                        (or (.getMessage e) (str e)))})))
+                entry (ledger-finish! cid)
+                resp  (if (and (:cancel-requested entry)
+                            (str/includes? resp "\"success\":false"))
+                        (cancelled-response cid action)
+                        resp)]
+            (log-command! action params resp (quot (- (System/nanoTime) t0) 1000000))
+            resp))))
     (catch Throwable e
       (json/write-json-str {:success false :error (str "Parse error: " (.getMessage e))}))))
 
@@ -4716,73 +5139,105 @@
   "Dispatch + response serialization half of `process-command` — runs after
    flag validation/merge."
   [action params]
-  (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
-    (json/write-json-str
-      {:success false
-       :error (str "CDP endpoint is currently controlled by session '" owner-session
-                "' with active network routes. Timed out waiting for lock release — blocking action '" action
-                "' in session '" (:session @!state) "'.")
-       :hint (str "Use one session per --cdp endpoint when routes are active. "
-               "Either run `spel --session " owner-session " network unroute all` "
-               "or close that session before retrying.")
-       :error_code "cdp_route_lock"
-       :owner_session owner-session
-       :cdp cdp-url})
-    (try
-      (let [result    (dispatch-cmd action params)
-            anomaly-v (cond
-                        (anomaly/anomaly? result)
-                        result
-                        (map? result)
-                        (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
-        (cond
+  (binding [*error-source* (cond
+                             (get params "script")
+                             {:source (get params "script") :lang :js}
+
+                             (get params "expression")
+                             {:source (get params "expression") :lang :js}
+
+                             (get params "code")
+                             {:source (get params "code") :lang :clj})]
+    (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
+      (json/write-json-str
+        {:success false
+         :error (str "CDP endpoint is currently controlled by session '" owner-session
+                  "' with active network routes. Timed out waiting for lock release — blocking action '" action
+                  "' in session '" (:session @!state) "'.")
+         :hint (str "Use one session per --cdp endpoint when routes are active. "
+                 "Either run `spel --session " owner-session " network unroute all` "
+                 "or close that session before retrying.")
+         :error_code "cdp_route_lock"
+         :owner_session owner-session
+         :cdp cdp-url})
+      (try
+        (let [_         (when-let [page (:page @!state)]
+                          (page/set-default-timeout! page
+                            (double (or (get-in @!state [:launch-flags "timeout"])
+                                      default-action-timeout-ms))))
+              result    (dispatch-with-recovery action params)
+              anomaly-v (cond
+                          (anomaly/anomaly? result)
+                          result
+                          (map? result)
+                          (some (fn [[_ v]] (when (anomaly/anomaly? v) v)) result))]
+          (cond
             ;; Handler returned an explicit failure map (e.g. sci_eval error path)
-          (and (map? result) (false? (:success result)))
-          (json/write-json-str result)
-          anomaly-v
-          (let [msg  (::anomaly/message anomaly-v)
-                ex   (:playwright/exception anomaly-v)
-                hint (when ex (reflection-error-hint ex))
-                error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
-            (json/write-json-str (error-response error-msg)))
-          :else
-          (do
+            (and (map? result) (false? (:success result)))
+            (json/write-json-str result)
+            anomaly-v
+            (let [msg  (::anomaly/message anomaly-v)
+                  ex   (:playwright/exception anomaly-v)
+                  hint (when ex (reflection-error-hint ex))
+                  error-msg (or hint msg (when ex (.getMessage ^Throwable ex)) (default-error-message ex))]
+              (json/write-json-str (error-response error-msg (error-context anomaly-v))))
+            :else
+            (do
               ;; Track user-facing actions for SRT export
-            (when (trackable-actions action)
-              (track-action! action params result))
-            (json/write-json-str {:success true :data result}))))
-      (catch Throwable e
-        (let [hint (reflection-error-hint e)
-              msg  (or hint (.getMessage e) (default-error-message e))
-              data (ex-data e)]
-          (json/write-json-str (cond-> (error-response msg)
-                                 (:stdout data) (assoc :data {:stdout (:stdout data)
-                                                              :stderr (:stderr data)}))))))))
+              (when (trackable-actions action)
+                (track-action! action params result))
+              (json/write-json-str {:success true :data result}))))
+        (catch Throwable e
+          (let [hint (reflection-error-hint e)
+                msg  (or hint (throwable-message e) (default-error-message e))
+                data (ex-data e)]
+            (json/write-json-str (cond-> (error-response msg (error-context data e))
+                                   (:stdout data) (assoc :data {:stdout (:stdout data)
+                                                                :stderr (:stderr data)})))))))))
 
 ;; =============================================================================
 ;; Socket Server
 ;; =============================================================================
 
 (defn- handle-connection
-  "Handles a single client connection — reads commands, writes responses."
+  "Handles a single client connection — reads commands, writes responses.
+   Catches Throwable, not Exception: an Error escaping this loop (OOM,
+   StackOverflowError from deep SCI recursion) would close the socket with no
+   reply, and the client could only report an unexplained EOF."
   [^SocketChannel client]
   (let [reader (BufferedReader. (InputStreamReader. (Channels/newInputStream client)))
         ^OutputStreamWriter writer (OutputStreamWriter. (Channels/newOutputStream client))]
     (try
       (loop []
         (when-let [line (.readLine reader)]
-          (let [shutdown? (when-not (str/blank? line)
-                            (let [response (process-command line)]
-                              (.write writer ^String response)
-                              (.write writer "\n")
-                              (.flush writer)
-                              ;; Check if shutdown was requested
-                              (let [parsed (try (json/read-json response) (catch Exception _ nil))]
-                                (and parsed (get-in parsed ["data" "shutdown"])))))]
-            (if shutdown?
-              (submit-virtual stop-daemon!)
+          (let [stop (when-not (str/blank? line)
+                       (let [response (process-command line)]
+                         (.write writer ^String response)
+                         (.write writer "\n")
+                         (.flush writer)
+                         ;; Check if shutdown was requested — and whether the
+                         ;; client asked for the fast, ungraceful variant.
+                         (let [parsed (try (json/read-json response) (catch Exception _ nil))]
+                           (when (and parsed (get-in parsed ["data" "shutdown"]))
+                             (if (get-in parsed ["data" "force"]) ::force ::graceful)))))]
+            (if stop
+              (submit-virtual #(stop-daemon! (if (identical? ::force stop)
+                                               "client requested force kill"
+                                               "client requested close")
+                                 {:force? (identical? ::force stop)}))
               (recur)))))
-      (catch Exception e (warn "handle-connection" e))
+      (catch Throwable e
+        (warn "handle-connection" e)
+        ;; Never leave the client with a bare EOF — it cannot tell a crash
+        ;; from a clean shutdown. Answer with the failure instead.
+        (try
+          (.write writer ^String (json/write-json-str
+                                   {:success false
+                                    :error   (str "daemon connection failed: "
+                                               (or (throwable-message e) (str e)))}))
+          (.write writer "\n")
+          (.flush writer)
+          (catch Throwable _ nil)))
       (finally
         (try (.close client) (catch Exception e (warn "close-client" e)))))))
 
@@ -4833,64 +5288,98 @@
         (try
           (core/tracing-stop! (core/context-tracing c) {:path out-path})
           (swap! !state assoc :tracing? false)
-          (binding [*out* *err*]
-            (println (str "spel: trace auto-saved to " out-path " (daemon shutting down)")))
+          (log/info! "trace auto-saved to " out-path " (daemon shutting down)")
           (catch Exception e
-            (binding [*out* *err*]
-              (println (str "spel: warn: failed to auto-save trace: " (.getMessage e))))))))))
+            (log/warn! "failed to auto-save trace: " (.getMessage e))))))))
 
 (defn stop-daemon!
   "Stops the daemon server and cleans up browser resources.
    Closes server socket first so new CLI invocations fail fast and start
    a fresh daemon. Only deletes PID/socket files if they still belong to
-   THIS process (prevents nuking a replacement daemon's files)."
-  []
-  ;; 0. Cancel idle timers
-  (cancel-cdp-idle-shutdown!)
-  (cancel-session-idle-shutdown!)
-  (let [session (:session @!state)]
-    ;; 1. Close server socket — reject new connections immediately
-    (when-let [server @!server]
-      (try (.close ^ServerSocketChannel server) (catch Exception e (warn "close-server" e)))
-      (reset! !server nil))
-    ;; 2. Save in-flight trace before closing browser resources
-    (save-inflight-trace!)
-    ;; 2b. iOS provider cleanup — idempotent; only session-owned resources.
-    ;;     Same function runs from explicit `close` (which triggers this
-    ;;     shutdown) and from JVM/native shutdown hooks.
-    (try (stop-ios-backend!) (catch Exception e (warn "stop-ios-backend" e)))
-    ;; 3. Close browser resources (may take seconds — Chromium shutdown)
-    (when-let [p  (:page @!state)]    (try (core/close-page! p)    (catch Exception e (warn "close-page" e))))
-    (when-let [c  (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (when-let [b  (:browser @!state)] (try (core/close-browser! b) (catch Exception e (warn "close-browser" e))))
-    (when-let [pw (:pw @!state)]      (try (core/close! pw)        (catch Exception e (warn "close-playwright" e))))
-    ;; 3b. Clean up temp profile directory if one was created
-    (when-let [tmp-dir (:tmp-profile-dir @!state)]
-      (try
-        (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
-          (java.nio.file.Files/walkFileTree tmp-path
-            (proxy [java.nio.file.SimpleFileVisitor] []
-              (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
-                (java.nio.file.Files/deleteIfExists file)
-                java.nio.file.FileVisitResult/CONTINUE)
-              (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
-                (java.nio.file.Files/deleteIfExists dir)
-                java.nio.file.FileVisitResult/CONTINUE))))
-        (catch Exception e (warn "cleanup-tmp-profile" e))))
-    ;; 3c. Kill auto-launched browser process if one was started
-    (when-let [auto-info (:auto-launch-info @!state)]
-      (kill-auto-launched-browser! auto-info))
-    ;; 3d. Release shared CDP route lock if we own it
-    (release-cdp-route-lock-if-owned!)
-    ;; 4. Only delete files if they still belong to US (a new daemon may
-    ;;    have already replaced them during our slow browser cleanup)
-    (when (owns-pid-file? session)
-      (cleanup! session))
-    ;; 5. Reset state and exit
-    (reset! !state {:pw nil :browser nil :context nil :page nil
-                    :refs {} :counter 0 :headless true :session session
-                    :tracing? false})
-    (System/exit 0)))
+   THIS process (prevents nuking a replacement daemon's files).
+
+   `reason` is recorded in the session log as `daemon stopping … reason=…`.
+   A client that finds the daemon gone reads that line back and tells the
+   user WHY it went away instead of a bare 'could not connect'.
+
+   `opts` may carry `:force?` — skip the graceful page/context/browser closes
+   and go straight for the driver. Cleanup is time-boxed either way
+   (`SPEL_STOP_TIMEOUT`, default 5s): a wedged Chromium must never keep alive a
+   daemon that was asked to stop."
+  ([] (stop-daemon! "unspecified" {}))
+  ([^String reason] (stop-daemon! reason {}))
+  ([^String reason {:keys [force?]}]
+   ;; First caller wins. A re-entrant call (the shutdown hook this exit just
+   ;; triggered) returns immediately instead of deadlocking on System/exit.
+   (when (compare-and-set! !stopping false true)
+     ;; 0. Cancel idle timers
+     (cancel-cdp-idle-shutdown!)
+     (cancel-session-idle-shutdown!)
+     (let [session (:session @!state)]
+       (log/info! "daemon stopping session=" session " reason=" reason
+         (when force? " force=true"))
+    ;; 1. Close the server socket — reject new connections immediately — then
+    ;;    delete the pid/socket files while they are still provably OURS.
+    ;;    Dropping them here rather than after a slow browser teardown means a
+    ;;    JVM that dies mid-cleanup cannot leave a stale socket for the next
+    ;;    client to dial into.
+       (when-let [server @!server]
+         (try (.close ^ServerSocketChannel server) (catch Exception e (warn "close-server" e)))
+         (reset! !server nil))
+       (when (owns-pid-file? session)
+         (cleanup! session))
+    ;; 2. Browser teardown, time-boxed. Everything that can block on a browser
+    ;;    that stopped answering lives inside this one bounded task.
+       (let [budget  (long (if force? 2000 stop-cleanup-timeout-ms))
+             cleanup (future
+                       (when-not force?
+                      ;; 2a. Save in-flight trace before closing browser resources
+                         (save-inflight-trace!)
+                      ;; 2b. iOS provider cleanup — idempotent; only session-owned
+                      ;;     resources. Same function runs from explicit `close`
+                      ;;     and from JVM/native shutdown hooks.
+                         (try (stop-ios-backend!) (catch Exception e (warn "stop-ios-backend" e)))
+                      ;; 2c. Close browser resources (may take seconds — Chromium)
+                         (when-let [p (:page @!state)]    (try (core/close-page! p)     (catch Exception e (warn "close-page" e))))
+                         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
+                         (when-let [b (:browser @!state)] (try (core/close-browser! b)  (catch Exception e (warn "close-browser" e)))))
+                    ;; 2d. The driver owns the browser process, so closing it is
+                    ;;     what actually reaps Chromium — it runs on both paths.
+                       (when-let [pw (:pw @!state)] (try (core/close! pw) (catch Exception e (warn "close-playwright" e))))
+                    ;; 2e. Clean up temp profile directory if one was created
+                       (when-let [tmp-dir (:tmp-profile-dir @!state)]
+                         (try
+                           (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
+                             (java.nio.file.Files/walkFileTree tmp-path
+                               (proxy [java.nio.file.SimpleFileVisitor] []
+                                 (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
+                                   (java.nio.file.Files/deleteIfExists file)
+                                   java.nio.file.FileVisitResult/CONTINUE)
+                                 (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
+                                   (java.nio.file.Files/deleteIfExists dir)
+                                   java.nio.file.FileVisitResult/CONTINUE))))
+                           (catch Exception e (warn "cleanup-tmp-profile" e))))
+                    ;; 2f. Kill auto-launched browser process if one was started
+                       (when-let [auto-info (:auto-launch-info @!state)]
+                         (kill-auto-launched-browser! auto-info))
+                       :done)]
+         (when (= ::timeout (deref cleanup budget ::timeout))
+           (future-cancel cleanup)
+           (log/warn! "browser cleanup did not finish within " (human-duration budget)
+             " — exiting anyway; a stray browser process may survive")))
+    ;; 3. Release shared CDP route lock if we own it
+       (release-cdp-route-lock-if-owned!)
+    ;; 4. Reset state and exit
+       (reset! !state {:pw nil :browser nil :context nil :page nil
+                       :refs {} :counter 0 :headless true :session session
+                       :tracing? false})
+       (deliver !stop-finished true)
+     ;; Exiting from inside a shutdown hook blocks forever — the JVM is already
+     ;; on its way out, so returning is the whole job. Otherwise `halt` ends the
+     ;; process NOW: cleanup already ran above, and re-entering the shutdown
+     ;; hooks is exactly the deadlock that used to leave zombie daemons behind.
+       (when-not @!in-shutdown-hook
+         (.halt (Runtime/getRuntime) 0))))))
 
 (defn start-daemon!
   "Starts the daemon server. Blocks until shutdown.
@@ -4908,6 +5397,17 @@
         cdp-url  (get opts :cdp)
         sock-path (socket-path session)
         pid-path  (pid-file-path session)]
+    ;; One log system: the daemon logs through the same sink the CLI writes to
+    ;; and `spel logs` reads. Mirroring to stderr is off — the daemon's stdout
+    ;; and stderr are already redirected into that same file by the CLI, so a
+    ;; mirror would duplicate every line.
+    (log/init! {:session session :component "daemon" :mirror :off})
+    (log/info! "daemon starting session=" session
+      " pid=" (.pid (java.lang.ProcessHandle/current))
+      " headless=" headless
+      (when browser (str " browser=" browser))
+      (when cdp-url (str " cdp=" cdp-url)))
+
     ;; Store session config + initial launch flags (browser type from CLI args)
     (swap! !state assoc :headless headless :session session)
     (when browser
@@ -4931,20 +5431,41 @@
           server (ServerSocketChannel/open StandardProtocolFamily/UNIX)]
       (.bind server addr)
       (reset! !server server)
+      (log/info! "listening on " (.toString sock-path))
 
       ;; Signal handlers
-      (let [shutdown-hook (Thread. ^Runnable (fn [] (stop-daemon!)))]
+      (let [shutdown-hook (Thread. ^Runnable (fn []
+                                               (reset! !in-shutdown-hook true)
+                                               ;; A stop already in flight runs
+                                               ;; on a virtual (daemon) thread:
+                                               ;; wait for it instead of racing
+                                               ;; the JVM's exit past its
+                                               ;; cleanup.
+                                               (if @!stopping
+                                                 (deref !stop-finished
+                                                   (+ (long stop-cleanup-timeout-ms) 2000) nil)
+                                                 (stop-daemon! "process signal — JVM shutdown hook"))))]
         (.addShutdownHook (Runtime/getRuntime) shutdown-hook))
 
       ;; Start session idle timer
       (schedule-session-idle-shutdown!)
 
-      ;; Accept connections
-      (try
-        (loop []
-          (let [client (.accept server)]
-            (submit-virtual #(handle-connection client)))
-          (recur))
-        (catch Exception _
-          ;; Server closed
-          nil)))))
+      ;; Accept connections. A transient accept failure (EMFILE, interrupt)
+      ;; must NOT end the listener: the process would stay alive holding a
+      ;; valid PID file while every client connect fails — the classic
+      ;; "daemon is dying" symptom. Only an intentional close stops the loop.
+      (loop []
+        (let [client (try
+                       (.accept server)
+                       (catch Throwable e
+                         (if (or (nil? @!server) (not (.isOpen server)))
+                           ::closed
+                           (do (log/warn! "accept failed: " (.getMessage e)
+                                 " — still listening")
+                             (Thread/sleep 50)
+                             ::retry))))]
+          (cond
+            (identical? ::closed client) nil
+            (identical? ::retry client)  (recur)
+            :else (do (submit-virtual #(handle-connection client))
+                    (recur))))))))

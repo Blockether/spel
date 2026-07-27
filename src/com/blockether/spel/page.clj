@@ -7,7 +7,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe java->clj]]
+   [com.blockether.spel.core :refer [safe java->clj tag-eval-source]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
@@ -325,10 +325,10 @@
    Returns:
    Result of JavaScript evaluation or anomaly map on failure."
   ([^Page page ^String expression]
-   (let [result (safe (.evaluate page expression))]
+   (let [result (tag-eval-source (safe (.evaluate page expression)) expression :js)]
      (if (anomaly/anomaly? result) result (java->clj result))))
   ([^Page page ^String expression arg]
-   (let [result (safe (.evaluate page expression arg))]
+   (let [result (tag-eval-source (safe (.evaluate page expression arg)) expression :js)]
      (if (anomaly/anomaly? result) result (java->clj result)))))
 
 (defn keyboard-press
@@ -354,9 +354,9 @@
    Returns:
    JSHandle or anomaly map."
   ([^Page page ^String expression]
-   (safe (.evaluateHandle page expression)))
+   (tag-eval-source (safe (.evaluateHandle page expression)) expression :js))
   ([^Page page ^String expression arg]
-   (safe (.evaluateHandle page expression arg))))
+   (tag-eval-source (safe (.evaluateHandle page expression arg)) expression :js)))
 
 (defn evaluate-file
   "Reads a JavaScript file from disk and evaluates it in the page context.
@@ -374,11 +374,11 @@
    Result of JavaScript evaluation (converted to Clojure data) or
    anomaly map on failure."
   ([^Page page ^String path]
-   (let [result (safe (.evaluate page ^String (slurp path)))]
-     (if (anomaly/anomaly? result) result (java->clj result))))
+   (let [src (safe (slurp path))]
+     (if (anomaly/anomaly? src) src (evaluate page src))))
   ([^Page page ^String path arg]
-   (let [result (safe (.evaluate page ^String (slurp path) arg))]
-     (if (anomaly/anomaly? result) result (java->clj result)))))
+   (let [src (safe (slurp path))]
+     (if (anomaly/anomaly? src) src (evaluate page src arg)))))
 
 (defn add-init-script!
   "Adds a JavaScript string to run before every page script on navigation.

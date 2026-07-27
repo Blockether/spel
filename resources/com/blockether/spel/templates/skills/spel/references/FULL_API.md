@@ -89,6 +89,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
 | `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
 | `selectors-register!` | [sels name script] | Registers a custom selector engine. |
+| `tag-eval-source` | [result source lang] | Tags an evaluation anomaly with the source that produced it. |
 | `testing-browser-engine` | [] | Returns the browser engine keyword to launch. |
 | `testing-interactive?` | [] | Returns true when tests should run in interactive (headed) mode. |
 | `testing-slow-mo` | [] | Returns the slow-mo delay in milliseconds for browser actions. |
@@ -1593,6 +1594,10 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--session <name>` | Use named session |
 | `session` | Show current session info |
 | `session list` | List active sessions |
+| `logs` | Show the session log (CLI + daemon) |
+| `health` | Is the daemon alive, busy, or wedged? |
+| `cancel [<id>\|all]` | Interrupt an in-flight daemon command |
+| `kill [--all-sessions]` | End the daemon immediately (force; --all-sessions also reaps orphans) |
 
 ### Options
 
@@ -1616,7 +1621,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
 | `--no-stealth` | Disable stealth mode (stealth is ON by default) |
-| `--timeout <ms>` | Playwright action timeout in ms (default: 30000) |
+| `--timeout <ms>` | Playwright action timeout in ms (default: 10000) |
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |
 

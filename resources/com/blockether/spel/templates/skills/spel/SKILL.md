@@ -39,6 +39,9 @@ spel <cmd> --help                   # help per subcommand
 | `spel wait --load load\|domcontentloaded` | Wait for load state |
 | `spel wait --url <partial>` | Wait for URL match |
 | `spel close` | Close session |
+| `spel health [--json]` | Daemon alive/busy/wedged + in-flight commands (never starts one) |
+| `spel cancel [<id>\|all]` | Interrupt an in-flight command |
+| `spel kill [--all-sessions]` | End the daemon now, even mid-command |
 | `spel search "query" [--json\|--images\|--news\|--limit N\|--open N]` | Google search |
 | `spel state save/load [path]` | Persist/restore browser state |
 | `spel codegen record -o rec.jsonl <url>` | Record session |
@@ -172,8 +175,10 @@ Recipes, selectors, device flags, limits: `references/IOS_PROVIDER.md`.
 ## Troubleshooting
 
 - **Click times out on SPA** → `spel wait --load domcontentloaded` after clicks; or `--url <partial>`. Never skip user actions.
-- **Session conflict / stale daemon** → `spel --session $SESSION close`; then `spel session list`; remove stale socket as last resort.
+- **Session conflict / stale daemon** → `spel health` FIRST (never guess): `ok`/`busy`/`degraded`/`stale`/`orphaned`/`unresponsive`/`down`, plus what is in flight and why the last daemon exited. Then `spel cancel [<id>|all]` to interrupt work, `spel kill` to end a verified daemon (`--all-sessions` for every one). Kill validates the PID's command line and refuses to signal an unrelated process. Never hand-remove sockets.
+- **A command hangs** → it is the BROWSER that is stuck, not spel: `spel health` still answers and names it (`in flight: c12 evaluate (48s)`) → `spel cancel c12`. Browser quit/crashed → `degraded`; the next command relaunches it and re-opens the page, so do NOT throw the session away.
 - **Snapshot refs missing after nav** → ALWAYS `spel snapshot -i` after any navigation or state change.
+- **"Nothing happened / no output"** → `spel logs` — ONE log per session (`<tmpdir>/spel-<session>.log`) with CLI *and* daemon lines: daemon spawn, every command + duration, every error. `-f` follows, `-n N` tails, `SPEL_LOG_LEVEL=debug` for verbose.
 
 More: `references/COMMON_PROBLEMS.md`.
 

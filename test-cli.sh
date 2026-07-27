@@ -1871,6 +1871,14 @@ assert_contains "eval-sci args first call → includes first" "$OUT" 'first'
 OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' 2>&1)
 assert_contains "eval-sci args do not persist across calls" "$OUT" 'nil'
 
+# SPEL_SESSION is documented in `spel --help`; the native global parser used to
+# ignore it, so every eval-sci ran against the user's `default` daemon.
+ENV_SESSION="cli-test-env-$$"
+SPEL_SESSION="$ENV_SESSION" "$SPEL" eval-sci '(page/title (spel/page))' >/dev/null 2>&1
+OUT=$("$SPEL" session list --json 2>&1)
+assert_jq "SPEL_SESSION → eval-sci uses the env session" "$OUT" "[.sessions[].name] | index(\"$ENV_SESSION\") != null"
+"$SPEL" --session "$ENV_SESSION" close >/dev/null 2>&1
+
 section "Snapshot Position Props (39)"
 
 nav "https://example.com"
@@ -1990,6 +1998,19 @@ printf '%s' '<html><head><title>URL Test</title></head><body><h1>Via URL</h1><p>
 OUT=$("$SPEL" --json markdownify --url "file://$MD_URL_FILE" 2>&1)
 assert_jq_contains "markdownify --url file:// → heading" "$OUT" '.markdown' '# Via URL'
 assert_jq_contains "markdownify --url file:// → content" "$OUT" '.markdown' 'Content here.'
+
+# A throwaway markdownify session must not outlive the command. System/exit
+# inside the try used to skip the cleanup, stranding one daemon per call.
+MD_SESS_COUNT() { "$SPEL" session list --json 2>/dev/null | jq '[.sessions[].name | select(startswith("markdownify-"))] | length'; }
+MD_BEFORE=$(MD_SESS_COUNT)
+"$SPEL" --json markdownify --input '<h1>Ephemeral</h1>' >/dev/null 2>&1
+sleep 1
+MD_AFTER=$(MD_SESS_COUNT)
+if [ "$MD_BEFORE" = "$MD_AFTER" ]; then
+  pass "markdownify → strands no daemon"
+else
+  fail "markdownify → strands no daemon" "markdownify sessions before=$MD_BEFORE after=$MD_AFTER"
+fi
 
 OUT=$("$SPEL" --json routes 2>&1)
 assert_jq "routes → has links" "$OUT" '.links | type == "array"'
@@ -2157,6 +2178,121 @@ OUT=$("$SPEL" cookies --help 2>&1)
 assert_contains "cookies --help notes iOS read-only" "$OUT" "read-only"
 assert_contains "cookies --help suggests eval-js for iOS set" "$OUT" "document.cookie"
 
+# =============================================================================
+# LOGS (47)
+# =============================================================================
+section "Logs (47)"
+
+# `spel logs` is the ONE log system: CLI client and background daemon append to
+# the same per-session file, and this command replays it.
+
+OUT=$("$SPEL" logs --help 2>&1)
+assert_contains "logs --help mentions logs" "$OUT" "logs"
+assert_contains "logs --help mentions --lines" "$OUT" "--lines"
+assert_contains "logs --help mentions --follow" "$OUT" "--follow"
+assert_contains "logs --help mentions --path" "$OUT" "--path"
+assert_contains "logs --help mentions --clear" "$OUT" "--clear"
+assert_contains "logs --help says one file" "$OUT" "ONE file per session"
+
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help mentions logs command" "$OUT" "logs"
+
+# --path prints the single sink both processes write to
+OUT=$("$SPEL" --session "$SESSION" logs --path 2>&1)
+assert_contains "logs --path → session log file" "$OUT" "spel-${SESSION}.log"
+
+OUT=$("$SPEL" --session "$SESSION" --json logs --path 2>&1)
+assert_jq_eq "logs --path --json → .session" "$OUT" '.session' "$SESSION"
+assert_jq_contains "logs --path --json → .path" "$OUT" '.path' "spel-${SESSION}.log"
+
+# The daemon logs into that same file — the whole point of the one log system
+OUT=$("$SPEL" --session "$SESSION" logs 2>&1)
+assert_contains "logs → daemon lines present" "$OUT" "[daemon]"
+assert_contains "logs → cli lines present" "$OUT" "[cli]"
+assert_contains "logs → per-command entries" "$OUT" "cmd "
+
+# -n caps the tail
+OUT=$("$SPEL" --session "$SESSION" --json logs -n 3 2>&1)
+assert_jq "logs -n 3 → at most 3 lines" "$OUT" '.lines | length <= 3'
+
+# --clear truncates, and a fresh session has no log at all
+OUT=$("$SPEL" --session "$SESSION" logs --clear 2>&1)
+assert_contains "logs --clear → reports the file" "$OUT" "spel-${SESSION}.log"
+
+OUT=$("$SPEL" --session "logs-empty-$$" logs 2>&1)
+assert_contains "logs on unused session → no output yet" "$OUT" "No log output yet"
+
+# =============================================================================
+# DAEMON HEALTH, CANCEL, KILL (20)
+# =============================================================================
+section "Daemon health (20)"
+
+# A daemon busy inside a long browser call used to be indistinguishable from a
+# dead one. `health` answers from daemon-local state, `cancel` interrupts named
+# work, `kill` ends the process even while it is wedged.
+
+HSESSION="health-$$"
+
+OUT=$("$SPEL" health --help 2>&1)
+assert_contains "health --help explains the wedged case" "$OUT" "wedged"
+assert_contains "health --help lists the statuses" "$OUT" "unresponsive"
+
+OUT=$("$SPEL" cancel --help 2>&1)
+assert_contains "cancel --help mentions ids from health" "$OUT" "spel health"
+
+OUT=$("$SPEL" --help 2>&1)
+assert_contains "help lists health" "$OUT" "health"
+assert_contains "help lists cancel" "$OUT" "cancel"
+assert_contains "help lists kill" "$OUT" "kill"
+
+# No daemon: a valid answer, and asking must NOT start one
+OUT=$("$SPEL" --session "$HSESSION" --json health 2>&1)
+assert_jq_eq "health with no daemon → down" "$OUT" '.status' 'down'
+if [ -S "${TMPDIR:-/tmp/}spel-${HSESSION}.sock" ]; then
+  fail "health does not start a daemon" "Socket appeared for $HSESSION"
+else
+  pass "health does not start a daemon"
+fi
+
+# Live daemon
+"$SPEL" --session "$HSESSION" open "data:text/html,<h1>health</h1>" > /dev/null 2>&1
+OUT=$("$SPEL" --session "$HSESSION" --json health 2>&1)
+assert_jq_eq "health on a live daemon → ok" "$OUT" '.status' 'ok'
+assert_jq "health reports the daemon pid" "$OUT" '.pid > 0'
+assert_jq "health reports a connected browser" "$OUT" '.browser.connected == true'
+assert_jq "idle daemon has nothing in flight" "$OUT" '(.in_flight | length) == 0'
+
+OUT=$("$SPEL" --session "$HSESSION" --json cancel 2>&1)
+assert_jq_eq "cancel with nothing running → 0" "$OUT" '.count' '0'
+
+# The live daemon must be VISIBLE: its socket is a Unix domain socket, not a
+# regular file, and a `.isFile` guard once hid every running session from here.
+OUT=$("$SPEL" --session "$HSESSION" --json session list 2>&1)
+FILTER="[.sessions[].name] | index(\"$HSESSION\") != null"
+assert_jq "session list sees the live daemon" "$OUT" "$FILTER"
+FILTER=".sessions[] | select(.name==\"$HSESSION\") | .status == \"ok\""
+assert_jq "session list reports it healthy" "$OUT" "$FILTER"
+
+# Busy daemon: health must still answer WHILE a browser call is stuck
+"$SPEL" --session "$HSESSION" eval-js "() => new Promise(r => setTimeout(r, 25000))" > /dev/null 2>&1 &
+WEDGE_PID=$!
+sleep 6
+OUT=$("$SPEL" --session "$HSESSION" --json health 2>&1)
+assert_jq_eq "health answers while a browser call is stuck" "$OUT" '.status' 'busy'
+assert_jq_eq "health names the stuck command" "$OUT" '.in_flight[0].action' 'evaluate'
+
+OUT=$("$SPEL" --session "$HSESSION" --json cancel 2>&1)
+assert_jq "cancel interrupts the stuck command" "$OUT" '.count >= 1'
+wait $WEDGE_PID 2>/dev/null || true
+
+# Kill ends it now, and health says so afterwards
+OUT=$("$SPEL" --session "$HSESSION" --json kill 2>&1)
+assert_jq "kill reports the daemon it ended" "$OUT" '.killed[0].killed == true'
+sleep 1
+OUT=$("$SPEL" --session "$HSESSION" --json health 2>&1)
+assert_jq_eq "health after kill → down" "$OUT" '.status' 'down'
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 END_TIME=$(date +%s)

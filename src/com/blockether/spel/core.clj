@@ -89,14 +89,23 @@
 (defn- full-message
   "Builds a comprehensive error message by joining the top-level message
    with all cause messages, separated by ' → '. This surfaces the root
-   cause that Playwright often buries 2-3 levels deep."
+   cause that Playwright often buries 2-3 levels deep.
+
+   A cause whose text is already contained in the message so far is
+   skipped: Playwright wraps its exceptions in themselves, so the naive
+   join repeated the identical multi-line dump once per level."
   [^Throwable e]
-  (let [top (.getMessage e)
-        causes (cause-chain e)
-        cause-msgs (keep :message causes)]
-    (if (seq cause-msgs)
-      (str/join " → " (cons top cause-msgs))
-      (or top (.getName (.getClass e))))))
+  (let [top    (.getMessage e)
+        causes (keep :message (cause-chain e))
+        parts  (reduce (fn [acc msg]
+                         (if (some #(str/includes? % msg) acc)
+                           acc
+                           (conj acc msg)))
+                 (if top [top] [])
+                 causes)]
+    (if (seq parts)
+      (str/join " → " parts)
+      (.getName (.getClass e)))))
 
 (defn wrap-error
   "Wraps Playwright exceptions into anomaly maps.
@@ -162,6 +171,26 @@
   "Returns true if x is an anomaly map (has a recognized anomaly category).
    Re-exported from com.blockether.anomaly.core for caller convenience."
   anomaly/anomaly?)
+
+(defn tag-eval-source
+  "Tags an evaluation anomaly with the source that produced it.
+
+   A Clojure form can evaluate JavaScript (`(spel/evaluate \"…\")`), and the
+   failure — plus the `at <expression>:LINE:COLUMN` frame in its message —
+   belongs to that inner JS, not to the Clojure form. Recording the source on
+   the anomaly lets the error layer frame the code that actually failed.
+
+   Params:
+   `result` - Evaluation result. Anomaly map or plain value.
+   `source` - String. The evaluated source.
+   `lang`   - Keyword. :js or :clj.
+
+   Returns:
+   The anomaly with :spel/source and :spel/lang added, or result unchanged."
+  [result source lang]
+  (if (and (string? source) (anomaly/anomaly? result))
+    (assoc result :spel/source source :spel/lang lang)
+    result))
 
 ;; =============================================================================
 ;; Playwright Lifecycle

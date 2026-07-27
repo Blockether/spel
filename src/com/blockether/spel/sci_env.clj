@@ -142,8 +142,8 @@
 (defonce !set-session-idle-timeout-handler (atom nil))
 
 ;; Default action timeout for Playwright operations (ms).
-;; Set via --timeout flag in eval-sci mode. nil = Playwright default (30s).
-(defonce !default-timeout (atom nil))
+;; Agent loops fail fast by default; --timeout overrides it.
+(defonce !default-timeout (atom 10000))
 
 ;; Bound per sci_eval call from daemon when eval-sci receives CLI args after `--`.
 (def sci-command-line-args-var
@@ -167,12 +167,23 @@
 
 (defn- throw-if-anomaly
   "If result is an anomaly and !throw-on-error is true, throws it as an exception.
-   Otherwise returns result unchanged."
+   Otherwise returns result unchanged.
+
+   An anomaly tagged with `:spel/source` (a nested evaluation, e.g. the JS a
+   Clojure form ran) is wrapped in an ex-info so that source reaches the error
+   layer through `ex-data` — the raw Playwright exception carries none."
   [result]
   (if (and @!throw-on-error (anomaly/anomaly? result))
     (let [msg (::anomaly/message result)
           ex  (:playwright/exception result)]
-      (throw (if ex ex (ex-info (or msg "Playwright operation failed") result))))
+      (throw (cond
+               (:spel/source result)
+               (ex-info (or msg "Playwright operation failed") result ex)
+
+               ex ex
+
+               :else
+               (ex-info (or msg "Playwright operation failed") result))))
     result))
 
 (defn- require-page! []
@@ -419,26 +430,26 @@
   []
   (when-let [b @!backend]
     (try (backend/close-backend! b)
-         (catch Exception e
-           (eprintln (str "spel: warn: close-backend failed: " (.getMessage e)))))
+      (catch Exception e
+        (eprintln (str "spel: warn: close-backend failed: " (.getMessage e)))))
     (reset! !backend nil)
     (reset! !ios-session nil))
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-        (reset! !browser nil) (reset! !pw nil)
-        :stopped)
+      (reset! !browser nil) (reset! !pw nil)
+      :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-             (catch Exception e
-               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+          (catch Exception e
+            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -588,10 +599,10 @@
 (defn sci-type-text
   ([sel text]
    (if @!ios-session (ios/type-element! @!ios-session sel text)
-       (throw-if-anomaly (locator/type-text (sci-$ sel) text))))
+     (throw-if-anomaly (locator/type-text (sci-$ sel) text))))
   ([sel text opts]
    (if @!ios-session (ios/type-element! @!ios-session sel text)
-       (throw-if-anomaly (locator/type-text (sci-$ sel) text opts)))))
+     (throw-if-anomaly (locator/type-text (sci-$ sel) text opts)))))
 (defn sci-keyboard-press
   "Presses a key on the focused page/native element."
   [key]
@@ -707,37 +718,37 @@
 
 (defn sci-text [sel]
   (if @!ios-session (ios/element-text @!ios-session sel)
-      (throw-if-anomaly (locator/text-content (sci-$ sel)))))
+    (throw-if-anomaly (locator/text-content (sci-$ sel)))))
 (defn sci-inner-text [sel]
   (if @!ios-session (ios/element-text @!ios-session sel)
-      (throw-if-anomaly (locator/inner-text (sci-$ sel)))))
+    (throw-if-anomaly (locator/inner-text (sci-$ sel)))))
 (defn sci-inner-html [sel] (throw-if-anomaly (locator/inner-html (sci-$ sel))))
 (defn sci-attr [sel name]
   (if @!ios-session (ios/element-attribute @!ios-session sel name)
-      (throw-if-anomaly (locator/get-attribute (sci-$ sel) name))))
+    (throw-if-anomaly (locator/get-attribute (sci-$ sel) name))))
 (defn sci-value [sel]
   (if @!ios-session (ios/element-attribute @!ios-session sel "value")
-      (throw-if-anomaly (locator/input-value (sci-$ sel)))))
+    (throw-if-anomaly (locator/input-value (sci-$ sel)))))
 (defn sci-count-of [sel]
   (if @!ios-session (ios/element-count @!ios-session sel)
-      (throw-if-anomaly (locator/count-elements (sci-$ sel)))))
+    (throw-if-anomaly (locator/count-elements (sci-$ sel)))))
 (defn sci-visible? [sel]
   (if @!ios-session (:visible (ios/element-state @!ios-session sel))
-      (locator/is-visible? (sci-$ sel))))
+    (locator/is-visible? (sci-$ sel))))
 (defn sci-hidden? [sel] (not (sci-visible? sel)))
 (defn sci-enabled? [sel]
   (if @!ios-session (:enabled (ios/element-state @!ios-session sel))
-      (locator/is-enabled? (sci-$ sel))))
+    (locator/is-enabled? (sci-$ sel))))
 (defn sci-disabled? [sel] (not (sci-enabled? sel)))
 (defn sci-editable? [sel]
   (if @!ios-session (:editable (ios/element-state @!ios-session sel))
-      (locator/is-editable? (sci-$ sel))))
+    (locator/is-editable? (sci-$ sel))))
 (defn sci-checked? [sel]
   (if @!ios-session (:selected (ios/element-state @!ios-session sel))
-      (locator/is-checked? (sci-$ sel))))
+    (locator/is-checked? (sci-$ sel))))
 (defn sci-bbox [sel]
   (if @!ios-session (ios/element-rect @!ios-session sel)
-      (locator/bounding-box (sci-$ sel))))
+    (locator/bounding-box (sci-$ sel))))
 (defn sci-all-text-contents [sel] (locator/all-text-contents (sci-$ sel)))
 (defn sci-all-inner-texts   [sel] (locator/all-inner-texts (sci-$ sel)))
 
@@ -762,10 +773,10 @@
 (defn sci-loc-wait-for
   ([sel]
    (if @!ios-session (ios/wait-for-element @!ios-session sel)
-       (throw-if-anomaly (locator/wait-for (sci-$ sel)))))
+     (throw-if-anomaly (locator/wait-for (sci-$ sel)))))
   ([sel opts]
    (if @!ios-session (ios/wait-for-element @!ios-session sel opts)
-       (throw-if-anomaly (locator/wait-for (sci-$ sel) opts)))))
+     (throw-if-anomaly (locator/wait-for (sci-$ sel) opts)))))
 (defn sci-evaluate-locator
   ([sel expr]     (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr)))
   ([sel expr arg] (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr arg))))
@@ -873,7 +884,7 @@
 (defn sci-wait-for
   ([sel]
    (if @!ios-session (ios/wait-for-element @!ios-session sel)
-       (throw-if-anomaly (page/wait-for-selector (require-page!) sel))))
+     (throw-if-anomaly (page/wait-for-selector (require-page!) sel))))
   ([sel opts]
    (if @!ios-session
      (ios/wait-for-element @!ios-session sel
@@ -3406,6 +3417,41 @@
 ;; Evaluation API
 ;; =============================================================================
 
+(defn- resolves-in-sci?
+  "True if the symbol string `sym` resolves to a var in the SCI context.
+
+   Probes via a bare symbol reference — a pure lookup that never invokes the
+   value, so it is safe to run while handling a failed evaluation."
+  [ctx sym]
+  (try
+    (sci/eval-string* ctx sym)
+    true
+    (catch Exception _ false)))
+
+(defn- unresolvable-symbol
+  "If exception `e` is an SCI 'Unable to resolve symbol' error, returns the
+   offending symbol name as a string (e.g. \"spel/set-viewport-size\"); else nil."
+  [e]
+  (some-> (ex-message e)
+    (->> (re-find #"Unable to resolve symbol: (\S+)"))
+    second))
+
+(defn- bang-variant-hint
+  "When `e` is an SCI unresolvable-symbol error whose name lacks a trailing `!`,
+   checks whether the `!`-suffixed variant resolves in `ctx` and, if so, returns
+   a 'did you mean?' hint string.
+
+   Every spel mutator carries a trailing `!`, so this catches the common mistake
+   of calling e.g. `set-viewport-size` instead of `set-viewport-size!`. Returns
+   nil when there is no `!` sibling to suggest."
+  [ctx e]
+  (let [sym (unresolvable-symbol e)]
+    (when (and sym (not (.endsWith ^String sym "!")))
+      (let [bang (str sym "!")]
+        (when (resolves-in-sci? ctx bang)
+          (str "spel mutators carry a trailing \"!\". "
+            "Did you mean `" bang "`?"))))))
+
 (defn eval-string
   "Evaluates a Clojure string in the SCI context.
 
@@ -3417,10 +3463,19 @@
    `code` - String. Clojure code to evaluate.
 
    Returns:
-   Result of evaluation."
+   Result of evaluation.
+
+   When SCI cannot resolve a symbol, appends a 'did you mean?' hint if the same
+   name with a trailing `!` (spel's mutator convention) does resolve, so a call
+   like `set-viewport-size` points clearly at `set-viewport-size!`."
   [ctx ^String code]
   (sci/with-bindings {sci/out *out*
                       sci/err *err*
                       sci/in  *in*}
-    (sci/eval-string* ctx code)))
+    (try
+      (sci/eval-string* ctx code)
+      (catch Exception e
+        (if-some [hint (bang-variant-hint ctx e)]
+          (throw (ex-info (str (ex-message e) "\n" hint) (ex-data e) e))
+          (throw e))))))
 

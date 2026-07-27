@@ -4,7 +4,7 @@
    Locators are the primary way to find and interact with elements.
    They auto-wait and auto-retry, making them the preferred API."
   (:require
-   [com.blockether.spel.core :refer [safe java->clj]]
+   [com.blockether.spel.core :refer [safe java->clj tag-eval-source]]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.options :as opts])
   (:import
@@ -687,10 +687,10 @@
    Returns:
    Result or anomaly map."
   ([^Locator loc ^String expression]
-   (let [r (safe (.evaluate loc expression))]
+   (let [r (tag-eval-source (safe (.evaluate loc expression)) expression :js)]
      (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (let [r (safe (.evaluate loc expression arg))]
+   (let [r (tag-eval-source (safe (.evaluate loc expression arg)) expression :js)]
      (if (map? r) r (java->clj r)))))
 
 (defn evaluate-all
@@ -706,10 +706,10 @@
    Returns:
    Result or anomaly map."
   ([^Locator loc ^String expression]
-   (let [r (safe (.evaluateAll loc expression))]
+   (let [r (tag-eval-source (safe (.evaluateAll loc expression)) expression :js)]
      (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (let [r (safe (.evaluateAll loc expression arg))]
+   (let [r (tag-eval-source (safe (.evaluateAll loc expression arg)) expression :js)]
      (if (map? r) r (java->clj r)))))
 
 ;; =============================================================================

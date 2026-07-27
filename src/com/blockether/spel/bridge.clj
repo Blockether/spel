@@ -352,7 +352,7 @@
    (let [f (io/file path)]
      (when (.isFile f)
        (try (json/read-json (slurp f) :key-fn keyword)
-         (catch Exception _ nil))))))
+            (catch Exception _ nil))))))
 
 (defn save-target!
   "Persists the active bridge target so subsequent `spel <verb>` invocations
@@ -422,7 +422,7 @@
   (let [f (io/file (runtime-path))]
     (when (.isFile f)
       (try (json/read-json (slurp f) :key-fn keyword)
-        (catch Exception _ nil)))))
+           (catch Exception _ nil)))))
 
 (defn clear-runtime!
   "Removes the runtime discovery file (bridge shutting down)."
@@ -602,8 +602,8 @@
                       (nil? msg) (do (.write os (->bytes ": ping\n\n")) (.flush os) (recur))
                       (identical? msg ::close) nil
                       :else (do (.write os (->bytes (str "data: " msg "\n\n")))
-                              (.flush os)
-                              (recur)))))
+                                (.flush os)
+                                (recur)))))
                 (catch Exception _ nil)
                 (finally
                   (.remove ^ConcurrentHashMap clients id)
@@ -683,7 +683,7 @@
                         (when-let [stale (.get ^ConcurrentHashMap clients id)]
                           (.remove ^ConcurrentHashMap clients id)
                           (try (.offer ^LinkedBlockingQueue (:queue stale) ::close)
-                            (catch Exception _ nil)))))))))
+                               (catch Exception _ nil)))))))))
             (respond! ex 200 "application/json" "{\"ok\":true}")))
         (catch Exception _ (respond! ex 500 "text/plain" "error"))))))
 
@@ -731,8 +731,8 @@
           (let [body   (slurp (io/reader (.getRequestBody ex)))
                 cmd    (json/read-json body)
                 result (try (send! cmd 30000)
-                         (catch Exception e
-                           {"ok" false "error" (or (.getMessage e) "bridge command failed")}))]
+                            (catch Exception e
+                              {"ok" false "error" (or (.getMessage e) "bridge command failed")}))]
             (respond! ex 200 "application/json" (json/write-json-str result))))
         (catch Exception e
           (respond! ex 500 "text/plain" (str "error: " (.getMessage e))))))))
@@ -757,9 +757,9 @@
   (let [clients   (ConcurrentHashMap.)
         pending   (ConcurrentHashMap.)
         ^HttpServer server (try (HttpServer/create (InetSocketAddress. ^String host (int port)) 0)
-                             (catch java.io.IOException _
+                                (catch java.io.IOException _
                       ;; Requested port busy — fall back to an ephemeral one.
-                               (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
+                                  (HttpServer/create (InetSocketAddress. ^String host (int 0)) 0)))
         ^ScheduledExecutorService scheduler (Executors/newSingleThreadScheduledExecutor)
         result-path (str path "/result")
         hello-path  (str path "/hello")

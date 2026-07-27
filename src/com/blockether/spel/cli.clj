@@ -20,9 +20,11 @@
    [com.blockether.spel.config :as spel-config]
    [com.blockether.spel.bridge :as bridge]
    [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.logging :as log]
    [com.blockether.spel.security :as security])
   (:import
    [java.io BufferedReader InputStreamReader OutputStreamWriter]
+   [java.lang ProcessBuilder$Redirect]
    [java.net StandardProtocolFamily UnixDomainSocketAddress]
    [java.nio.channels Channels SocketChannel]
    [java.nio.file Files Path]))
@@ -1106,6 +1108,30 @@
       "  spel session list"
       "  spel --session work open https://example.org"])
 
+   "logs"
+   (str/join \newline
+     ["logs - Show the spel log for a session"
+      ""
+      "Usage:"
+      "  spel logs [options]"
+      ""
+      "Options:"
+      "  -n, --lines <n>   Show the last <n> lines (default: 200)"
+      "  -f, --follow      Follow the log, printing new lines as they arrive"
+      "  --path            Print the log file path and exit"
+      "  --clear           Truncate the log file"
+      "  --json            JSON output"
+      ""
+      "Everything spel logs goes to ONE file per session — the CLI client and"
+      "the background daemon both append to <tmpdir>/spel-<session>.log."
+      "Set SPEL_LOG_LEVEL=debug (or SPEL_DEBUG=true) for verbose lines."
+      ""
+      "Examples:"
+      "  spel logs"
+      "  spel logs -n 50"
+      "  spel logs -f"
+      "  spel --session work logs --path"])
+
    "connect"
    (str/join \newline
      ["connect - Connect to a browser via Chrome DevTools Protocol"
@@ -1142,6 +1168,54 @@
       ""
       "Examples:"
       "  spel find-free-port"])
+
+   "health"
+   (str/join \newline
+     ["health - Report whether the daemon is alive, busy, or wedged"
+      ""
+      "Answers without starting a daemon and without touching the browser, so"
+      "it still replies while every browser call is stuck."
+      ""
+      "Usage:"
+      "  spel health [--json]"
+      ""
+      "Status: ok | busy | degraded (browser gone) | unresponsive | down"
+      "Exit code is 0 for ok/busy, 1 otherwise."
+      ""
+      "Examples:"
+      "  spel health"
+      "  spel --session agent1 health --json"])
+
+   "cancel"
+   (str/join \newline
+     ["cancel - Interrupt an in-flight daemon command"
+      ""
+      "Usage:"
+      "  spel cancel [<id>|all]"
+      ""
+      "Ids come from `spel health` (in flight: c12 evaluate ...). A call already"
+      "parked inside the browser ends when the browser answers; re-check with"
+      "`spel health`, and use `spel kill` when it never does."
+      ""
+      "Examples:"
+      "  spel cancel c12"
+      "  spel cancel all"])
+
+   "kill"
+   (str/join \newline
+     ["kill - End the daemon immediately (no graceful browser shutdown)"
+      ""
+      "`close` asks politely and waits for Chromium. `kill` is the escape hatch"
+      "for a daemon that stopped answering: force-close, then destroy the"
+      "process. Works the same on macOS, Linux and Windows."
+      ""
+      "Usage:"
+      "  spel kill [--all-sessions]"
+      ""
+      "Examples:"
+      "  spel kill"
+      "  spel --session agent1 kill"
+      "  spel kill --all-sessions"])
 
    "close"
    (str/join \newline
@@ -1612,6 +1686,10 @@
      ""
      "Sessions:"
      "  session                 Manage browser sessions"
+     "  logs                    Show the session log (CLI + daemon)"
+     "  health                  Is the daemon alive, busy, or wedged?"
+     "  cancel [<id>|all]       Interrupt an in-flight daemon command"
+     "  kill                    End the daemon immediately (force)"
      ""
      "Connection:"
      "  connect                 Connect via CDP"
@@ -2894,6 +2972,17 @@
                            (nil)  {:action "session_info"}
                            {:action "session_info"}))
 
+          ;; Logs — one log file per session, shared by CLI and daemon
+            "logs"     (let [v (vec cmd-args)
+                             idx (long (max (long (.indexOf ^java.util.List v "-n"))
+                                         (long (.indexOf ^java.util.List v "--lines"))))]
+                         {:action "logs"
+                          :lines  (when (>= idx 0)
+                                    (some-> (nth v (inc idx) nil) str parse-long))
+                          :follow (boolean (some #{"-f" "--follow"} cmd-args))
+                          :path   (boolean (some #{"--path"} cmd-args))
+                          :clear  (boolean (some #{"--clear"} cmd-args))})
+
           ;; Connect CDP
             "connect"  {:action "connect" :url (first cmd-args)}
 
@@ -2903,6 +2992,13 @@
                            "disconnect" {:action "cdp_disconnect"}
                            "reconnect"  {:action "cdp_reconnect" :url (second cmd-args)}
                            {:error (str "Unknown cdp command: " sub)}))
+
+          ;; Daemon lifecycle diagnostics
+            "health"   {:action "health"}
+            "cancel"   {:action "cancel" :id (or (first cmd-args) "all")}
+            "kill"     (cond-> {:action "kill"}
+                         (some #{"--all-sessions" "--all"} cmd-args)
+                         (assoc :all-sessions true))
 
           ;; Utility: free local TCP port
             "find-free-port" {:action "find_free_port"}
@@ -3012,12 +3108,12 @@
    reads one JSON response line, and closes the connection.
 
    `timeout-ms` controls how long to wait for a response:
-   - positive long: wait up to that many milliseconds (default 30000)
+   - positive long: wait up to that many milliseconds (default 12000)
    - nil: block indefinitely until the daemon responds or throws.
      Use nil for eval-sci mode where each Playwright action has its own
      timeout — the transport layer should not race against it."
   ([^String session command-map]
-   (send-command! session command-map 30000))
+   (send-command! session command-map 12000))
   ([^String session command-map timeout-ms]
    (let [command-map (cond-> command-map
                        (and (contains? command-map :args)
@@ -3054,10 +3150,63 @@
                (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
+  "True when `pid` names a live process. Uses ProcessHandle rather than a
+   `kill -0` shellout: that command does not exist on Windows, where it made
+   every daemon look dead and every command spawn a second one."
   [^String pid]
   (try
-    (let [p (.start (ProcessBuilder. ^java.util.List (list "kill" "-0" pid)))]
-      (= 0 (.waitFor p)))
+    (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim pid)))]
+      (and (.isPresent handle)
+        (.isAlive ^java.lang.ProcessHandle (.get handle))))
+    (catch Exception _ false)))
+
+(declare daemon-process-at-pid daemon-process-for-session)
+
+(defn- wait-for-exit
+  "Blocks until `pid` is gone or `budget-ms` elapses. Returns true when gone."
+  [^String pid ^long budget-ms]
+  (let [deadline (+ (System/currentTimeMillis) budget-ms)]
+    (loop []
+      (cond
+        (not (process-alive? pid))            true
+        (>= (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep 50) (recur))))))
+
+(defn- terminate-pid!
+  "Ends process `pid`: a polite terminate first, then a forcible kill if it is
+   still alive after `grace-ms`. ProcessHandle behaves the same on Windows,
+   Linux and macOS. Returns true when the process is gone."
+  [^String pid ^long grace-ms]
+  (try
+    (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim pid)))]
+      (if-not (.isPresent handle)
+        true
+        (let [^java.lang.ProcessHandle ph (.get handle)]
+          (.destroy ph)
+          (or (wait-for-exit pid grace-ms)
+            (do (.destroyForcibly ph)
+              (wait-for-exit pid 2000))))))
+    (catch Exception _ false)))
+
+(defn- force-terminate-tree!
+  "Forcibly ends a verified daemon and every process it spawned."
+  [^String pid]
+  (try
+    (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim pid)))]
+      (if-not (.isPresent handle)
+        true
+        (let [^java.lang.ProcessHandle parent (.get handle)
+              descendants (with-open [stream (.descendants parent)]
+                            (vec (.toList stream)))
+              handles (conj descendants parent)]
+          (doseq [^java.lang.ProcessHandle ph handles]
+            (when (.isAlive ph) (.destroyForcibly ph)))
+          (let [deadline (+ (System/currentTimeMillis) 2000)]
+            (loop []
+              (cond
+                (every? (fn [^java.lang.ProcessHandle ph] (not (.isAlive ph))) handles) true
+                (>= (System/currentTimeMillis) deadline) false
+                :else (do (Thread/sleep 25) (recur))))))))
     (catch Exception _ false)))
 
 (defn- cleanup-session-files!
@@ -3096,10 +3245,29 @@
    and short enough that a single stuck daemon won't derail the whole list."
   1500)
 
+(defn- session-health-fallback
+  "Second opinion for a session that would not answer `session_info`.
+
+   `session_info` reaches into the browser, so a daemon parked inside a long
+   page call cannot answer it — and the row then reads as `timeout`, i.e. dead,
+   which is what makes callers kill a perfectly healthy daemon. `health` is
+   served from daemon-local state, so ask it before condemning the session."
+  [s fallback-status err]
+  (let [h (try
+            (let [resp (send-command! (:name s) {:action "health"}
+                         session-list-fanout-timeout-ms)]
+              (when (and (map? resp) (:success resp)) (:data resp)))
+            (catch Exception _ nil))]
+    (if h
+      (assoc s
+        :status    (or (:status h) fallback-status)
+        :in_flight (:in_flight h))
+      (assoc s :status fallback-status :status_error err))))
+
 (defn- enrich-session-with-info
   "Sends a `session_info` command to `(:name s)` and merges the response.
-   On timeout/error, attaches `:status` and `:status_error` keys so callers
-   (text formatter, JSON output) can surface the problem rather than hide it."
+   On timeout/error, falls back to `health` so a busy daemon is reported as
+   busy; only a session that answers neither gets `:status_error`."
   [s]
   (try
     (let [resp (send-command! (:name s) {:action "session_info"}
@@ -3108,15 +3276,12 @@
                  (:data resp))]
       (if info
         (assoc (merge s info) :status "ok")
-        (assoc s :status "error"
-          :status_error (or (:error resp) "empty response"))))
+        (session-health-fallback s "error" (or (:error resp) "empty response"))))
     (catch Exception e
       (let [msg (.getMessage e)]
-        (assoc s
-          :status (if (and msg (str/includes? msg "timed out"))
-                    "timeout"
-                    "error")
-          :status_error (or msg (str (class e))))))))
+        (session-health-fallback s
+          (if (and msg (str/includes? msg "timed out")) "timeout" "error")
+          (or msg (str (class e))))))))
 
 (defn- build-session-list-data
   "Builds the session_list response entirely CLI-side. Enumerates alive
@@ -3203,18 +3368,271 @@
     (cleanup-session-files! session)))
 
 (defn- kill-stale-daemon!
-  "Force-kills a stale daemon process and cleans up its files."
+  "Force-kills only the verified stale daemon for `session`.
+
+   A PID file is not authority to signal a process: stale PIDs can be reused by
+   unrelated programs."
   [session]
-  (when-let [old-pid (read-pid session)]
-    (when (process-alive? old-pid)
-      (try (.start (ProcessBuilder. ^java.util.List (list "kill" "-9" old-pid)))
-        (catch Exception e (binding [*out* *err*] (println (str "warn: kill-daemon: " (.getMessage e))))))
-      ;; Wait for process to die
-      (loop [tries 0]
-        (when (and (< tries 50) (process-alive? old-pid))
-          (Thread/sleep 100)
-          (recur (inc tries))))))
+  (when-let [{:keys [pid]} (daemon-process-for-session session)]
+    (terminate-pid! pid 1000))
   (cleanup-session-files! session))
+
+;; =============================================================================
+;; Daemon Death Diagnosis
+;; =============================================================================
+
+(def ^:private daemon-log-scan-lines
+  "Log lines read back when explaining why a daemon is gone. The lines that
+   matter (`daemon starting`, `daemon stopping … reason=…`) are always at the
+   tail, and a busy session's log grows into megabytes."
+  400)
+
+(def ^:private stop-reason-re
+  "The shutdown line `stop-daemon!` writes: `daemon stopping session=x reason=y`."
+  #"daemon stopping .*?reason=(.+?)\s*$")
+
+(defn- daemon-exit-reason
+  "Why the daemon for `session` shut down, as recorded in its own log, or nil.
+   Only a `daemon stopping` line NEWER than the last `daemon starting` line
+   describes the process the client was just talking to."
+  [session]
+  (try
+    (let [lines (vec (log/read-lines session {:lines daemon-log-scan-lines}))
+          start (reduce (fn [acc [i l]] (if (str/includes? l "daemon starting") i acc))
+                  -1
+                  (map-indexed vector lines))
+          tail  (subvec lines (inc (long start)))]
+      (some-> (last (keep #(second (re-find stop-reason-re %)) tail))
+        str/trim
+        not-empty))
+    (catch Exception _ nil)))
+
+(defn- transport-cause
+  "One-line description of the transport failure `e`. A nil `e` is the EOF
+   case: the daemon accepted the connection and closed it without answering."
+  [e]
+  (cond
+    (nil? e) "daemon closed the connection without answering"
+    (instance? clojure.lang.ExceptionInfo e)
+    (str (.getMessage ^Exception e)
+      (when-let [t (:timeout-ms (ex-data e))] (str " after " t "ms")))
+    :else (str (.getSimpleName (class e)) ": " (.getMessage ^Throwable e))))
+
+(defn- warn-daemon-restart!
+  "Tells the user on stderr that the daemon vanished mid-command and the CLI is
+   starting a new one. Staying silent is what makes a restart look like the
+   command misbehaving — the replacement daemon really does start blank."
+  [session e attempt]
+  (log/warn! "daemon not responding: session=" session " attempt=" attempt
+    " cause=" (transport-cause e))
+  (binding [*out* *err*]
+    (println (str "spel: daemon not responding (" (transport-cause e) ") — restarting"
+               " (attempt " attempt "/5); browser state for session '" session "' is reset"))))
+
+(defn daemon-failure-report
+  "Multi-line explanation for a command that never got a daemon response.
+
+   Params:
+   `session`  - String session name
+   `e`        - Throwable from the last transport attempt, or nil on EOF
+   `attempts` - Number of reconnect attempts already spent
+
+   Returns a String for stderr: what failed on the wire, why the daemon went
+   away (read back from its own log), what it cost, and what to do next."
+  [session e attempts]
+  (let [reason   (daemon-exit-reason session)
+        pid      (read-pid session)
+        alive?   (boolean (and pid (process-alive? pid)))
+        attempts (long (or attempts 0))]
+    (->> [(str "Error: no response from the spel daemon (session '" session "')")
+          (str "  cause:  " (transport-cause e))
+          (cond
+            reason (str "  daemon: exited — " reason)
+            alive? (str "  daemon: process " pid " is alive but stopped answering")
+            :else  "  daemon: process is gone and logged no shutdown — it crashed or was killed")
+          (when (pos? attempts)
+            (str "  tried:  " attempts " reconnect" (when (> attempts 1) "s")
+              " — each one starts a FRESH browser, so page, cookies and refs are lost"))
+          (str "  log:    " (log/log-file-path session))
+          (str "  hint:   spel --session " session " logs")
+          (when (and reason (str/includes? reason "idle timeout"))
+            "  hint:   SPEL_SESSION_IDLE_TIMEOUT=<ms> raises the idle window, 0 disables it")]
+      (remove nil?)
+      (str/join "\n"))))
+
+;; =============================================================================
+;; Daemon Health & Force Kill
+;; =============================================================================
+
+(def ^:private health-probe-timeout-ms
+  "How long `spel health` waits for the daemon's own answer. The daemon's health
+   handler touches no browser object, so a healthy daemon replies in
+   milliseconds — spending the normal action budget would only hide a
+   daemon that stopped answering, which is the exact thing being asked about."
+  1000)
+
+(defn daemon-health
+  "Health of the daemon for `session`, WITHOUT ever starting one.
+
+   Cross-checks the PID file against the live process command line. A reused PID
+   is `stale`; a real daemon missing its state files is `orphaned`. Neither can
+   masquerade as healthy or disappear as `down`."
+  [session probe]
+  (let [file-pid   (read-pid session)
+        file-alive (boolean (and file-pid (process-alive? file-pid)))
+        file-entry (when file-alive (daemon-process-at-pid file-pid))
+        file-valid (and file-entry (= session (:session file-entry)))
+        daemon     (or (when file-valid file-entry)
+                     (daemon-process-for-session session))
+        pid        (:pid daemon)
+        log-path   (str (log/log-file-path session))
+        stale-pid? (and file-alive (not file-valid))]
+    (cond
+      (and stale-pid? (nil? daemon))
+      {:status "stale" :session session :pid file-pid :stale_pid file-pid
+       :cause "PID file points to a live process that is not this spel daemon"
+       :log log-path
+       :hint "stale files are safe to remove; the unrelated process will not be killed"}
+
+      (nil? daemon)
+      (cond-> {:status "down" :session session :log log-path}
+        (daemon-exit-reason session) (assoc :last_exit (daemon-exit-reason session)))
+
+      :else
+      (let [resp      (try (probe) (catch Exception e {::probe-error e}))
+            orphaned? (or (nil? file-pid) (not file-valid))]
+        (if (and (map? resp) (:success resp) (map? (:data resp)))
+          (cond-> (assoc (:data resp) :session session :pid pid :log log-path)
+            orphaned? (assoc :status "degraded"
+                        :state_issue "daemon process is alive but its PID file is missing or stale"
+                        :hint (str "restart or kill session `" session "` to repair its state files")))
+          {:status    (if orphaned? "orphaned" "unresponsive")
+           :session   session
+           :pid       pid
+           :stale_pid (when stale-pid? file-pid)
+           :cause     (transport-cause (when (map? resp) (::probe-error resp)))
+           :log       log-path
+           :hint      (str "verified daemon is alive but unhealthy — `spel --session " session
+                        " kill` ends it immediately")})))))
+
+(defn health-report
+  "Renders `daemon-health` for a terminal: one status line plus the few facts
+   that decide what to do next — what the daemon is stuck on, whether its
+   browser is still there, and where to look."
+  [h]
+  (let [{:keys [status session pid uptime commands_total in_flight browser
+                socket log last_exit cause hint state_issue stale_pid]} h
+        head (str (or session "default") ": " status
+               (condp = status
+                 "down"         " — no daemon process"
+                 "stale"        (str " — pid file wrongly points to live pid " stale_pid)
+                 "orphaned"     (str " — verified daemon pid " pid " has missing/stale state")
+                 "unresponsive" (str " — pid " pid " is alive but silent")
+                 (str " — up " (or uptime "?") ", " (or commands_total 0) " commands")))]
+    (->> (concat
+           [head]
+           (when state_issue [(str "  state:     " state_issue)])
+           (when cause       [(str "  cause:     " cause)])
+           (when last_exit   [(str "  last exit: " last_exit)])
+           (when browser
+             [(str "  browser:   " (:type browser)
+                (if (:headless browser) " headless" " headed") ", "
+                (cond
+                  (not (:launched browser))  "not launched yet"
+                  (not (:connected browser)) "GONE — relaunches on the next command"
+                  (:page_open browser)       "connected, page open"
+                  :else                      "connected, no page"))])
+           (when-not (= "down" status)
+             [(str "  in flight: "
+                (if (seq in_flight)
+                  (str/join ", " (map #(str (:id %) " " (:action %) " (" (:running %) ")")
+                                   in_flight))
+                  "none"))])
+           (when socket [(str "  socket:    " socket)])
+           (when log    [(str "  log:       " log)])
+           (when hint   [(str "  hint:      " hint)]))
+      (str/join "\n"))))
+
+(defn daemon-process-entry
+  "`{:pid :session}` when `cmd` is the command line of a spel DAEMON, else nil.
+
+   The match has to be tight in both directions: miss a daemon and it stays
+   unkillable, match too widely and `kill --all-sessions` destroys an unrelated
+   process. A spel CLIENT invocation carries `--session` too, so the `daemon`
+   subcommand is what separates them."
+  [pid ^String cmd]
+  (when (and cmd
+          (str/includes? cmd "--session")
+          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:\.exe)?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
+            (re-find #"com\.blockether\.spel\.native\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)))
+    {:pid     (str pid)
+     :session (second (re-find #"--session[\s=]+(\S+)" cmd))}))
+
+(defn orphan-daemon-processes
+  "Every running spel daemon process the OS knows about, as `{:pid :session}`.
+
+   Session discovery is file-based, so a daemon whose socket or PID file is gone
+   — deleted by hand, wiped by a `-9`, or lost to a crash — becomes unreachable:
+   `session list` cannot show it and `kill --all-sessions` cannot kill it, while
+   it still holds a browser, a port and hundreds of MB. Asking `ProcessHandle`
+   instead is the only way to find those, and behaves the same on macOS, Linux
+   and Windows."
+  []
+  (let [self (.pid (java.lang.ProcessHandle/current))]
+    (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
+      (keep (fn [^java.lang.ProcessHandle h]
+              (let [info (.info h)
+                    cmd  (when (.isPresent (.commandLine info))
+                           (.get (.commandLine info)))]
+                (when-not (= self (.pid h))
+                  (daemon-process-entry (.pid h) cmd)))))
+      (into []))))
+
+(defn daemon-process-at-pid
+  "Returns the command-line-verified spel daemon entry for `pid`, or nil."
+  [pid]
+  (try
+    (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim (str pid))))]
+      (when (.isPresent handle)
+        (let [^java.lang.ProcessHandle ph (.get handle)
+              info (.info ph)
+              cmd  (when (.isPresent (.commandLine info))
+                     (.get (.commandLine info)))]
+          (when (.isAlive ph)
+            (daemon-process-entry (.pid ph) cmd)))))
+    (catch Exception _ nil)))
+
+(defn daemon-process-for-session
+  "Finds the live, verified spel daemon for `session`.
+
+   Prefers a valid PID file, then scans processes so deleted daemon state never
+   makes the daemon unkillable."
+  [session]
+  (let [file-pid  (read-pid session)
+        from-file (when file-pid (daemon-process-at-pid file-pid))]
+    (or (when (= session (:session from-file)) from-file)
+      (first (filter #(= session (:session %)) (orphan-daemon-processes))))))
+
+(defn force-kill-daemon!
+  "Ends the command-line-verified daemon for `session` NOW.
+
+   If its PID file names an unrelated live process, removes stale session files
+   but refuses to signal that process."
+  [session]
+  (let [file-pid (read-pid session)
+        daemon   (daemon-process-for-session session)
+        pid      (:pid daemon)]
+    (if-not daemon
+      (let [unsafe-live? (boolean (and file-pid (process-alive? file-pid)))]
+        (cleanup-session-files! session)
+        {:session session :pid file-pid :killed false
+         :method  (if unsafe-live? "refused stale pid" "already gone")
+         :refused unsafe-live?
+         :alive   unsafe-live?})
+      (let [killed? (force-terminate-tree! pid)]
+        (cleanup-session-files! session)
+        {:session session :pid pid :killed killed? :method "forced process-tree kill"
+         :alive   (process-alive? pid)}))))
 
 (defn- start-daemon-process!
   "Starts a new daemon subprocess and waits until its socket is connectable.
@@ -3245,17 +3663,23 @@
                                "clojure.main" "-m" "com.blockether.spel.native"]
                           args))))]
     (.redirectOutput pb
-      (java.io.File. (.toString (daemon/log-file-path session))))
+      (ProcessBuilder$Redirect/appendTo
+        (java.io.File. (.toString (log/log-file-path session)))))
     (.redirectErrorStream pb true)
+    (log/info! "starting daemon: session=" session " args=" (pr-str args))
     (.start pb)
     ;; Wait for socket to appear AND be connectable (up to 30s)
-    (loop [tries 0]
-      (if (>= tries 300)
-        false
-        (if (socket-connectable? session)
-          true
-          (do (Thread/sleep 100)
-            (recur (inc tries))))))))
+    (let [ready? (loop [tries 0]
+                   (if (>= tries 300)
+                     false
+                     (if (socket-connectable? session)
+                       true
+                       (do (Thread/sleep 100)
+                         (recur (inc tries))))))]
+      (if ready?
+        (log/info! "daemon ready: session=" session)
+        (log/error! "daemon did not become connectable within 30s: session=" session))
+      ready?)))
 
 (defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
@@ -3359,6 +3783,18 @@
           (not (map? data))
           (println data)
 
+          ;; cancel — name what was interrupted. Printing the raw map here read
+          ;; as a bare "0", which says nothing about whether anything was stopped.
+          (contains? data :cancelled)
+          (let [items (:cancelled data)]
+            (if (empty? items)
+              (println "Nothing in flight — no command to cancel.")
+              (do (doseq [{:keys [id action running_ms]} items]
+                    (println (str "Cancelled " id " " action
+                               " (running " running_ms "ms)")))
+                (when-let [n (:note data)]
+                  (println (str "  note: " n))))))
+
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
@@ -3450,6 +3886,11 @@
                                (case (:status s)
                                  "timeout" "timeout"
                                  "error"   (str "error: " (or (:status_error s) "?"))
+                                 ;; Busy is not broken: name the work so nobody
+                                 ;; kills a daemon that is simply mid-command.
+                                 "busy"    (if-let [f (first (:in_flight s))]
+                                             (str "busy: " (:action f) " " (:running f))
+                                             "busy")
                                  "ok"      ""
                                  ""))
                 any-problem? (some #(and (:status %) (not= "ok" (:status %))) sessions)
@@ -3622,6 +4063,15 @@
           (:network data)
           (println (str "Network requests " (:network data) "."))
 
+          ;; Cancelled in-flight daemon commands
+          (contains? data :cancelled)
+          (if (seq (:cancelled data))
+            (do (doseq [c (:cancelled data)]
+                  (println (str "Cancelled " (:id c) " " (:action c)
+                             " after " (:running_ms c) "ms")))
+              (when-let [n (:note data)] (println (str "Note: " n))))
+            (println "Nothing in flight."))
+
           ;; Close
           (:closed data)
           (println "Browser closed.")
@@ -3711,14 +4161,18 @@
         flags (if (and (= "navigate" (:action command)) (:interactive command))
                 (assoc flags :headless false)
                 flags)]
+    ;; One log system: every CLI diagnostic lands in the session log file that
+    ;; the daemon also appends to. Warnings are mirrored to stderr so the user
+    ;; still sees them inline; `spel logs` replays the full stream.
+    (log/init! {:session session :component "cli" :mirror :warn})
+
     ;; Proactive warning: auto-connect (or explicit --cdp) to an endpoint that is
     ;; already route-locked by another session can lead to command conflicts.
     (when-let [cdp-url (:cdp flags)]
       (when-let [owner (daemon/cdp-route-lock-owner cdp-url)]
         (when (not= owner session)
-          (binding [*out* *err*]
-            (println (str "warn: CDP endpoint is currently route-locked by session '" owner
-                       "'. Commands requiring page control may fail fast with cdp_route_lock."))))))
+          (log/warn! "CDP endpoint is currently route-locked by session '" owner
+            "'. Commands requiring page control may fail fast with cdp_route_lock."))))
     ;; Check for parse errors
     (when (:error command)
       (binding [*out* *err*]
@@ -3791,7 +4245,7 @@
             session  (or (:session flags) "default")
             _        (ensure-daemon! session flags)
             flag-keys (dissoc flags :session :headless :json)
-            timeout  (or (:timeout flags) 30000)
+            timeout  (if-let [ms (:timeout flags)] (+ (long ms) 2000) 12000)
             results  (loop [remaining (seq batch)
                             acc       []]
                        (if (empty? remaining)
@@ -3845,39 +4299,43 @@
             (System/exit 1))
 
           (or file input url)
-          (let [session (str "markdownify-" (System/currentTimeMillis))]
-            (try
-              (ensure-daemon! session flags)
-              (let [flag-keys (dissoc flags :session :headless :json)
-                    html      (when-not url (if file (slurp (io/file file)) input))
+          (let [session   (str "markdownify-" (System/currentTimeMillis))
+                ;; System/exit inside the try would skip the finally below and
+                ;; strand this throwaway daemon for a whole idle-timeout window,
+                ;; so the exit code travels out and we exit AFTER the cleanup.
+                exit-code (try
+                            (ensure-daemon! session flags)
+                            (let [flag-keys (dissoc flags :session :headless :json)
+                                  html      (when-not url (if file (slurp (io/file file)) input))
                     ;; Auto-prepend https:// for protocol-less URLs (issue #86)
-                    effective-url (when url
-                                    (let [lower (str/lower-case url)]
-                                      (if (or (str/starts-with? lower "http://")
-                                            (str/starts-with? lower "https://")
-                                            (str/starts-with? lower "file://")
-                                            (str/starts-with? lower "data:"))
-                                        url
-                                        (str "https://" url))))
-                    nav-url   (or effective-url
-                                (str "data:text/html;base64,"
-                                  (.encodeToString (java.util.Base64/getEncoder)
-                                    (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
-                    nav-cmd   (cond-> {:action "navigate" :url nav-url}
-                                (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
-                    timeout   (or (:timeout flags) 30000)
-                    _         (send-command! session nav-cmd timeout)
+                                  effective-url (when url
+                                                  (let [lower (str/lower-case url)]
+                                                    (if (or (str/starts-with? lower "http://")
+                                                          (str/starts-with? lower "https://")
+                                                          (str/starts-with? lower "file://")
+                                                          (str/starts-with? lower "data:"))
+                                                      url
+                                                      (str "https://" url))))
+                                  nav-url   (or effective-url
+                                              (str "data:text/html;base64,"
+                                                (.encodeToString (java.util.Base64/getEncoder)
+                                                  (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
+                                  nav-cmd   (cond-> {:action "navigate" :url nav-url}
+                                              (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
+                                  timeout   (if-let [ms (:timeout flags)] (+ (long ms) 2000) 12000)
+                                  _         (send-command! session nav-cmd timeout)
                     ;; Extra wait-for-load to handle redirects (issue #86)
-                    _         (when effective-url
-                                (send-command! session {:action "wait" :state "load"} timeout))
-                    resp      (send-command! session (cond-> {:action "markdownify"}
-                                                       (contains? command :title) (assoc :title title)
-                                                       (contains? command :readable) (assoc :readable readable))
-                                timeout)]
-                (print-result resp flags)
-                (System/exit (if (:success resp) 0 1)))
-              (finally
-                (close-session! session))))
+                                  _         (when effective-url
+                                              (send-command! session {:action "wait" :state "load"} timeout))
+                                  resp      (send-command! session (cond-> {:action "markdownify"}
+                                                                     (contains? command :title) (assoc :title title)
+                                                                     (contains? command :readable) (assoc :readable readable))
+                                              timeout)]
+                              (print-result resp flags)
+                              (if (:success resp) 0 1))
+                            (finally
+                              (close-session! session)))]
+            (System/exit exit-code))
 
           :else nil)))
 
@@ -3908,6 +4366,77 @@
           (close-session! session close-flags)
           (cleanup-session-files! session))
         (System/exit 0)))
+
+    ;; Health — the one question a wedged daemon can still answer. Never starts
+    ;; a daemon: "there is none" is a valid health answer, and spawning one to
+    ;; ask how it feels turns a diagnostic into a side effect.
+    (when (= "health" (:action command))
+      (let [session (:session flags)
+            report  (daemon-health session
+                      #(send-command! session {:action "health"} health-probe-timeout-ms))]
+        (if (:json flags)
+          (println (json/write-json-str report :escape-slash false))
+          (println (health-report report)))
+        (System/exit (if (#{"ok" "busy"} (:status report)) 0 1))))
+
+    ;; Kill — end the daemon NOW. Never starts one, never waits on a browser.
+    (when (= "kill" (:action command))
+      (let [sessions (if (:all-sessions command)
+                       (or (seq (discover-sessions)) [(:session flags)])
+                       [(:session flags)])
+            results  (mapv force-kill-daemon! sessions)
+            ;; Sweep daemons that no longer have files to be discovered by —
+            ;; otherwise "kill every session" leaves the worst ones running.
+            orphans  (when (:all-sessions command)
+                       (let [known (set sessions)]
+                         (->> (orphan-daemon-processes)
+                           (remove #(contains? known (:session %)))
+                           (mapv (fn [{:keys [pid session]}]
+                                   (terminate-pid! pid 1000)
+                                   {:session (or session "?")
+                                    :pid     pid
+                                    :killed  true
+                                    :method  "orphan process (no socket)"})))))
+            results  (into results (or orphans []))]
+        (if (:json flags)
+          (println (json/write-json-str {:killed results} :escape-slash false))
+          (doseq [{:keys [session pid killed method refused]} results]
+            (println (str session ": "
+                       (cond
+                         killed  (str "killed pid " pid " (" method ")")
+                         refused (str "REFUSED unsafe stale pid " pid " — unrelated process left alive")
+                         :else   "no daemon running")))))
+        (System/exit (if (some :refused results) 1 0))))
+
+    ;; Logs — pure read of the session log file. Never starts a daemon.
+    (when (= "logs" (:action command))
+      (let [session (:session flags)
+            path    (str (log/log-file-path session))]
+        (cond
+          (:path command)
+          (if (:json flags)
+            (println (json/write-json-str {:session session :path path} :escape-slash false))
+            (println path))
+
+          (:clear command)
+          (let [cleared (log/clear! session)]
+            (if (:json flags)
+              (println (json/write-json-str {:session session :path path :cleared cleared}
+                         :escape-slash false))
+              (println (str "Cleared: " path))))
+
+          (:follow command)
+          (log/tail! session {:lines (or (:lines command) 50)})
+
+          :else
+          (let [lines (log/read-lines session {:lines (or (:lines command) 200)})]
+            (if (:json flags)
+              (println (json/write-json-str {:session session :path path :lines lines}
+                         :escape-slash false))
+              (if (seq lines)
+                (doseq [l lines] (println l))
+                (println (str "No log output yet for session '" session "' (" path ")")))))))
+      (System/exit 0))
 
     ;; Session list — bypass ensure-daemon!. This is a pure read-only query
     ;; that enumerates alive sessions on disk + probes for external CDP
@@ -3973,34 +4502,49 @@
           cmd-with-flags (if (seq flag-keys)
                            (assoc command :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
                            command)
-          ;; iOS cold start (simulator boot + WDA build + app session)
-          ;; routinely exceeds 30s. A client-side timeout would RETRY the
-          ;; command and spawn a second WDA for the same UDID — which kills
-          ;; the first one. Give the iOS provider a cold-start-sized default.
-          timeout-ms (or (:timeout flags)
-                       (if (= "ios" (:provider flags)) 300000 30000))
+          ;; Transport gets 2s headroom beyond Playwright. The browser default is
+          ;; 10s: fast enough for an agent loop, still overridable with --timeout.
+          ;; iOS cold start remains a separate five-minute budget.
+          timeout-ms (if-let [ms (:timeout flags)]
+                       (+ (long ms) 2000)
+                       (if (= "ios" (:provider flags)) 300000 12000))
           bridge-target (bridge/load-target)
+          !daemon-failure (atom {:error nil :attempts 0})
           response (if bridge-target
                      (bridge/route-command! (:url bridge-target) cmd-with-flags timeout-ms (:token bridge-target))
                      (loop [retries 0]
                        (let [res (try
                                    (send-command! (:session flags) cmd-with-flags timeout-ms)
-                                   (catch Exception _
-                                     (when (< retries 5)
-                                       (Thread/sleep 200)
-                                     ;; Re-ensure daemon is alive before retry
-                                       (ensure-daemon! (:session flags) flags)
-                                       ::retry)))]
+                                   (catch Exception e
+                                     (swap! !daemon-failure assoc :error e :attempts retries)
+                                     (if (contains? (ex-data e) :timeout-ms)
+                                       {:success false
+                                        :error (str "Command response timed out after "
+                                                 (:timeout-ms (ex-data e)) "ms. "
+                                                 "The daemon was NOT restarted; the command may still be running.")
+                                        :error_code "client_timeout"
+                                        :hint (str "Inspect it: spel --session " (:session flags)
+                                                " health. Cancel it: spel --session " (:session flags)
+                                                " cancel all.")}
+                                       (when (< retries 5)
+                                         (warn-daemon-restart! (:session flags) e (inc retries))
+                                         (Thread/sleep 200)
+                                         ;; Re-ensure daemon is alive before retry.
+                                         (ensure-daemon! (:session flags) flags)
+                                         ::retry))))]
                          (cond
                            (= ::retry res) (recur (inc retries))
                          ;; nil = daemon closed connection without responding (dying/stale)
                          ;; Treat as retriable — kill stale daemon and restart
                            (and (nil? res) (< retries 5))
-                           (do (Thread/sleep 200)
+                           (do (swap! !daemon-failure assoc :error nil :attempts retries)
+                             (warn-daemon-restart! (:session flags) nil (inc retries))
+                             (Thread/sleep 200)
                              (kill-stale-daemon! (:session flags))
                              (ensure-daemon! (:session flags) flags)
                              (recur (inc retries)))
-                           :else res))))]
+                           :else (do (swap! !daemon-failure assoc :attempts retries)
+                                   res)))))]
       (if response
         (if (and output-file (:success response))
           ;; Write to file: SRT as raw text, JSON for action_log
@@ -4013,6 +4557,9 @@
             (System/exit 0))
           (do (print-result response flags)
             (System/exit (if (:success response) 0 1))))
-        (do (binding [*out* *err*]
-              (println "Error: Could not connect to daemon"))
+        (let [{:keys [error attempts]} @!daemon-failure]
+          (log/error! "no daemon response: session=" (:session flags)
+            " attempts=" attempts " cause=" (transport-cause error))
+          (binding [*out* *err*]
+            (println (daemon-failure-report (:session flags) error attempts)))
           (System/exit 1))))))

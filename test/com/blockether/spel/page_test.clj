@@ -96,7 +96,16 @@
     (it "evaluates with argument"
       (core/with-testing-page [pg]
         (let [result (sut/evaluate pg "x => x + '!'" "hello")]
-          (expect (= "hello!" result)))))))
+          (expect (= "hello!" result)))))
+
+    (it "tags a failing evaluation with the JS it ran"
+      ;; The error layer frames :spel/source, so a Clojure form that evaluates
+      ;; JS reports the JS that failed instead of the form.
+      (core/with-testing-page [pg]
+        (let [result (sut/evaluate pg "null.boom")]
+          (expect (anomaly/anomaly? result))
+          (expect (= "null.boom" (:spel/source result)))
+          (expect (= :js (:spel/lang result))))))))
 
 (defdescribe evaluate-file-test
   "Tests for evaluating JS loaded from disk"

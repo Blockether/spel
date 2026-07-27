@@ -203,6 +203,16 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 | `SPEL_JSON` | `--json` | Set to `true` for JSON output |
 | `SPEL_TIMEOUT` | `--timeout` | Command timeout in milliseconds |
 
+**Logging**
+
+spel has ONE log: the CLI client and the background daemon both append to
+`<tmpdir>/spel-<session>.log`. Read it with `spel logs`.
+
+| Env Var | CLI equivalent | Description |
+|---------|---------------|-------------|
+| `SPEL_LOG_LEVEL` | — | Threshold: `debug`, `info` (default), `warn`, `error`, `off` |
+| `SPEL_DEBUG` | — | Set to `true` for `debug` level (shorthand for `SPEL_LOG_LEVEL=debug`) |
+
 **Network**
 
 | Env Var | CLI equivalent | Description |
@@ -285,6 +295,69 @@ spel --session docs open https://docs.example.com
 spel --session shop screenshot shop.png
 spel --session docs screenshot docs.png
 ```
+
+**See what spel is doing** (one log for the CLI *and* the daemon):
+
+```bash
+spel logs                 # last 200 lines: daemon start, every command, errors
+spel logs -n 50           # last 50 lines
+spel logs -f              # follow live
+spel logs --path          # where the log file lives
+spel logs --clear         # truncate it
+spel --session shop logs  # per session — each session has its own log
+```
+
+Every line is `<timestamp> <LEVEL> [<component>] <message>`, where component is
+`cli` or `daemon`:
+
+```
+2026-01-14T09:12:03.118Z INFO  [cli] starting daemon: session=default args=["daemon" "--session" "default"]
+2026-01-14T09:12:05.902Z INFO  [daemon] listening on /tmp/spel-default.sock
+2026-01-14T09:12:06.233Z INFO  [daemon] cmd navigate ["url"] -> ok in 463ms
+2026-01-14T09:12:11.740Z WARN  [daemon] cmd click ["selector"] -> error in 9ms
+```
+
+**Check on the daemon** — the long-lived process that keeps the browser warm
+(this is why spel is fast, and the one thing that can get stuck):
+
+```bash
+spel health               # alive? busy? browser still there?
+spel health --json        # same, for agents (exit 0 = ok/busy, 1 otherwise)
+spel cancel               # interrupt whatever is in flight
+spel cancel c12           # interrupt one command by its id from `spel health`
+spel kill                 # end the daemon NOW, even mid-command
+spel kill --all-sessions  # every session on this machine, orphans included
+```
+
+`--all-sessions` also sweeps daemons whose socket or PID file is gone (killed
+with `-9`, crashed, cleaned up by hand). Those are invisible to `session list`
+by definition, so spel asks the OS for them — they are exactly the ones that
+pile up and eat memory.
+
+`spel health` never starts a daemon and never calls into the browser, so it
+still answers while a page call is stuck:
+
+```
+agent1: busy — up 4 min, 37 commands
+  browser:   chromium headless, connected, page open
+  in flight: c12 evaluate (48s)
+  socket:    /tmp/spel-agent1.sock
+  log:       /tmp/spel-agent1.log
+```
+
+| Status | Meaning | What to do |
+|---|---|---|
+| `ok` | idle and healthy | nothing |
+| `busy` | running commands — `in flight` names them | wait, or `spel cancel <id>` |
+| `degraded` | browser connection or daemon state files are damaged | next command repairs the browser; kill/restart repairs state files |
+| `stale` | PID file points at an unrelated live process | `spel kill` safely removes files and **refuses to signal that process** |
+| `orphaned` | verified daemon exists but its socket/PID state is missing or silent | `spel kill`, then re-run |
+| `unresponsive` | verified daemon process is alive, socket silent | `spel kill`, then re-run |
+| `down` | no verified daemon (`last exit` says why it went) | just run your command |
+
+If the browser is quit, crashes, or its page is closed behind spel's back, the
+next command relaunches it and re-opens the page it was on — the session does
+not have to be thrown away.
 
 **Use your real Chrome profile** (with extensions, saved passwords, etc.):
 

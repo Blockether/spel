@@ -5,8 +5,11 @@
    global flags, and edge cases, plus result rendering for
    bridge-routed scalar responses."
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.cli :as sut]
+   [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.logging :as log]
    [com.blockether.spel.native] ;; for #' access to parse-global-flags
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
@@ -2379,3 +2382,288 @@
   (it "parses markdownify readability and title flags"
     (expect (= {:action "markdownify" :url "https://example.com" :title false :readable false}
               (cmd ["markdownify" "--url" "https://example.com" "--full" "--no-title"])))))
+
+;; =============================================================================
+;; daemon-failure-report — telling the user WHY the daemon stopped answering
+;; =============================================================================
+
+(defn- dfr-session
+  "A unique session name, so each case owns its own log file under tmp."
+  []
+  (str "cli-test-dfr-" (System/nanoTime)))
+
+(defn- with-daemon-log
+  "Writes `lines` as the session's log file, calls `f`, then deletes the file."
+  [session lines f]
+  (let [file (io/file (str (log/log-file-path session)))]
+    (try
+      (spit file (str/join "\n" lines))
+      (f)
+      (finally (io/delete-file file true)))))
+
+(defdescribe daemon-failure-report-test
+  "The stderr message for a command that never got a daemon response.
+
+   A daemon that dies mid-command used to surface as a bare 'Could not connect
+   to daemon', which hides both the reason — the daemon records it on the way
+   out — and the cost: every silent reconnect starts a FRESH browser, so the
+   page, cookies and refs the script was using are gone."
+
+  (describe "transport cause"
+    (it "names the EOF case when there is no exception"
+      (expect (str/includes? (sut/daemon-failure-report (dfr-session) nil 0)
+                "cause:  daemon closed the connection without answering")))
+
+    (it "includes the timeout budget carried in ex-data"
+      (let [e (ex-info "daemon did not respond" {:timeout-ms 5000})]
+        (expect (str/includes? (sut/daemon-failure-report (dfr-session) e 0)
+                  "cause:  daemon did not respond after 5000ms"))))
+
+    (it "falls back to the exception class for a plain throwable"
+      (let [e (java.io.IOException. "broken pipe")]
+        (expect (str/includes? (sut/daemon-failure-report (dfr-session) e 0)
+                  "cause:  IOException: broken pipe")))))
+
+  (describe "why the daemon went away"
+    (it "calls it a crash when the log records no shutdown"
+      (expect (str/includes? (sut/daemon-failure-report (dfr-session) nil 0)
+                "process is gone and logged no shutdown")))
+
+    (it "reads the shutdown reason back from the daemon's own log"
+      (let [s (dfr-session)]
+        (with-daemon-log s
+          ["12:00:00 INFO daemon starting session=x"
+           "12:00:30 INFO daemon stopping session=x reason=session idle timeout (30s) — no commands received"]
+          (fn []
+            (let [out (sut/daemon-failure-report s nil 0)]
+              (expect (str/includes? out "daemon: exited — session idle timeout (30s)"))
+              (expect (str/includes? out "SPEL_SESSION_IDLE_TIMEOUT")))))))
+
+    (it "ignores a shutdown older than the last start"
+      (let [s (dfr-session)]
+        (with-daemon-log s
+          ["11:00:00 INFO daemon stopping session=x reason=client requested close"
+           "12:00:00 INFO daemon starting session=x"]
+          (fn []
+            (let [out (sut/daemon-failure-report s nil 0)]
+              (expect (str/includes? out "process is gone and logged no shutdown"))
+              (expect (not (str/includes? out "client requested close"))))))))
+
+    (it "offers the idle-timeout knob only for an idle shutdown"
+      (let [s (dfr-session)]
+        (with-daemon-log s
+          ["12:00:00 INFO daemon starting session=x"
+           "12:00:01 INFO daemon stopping session=x reason=client requested close"]
+          (fn []
+            (let [out (sut/daemon-failure-report s nil 0)]
+              (expect (str/includes? out "daemon: exited — client requested close"))
+              (expect (not (str/includes? out "SPEL_SESSION_IDLE_TIMEOUT")))))))))
+
+  (describe "cost of the silent reconnects"
+    (it "says nothing about retries when there were none"
+      (expect (not (str/includes? (sut/daemon-failure-report (dfr-session) nil 0) "tried:"))))
+
+    (it "spells out that every retry resets the browser"
+      (let [out (sut/daemon-failure-report (dfr-session) nil 3)]
+        (expect (str/includes? out "tried:  3 reconnects"))
+        (expect (str/includes? out "FRESH browser"))))
+
+    (it "keeps reconnect singular for a single attempt"
+      (expect (str/includes? (sut/daemon-failure-report (dfr-session) nil 1)
+                "tried:  1 reconnect —"))))
+
+  (describe "where to look next"
+    (it "points at the session log file and the logs command"
+      (let [s   (dfr-session)
+            out (sut/daemon-failure-report s nil 0)]
+        (expect (str/starts-with? out
+                  (str "Error: no response from the spel daemon (session '" s "')")))
+        (expect (str/includes? out (str "log:    " (log/log-file-path s))))
+        (expect (str/includes? out (str "hint:   spel --session " s " logs")))))))
+
+;; =============================================================================
+;; daemon-health — the one answer a wedged daemon can still give
+;; =============================================================================
+
+(defn- with-live-pid
+  "Presents THIS JVM as a verified daemon without spawning a browser."
+  [session f]
+  (let [pid  (str (.pid (java.lang.ProcessHandle/current)))
+        file (io/file (str (daemon/pid-file-path session)))]
+    (try
+      (spit file pid)
+      (with-redefs [sut/daemon-process-at-pid (fn [_] {:pid pid :session session})
+                    sut/orphan-daemon-processes (constantly [])]
+        (f))
+      (finally (io/delete-file file true)))))
+
+(defdescribe daemon-health-test
+  "`spel health` has to answer for a daemon that is down, silent, or working —
+   the probe is injected so every branch is proven without a browser.
+
+   A daemon busy inside a long browser call used to be indistinguishable from a
+   dead one: the client timed out, restarted the daemon, and the live browser
+   went with it."
+
+  (describe "no daemon process"
+    (it "reports down without ever probing"
+      (let [calls (atom 0)
+            h     (sut/daemon-health (dfr-session) (fn [] (swap! calls inc) nil))]
+        (expect (= "down" (:status h)))
+        (expect (zero? @calls))))
+
+    (it "repeats why the daemon left, straight from its log"
+      (let [s (dfr-session)]
+        (with-daemon-log s
+          ["12:00:00 INFO daemon starting session=x"
+           "12:30:00 INFO daemon stopping session=x reason=session idle timeout (30 min) — no commands received"]
+          (fn []
+            (let [h (sut/daemon-health s (fn [] nil))]
+              (expect (= "down" (:status h)))
+              (expect (str/includes? (:last_exit h) "idle timeout"))
+              (expect (str/includes? (sut/health-report h)
+                        "last exit: session idle timeout"))))))))
+
+  (describe "process alive"
+    (it "passes the daemon's own verdict through, with session and log attached"
+      (let [s (dfr-session)]
+        (with-live-pid s
+          (fn []
+            (let [h (sut/daemon-health s (fn [] {:success true
+                                                 :data {:status "busy"
+                                                        :uptime "2 min"
+                                                        :commands_total 41}}))]
+              (expect (= "busy" (:status h)))
+              (expect (= s (:session h)))
+              (expect (= (str (log/log-file-path s)) (:log h))))))))
+
+    (it "calls a silent daemon unresponsive and names the transport failure"
+      (let [s (dfr-session)]
+        (with-live-pid s
+          (fn []
+            (let [h (sut/daemon-health s (fn [] (throw (ex-info "Daemon response timed out"
+                                                         {:timeout-ms 3000}))))]
+              (expect (= "unresponsive" (:status h)))
+              (expect (str/includes? (:cause h) "timed out after 3000ms"))
+              (expect (str/includes? (:hint h) "kill")))))))
+
+    (it "treats a closed connection (no answer at all) as unresponsive too"
+      (let [s (dfr-session)]
+        (with-live-pid s
+          (fn []
+            (let [h (sut/daemon-health s (fn [] nil))]
+              (expect (= "unresponsive" (:status h)))
+              (expect (str/includes? (:cause h) "without answering")))))))))
+
+(defdescribe health-report-test
+  "The terminal rendering: one status line plus only the facts that decide what
+   to do next."
+
+  (it "leads with status, uptime and command count"
+    (let [out (sut/health-report {:status "ok" :session "agent1" :uptime "2 min"
+                                  :commands_total 41 :in_flight []})]
+      (expect (str/starts-with? out "agent1: ok — up 2 min, 41 commands"))
+      (expect (str/includes? out "in flight: none"))))
+
+  (it "names every in-flight command and how long it has been running"
+    (let [out (sut/health-report {:status "busy" :session "agent1" :uptime "5 min"
+                                  :commands_total 3
+                                  :in_flight [{:id "c7" :action "evaluate" :running "45s"}]})]
+      (expect (str/includes? out "in flight: c7 evaluate (45s)"))))
+
+  (it "says plainly when the browser is gone but the daemon is fine"
+    (let [out (sut/health-report {:status "degraded" :session "agent1" :uptime "5 min"
+                                  :commands_total 3 :in_flight []
+                                  :browser {:launched true :connected false
+                                            :page_open false :type "chromium"
+                                            :headless true}})]
+      (expect (str/includes? out "browser:   chromium headless, GONE"))
+      (expect (str/includes? out "relaunches on the next command"))))
+
+  (it "reports a live browser with its page"
+    (let [out (sut/health-report {:status "ok" :session "a" :uptime "1s" :commands_total 1
+                                  :in_flight []
+                                  :browser {:launched true :connected true :page_open true
+                                            :type "chromium" :headless false}})]
+      (expect (str/includes? out "chromium headed, connected, page open"))))
+
+  (it "omits the in-flight line for a daemon that is not running"
+    (let [out (sut/health-report {:status "down" :session "a" :log "/tmp/spel-a.log"})]
+      (expect (str/includes? out "a: down — no daemon process"))
+      (expect (not (str/includes? out "in flight"))))))
+
+(defdescribe daemon-process-entry-test
+  "A daemon whose socket and PID file are gone cannot be found by name, so
+   `kill --all-sessions` asks the OS for spel daemon processes instead. That
+   match has to be tight in BOTH directions: too narrow leaves an unkillable
+   daemon holding a browser, too wide and a kill sweep destroys a bystander."
+  (describe "recognises a daemon"
+    (it "matches the native binary"
+      (let [e (sut/daemon-process-entry 42 "/Users/x/.local/bin/spel daemon --session agent-1")]
+        (expect (= "42" (:pid e)))
+        (expect (= "agent-1" (:session e)))))
+
+    (it "matches a daemon started from the JVM classpath"
+      (let [e (sut/daemon-process-entry
+                43
+                (str "java -cp target/classes clojure.main -m "
+                  "com.blockether.spel.native daemon --session s2"))]
+        (expect (= "s2" (:session e)))))
+
+    (it "matches spel.exe so a Windows sweep is not blind"
+      (expect (= "win1" (:session (sut/daemon-process-entry
+                                    44
+                                    "C:\\\\tools\\\\spel.exe daemon --session win1"))))))
+
+  (describe "refuses everything else"
+    (it "leaves a spel CLIENT alone — it carries --session too"
+      (expect (nil? (sut/daemon-process-entry
+                      45 "/usr/local/bin/spel --session agent-1 open https://example.com"))))
+
+    (it "leaves a client whose script contains the word daemon alone"
+      (expect (nil? (sut/daemon-process-entry
+                      48 "/usr/local/bin/spel --session victim evaluate daemon"))))
+
+    (it "leaves an unrelated process that merely says daemon alone"
+      (expect (nil? (sut/daemon-process-entry
+                      46 "node /some/daemon-runner --session foo"))))
+
+    (it "ignores a process with no command line at all"
+      (expect (nil? (sut/daemon-process-entry 47 nil))))))
+
+(defdescribe daemon-pid-integrity-test
+  "Stale PID files must be visible as unhealthy and must never kill a bystander."
+
+  (it "reports a reused live PID as stale without probing it"
+    (let [s     (dfr-session)
+          calls (atom 0)
+          pid   (str (.pid (java.lang.ProcessHandle/current)))]
+      (with-live-pid s
+        (fn []
+          (with-redefs [sut/daemon-process-at-pid (constantly nil)
+                        sut/orphan-daemon-processes (constantly [])]
+            (let [h (sut/daemon-health s (fn [] (swap! calls inc)))]
+              (expect (= "stale" (:status h)))
+              (expect (= pid (:stale_pid h)))
+              (expect (zero? @calls))))))))
+
+  (it "refuses to signal an unrelated process named by a stale PID file"
+    (let [s   (dfr-session)
+          pid (str (.pid (java.lang.ProcessHandle/current)))]
+      (with-live-pid s
+        (fn []
+          (with-redefs [sut/daemon-process-at-pid (constantly nil)
+                        sut/orphan-daemon-processes (constantly [])]
+            (let [result (sut/force-kill-daemon! s)]
+              (expect (true? (:refused result)))
+              (expect (false? (:killed result)))
+              (expect (= pid (:pid result)))
+              (expect (.isAlive (java.lang.ProcessHandle/current)))))))))
+
+  (it "reports a verified daemon with deleted state files as orphaned"
+    (let [s (dfr-session)]
+      (with-redefs [sut/orphan-daemon-processes (fn [] [{:pid "4242" :session s}])]
+        (let [h (sut/daemon-health s (fn [] nil))]
+          (expect (= "orphaned" (:status h)))
+          (expect (= "4242" (:pid h)))
+          (expect (str/includes? (sut/health-report h) "missing/stale state")))))))

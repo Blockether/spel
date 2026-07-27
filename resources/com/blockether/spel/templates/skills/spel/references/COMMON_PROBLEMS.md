@@ -9,16 +9,18 @@ Previous `spel/start!` wasn't cleaned up:
 (spel/start!)
 ```
 
-If that fails, the daemon may be orphaned:
+If that fails, end the daemon with spel's own kill — it force-closes, then
+destroys the process, and cleans up the socket/PID files:
 
 ```bash
-spel --session <name> close                   # target your session first
-pkill -f "spel daemon"                        # kill stale daemon
-pkill -f "chrome-headless-shell"
-rm -f /tmp/spel-*.sock /tmp/spel-*.pid
+spel --session <name> health   # what is it actually doing?
+spel --session <name> kill     # end it now, even mid-command
+spel kill --all-sessions       # every spel daemon, orphans included
 ```
 
-**Never** `pkill -f "Google Chrome"` as a default recovery step — it kills the user's browser.
+**Never** `pkill -f "Google Chrome"` as a default recovery step — it kills the
+user's browser. `pkill`/`rm -f /tmp/spel-*.sock` are last resorts only if
+`spel kill` itself is unavailable.
 
 ## 2. CAPTCHA / bot detection
 
@@ -176,19 +178,25 @@ For repeat visits, use a persistent browser session so the consent sticks.
 
 ## 11. Stale browser / "Target closed"
 
-Browser crashed, killed externally, or OOM:
+Browser crashed, killed externally, or OOM. The CLI daemon **recovers by
+itself**: the failed command relaunches the browser, re-opens the page that was
+open, and runs once more. `spel health` reports `degraded` until then.
+
+```bash
+spel --session <name> health   # browser: GONE — relaunches on the next command
+spel --session <name> get url  # just re-run: it relaunches and answers
+```
+
+In the library (`spel/start!` API) there is no daemon to do that for you:
 
 ```clojure
 (spel/stop!) (spel/start!)
 ```
 
-If `stop!` itself fails:
+If even `spel health` cannot get an answer:
 
 ```bash
-spel --session <name> close
-pkill -f "spel daemon"
-pkill -f "chrome-headless-shell"
-rm -f /tmp/spel-*.sock /tmp/spel-*.pid
+spel --session <name> kill
 ```
 
 ## Debug workflow
@@ -245,24 +253,45 @@ spel network requests --type fetch
 
 ## 12. Daemon hangs / unresponsive browser
 
-Common causes: stale daemon, zombie browser, profile-dir lock, first-launch profile migration.
+A daemon busy inside a 60-second browser call looks exactly like a dead one from
+the outside. Ask it — `health` answers from daemon-local state and touches no
+Playwright object, so it replies even while every browser call is stuck:
 
 ```bash
-spel session list
-tail -50 /tmp/spel-default.log
-ps aux | grep -E "chrome|chromium|msedge|spel" | grep -v grep
+spel --session mysession health
 ```
+
+```
+mysession: busy — up 4 min, 37 commands
+  browser:   chromium headless, connected, page open
+  in flight: c12 evaluate (48s)
+  socket:    /tmp/spel-mysession.sock
+  log:       /tmp/spel-mysession.log
+```
+
+| Status | Meaning | Do |
+|---|---|---|
+| `ok` | idle, healthy | nothing |
+| `busy` | commands running — `in flight` names them | wait, or cancel |
+| `degraded` | browser connection or daemon state files are damaged | next command repairs browser; kill/restart repairs files |
+| `stale` | PID file names an unrelated process | `spel kill` removes files but refuses to signal it |
+| `orphaned` | verified daemon exists without usable state/socket | `spel kill` |
+| `unresponsive` | verified daemon process alive, socket silent | `spel kill` |
+| `down` | no verified daemon; `last exit` says why | just run your command |
+
+Exit code: 0 for `ok`/`busy`, 1 otherwise. `--json` for the full payload.
 
 ```bash
-spel --session mysession close
-
-pkill -f "spel daemon"
-pkill -f "chrome-headless-shell"
-rm -f /tmp/spel-*.sock /tmp/spel-*.pid
-
-ps aux | grep -E "spel daemon|chrome-headless-shell" | grep -v grep   # verify
-spel --session mysession open https://example.com
+spel --session mysession cancel c12   # interrupt one command
+spel --session mysession cancel       # interrupt everything in flight
+spel --session mysession kill         # end the daemon now
+spel kill --all-sessions              # every session, plus file-less orphans
+spel --session mysession logs -n 50   # ONE log: CLI + daemon lines interleaved
 ```
+
+A call already parked inside the browser ends when the browser answers, so
+re-check with `health`; when it never does, `kill`. Killing loses the browser
+(page, cookies, refs) — cancel first, kill second.
 
 ### Profile locked
 
@@ -282,7 +311,12 @@ spel --profile /tmp/fresh-profile open https://example.com
 - Always close sessions when done.
 - Use named sessions (`spel --session run-$(date +%s) …`).
 - Never share profiles between concurrent processes — Chromium locks the dir.
-- `spel session list` before starting if a stale daemon is suspected.
+- `spel health` before blaming spel: it says busy vs wedged vs down, and never
+  starts a daemon just to answer.
+- `spel kill` instead of `pkill` + `rm` — it also cleans socket and PID files.
+- `spel logs -f` in a second terminal while a run misbehaves — daemon start,
+  every command with its duration, and every error land there (`spel logs
+  --path` for the file, `SPEL_LOG_LEVEL=debug` for more).
 
 ## 18. `ClassCastException` in `with-retry`
 

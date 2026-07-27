@@ -526,6 +526,47 @@
                   false
                   (catch Exception _ true)))))))
 
+(defdescribe sci-mutator-hint-test
+  "An unresolvable no-`!` symbol that has a `!` mutator sibling earns a
+   'did you mean?' hint; genuinely unknown symbols and syntax errors do not."
+
+  (describe "did-you-mean hint for mutators"
+    (it "suggests set-viewport-size! for set-viewport-size"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(spel/set-viewport-size 1280 720)")
+                  false
+                  (catch Exception e
+                    (.contains ^String (ex-message e)
+                      "Did you mean `spel/set-viewport-size!`?"))))))
+
+    (it "suggests set-content! for set-content"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(spel/set-content \"<p>x</p>\")")
+                  false
+                  (catch Exception e
+                    (.contains ^String (ex-message e)
+                      "Did you mean `spel/set-content!`?"))))))
+
+    (it "leaves a genuinely unknown symbol without a hint"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(spel/totally-fake-xyz 1)")
+                  false
+                  (catch Exception e
+                    (let [m (ex-message e)]
+                      (and (.contains ^String m "Unable to resolve symbol")
+                        (not (.contains ^String m "Did you mean")))))))))
+
+    (it "does not decorate syntax errors"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(+ 1")
+                  false
+                  (catch Exception e
+                    (not (.contains ^String (ex-message e) "Did you mean")))))))))
+
 ;; =============================================================================
 ;; Help Function Tests
 ;; =============================================================================

@@ -12,10 +12,12 @@
    [charred.api :as json]
    [clojure.java.io :as io]
    [com.blockether.spel.backend :as backend]
+   [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.ios :as ios]
+   [com.blockether.spel.logging :as log]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-server
@@ -503,7 +505,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -522,7 +524,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -2012,6 +2014,24 @@
             r (cmd "sci_eval" {"code" "(spel/title)"})]
         (expect (= "\"Test Page\"" (:result r)))))
 
+    (it "frames the inner JS when a Clojure form evaluates JavaScript"
+      ;; `(spel/evaluate "…")` reports a position inside the JS string it was
+      ;; handed. The excerpt must show that JS, not the Clojure form.
+      (cmd "sci_eval" {"code" (str "(spel/navigate \"" *test-server-url* "/test-page\")")})
+      (let [r   (cmd "sci_eval" {"code" "(spel/evaluate \"const b = null;\\nb.deep.value;\")"})
+            err (:error r)]
+        (expect (false? (:success r)))
+        (expect (str/includes? err "2 | b.deep.value;"))
+        (expect (str/includes? err "^"))
+        (expect (not (str/includes? err "spel/evaluate")))))
+
+    (it "keeps caretting the Clojure form when no JavaScript is involved"
+      (let [r   (cmd "sci_eval" {"code" "(let [n 1]\n  (+ n \"two\")\n  n)"})
+            err (:error r)]
+        (expect (false? (:success r)))
+        (expect (str/includes? err "2 |   (+ n \"two\")"))
+        (expect (str/includes? err "^"))))
+
     (it "defers scoped WebView macro bodies and restores the prior context"
       (let [old-session @sci-env/!ios-session
             context*    (atom "NATIVE_APP")
@@ -2293,6 +2313,11 @@
       (cmd "sci_eval" {"code" "*command-line-args*" "args" ["first"]})
       (let [r (cmd "sci_eval" {"code" "*command-line-args*"})]
         (expect (= "nil" (:result r)))))
+
+    (it "suggests the ! mutator when a mutator is called without the trailing bang (issue #110)"
+      (let [r (cmd "sci_eval" {"code" "(spel/set-viewport-size 1280 720)"})]
+        (expect (false? (:success r)))
+        (expect (str/includes? (:error r) "Did you mean `spel/set-viewport-size!`?"))))
 
     ;; --- page/ namespace (raw Page-arg functions) ---
 
@@ -2739,7 +2764,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---
@@ -3631,3 +3656,258 @@
         (expect (str/includes? (:stdout r) "/test-page"))
         (expect (str/includes? (:result r) "/test-page"))
         (expect (not (str/includes? (:result r) "#object")))))))
+
+;; =============================================================================
+;; Daemon shutdown — the re-entrancy guard that ended the zombie daemon
+;; =============================================================================
+
+(defdescribe daemon-shutdown-guard-test
+  "`stop-daemon!` ends in System/exit, which runs the JVM shutdown hook, which
+   called `stop-daemon!` again — and System/exit inside a hook blocks forever
+   while the exiting thread joins that hook. The resulting three-way deadlock
+   (main ↔ hook ↔ idle timer) left a zombie daemon still holding its browser,
+   with its socket and PID files already deleted, so every later command hit a
+   dead socket and looked like 'the daemon is dying'."
+
+  (describe "human-duration — the span a user reads in the reason line"
+    (it "renders minutes, seconds and milliseconds"
+      (let [human #'daemon/human-duration]
+        (expect (= "5 min" (human 300000)))
+        (expect (= "1 min" (human 60000)))
+        (expect (= "30s" (human 30000)))
+        (expect (= "1s" (human 1000)))
+        (expect (= "500ms" (human 500))))))
+
+  (describe "re-entrant stop"
+    (it "is a no-op while a stop is already in flight"
+      (let [!stopping @#'daemon/!stopping]
+        (expect (false? @!stopping))
+        (reset! !stopping true)
+        (try
+          (expect (nil? (daemon/stop-daemon! "re-entrant call from the shutdown hook")))
+          ;; Nothing was torn down — the daemon still answers commands.
+          (let [info (cmd "session_info" {})]
+            (expect (map? info))
+            (expect (contains? info :provider)))
+          (finally (reset! !stopping false)))))))
+
+;; =============================================================================
+;; Daemon lifecycle — the process must actually EXIT, not merely say it stopped
+;; =============================================================================
+
+(defn- pid-alive?
+  "True while the OS process `pid` is still running."
+  [^String pid]
+  (if-let [^java.lang.ProcessHandle ph (.orElse (java.lang.ProcessHandle/of (Long/parseLong pid)) nil)]
+    (.isAlive ph)
+    false))
+
+(defn- wait-for-exit
+  "Waits up to `timeout-ms` for `pid` to leave the process table."
+  [^String pid ^long timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (not (pid-alive? pid))                 true
+        (> (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep 200) (recur))))))
+
+(defn- kill-forcibly!
+  "Last-resort reaper so a regression cannot leave a wedged daemon behind."
+  [^String pid]
+  (when-let [^java.lang.ProcessHandle ph (.orElse (java.lang.ProcessHandle/of (Long/parseLong pid)) nil)]
+    (.destroyForcibly ph)))
+
+(defdescribe daemon-exits-on-close-test
+  "A real daemon subprocess must be GONE after `close`.
+
+   Regression test for the zombie daemon. `stop-daemon!` ended in System/exit,
+   System/exit ran the JVM shutdown hook, and the hook called `stop-daemon!`
+   again — System/exit from inside a hook blocks forever while the exiting
+   thread joins that hook. The daemon logged `daemon stopping`, deleted its
+   socket and PID file, answered the client, and then lived on forever holding
+   its browser; even two SIGTERMs could not kill it. Every later command found
+   a dead socket, so the CLI silently started ANOTHER daemon and the page,
+   cookies and refs the script was using vanished.
+
+   Asserting the close RESPONSE is what let this ship: the response was always
+   correct. Only the process table proves the daemon is gone."
+
+  (it "close makes the process exit and leaves no socket or PID behind"
+    (let [session (str "lifecycle-" (System/nanoTime))
+          _       (cli/ensure-daemon! session {:headless true})
+          pid     (#'cli/read-pid session)]
+      (try
+        (expect (some? pid))
+        (expect (pid-alive? pid))
+        (let [resp (cli/send-command! session {:action "close"} 10000)]
+          (expect (true? (:success resp))))
+        ;; The whole bug in one assertion.
+        (expect (wait-for-exit pid 30000))
+        (expect (not (.exists (io/file (str (daemon/socket-path session))))))
+        (expect (not (.exists (io/file (str (daemon/pid-file-path session))))))
+        ;; And it said why, exactly once.
+        (let [stops (filter #(str/includes? % "daemon stopping")
+                      (log/read-lines session {:lines 200}))]
+          (expect (= 1 (count stops)))
+          (expect (str/includes? (first stops) "reason=client requested close")))
+        (finally
+          (when (and pid (pid-alive? pid)) (kill-forcibly! pid))
+          (io/delete-file (io/file (str (log/log-file-path session))) true))))))
+
+;; =============================================================================
+;; Health, the command ledger, and cancel — through the real command path
+;; =============================================================================
+
+(defn- wire
+  "Sends a command the way a client does — through `process-command`, so the
+   ledger, timing and JSON envelope are all exercised. Returns the parsed map."
+  [m]
+  (json/read-json (#'daemon/process-command (json/write-json-str m)) :key-fn keyword))
+
+(defdescribe daemon-health-ledger-test
+  "A daemon busy inside a long browser call used to look exactly like a dead
+   one: nothing to ask, nothing to cancel. `health` reads a ledger of
+   in-flight commands and touches no Playwright object, so it answers while the
+   browser is stuck; `cancel` interrupts the work it names."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (describe "health"
+    (it "answers ok for an idle daemon and never lists itself as work"
+      (let [{:keys [success data]} (wire {:action "health"})]
+        (expect (true? success))
+        (expect (= "ok" (:status data)))
+        (expect (empty? (:in_flight data)))
+        (expect (pos? (:pid data)))
+        (expect (string? (:uptime data)))))
+
+    (it "reports the browser it is holding, without calling into it"
+      (let [b (:browser (:data (wire {:action "health"})))]
+        (expect (true? (:launched b)))
+        (expect (true? (:connected b)))
+        (expect (true? (:page_open b)))))
+
+    (it "counts commands as they complete"
+      (let [before (:commands_total (:data (wire {:action "health"})))]
+        (wire {:action "url"})
+        (expect (> (:commands_total (:data (wire {:action "health"}))) before)))))
+
+  (describe "cancel"
+    (it "has nothing to cancel on an idle daemon"
+      (let [d (:data (wire {:action "cancel" :id "all"}))]
+        (expect (= 0 (:count d)))
+        (expect (empty? (:cancelled d)))))
+
+    (it "names a long-running command in health and then interrupts it"
+      (nav! "/test-page")
+      (let [slow (future (wire {:action "evaluate"
+                                :script "() => new Promise(r => setTimeout(r, 30000))"}))]
+        ;; Wait for the ledger to see it — the whole point is that this is
+        ;; visible WHILE the browser call is still running.
+        (loop [n 0]
+          (when (and (< n 100) (empty? (:in_flight (:data (wire {:action "health"})))))
+            (Thread/sleep 100)
+            (recur (inc n))))
+        ;; A hair later, so the age it reports is a real one rather than the
+        ;; sub-millisecond gap between ledger entry and this read.
+        (Thread/sleep 200)
+        (let [busy (:data (wire {:action "health"}))]
+          (expect (= "busy" (:status busy)))
+          (expect (= "evaluate" (:action (first (:in_flight busy)))))
+          (expect (pos? (:busiest_ms busy)))
+          (expect (string? (:running (first (:in_flight busy))))))
+        (let [c (:data (wire {:action "cancel" :id "all"}))]
+          (expect (= 1 (:count c)))
+          (expect (= "evaluate" (:action (first (:cancelled c))))))
+        ;; It really ends instead of running out its action timeout, and the client
+        ;; is told WHY: the browser's own tear-down wording ("Failed to read
+        ;; message") pointed a caret at the user's snippet, as if it were a bug
+        ;; in that snippet rather than a cancellation they asked for.
+        (let [answer (deref slow 15000 ::timeout)]
+          (expect (not= ::timeout answer))
+          (expect (false? (:success answer)))
+          (expect (= "cancelled" (:error_code answer)))
+          (expect (str/includes? (:error answer) "was cancelled")))
+        (expect (empty? (:in_flight (:data (wire {:action "health"})))))
+        (expect (true? (:success (wire {:action "url"}))))))))
+
+(defdescribe browser-loss-recovery-test
+  "Playwright flips `isConnected` only after its driver notices the disconnect,
+   so the failed call is the first reliable signal that the user closed the
+   browser. Recognising those wordings is what turns a permanently broken
+   session into one relaunch."
+
+  (it "recognises every wording that means the browser went away"
+    (let [gone? #'daemon/browser-gone-message?]
+      (expect (gone? "Target page, context or browser has been closed"))
+      (expect (gone? "com.microsoft.playwright.PlaywrightException: Target closed"))
+      (expect (gone? "Browser has been closed"))
+      (expect (gone? "Connection closed while reading from the driver"))
+      (expect (gone? "Failed to read message from driver, pipe closed."))))
+
+  (it "leaves ordinary failures alone — they must not relaunch a browser"
+    (let [gone? #'daemon/browser-gone-message?]
+      (expect (not (gone? nil)))
+      (expect (not (gone? "Timeout 30000ms exceeded waiting for selector '#missing'")))
+      (expect (not (gone? "strict mode violation: locator resolved to 2 elements")))))
+
+  (it "never re-runs lifecycle or diagnostic actions after a browser loss"
+    (let [no-retry @#'daemon/no-recovery-actions]
+      (expect (contains? no-retry "close"))
+      (expect (contains? no-retry "health"))
+      (expect (contains? no-retry "cancel"))
+      (expect (not (contains? no-retry "navigate")))
+      (expect (not (contains? no-retry "click"))))))
+
+(defdescribe session-discovery-test
+  "`discover-session-files` is the single source of truth behind `session list`,
+   every `--all-sessions` sweep, and stale-daemon reaping. It scans the tmpdir
+   for `spel-*.sock` — and a Unix domain socket is NOT a regular file, so a
+   `.isFile` guard hid every live session: `session list` answered \"No active
+   sessions\" while a daemon was serving commands."
+  (it "sees a real Unix domain socket, not only regular files"
+    (let [nm   (str "disc-" (System/currentTimeMillis))
+          path (java.nio.file.Path/of (System/getProperty "java.io.tmpdir")
+                 (into-array String [(str "spel-" nm ".sock")]))
+          chan (java.nio.channels.ServerSocketChannel/open
+                 java.net.StandardProtocolFamily/UNIX)]
+      (try
+        (.bind chan (java.net.UnixDomainSocketAddress/of path))
+        (let [found (->> (daemon/discover-session-files)
+                      (filter #(= nm (:name %)))
+                      first)]
+          (expect (some? found))
+          (expect (= (str path) (:socket found)))
+          ;; No PID file behind it, so it is a ghost — discovered, not "alive".
+          (expect (false? (:alive? found))))
+        (finally
+          (.close chan)
+          (java.nio.file.Files/deleteIfExists path))))))
+
+(it "serializes browser work while health and cancel stay responsive"
+  (nav! "/test-page")
+  (let [jobs (mapv (fn [i]
+                     (future
+                       (wire {:action "evaluate"
+                              :script (str "() => new Promise(r => setTimeout(() => r(" i "), 5000))")})))
+               (range 8))]
+    (loop [n 0]
+      (when (and (< n 100)
+              (< (count (:in_flight (:data (wire {:action "health"})))) 8))
+        (Thread/sleep 25)
+        (recur (inc n))))
+    (let [in-flight (:in_flight (:data (wire {:action "health"})))
+          phases    (frequencies (map :phase in-flight))]
+      (expect (= 8 (count in-flight)))
+      (expect (= 1 (get phases "running")))
+      (expect (= 7 (get phases "queued"))))
+    (let [started (System/nanoTime)
+          cancel  (:data (wire {:action "cancel" :id "all"}))
+          answers (mapv #(deref % 3000 ::timeout) jobs)
+          elapsed (quot (- (System/nanoTime) started) 1000000)]
+      (expect (= 8 (:count cancel)))
+      (expect (< elapsed 3000))
+      (expect (every? #(= "cancelled" (:error_code %)) answers)))
+    (expect (= "ok" (:status (:data (wire {:action "health"})))))
+    (expect (true? (:success (wire {:action "url"}))))))
