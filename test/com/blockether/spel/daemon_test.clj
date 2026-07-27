@@ -1077,3 +1077,130 @@
       (reset! state-atom {:cdp-foreign false :adopted-pages #{tab} :spel-pages #{}})
       (expect (false? (#'sut/user-owned-page? tab)))
       (expect (false? (#'sut/foreign-browser?))))))
+
+;; =============================================================================
+;; Unit Tests — issue #109: a dead browser handle must not poison the session
+;; =============================================================================
+
+(defn- message-less-throwable
+  "A NullPointerException carrying no message — exactly what the GraalVM native
+   image throws when a nil page handle is called into (helpful NPEs are off in
+   the shipped binary), and what issue #109 saw on the wire as a bare
+   {\"error\":\"NullPointerException\"}."
+  ^Throwable []
+  (doto (NullPointerException.) (.fillInStackTrace)))
+
+(defdescribe message-less-throwable-diagnostics-test
+  "A throwable with no message still has to say WHERE it was thrown."
+
+  (it "throwable-origin names a spel/Playwright frame"
+    (let [origin (#'sut/throwable-origin (message-less-throwable))]
+      (expect (string? origin))
+      (expect (str/includes? origin "com.blockether"))))
+
+  (it "throwable-origin is nil for no throwable"
+    (expect (nil? (#'sut/throwable-origin nil))))
+
+  (it "throwable-message upgrades a bare class name with its call site"
+    (let [msg (#'sut/throwable-message (message-less-throwable))]
+      (expect (str/starts-with? msg "NullPointerException at "))
+      (expect (str/includes? msg "com.blockether"))))
+
+  (it "throwable-message still prefers a real message"
+    (expect (= "boom" (#'sut/throwable-message (Exception. "boom")))))
+
+  (it "default-error-message points at the failing frame"
+    (let [msg (#'sut/default-error-message (message-less-throwable))]
+      (expect (str/includes? msg "NullPointerException"))
+      (expect (str/includes? msg " at "))
+      (expect (not (str/includes? msg "no details from runtime")))))
+
+  (it "default-error-message keeps its no-throwable fallback"
+    (expect (= "unexpected browser error (no details from runtime)"
+              (#'sut/default-error-message))))
+
+  (it "error-response classifies a null handle as browser_handle_lost"
+    (let [result (#'sut/error-response (#'sut/throwable-message (message-less-throwable)))]
+      (expect (false? (:success result)))
+      (expect (= "browser_handle_lost" (:error_code result)))
+      (expect (string? (:hint result)))
+      (expect (str/includes? (:hint result) "retry")))))
+
+(defdescribe live-page-reconciliation-test
+  "issue #109 — a dead or nil page handle is re-attached, never called into."
+
+  (it "relaunches and returns the fresh page when handles were dropped"
+    (let [state-atom (deref #'sut/!state)
+          fresh (Object.)
+          calls (atom 0)]
+      (reset! state-atom {:page nil :browser nil})
+      (with-redefs-fn {#'sut/ensure-browser! (fn []
+                                               (swap! calls inc)
+                                               (swap! state-atom assoc
+                                                 :page fresh :browser (Object.)))}
+        (fn []
+          (expect (identical? fresh (#'sut/live-page)))
+          (expect (= 1 @calls))))))
+
+  (it "re-attaches when the tab was closed outside the daemon"
+    (let [state-atom (deref #'sut/!state)
+          fresh (Object.)
+          calls (atom 0)]
+      (reset! state-atom {:page (Object.) :browser (Object.)})
+      (with-redefs-fn {#'sut/page-open? (constantly false)
+                       #'sut/browser-connected? (constantly true)
+                       #'sut/ensure-browser! (fn []
+                                               (swap! calls inc)
+                                               (swap! state-atom assoc :page fresh))}
+        (fn []
+          (expect (identical? fresh (#'sut/live-page)))
+          (expect (= 1 @calls))))))
+
+  (it "re-attaches when the browser itself is gone"
+    (let [state-atom (deref #'sut/!state)
+          fresh (Object.)
+          calls (atom 0)]
+      (reset! state-atom {:page (Object.) :browser (Object.)})
+      (with-redefs-fn {#'sut/page-open? (constantly true)
+                       #'sut/browser-connected? (constantly false)
+                       #'sut/ensure-browser! (fn []
+                                               (swap! calls inc)
+                                               (swap! state-atom assoc :page fresh))}
+        (fn []
+          (expect (identical? fresh (#'sut/live-page)))
+          (expect (= 1 @calls))))))
+
+  (it "leaves a healthy page untouched"
+    (let [state-atom (deref #'sut/!state)
+          page (Object.)
+          calls (atom 0)]
+      (reset! state-atom {:page page :browser (Object.)})
+      (with-redefs-fn {#'sut/page-open? (constantly true)
+                       #'sut/browser-connected? (constantly true)
+                       #'sut/ensure-browser! (fn [] (swap! calls inc))}
+        (fn []
+          (expect (identical? page (#'sut/live-page)))
+          (expect (zero? @calls))))))
+
+  (it "fails with an actionable message instead of a NullPointerException"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:page nil :browser nil})
+      (with-redefs-fn {#'sut/ensure-browser! (fn [] nil)}
+        (fn []
+          (try
+            (#'sut/live-page)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "No browser page available"))
+              (expect (= :no_page_loaded (:error_code (ex-data e))))))))))
+
+  (it "ensure-page-loaded! reports the missing page instead of dereferencing nil"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:page nil :browser nil})
+      (with-redefs-fn {#'sut/ensure-browser! (fn [] nil)}
+        (fn []
+          (try
+            (#'sut/ensure-page-loaded!)
+            (expect false "Should have thrown")
+            (catch clojure.lang.ExceptionInfo e
+              (expect (str/includes? (.getMessage e) "No browser page available")))))))))

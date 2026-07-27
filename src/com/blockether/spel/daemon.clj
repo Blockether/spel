@@ -2376,10 +2376,29 @@
 ;; Snapshot Helper
 ;; =============================================================================
 
+(defn- live-page
+  "Returns the page a command should act on, reconciling daemon state with the
+   browser that actually exists first.
+
+   A browser killed — or a tab closed — outside the daemon leaves a stale page
+   handle, and once `drop-browser-handles!` has run, a nil one. Calling into that
+   threw a message-less NullPointerException which no recovery path recognised,
+   so every later command failed forever while `spel session` still reported a
+   healthy connection (issue #109). Reconciling here re-attaches instead, and a
+   page that is still missing fails with a message that says what to do."
+  ^Page []
+  (when-not (and (:page @!state) (page-open?) (browser-connected?))
+    (ensure-browser!))
+  (or (pg)
+    (throw (ex-info "No browser page available. Open one first: spel open <url>"
+             {:error_code :no_page_loaded}))))
+
 (defn- ensure-page-loaded!
-  "Throws if no page has been navigated to (still on about:blank)."
+  "Throws if no page has been navigated to (still on about:blank). Reconciles
+   dead handles first, so a browser that went away is re-attached rather than
+   poisoning every command that follows."
   []
-  (let [url (page/url (pg))]
+  (let [url (page/url (live-page))]
     (when (or (nil? url) (#{"about:blank" ""} url))
       (throw (ex-info "No page loaded. Navigate first: spel open <url>" {})))))
 
@@ -2450,25 +2469,56 @@
 
 (declare humanize-error)
 
+(defn- throwable-origin
+  "The first stack frame belonging to spel or Playwright — the call site that
+   actually failed.
+
+   The GraalVM native image runs with helpful NullPointerExceptions OFF, so a
+   null page handle surfaces as a throwable with no message at all; without the
+   frame the wire could only report a bare class name and the failure was not
+   diagnosable (issue #109)."
+  [^Throwable e]
+  (when e
+    (let [ours? (fn [^StackTraceElement f]
+                  (let [c (.getClassName f)]
+                    (or (str/starts-with? c "com.blockether")
+                      (str/starts-with? c "com.microsoft.playwright"))))
+          frames (seq (.getStackTrace e))
+          ^StackTraceElement f (or (first (filter ours? frames)) (first frames))]
+      (when f
+        (str (.getClassName f) "." (.getMethodName f)
+          (when-let [file (.getFileName f)]
+            (str " (" file ":" (.getLineNumber f) ")")))))))
+
 (defn- default-error-message
-  "Returns a human-friendly fallback message when runtime provided no details."
+  "Returns a human-friendly fallback message when runtime provided no details.
+   A throwable without a message still reports WHERE it was thrown."
   ([]
    "unexpected browser error (no details from runtime)")
   ([^Throwable e]
    (if e
-     (str "unexpected browser error (" (.getSimpleName (.getClass e)) ", no details from runtime)")
+     (str "unexpected browser error (" (.getSimpleName (.getClass e))
+       (if-let [origin (throwable-origin e)]
+         (str " at " origin)
+         ", no details from runtime")
+       ")")
      (default-error-message))))
 
 (defn- throwable-message
   "Best text for a throwable. A `nth` past the end of a vector arrives as an
    ExceptionInfo wrapping a message-less IndexOutOfBoundsException, so a bare
    `.getMessage` would report nothing at all; the cause's message, then the
-   failing class's name, still tell the caller what happened."
+   failing class's name AND the frame it was thrown from, still tell the caller
+   what happened and where."
   [^Throwable e]
   (let [cause (.getCause e)]
     (or (.getMessage e)
       (some-> cause .getMessage)
-      (.getSimpleName (.getClass ^Throwable (or cause e))))))
+      (let [^Throwable t (or cause e)
+            cls (.getSimpleName (.getClass t))]
+        (if-let [origin (throwable-origin t)]
+          (str cls " at " origin)
+          cls)))))
 
 (def ^:private ^:dynamic *error-source*
   "`{:source <code> :lang :js|:clj}` for the command currently being dispatched
@@ -2545,8 +2595,17 @@
   [^String msg]
   (cond
     (or (nil? msg)
-      (str/blank? msg)
-      (= "Unknown error" msg)
+      (str/blank? msg))
+    {:hint "An unexpected browser error occurred. Retry once with --debug; if it repeats, run `spel close` and try again."
+     :error_code :unknown_error}
+
+    ;; A null browser/page handle used to reach the wire as a bare
+    ;; "NullPointerException" — no message, no stack, nothing to act on.
+    (re-find #"\bNullPointerException\b" msg)
+    {:hint "A browser handle was null — the browser or tab went away outside the daemon. spel drops dead handles and re-attaches on the next command, so retry it; if it repeats, run `spel close` and start a fresh session."
+     :error_code :browser_handle_lost}
+
+    (or (= "Unknown error" msg)
       (str/starts-with? msg "unexpected browser error"))
     {:hint "An unexpected browser error occurred. Retry once with --debug; if it repeats, run `spel close` and try again."
      :error_code :unknown_error}
@@ -3168,10 +3227,10 @@
        :url (page/url active)})))
 
 (defmethod handle-cmd "url" [_ _]
-  {:url (page/url (pg))})
+  {:url (page/url (live-page))})
 
 (defmethod handle-cmd "title" [_ _]
-  {:title (page/title (pg))})
+  {:title (page/title (live-page))})
 
 (defmethod handle-cmd "content" [_ params]
   (ensure-page-loaded!)
