@@ -354,7 +354,20 @@
     (it "does not duplicate reference files"
       (let [paths (output-paths (#'sut/files-to-create "opencode" "lazytest"))
             ref-paths (filter #(str/includes? % "/references/") paths)]
-        (expect (= (count ref-paths) (count (distinct ref-paths)))))))
+        (expect (= (count ref-paths) (count (distinct ref-paths))))))
+
+    (it "ships every referenced template with real content"
+      ;; Guards against a template being emptied in place: `read-template`
+      ;; returns nil for a missing resource and "" for a blank one, and both
+      ;; scaffold a useless file.
+      (let [specs (#'sut/files-to-create "opencode" "lazytest")
+            blank (->> specs
+                    (map first)
+                    (remove nil?)
+                    (distinct)
+                    (remove #(let [c (#'sut/read-template %)]
+                               (and c (>= (count (str/trim c)) 200)))))]
+        (expect (= [] (vec (sort blank)))))))
 
   (describe "claude loop target"
     (it "uses .claude directory paths"

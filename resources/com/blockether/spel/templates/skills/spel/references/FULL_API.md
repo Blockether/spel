@@ -1596,8 +1596,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `session` | Show current session info |
 | `session list` | List active sessions |
 | `logs` | Show the session log (CLI + daemon) |
-| `health` | Is the daemon alive, busy, or wedged? |
-| `cancel [<id>\|all]` | Interrupt an in-flight daemon command |
+| `health` | Is the daemon alive, busy, or wedged? Lists the in-flight command ledger |
+| `cancel [<id>\|all]` | Interrupt an in-flight daemon command by its ledger id |
 | `kill [--all-sessions]` | Alias for close; --all-sessions also reaps orphans |
 
 ### Options

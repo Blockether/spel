@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(page): boxed `Long` args rejected by Playwright `evaluate` are now passed as ints
 - fix(daemon): `eval-js` works on a blank page again (no `No page loaded` on the replacement tab created by `tab close`)
 - fix(cli): transport timeout raised to 30s and made overridable via `SPEL_CLIENT_TIMEOUT_MS`; 12s produced spurious `client_timeout` on loaded machines
-- fix(daemon): `drag` no longer uses Playwright `dragTo`, which could block past its own timeout on headless Linux and wedge the daemon. Natively draggable sources (links, images, `draggable="true"`) are driven with synthetic HTML5 drag events; everything else uses explicit mouse events
+- fix(daemon): `drag` no longer uses Playwright `dragTo` or CDP mouse input, both of which could block past their own timeout on headless Linux and wedge the daemon. The whole gesture is now dispatched in the page: natively draggable sources (links, images, `draggable="true"`) get a full HTML5 drag sequence, everything else gets a pointer + mouse sequence with `--steps` intermediate moves
+- fix(skills): restore the emptied `references/ENVIRONMENT_VARIABLES.md` template and document `SPEL_COMMAND_BUDGET_MS`, the command ledger, and the watchdog in the skill, `COMMON_PROBLEMS.md`, and `FULL_API.md`; `init-agents` tests now fail when a shipped template is blank
+- fix(report): the alternative Allure report drops the dark theme and theme toggle, uses the Vis type stack (Inter Variable / JetBrains Mono Variable), and renders status marks as inline SVG glyphs instead of text entities
 - fix(daemon): the command watchdog budget now stays below the CLI transport timeout, so a wedged command is reported by the daemon rather than as a client timeout
 - fix(daemon): every browser command now runs under a hard budget (`SPEL_COMMAND_BUDGET_MS`, default 25s); a wedged command is interrupted with `command_timeout` and its stack logged, instead of holding the command lock and timing out every later command
 - fix(daemon): a command that cannot get the command lock answers `daemon_busy` with the in-flight command, rather than hanging

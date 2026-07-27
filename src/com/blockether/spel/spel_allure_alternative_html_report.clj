@@ -531,13 +531,25 @@
     "skipped" "status-skipped"
     "status-unknown"))
 
+(defn- svg-glyph
+  "Inline SVG markup for a status glyph.
+
+   Stroke-based and sized in `em`, so the glyph stays crisp at any zoom,
+   inherits `currentColor` from its container, and never depends on a font
+   shipping the code point (the old HTML entities rendered as tofu boxes in
+   some browsers and as emoji in others)."
+  [^String path-d]
+  (str "<svg class=\"status-glyph\" viewBox=\"0 0 16 16\" aria-hidden=\"true\""
+    " focusable=\"false\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\""
+    " stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"" path-d "\"/></svg>"))
+
 (defn- status-icon [^String status]
   (case status
-    "passed" "&#10003;"
-    "failed" "&#10007;"
-    "broken" "&#9888;"
-    "skipped" "&#9744;"
-    "?"))
+    "passed"  (svg-glyph "M3.4 8.4 6.5 11.5 12.6 5")
+    "failed"  (svg-glyph "M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8")
+    "broken"  (svg-glyph "M8 2.2 14.9 13.8H1.1zM8 6.6v2.6M8 11.6v.1")
+    "skipped" (svg-glyph "M3.6 8h8.8")
+    (svg-glyph "M5.7 5.9a2.4 2.4 0 1 1 2.6 3.2v1M8.3 12.5v.1")))
 
 (defn- detail-marker []
   "<span class=\"disclosure-marker\" aria-hidden=\"true\"></span>")
@@ -1132,12 +1144,16 @@
   "Clean neutral stylesheet for the Blockether alternative report."
   []
   "
-  /* Theme tokens — driven by `data-theme` on <html>.
-     Values: `auto` (follow OS), `light`, `dark`.
-     Default (no attribute or `auto`) respects `prefers-color-scheme`. */
-  :root,
-  html[data-theme='light'],
-  html[data-theme='auto'] {
+  /* Theme tokens — the report ships ONE deliberate light palette.
+     No dark variant and no theme switch: a single
+     theme means a single set of contrast decisions to verify, and
+     screenshots/traces (captured on light chrome) always sit on a
+     matching background instead of glowing inside a dark card.
+     Typography mirrors the Vis app: Inter for UI, JetBrains Mono for
+     code, identifiers, and numbers. */
+  :root {
+    --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --bg: #faf3eb;
     --bg-panel: rgba(255, 253, 248, 0.98);
     --bg-panel-strong: rgba(250, 243, 235, 0.98);
@@ -1162,86 +1178,20 @@
     --radius-lg: 0;
     --radius-md: 0;
     --radius-sm: 0;
-  }
-  html[data-theme='dark'] {
-    --bg: #0f1117;
-    --bg-panel: rgba(22, 24, 32, 0.98);
-    --bg-panel-strong: rgba(28, 31, 40, 0.98);
-    --bg-code: #1e2028;
-    --bg-accent: rgba(255, 196, 32, 0.12);
-    --border: rgba(255, 255, 255, 0.10);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --text: #f3f4f6;
-    --text-secondary: #d1d5db;
-    --text-muted: #9ca3af;
-    --accent: #ffc420;
-    --accent-green: #4ade80;
-    --accent-green-light: rgba(74, 222, 128, 0.08);
-    --accent-green-border: rgba(74, 222, 128, 0.20);
-    --accent-yellow: #fbbf24;
-    --accent-red: #f87171;
-    --accent-teal: #22d3ee;
-    --shadow: 2px 2px 0 rgba(0, 0, 0, 0.38);
-    --shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.46);
-    --shadow-brand: 6px 6px 0 var(--accent);
-    --shadow-hard: 5px 5px 0 rgba(0, 0, 0, 0.5);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root,
-    html[data-theme='auto'] {
-      --bg: #0f1117;
-      --bg-panel: rgba(22, 24, 32, 0.98);
-      --bg-panel-strong: rgba(28, 31, 40, 0.98);
-      --bg-code: #1e2028;
-      --bg-accent: rgba(255, 196, 32, 0.12);
-      --border: rgba(255, 255, 255, 0.10);
-      --border-strong: rgba(255, 255, 255, 0.18);
-      --text: #f3f4f6;
-      --text-secondary: #d1d5db;
-      --text-muted: #9ca3af;
-      --accent: #ffc420;
-      --accent-green: #4ade80;
-      --accent-green-light: rgba(74, 222, 128, 0.08);
-      --accent-green-border: rgba(74, 222, 128, 0.20);
-      --accent-yellow: #fbbf24;
-      --accent-red: #f87171;
-      --accent-teal: #22d3ee;
-      --shadow: 2px 2px 0 rgba(0, 0, 0, 0.38);
-      --shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.46);
-      --shadow-brand: 6px 6px 0 var(--accent);
-      --shadow-hard: 5px 5px 0 rgba(0, 0, 0, 0.5);
-    }
-    html[data-theme='light'] {
-      /* Force light palette even when the OS is dark. Re-assert the light
-         values so @media dark doesn't win by specificity. */
-      --bg: #faf3eb;
-      --bg-panel: rgba(255, 253, 248, 0.98);
-      --bg-panel-strong: rgba(250, 243, 235, 0.98);
-      --bg-code: #f2ebdf;
-      --bg-accent: rgba(240, 173, 0, 0.10);
-      --border: rgba(63, 63, 63, 0.14);
-      --border-strong: rgba(63, 63, 63, 0.26);
-      --text: #262626;
-      --text-secondary: #3f3f3f;
-      --text-muted: #6f6a63;
-      --accent: #f0ad00;
-      --accent-green: #16a34a;
-      --accent-green-light: rgba(22, 163, 74, 0.08);
-      --accent-green-border: rgba(22, 163, 74, 0.25);
-      --accent-yellow: #d97706;
-      --accent-red: #dc2626;
-      --accent-teal: #0891b2;
-      --shadow: 2px 2px 0 rgba(63, 63, 63, 0.09);
-      --shadow-md: 4px 4px 0 rgba(63, 63, 63, 0.14);
-      --shadow-brand: 6px 6px 0 var(--accent);
-      --shadow-hard: 5px 5px 0 rgba(63, 63, 63, 0.16);
-    }
+    color-scheme: light;
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
+    /* Same Inter character alternates the Vis app opts into: single-storey
+       `a`-style digits and disambiguated l/1/I. */
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-size: 14px;
     line-height: 1.5;
     color: var(--text);
@@ -1254,13 +1204,13 @@
   }
   h1, h2, h3, h4 {
     margin: 0;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
     font-weight: 700;
     line-height: 1.2;
     color: var(--text);
   }
   code, pre, .mono {
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: var(--font-mono);
   }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -1280,11 +1230,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    /* Extra right padding reserves space for the icon-only theme
-       toggle button so summary chips don't collide with it (toggle is
-       32px wide at right:10px, so content must stop ~3.25rem before
-       the card edge). */
-    padding: 1.25rem 5rem 1.25rem 1.5rem;
+    padding: 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 2px solid var(--text);
     border-radius: var(--radius-lg);
@@ -1293,9 +1239,7 @@
       linear-gradient(300deg, color-mix(in srgb, var(--accent-teal) 8%, transparent), transparent 50%),
       var(--bg-panel);
     box-shadow: var(--shadow-brand);
-    /* Positioning context for the theme toggle so it sits pinned at
-       the card's own top-right corner, INSIDE the header card
-       itself — not floating outside the card in the page shell. */
+    /* Positioning context for the header's decorative accent rule. */
     position: relative;
   }
   .report-header::before {
@@ -1323,7 +1267,7 @@
     flex: 1 1 auto;
   }
   .report-kicker {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1358,7 +1302,7 @@
   .report-description a:hover { text-decoration: underline; }
   .report-description p { margin: 0.25rem 0; }
   .report-description code {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.8em;
     padding: 0 0.25rem;
     background: var(--bg-accent);
@@ -1411,14 +1355,14 @@
   }
   .summary-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
   .summary-chip-label {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
     font-weight: 600;
   }
-  .summary-chip-value { font-weight: 800; font-size: 1.05rem; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .summary-chip-value { font-weight: 800; font-size: 1.05rem; font-family: var(--font-mono); font-variant-numeric: tabular-nums; line-height: 1.15; }
   .summary-chip-passed .summary-chip-value { color: var(--accent-green); }
   .summary-chip-failed .summary-chip-value { color: var(--accent-red); }
   .summary-chip-broken .summary-chip-value { color: var(--accent-yellow); }
@@ -1551,7 +1495,7 @@
     display: inline-flex !important;
     align-items: center !important;
     padding: 1px 8px !important;
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: var(--font-mono) !important;
     font-size: 0.62rem !important;
     font-weight: 700 !important;
     letter-spacing: 0.06em !important;
@@ -1632,7 +1576,7 @@
     color: var(--text-secondary);
     padding: 0.35rem 0.7rem;
     cursor: pointer;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1668,7 +1612,7 @@
     background: transparent;
     text-transform: none;
     letter-spacing: 0;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
     font-size: 0.72rem;
     padding: 0;
     color: var(--text-muted);
@@ -1710,7 +1654,7 @@
     background: var(--bg-panel-strong);
   }
   .env-key {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -1729,7 +1673,7 @@
     letter-spacing: -0.01em;
   }
   .suite-common-prefix {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-muted);
     padding: 0.3rem 0;
@@ -1776,7 +1720,7 @@
   }
   .suite-stat,
   .test-chip {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     padding: 0.2rem 0.5rem;
     border-radius: var(--radius-sm);
@@ -1842,7 +1786,7 @@
 
   /* Status badges */
   .test-status-badge {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     font-weight: 700;
     padding: 0.2rem 0.55rem;
@@ -1875,14 +1819,14 @@
     color: var(--text);
   }
   .test-duration {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-muted);
     white-space: nowrap;
   }
   .test-full-name {
     margin-top: 0.4rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-muted);
     word-break: break-word;
@@ -1896,7 +1840,7 @@
     margin-top: 0.5rem;
   }
   .label-pill {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     padding: 0.2rem 0.55rem;
     border-radius: var(--radius-sm);
@@ -1955,7 +1899,7 @@
   }
   .assertion-label {
     flex: 0 0 4.5rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -1968,7 +1912,7 @@
   .step-assertion.status-passed .assertion-label-actual { color: var(--accent-green); }
   .assertion-value {
     flex: 1 1 auto;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--text);
     white-space: pre-wrap;
@@ -2044,7 +1988,7 @@
     padding: 0.45rem 0.6rem;
     cursor: pointer;
     list-style: none;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -2110,14 +2054,38 @@
     gap: 0.3rem;
     align-items: baseline;
   }
-  .step-icon { font-size: 0.82rem; flex-shrink: 0; }
+  .step-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+    color: var(--accent-green);
+  }
+  .step-item.status-failed > .step-header > .step-icon { color: var(--accent-red); }
+  .step-item.status-broken > .step-header > .step-icon { color: var(--accent-yellow); }
+  .step-item.status-skipped > .step-header > .step-icon { color: var(--text-muted); }
+  .step-item.status-unknown > .step-header > .step-icon { color: var(--text-secondary); }
+
+  /* Status glyphs are inline SVG (see `svg-glyph`): they scale with the
+     surrounding text, take its color, and stay hairline-crisp instead of
+     depending on whatever the platform font maps U+2713 to. */
+  .status-glyph {
+    width: 1em;
+    height: 1em;
+    display: block;
+    stroke-width: 2;
+    overflow: visible;
+  }
   .step-name {
     font-size: 0.82rem;
     font-weight: 500;
     color: var(--text);
   }
   .step-params {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.72rem;
     color: var(--text-muted);
   }
@@ -2143,7 +2111,7 @@
   .attachment-panel-markdown .attachment-link-subtle {
     border: none;
     background: transparent;
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
     font-size: 0.74rem;
     text-transform: none;
     letter-spacing: 0;
@@ -2215,56 +2183,12 @@
   .empty-state strong { display: block; color: var(--text); font-size: 0.95rem; }
   .empty-state p { margin: 0.5rem 0 0.75rem; }
   .empty-state kbd {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     padding: 0.1rem 0.4rem;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--bg-accent);
-  }
-
-  /* Theme toggle — 3-state button (auto / light / dark) in the header.
-     Icon is the glyph matching the active state; click cycles forward. */
-  .theme-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--border);
-    background: var(--bg-panel);
-    color: var(--text-secondary);
-    border-radius: var(--radius-sm);
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    cursor: pointer;
-    transition: all 0.12s ease;
-  }
-  .theme-toggle:hover {
-    color: var(--text);
-    border-color: var(--border-strong);
-    background: var(--bg-accent);
-  }
-  .theme-toggle:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-  .theme-toggle-icon { font-size: 0.95rem; line-height: 1; }
-  /* Top-right placement — absolute relative to `.report-header` so
-     the button sits PINNED AT THE HEADER CARD'S OWN TOP-RIGHT
-     CORNER. Values match the card's own padding (1.25rem 1.5rem)
-     so the button aligns with the card's inside edge. Previous
-     attempts had this floating in the viewport gutter (fixed) or in
-     the page-shell's right margin (absolute rel. to shell); both
-     sat OUTSIDE the header card visually. This fix keeps it inside. */
-  .theme-toggle-fixed {
-    position: absolute;
-    top: 1.25rem;
-    right: 1.5rem;
-    z-index: 20;
-    box-shadow: var(--shadow);
-  }
-  @media print {
-    .theme-toggle-fixed { display: none; }
   }
 
   /* Custom Sort menu — pill button + dropdown, visually aligned with
@@ -2305,7 +2229,7 @@
   .toolbar-sort-menu li {
     padding: 0.4rem 0.7rem;
     border-radius: var(--radius-sm);
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--text-secondary);
     cursor: pointer;
@@ -2368,7 +2292,7 @@
   }
   .label-filter-group:last-child { margin-bottom: 0; }
   .label-filter-title {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -2381,7 +2305,7 @@
     width: 100%;
     padding: 0.35rem 0.6rem;
     border-radius: var(--radius-sm);
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--text-secondary);
     background: none;
@@ -2415,7 +2339,7 @@
     padding: 0.2rem 0.5rem;
     border-radius: 0;
     font-size: 0.7rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-weight: 600;
     background: var(--bg-accent);
     border: 1px solid var(--border);
@@ -2480,7 +2404,7 @@
     color: var(--text-secondary);
   }
   .attachment-panel-markdown .spel-md code {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.85em;
     padding: 1px 4px;
     background: var(--bg-accent);
@@ -2505,12 +2429,12 @@
   .spel-md .code-wrap pre { background: var(--bg-code) !important; color: var(--text) !important; border: 1px solid var(--border); }
   .spel-md .copy-btn { background: var(--bg-panel) !important; border-color: var(--border) !important; color: var(--text-secondary) !important; }
   .spel-md .copy-btn:hover { background: var(--bg-accent) !important; color: var(--text) !important; }
-  .spel-badge { display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 0 !important; padding: 1px 8px !important; font-family: 'JetBrains Mono', monospace !important; font-size: 0.62rem !important; font-weight: 700 !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; line-height: 1.4 !important; border: none !important; box-shadow: none !important; vertical-align: baseline !important; margin-right: 8px !important; margin-bottom: 0 !important; }
+  .spel-badge { display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 0 !important; padding: 1px 8px !important; font-family: var(--font-mono) !important; font-size: 0.62rem !important; font-weight: 700 !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; line-height: 1.4 !important; border: none !important; box-shadow: none !important; vertical-align: baseline !important; margin-right: 8px !important; margin-bottom: 0 !important; }
   .spel-md .http-title { align-items: center !important; flex-wrap: wrap !important; gap: 0.5rem !important; }
   .spel-md .http-url { margin-left: 2px; flex: 1 1 auto; min-width: 0; }
   .spel-md .http-title .attachment-link-in-title {
     font-size: 0.72rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     color: var(--text-muted);
     text-decoration: none;
     padding: 0.15rem 0.45rem;
@@ -2528,9 +2452,8 @@
   /* Mobile */
   @media (max-width: 768px) {
     .page-shell { padding: 0.5rem 0.5rem 1.5rem; }
-    .report-header { padding: 0.85rem 3rem 0.85rem 0.85rem; gap: 0.75rem; }
+    .report-header { padding: 0.85rem; gap: 0.75rem; }
     .report-header-left { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
-    .theme-toggle-fixed { top: 0.85rem; right: 0.85rem; }
     .toolbar { padding: 0.5rem; gap: 0.4rem; top: 0; }
     .toolbar-search { max-width: none; min-width: 100px; }
     .suite-section > summary, .test-card > summary { padding: 0.5rem 0.6rem; }
@@ -3133,36 +3056,6 @@
       btn.addEventListener('click', resetFilters);
     });
 
-    // 3-state theme toggle (finding #9) — auto → light → dark → auto.
-    // Choice persists in localStorage under key 'spel.report.theme'.
-    var themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-      var ICON = { auto: '⦾', light: '☀', dark: '☾' };
-      var LABEL = { auto: 'Auto', light: 'Light', dark: 'Dark' };
-      var NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
-      function readTheme() {
-        var t;
-        try { t = localStorage.getItem('spel.report.theme'); } catch (e) {}
-        return (t === 'light' || t === 'dark' || t === 'auto') ? t : 'auto';
-      }
-      function writeTheme(t) {
-        try { localStorage.setItem('spel.report.theme', t); } catch (e) {}
-      }
-      function applyTheme(t) {
-        document.documentElement.setAttribute('data-theme', t);
-        var iconEl = themeToggle.querySelector('.theme-toggle-icon');
-        if (iconEl) iconEl.textContent = ICON[t] || ICON.auto;
-        themeToggle.title = 'Theme: ' + (LABEL[t] || LABEL.auto);
-      }
-      applyTheme(readTheme());
-      themeToggle.addEventListener('click', function() {
-        var current = readTheme();
-        var next = NEXT[current] || 'auto';
-        writeTheme(next);
-        applyTheme(next);
-      });
-    }
-
     var expandBtn = document.querySelector(\"[data-action='expand-suites']\");
     var collapseBtn = document.querySelector(\"[data-action='collapse-suites']\");
 
@@ -3479,20 +3372,8 @@
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
   <title>" (html-escape doc-title) "</title>
   <link rel=\"icon\" type=\"image/svg+xml\" href=\"" favicon-data "\">
-  <script>
-    /* Set data-theme before the stylesheet parses to avoid a flash of
-       the wrong theme when the saved preference is 'light' or 'dark'. */
-    (function () {
-      try {
-        var t = localStorage.getItem('spel.report.theme');
-        if (t !== 'light' && t !== 'dark' && t !== 'auto') t = 'auto';
-        document.documentElement.setAttribute('data-theme', t);
-      } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'auto');
-      }
-    })();
-  </script>" (if has-traces?
-               "
+  " (if has-traces?
+      "
   <script>
     /* Finding #1: pre-register the Playwright trace-viewer Service Worker
        so it is active and controlling ./trace-viewer/ before the user ever
@@ -3510,11 +3391,16 @@
         .catch(function () {});
     })();
   </script>"
-               "") "
+      "") "
+  <!-- Same type system as the Vis app: Inter (variable) for UI text and
+       JetBrains Mono (variable) for code, ids, and numbers. The full weight
+       axis is requested so the variable stacks in --font-sans/--font-mono
+       resolve; if the CDN is unreachable the local/system fallbacks in those
+       stacks take over and the report still reads correctly offline. -->
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
-  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">
-  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
+  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap\" rel=\"stylesheet\">
+  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap\" rel=\"stylesheet\">
   <style>" (css) "</style>" (if (seq custom-css)
                               (str "\n  <style id=\"report-custom-css\">"
                                 custom-css
@@ -3528,11 +3414,6 @@
 <body" (when single? " class=\"single-mode\"") ">
 <div class=\"page-shell\">
   <header class=\"report-header\" id=\"summary\">
-    <button type=\"button\" id=\"themeToggle\" class=\"theme-toggle theme-toggle-fixed\"
-            aria-label=\"Toggle theme (auto / light / dark)\"
-            title=\"Toggle theme — auto / light / dark\">
-      <span class=\"theme-toggle-icon\" aria-hidden=\"true\">⦾</span>
-    </button>
     <div class=\"report-header-left\">
       " (if logo-href
           (let [alt (or (:logo-alt opts)

@@ -294,6 +294,21 @@ A call already parked inside the browser ends when the browser answers, so
 re-check with `health`; when it never does, `kill`. Killing loses the browser
 (page, cookies, refs) — cancel first, kill second.
 
+### The command ledger
+
+`in flight` comes from the daemon's **command ledger**: one entry per command,
+with its id (`c12`), action, phase, and age. It is plain daemon-local state, so
+`health` and `cancel` work while every Playwright call is blocked.
+
+- Ids in `health` are exactly the ids `cancel <id>` accepts.
+- A command that outlives its watchdog budget (`SPEL_COMMAND_BUDGET_MS`,
+  default 25s; 900s for `eval-js`/`eval-sci`) is abandoned, its stack frames go
+  to the log, and its ledger entry is dropped — the daemon keeps serving.
+- An abandoned command answers with `command <id> (<action>) was cancelled`;
+  that is a wedged action, not a dead daemon. Fix the action, do not `kill`.
+- `health` and `cancel` are observers: they get ledger entries too, but are
+  never listed as in-flight work, so an idle daemon never reports itself busy.
+
 ### Profile locked
 
 ```bash

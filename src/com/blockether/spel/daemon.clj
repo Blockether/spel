@@ -3402,36 +3402,63 @@
        (+ y (double (or (get p "y") (:y p) (/ h 2.0))))]
       [(+ x (/ w 2.0)) (+ y (/ h 2.0))])))
 
-(def ^:private native-draggable-js
-  "Truthy when the element would start a *native* browser drag (link, image,
-   or an explicit draggable=true subtree)."
-  "el => el.draggable === true || !!el.closest('[draggable=\"true\"]') || el.tagName === 'A' || el.tagName === 'IMG'")
+(defn- drag-js
+  "JavaScript that drags this element onto `tgt` without any CDP input.
 
-(def ^:private html5-drag-js
-  "Dispatches a full HTML5 drag sequence from this element onto `tgt`."
-  "(src, tgt) => {
-     const dt = new DataTransfer();
-     const fire = (el, type, pt) => el.dispatchEvent(new DragEvent(type, Object.assign(
-       {bubbles: true, cancelable: true, composed: true, dataTransfer: dt}, pt || {})));
-     const r = tgt.getBoundingClientRect();
-     const pt = {clientX: r.left + r.width / 2, clientY: r.top + r.height / 2};
-     fire(src, 'dragstart', {});
-     fire(tgt, 'dragenter', pt);
-     fire(tgt, 'dragover', pt);
-     fire(tgt, 'drop', pt);
-     fire(src, 'dragend', {});
-     return true;
-   }")
+   `sx`/`sy` and `tx`/`ty` are viewport coordinates for the press and the
+   release; `steps` intermediate moves are dispatched in between. Elements
+   that would start a *native* browser drag (links, images, draggable=true)
+   get a synthetic HTML5 drag sequence; everything else gets a pointer +
+   mouse sequence, which is what drag-and-drop widgets listen for."
+  [sx sy tx ty steps]
+  (format
+    "(src, tgt) => {
+       const sx = %s, sy = %s, tx = %s, ty = %s, steps = %s;
+       const base = (x, y) => ({clientX: x, clientY: y, screenX: x, screenY: y,
+                               bubbles: true, cancelable: true, composed: true, view: window});
+       const draggable = src.draggable === true || !!src.closest('[draggable=\"true\"]')
+                         || src.tagName === 'A' || src.tagName === 'IMG';
+       if (draggable) {
+         const dt = new DataTransfer();
+         const fire = (el, type, x, y) =>
+           el.dispatchEvent(new DragEvent(type, Object.assign(base(x, y), {dataTransfer: dt})));
+         fire(src, 'dragstart', sx, sy);
+         fire(src, 'drag', sx, sy);
+         fire(tgt, 'dragenter', tx, ty);
+         fire(tgt, 'dragover', tx, ty);
+         fire(tgt, 'drop', tx, ty);
+         fire(src, 'dragend', tx, ty);
+         return true;
+       }
+       const at = (x, y) => document.elementFromPoint(x, y) || tgt;
+       const pointer = (el, type, x, y, buttons) =>
+         el.dispatchEvent(new PointerEvent(type, Object.assign(base(x, y),
+           {pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0, buttons: buttons})));
+       const mouse = (el, type, x, y, buttons) =>
+         el.dispatchEvent(new MouseEvent(type, Object.assign(base(x, y), {button: 0, buttons: buttons})));
+       pointer(src, 'pointerdown', sx, sy, 1);
+       mouse(src, 'mousedown', sx, sy, 1);
+       const n = Math.max(1, steps);
+       for (let i = 1; i <= n; i++) {
+         const x = sx + ((tx - sx) * i) / n;
+         const y = sy + ((ty - sy) * i) / n;
+         const el = at(x, y);
+         pointer(el, 'pointermove', x, y, 1);
+         mouse(el, 'mousemove', x, y, 1);
+       }
+       pointer(tgt, 'pointerup', tx, ty, 0);
+       mouse(tgt, 'mouseup', tx, ty, 0);
+       return true;
+     }"
+    sx sy tx ty steps))
 
 (defmethod handle-cmd "drag" [_ {:strs [source target steps
                                         source-position target-position]}]
   (ensure-page-loaded!)
-  ;; Implemented without Playwright's `dragTo`: on headless Linux it has been
-  ;; observed to block far past its own timeout, wedging the daemon.
-  ;; Elements that start a *native* browser drag (links, images, draggable=true)
-  ;; are driven with synthetic HTML5 drag events, because a real mouse press on
-  ;; them hands control to the browser's own drag machinery, which never returns
-  ;; a mouseup to CDP on headless Linux. Everything else uses plain mouse events.
+  ;; Implemented without Playwright's `dragTo` and without CDP mouse input:
+  ;; on headless Linux both have been observed to block far past their own
+  ;; timeout (Chromium's drag interception never hands a mouseup back), which
+  ;; wedged the daemon. Synthetic DOM events are deterministic and instant.
   (let [src-loc (resolve-selector source)
         tgt-loc (resolve-selector target)
         src-bb  (locator/bounding-box src-loc)
@@ -3440,16 +3467,13 @@
       (throw (ex-info (str "drag source is not visible: " source) {:selector source})))
     (when-not tgt-bb
       (throw (ex-info (str "drag target is not visible: " target) {:selector target})))
-    (if (true? (locator/evaluate-locator src-loc native-draggable-js))
+    (let [[sx sy] (drag-point src-bb source-position)
+          [tx ty] (drag-point tgt-bb target-position)]
       (unwrap-anomaly!
-        (locator/evaluate-locator src-loc html5-drag-js (locator/element-handle tgt-loc)))
-      (let [[sx sy] (drag-point src-bb source-position)
-            [tx ty] (drag-point tgt-bb target-position)
-            sx      (double sx) sy (double sy)
-            tx      (double tx) ty (double ty)]
-        (unwrap-anomaly!
-          (input/mouse-drag (.mouse (pg)) sx sy (- tx sx) (- ty sy)
-            {:steps (long (or steps 10))})))))
+        (locator/evaluate-locator src-loc
+          (drag-js (double sx) (double sy) (double tx) (double ty)
+            (long (or steps 10)))
+          (locator/element-handle tgt-loc)))))
   (snapshot-after-action!)
   {:dragged {:from source :to target}})
 

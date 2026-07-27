@@ -349,23 +349,54 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
-    (it "exposes a 3-state theme toggle button pinned to the top-right"
+    (it "ships a single light theme — no dark palette, no theme toggle"
       (let [results-dir (tmp-dir "alternative-results-theme")
             output-dir (tmp-dir "alternative-output-theme")]
         (write-result! results-dir "uuid-t" "passed" "t" 1000 2000)
         (alternative-report/generate! (.getAbsolutePath results-dir)
           (.getAbsolutePath output-dir))
         (let [html (slurp (io/file output-dir "index.html"))]
-          (expect (str/includes? html "id=\"themeToggle\""))
-          ;; Button has both the base `.theme-toggle` class and the
-          ;; `.theme-toggle-fixed` modifier that pins it top-right.
-          (expect (str/includes? html "theme-toggle theme-toggle-fixed"))
-          (expect (str/includes? html ".theme-toggle-fixed"))
-          ;; data-theme driven CSS branches exist
-          (expect (str/includes? html "html[data-theme='dark']"))
-          (expect (str/includes? html "html[data-theme='light']"))
-          ;; Pre-paint inline script to avoid FOUT/wrong-theme flash
-          (expect (str/includes? html "spel.report.theme")))
+          ;; The toggle button, its styles, and its persisted preference
+          ;; are gone.
+          (expect (not (str/includes? html "themeToggle")))
+          (expect (not (str/includes? html "theme-toggle")))
+          (expect (not (str/includes? html "spel.report.theme")))
+          ;; No data-theme driven CSS branches and no dark palette.
+          (expect (not (str/includes? html "data-theme")))
+          (expect (not (str/includes? html "prefers-color-scheme")))
+          ;; One explicit light palette remains.
+          (expect (str/includes? html "color-scheme: light"))
+          (expect (str/includes? html "--bg: #faf3eb;")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "uses the Vis type system (Inter + JetBrains Mono) via font tokens"
+      (let [results-dir (tmp-dir "alternative-results-fonts")
+            output-dir (tmp-dir "alternative-output-fonts")]
+        (write-result! results-dir "uuid-f" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "--font-sans: 'Inter Variable'"))
+          (expect (str/includes? html "--font-mono: 'JetBrains Mono Variable'"))
+          (expect (str/includes? html "font-family: var(--font-sans)"))
+          (expect (str/includes? html "font-family: var(--font-mono)"))
+          ;; No hard-coded family lists left behind.
+          (expect (not (str/includes? html "'JetBrains Mono', monospace"))))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
+    (it "renders status glyphs as inline SVG rather than HTML entities"
+      (let [results-dir (tmp-dir "alternative-results-glyph")
+            output-dir (tmp-dir "alternative-output-glyph")]
+        (write-result! results-dir "uuid-g" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          (expect (str/includes? html "class=\"status-glyph\""))
+          (expect (str/includes? html "stroke=\"currentColor\""))
+          (expect (not (str/includes? html "&#10003;")))
+          (expect (not (str/includes? html "&#10007;"))))
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 

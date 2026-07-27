@@ -61,8 +61,9 @@ For auth, captcha, or 2FA, use `--interactive` and let the user complete the pro
 
 ## Errors and recovery
 
-- Run `spel health --json` before diagnosing a stuck daemon. It reports state and in-flight commands without starting one.
-- Cancel only the identified command with `spel cancel <id>`; use `spel kill` only for a verified spel daemon. Never delete sockets or issue global browser kills.
+- Run `spel health --json` before diagnosing a stuck daemon. It reports state and the in-flight command ledger (`id`, action, phase, age) without starting one.
+- A wedged command is abandoned after its watchdog budget (`SPEL_COMMAND_BUDGET_MS`, default 25s; 900s for `eval-js`/`eval-sci`) and answers `command <id> (<action>) was cancelled`. That is a bad action, not a dead daemon.
+- Cancel only the identified ledger id with `spel cancel <id>`; use `spel kill` only for a verified spel daemon. Never delete sockets or issue global browser kills.
 - A stale ref requires a fresh `snapshot -i`, then one corrected retry.
 - Browser crash/degradation can self-recover on the next command; do not discard the session first.
 - Inspect `spel logs -n 100` when output is missing or the cause is unclear.
