@@ -18,7 +18,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -26,12 +26,12 @@ jobs:
           java-version: '25'
           distribution: 'graalvm'
 
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.6.1
         with:
           cli: latest
 
       - name: Cache Clojure deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.m2/repository
@@ -57,7 +57,7 @@ jobs:
           echo "=== All CLI smoke tests passed ==="
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spel-linux-arm64
           path: target/spel
@@ -68,7 +68,7 @@ jobs:
     name: Release & Deploy to Clojars
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           # Shallow clone — we only need working tree + tags for changelog.
@@ -84,12 +84,12 @@ jobs:
           # This fetches only main branch history, NOT gh-pages.
           git fetch --deepen=200 origin main
 
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.6.1
         with:
           cli: latest
 
       - name: Cache Clojure deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.m2/repository
@@ -101,7 +101,7 @@ jobs:
 
       # --- Download linux-arm64 from this release build ---
       - name: Download arm64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: spel-linux-arm64
           path: artifacts/spel-linux-arm64
@@ -178,7 +178,7 @@ jobs:
 
       # --- GitHub Release with binaries ---
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body_path: /tmp/release_body.md
           files: |

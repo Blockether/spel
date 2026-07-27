@@ -12,6 +12,7 @@
      (remove-overlays! page)                ;; clean up"
   (:require
    [clojure.string :as str]
+   [com.blockether.spel.fonts :as fonts]
    [com.blockether.spel.page :as page])
   (:import
    [com.microsoft.playwright Page]))
@@ -735,9 +736,9 @@
    Designed for both browser viewing and Chromium's page.pdf() renderer."
   (str
     ":root{"
-    "--font-body:'Atkinson Hyperlegible','Segoe UI',sans-serif;"
-    "--font-heading:'Manrope','Atkinson Hyperlegible',sans-serif;"
-    "--font-mono:'IBM Plex Mono',ui-monospace,monospace;"
+    "--font-body:" fonts/body-stack ";"
+    "--font-heading:" fonts/body-stack ";"
+    "--font-mono:" fonts/mono-stack ";"
     "--bg:#f6f1e8;--bg-secondary:rgba(255,251,245,0.88);"
     "--surface:rgba(255,255,255,0.94);--surface-elevated:rgba(255,255,255,0.94);"
     "--border:rgba(125,99,68,0.18);--border-bright:rgba(125,99,68,0.34);"
@@ -925,11 +926,10 @@
   [entries title]
   (str
     "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
-    "<link rel='preconnect' href='https://fonts.googleapis.com'>"
-    "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
-    "<link href='https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap' rel='stylesheet'>"
-    "<link href='https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap' rel='stylesheet'>"
-    "<link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap' rel='stylesheet'>"
+    ;; Fonts are BUNDLED as base64 woff2, never linked from a CDN: this HTML
+    ;; is also fed to Chromium's page.pdf(), and a network fetch there means a
+    ;; PDF whose typography depends on whether the renderer had internet.
+    (fonts/style-tag)
     "<title>" (escape-html (or title "Report")) "</title>"
     "<style>" report-css "</style>"
     "</head><body>"

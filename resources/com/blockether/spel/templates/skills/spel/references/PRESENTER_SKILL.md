@@ -87,7 +87,7 @@ Enforced tokens (must match spel report):
 
 Flexible: page layout, section ordering, component choice (cards / tables / pipelines / Mermaid / charts), section count, flat vs tabs / collapsible, container max-width.
 
-Every page must include: Google Fonts block, full theme CSS (`:root` + dark media query), body gradient, `<h1>`, 1–2 sentence context text, source attribution.
+Every page must include: an inline `@font-face` block with the faces embedded as base64 `data:` URIs (never a `fonts.googleapis.com`/`fonts.gstatic.com` link — see CSS_PATTERNS.md), full theme CSS (`:root` + dark media query), body gradient, `<h1>`, 1–2 sentence context text, source attribution.
 
 ## Content type guidance
 

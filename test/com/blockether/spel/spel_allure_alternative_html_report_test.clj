@@ -386,6 +386,23 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
+    (it "bundles the fonts as data URIs and never links a font CDN"
+      (let [results-dir (tmp-dir "alternative-results-fontbundle")
+            output-dir (tmp-dir "alternative-output-fontbundle")]
+        (write-result! results-dir "uuid-fb" "passed" "t" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; A report is an offline artifact: no third-party font request.
+          (expect (not (str/includes? html "fonts.googleapis.com")))
+          (expect (not (str/includes? html "fonts.gstatic.com")))
+          ;; Both families are actually embedded, not merely named.
+          (expect (str/includes? html "@font-face{font-family:'Inter Variable'"))
+          (expect (str/includes? html "@font-face{font-family:'JetBrains Mono Variable'"))
+          (expect (>= (count (re-seq #"data:font/woff2;base64," html)) 4)))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
     (it "renders status glyphs as inline SVG rather than HTML entities"
       (let [results-dir (tmp-dir "alternative-results-glyph")
             output-dir (tmp-dir "alternative-output-glyph")]

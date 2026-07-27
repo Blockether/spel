@@ -7,7 +7,8 @@
   (:require
    [charred.api :as json]
    [clojure.java.io :as io]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [com.blockether.spel.fonts :as fonts])
   (:import
    [java.io File]
    [java.text SimpleDateFormat]
@@ -1141,6 +1142,7 @@
        "</details>"))))
 
 (defn- css
+
   "Clean neutral stylesheet for the Blockether alternative report."
   []
   "
@@ -3395,14 +3397,11 @@
   </script>"
       "") "
   <!-- Same type system as the Vis app: Inter (variable) for UI text and
-       JetBrains Mono (variable) for code, ids, and numbers. The full weight
-       axis is requested so the variable stacks in --font-sans/--font-mono
-       resolve; if the CDN is unreachable the local/system fallbacks in those
-       stacks take over and the report still reads correctly offline. -->
-  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
-  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
-  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap\" rel=\"stylesheet\">
-  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap\" rel=\"stylesheet\">
+       JetBrains Mono (variable) for code, ids, and numbers. Both faces are
+       BUNDLED into this file as base64 woff2 below — the report never talks
+       to a font CDN, so it renders identically offline, in air-gapped CI,
+       and years after it was archived. -->
+  <style id=\"report-fonts\">" @fonts/bundled-font-css "</style>
   <style>" (css) "</style>" (if (seq custom-css)
                               (str "\n  <style id=\"report-custom-css\">"
                                 custom-css

@@ -4,17 +4,29 @@
 
 Warm earth tones · Atkinson Hyperlegible / Manrope / IBM Plex Mono · rounded cards with soft shadows · light + dark via `prefers-color-scheme`.
 
-## Google Fonts (required)
+## Fonts — bundle them, never link a CDN
+
+**Never emit `fonts.googleapis.com` or `fonts.gstatic.com` links.** Generated HTML is an artifact: it gets zipped, emailed, opened offline, archived in CI, and re-read months later. A CDN `<link>` makes its typography — and therefore its layout — depend on a network it will not always have.
+
+Embed each face as a base64 `data:` URI inside the document:
 
 ```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400;
+    font-display:swap;src:url(data:font/woff2;base64,<BASE64>) format('woff2');}
+  /* …one @font-face per family/weight actually used… */
+</style>
 ```
 
-No substitutions.
+Get the bytes from a local copy (for example `npm pack @fontsource/atkinson-hyperlegible`, or any woff2 already on disk) and inline them:
+
+```bash
+printf 'data:font/woff2;base64,%s' "$(base64 < font.woff2 | tr -d '\n')"
+```
+
+Bundle only the subsets and weights the page really uses — latin + latin-ext of a variable font is usually ~50–90 KB per family — and let the stacks below fall back to system fonts when a face is unavailable. `spel report` does exactly this: it ships Inter and JetBrains Mono inside `resources/com/blockether/spel/fonts` and inlines them, so a generated report renders identically air-gapped.
+
+No CDN substitutions.
 
 ## Theme tokens
 

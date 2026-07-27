@@ -152,19 +152,24 @@ Set initial opacity to 0 in CSS:
 @media (prefers-reduced-motion: reduce) { .ve-card { opacity: 1 !important; } }
 ```
 
-## Google Fonts
+## Fonts
 
-Always load with `display=swap`.
+**Never link a font CDN.** No `fonts.googleapis.com`, no `fonts.gstatic.com` — generated HTML must render identically offline and years later. Bundle every face as a base64 `data:` URI (see `CSS_PATTERNS.md` → "Fonts — bundle them, never link a CDN").
 
-**Default (spel brand)** — Atkinson Hyperlegible + Manrope + IBM Plex Mono:
+**Default (spel brand)** — Atkinson Hyperlegible + Manrope + IBM Plex Mono, inlined:
 
 ```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400;
+    font-display:swap;src:url(data:font/woff2;base64,<BASE64>) format('woff2');}
+  @font-face{font-family:'Manrope';font-style:normal;font-weight:500 800;
+    font-display:swap;src:url(data:font/woff2;base64,<BASE64>) format('woff2-variations');}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400 700;
+    font-display:swap;src:url(data:font/woff2;base64,<BASE64>) format('woff2');}
+</style>
 ```
+
+Always keep `font-display: swap` and always keep the system fallbacks in the stacks below, so a missing face degrades instead of breaking the page.
 
 ```css
 :root {

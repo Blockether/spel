@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>spel Report — {APP_NAME}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Fonts are BUNDLED, never linked from a CDN: a report is an offline
+       artifact. Inline one @font-face per family/weight actually used, with
+       src:url(data:font/woff2;base64,…) format('woff2'). Until the faces are
+       inlined, the stacks below fall back to system fonts and still read
+       correctly. See references/CSS_PATTERNS.md → "Fonts — bundle them,
+       never link a CDN". -->
   <style>
     :root {
       --mc-bg: #f6f1e8;

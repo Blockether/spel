@@ -27,21 +27,21 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
-      - uses: DeLaGuardo/setup-clojure@13.5
+      - uses: DeLaGuardo/setup-clojure@13.6.1
         with:
           cli: latest
 
       - name: Cache Clojure deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.m2/repository
@@ -53,7 +53,7 @@ jobs:
 
       - name: Download Allure results from CI
         id: download-results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: allure-results
@@ -125,7 +125,7 @@ jobs:
 
       - name: Restore Allure history
         if: steps.ctx.outputs.is_main == 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .allure-history.jsonl
           key: allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}
@@ -206,7 +206,7 @@ jobs:
 
       - name: Comment PR with live report link
         if: steps.ctx.outputs.is_pr == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNum = ${{ steps.ctx.outputs.pr_number }};
@@ -494,7 +494,7 @@ jobs:
 
       - name: Cache Allure history
         if: steps.ctx.outputs.is_main == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .allure-history.jsonl
           key: allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}

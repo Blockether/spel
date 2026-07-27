@@ -6,6 +6,7 @@
    Integration tests run against example.org using Playwright."
   (:require
    [com.blockether.spel.annotate :as sut]
+   [clojure.string :as str]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.core :as core]
@@ -26,6 +27,24 @@
 (def ^:private build-inject-js
   "Access private build-inject-js for unit testing."
   #'sut/build-inject-js)
+
+;; =============================================================================
+;; Unit Tests — bundled typography
+;; =============================================================================
+
+(defdescribe report-fonts-test
+  "The report document ships its fonts instead of fetching them"
+
+  (describe "report->html typography"
+
+    (it "bundles every face as a data URI and never links a font CDN"
+      (let [html (sut/report->html [{:type :text :text "hello"}] {:title "Fonts"})]
+        (expect (not (str/includes? html "fonts.googleapis.com")))
+        (expect (not (str/includes? html "fonts.gstatic.com")))
+        (expect (not (str/includes? html "<link")))
+        (expect (= 4 (count (re-seq #"data:font/woff2;base64," html))))
+        (expect (str/includes? html "--font-body:'Inter Variable'"))
+        (expect (str/includes? html "--font-mono:'JetBrains Mono Variable'"))))))
 
 ;; =============================================================================
 ;; Unit Tests — JS overlay generation

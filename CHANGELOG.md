@@ -22,11 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(report): a failing test always shows its failure message inline; the full stack trace stays in a collapsed "Stack trace" panel
 - fix(skills): restore the emptied `references/ENVIRONMENT_VARIABLES.md` template and document `SPEL_COMMAND_BUDGET_MS`, the command ledger, and the watchdog in the skill, `COMMON_PROBLEMS.md`, and `FULL_API.md`; `init-agents` tests now fail when a shipped template is blank
 - fix(report): the alternative Allure report drops the dark theme and theme toggle, uses the Vis type stack (Inter Variable / JetBrains Mono Variable), and renders status marks as inline SVG glyphs instead of text entities
+- fix(fonts): generated artifacts no longer link a font CDN. Inter Variable and JetBrains Mono Variable (latin + latin-ext, ~189 KB woff2) ship in `resources/com/blockether/spel/fonts` and are inlined as base64 `data:` URIs by the new `com.blockether.spel.fonts` namespace, used by both the Allure alternative report and `report->html` / `report->pdf`. Reports and PDFs now render identically offline, in air-gapped CI, and years after archiving; the presenter skill references teach the same rule
+- fix(native): the GraalVM `resource-config.json` now includes `com/blockether/spel/fonts/.*`, so the native binary embeds the woff2 faces instead of silently emitting reports with no bundled typography
 - fix(daemon): the command watchdog budget now stays below the CLI transport timeout, so a wedged command is reported by the daemon rather than as a client timeout
 - fix(daemon): every browser command now runs under a hard budget (`SPEL_COMMAND_BUDGET_MS`, default 25s); a wedged command is interrupted with `command_timeout` and its stack logged, instead of holding the command lock and timing out every later command
 - fix(daemon): a command that cannot get the command lock answers `daemon_busy` with the in-flight command, rather than hanging
 
 ### Changed
+- chore(deps): bump every outdated dependency — SCI 0.12.51 → 0.15.56, charred 1.038 → 1.041, tools.deps 0.31.1629 → 0.31.1638, nREPL 1.5.2 → 1.7.0, cider-nrepl 0.58.0 → 0.62.2, tools.build 0.10.12 → 0.10.14, deps-deploy 0.2.2 → 0.2.5, graal-build-time 1.0.5 → 1.0.6, slf4j-nop 1.7.36 → 2.0.18
+- chore(ci): bump pinned GitHub Actions (checkout v7, cache v6, upload-artifact v7, download-artifact v8, github-script v9, setup-node v7, setup-clojure 13.6.1, action-gh-release v3, setup-wsl v7.0.0), Node 20 → 24, and clojure-lsp 2025.11.28 → 2026.07.06
 - perf(cli): deadline-based `poll-until` with backoff replaces flat 100 ms polling; orphan-daemon scan cached (250 ms TTL)
 - perf(page,locator,helpers,sci): smooth-scroll waits are event-driven (rAF settle, self-capped) instead of fixed sleeps
 - chore: remove `verify.sh`; verification is `make lint`, `make test`, `make test-cli`

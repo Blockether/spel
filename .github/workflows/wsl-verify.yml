@@ -51,7 +51,7 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Belt-and-braces: some shells (WSL's dash-symlinked sh, ancient
       # bash builds) still choke on CR bytes even with a LF checkout
@@ -112,7 +112,7 @@ jobs:
           wsl --set-default-version 2 2>&1 | ForEach-Object { Write-Host $_ }
 
       - name: Install WSL (Ubuntu-24.04)
-        uses: Vampire/setup-wsl@v3
+        uses: Vampire/setup-wsl@v7.0.0
         with:
           distribution: Ubuntu-24.04
           use-cache: "true"
