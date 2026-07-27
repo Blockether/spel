@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.14] - 2026-07-27
+
+### Changed
+- docs(agents): centralize release instructions in AGENTS.md
+- fix(ci,docs): guard release tag against SPEL_VERSION, document init-agents
+- fix(report): flatten step tree, indent header chips
+- release: update version files for v0.9.13, bump to next dev version
+
+
 ### Changed
 - fix(report): drop the step-tree border rails and connector ticks — nesting now reads through indentation and the status icon alone
 - fix(report): collapse wrapper steps that only restate the test (or parent step) name, so an expanded card no longer repeats the same sentence before the one line that matters
@@ -1823,7 +1832,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.13...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.14...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1892,3 +1901,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.9]: https://github.com/Blockether/spel/releases/tag/v0.9.9
 [v0.9.11]: https://github.com/Blockether/spel/releases/tag/v0.9.11
 [v0.9.13]: https://github.com/Blockether/spel/releases/tag/v0.9.13
+[v0.9.14]: https://github.com/Blockether/spel/releases/tag/v0.9.14
