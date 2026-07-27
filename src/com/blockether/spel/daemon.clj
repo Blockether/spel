@@ -3391,21 +3391,39 @@
   (ensure-page-loaded!)
   (page/scroll-position (pg)))
 
-(defmethod handle-cmd "drag" [_ {:strs [source target force steps timeout
+(defn- drag-point
+  "Absolute page point for a drag end: the element's centre, or the given
+   {\"x\" _ \"y\"} offset inside its box."
+  [bb position]
+  (let [x (double (:x bb)) y (double (:y bb))
+        w (double (:width bb)) h (double (:height bb))]
+    (if-let [p (and (map? position) position)]
+      [(+ x (double (or (get p "x") (:x p) (/ w 2.0))))
+       (+ y (double (or (get p "y") (:y p) (/ h 2.0))))]
+      [(+ x (/ w 2.0)) (+ y (/ h 2.0))])))
+
+(defmethod handle-cmd "drag" [_ {:strs [source target steps
                                         source-position target-position]}]
   (ensure-page-loaded!)
-  (let [src-loc    (resolve-selector source)
-        tgt-loc    (resolve-selector target)
-        opts       (cond-> {:timeout (double (or timeout
-                                              (get-in @!state [:launch-flags "timeout"])
-                                              default-action-timeout-ms))}
-                     (some? force)           (assoc :force (boolean force))
-                     (some? steps)           (assoc :steps (long steps))
-                     (some? source-position) (assoc :source-position source-position)
-                     (some? target-position) (assoc :target-position target-position))]
-    ;; Always pass an explicit timeout: on Linux CI `.dragTo` has been observed to
-    ;; ignore the page default timeout and hang until the client transport gives up.
-    (unwrap-anomaly! (locator/drag-to src-loc tgt-loc opts))
+  ;; Implemented with explicit mouse events rather than Playwright's `dragTo`:
+  ;; on headless Linux `dragTo` has been observed to block past its own timeout,
+  ;; wedging the daemon. Bounding-box resolution honours the page timeout, and
+  ;; the mouse sequence itself cannot block.
+  (let [src-loc (resolve-selector source)
+        tgt-loc (resolve-selector target)
+        src-bb  (locator/bounding-box src-loc)
+        tgt-bb  (locator/bounding-box tgt-loc)]
+    (when-not src-bb
+      (throw (ex-info (str "drag source is not visible: " source) {:selector source})))
+    (when-not tgt-bb
+      (throw (ex-info (str "drag target is not visible: " target) {:selector target})))
+    (let [[sx sy] (drag-point src-bb source-position)
+          [tx ty] (drag-point tgt-bb target-position)
+          sx      (double sx) sy (double sy)
+          tx      (double tx) ty (double ty)]
+      (unwrap-anomaly!
+        (input/mouse-drag (.mouse (pg)) sx sy (- tx sx) (- ty sy)
+          {:steps (long (or steps 10))})))
     (snapshot-after-action!)
     {:dragged {:from source :to target}}))
 
