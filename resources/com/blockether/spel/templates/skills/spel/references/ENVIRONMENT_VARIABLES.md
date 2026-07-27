@@ -20,6 +20,7 @@ All spel env vars optional. **CLI flags always take priority over env vars.**
 | `SPEL_SESSION` | `--session` | Session name (default: `default`). Use unique names for concurrent automation |
 | `SPEL_JSON` | `--json` | Set to `true` for JSON output (machine-readable) |
 | `SPEL_TIMEOUT` | `--timeout` | Command timeout in milliseconds |
+| `SPEL_CLIENT_TIMEOUT_MS` | — | How long the CLI waits for the daemon's reply before `client_timeout` (default `30000`). Raise it on slow/loaded machines; it is a transport budget, not an action timeout |
 
 ## Network
 

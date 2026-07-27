@@ -3050,7 +3050,9 @@
            :path (:path ov-result) :size (:size ov-result) :annotated (:annotated ov-result)})))))
 
 (defmethod handle-cmd "evaluate" [_ {:strs [script base64]}]
-  (ensure-page-loaded!)
+  ;; No ensure-page-loaded! here on purpose: evaluating JS against a blank
+  ;; page is legitimate (bootstrapping a fixture, probing a replacement tab
+  ;; created by `tab close`), and Playwright evaluates fine on about:blank.
   (let [result (page/evaluate (pg) script)]
     (if base64
       {:result (.encodeToString (Base64/getEncoder)

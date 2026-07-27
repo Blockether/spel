@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(cdp): `connect` preflights the endpoint and fails fast with `cdp_endpoint_unreachable` instead of hanging
 - fix(cdp): disconnect/shutdown no longer close a user-owned browser, context, or tabs
 - fix(page): boxed `Long` args rejected by Playwright `evaluate` are now passed as ints
+- fix(daemon): `eval-js` works on a blank page again (no `No page loaded` on the replacement tab created by `tab close`)
+- fix(cli): transport timeout raised to 30s and made overridable via `SPEL_CLIENT_TIMEOUT_MS`; 12s produced spurious `client_timeout` on loaded machines
 
 ### Changed
 - perf(cli): deadline-based `poll-until` with backoff replaces flat 100 ms polling; orphan-daemon scan cached (250 ms TTL)

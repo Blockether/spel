@@ -3101,6 +3101,21 @@
 ;; Daemon Communication
 ;; =============================================================================
 
+(def ^:private default-client-timeout-ms
+  "Transport budget for one daemon round-trip.
+
+   Not an action timeout: the daemon enforces its own per-action budget. This
+   only decides how long the CLI waits for the daemon's reply line before
+   reporting `client_timeout`. It must stay comfortably above a slow cold
+   browser call, otherwise loaded machines (CI runners, cold caches) report
+   spurious timeouts for commands that actually succeed.
+
+   Override with SPEL_CLIENT_TIMEOUT_MS."
+  (or (when-let [v (System/getenv "SPEL_CLIENT_TIMEOUT_MS")]
+        (try (let [n (Long/parseLong (str/trim v))] (when (pos? n) n))
+          (catch NumberFormatException _ nil)))
+    30000))
+
 (defn send-command!
   "Sends a JSON command to the daemon and returns the parsed response.
 
@@ -3108,12 +3123,13 @@
    reads one JSON response line, and closes the connection.
 
    `timeout-ms` controls how long to wait for a response:
-   - positive long: wait up to that many milliseconds (default 12000)
+   - positive long: wait up to that many milliseconds (default
+     `default-client-timeout-ms`, 30000, overridable via SPEL_CLIENT_TIMEOUT_MS)
    - nil: block indefinitely until the daemon responds or throws.
      Use nil for eval-sci mode where each Playwright action has its own
      timeout — the transport layer should not race against it."
   ([^String session command-map]
-   (send-command! session command-map 12000))
+   (send-command! session command-map default-client-timeout-ms))
   ([^String session command-map timeout-ms]
    (let [command-map (cond-> command-map
                        (and (contains? command-map :args)
@@ -4265,7 +4281,7 @@
             session  (or (:session flags) "default")
             _        (ensure-daemon! session flags)
             flag-keys (dissoc flags :session :headless :json)
-            timeout  (if-let [ms (:timeout flags)] (+ (long ms) 2000) 12000)
+            timeout  (if-let [ms (:timeout flags)] (+ (long ms) 2000) default-client-timeout-ms)
             results  (loop [remaining (seq batch)
                             acc       []]
                        (if (empty? remaining)
@@ -4342,7 +4358,7 @@
                                                   (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
                                   nav-cmd   (cond-> {:action "navigate" :url nav-url}
                                               (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
-                                  timeout   (if-let [ms (:timeout flags)] (+ (long ms) 2000) 12000)
+                                  timeout   (if-let [ms (:timeout flags)] (+ (long ms) 2000) default-client-timeout-ms)
                                   _         (send-command! session nav-cmd timeout)
                     ;; Extra wait-for-load to handle redirects (issue #86)
                                   _         (when effective-url
@@ -4505,7 +4521,7 @@
           ;; iOS cold start remains a separate five-minute budget.
           timeout-ms (if-let [ms (:timeout flags)]
                        (+ (long ms) 2000)
-                       (if (= "ios" (:provider flags)) 300000 12000))
+                       (if (= "ios" (:provider flags)) 300000 default-client-timeout-ms))
           bridge-target (bridge/load-target)
           !daemon-failure (atom {:error nil :attempts 0})
           response (if bridge-target
