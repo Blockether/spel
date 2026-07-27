@@ -835,10 +835,37 @@
 
 (declare render-steps-html)
 
+(defn- content-free-step?
+  "True when a step carries nothing of its own — no parameters, no attachments,
+   no status details — so it exists purely to hold child steps."
+  [step]
+  (and (not (seq (get step "parameters")))
+    (not (seq (get step "attachments")))
+    (nil? (get step "statusDetails"))))
+
+(defn- unwrap-redundant-steps
+  "Collapse wrapper steps that only restate a label the reader already sees.
+
+   Allure results routinely nest the test (or parent step) name once more as the
+   sole child step, so an expanded card repeats the same sentence twice before
+   reaching the one line that matters. When `steps` is a single content-free step
+   whose name duplicates `parent-name`, its children are lifted in its place —
+   repeatedly, so a chain of such wrappers collapses to the first real step."
+  [steps parent-name]
+  (loop [steps (vec (or steps []))]
+    (let [only (when (= 1 (count steps)) (first steps))]
+      (if (and only
+            (seq (get only "steps"))
+            (content-free-step? only)
+            (= (str/trim (str (get only "name")))
+              (str/trim (str parent-name))))
+        (recur (vec (get only "steps")))
+        steps))))
+
 (defn- render-step-html [step results-dir]
   (let [name (html-escape (get step "name" "step"))
         st (get step "status" "unknown")
-        child-steps (get step "steps")
+        child-steps (unwrap-redundant-steps (get step "steps") (get step "name"))
         attachments (get step "attachments")
         params (get step "parameters")
         status-detail (get step "statusDetails")
@@ -915,7 +942,7 @@
          start (get result "start")
          stop (get result "stop")
          duration (when (and start stop) (- (long stop) (long start)))
-         steps (get result "steps")
+         steps (unwrap-redundant-steps (get result "steps") (get result "name"))
          desc (get result "description")
          status-detail (get result "statusDetails")
          message (when status-detail (get status-detail "message"))
@@ -959,9 +986,9 @@
        "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
        "<span class=\"test-name\">" name "</span>"
        (when (pos? step-count)
-         (str "<span class=\"test-chip\">" step-count " steps</span>"))
+         (str "<span class=\"test-chip\">" step-count (if (= 1 step-count) " step" " steps") "</span>"))
        (when (pos? attachment-count)
-         (str "<span class=\"test-chip\">" attachment-count " attachments</span>"))
+         (str "<span class=\"test-chip\">" attachment-count (if (= 1 attachment-count) " attachment" " attachments") "</span>"))
        (when duration
          (str "<span class=\"test-duration\">" (format-duration (long duration)) "</span>"))
        "</summary>"
@@ -1227,11 +1254,11 @@
 
   /* Header */
   .report-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: 0;
+    row-gap: 1rem;
     padding: 1.25rem 1.5rem;
     margin-bottom: 1rem;
     border: 2px solid var(--text);
@@ -1253,20 +1280,18 @@
     height: 4px;
     background: var(--accent);
   }
+  /* The logo and the text column participate directly in the header grid so
+     the meta chips below can line up with the title instead of the card edge. */
   .report-header-left {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 1.25rem;
-    flex: 1 1 auto;
-    min-width: 0;
+    display: contents;
   }
   .report-header-main {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
     min-width: 0;
-    flex: 1 1 auto;
+    grid-column: 2;
+    grid-row: 1;
   }
   .report-kicker {
     font-family: var(--font-mono);
@@ -1285,6 +1310,9 @@
     display: block;
     flex-shrink: 0;
     align-self: flex-start;
+    grid-column: 1;
+    grid-row: 1;
+    margin-right: 1.25rem;
     max-height: 56px;
     max-width: 220px;
     width: auto;
@@ -1338,7 +1366,10 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    /* Sits in the text column, indented under the title. */
+    grid-column: 2;
+    grid-row: 2;
   }
 
   /* Summary chips */
@@ -1384,18 +1415,17 @@
      rendered right under the report header so the trace is the first
      thing a reader can jump into. */
   .single-trace-hero {
-    /* Break out of the report-header's side padding so the border-top
-       spans edge-to-edge. `flex-basis: auto` releases the flex sizing
-       so the explicit `width: calc(100% + side-padding)` is honored,
-       and negative margins anchor it to the card edges. */
-    flex: 0 0 auto;
-    flex-basis: auto;
-    width: calc(100% + 5rem + 1.5rem);
+    /* Break out of the report-header grid's side padding so the border-top
+       spans edge-to-edge: it spans every column on its own row and the
+       negative side margins anchor it to the card edges. */
+    grid-column: 1 / -1;
+    grid-row: 3;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
-    margin: 0.75rem -5rem -1.25rem -1.5rem;
+    width: calc(100% + 3rem);
+    margin: 0.75rem -1.5rem -1.25rem;
     padding: 0.75rem 1.5rem 0.85rem;
     border-top: 1px solid var(--border);
     background: transparent;
@@ -2018,40 +2048,22 @@
   }
   details[open] > summary .disclosure-marker { transform: rotate(45deg); }
 
-  /* Step tree — each nesting level adds 1rem of indent via .step-tree's
-     own padding, and every .step-item carries a left border rail plus a
-     horizontal tick connecting it to its parent so the hierarchy is
-     visually unambiguous. */
+  /* Step tree — hierarchy is carried by indentation and the status icon
+     alone. No rails, ticks, or boxes: nested rules turned every expanded
+     card into a cage of lines, and the icon already says pass/fail. */
   .step-tree {
     list-style: none;
     margin: 0;
     padding: 0;
   }
   .step-item .step-tree {
-    padding: 0.25rem 0 0.25rem 0.5rem;
+    padding: 0 0 0 1.1rem;
   }
   .step-item {
     position: relative;
-    margin-top: 0.35rem;
-    padding: 0.3rem 0 0.3rem 0.6rem;
-    border-left: 2px solid var(--border);
+    margin-top: 0.15rem;
+    padding: 0.1rem 0;
   }
-  .step-item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0.9rem;
-    width: 0.4rem;
-    height: 1px;
-    background: var(--border);
-  }
-  .step-item.status-failed { border-left-color: var(--accent-red); }
-  .step-item.status-failed::before { background: var(--accent-red); }
-  .step-item.status-broken { border-left-color: var(--accent-yellow); }
-  .step-item.status-broken::before { background: var(--accent-yellow); }
-  /* Passed step-items keep the default neutral rail — only failures
-     stand out with a colored border. */
-  .step-item.status-passed { border-left-color: var(--border); }
   .step-header {
     display: flex;
     flex-wrap: wrap;
@@ -2457,13 +2469,18 @@
   @media (max-width: 768px) {
     .page-shell { padding: 0.5rem 0.5rem 1.5rem; }
     .report-header { padding: 0.85rem; gap: 0.75rem; }
-    .report-header-left { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .report-header { grid-template-columns: minmax(0, 1fr); row-gap: 0.75rem; }
+    .report-logo { grid-column: 1; grid-row: 1; margin-right: 0; }
+    .report-header-main { grid-column: 1; grid-row: 2; }
+    .single-trace-hero { grid-row: 4; width: calc(100% + 1.7rem); margin: 0.75rem -0.85rem -0.85rem; }
     .toolbar { padding: 0.5rem; gap: 0.4rem; top: 0; }
     .toolbar-search { max-width: none; min-width: 100px; }
     .suite-section > summary, .test-card > summary { padding: 0.5rem 0.6rem; }
     .report-meta {
       justify-content: flex-start;
       display: grid;
+      grid-column: 1;
+      grid-row: 3;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.4rem;
       width: 100%;

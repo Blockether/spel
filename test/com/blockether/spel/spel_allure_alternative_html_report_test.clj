@@ -686,3 +686,83 @@
           (expect (str/includes? html "https://ci.example/run/321")))
         (clean-dir! results-dir)
         (clean-dir! output-dir)))))
+
+(defdescribe alternative-report-step-tree-test
+  (describe "step tree"
+    (it "collapses a wrapper step that only restates the test name"
+      (let [output-dir (tmp-dir "alternative-output-steptree")
+            output-path (.getAbsolutePath output-dir)
+            results [{"uuid" "st-1"
+                      "historyId" "st-1"
+                      "name" "returns 00:00:00,000 for 0 ms"
+                      "fullName" "com.example.action-log-test.zero offset.returns 00:00:00,000 for 0 ms"
+                      "status" "passed"
+                      "start" 1000
+                      "stop" 1001
+                      "labels" [{"name" "suite" "value" "action-log-test"}]
+                      "steps" [{"name" "returns 00:00:00,000 for 0 ms"
+                                "status" "passed"
+                                "steps" [{"name" "expect: (= 0 0)" "status" "passed" "steps" []}]}]}]]
+        (alternative-report/generate-from-results! results output-path)
+        (let [html (slurp (io/file output-path "index.html"))]
+          ;; Exactly one rendered step: the duplicated wrapper is gone and the
+          ;; assertion is the single line under the card.
+          (expect (= 1 (count (re-seq #"class=\"step-item" html))))
+          (expect (str/includes? html "expect: (= 0 0)"))
+          (expect (= 1 (count (re-seq #"expect: \(= 0 0\)" html))))
+          ;; Chip counts the collapsed tree and reads in singular.
+          (expect (str/includes? html "1 step</span>"))
+          (expect (not (str/includes? html "1 steps</span>"))))
+        (clean-dir! output-dir)))
+
+    (it "renders the step tree without border rails or connector ticks"
+      (let [output-dir (tmp-dir "alternative-output-steprails")
+            output-path (.getAbsolutePath output-dir)
+            results [{"uuid" "st-2"
+                      "historyId" "st-2"
+                      "name" "nested"
+                      "fullName" "com.example.nested"
+                      "status" "passed"
+                      "start" 1000
+                      "stop" 1001
+                      "labels" [{"name" "suite" "value" "s"}]
+                      "steps" [{"name" "outer" "status" "passed"
+                                "steps" [{"name" "inner" "status" "passed" "steps" []}]}]}]]
+        (alternative-report/generate-from-results! results output-path)
+        (let [html (slurp (io/file output-path "index.html"))]
+          (expect (not (str/includes? html ".step-item::before")))
+          (expect (nil? (re-find #"\.step-item \{[^}]*border" html)))
+          ;; Genuine nesting is preserved — only duplicate labels collapse.
+          (expect (= 2 (count (re-seq #"class=\"step-item" html)))))
+        (clean-dir! output-dir)))))
+
+(defdescribe alternative-report-header-layout-test
+  (describe "header layout"
+    (it "indents the summary chips under the title column"
+      (let [output-dir (tmp-dir "alternative-output-header")
+            output-path (.getAbsolutePath output-dir)
+            results [{"uuid" "hd-1"
+                      "historyId" "hd-1"
+                      "name" "one"
+                      "fullName" "com.example.one"
+                      "status" "passed"
+                      "start" 1000
+                      "stop" 1001
+                      "labels" [{"name" "suite" "value" "s"}]
+                      "steps" []}]]
+        (alternative-report/generate-from-results! results output-path)
+        (let [html (slurp (io/file output-path "index.html"))
+              header-css (re-find #"\.report-header \{[^}]*\}" html)
+              meta-css (re-find #"\.report-meta \{[^}]*\}" html)]
+          ;; The header is a two-column grid: logo column, then the text column.
+          (expect (str/includes? header-css "display: grid"))
+          (expect (str/includes? header-css "grid-template-columns: auto minmax(0, 1fr)"))
+          ;; The wrapper dissolves so the logo and the text column are grid items.
+          (expect (str/includes? html ".report-header-left {\n    display: contents;"))
+          ;; The chips live in the text column, one row below the title — so they
+          ;; line up with the title instead of hugging the card edge.
+          (expect (str/includes? meta-css "grid-column: 2"))
+          (expect (str/includes? meta-css "grid-row: 2"))
+          (expect (str/includes? meta-css "justify-content: flex-start"))
+          (expect (not (str/includes? meta-css "justify-content: flex-end"))))
+        (clean-dir! output-dir)))))

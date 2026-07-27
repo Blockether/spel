@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- fix(report): drop the step-tree border rails and connector ticks — nesting now reads through indentation and the status icon alone
+- fix(report): collapse wrapper steps that only restate the test (or parent step) name, so an expanded card no longer repeats the same sentence before the one line that matters
+- fix(report): singular step/attachment chips (`1 step`, not `1 steps`)
+- fix(report): the header is now a two-column grid (logo / text), so the summary chips are indented under the title instead of hugging the card edge
+
 ## [v0.9.13] - 2026-07-27
 
 ### Changed
