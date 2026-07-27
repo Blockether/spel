@@ -545,6 +545,36 @@ spel codegen recording.jsonl > my_test.clj
 
 See [codegen CLI reference](resources/com/blockether/spel/templates/skills/spel/references/CODEGEN_CLI.md) for full actions and output formats.
 
+## Agent & Skill Files (regenerating AGENTS)
+
+`spel init-agents` scaffolds — and regenerates — the agent + skill tree that agent loops read: `SKILL.md`, every `references/*.md`, the `spel` agent file, and (optionally) a seed E2E test. Those docs ship **inside the binary**, so regenerate them after every `spel` upgrade.
+
+```bash
+# First time — pick your agent loop
+spel init-agents --ns my-app                 # OpenCode  → .opencode/agents/,  .opencode/skills/spel/
+spel init-agents --ns my-app --loop=claude   # Claude Code → .claude/agents/, .claude/skills/spel/
+spel init-agents --ns my-app --loop=agents   # tool-agnostic → .agents/skills/spel/
+
+# Regenerate after upgrading spel (overwrite the generated files, keep your seed test)
+spel version
+spel init-agents --ns my-app --force --no-tests
+
+# Preview first — writes nothing
+spel init-agents --ns my-app --force --dry-run
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--loop TARGET` | `opencode` (default), `claude`, `agents` |
+| `--ns NS` | Base namespace for generated tests (default: current directory name) |
+| `--flavour FLAVOUR` | `lazytest` (default) or `clojure-test` |
+| `--test-dir DIR` | Root for the seed E2E test (default: `test-e2e`) |
+| `--no-tests` | Scaffold agent + skill only |
+| `--dry-run` | Show what would be created |
+| `--force` | Overwrite existing files |
+
+`--force` rewrites every generated file, so keep project-specific instructions outside the generated skill tree (e.g. your own `AGENTS.md`/`CLAUDE.md`) and pass `--no-tests` so an edited seed test survives. `spel init-agents --help` is the authoritative flag list.
+
 ## Building from Source
 
 ```bash
@@ -564,6 +594,21 @@ make test-allure
 # Start REPL
 make repl
 ```
+
+## Releasing
+
+`resources/SPEL_VERSION` is the single source of truth: it is baked into every binary and printed by `spel version`. **A tag must match the `resources/SPEL_VERSION` of the commit it points at**, because the release reuses the binaries CI built for that exact commit.
+
+```bash
+# 1. main must be green (release downloads the CI artifacts of that commit)
+cat resources/SPEL_VERSION          # e.g. 0.9.14 — this is what the binaries will report
+
+# 2. tag that same commit with the matching version
+git tag -a v0.9.14 -m v0.9.14
+git push origin v0.9.14
+```
+
+The Release workflow refuses to publish when the tag and `resources/SPEL_VERSION` disagree, and re-checks that the built binaries actually print the tag version. After publishing it cuts the CHANGELOG, updates the README version, and bumps `resources/SPEL_VERSION` to the next patch on `main` — so always tag *after* that bump commit, never a commit before it.
 
 ## Changelog
 

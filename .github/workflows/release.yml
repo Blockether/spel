@@ -9,8 +9,32 @@ permissions:
   actions: read
 
 jobs:
+  # Guard: the binaries released for a tag are built from that commit's
+  # resources/SPEL_VERSION, so the tag MUST match it or the release ships
+  # binaries that self-report the wrong version.
+  verify-version:
+    runs-on: ubuntu-latest
+    name: Verify tag matches SPEL_VERSION
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Assert resources/SPEL_VERSION == tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FILE_VERSION="$(tr -d '[:space:]' < resources/SPEL_VERSION)"
+          echo "tag=$TAG_VERSION resources/SPEL_VERSION=$FILE_VERSION"
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match resources/SPEL_VERSION ($FILE_VERSION)."
+            echo "Binaries built from this commit self-report $FILE_VERSION, not $TAG_VERSION."
+            echo "Fix: set resources/SPEL_VERSION to $TAG_VERSION on main, wait for CI to go green,"
+            echo "delete this tag and re-tag that commit — or tag the commit that already carries $TAG_VERSION."
+            exit 1
+          fi
+          echo "Version guard passed: $TAG_VERSION"
+
   # Only linux-arm64 needs building — the other 3 binaries are reused from CI.
   build-arm64:
+    needs: verify-version
     runs-on: ubuntu-24.04-arm
     name: Build spel-linux-arm64
     defaults:
@@ -53,7 +77,13 @@ jobs:
           echo "=== spel --help ==="
           target/spel --help
           echo "=== spel version ==="
-          target/spel version
+          VERSION_OUT="$(target/spel version)"
+          echo "$VERSION_OUT"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          case "$VERSION_OUT" in
+            *"$TAG_VERSION"*) echo "version matches tag $TAG_VERSION" ;;
+            *) echo "::error::spel version reported '$VERSION_OUT' but the tag is $TAG_VERSION"; exit 1 ;;
+          esac
           echo "=== All CLI smoke tests passed ==="
 
       - name: Upload artifact
@@ -63,7 +93,7 @@ jobs:
           path: target/spel
 
   release:
-    needs: build-arm64
+    needs: [verify-version, build-arm64]
     runs-on: ubuntu-latest
     name: Release & Deploy to Clojars
 
@@ -175,6 +205,19 @@ jobs:
 
           echo "=== Final artifact layout ==="
           ls -lR artifacts/
+
+      # --- Last line of defence: the CI-built binaries must carry the tag version ---
+      - name: Verify binaries report the tag version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          BIN=artifacts/spel-linux-amd64/spel-linux-amd64
+          chmod +x "$BIN"
+          VERSION_OUT="$($BIN version)"
+          echo "$BIN -> $VERSION_OUT"
+          case "$VERSION_OUT" in
+            *"$TAG_VERSION"*) echo "released binaries report $TAG_VERSION" ;;
+            *) echo "::error::CI binary reports '$VERSION_OUT' but the tag is $TAG_VERSION — refusing to publish"; exit 1 ;;
+          esac
 
       # --- GitHub Release with binaries ---
       - name: Create GitHub Release

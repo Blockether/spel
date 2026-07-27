@@ -182,6 +182,10 @@ Both jobs cache Clojure deps with `deps-${{ runner.os }}-${{ hashFiles('deps.edn
 12. `Bump SPEL_VERSION to next patch`
 13. `Commit version updates`
 
+### Version invariant
+
+The release reuses the binaries CI built for the tagged commit, so `resources/SPEL_VERSION` at that commit is what `spel version` prints forever. The workflow therefore starts with a `verify-version` job that fails unless the tag (`vX.Y.Z`) equals `resources/SPEL_VERSION`, and re-checks the downloaded CI binary before publishing. Tag only a commit at or after the workflow's own `release: update version files ...` bump commit.
+
 ## Running locally
 
 ```bash
