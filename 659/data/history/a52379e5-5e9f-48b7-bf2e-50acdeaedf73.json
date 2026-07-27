@@ -1,0 +1,1 @@
+{"uuid":"a52379e5-5e9f-48b7-bf2e-50acdeaedf73","name":"#657 · b8a4e16c3ad8533c91010002bb1b67e849df1207 · Karol Wojcik · fix(daemon): guard commands with a watchdog budget so a wedged action cannot freeze the daemon","timestamp":1785147969817,"knownTestCaseIds":[],"testResults":{},"metrics":{},"url":""}
