@@ -595,6 +595,18 @@ make test-allure
 make repl
 ```
 
+## Vulnerability scanning (CVEs)
+
+spel continuously scans its complete direct and transitive Clojure dependency graph with [clj-watson](https://github.com/clj-holmes/clj-watson). Live findings are published as SARIF in the repository's [Security → Code scanning](https://github.com/Blockether/spel/security/code-scanning) tab and retained with each **Security audit** workflow run.
+
+Run the fast GitHub Advisory Database scan locally with a GitHub token:
+
+```bash
+GITHUB_TOKEN=<your-token> clojure -M:clj-watson scan -p deps.edn -a '*' -t github-advisory -s
+```
+
+The workflow runs this scan for `deps.edn` and scanner-workflow changes, on pull requests, weekly, and on manual dispatch. Its `nvd-scan` job additionally runs OWASP Dependency-Check against NIST NVD on scheduled or manual runs when the repository `NVD_API_KEY` secret is configured. Scans are report-only by default; SARIF findings remain the source of truth.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).

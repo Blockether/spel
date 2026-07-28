@@ -1,0 +1,162 @@
+name: Security audit (clj-watson)
+
+# Software Composition Analysis (SCA) for spel's complete Clojure dependency graph.
+# clj-watson resolves direct and transitive dependencies and reports known CVEs.
+#
+# The default github-advisory strategy uses the workflow GITHUB_TOKEN and publishes
+# SARIF to GitHub code scanning. The deeper NVD/dependency-check scan runs weekly
+# and on demand when the NVD_API_KEY repository secret is configured.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deps.edn'
+      - '.github/workflows/security-audit.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deps.edn'
+      - '.github/workflows/security-audit.yml'
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  clj-watson:
+    name: clj-watson SCA scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: clj-watson-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          restore-keys: clj-watson-${{ runner.os }}-
+
+      - name: Run clj-watson dependency scan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          # SARIF is followed by a plain-text summary; retain only the JSON object.
+          clojure -M:clj-watson scan -p deps.edn -a '*' \
+            -t github-advisory -o sarif > clj-watson.raw 2> clj-watson.stderr || true
+          sed -n '/^{/,/^}/p' clj-watson.raw > clj-watson.sarif
+          {
+            echo "## clj-watson dependency scan"
+            echo ''
+            grep -E '^(Dependencies scanned|Vulnerable dependencies found):' clj-watson.raw \
+              || echo 'No summary produced — see the raw log below.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Dependencies scanned|Vulnerable dependencies found):' clj-watson.raw || true
+
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        continue-on-error: true # artifact below remains available without code scanning
+        with:
+          sarif_file: clj-watson.sarif
+          category: clj-watson
+
+      - name: Archive scan results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: clj-watson-sarif
+          path: |
+            clj-watson.sarif
+            clj-watson.raw
+            clj-watson.stderr
+          retention-days: 90
+
+  nvd-scan:
+    name: clj-watson NVD scan (dependency-check)
+    runs-on: ubuntu-latest
+    # The NVD database is slow to download, so avoid normal pushes and PRs.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check NVD API key is provisioned
+        id: guard
+        env:
+          CLJ_WATSON_NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run:
+          if [ -z "${CLJ_WATSON_NVD_API_KEY}" ]; then
+            echo "::warning::NVD_API_KEY secret not set — skipping the NVD/dependency-check scan. Add it in repository Actions secrets."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        if: steps.guard.outputs.run == 'true'
+        with:
+          cli: latest
+
+      - uses: actions/cache@v6
+        if: steps.guard.outputs.run == 'true'
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: clj-watson-nvd-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          restore-keys: |
+            clj-watson-nvd-${{ runner.os }}-
+            clj-watson-${{ runner.os }}-
+
+      - name: Run clj-watson NVD scan
+        if: steps.guard.outputs.run == 'true'
+        env:
+          # Scope the external-service credential to the scanner process only;
+          # setup/cache actions must never inherit it.
+          CLJ_WATSON_NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run:
+          set -uo pipefail
+          clojure -M:clj-watson scan -p deps.edn -a '*' \
+            -t dependency-check -o sarif > clj-watson-nvd.raw 2> clj-watson-nvd.stderr || true
+          sed -n '/^{/,/^}/p' clj-watson-nvd.raw > clj-watson-nvd.sarif
+          {
+            echo "## clj-watson NVD scan (dependency-check)"
+            echo ''
+            grep -E '^(Dependencies scanned|Vulnerable dependencies found):' clj-watson-nvd.raw \
+              || echo 'No summary produced — see the raw log below.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Dependencies scanned|Vulnerable dependencies found):' clj-watson-nvd.raw || true
+
+      - name: Upload NVD SARIF to GitHub code scanning
+        if: steps.guard.outputs.run == 'true'
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
+        with:
+          sarif_file: clj-watson-nvd.sarif
+          category: clj-watson-nvd
+
+      - name: Archive NVD scan results
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: clj-watson-nvd-sarif
+          path: |
+            clj-watson-nvd.sarif
+            clj-watson-nvd.raw
+            clj-watson-nvd.stderr
+          retention-days: 90

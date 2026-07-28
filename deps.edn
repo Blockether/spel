@@ -25,6 +25,13 @@
                         slipset/deps-deploy           {:mvn/version "0.2.5"}}
            :ns-default build}
 
+  ;; Software Composition Analysis (CVE scan). Pinned to keep local and CI
+  ;; advisory results reproducible; see .github/workflows/security-audit.yml.
+  :clj-watson {:main-opts ["-m" "clj-watson.cli"]
+               :replace-deps {io.github.clj-holmes/clj-watson
+                              {:git/sha "be98e4db74fb8927db4825cc73bbe2606e44e5e3"
+                               :git/tag "v6.1.0"}}}
+
   :e2e    {:extra-paths ["test-e2e"]
            :main-opts   ["-m" "lazytest.main" "--dir" "test-e2e"]}
 
