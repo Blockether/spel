@@ -631,7 +631,17 @@
           (let [port (.getPort (.getAddress server))]
             (expect (= port (#'sut/probe-http-cdp port 1000))))
           (finally
-            (.stop server 0)))))))
+            (.stop server 0)))))
+
+    (it "requires an accepted CDP endpoint rather than only an open TCP port"
+      (with-redefs-fn {#'sut/probe-http-cdp (fn [& _] nil)
+                       #'sut/port-in-use?  (fn [& _]
+                                             (throw (ex-info "must not use TCP readiness" {})))}
+        #(expect (false? (#'sut/cdp-ready? 9222)))))
+
+    (it "accepts a port after Chrome exposes its CDP endpoint"
+      (with-redefs-fn {#'sut/probe-http-cdp (fn [_ _] 9222)}
+        #(expect (true? (#'sut/cdp-ready? 9222)))))))
 
 ;; =============================================================================
 ;; Unit Tests — process-command with _flags

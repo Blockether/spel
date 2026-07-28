@@ -465,6 +465,13 @@
    (when (read-cdp-json-version host port timeout-ms)
      port)))
 
+(defn- cdp-ready?
+  "Returns true only after the browser has exposed an accepted HTTP CDP endpoint.
+   A listening TCP port alone is insufficient: Chrome 144+ can accept TCP while
+   it waits for the user to approve remote debugging."
+  [port]
+  (boolean (probe-http-cdp port 500)))
+
 (defn- list-devtools-active-ports
   "Returns a seq of {:port :ws-path :label :source-path} parsed from every
    DevToolsActivePort file candidate on the current OS (see
@@ -997,9 +1004,9 @@
         pid       (.pid process)]
     ;; Write lock file immediately to claim the port
     (write-auto-launch-lock! port session pid)
-    ;; Wait for a live CDP listener (up to 15s). `connectOverCDP` verifies the
-    ;; protocol after this function returns; the TCP fallback keeps native-image
-    ;; startup from rejecting a ready Chrome when its JSON probe is unavailable.
+    ;; Do not return until Chrome has accepted CDP. A TCP listener alone may
+    ;; precede the Chrome 144+ user-approval dialog; returning then merely
+    ;; moves the timeout to connectOverCDP and leaves a misleading daemon state.
     (loop [deadline (+ (System/currentTimeMillis) 15000) wait 5]
       (cond
         (> (System/currentTimeMillis) deadline)
@@ -1015,7 +1022,7 @@
                             (.exitValue process) "). Binary: " binary)
                    {:port port :channel channel :exit-code (.exitValue process)})))
 
-        (or (probe-http-cdp port 500) (port-in-use? port))
+        (cdp-ready? port)
         (do
           (log/info! "auto-launch: " channel " ready on port " port " (PID " pid ")")
           {:cdp-url     (str "http://127.0.0.1:" port)
