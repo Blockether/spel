@@ -957,6 +957,8 @@
         (do (Thread/sleep (long wait))
           (recur deadline (min 100 (* 2 (long wait)))))))))
 
+(declare kill-auto-launched-browser!)
+
 (defn auto-launch-browser!
   "Launches a browser with --remote-debugging-port on a free port.
    Uses a temp user-data-dir so the user's existing browser stays untouched.
@@ -995,25 +997,25 @@
         pid       (.pid process)]
     ;; Write lock file immediately to claim the port
     (write-auto-launch-lock! port session pid)
-    ;; Wait for the CDP endpoint to be ready (up to 15s)
+    ;; Wait for a live CDP listener (up to 15s). `connectOverCDP` verifies the
+    ;; protocol after this function returns; the TCP fallback keeps native-image
+    ;; startup from rejecting a ready Chrome when its JSON probe is unavailable.
     (loop [deadline (+ (System/currentTimeMillis) 15000) wait 5]
       (cond
         (> (System/currentTimeMillis) deadline)
         (do
-          ;; Cleanup on failure
-          (.destroyForcibly process)
-          (clear-auto-launch-lock! port)
+          (kill-auto-launched-browser! {:port port :browser-pid pid :tmp-dir tmp-dir})
           (throw (ex-info (str "Auto-launched browser did not start within 15 seconds on port " port)
                    {:port port :channel channel :pid pid})))
 
         (not (.isAlive process))
         (do
-          (clear-auto-launch-lock! port)
+          (kill-auto-launched-browser! {:port port :browser-pid pid :tmp-dir tmp-dir})
           (throw (ex-info (str "Auto-launched browser process exited immediately (exit code: "
                             (.exitValue process) "). Binary: " binary)
                    {:port port :channel channel :exit-code (.exitValue process)})))
 
-        (probe-http-cdp port 500)
+        (or (probe-http-cdp port 500) (port-in-use? port))
         (do
           (log/info! "auto-launch: " channel " ready on port " port " (PID " pid ")")
           {:cdp-url     (str "http://127.0.0.1:" port)
