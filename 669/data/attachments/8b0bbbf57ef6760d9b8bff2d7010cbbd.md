@@ -1,0 +1,20 @@
+## GET http://localhost:40185/status/200 → 200 OK
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Tue, 28 Jul 2026 15:07:26 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 200
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:40185/status/200'
+```
