@@ -1,0 +1,22 @@
+## GET http://localhost:44597/echo?id=1 → 200 OK
+
+### Response Headers
+```
+content-length: 46
+content-type: application/json
+date: Tue, 28 Jul 2026 17:00:30 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "GET",
+  "path": "/echo",
+  "query": "id=1"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:44597/echo?id=1'
+```
