@@ -26,12 +26,14 @@
    [clojure.xml :as xml]
    [com.blockether.spel.webdriver :as webdriver])
   (:import
-   [java.io ByteArrayInputStream File]
+   [java.io ByteArrayInputStream File InputStream]
    [java.lang ProcessBuilder$Redirect ProcessHandle]
    [java.net InetAddress ServerSocket]
    [java.nio.file Files LinkOption OpenOption Path StandardOpenOption]
    [java.time Instant]
-   [java.util.concurrent.locks ReentrantLock]))
+   [java.util.concurrent.locks ReentrantLock]
+   [javax.xml.parsers SAXParser]
+   [org.xml.sax.helpers DefaultHandler]))
 
 ;; =============================================================================
 ;; Data model
@@ -967,13 +969,23 @@
     (when (= "false" (str/lower-case (str (get attrs :enabled "true")))) " [disabled]")
     (when (true-attribute? (get attrs :selected)) " [selected]")))
 
+(defn- native-startparse-sax-safe
+  "Invokes SAXParser.parse without Clojure's reflective overload dispatch.
+   GraalVM native images cannot resolve clojure.xml/startparse-sax-safe's
+   unhinted three-argument instance call at runtime."
+  [^InputStream source ^DefaultHandler handler]
+  (let [^SAXParser parser (xml/disable-external-entities (xml/sax-parser))]
+    (.parse parser source handler)))
+
 (defn native-snapshot-from-xml
   "Converts Appium's XCTest XML source into a compact semantic tree with
    snapshot-scoped native refs. Each ref stores an XPath locator.
 
    Returns {:tree :refs :counter :native true :context \"NATIVE_APP\"}."
   [source]
-  (let [root    (xml/parse (ByteArrayInputStream. (.getBytes (str source) "UTF-8")))
+  (let [root    (xml/parse
+                  (ByteArrayInputStream. (.getBytes (str source) "UTF-8"))
+                  native-startparse-sax-safe)
         refs*   (atom {})
         counter (atom 0)
         lines*  (atom [])]

@@ -15,6 +15,7 @@
   (:require
    [charred.api :as json]
    [clojure.string :as str]
+   [clojure.xml :as xml]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]
    [com.blockether.spel.ios :as sut]
    [com.blockether.spel.webdriver :as webdriver])
@@ -109,7 +110,13 @@
         (expect (= "element-3"
                   (sut/wait-for-element :session "role=button"
                     {:timeout-ms 100 :interval-ms 0})))
-        (expect (= 3 @attempts))))))
+        (expect (= 3 @attempts)))))
+
+  (it "bypasses clojure.xml's reflective SAX entrypoint for native images"
+    (with-redefs [xml/startparse-sax-safe
+                  (fn [& _]
+                    (throw (ex-info "reflective SAX entrypoint called" {})))]
+      (expect (= 2 (:counter (sut/native-snapshot-from-xml sample-native-source)))))))
 
 ;; =============================================================================
 ;; Device parsing
