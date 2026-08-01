@@ -1132,6 +1132,16 @@
   [{:keys [webdriver]}]
   (webdriver/hide-keyboard webdriver))
 
+(defn orientation
+  "Returns the current iOS device orientation as :portrait or :landscape."
+  [{:keys [webdriver]}]
+  (webdriver/orientation webdriver))
+
+(defn set-orientation!
+  "Rotates the iOS device to :portrait or :landscape."
+  [{:keys [webdriver]} requested]
+  (webdriver/set-orientation webdriver requested))
+
 ;; =============================================================================
 ;; Gestures
 ;; =============================================================================

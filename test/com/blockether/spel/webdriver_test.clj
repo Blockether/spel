@@ -561,4 +561,18 @@
                   (mapv #(get-in % [:body "script"]) @(:requests srv))))
         (expect (= [{"bundleId" "com.example.app"
                      "access" {"camera" "yes"}}]
-                  (get-in (last @(:requests srv)) [:body "args"])))))))
+                  (get-in (last @(:requests srv)) [:body "args"]))))))
+
+  (it "reads and changes device orientation through WebDriver"
+    (with-fake-server srv
+      ((:respond! srv)
+       {:status 200 :body {"value" nil}}
+       {:status 200 :body {"value" "LANDSCAPE"}})
+      (let [session (fake-session srv)]
+        (expect (= :landscape (sut/set-orientation session :landscape)))
+        (let [[write read] @(:requests srv)]
+          (expect (= "POST" (:method write)))
+          (expect (= "/session/sess-1/orientation" (:path write)))
+          (expect (= "LANDSCAPE" (get-in write [:body "orientation"])))
+          (expect (= "GET" (:method read)))
+          (expect (= "/session/sess-1/orientation" (:path read))))))))

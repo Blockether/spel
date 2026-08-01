@@ -606,6 +606,29 @@
   [session]
   (execute-mobile session "mobile: hideKeyboard" {}))
 
+(def ^:private supported-orientations
+  #{:portrait :landscape})
+
+(defn orientation
+  "Returns the current device orientation as :portrait or :landscape."
+  [session]
+  (some-> (session-request session :get (session-path session "/orientation") nil)
+    str
+    str/lower-case
+    keyword))
+
+(defn set-orientation
+  "Rotates the device to :portrait or :landscape and returns the resulting orientation."
+  [session requested]
+  (let [requested (keyword requested)]
+    (when-not (contains? supported-orientations requested)
+      (throw (ex-info "Orientation must be :portrait or :landscape."
+               {:orientation requested
+                :supported supported-orientations})))
+    (session-request session :post (session-path session "/orientation")
+      {"orientation" (str/upper-case (name requested))})
+    (or (orientation session) requested)))
+
 (defn element-text
   "Returns an element's rendered/accessibility text."
   [session ^String element-id]

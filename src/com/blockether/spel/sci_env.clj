@@ -383,6 +383,16 @@
   []
   (ios/hide-keyboard! (require-ios-session!)))
 
+(defn sci-ios-orientation
+  "Returns the current iOS device orientation as :portrait or :landscape."
+  []
+  (ios/orientation (require-ios-session!)))
+
+(defn sci-ios-set-orientation!
+  "Rotates the iOS device to :portrait or :landscape."
+  [requested]
+  (ios/set-orientation! (require-ios-session!) requested))
+
 (defn sci-start!
   ([] (sci-start! {}))
   ([opts]
@@ -2182,6 +2192,8 @@
                   ['ios-permission        sci-ios-permission]
                   ['ios-set-permission!   sci-ios-set-permission!]
                   ['ios-hide-keyboard!    sci-ios-hide-keyboard!]
+                  ['ios-orientation       sci-ios-orientation]
+                  ['ios-set-orientation!  sci-ios-set-orientation!]
                   ;; Navigation
                   ['navigate      sci-goto]
                   ['goto          sci-goto]
