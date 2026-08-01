@@ -286,6 +286,144 @@
     #"(?m)^compatibility:.*$"
     (str "compatibility: " compatibility)))
 
+(def ^:private reference-version-pattern
+  "Machine-readable first-line marker added to every scaffolded reference."
+  #"^<!-- spel-reference-version: ([^ ]+) -->$")
+
+(defn- stamp-reference
+  "Prepends the running spel release marker to a generated reference. The marker
+   is an HTML comment, so it is inert in Markdown and HTML templates."
+  [content]
+  (str "<!-- spel-reference-version: " @spel-version " -->\n" content))
+
+;; =============================================================================
+;; Skill / Release Drift Check
+;; =============================================================================
+
+(def ^:private skill-check-env
+  "Env var that silences the scaffolded-skill drift check when set to `false`."
+  "SPEL_SKILL_CHECK")
+
+(def ^:private skill-search-depth
+  "How many directory levels (cwd plus ancestors) are scanned for a scaffolded
+   skill tree, so running spel from a subdirectory still finds the project one."
+  6)
+
+(defn- skill-file-version
+  "Reads the top-level `version:` frontmatter field of a generated SKILL.md.
+   Returns nil when the file is unreadable or predates the version stamp."
+  [^java.io.File file]
+  (try
+    (when-let [[fm-str _] (extract-frontmatter (slurp file))]
+      (not-empty (strip-matching-quotes (or (extract-fm-field fm-str "version") ""))))
+    (catch Exception _ nil)))
+
+(defn- reference-file-version
+  "Reads a generated reference's first-line release marker without slurping the
+   potentially large reference body. Returns nil for an unreadable or unstamped
+   file."
+  [^java.io.File file]
+  (try
+    (with-open [^java.io.BufferedReader reader (io/reader file)]
+      (some->> (.readLine reader)
+        (re-matches reference-version-pattern)
+        second))
+    (catch Exception _ nil)))
+
+(defn- scaffolded-references
+  "Existing shipped references under one generated skill, stamped or legacy.
+   Unknown user-added files are ignored; every reference spel itself scaffolds is
+   checked."
+  [dir skill-dir]
+  (into []
+    (keep (fn [filename]
+            (let [rel  (str skill-dir "/references/" filename)
+                  file (io/file dir rel)]
+              (when (.isFile file)
+                {:path rel
+                 :file file
+                 :version (reference-file-version file)}))))
+    (cons "TESTING_CONVENTIONS.md" reference-files)))
+
+(defn scaffolded-skills
+  "Scaffolded spel skills sitting directly under `dir`, one entry per loop target
+   whose SKILL.md exists (.opencode, .claude, .agents).
+
+   Each entry includes {:loop-target :path :file :version :references}; every
+   existing reference shipped by spel carries its independently checked release
+   marker."
+  [dir]
+  (into []
+    (keep (fn [[loop-target {:keys [skill-dir]}]]
+            (let [rel  (str skill-dir "/SKILL.md")
+                  file (io/file dir rel)]
+              (when (.isFile file)
+                {:loop-target loop-target
+                 :path        rel
+                 :file        file
+                 :version     (skill-file-version file)
+                 :references  (scaffolded-references dir skill-dir)}))))
+    (sort-by key loop-targets)))
+
+(defn find-scaffolded-skills
+  "Walks up from `start-dir` (default: the process working directory) and returns
+   `[root skills]` for the nearest directory that holds a scaffolded skill tree,
+   or nil when none is found within `skill-search-depth` levels."
+  ([] (find-scaffolded-skills (System/getProperty "user.dir")))
+  ([start-dir]
+   (loop [^java.io.File dir (some-> start-dir io/file .getAbsoluteFile)
+          depth 0]
+     (when (and dir (< (long depth) (long skill-search-depth)))
+       (let [skills (scaffolded-skills dir)]
+         (if (seq skills)
+           [dir skills]
+           (recur (.getParentFile dir) (inc (long depth)))))))))
+
+(defn skill-drift-warning
+  "Warning text when the nearest scaffolded skill tree or any of its generated
+   references came from a spel version other than the running one, else nil.
+
+   SKILL.md pins the release in frontmatter; every generated reference pins it in
+   a first-line HTML comment. The check reads only that line, even for large API
+   and report references. Never throws."
+  ([] (skill-drift-warning (System/getProperty "user.dir")))
+  ([start-dir]
+   (try
+     (let [running @spel-version]
+       (when-let [[_ skills] (find-scaffolded-skills start-dir)]
+         (let [stale (->> skills
+                       (mapcat (fn [{:keys [path version references]}]
+                                 (cons {:path path :version version} references)))
+                       (remove #(= running (:version %)))
+                       vec)]
+           (when (seq stale)
+             (str/join "\n"
+               (concat
+                 [(str "spel: agent skill is OUT OF SYNC with this spel release (" running ").")]
+                 (map (fn [{:keys [path version]}]
+                        (str "  " path " was generated from spel "
+                          (or version "an unknown version") "."))
+                   (take 8 stale))
+                 (when (> (count stale) 8)
+                   [(str "  ... and " (- (count stale) 8) " more stale references.")])
+                 ["  Regenerate it: spel init-agents --force --no-tests"
+                  (str "  Silence this check: " skill-check-env "=false")]))))))
+     (catch Exception _ nil))))
+
+(defn warn-on-skill-drift!
+  "Prints `skill-drift-warning` to stderr, so JSON stdout stays machine-readable.
+   Opt out with `SPEL_SKILL_CHECK=false`. Never throws."
+  ([] (warn-on-skill-drift! (System/getProperty "user.dir")))
+  ([start-dir]
+   (try
+     (when-not (= "false" (some-> (System/getenv skill-check-env) str/trim str/lower-case))
+       (when-let [warning (skill-drift-warning start-dir)]
+         (binding [*out* *err*]
+           (println warning)
+           (flush))))
+     (catch Exception _ nil))
+   nil))
+
 ;; =============================================================================
 ;; CLI Argument Parsing
 ;; =============================================================================
@@ -359,7 +497,8 @@
 
 (defn- scaffold-file
   "Scaffolds a single file from a template.
-   Applies frontmatter transformation for non-OpenCode loop targets.
+   Applies frontmatter transformation for non-OpenCode loop targets and release
+   stamps every generated reference.
    Returns {:created true/false :skipped true/false :reason string}."
   [resource-path output-path _description _icon opts ns-name loop-target agent-name]
   (let [dry-run (:dry-run opts)
@@ -379,7 +518,10 @@
                               (process-template ns-name flavour)
                               (transform-agent-template loop-target agent-name))
                       (str/ends-with? resource-path "SKILL.md")
-                      (set-skill-compatibility (:compatibility (get loop-targets loop-target))))
+                      (set-skill-compatibility (:compatibility (get loop-targets loop-target)))
+
+                      (str/includes? output-path "/references/")
+                      (stamp-reference))
             written? (write-file! output-path content dry-run)]
         (if dry-run
           {:created false :skipped false :dry-run true :reason "(dry-run)"}
@@ -534,7 +676,7 @@
                             (println "Warning: No --ns provided, deriving from directory name.")
                             (println "         Tip: use --ns my-app to set namespace explicitly.")
                             (println ""))
-                          (derive-namespace)))
+                        (derive-namespace)))
             test-dir (:test-dir opts)]
         (print-banner loop-target no-tests)
 

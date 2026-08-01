@@ -83,6 +83,7 @@ is daemon-local state, so health answers even while the browser is stuck.
 | `SPEL_AUTO_LAUNCH` | `--auto-launch` | Launch browser with debug port, per-session isolation (any value) |
 | `SPEL_ARGS` | `--args` | Extra Chromium launch args (comma-separated) |
 | `SPEL_DEBUG` | `--debug` | Set to `true` for verbose debug logging |
+| `SPEL_SKILL_CHECK` | — | Set to `false` to silence the stderr warning when SKILL.md or any generated reference differs from the running spel release |
 
 ## Examples
 

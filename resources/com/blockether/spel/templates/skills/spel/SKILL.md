@@ -8,7 +8,7 @@ compatibility: opencode
 
 # spel
 
-Use the `spel` CLI for interactive work and `eval-sci` for reusable browser scripts. This skill was generated from spel **{{version}}**. Run `spel version` once before the first operation: if the runtime differs, trust runtime `spel <command> --help`, call out the stale skill, and regenerate it with that installed spel version before relying on version-specific APIs.
+Use the `spel` CLI for interactive work and `eval-sci` for reusable browser scripts. This skill and each shipped reference were generated from spel **{{version}}**. Every spel command automatically checks their release markers and warns on stderr when they differ from the runtime. If warned, trust `spel <command> --help` and regenerate with `spel init-agents --force --no-tests` before relying on version-specific APIs.
 
 ## Start safely
 

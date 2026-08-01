@@ -1106,7 +1106,13 @@
         cmd-args  (:command-args global)
         first-arg (first cmd-args)
         ;; Set Playwright action timeout — sci-start! picks it up in eval-sci mode
-        _         (when (:timeout-ms global) (sci-env/set-default-timeout! (:timeout-ms global)))]
+        _         (when (:timeout-ms global) (sci-env/set-default-timeout! (:timeout-ms global)))
+        ;; Skill drift — every invocation compares the project's scaffolded
+        ;; skill tree (.opencode/.claude/.agents) against this binary's version
+        ;; and warns on stderr. Skipped for the command that regenerates it and
+        ;; for the internal daemon process.
+        _         (when-not (#{"init-agents" "daemon"} first-arg)
+                    (init-agents/warn-on-skill-drift!))]
     (cond
       ;; Subcommands — dispatch BEFORE global --help so each tool handles its own --help
       (= "init-agents" first-arg)
