@@ -144,17 +144,27 @@ jobs:
           COMMIT_SHA="${GITHUB_SHA}"
           echo "Looking for CI artifacts on commit $COMMIT_SHA"
 
-          # Find the CI workflow run for this commit
-          RUN_ID=$(gh run list --workflow=ci.yml --commit="$COMMIT_SHA" --status=success \
-            --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+          # Tag pushes start CI and release together. Wait for the same-commit CI
+          # run instead of racing it and mistaking "still running" for "missing".
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID=$(gh run list --workflow=ci.yml --commit="$COMMIT_SHA" --limit=1 \
+              --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+              break
+            fi
+            echo "CI run is not visible yet (attempt $attempt/30); waiting 10s..."
+            sleep 10
+          done
 
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "::error::No successful CI run found for commit $COMMIT_SHA"
-            echo "Make sure CI passes before tagging a release."
+            echo "::error::No CI run found for commit $COMMIT_SHA after 5 minutes"
             exit 1
           fi
 
-          echo "Found CI run: $RUN_ID"
+          echo "Waiting for CI run $RUN_ID to finish..."
+          gh run watch "$RUN_ID" --exit-status --interval 10
+          echo "CI run $RUN_ID succeeded"
 
           for ARTIFACT in spel-linux-amd64 spel-macos-arm64 spel-windows-amd64; do
             echo "Downloading $ARTIFACT from CI run $RUN_ID..."
