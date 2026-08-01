@@ -1,0 +1,1 @@
+{"id":"d459750b1d073050cbe2b68db837a230","fullName":"com.blockether.spel.ios-test.stop! releases only owned resources.lock files live in the tmpdir keyed by UDID","name":"stop! releases only owned resources > lock files live in the tmpdir keyed by UDID","status":"passed","testResultsByEnv":{"default":"f8de59f8fd3b158b343f1d6597506119"}}

@@ -1,0 +1,13 @@
+## GET http://localhost:37065/health → 200 OK
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Sat, 01 Aug 2026 19:48:24 GMT
+```
+
+### cURL
+```bash
+curl 'http://localhost:37065/health'
+```
