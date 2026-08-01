@@ -34,18 +34,26 @@ Shape every reply ADHD-shaped, caveman-terse — see the skill's **Reply style**
 ## Typical starting patterns
 
 ```bash
-spel --session exp-$(date +%s) open https://example.com
-spel --session exp-$(date +%s) snapshot -i
-spel --session exp-$(date +%s) eval-sci '(spel/title)'
+# Resolve the name once. If later commands run in fresh shells, retain this
+# resolved value in agent state; do not evaluate the timestamp again.
+SESSION="exp-$(date +%s)"
+spel --session "$SESSION" open https://example.com
+spel --session "$SESSION" snapshot -i
+spel --session "$SESSION" eval-sci '(spel/title)'
+spel --session "$SESSION" close
 ```
 
 ```bash
-spel --session auto-$(date +%s) --auto-launch open https://example.com
-spel --session auto-$(date +%s) --auto-launch snapshot -i
+SESSION="auto-$(date +%s)"
+spel --session "$SESSION" --auto-launch open https://example.com
+spel --session "$SESSION" --auto-launch snapshot -i
+spel --session "$SESSION" close
 ```
 
 ```bash
 # Explicit CDP endpoint:
-spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 open https://example.com
-spel --session cdp-$(date +%s) --cdp http://127.0.0.1:9222 snapshot -i
+SESSION="cdp-$(date +%s)"
+spel --session "$SESSION" --cdp http://127.0.0.1:9222 open https://example.com
+spel --session "$SESSION" --cdp http://127.0.0.1:9222 snapshot -i
+spel --session "$SESSION" close
 ```

@@ -327,12 +327,14 @@ spel --profile /tmp/fresh-profile open https://example.com
 - Always close sessions when done.
 - Use named sessions (`spel --session run-$(date +%s) …`).
 - Never share profiles between concurrent processes — Chromium locks the dir.
-- `spel health` before blaming spel: it says busy vs wedged vs down, and never
-  starts a daemon just to answer.
-- `spel kill` instead of `pkill` + `rm` — it also cleans socket and PID files.
-- `spel logs -f` in a second terminal while a run misbehaves — daemon start,
-  every command with its duration, and every error land there (`spel logs
-  --path` for the file, `SPEL_LOG_LEVEL=debug` for more).
+- `spel --session <name> health` before blaming Spel: it says busy vs wedged vs
+  down and never starts a daemon merely to answer.
+- `spel --session <name> kill` instead of `pkill` + `rm`: it also cleans that
+  session's socket and PID files.
+- `spel --session <name> logs -f` in a second terminal while a run misbehaves:
+  daemon start, every command with its duration, and every error land there
+  (`spel --session <name> logs --path` locates the file;
+  `SPEL_LOG_LEVEL=debug` adds detail).
 
 ## 18. `ClassCastException` in `with-retry`
 
@@ -358,3 +360,21 @@ Use `retry-guard` to turn a predicate into a `:retry-when`:
                   :retry-when (spel/retry-guard #(= "ready" (:status %)))}
   (spel/api-get ctx "/job/123"))
 ```
+
+## 21. iOS automation looks slow or disagrees with the screen
+
+An Appium/XCUITest command's wall time includes transport, WebDriverAgent, and
+XCTest quiescence. It is not the application's paint or animation duration.
+For performance claims, capture native before/after evidence and poll the first
+observable matching frame; pair it with WebView metrics for hybrid apps.
+
+If `(spel/ios-hide-keyboard!)` takes seconds and then fails on a WKWebView, that
+is commonly an unsupported WebDriverAgent keyboard endpoint. Dismiss it through
+the same visible action a user performs and verify the native keyboard is gone.
+Do not charge the WDA timeout to the application.
+
+When native snapshot parsing itself fails, first compare `spel version` with
+the generated skill version. Native binaries before 0.9.17 can hit the fixed
+XCTest XML/SAX arity bug. Upgrade and regenerate the skill before debugging the
+application. If a Spel defect remains, reduce it against Settings, fix Spel,
+and rerun through Spel; raw Appium is only a diagnostic fallback.

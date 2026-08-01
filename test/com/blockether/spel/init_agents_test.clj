@@ -306,6 +306,51 @@
       (expect (str/starts-with? result "ns=demo v=0."))
       (expect (not (str/includes? result "{{"))))))
 
+(defdescribe generated-skill-operating-contract-test
+  "Regression coverage for the generated skill's runtime and iOS workflow contracts"
+
+  (it "treats the runtime binary as authoritative when a generated skill is stale"
+    (let [skill (#'sut/read-template
+                 "skills/spel/SKILL.md")]
+      (expect (str/includes? skill "This skill was generated from spel **{{version}}**"))
+      (expect (str/includes? skill "Run `spel version` once"))
+      (expect (not (str/includes? skill "The installed skill matches spel")))))
+
+  (it "resolves each example session name once"
+    (let [start (#'sut/read-template
+                 "skills/spel/references/START_HERE.md")]
+      (expect (= 3 (count (re-seq #"SESSION=\"(?:exp|auto|cdp)-\$\(date \+%s\)\"" start))))
+      (expect (str/includes? start "spel --session \"$SESSION\""))
+      (expect (not (str/includes? start "spel --session exp-$(date +%s)")))
+      (expect (not (str/includes? start "spel --session auto-$(date +%s)")))
+      (expect (not (str/includes? start "spel --session cdp-$(date +%s)")))))
+
+  (it "documents the public iOS measurement and recovery loop"
+    (let [ios (#'sut/read-template
+               "skills/spel/references/IOS_PROVIDER.md")]
+      (expect (str/includes? ios "spel/ios-background-app!"))
+      (expect (str/includes? ios "spel/ios-set-orientation!"))
+      (expect (str/includes? ios "spel/with-webview-context"))
+      (expect (str/includes? ios "It is **not** pure app"))
+      (expect (str/includes? ios "Raw Appium is diagnostic evidence"))
+      (expect (str/includes? ios "before 0.9.17"))))
+
+  (it "keeps the generated agent on the public measured iOS path"
+    (let [agent (#'sut/read-template "agents/spel.md")]
+      (expect (str/includes? agent "spel/with-webview-context"))
+      (expect (str/includes? agent "first observable matching frame"))
+      (expect (str/includes? agent "raw Appium is diagnostic evidence"))
+      (expect (str/includes? agent "spel --session \"$SESSION\" health --json"))
+      (expect (str/includes? agent "spel --session \"$SESSION\" logs -n 100"))))
+
+  (it "keeps diagnostic commands scoped to the named session"
+    (let [common (#'sut/read-template "skills/spel/references/COMMON_PROBLEMS.md")
+          env     (#'sut/read-template "skills/spel/references/ENVIRONMENT_VARIABLES.md")]
+      (expect (str/includes? common "spel --session <name> logs -f"))
+      (expect (str/includes? common "spel --session <name> kill"))
+      (expect (str/includes? env "spel --session <name> health --json"))
+      (expect (str/includes? env "spel --session <name> cancel <id>")))))
+
 ;; =============================================================================
 ;; 8. File Selection Logic
 ;; =============================================================================

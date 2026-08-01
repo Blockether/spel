@@ -56,6 +56,10 @@ Probe functional, visual, accessibility, console, and network behavior relevant 
 
 No evidence means no confirmed bug. Label unreproduced observations as suspected or flaky, not confirmed.
 
+### Native iOS or hybrid app
+
+Use the public iOS surface documented in `references/IOS_PROVIDER.md`; raw Appium is diagnostic evidence, not the final workflow. Keep one named spel session for native and WKWebView work. Use native snapshots/screenshots for physical placement and `spel/with-webview-context` for DOM state and viewport metrics. For timing claims, sample the first observable matching frame; command completion includes XCUITest dispatch and quiescence and is not app latency. If the public spel path breaks, collect version, session health, and logs, fix or report the smallest spel failure, then rerun the application check through spel.
+
 ### Test writing
 
 Explore the flow first, then follow `references/TESTING_CONVENTIONS.md`. Generate tests at the project's expected path, run the smallest relevant target, and verify DOM/browser effects. If failure reflects stale targeting, gather fresh evidence and repair; do not hide failures with sleeps, inflated timeouts, deleted assertions, or skipped tests.
@@ -75,10 +79,10 @@ Use the bundled HTML or Markdown report asset when the user requests a formal QA
 
 ## Recovery
 
-- Stuck command: `spel health --json` reads the daemon's command ledger — the in-flight command, its id, and how long it has been running — then `spel cancel <id>`.
+- Stuck command: `spel --session "$SESSION" health --json` reads that session's command ledger — the in-flight command, its id, and how long it has been running — then `spel --session "$SESSION" cancel <id>`.
 - `daemon_busy` means the ledger already holds another command; cancel it instead of retrying. `command_timeout` means the watchdog killed a command that exceeded `SPEL_COMMAND_BUDGET_MS` (default 25s); the daemon stays usable.
 - Stale ref: fresh `snapshot -i`, then retry once with the corrected target.
-- Missing output: inspect `spel logs -n 100`.
+- Missing output: inspect `spel --session "$SESSION" logs -n 100`.
 - Browser crash: allow spel's next-command recovery before replacing the session.
 - Unreachable target or unsatisfied auth: report the concrete blocker; do not fabricate completion.
 

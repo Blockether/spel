@@ -8,7 +8,7 @@ compatibility: opencode
 
 # spel
 
-Use the `spel` CLI for interactive work and `eval-sci` for reusable browser scripts. The installed skill matches spel **{{version}}**; confirm uncertain behavior with `spel version` and `spel <command> --help`.
+Use the `spel` CLI for interactive work and `eval-sci` for reusable browser scripts. This skill was generated from spel **{{version}}**. Run `spel version` once before the first operation: if the runtime differs, trust runtime `spel <command> --help`, call out the stale skill, and regenerate it with that installed spel version before relying on version-specific APIs.
 
 ## Start safely
 
@@ -34,7 +34,7 @@ Use `--allowed-domains "example.com,*.example.com"` when scope is known. Add `--
 - **`eval-sci`** — multi-step automation in one warm daemon session; use implicit `spel/*` functions. Do not call `spel/start!` or `spel/stop!`.
 - **Library** — application and test code requiring explicit Playwright objects.
 - **Bridge** — in-page automation when CDP is unavailable.
-- **iOS provider** — native iOS and hybrid WKWebView automation through Appium/XCUITest.
+- **iOS provider** — native iOS and hybrid WKWebView automation through Appium/XCUITest. Use native screenshots for physical truth and WebView metrics for DOM truth; CLI wall time is not app animation latency.
 
 ```clojure
 ;; JVM library: explicit page
@@ -61,12 +61,12 @@ For auth, captcha, or 2FA, use `--interactive` and let the user complete the pro
 
 ## Errors and recovery
 
-- Run `spel health --json` before diagnosing a stuck daemon. It reports state and the in-flight command ledger (`id`, action, phase, age) without starting one.
+- Run `spel --session <name> health --json` before diagnosing a stuck daemon. It reports state and the in-flight command ledger (`id`, action, phase, age) without starting one.
 - A wedged command is abandoned after its watchdog budget (`SPEL_COMMAND_BUDGET_MS`, default 25s; 900s for `eval-js`/`eval-sci`) and answers `command <id> (<action>) was cancelled`. That is a bad action, not a dead daemon.
-- Cancel only the identified ledger id with `spel cancel <id>`; use `spel kill` only for a verified spel daemon. Never delete sockets or issue global browser kills.
+- Cancel only the identified ledger id with `spel --session <name> cancel <id>`; use `spel --session <name> kill` only for that verified spel daemon. Never delete sockets or issue global browser kills.
 - A stale ref requires a fresh `snapshot -i`, then one corrected retry.
 - Browser crash/degradation can self-recover on the next command; do not discard the session first.
-- Inspect `spel logs -n 100` when output is missing or the cause is unclear.
+- Inspect `spel --session <name> logs -n 100` when output is missing or the cause is unclear.
 - Library calls return anomaly maps shaped like `{:error :msg :data}`; check with `core/anomaly?`.
 
 ## Testing contracts
@@ -89,7 +89,7 @@ For auth, captcha, or 2FA, use `--interactive` and let the user complete the pro
 - Attaching to a user's own browser requires it to be launched with `--remote-debugging-port` **and** `--remote-allow-origins='*'`; see `references/PROFILES_CDP.md`.
 - On real sites, a successful `click` proves nothing: promo/ad tiles and carousels expose the same buttons as real listings. Re-read the authoritative page (cart, account, list) and diff the count/total before reporting success.
 - Prefer navigating directly to a product/result URL over driving site search widgets; overlay autocomplete swallows keystrokes and adds the wrong item.
-- Long `eval-js`/`eval-sci` runs can exceed the CLI transport timeout. That is not a dead daemon: run `spel health --json`, then `spel cancel <id>` (or `all`), and continue in the same session — do not restart or kill.
+- Long `eval-js`/`eval-sci` runs can exceed the CLI transport timeout. That is not a dead daemon: run `spel --session <name> health --json`, then `spel --session <name> cancel <id>` (or omit the id for all in-flight commands), and continue in the same session — do not restart or kill.
 - Pass big scripts with `eval-js --stdin` and use `-b` (base64) when the result would be mangled or truncated.
 
 

@@ -68,8 +68,9 @@ is daemon-local state, so health answers even while the browser is stuck.
 
 - A command that outlives `SPEL_COMMAND_BUDGET_MS` is abandoned; the daemon
   logs its stack frames, drops the ledger entry, and stays responsive.
-- `spel health --json` lists in-flight ledger entries; `spel cancel <id>` (or
-  `cancel all`) interrupts them. `spel kill` is the last resort.
+- `spel --session <name> health --json` lists in-flight ledger entries;
+  `spel --session <name> cancel <id>` (or omit the id to cancel all in-flight
+  commands) interrupts them. `spel --session <name> kill` is the last resort.
 - Keep `SPEL_COMMAND_BUDGET_MS` below `SPEL_CLIENT_TIMEOUT_MS` so the daemon
   reports the failure before the CLI gives up on the transport.
 
