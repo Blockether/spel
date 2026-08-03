@@ -446,7 +446,9 @@
                  {:port port :browser browser :host host}))))
          (finally
            (.disconnect ^HttpURLConnection conn))))
-     (catch Exception _ nil))))
+     (catch Exception e
+       (log/debug! "[cdp] /json/version probe failed for " host ":" port " — " (.getMessage e))
+       nil))))
 
 (defn- probe-http-cdp
   "Probes an HTTP endpoint for CDP. Returns the port only when /json/version is
@@ -464,6 +466,28 @@
   ([^String host port timeout-ms]
    (when (read-cdp-json-version host port timeout-ms)
      port)))
+
+(defn- cdp-http-transport-error
+  "Returns the failure message when an HTTP request to /json/version cannot even
+   complete — an unsupported `http` URL protocol in a misbuilt native image, a
+   connection reset, a timeout — and nil when the exchange completed, whatever
+   its status.
+
+   Used only on the failure path of `assert-cdp-endpoint-reachable!` so a broken
+   HTTP stack is never reported as a stale browser."
+  [^String host port timeout-ms]
+  (try
+    (let [url (URL. (str "http://" host ":" port "/json/version"))
+          conn (doto ^HttpURLConnection (.openConnection url)
+                 (.setConnectTimeout (int timeout-ms))
+                 (.setReadTimeout (int timeout-ms)))]
+      (try
+        (.getResponseCode ^HttpURLConnection conn)
+        nil
+        (finally
+          (.disconnect ^HttpURLConnection conn))))
+    (catch Exception e
+      (or (.getMessage e) (.getName (class e))))))
 
 (defn- cdp-ready?
   "Returns true only after the browser has exposed an accepted HTTP CDP endpoint.
@@ -4311,9 +4335,13 @@
           "then verify: curl http://" host ":" port "/json/version")))
     (when (and (str/starts-with? (str scheme) "http")
             (not (probe-http-cdp host port 2000)))
-      (fail! (str "CDP endpoint at " host ":" port " is listening but /json/version is not a DevTools endpoint")
-        (str "The port is held by a stale or non-DevTools process. Fully quit the browser "
-          "and relaunch it with --remote-debugging-port=" port " --remote-allow-origins='*'.")))
+      (if-let [transport-error (cdp-http-transport-error host port 2000)]
+        (fail! (str "CDP probe could not complete an HTTP request to " host ":" port ": " transport-error)
+          (str "The port accepts TCP but this build could not speak HTTP to it. "
+            "Verify the endpoint with: curl http://" host ":" port "/json/version"))
+        (fail! (str "CDP endpoint at " host ":" port " is listening but /json/version is not a DevTools endpoint")
+          (str "The port is held by a stale or non-DevTools process. Fully quit the browser "
+            "and relaunch it with --remote-debugging-port=" port " --remote-allow-origins='*'."))))
     (when (and (str/starts-with? (str scheme) "ws")
             (not (probe-ws-target url 2000)))
       (fail! (str "CDP browser target no longer exists at " url)

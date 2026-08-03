@@ -1174,6 +1174,32 @@ assert_not_empty "help" "$OUT"
 OUT=$(timeout 5 "$SPEL" --json connect ws://localhost:9999 2>&1)
 assert_jq "connect (no endpoint) → failure" "$OUT" 'has("error")'
 
+# The native binary must be able to speak plain HTTP itself: GraalVM enables no
+# http URL protocol unless the build asks for it, and a binary without it fails
+# EVERY `connect http://host:port` while blaming the browser (issue #112).
+# A local server that 404s /json/version separates the two failures: HTTP that
+# works reports "not a DevTools endpoint", a dead HTTP stack reports a transport
+# error instead.
+FAKE_HTTP_PORT=59787
+python3 -c "
+import http.server
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(404)
+        self.send_header('Content-Length','0')
+        self.end_headers()
+    def log_message(self,*a): pass
+http.server.HTTPServer(('127.0.0.1',${FAKE_HTTP_PORT}),H).serve_forever()
+" &
+FAKE_HTTP_PID=$!
+sleep 1
+OUT=$(timeout 15 "$SPEL" --json connect "http://127.0.0.1:${FAKE_HTTP_PORT}" 2>&1)
+kill "$FAKE_HTTP_PID" 2>/dev/null
+wait "$FAKE_HTTP_PID" 2>/dev/null
+assert_jq_contains "connect http:// → native binary speaks HTTP (/json/version fetched)" \
+  "$OUT" '.error' 'not a DevTools endpoint'
+
+
 timeout 10 "$SPEL" install >/dev/null 2>&1
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ $? -eq 0 ]]; then

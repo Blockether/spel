@@ -606,3 +606,63 @@
                  (catch clojure.lang.ExceptionInfo ex ex))]
       (expect (some? e))
       (expect (str/includes? (.getMessage e) "Invalid CDP URL")))))
+
+;; =============================================================================
+;; Native image — http URL protocol
+;; =============================================================================
+
+(defdescribe native-image-http-protocol-test
+  "GraalVM enables no `http`/`https` URL protocol by default. Without it every
+   /json/version probe throws MalformedURLException, so `connect http://host:port`
+   fails in the native binary while the same endpoint answers curl (issue #112).
+   Oracle GraalVM 25.0.x — what the release workflow builds with — honours only
+   the build flag, newer versions honour the reachability metadata, so the shipped
+   config must carry both."
+
+  (describe "native-image.properties"
+    (it "enables the http and https URL protocols"
+      (let [props (slurp (io/resource "META-INF/native-image/com.blockether/spel/native-image.properties"))]
+        (expect (str/includes? props "--enable-url-protocols=http,https")))))
+
+  (describe "reflect-config.json"
+    (it "registers the JDK http and https URL stream handlers"
+      (let [cfg   (json/read-json (slurp (io/resource "META-INF/native-image/com.blockether/spel/reflect-config.json")))
+            names (set (map #(get % "name") cfg))]
+        (expect (contains? names "sun.net.www.protocol.http.Handler"))
+        (expect (contains? names "sun.net.www.protocol.https.Handler"))))))
+
+(defdescribe cdp-http-transport-error-test
+  "cdp-http-transport-error separates `the HTTP request never completed` from
+   `the server answered but is not DevTools`, so a build that cannot speak HTTP
+   is never reported as a stale browser."
+
+  (describe "completed exchange"
+    (it "returns nil when the server answers, whatever the payload"
+      (let [port 59341
+            srv  (try (spin-up-fake-cdp-server! port "TransportChrome/1.0")
+                      (catch Exception _ nil))]
+        (when srv
+          (try
+            (expect (nil? (#'sut/cdp-http-transport-error "127.0.0.1" port 1000)))
+            (finally (.stop srv 0)))))))
+
+  (describe "unreachable endpoint"
+    (it "returns a non-blank transport failure message"
+      ;; 10.255.255.1 is unroutable — the connect attempt fails instead of
+      ;; completing an HTTP exchange.
+      (let [err (#'sut/cdp-http-transport-error "10.255.255.1" 59342 200)]
+        (expect (string? err))
+        (expect (not (str/blank? err))))))
+
+  (describe "connect preflight"
+    (it "still blames the endpoint when HTTP works but the payload is not DevTools"
+      (let [port 59343
+            srv  (try (spin-up-fake-cdp-server! port "")
+                      (catch Exception _ nil))]
+        (when srv
+          (try
+            (let [msg (try (#'sut/assert-cdp-endpoint-reachable! (str "http://127.0.0.1:" port))
+                           nil
+                           (catch clojure.lang.ExceptionInfo e (.getMessage e)))]
+              (expect (str/includes? (str msg) "is not a DevTools endpoint")))
+            (finally (.stop srv 0))))))))
