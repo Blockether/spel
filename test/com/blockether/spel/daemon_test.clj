@@ -9,6 +9,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.daemon :as sut]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.logging :as logging]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
@@ -1214,3 +1215,158 @@
             (expect false "Should have thrown")
             (catch clojure.lang.ExceptionInfo e
               (expect (str/includes? (.getMessage e) "No browser page available")))))))))
+
+;; =============================================================================
+;; Unit Tests — Failure diagnosis in the session log
+;; =============================================================================
+
+(defn- capture-daemon-log
+  "Runs `f` with the logger pointed at a private session file and returns the
+   lines it wrote."
+  [f]
+  (let [session (str "daemon-test-" (System/nanoTime))]
+    (logging/init! {:session session :component "daemon" :level :debug :mirror :off})
+    (try
+      (f)
+      (logging/read-lines session {})
+      (finally
+        (logging/init! {:session "default" :component "spel" :level :info :mirror :warn})
+        (try (.delete (.toFile (logging/log-file-path session))) (catch Exception _ nil))))))
+
+(defdescribe response-failure-test
+  "Unit tests for response-failure"
+
+  (describe "successful responses carry nothing worth logging"
+    (it "returns nil for a success payload"
+      (expect (nil? (#'sut/response-failure "{\"success\":true,\"data\":{\"x\":1}}"))))
+
+    (it "returns nil for an empty response"
+      (expect (nil? (#'sut/response-failure "")))))
+
+  (describe "failing responses are mined for the only account of what broke"
+    (it "extracts error_code and error text"
+      (let [f (#'sut/response-failure
+               "{\"success\":false,\"error_code\":\"browser_handle_lost\",\"error\":\"page was closed\"}")]
+        (expect (= "browser_handle_lost" (:code f)))
+        (expect (= "page was closed" (:message f)))))
+
+    (it "falls back to unknown when the payload carries no code"
+      (expect (= "unknown" (:code (#'sut/response-failure
+                                   "{\"success\":false,\"error\":\"boom\"}")))))
+
+    (it "survives an unparseable failure payload"
+      (let [f (#'sut/response-failure "{\"success\":false, this is not json")]
+        (expect (= "unknown" (:code f)))
+        (expect (nil? (:message f)))))
+
+    (it "truncates a runaway error message"
+      (let [long-msg (apply str (repeat 400 "x"))
+            f        (#'sut/response-failure
+                      (str "{\"success\":false,\"error_code\":\"e\",\"error\":\"" long-msg "\"}"))]
+        (expect (= 241 (count (:message f))))
+        (expect (str/ends-with? (:message f) "…"))))))
+
+(defdescribe log-command!-test
+  "Unit tests for log-command! — a failure line must say WHY"
+
+  (describe "failing commands"
+    (it "logs error_code and the error text at warn level"
+      (let [line (first (capture-daemon-log
+                          (fn []
+                            (#'sut/log-command! "sci_eval" {"code" "(spel/route! ...)"}
+                                                "{\"success\":false,\"error_code\":\"handler_arity\",\"error\":\"Wrong number of args (1) passed to: sci.impl.fns/fun/arity-2\"}"
+                                                42))))]
+        (expect (str/includes? line "WARN"))
+        (expect (str/includes? line "cmd sci_eval"))
+        (expect (str/includes? line "-> error in 42ms"))
+        (expect (str/includes? line "code=handler_arity"))
+        (expect (str/includes? line "Wrong number of args (1)")))))
+
+  (describe "successful commands"
+    (it "logs parameter NAMES and never their values"
+      (let [line (first (capture-daemon-log
+                          (fn []
+                            (#'sut/log-command! "goto" {"password" "hunter2"}
+                                                "{\"success\":true,\"data\":{}}" 3))))]
+        (expect (str/includes? line "INFO"))
+        (expect (str/includes? line "cmd goto"))
+        (expect (str/includes? line "\"password\""))
+        (expect (not (str/includes? line "hunter2")))
+        (expect (str/includes? line "-> ok in 3ms"))
+        (expect (not (str/includes? line "code=")))))))
+
+;; =============================================================================
+;; Unit Tests — Client/daemon timeout invariant
+;; =============================================================================
+
+(defdescribe command-budget-test
+  "Unit tests for command-budget-ms and client-timeout-ms"
+
+  (describe "open-ended work gets minutes"
+    (it "gives sci_eval and every ios action the long budget"
+      (expect (= 900000 (sut/command-budget-ms "sci_eval")))
+      (expect (= 900000 (sut/command-budget-ms "script")))
+      (expect (= 900000 (sut/command-budget-ms "ios_tap")))
+      (expect (= 900000 (sut/command-budget-ms "ios-snapshot")))))
+
+  (describe "ordinary commands"
+    (it "never drop below the default budget"
+      (expect (>= (sut/command-budget-ms "goto") 25000))
+      (expect (>= (sut/command-budget-ms "snapshot") 25000))))
+
+  (describe "the invariant: the client must outlive the daemon budget"
+    (it "holds for every action shape"
+      (doseq [action ["sci_eval" "script" "ios_tap" "ios-snapshot" "goto" "snapshot" "unknown"]]
+        (expect (> (sut/client-timeout-ms action)
+                  (sut/command-budget-ms action)))))
+
+    (it "adds a fixed slack so the daemon always reports first"
+      (expect (= (+ 5000 (sut/command-budget-ms "sci_eval"))
+                (sut/client-timeout-ms "sci_eval"))))))
+
+;; =============================================================================
+;; Unit Tests — Wedged-command diagnostics
+;; =============================================================================
+
+(defdescribe signal-frames-test
+  "Unit tests for signal-frames"
+
+  (describe "parking plumbing is noise"
+    (it "keeps only spel, Playwright and SCI frames"
+      (let [frames ["jdk.internal.misc.Unsafe.park(Native Method)"
+                    "java.util.concurrent.locks.LockSupport.park(LockSupport.java:341)"
+                    "java.util.concurrent.CompletableFuture.waitingGet(CompletableFuture.java:1)"
+                    "com.microsoft.playwright.impl.PipeTransport.poll(PipeTransport.java:60)"
+                    "com.blockether.spel.daemon$process_command.invoke(daemon.clj:1)"
+                    "sci.impl.fns$fun$arity_2.invoke(fns.clj:1)"]
+            kept   (#'sut/signal-frames frames)]
+        (expect (= 3 (count kept)))
+        (expect (every? (fn [f] (or (str/starts-with? f "com.")
+                                  (str/starts-with? f "sci.")))
+                  kept)))))
+
+  (describe "a noisy stack still beats no stack"
+    (it "falls back to the raw frames when nothing matches"
+      (let [frames ["jdk.internal.misc.Unsafe.park(Native Method)"
+                    "java.lang.Thread.run(Thread.java:1)"]]
+        (expect (= frames (#'sut/signal-frames frames))))))
+
+  (describe "bounded output"
+    (it "caps the dump at twelve frames"
+      (let [frames (mapv (fn [n] (str "com.blockether.spel.daemon$f" n ".invoke(daemon.clj:" n ")"))
+                     (range 30))]
+        (expect (= 12 (count (#'sut/signal-frames frames))))))))
+
+(defdescribe client-gone?-test
+  "Unit tests for client-gone?"
+
+  (describe "socket errors that only mean the client hung up"
+    (it "recognises broken pipe and connection reset"
+      (expect (true? (boolean (#'sut/client-gone? (java.io.IOException. "Broken pipe")))))
+      (expect (true? (boolean (#'sut/client-gone?
+                               (java.io.IOException. "Connection reset by peer")))))))
+
+  (describe "real daemon faults"
+    (it "is false for anything else, including a message-less throwable"
+      (expect (false? (boolean (#'sut/client-gone? (NullPointerException.)))))
+      (expect (false? (boolean (#'sut/client-gone? (ex-info "browser closed" {}))))))))

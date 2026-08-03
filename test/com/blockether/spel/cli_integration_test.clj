@@ -505,7 +505,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))
+             (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -524,7 +524,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-          (catch Exception _))))))
+             (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -2216,16 +2216,19 @@
         ;; Restore default
         (cmd "sci_eval" {"code" "(spel/set-cdp-lock-wait! 120)"})))
 
-    (it "session-idle-timeout returns the five-minute default in SCI"
+    (it "session-idle-timeout returns the thirty-minute default in SCI"
+      ;; 5 minutes killed sessions mid-workflow: 11 of 13 logged shutdowns in a
+      ;; real agent session were idle timeouts, each costing a cold relaunch and
+      ;; every page/ref/console handle with it.
       (let [r (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
-        (expect (= "300000" (:result r)))))
+        (expect (= "1800000" (:result r)))))
 
     (it "set-session-idle-timeout! changes the timeout from SCI"
       (let [_  (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 900000)"})
             r  (cmd "sci_eval" {"code" "(spel/session-idle-timeout)"})]
         (expect (= "900000" (:result r)))
         ;; Restore default
-        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 300000)"})))
+        (cmd "sci_eval" {"code" "(spel/set-session-idle-timeout! 1800000)"})))
 
     (it "exposes new spel helper functions"
       (let [_         (cmd "sci_eval" {"code" "(spel/navigate \"https://example.com\")"})
@@ -2781,7 +2784,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                     (catch Exception _ true))]
+                        (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---

@@ -61,11 +61,13 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-tracing` | [context] | Returns the Tracing for a context. |
 | `cookie->map` | [cookie] | Converts a Playwright Cookie Java object to a Clojure map. |
 | `create` | [] | Creates a new Playwright instance. |
+| `event-consumer` | [label handler] \| [label handler on-error] | A `java.util.function.Consumer` around `guarded-handler` — the one way spel |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
 | `find-free-port` | [] | Finds an available local TCP port and returns it as an integer. |
 | `firefox` | [pw] | Returns the Firefox BrowserType. |
 | `form-data` | [] | Creates a new FormData instance. |
+| `guarded-handler` | [label handler] \| [label handler on-error] | Wraps a user event handler so a throwing handler cannot wedge the browser. |
 | `java->clj` | [obj] | Recursively converts Java collection types returned by Playwright's |
 | `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
 | `launch-chromium` | [pw] \| [pw opts] | Launches Chromium browser. |
@@ -884,7 +886,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/ios-install-app!` | [path] | Installs a simulator-compatible .app. |
 | `spel/ios-launch-app!` | [] \| [bundle-id] | Launches the bound or requested installed iOS application. |
 | `spel/ios-open-url!` | [url] \| [url bundle-id] | Opens a deep or universal URL. |
+| `spel/ios-orientation` | [] | Returns the current iOS device orientation as :portrait or :landscape. |
 | `spel/ios-permission` | [service] \| [bundle-id service] | Returns an iOS application permission value. |
+| `spel/ios-set-orientation!` | [requested] | Rotates the iOS device to :portrait or :landscape. |
 | `spel/ios-set-permission!` | [service access] \| [bundle-id service access] | Sets an app permission. Access accepts :grant, :revoke, or :reset. |
 | `spel/ios-terminate-app!` | [] \| [bundle-id] | Terminates the bound or requested iOS application. |
 | `spel/ios-uninstall-app!` | [bundle-id] | Uninstalls an iOS application by bundle identifier. |
@@ -1596,8 +1600,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `session` | Show current session info |
 | `session list` | List active sessions |
 | `logs` | Show the session log (CLI + daemon) |
-| `health` | Is the daemon alive, busy, or wedged? Lists the in-flight command ledger |
-| `cancel [<id>\|all]` | Interrupt an in-flight daemon command by its ledger id |
+| `health` | Is the daemon alive, busy, or wedged? |
+| `cancel [<id>\|all]` | Interrupt an in-flight daemon command |
 | `kill [--all-sessions]` | Alias for close; --all-sessions also reaps orphans |
 
 ### Options

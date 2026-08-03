@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.logging :as logging]
    [com.blockether.spel.allure :refer [around defdescribe describe expect expect-it it]])
   (:import
    [java.net InetAddress ServerSocket]
@@ -374,3 +375,97 @@
         (expect (= "example.com" (:domain result)))
         (expect (= "/" (:path result)))
         (expect (string? (:sameSite result)))))))
+
+;; =============================================================================
+;; Event Handler Safety
+;; =============================================================================
+
+(defn- capture-log
+  "Runs `f` with the logger pointed at a private session file and returns
+   `[result lines]`. Restores the default logger afterwards."
+  [f]
+  (let [session (str "core-test-" (System/nanoTime))]
+    (logging/init! {:session session :component "spel" :level :debug :mirror :off})
+    (try
+      [(f) (logging/read-lines session {})]
+      (finally
+        (logging/init! {:session "default" :component "spel" :level :info :mirror :warn})
+        (try (.delete (.toFile (logging/log-file-path session))) (catch Exception _ nil))))))
+
+(defdescribe guarded-handler-test
+  "Tests for guarded-handler — a throwing user handler must not wedge Playwright"
+
+  (describe "well-formed handlers are transparent"
+    (it "passes the argument through and returns the handler value"
+      (let [seen (atom nil)
+            h    (sut/guarded-handler "page.on(console)"
+                   (fn [x] (reset! seen x) (str x "!")))]
+        (expect (= "hi!" (h "hi")))
+        (expect (= "hi" @seen)))))
+
+  (describe "a throwing handler is contained"
+    (it "returns nil instead of propagating into the Playwright dispatcher"
+      (let [h              (sut/guarded-handler "route" (fn [_] (throw (ex-info "boom" {}))))
+            [result _lines] (capture-log (fn [] (h :arg)))]
+        (expect (nil? result))))
+
+    (it "logs the label and the exception class"
+      (let [[_ lines] (capture-log
+                        (fn []
+                          ((sut/guarded-handler "route"
+                             (fn [_] (throw (ex-info "boom" {})))) :arg)))]
+        (expect (= 1 (count lines)))
+        (expect (str/includes? (first lines) "event handler for route threw"))
+        (expect (str/includes? (first lines) "clojure.lang.ExceptionInfo: boom")))))
+
+  (describe "the two-argument handler mistake"
+    (it "does not throw and explains the one-argument rule"
+      (let [[result lines] (capture-log
+                             (fn []
+                               ((sut/guarded-handler "route" (fn [_a _b] :never)) :route)))]
+        (expect (nil? result))
+        (expect (str/includes? (first lines) "wrong arity"))
+        (expect (str/includes? (first lines) "(fn [x] ...)")))))
+
+  (describe "recovery hook"
+    (it "runs on-error with the argument and the throwable"
+      (let [got (atom nil)
+            h   (sut/guarded-handler "route"
+                  (fn [_] (throw (ex-info "boom" {})))
+                  (fn [arg e] (reset! got [arg (class e)])))]
+        (capture-log (fn [] (h :route)))
+        (expect (= [:route clojure.lang.ExceptionInfo] @got))))
+
+    (it "survives an on-error that throws as well"
+      (let [h              (sut/guarded-handler "route"
+                             (fn [_] (throw (ex-info "boom" {})))
+                             (fn [_ _] (throw (ex-info "recovery too" {}))))
+            [result lines] (capture-log (fn [] (h :route)))]
+        (expect (nil? result))
+        (expect (= 2 (count lines)))
+        (expect (str/includes? (str/join "\n" lines) "recovery for route failed"))))))
+
+(defdescribe event-consumer-test
+  "Tests for event-consumer — the only way spel hands a fn to Playwright"
+
+  (describe "shape"
+    (it "is a java.util.function.Consumer"
+      (expect (instance? java.util.function.Consumer
+                (sut/event-consumer "dialog" identity)))))
+
+  (describe "delivery"
+    (it "gives the value to a well-formed handler"
+      (let [seen (atom nil)
+            ^java.util.function.Consumer c (sut/event-consumer "console"
+                                             (fn [v] (reset! seen v)))]
+        (.accept c "msg")
+        (expect (= "msg" @seen)))))
+
+  (describe "containment"
+    (it "accept swallows a broken handler and still runs the release hook"
+      (let [released (atom false)
+            ^java.util.function.Consumer c (sut/event-consumer "route"
+                                             (fn [_a _b] :never)
+                                             (fn [_ _] (reset! released true)))]
+        (capture-log (fn [] (.accept c :route)))
+        (expect (true? @released))))))

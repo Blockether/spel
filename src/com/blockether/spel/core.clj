@@ -18,6 +18,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.data]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.logging :as log]
    [com.blockether.spel.options :as opts])
   (:import
    [java.io File]
@@ -31,6 +32,61 @@
    [com.microsoft.playwright.impl TargetClosedError]
    [com.microsoft.playwright.options FormData RequestOptions]
    [com.google.gson JsonObject]))
+
+;; =============================================================================
+;; Event handler safety
+;; =============================================================================
+
+(defn- handler-problem
+  "Explains why a user event handler failed. An ArityException gets its own
+   sentence: Playwright hands every handler EXACTLY ONE argument, and a two-arg
+   `fn` is the most common way to break a route."
+  [label ^Throwable e]
+  (if (instance? clojure.lang.ArityException e)
+    (str "event handler for " label " has the wrong arity — it is invoked with "
+      "exactly one argument, so write (fn [x] ...)")
+    (str "event handler for " label " threw")))
+
+(defn guarded-handler
+  "Wraps a user event handler so a throwing handler cannot wedge the browser.
+
+   Playwright invokes handlers on its own dispatch thread, where an exception is
+   swallowed by the driver: the failure never reaches the caller, nothing is
+   logged, and — for `route!` — the intercepted request is never resumed, so
+   every matching navigation hangs until the daemon's command budget kills the
+   session. Two user mistakes produce that outcome: a handler that throws, and a
+   handler with the wrong arity.
+
+   Params:
+   `label`    - String naming the event; appears in the log line.
+   `handler`  - User function, invoked with exactly one argument.
+   `on-error` - Optional fn of [arg throwable], run after logging to release
+                whatever the failed handler left unanswered.
+
+   Returns:
+   A one-argument function that never throws."
+  ([label handler] (guarded-handler label handler nil))
+  ([label handler on-error]
+   (fn [arg]
+     (try
+       (handler arg)
+       (catch Throwable e
+         (log/exception! (handler-problem label e) e)
+         (when on-error
+           (try (on-error arg e)
+                (catch Throwable e2
+                  (log/exception! (str "recovery for " label " failed") e2))))
+         nil)))))
+
+(defn event-consumer
+  "A `java.util.function.Consumer` around `guarded-handler` — the one way spel
+   hands a user function to Playwright."
+  (^java.util.function.Consumer [label handler]
+   (event-consumer label handler nil))
+  (^java.util.function.Consumer [label handler on-error]
+   (let [guarded (guarded-handler label handler on-error)]
+     (reify java.util.function.Consumer
+       (accept [_ v] (guarded v))))))
 
 ;; =============================================================================
 ;; Java → Clojure conversion
@@ -731,8 +787,7 @@
    `pattern` - String glob, regex Pattern, or predicate fn.
    `handler` - Function that receives a WebSocketRoute."
   [^BrowserContext context pattern handler]
-  (let [consumer (reify java.util.function.Consumer
-                   (accept [_ wsr] (handler wsr)))]
+  (let [consumer (event-consumer "context route-web-socket" handler)]
     (cond
       (instance? java.util.regex.Pattern pattern)
       (.routeWebSocket context ^java.util.regex.Pattern pattern consumer)

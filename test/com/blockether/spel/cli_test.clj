@@ -2667,3 +2667,33 @@
           (expect (= "orphaned" (:status h)))
           (expect (= "4242" (:pid h)))
           (expect (str/includes? (sut/health-report h) "missing/stale state")))))))
+
+;; =============================================================================
+;; Unit Tests — Client transport timeout
+;; =============================================================================
+
+(defdescribe client-timeout-for-test
+  "Unit tests for client-timeout-for — the CLI must outlive the daemon budget"
+
+  (describe "derived from the daemon's own per-action budget"
+    (it "matches daemon/client-timeout-ms for open-ended actions"
+      (expect (= (daemon/client-timeout-ms "sci_eval")
+                (#'sut/client-timeout-for {"action" "sci_eval"})))
+      (expect (= (daemon/client-timeout-ms "ios_tap")
+                (#'sut/client-timeout-for {"action" "ios_tap"}))))
+
+    (it "accepts keyword action keys too"
+      (expect (= (#'sut/client-timeout-for {"action" "sci_eval"})
+                (#'sut/client-timeout-for {:action "sci_eval"})))))
+
+  (describe "bounds"
+    (it "never returns nil — a dead daemon must not hang the client forever"
+      (doseq [action ["sci_eval" "goto" "snapshot" "ios-snapshot"]]
+        (let [t (#'sut/client-timeout-for {"action" action})]
+          (expect (pos? t))
+          (expect (>= t 30000)))))
+
+    (it "stays above the daemon budget for every action"
+      (doseq [action ["sci_eval" "script" "goto" "snapshot" "ios_tap"]]
+        (expect (> (#'sut/client-timeout-for {"action" action})
+                  (daemon/command-budget-ms action)))))))

@@ -7,12 +7,12 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe java->clj tag-eval-source]]
+   [com.blockether.spel.core :refer [safe java->clj tag-eval-source event-consumer]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
     Dialog Download ConsoleMessage Clock
-    Worker FileChooser WebError BrowserContext CDPSession]
+    Worker FileChooser WebError BrowserContext CDPSession Route WebSocketRoute]
    [com.microsoft.playwright.options LoadState
     FunctionCallback BindingCallback]
    [java.nio.file Paths]))
@@ -989,6 +989,31 @@
 ;; Page Events
 ;; =============================================================================
 
+(defn- release-route!
+  "Last resort for a route whose handler threw: resume the request so it is not
+   left unanswered. An intercepted request that is never resumed, aborted or
+   fulfilled hangs the navigation FOREVER — Playwright has no timeout for it and
+   the failure is invisible, which is how one bad handler wedged whole sessions.
+   Aborts when resuming is impossible (the handler already answered the route)."
+  [route _e]
+  (let [^Route r route]
+    (try (.resume r)
+         (catch Throwable _
+           (try (.abort r "failed") (catch Throwable _ nil))))))
+
+(defn- release-dialog!
+  "Last resort for a dialog whose handler threw. Playwright auto-dismisses only
+   while NO handler is registered; once one exists, a dialog it fails to answer
+   blocks the page indefinitely."
+  [dialog _e]
+  (try (.dismiss ^Dialog dialog) (catch Throwable _ nil)))
+
+(defn- release-web-socket-route!
+  "Last resort for a WebSocket route whose handler threw: connect it to the real
+   server so the client is not left waiting on a socket nobody answers."
+  [wsr _e]
+  (try (.connectToServer ^WebSocketRoute wsr) (catch Throwable _ nil)))
+
 (defn on-console
   "Registers a handler for console messages.
    
@@ -996,9 +1021,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a ConsoleMessage."
   [^Page page handler]
-  (.onConsoleMessage page
-    (reify java.util.function.Consumer
-      (accept [_ msg] (handler msg)))))
+  (.onConsoleMessage page (event-consumer "console" handler)))
 
 (defn on-dialog
   "Registers a handler for dialogs.
@@ -1007,9 +1030,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Dialog."
   [^Page page handler]
-  (.onDialog page
-    (reify java.util.function.Consumer
-      (accept [_ dialog] (handler dialog)))))
+  (.onDialog page (event-consumer "dialog" handler release-dialog!)))
 
 (defn once-dialog
   "Registers a one-time handler for the next dialog.
@@ -1019,9 +1040,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Dialog."
   [^Page page handler]
-  (.onceDialog page
-    (reify java.util.function.Consumer
-      (accept [_ dialog] (handler dialog)))))
+  (.onceDialog page (event-consumer "dialog (once)" handler release-dialog!)))
 
 (defn off-dialog
   "Removes a previously registered dialog handler.
@@ -1039,9 +1058,7 @@
    `page`    - Page instance.
    `handler` - Function that receives an error string."
   [^Page page handler]
-  (.onPageError page
-    (reify java.util.function.Consumer
-      (accept [_ error] (handler error)))))
+  (.onPageError page (event-consumer "page-error" handler)))
 
 (defn on-request
   "Registers a handler for requests.
@@ -1050,9 +1067,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Request."
   [^Page page handler]
-  (.onRequest page
-    (reify java.util.function.Consumer
-      (accept [_ req] (handler req)))))
+  (.onRequest page (event-consumer "request" handler)))
 
 (defn on-response
   "Registers a handler for responses.
@@ -1061,9 +1076,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Response."
   [^Page page handler]
-  (.onResponse page
-    (reify java.util.function.Consumer
-      (accept [_ resp] (handler resp)))))
+  (.onResponse page (event-consumer "response" handler)))
 
 (defn on-close
   "Registers a handler for page close.
@@ -1072,9 +1085,7 @@
    `page`    - Page instance.
    `handler` - Function called with the page when it closes."
   [^Page page handler]
-  (.onClose page
-    (reify java.util.function.Consumer
-      (accept [_ p] (handler p)))))
+  (.onClose page (event-consumer "close" handler)))
 
 (defn on-download
   "Registers a handler for downloads.
@@ -1083,9 +1094,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Download."
   [^Page page handler]
-  (.onDownload page
-    (reify java.util.function.Consumer
-      (accept [_ dl] (handler dl)))))
+  (.onDownload page (event-consumer "download" handler)))
 
 (defn on-popup
   "Registers a handler for popup pages.
@@ -1094,9 +1103,7 @@
    `page`    - Page instance.
    `handler` - Function that receives a Page."
   [^Page page handler]
-  (.onPopup page
-    (reify java.util.function.Consumer
-      (accept [_ p] (handler p)))))
+  (.onPopup page (event-consumer "popup" handler)))
 
 ;; =============================================================================
 ;; Routing
@@ -1108,10 +1115,16 @@
    Params:
    `page`    - Page instance.
    `pattern` - String glob or regex Pattern.
-   `handler` - Function that receives a Route."
+   `handler` - Function of ONE argument, the Route. Playwright never passes a
+               second argument, so `(fn [route _] ...)` throws an ArityException
+               inside the driver: the request is never answered and every
+               matching navigation hangs. A handler that throws is logged and
+               the route is resumed instead.
+
+   Example:
+   (route! page \"**/*.png\" (fn [route] (network/route-abort! route)))"
   [^Page page pattern handler]
-  (let [consumer (reify java.util.function.Consumer
-                   (accept [_ route] (handler route)))]
+  (let [consumer (event-consumer (str "route " pattern) handler release-route!)]
     (if (instance? java.util.regex.Pattern pattern)
       (.route page ^java.util.regex.Pattern pattern consumer)
       (.route page ^String (str pattern) consumer))))
@@ -1157,10 +1170,12 @@
    Params:
    `page`    - Page instance.
    `pattern` - String glob, regex Pattern, or predicate fn.
-   `handler` - Function that receives a WebSocketRoute."
+   `handler` - Function of ONE argument, the WebSocketRoute. A handler that
+               throws is logged and the route is connected to the real server,
+               so a broken handler cannot hang the socket."
   [^Page page pattern handler]
-  (let [consumer (reify java.util.function.Consumer
-                   (accept [_ wsr] (handler wsr)))]
+  (let [consumer (event-consumer (str "route-web-socket " pattern) handler
+                   release-web-socket-route!)]
     (cond
       (instance? java.util.regex.Pattern pattern)
       (.routeWebSocket page ^java.util.regex.Pattern pattern consumer)
@@ -1754,4 +1769,4 @@
     (if (anomaly/anomaly? text)
       text
       (do (.press ^com.microsoft.playwright.Keyboard (.keyboard page) "Control+v")
-        {:pasted true :text text}))))
+          {:pasted true :text text}))))

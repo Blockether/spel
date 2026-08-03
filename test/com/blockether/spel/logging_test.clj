@@ -163,3 +163,82 @@
         (expect (false? (Files/exists (sut/log-file-path session)
                           (into-array LinkOption []))))
         (expect (false? (sut/log-exists? session)))))))
+
+;; =============================================================================
+;; Unit Tests — Throwable rendering
+;; =============================================================================
+
+(defn- throwing-fn
+  "Throws from a frame owned by this repository, so `describe-throwable` has a
+   `com.blockether.*` frame to prefer over JVM plumbing."
+  []
+  (throw (ex-info "route handler failed" {:label "route"})))
+
+(defdescribe describe-throwable-test
+  "Unit tests for describe-throwable"
+
+  (describe "nil is rendered, never thrown on"
+    (it "answers a placeholder instead of NPE-ing inside a failing handler"
+      (expect (= "<no exception>" (sut/describe-throwable nil)))))
+
+  (describe "message-less throwables still say something"
+    (it "names the class and marks the missing message"
+      (let [line (sut/describe-throwable (NullPointerException.))]
+        (expect (str/includes? line "java.lang.NullPointerException"))
+        (expect (str/includes? line "<no message>"))))
+
+    (it "never renders as blank, which is what (.getMessage e) alone produced"
+      (expect (not (str/blank? (sut/describe-throwable (NullPointerException.)))))))
+
+  (describe "origin frame"
+    (it "points at spel code rather than at JVM plumbing"
+      (let [e    (try (throwing-fn) (catch Throwable t t))
+            line (sut/describe-throwable e)]
+        (expect (str/includes? line "clojure.lang.ExceptionInfo: route handler failed"))
+        (expect (str/includes? line " at "))
+        (expect (str/includes? line "com.blockether.spel")))))
+
+  (describe "causes"
+    (it "renders the cause chain"
+      (let [root (Exception. "root cause")
+            mid  (RuntimeException. "middle" root)
+            line (sut/describe-throwable (RuntimeException. "top" mid))]
+        (expect (str/includes? line "java.lang.RuntimeException: top"))
+        (expect (str/includes? line " <- java.lang.RuntimeException: middle"))
+        (expect (str/includes? line " <- java.lang.Exception: root cause"))))
+
+    (it "stops after three causes so one line stays one line"
+      (let [deep (reduce (fn [^Throwable c n] (RuntimeException. (str "c" n) c))
+                   (Exception. "root")
+                   (range 6))
+            line (sut/describe-throwable deep)]
+        (expect (= 3 (count (re-seq #" <- " line))))))))
+
+;; =============================================================================
+;; Unit Tests — exception!
+;; =============================================================================
+
+(defdescribe exception!-test
+  "Unit tests for exception!"
+
+  (describe "one warn line carrying the full rendering"
+    (it "logs context, class and message"
+      (let [session (fresh-session)]
+        (with-logger session "daemon"
+          (fn []
+            (sut/exception! "ios-snapshot" (ex-info "device gone" {}))
+            (let [lines (sut/read-lines session {})]
+              (expect (= 1 (count lines)))
+              (expect (str/includes? (first lines) "WARN"))
+              (expect (str/includes? (first lines)
+                        "ios-snapshot: clojure.lang.ExceptionInfo: device gone")))))))
+
+    (it "never writes a bare context with nothing after it"
+      (let [session (fresh-session)]
+        (with-logger session "daemon"
+          (fn []
+            (sut/exception! "ios-snapshot" (NullPointerException.))
+            (let [line (first (sut/read-lines session {}))]
+              (expect (str/includes? line "java.lang.NullPointerException"))
+              (expect (not (str/ends-with? line "ios-snapshot:")))
+              (expect (not (str/ends-with? line "ios-snapshot: "))))))))))

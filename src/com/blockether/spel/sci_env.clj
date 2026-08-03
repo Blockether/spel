@@ -136,7 +136,7 @@
 (defonce !set-cdp-lock-wait-handler (atom nil))
 
 ;; Session idle timeout — auto-shutdown daemon after this many ms of inactivity.
-;; Injected by daemon from SPEL_SESSION_IDLE_TIMEOUT env var (default 5 min).
+;; Injected by daemon from SPEL_SESSION_IDLE_TIMEOUT env var (default 30 min).
 ;; Exposed to SCI as (spel/session-idle-timeout) and (spel/set-session-idle-timeout! ms).
 (defonce !session-idle-timeout-ms (atom nil))
 (defonce !set-session-idle-timeout-handler (atom nil))
@@ -440,26 +440,26 @@
   []
   (when-let [b @!backend]
     (try (backend/close-backend! b)
-      (catch Exception e
-        (eprintln (str "spel: warn: close-backend failed: " (.getMessage e)))))
+         (catch Exception e
+           (eprintln (str "spel: warn: close-backend failed: " (.getMessage e)))))
     (reset! !backend nil)
     (reset! !ios-session nil))
   ;; In daemon mode, the daemon owns the browser — just nil the SCI atoms.
   (if @!daemon-mode?
     (do (reset! !page nil) (reset! !context nil)
-      (reset! !browser nil) (reset! !pw nil)
-      :stopped)
+        (reset! !browser nil) (reset! !pw nil)
+        :stopped)
     (do
       ;; Close top-down: browser cleans up all contexts/pages, playwright shuts down node.
       ;; No need to individually close page/context — they're owned by the browser.
       (when-let [b @!browser]
         (try (core/close-browser! b)
-          (catch Exception e
-            (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
+             (catch Exception e
+               (eprintln (str "spel: warn: close-browser failed: " (.getMessage e))))))
       (when-let [p @!pw]
         (try (core/close! p)
-          (catch Exception e
-            (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
+             (catch Exception e
+               (eprintln (str "spel: warn: close-playwright failed: " (.getMessage e))))))
       (reset! !page nil) (reset! !context nil)
       (reset! !browser nil) (reset! !pw nil)
       :stopped)))
@@ -609,10 +609,10 @@
 (defn sci-type-text
   ([sel text]
    (if @!ios-session (ios/type-element! @!ios-session sel text)
-     (throw-if-anomaly (locator/type-text (sci-$ sel) text))))
+       (throw-if-anomaly (locator/type-text (sci-$ sel) text))))
   ([sel text opts]
    (if @!ios-session (ios/type-element! @!ios-session sel text)
-     (throw-if-anomaly (locator/type-text (sci-$ sel) text opts)))))
+       (throw-if-anomaly (locator/type-text (sci-$ sel) text opts)))))
 (defn sci-keyboard-press
   "Presses a key on the focused page/native element."
   [key]
@@ -728,37 +728,37 @@
 
 (defn sci-text [sel]
   (if @!ios-session (ios/element-text @!ios-session sel)
-    (throw-if-anomaly (locator/text-content (sci-$ sel)))))
+      (throw-if-anomaly (locator/text-content (sci-$ sel)))))
 (defn sci-inner-text [sel]
   (if @!ios-session (ios/element-text @!ios-session sel)
-    (throw-if-anomaly (locator/inner-text (sci-$ sel)))))
+      (throw-if-anomaly (locator/inner-text (sci-$ sel)))))
 (defn sci-inner-html [sel] (throw-if-anomaly (locator/inner-html (sci-$ sel))))
 (defn sci-attr [sel name]
   (if @!ios-session (ios/element-attribute @!ios-session sel name)
-    (throw-if-anomaly (locator/get-attribute (sci-$ sel) name))))
+      (throw-if-anomaly (locator/get-attribute (sci-$ sel) name))))
 (defn sci-value [sel]
   (if @!ios-session (ios/element-attribute @!ios-session sel "value")
-    (throw-if-anomaly (locator/input-value (sci-$ sel)))))
+      (throw-if-anomaly (locator/input-value (sci-$ sel)))))
 (defn sci-count-of [sel]
   (if @!ios-session (ios/element-count @!ios-session sel)
-    (throw-if-anomaly (locator/count-elements (sci-$ sel)))))
+      (throw-if-anomaly (locator/count-elements (sci-$ sel)))))
 (defn sci-visible? [sel]
   (if @!ios-session (:visible (ios/element-state @!ios-session sel))
-    (locator/is-visible? (sci-$ sel))))
+      (locator/is-visible? (sci-$ sel))))
 (defn sci-hidden? [sel] (not (sci-visible? sel)))
 (defn sci-enabled? [sel]
   (if @!ios-session (:enabled (ios/element-state @!ios-session sel))
-    (locator/is-enabled? (sci-$ sel))))
+      (locator/is-enabled? (sci-$ sel))))
 (defn sci-disabled? [sel] (not (sci-enabled? sel)))
 (defn sci-editable? [sel]
   (if @!ios-session (:editable (ios/element-state @!ios-session sel))
-    (locator/is-editable? (sci-$ sel))))
+      (locator/is-editable? (sci-$ sel))))
 (defn sci-checked? [sel]
   (if @!ios-session (:selected (ios/element-state @!ios-session sel))
-    (locator/is-checked? (sci-$ sel))))
+      (locator/is-checked? (sci-$ sel))))
 (defn sci-bbox [sel]
   (if @!ios-session (ios/element-rect @!ios-session sel)
-    (locator/bounding-box (sci-$ sel))))
+      (locator/bounding-box (sci-$ sel))))
 (defn sci-all-text-contents [sel] (locator/all-text-contents (sci-$ sel)))
 (defn sci-all-inner-texts   [sel] (locator/all-inner-texts (sci-$ sel)))
 
@@ -783,10 +783,10 @@
 (defn sci-loc-wait-for
   ([sel]
    (if @!ios-session (ios/wait-for-element @!ios-session sel)
-     (throw-if-anomaly (locator/wait-for (sci-$ sel)))))
+       (throw-if-anomaly (locator/wait-for (sci-$ sel)))))
   ([sel opts]
    (if @!ios-session (ios/wait-for-element @!ios-session sel opts)
-     (throw-if-anomaly (locator/wait-for (sci-$ sel) opts)))))
+       (throw-if-anomaly (locator/wait-for (sci-$ sel) opts)))))
 (defn sci-evaluate-locator
   ([sel expr]     (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr)))
   ([sel expr arg] (throw-if-anomaly (locator/evaluate-locator (sci-$ sel) expr arg))))
@@ -894,7 +894,7 @@
 (defn sci-wait-for
   ([sel]
    (if @!ios-session (ios/wait-for-element @!ios-session sel)
-     (throw-if-anomaly (page/wait-for-selector (require-page!) sel))))
+       (throw-if-anomaly (page/wait-for-selector (require-page!) sel))))
   ([sel opts]
    (if @!ios-session
      (ios/wait-for-element @!ios-session sel
@@ -1715,7 +1715,8 @@
   "Returns the current session idle timeout in milliseconds.
 
    The daemon auto-shuts down if no commands are received within this window.
-   0 means disabled. Default: 300000 (5 min).
+   0 means disabled. Default: 1800000 (30 min) — long enough to survive the
+   thinking pauses of an agent workflow, which a 5-minute window did not.
    Set SPEL_SESSION_IDLE_TIMEOUT env var or call (spel/set-session-idle-timeout! ms)."
   []
   (or @!session-idle-timeout-ms 0))
@@ -1726,7 +1727,7 @@
    0 disables auto-shutdown. Takes effect immediately (resets the timer).
 
    Example:
-     (spel/set-session-idle-timeout! 300000)   ; 5 minutes
+     (spel/set-session-idle-timeout! 1800000)  ; 30 minutes (the default)
      (spel/set-session-idle-timeout! 0)        ; disable"
   [ms]
   (if-let [handler @!set-session-idle-timeout-handler]

@@ -6,9 +6,10 @@
    [com.blockether.spel.page :as sut]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.snapshot :as snapshot]
+   [com.blockether.spel.test-server :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [defdescribe describe expect expect-it it around]])
   (:import
-   [com.microsoft.playwright Locator Frame Response CDPSession]
+   [com.microsoft.playwright Locator Frame Response CDPSession Route]
    [com.microsoft.playwright.options AriaRole]))
 
 ;; =============================================================================
@@ -427,3 +428,44 @@
         ;; Clipboard paste may fail on about:blank (no secure context)
         ;; Just verify the function returns a map without crashing
           (expect (map? result)))))))
+
+;; =============================================================================
+;; Event Handler Safety — regression for the wedged-session bug
+;; =============================================================================
+
+(defdescribe route-handler-safety-test
+  "Regression: a broken route handler must not wedge navigation.
+
+   Playwright runs route handlers on its own dispatch thread and swallows the
+   exception. An intercepted request that is never resumed, aborted or fulfilled
+   hangs the navigation FOREVER — no timeout, no log line — which is how a single
+   `(fn [route _] ...)` wedged whole daemon sessions until the command budget
+   killed them. `route!` now guards the handler and resumes the route."
+  (around [f] (core/with-testing-browser ((:around with-test-server) f)))
+
+  (describe "a two-argument handler — the most common mistake"
+    (it "navigation completes instead of hanging forever"
+      (core/with-testing-page [pg]
+        (sut/route! pg "**/*" (fn [_route _extra] :never))
+        (let [resp (sut/navigate pg (str *test-server-url* "/health"))]
+          (expect (some? resp))
+          (expect (= 200 (.status ^Response resp)))
+          (expect (str/includes? (sut/content pg) "ok"))))))
+
+  (describe "a handler that throws"
+    (it "is released and navigation completes"
+      (core/with-testing-page [pg]
+        (sut/route! pg "**/*" (fn [_route] (throw (ex-info "handler blew up" {}))))
+        (let [resp (sut/navigate pg (str *test-server-url* "/health"))]
+          (expect (some? resp))
+          (expect (= 200 (.status ^Response resp)))))))
+
+  (describe "a well-formed handler still routes"
+    (it "runs the handler and lets it answer the request"
+      (core/with-testing-page [pg]
+        (let [seen (atom 0)]
+          (sut/route! pg "**/*" (fn [route] (swap! seen inc) (.resume ^Route route)))
+          (let [resp (sut/navigate pg (str *test-server-url* "/health"))]
+            (expect (some? resp))
+            (expect (pos? @seen))
+            (expect (str/includes? (sut/content pg) "ok"))))))))

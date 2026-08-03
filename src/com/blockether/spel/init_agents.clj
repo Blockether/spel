@@ -676,7 +676,7 @@
                             (println "Warning: No --ns provided, deriving from directory name.")
                             (println "         Tip: use --ns my-app to set namespace explicitly.")
                             (println ""))
-                        (derive-namespace)))
+                          (derive-namespace)))
             test-dir (:test-dir opts)]
         (print-banner loop-target no-tests)
 

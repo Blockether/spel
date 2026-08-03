@@ -307,7 +307,7 @@
                           (annotate/remove-overlays! page)))]
      (if-let [path (:path opts)]
        (do (save-bytes! ss-bytes path)
-         {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
+           {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
        {:bytes ss-bytes :annotated annotated}))))
 
 ;; =============================================================================

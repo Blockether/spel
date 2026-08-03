@@ -175,11 +175,56 @@
   [& parts]
   (log! :error (apply str parts)))
 
+(defn- origin-frame
+  "The most useful frame of `e`'s stack: the first that names spel, Playwright or
+   user-script code, else the top frame.
+
+   A warning that says only `Broken pipe` names what went wrong and never where,
+   which is why whole classes of daemon failures were undiagnosable from the
+   session log."
+  [^Throwable e]
+  (let [frames (.getStackTrace e)]
+    (when (pos? (alength frames))
+      (str (or (first (filter (fn [^StackTraceElement el]
+                                (let [c (.getClassName el)]
+                                  (or (str/starts-with? c "com.blockether.")
+                                    (str/starts-with? c "com.microsoft.playwright.")
+                                    (str/starts-with? c "sci."))))
+                        frames))
+             (aget frames 0))))))
+
+(defn describe-throwable
+  "Renders a throwable as ONE log line: class, message, origin frame, and up to
+   three causes.
+
+   `(.getMessage e)` alone is empty for entire exception families — NPEs,
+   ArityExceptions raised inside a proxy, most IOExceptions — so logging just
+   the message produced literally blank warnings such as `WARN [daemon]
+   ios-snapshot:`. Nil-safe: a nil throwable renders instead of throwing inside
+   a handler that is already failing."
+  [^Throwable e]
+  (if (nil? e)
+    "<no exception>"
+    (let [head   (str (.getName (class e)) ": "
+                   (or (not-empty (str (.getMessage e))) "<no message>"))
+          origin (origin-frame e)
+          causes (loop [^Throwable c (.getCause e)
+                        n            0
+                        acc          ""]
+                   (if (and (some? c) (< n 3))
+                     (recur (.getCause c) (inc n)
+                       (str acc " <- " (.getName (class c)) ": "
+                         (or (not-empty (str (.getMessage c))) "<no message>")))
+                     acc))]
+      (str head (when origin (str " at " origin)) causes))))
+
 (defn exception!
   "Logs an exception with a context label at warn level. Used in cleanup paths
-   where we continue despite errors but never swallow them silently."
+   where we continue despite errors but never swallow them silently.
+
+   Logs the full `describe-throwable` rendering, not just the message."
   [^String context ^Throwable e]
-  (log! :warn (str context ": " (.getMessage e))))
+  (log! :warn (str context ": " (describe-throwable e))))
 
 ;; =============================================================================
 ;; Reading

@@ -6,7 +6,7 @@
    they pass it through unchanged instead of throwing ClassCastException."
   (:require
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe]])
+   [com.blockether.spel.core :refer [safe event-consumer]])
   (:import
    [com.microsoft.playwright Request Response Route
     WebSocket WebSocketFrame WebSocketRoute]))
@@ -312,9 +312,7 @@
    `ws`      - WebSocket instance.
    `handler` - Function that receives a WebSocketFrame."
   [^WebSocket ws handler]
-  (.onFrameReceived ws
-    (reify java.util.function.Consumer
-      (accept [_ frame] (handler frame)))))
+  (.onFrameReceived ws (event-consumer "ws frame-received" handler)))
 
 (defn ws-on-close
   "Registers a handler for WebSocket close.
@@ -323,9 +321,7 @@
    `ws`      - WebSocket instance.
    `handler` - Function that receives the WebSocket."
   [^WebSocket ws handler]
-  (.onClose ws
-    (reify java.util.function.Consumer
-      (accept [_ w] (handler w)))))
+  (.onClose ws (event-consumer "ws close" handler)))
 
 (defn ws-on-error
   "Registers a handler for WebSocket errors.
@@ -334,9 +330,7 @@
    `ws`      - WebSocket instance.
    `handler` - Function that receives the error string."
   [^WebSocket ws handler]
-  (.onSocketError ws
-    (reify java.util.function.Consumer
-      (accept [_ err] (handler err)))))
+  (.onSocketError ws (event-consumer "ws socket-error" handler)))
 
 ;; =============================================================================
 ;; WebSocketFrame
@@ -387,9 +381,7 @@
    `wsr`     - WebSocketRoute instance.
    `handler` - Function that receives WebSocketFrame."
   [^WebSocketRoute wsr handler]
-  (.onMessage wsr
-    (reify java.util.function.Consumer
-      (accept [_ frame] (handler frame)))))
+  (.onMessage wsr (event-consumer "ws-route message" handler)))
 
 (defn wsr-send!
   "Sends a message to the client.
@@ -407,6 +399,4 @@
    `wsr`     - WebSocketRoute instance.
    `handler` - Function called on close."
   [^WebSocketRoute wsr handler]
-  (.onClose wsr
-    (reify java.util.function.Consumer
-      (accept [_ _code] (handler)))))
+  (.onClose wsr (event-consumer "ws-route close" (fn [_code] (handler)))))

@@ -244,7 +244,7 @@ spel has ONE log: the CLI client and the background daemon both append to
 
 | Env Var | CLI equivalent | Description |
 |---------|---------------|-------------|
-| `SPEL_SESSION_IDLE_TIMEOUT` | — | Auto-shutdown daemon after this many ms of inactivity (default: `300000` = 5 min, `0` disables) |
+| `SPEL_SESSION_IDLE_TIMEOUT` | — | Auto-shutdown daemon after this many ms of inactivity (default: `1800000` = 30 min, `0` disables) |
 | `SPEL_CDP_IDLE_TIMEOUT` | — | Auto-shutdown after CDP disconnect if no reconnect (ms, default: `1800000`, `0` disables) |
 | `SPEL_CDP_LOCK_WAIT` | — | Max seconds to wait for CDP route lock release (default: `120`, `0` = fail immediately) |
 | `SPEL_COMMAND_BUDGET_MS` | — | Watchdog budget for a single daemon command before it is abandoned as wedged (default: `25000`; open-ended actions such as `eval-js`/`eval-sci` use 900s) |
