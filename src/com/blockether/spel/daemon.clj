@@ -968,25 +968,25 @@
       (cond
         (> (System/currentTimeMillis) deadline)
         (do (.destroyForcibly proc)
-            (clear-auto-launch-lock! port)
-            (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
-                     {:port port :engine "lightpanda" :pid pid})))
+          (clear-auto-launch-lock! port)
+          (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
+                   {:port port :engine "lightpanda" :pid pid})))
 
         (not (.isAlive proc))
         (do (clear-auto-launch-lock! port)
-            (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
-                     {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
+          (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
+                   {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
 
         (probe-http-cdp port 500)
         (do (log/info! "[engine] Lightpanda ready on port " port)
-            {:cdp-url (str "ws://127.0.0.1:" port)
-             :port port
-             :process proc
-             :browser-pid pid})
+          {:cdp-url (str "ws://127.0.0.1:" port)
+           :port port
+           :process proc
+           :browser-pid pid})
 
         :else
         (do (Thread/sleep (long wait))
-            (recur deadline (min 100 (* 2 (long wait)))))))))
+          (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (declare kill-auto-launched-browser!)
 
@@ -1020,7 +1020,7 @@
         ;; because `open` spawns in background and we can't get the PID
         cmd       (into [binary] browser-args)
         _         (do (log/info! "auto-launch: starting " channel " on port " port)
-                      (log/info! "auto-launch: temp profile: " tmp-dir))
+                    (log/info! "auto-launch: temp profile: " tmp-dir))
         pb        (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
                     (.redirectOutput ProcessBuilder$Redirect/DISCARD)
                     (.redirectErrorStream true))
@@ -1056,7 +1056,7 @@
 
         :else
         (do (Thread/sleep (long wait))
-            (recur deadline (min 100 (* 2 (long wait)))))))))
+          (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -1220,7 +1220,7 @@
   (when-let [b (:browser @!state)]
     (if (instance? com.microsoft.playwright.Browser b)
       (try (.isConnected ^com.microsoft.playwright.Browser b)
-           (catch Throwable _ false))
+        (catch Throwable _ false))
       true)))
 
 (defn- page-open?
@@ -1229,7 +1229,7 @@
   (when-let [p (:page @!state)]
     (if (instance? com.microsoft.playwright.Page p)
       (try (not (.isClosed ^com.microsoft.playwright.Page p))
-           (catch Throwable _ false))
+        (catch Throwable _ false))
       true)))
 
 (defn- adopt-foreign-pages!
@@ -1242,7 +1242,7 @@
     :cdp-foreign true
     :adopted-context context
     :adopted-pages (into #{} (try (.pages ^BrowserContext context)
-                                  (catch Exception _ nil)))
+                               (catch Exception _ nil)))
     :spel-pages #{}))
 
 (defn- new-spel-page!
@@ -1692,21 +1692,30 @@
                         :navigated_at (System/currentTimeMillis)})
     (str "@" ref-id)))
 
+(defonce ^:private !network-responses (atom (sorted-map)))  ;; entry number -> Response, read off the dispatch thread
+
 (defn- track-network-entry!
-  "Tracks a network request/response with full details into the sliding window."
+  "Tracks a network request/response with full details into the sliding window.
+
+   Runs on Playwright's event dispatch thread, so it reads only what the event
+   already carries (`.headers`, `.postData`, `.status`). An API call that
+   round-trips to the driver (`.allHeaders`, `.text`) re-enters the dispatch
+   loop from inside the handler, stacking one nested handler frame per in-flight
+   response — a burst of a few hundred subresources exhausts the stack and every
+   response is lost to a StackOverflowError. The Response is parked in
+   `!network-responses` so `network get @nN` can read the full headers and body
+   later, from the command thread where blocking is safe."
   [^Response resp]
   (when (< (long @!session-entry-count) (long max-session-total))
     (let [^Request req (.request resp)
-          ref-id (str "n" (swap! !network-counter inc))
+          entry-no (long (swap! !network-counter inc))
+          ref-id (str "n" entry-no)
           resource-type (.resourceType req)
           page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
-          req-headers (try (into {} (.allHeaders req)) (catch Exception _ {}))
-          resp-headers (try (into {} (.allHeaders resp)) (catch Exception _ {}))
+          req-headers (try (into {} (.headers req)) (catch Exception _ {}))
+          resp-headers (try (into {} (.headers resp)) (catch Exception _ {}))
           post-data (try (.postData req) (catch Exception _ nil))
-          resp-body (when (should-capture-response-body? resource-type resp-headers)
-                      (try (.text resp) (catch Exception _ nil)))
           req-body-preview (safe-parse-json-body post-data 500)
-          resp-body-preview (safe-parse-json-body resp-body 500)
           duration 0
           entry {:ref (str "@" ref-id)
                  :method (.method req)
@@ -1720,7 +1729,7 @@
                  :preview {:request  {:headers (truncate-keys req-headers 5)
                                       :body    req-body-preview}
                            :response {:headers (truncate-keys resp-headers 5)
-                                      :body    resp-body-preview}}}
+                                      :body    nil}}}
           full-entry {:ref (str "@" ref-id)
                       :method (.method req)
                       :url (.url req)
@@ -1733,8 +1742,16 @@
                       :request {:headers req-headers
                                 :body post-data}
                       :response {:headers resp-headers
-                                 :body resp-body}}]
+                                 :body nil}}]
       (swap! !network-full assoc ref-id full-entry)
+      ;; Parked responses follow the sliding window: only a ref the window still
+      ;; lists can be fetched, so the oldest handle is dropped with it.
+      (swap! !network-responses
+        (fn [m]
+          (let [m (assoc m entry-no resp)]
+            (if (> (count m) (long max-window-per-page))
+              (dissoc m (first (keys m)))
+              m))))
       (swap! !network-window
         (fn [w]
           (let [updated (conj w entry)
@@ -1743,6 +1760,38 @@
               (subvec updated (- (long n) (long max-window-per-page)))
               updated))))
       (swap! !session-entry-count inc))))
+
+(defn- materialize-network-entry!
+  "Fills in a tracked entry's full headers and response body, on demand.
+
+   Called from a command handler — never from an event handler — because both
+   reads round-trip to the Playwright driver. The enriched entry replaces the
+   tracked one, so the body is fetched at most once per response.
+
+   Params:
+   `ref-id` - String ref without the leading @ (\"n3\").
+
+   Returns:
+   The entry map, enriched when the response is still readable, or nil when no
+   such ref was tracked."
+  [ref-id]
+  (when-let [entry (get @!network-full ref-id)]
+    (if-let [^Response resp (get @!network-responses (parse-long (subs ref-id 1)))]
+      (let [^Request req  (.request resp)
+            req-headers   (try (into {} (.allHeaders req))
+                            (catch Exception _ (get-in entry [:request :headers])))
+            resp-headers  (try (into {} (.allHeaders resp))
+                            (catch Exception _ (get-in entry [:response :headers])))
+            body          (when (should-capture-response-body? (:resource_type entry) resp-headers)
+                            (try (.text resp) (catch Exception _ nil)))
+            enriched      (-> entry
+                            (assoc-in [:request :headers] req-headers)
+                            (assoc-in [:response :headers] resp-headers)
+                            (assoc-in [:response :body] body))]
+        (swap! !network-full assoc ref-id enriched)
+        (swap! !network-responses dissoc (parse-long (subs ref-id 1)))
+        enriched)
+      entry)))
 
 (defn- track-console-entry!
   "Tracks a console message into the sliding window."
@@ -1946,7 +1995,7 @@
                       (if (and (not no-auto?)
                             (contains? #{"alert" "beforeunload"} dtype))
                         (try (.accept d)
-                             (catch Exception _ nil))
+                          (catch Exception _ nil))
                         ;; Park until an explicit response arrives on the
                         ;; promise. Playwright dispatches onDialog on its own
                         ;; event thread so blocking here is safe.
@@ -2094,7 +2143,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
+                                                              (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
                         (get flags "download-path")       (assoc :accept-downloads true))
           pw          (core/create)]
@@ -2310,10 +2359,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                     (catch Exception _ nil)))
+                  (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                     (catch Exception _ nil)))}))
+                  (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -2782,19 +2831,23 @@
                                                            sel           (assoc :scope sel)
                                                            styles?       (assoc :styles true)
                                                            styles-detail (assoc :styles-detail styles-detail)
-                                                           device        (assoc :device device))))
-        _              (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-        tree           (filter-snapshot-tree (:tree snap) params)
-        structured     (build-structured-refs (:refs snap))]
-    (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
-             :refs structured :pages @!pages}
-      (:viewport snap)            (assoc :viewport (:viewport snap))
-      (:device snap)              (assoc :device (:device snap))
-      (page-description)          (assoc :description (page-description))
-      no-network?                 (dissoc :network)
-      no-console?                 (dissoc :console)
-      (not no-network?)           (assoc :network @!network-window)
-      (not no-console?)           (assoc :console @!console-window))))
+                                                           device        (assoc :device device))))]
+    ;; A crashed renderer or an aborted capture is surfaced on the command that
+    ;; caused it — never rendered as a successful snapshot with an empty tree.
+    (if (anomaly/anomaly? snap)
+      snap
+      (let [_          (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+            tree       (filter-snapshot-tree (:tree snap) params)
+            structured (build-structured-refs (:refs snap))]
+        (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
+                 :refs structured :pages @!pages}
+          (:viewport snap)            (assoc :viewport (:viewport snap))
+          (:device snap)              (assoc :device (:device snap))
+          (page-description)          (assoc :description (page-description))
+          no-network?                 (dissoc :network)
+          no-console?                 (dissoc :console)
+          (not no-network?)           (assoc :network @!network-window)
+          (not no-console?)           (assoc :console @!console-window))))))
 
 (defn- new-tab-modifier
   "Returns the keyboard modifier that opens a link in a new tab on the current
@@ -3191,15 +3244,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-        {:found_text (get params "text")})
+      {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-        {:url (get params "url")})
+      {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-        {:function_completed true})
+      {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -3210,11 +3263,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-        {:state (get params "state")})
+      {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-        {:waited (get params "timeout")})
+      {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -3635,13 +3688,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "click"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                    (snapshot-after-action!)
-                    {:found by :value value :action "fill"})
+                  (snapshot-after-action!)
+                  {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                    {:found by :value value :action "type"})
+                  {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -3788,7 +3841,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-          (.setPath cookie (or path "/")))
+        (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -3821,7 +3874,7 @@
 
 (defmethod handle-cmd "network_get_ref" [_ {:strs [ref]}]
   (let [ref-id (str/replace (or ref "") #"^@" "")]
-    (if-let [entry (get @!network-full ref-id)]
+    (if-let [entry (materialize-network-entry! ref-id)]
       entry
       {:error (str "Network ref @" ref-id " not found")})))
 
@@ -3881,12 +3934,12 @@
                        (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
                        (get flags "headers")             (assoc :extra-http-headers
                                                            (try (json/read-json (get flags "headers"))
-                                                                (catch Exception _ {}))))
+                                                             (catch Exception _ {}))))
         ctx-opts     (merge base-opts extra-opts)]
     ;; Save in-flight trace + storage state before teardown
     (save-inflight-trace!)
     (let [storage-state (try (.storageState ^BrowserContext (:context @!state))
-                             (catch Exception _ nil))]
+                          (catch Exception _ nil))]
       (when-let [p (:page @!state)]
         (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
       (when-let [c (:context @!state)]
@@ -3947,15 +4000,15 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        (when (empty? @!routes)
-          (release-cdp-route-lock-if-owned!))
-        {:route_removed url})
+      (swap! !routes dissoc url)
+      (when (empty? @!routes)
+        (release-cdp-route-lock-if-owned!))
+      {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-        (reset! !routes {})
-        (release-cdp-route-lock-if-owned!)
-        {:all_routes_removed true})))
+      (reset! !routes {})
+      (release-cdp-route-lock-if-owned!)
+      {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -3996,34 +4049,34 @@
   ;; dialog fires.
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:accept text])
-        {:dialog_handler "accept" :text text :pending false})
+      {:dialog_handler "accept" :text text :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.accept ^Dialog dialog (or text ""))
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "accept" :text text :pending true})))
+      (let [handler (reify java.util.function.Consumer
+                      (accept [_ dialog]
+                        (try (.accept ^Dialog dialog (or text ""))
+                          (catch Exception _ nil))
+                        (install-default-dialog-handler! (pg)
+                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+        (reset! !dialog-handler handler)
+        (.onDialog ^Page (pg) handler))
+      {:dialog_handler "accept" :text text :pending true})))
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:dismiss nil])
-        {:dialog_handler "dismiss" :pending false})
+      {:dialog_handler "dismiss" :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.dismiss ^Dialog dialog)
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "dismiss" :pending true})))
+      (let [handler (reify java.util.function.Consumer
+                      (accept [_ dialog]
+                        (try (.dismiss ^Dialog dialog)
+                          (catch Exception _ nil))
+                        (install-default-dialog-handler! (pg)
+                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+        (reset! !dialog-handler handler)
+        (.onDialog ^Page (pg) handler))
+      {:dialog_handler "dismiss" :pending true})))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
@@ -4103,7 +4156,7 @@
         (let [new-pg (new-spel-page! new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -4180,9 +4233,9 @@
         launch-flags (:launch-flags state)
         viewport (try (when page (page/viewport-size page)) (catch Exception _ nil))
         tab-count (try (when context (count (.pages ^com.microsoft.playwright.BrowserContext context)))
-                       (catch Exception _ nil))
+                    (catch Exception _ nil))
         cookies-count (try (when context (count (.cookies ^com.microsoft.playwright.BrowserContext context)))
-                           (catch Exception _ nil))
+                        (catch Exception _ nil))
         ios? (= "ios" (get launch-flags "provider"))
         ios-sess (:ios-session state)]
     (if ios?
@@ -5112,7 +5165,7 @@
 
       (get params "timeout")
       (do (Thread/sleep (long (get params "timeout")))
-          {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
       :else
       {:error "No wait condition specified"})))
@@ -5149,8 +5202,8 @@
   (let [b (ios-backend)]
     (if (and x y)
       (do (backend/tap! b [(long x) (long y)] {})
-          (ios-snapshot-after-action! b)
-          {:tapped [(long x) (long y)]})
+        (ios-snapshot-after-action! b)
+        {:tapped [(long x) (long y)]})
       (do
         (when (str/blank? (str selector))
           (throw (ex-info "tap requires a selector/@ref or x y coordinates" {})))
@@ -5226,7 +5279,7 @@
    nothing and works even when the browser stopped answering."
   []
   (try (when-let [p (:page @!state)] (page/url p))
-       (catch Throwable _ nil)))
+    (catch Throwable _ nil)))
 
 (defn- restore-page!
   "Re-opens `url` on the freshly relaunched browser so a recovered session lands
@@ -5252,7 +5305,7 @@
   [action params]
   (let [attempt (fn run-command []
                   (try {:ok (dispatch-cmd action params)}
-                       (catch Throwable e {:threw e})))
+                    (catch Throwable e {:threw e})))
         url-before (current-url-quietly)
         {:keys [ok threw]} (attempt)
         anomaly (when (anomaly/anomaly? ok) ok)
@@ -5961,10 +6014,10 @@
                            ::closed
                            (do (log/warn! "accept failed: " (.getMessage e)
                                  " — still listening")
-                               (Thread/sleep 50)
-                               ::retry))))]
+                             (Thread/sleep 50)
+                             ::retry))))]
           (cond
             (identical? ::closed client) nil
             (identical? ::retry client)  (recur)
             :else (do (submit-virtual #(handle-connection client))
-                      (recur))))))))
+                    (recur))))))))

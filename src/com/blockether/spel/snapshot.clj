@@ -12,6 +12,7 @@
      (resolve-ref page ref-id) ;; returns Locator for the element"
   (:require
    [clojure.string :as str]
+   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.webdriver :as webdriver])
   (:import
@@ -461,7 +462,14 @@
     } catch(e) { return null; }
   }
 
-  function walk(el) {
+  // Recursion budget: a DOM nested deeper than this exhausts the JS stack and,
+  // in Chromium, can take the renderer down with it. Exceeding it is reported as
+  // an error rather than silently returning a partial (or empty) tree.
+  const MAX_DEPTH = 1500;
+
+  function walk(el, depth) {
+    if (depth > MAX_DEPTH)
+      throw new Error('snapshot depth limit of ' + MAX_DEPTH + ' exceeded: the DOM is nested deeper than the accessibility walker can serialize');
     if (!el || el.nodeType !== 1) return null;
     if (!isVisible(el)) return null;
 
@@ -481,7 +489,7 @@
     // Walk children
     const children = [];
     for (const child of el.children) {
-      const node = walk(child);
+      const node = walk(child, depth + 1);
       if (node) children.push(node);
     }
 
@@ -604,7 +612,12 @@
   const _scopeSel = typeof __SCOPE__ === 'string' ? __SCOPE__ : null;
   const _root = _scopeSel ? document.querySelector(_scopeSel) : document.body;
   if (!_root) return { tree: null, refs: {}, counter: 0 };
-  const tree = walk(_root);
+  let tree;
+  try {
+    tree = walk(_root, 0);
+  } catch (e) {
+    return { tree: null, refs: {}, counter: 0, error: String((e && e.message) || e) };
+  }
   return { tree: tree, refs: refs, counter: counter };
 })()")
 
@@ -745,6 +758,37 @@
 ;; Public API
 ;; =============================================================================
 
+(defn capture-failure
+  "Returns an anomaly when a raw capture result cannot be parsed, else nil.
+
+   The capture is only trustworthy when the script actually ran and returned a
+   tree slot. Two failures used to be indistinguishable from a blank page: an
+   evaluate anomaly (a crashed or closed renderer) and a capture script that
+   aborted (depth budget exceeded). Both are reported here so callers fail
+   loudly instead of rendering an empty snapshot.
+
+   Params:
+   `result` - The raw value returned by the capture script evaluation.
+
+   Returns:
+   An anomaly map, or nil when `result` is a usable capture result."
+  [result]
+  (cond
+    (anomaly/anomaly? result)
+    result
+
+    (not (map? result))
+    (anomaly/anomaly ::anomaly/fault
+      (str "snapshot capture returned no result (" (pr-str result) ")"))
+
+    (get result "error")
+    (anomaly/anomaly ::anomaly/fault
+      (str "snapshot capture failed: " (get result "error")))
+
+    (not (contains? result "tree"))
+    (anomaly/anomaly ::anomaly/fault
+      "snapshot capture failed: the capture script returned no tree")))
+
 (defn parse-capture-result
   "Parses the raw JS capture result into the public snapshot map.
 
@@ -819,14 +863,17 @@
      :tree     - String. YAML-like accessibility tree with [@eXXXXX] annotations.
      :raw-tree - The raw nested tree structure from the accessibility snapshot JS.
      :refs     - Map. {'e2yrjz' {:role 'button' :name 'Submit' :bbox {:x :y :width :height}} ...}
-     :counter  - Long. Total number of refs assigned."
+     :counter  - Long. Total number of refs assigned.
+
+   Or an anomaly when the capture itself failed — a crashed or closed renderer,
+   or a DOM nested deeper than the walker's documented depth budget."
   ([^Page page]
    (capture-snapshot page {}))
   ([^Page page opts]
    (let [js     (capture-script opts)
-         result (page/evaluate page js)
-         vp     (page/viewport-size page)]
-     (parse-capture-result result (assoc opts :viewport vp)))))
+         result (page/evaluate page js)]
+     (or (capture-failure result)
+       (parse-capture-result result (assoc opts :viewport (page/viewport-size page)))))))
 
 (defn capture-webdriver
   "Captures an accessibility snapshot through a W3C WebDriver session.
@@ -842,7 +889,8 @@
    `driver` - com.blockether.spel.webdriver WebDriverSession.
    `opts`   - Same options as capture-snapshot (:scope, :styles, ...).
 
-   Returns the same map shape as capture-snapshot."
+   Returns the same map shape as capture-snapshot, or an anomaly when the
+   capture failed."
   ([driver] (capture-webdriver driver {}))
   ([driver opts]
    (let [js     (capture-script opts)
@@ -853,7 +901,8 @@
                     {:width  (long (or (get v "width") 0))
                      :height (long (or (get v "height") 0))})
                   (catch Exception _ nil))]
-     (parse-capture-result result (assoc opts :viewport vp)))))
+     (or (capture-failure result)
+       (parse-capture-result result (assoc opts :viewport vp))))))
 
 (defn capture-snapshot-for-frame
   "Captures an accessibility snapshot for a specific frame.
@@ -884,13 +933,14 @@
    `page` - Playwright Page instance.
 
    Returns:
-   Map with :tree, :refs, :counter covering all frames."
+   Map with :tree, :refs, :counter covering all frames, or the main frame's
+   anomaly when that capture failed."
   [^Page page]
   (let [main-snap  (capture-snapshot page)
-        frames     (page/frames page)
+        frames     (when-not (anomaly/anomaly? main-snap) (page/frames page))
         ;; Frames include the main frame as first element
         sub-frames (rest frames)]
-    (if (empty? sub-frames)
+    (if (or (anomaly/anomaly? main-snap) (empty? sub-frames))
       main-snap
       ;; Merge iframe snapshots
       (let [iframe-snaps (map-indexed

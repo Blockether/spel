@@ -7,10 +7,13 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as sut]
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.test-server :as test-server]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.logging :as logging]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [around defdescribe describe expect it]]))
 
 ;; =============================================================================
 ;; Unit Tests — Path Functions
@@ -1370,3 +1373,64 @@
     (it "is false for anything else, including a message-less throwable"
       (expect (false? (boolean (#'sut/client-gone? (NullPointerException.)))))
       (expect (false? (boolean (#'sut/client-gone? (ex-info "browser closed" {}))))))))
+
+;; =============================================================================
+;; Regression, issue #113: under a burst of concurrent responses the Playwright
+;; `response` listener threw java.lang.StackOverflowError once per response —
+;; hundreds of WARN lines from a single page load, and the listener's work
+;; silently skipped for every affected response. The handler read
+;; `.allHeaders`/`.text`, which round-trip to the driver and re-enter the event
+;; dispatch loop from inside the handler, so every in-flight response stacked
+;; one more nested handler frame.
+;; =============================================================================
+
+(defn- burst-handler-nesting
+  "Runs `handler` as `pg`'s response listener while the page fires `n`
+   concurrent fetches, and reports how deeply the handler nested.
+
+   Params:
+   `pg`      - Page instance, already on the test server's origin.
+   `handler` - Function receiving a Response.
+   `n`       - Long. Number of concurrent fetches to fire.
+
+   Returns:
+   Map with :max-nesting (deepest simultaneous handler depth) and :handled."
+  [pg handler n]
+  (let [!depth (atom 0)
+        !max   (atom 0)
+        !seen  (atom 0)]
+    (page/on-response pg
+      (fn [resp]
+        (let [d (swap! !depth inc)]
+          (swap! !max max d)
+          (try
+            (handler resp)
+            (finally
+              (swap! !seen inc)
+              (swap! !depth dec))))))
+    (page/evaluate pg (str "(()=>{for(let i=0;i<" n ";i++){fetch('/health?i='+i);}return 'fired';})()"))
+    (let [deadline (+ (System/currentTimeMillis) 60000)]
+      (while (and (< (long @!seen) (long n))
+               (< (System/currentTimeMillis) (long deadline)))
+        (page/wait-for-timeout pg 100)))
+    {:max-nesting @!max :handled @!seen}))
+
+(defdescribe response-listener-burst-test
+  "The response listener under a burst of concurrent responses."
+  (around [f] (core/with-testing-browser ((:around test-server/with-test-server) f)))
+
+  (describe "400 concurrent responses"
+    (it "handles every response without nesting the handler"
+      (core/with-testing-page [pg]
+        (page/navigate pg (str test-server/*test-server-url* "/health"))
+        (let [network-full (var-get #'sut/!network-full)
+              before       (count @network-full)
+              n            400
+              {:keys [max-nesting handled]}
+              (burst-handler-nesting pg (var-get #'sut/track-response!) n)]
+          (expect (= n handled))
+          ;; Pre-fix this reached the burst size itself — one nested frame per
+          ;; in-flight response — and every handler died with StackOverflowError.
+          (expect (= 1 max-nesting))
+          ;; The work the listener exists for actually happened.
+          (expect (<= (long n) (long (- (count @network-full) before)))))))))

@@ -5,6 +5,7 @@
    that run against example.org using Playwright."
   (:require
    [clojure.string :as str]
+   [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as sut]
    [com.blockether.spel.core :as core]
@@ -1380,3 +1381,59 @@
           (allure/attach "form-positions"
             (pr-str {:heading (:bbox heading) :email (:bbox email-input)
                      :password (:bbox pw-input) :submit (:bbox submit-btn)}) "text/plain"))))))
+
+;; =============================================================================
+;; Regression, issue #115: `snapshot` on a deeply nested DOM returned an empty
+;; result and reported success — the accessibility walker blew the JS stack, the
+;; capture came back with no tree at all, and a caller could not tell that apart
+;; from a genuinely blank page (the renderer was left crashed as well).
+;; =============================================================================
+
+(defn- nest-divs!
+  "Nests `depth` divs inside the page body, with visible text at the bottom."
+  [pg depth]
+  (page/evaluate pg
+    (str "(()=>{let n=document.body;for(let i=0;i<" depth ";i++)"
+      "{const d=document.createElement('div');n.appendChild(d);n=d;}"
+      "n.textContent='DEEPMARK';return document.querySelectorAll('div').length;})()")))
+
+(defdescribe capture-failure-test
+  "capture-failure turns an unusable capture result into an anomaly."
+
+  (describe "a capture script that aborted"
+    (it "is an anomaly naming the reason"
+      (let [failure (sut/capture-failure {"tree" nil "refs" {} "counter" 0
+                                          "error" "snapshot depth limit of 1500 exceeded"})]
+        (expect (anomaly/anomaly? failure))
+        (expect (str/includes? (::anomaly/message failure) "depth limit")))))
+
+  (describe "a capture that returned nothing at all"
+    (it "is an anomaly"
+      (expect (anomaly/anomaly? (sut/capture-failure nil)))))
+
+  (describe "a usable capture result"
+    (it "passes through"
+      (expect (nil? (sut/capture-failure {"tree" {} "refs" {} "counter" 0}))))))
+
+(defdescribe deep-dom-snapshot-test
+  "capture-snapshot against a DOM nested past the walker's depth budget."
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "deeper than the budget"
+    (it "returns an anomaly instead of a silently empty snapshot"
+      (core/with-testing-page [pg]
+        ;; Chromium's own renderer may not survive a DOM this deep — which is
+        ;; the whole point: the caller is told the capture failed instead of
+        ;; being handed a snapshot that looks like a blank page.
+        (nest-divs! pg 2000)
+        (let [snap (sut/capture-snapshot pg)]
+          (expect (anomaly/anomaly? snap))
+          (expect (str/includes? (::anomaly/message snap) "depth limit"))))))
+
+  (describe "within the budget"
+    (it "captures the tree as before"
+      (core/with-testing-page [pg]
+        (nest-divs! pg 50)
+        (let [snap (sut/capture-snapshot pg)]
+          (expect (not (anomaly/anomaly? snap)))
+          (expect (str/includes? (str (:tree snap)) "DEEPMARK")))))))

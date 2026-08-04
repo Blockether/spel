@@ -2697,3 +2697,62 @@
       (doseq [action ["sci_eval" "script" "goto" "snapshot" "ios_tap"]]
         (expect (> (#'sut/client-timeout-for {"action" action})
                   (daemon/command-budget-ms action)))))))
+
+;; =============================================================================
+;; Regression, issue #114: `spel session list` died with
+;; `java.util.MissingFormatWidthException: %-0s` whenever no listed session was
+;; the current one — the unnamed current-session marker column was then empty in
+;; the header and in every row, so its computed width was 0 and `render-table`
+;; formatted it as "%-0s", which java.util.Formatter rejects.
+;; =============================================================================
+
+(defdescribe render-table-test
+  "Column sizing in render-table, including all-empty columns."
+
+  (describe "a column that is empty in the header and in every row"
+    (it "renders the table instead of throwing"
+      (let [render-table (var-get #'sut/render-table)
+            out (str/replace
+                  (with-out-str
+                    (render-table ["" "SESSION" "BROWSER"]
+                      [["" "foo" "chromium"]
+                       ["" "bar" "firefox"]]))
+                  "\r" "")]
+        (expect (str/includes? out "SESSION"))
+        (expect (str/includes? out "foo"))
+        (expect (str/includes? out "bar"))))
+
+    (it "still renders when one row fills the marker column"
+      (let [render-table (var-get #'sut/render-table)
+            out (str/replace
+                  (with-out-str
+                    (render-table ["" "SESSION"]
+                      [["" "foo"]
+                       ["→" "bar"]]))
+                  "\r" "")]
+        (expect (str/includes? out "→   bar"))))))
+
+;; =============================================================================
+;; Regression, issue #116: `spel wait --load <state>` printed a bare "Saved: "
+;; with an empty value — the shared state branch assumed a saved-artifact path,
+;; so a command that saves nothing advertised a save confirmation and scripts
+;; matching "Saved: " acted on an empty path.
+;; =============================================================================
+
+(defdescribe state-result-test
+  "Rendering of results carrying a :state key."
+
+  (describe "wait --load"
+    (it "prints the reached load state and no save prefix"
+      (let [out (render-result {:success true :data {:state "domcontentloaded"}})]
+        (expect (= "domcontentloaded\n" out))
+        (expect (not (str/includes? out "Saved:"))))))
+
+  (describe "state save/load"
+    (it "prints the saved path"
+      (expect (= "Saved: /tmp/state-x.json\n"
+                (render-result {:success true :data {:state "saved" :path "/tmp/state-x.json"}}))))
+
+    (it "prints the loaded path"
+      (expect (= "Loaded: /tmp/state-x.json\n"
+                (render-result {:success true :data {:state "loaded" :path "/tmp/state-x.json"}}))))))
