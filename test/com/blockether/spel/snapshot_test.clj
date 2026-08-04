@@ -1437,3 +1437,34 @@
         (let [snap (sut/capture-snapshot pg)]
           (expect (not (anomaly/anomaly? snap)))
           (expect (str/includes? (str (:tree snap)) "DEEPMARK")))))))
+
+(defn- nest-groups!
+  "Nests `depth` role=group divs inside the page body, with a button at the bottom.
+
+   Unlike bare divs, every level carries a role and a name, so the walker keeps
+   one node per level and the captured tree really is `depth` levels deep."
+  [pg depth]
+  (page/evaluate pg
+    (str "(()=>{let n=document.body;for(let i=0;i<" depth ";i++)"
+      "{const d=document.createElement('div');d.setAttribute('role','group');"
+      "d.setAttribute('aria-label','g'+i);n.appendChild(d);n=d;}"
+      "const b=document.createElement('button');b.textContent='DEEPBOTTOM';"
+      "n.appendChild(b);return document.querySelectorAll('div').length;})()")))
+
+;; Regression, issue #118 (follow-up to #115): after the depth budget landed, a
+;; hundred levels deep still could not be snapshotted at all — the capture result
+;; was handed back to Playwright as a nested object and its serializer refused it
+;; with "Cannot serialize result: object reference chain is too long", so the
+;; snapshot died far below the walker's documented 1500-level budget.
+(defdescribe nested-capture-transport-test
+  "capture-snapshot of a deeply nested (but budget-respecting) DOM."
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "hundreds of levels of nesting"
+    (it "captures the tree instead of failing to serialize it"
+      (core/with-testing-page [pg]
+        (nest-groups! pg 400)
+        (let [snap (sut/capture-snapshot pg)]
+          (expect (not (anomaly/anomaly? snap)))
+          (expect (pos? (long (:counter snap))))
+          (expect (str/includes? (:tree snap) "DEEPBOTTOM")))))))

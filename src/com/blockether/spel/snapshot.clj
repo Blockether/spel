@@ -12,6 +12,7 @@
      (resolve-ref page ref-id) ;; returns Locator for the element"
   (:require
    [clojure.string :as str]
+   [charred.api :as json]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.webdriver :as webdriver])
@@ -611,14 +612,18 @@
 
   const _scopeSel = typeof __SCOPE__ === 'string' ? __SCOPE__ : null;
   const _root = _scopeSel ? document.querySelector(_scopeSel) : document.body;
-  if (!_root) return { tree: null, refs: {}, counter: 0 };
+  // The result travels as a JSON STRING: Playwright's own serializer walks the
+  // returned value and refuses an object nested more than a few hundred levels
+  // deep ('object reference chain is too long'), which made a page nested far
+  // below the walker's depth budget impossible to snapshot at all.
+  if (!_root) return JSON.stringify({ tree: null, refs: {}, counter: 0 });
   let tree;
   try {
     tree = walk(_root, 0);
   } catch (e) {
-    return { tree: null, refs: {}, counter: 0, error: String((e && e.message) || e) };
+    return JSON.stringify({ tree: null, refs: {}, counter: 0, error: String((e && e.message) || e) });
   }
-  return { tree: tree, refs: refs, counter: counter };
+  return JSON.stringify({ tree: tree, refs: refs, counter: counter });
 })()")
 
 ;; =============================================================================
@@ -758,6 +763,29 @@
 ;; Public API
 ;; =============================================================================
 
+(defn decode-capture-result
+  "Parses the capture script's JSON payload into a string-keyed map.
+
+   The script answers with a JSON string rather than an object: Playwright's
+   serializer refuses to return an object nested more than a few hundred levels
+   deep (\"Cannot serialize result: object reference chain is too long\"), so a
+   page nested far below the walker's own depth budget could not be snapshotted
+   at all. Anomalies and already-parsed maps pass through untouched.
+
+   Params:
+   `result` - The raw value returned by evaluating the capture script.
+
+   Returns:
+   A string-keyed map, an anomaly, or `result` unchanged."
+  [result]
+  (if (string? result)
+    (try
+      (json/read-json result)
+      (catch Exception e
+        (anomaly/anomaly ::anomaly/fault
+          (str "snapshot capture returned unparsable JSON: " (ex-message e)))))
+    result))
+
 (defn capture-failure
   "Returns an anomaly when a raw capture result cannot be parsed, else nil.
 
@@ -871,7 +899,7 @@
    (capture-snapshot page {}))
   ([^Page page opts]
    (let [js     (capture-script opts)
-         result (page/evaluate page js)]
+         result (decode-capture-result (page/evaluate page js))]
      (or (capture-failure result)
        (parse-capture-result result (assoc opts :viewport (page/viewport-size page)))))))
 
@@ -894,7 +922,7 @@
   ([driver] (capture-webdriver driver {}))
   ([driver opts]
    (let [js     (capture-script opts)
-         result (webdriver/evaluate driver js)
+         result (decode-capture-result (webdriver/evaluate driver js))
          vp     (try
                   (let [v (webdriver/evaluate driver
                             "({width: window.innerWidth, height: window.innerHeight})")]
