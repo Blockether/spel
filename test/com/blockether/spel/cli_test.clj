@@ -2613,7 +2613,23 @@
     (it "matches spel.exe so a Windows sweep is not blind"
       (expect (= "win1" (:session (sut/daemon-process-entry
                                     44
-                                    "C:\\\\tools\\\\spel.exe daemon --session win1"))))))
+                                    "C:\\\\tools\\\\spel.exe daemon --session win1")))))
+
+    ;; Regression, issue #117: a daemon started from a downloaded release asset
+    ;; (`spel-macos-arm64`, `spel-windows-x64.exe`) was not recognised as spel's
+    ;; own process, so `kill` answered "REFUSED unsafe stale pid - unrelated
+    ;; process left alive" and the daemon could never be stopped by its own binary.
+    (it "matches a daemon started from a release asset's file name"
+      (expect (= "a1" (:session (sut/daemon-process-entry
+                                  49 "/tmp/dl/spel-macos-arm64 daemon --session a1")))))
+
+    (it "matches a Windows release asset"
+      (expect (= "w2" (:session (sut/daemon-process-entry
+                                  50 "C:\\\\dl\\\\spel-windows-x64.exe daemon --session w2")))))
+
+    (it "matches a release asset invoked with --session before the subcommand"
+      (expect (= "a3" (:session (sut/daemon-process-entry
+                                  51 "/tmp/dl/spel-linux-x64 --session a3 daemon"))))))
 
   (describe "refuses everything else"
     (it "leaves a spel CLIENT alone — it carries --session too"
@@ -2627,6 +2643,10 @@
     (it "leaves an unrelated process that merely says daemon alone"
       (expect (nil? (sut/daemon-process-entry
                       46 "node /some/daemon-runner --session foo"))))
+
+    (it "leaves a release-asset CLIENT invocation alone"
+      (expect (nil? (sut/daemon-process-entry
+                      52 "/tmp/dl/spel-linux-x64 --session victim open https://example.com"))))
 
     (it "ignores a process with no command line at all"
       (expect (nil? (sut/daemon-process-entry 47 nil))))))

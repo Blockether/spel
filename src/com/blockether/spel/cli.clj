@@ -3598,11 +3598,14 @@
    The match has to be tight in both directions: miss a daemon and it stays
    unkillable, match too widely and `kill --all-sessions` destroys an unrelated
    process. A spel CLIENT invocation carries `--session` too, so the `daemon`
-   subcommand is what separates them."
+   subcommand is what separates them. The executable's file name is NOT a
+   reliable marker: release assets are published as `spel-macos-arm64`,
+   `spel-windows-x64.exe` and friends, so a daemon started from a downloaded
+   asset used to look like a bystander and was refused instead of killed."
   [pid ^String cmd]
   (when (and cmd
           (str/includes? cmd "--session")
-          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:\.exe)?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
+          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:-[\w.-]+)?(?:\.exe)?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
             (re-find #"com\.blockether\.spel\.native\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)))
     {:pid     (str pid)
      :session (second (re-find #"--session[\s=]+(\S+)" cmd))}))
