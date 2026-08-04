@@ -231,11 +231,15 @@ probe_http() {
   local tmp_body tmp_headers http_status
   tmp_body=$(mktemp)
   tmp_headers=$(mktemp)
-  # -D: dump headers; -w: status code on stdout; -o: body to file
+  # -D: dump headers; -w: status code on stdout; -o: body to file.
+  # curl can exit non-zero AFTER printing the status code, so never append a
+  # fallback to its stdout: the old '|| echo 000' glued a second code onto
+  # the first and the probe reported statuses that do not exist (000000).
   http_status=$(curl -sS --max-time 2 \
     -D "$tmp_headers" -o "$tmp_body" \
     -w '%{http_code}' \
-    "http://${target}/json/version" 2>/dev/null || echo "000")
+    "http://${target}/json/version" 2>/dev/null) || true
+  http_status=${http_status:-000}
 
   case "$http_status" in
     200)
@@ -308,13 +312,18 @@ probe_ws() {
   # Sec-WebSocket-Key is a fixed base64-encoded 16-byte nonce (RFC 6455 §4.1);
   # the server's 101 response proves the Upgrade path works end-to-end.
   local status
+  # A successful Upgrade makes curl exit non-zero: after 101 the server sends
+  # no ordinary body. The old '|| echo 000' therefore appended 000 to the 101
+  # curl had already printed, and 101000 matched neither branch, so a WORKING
+  # WebSocket was reported as Upgrade rejected.
   status=$(curl -sS --max-time 2 --http1.1 -o /dev/null -w '%{http_code}' \
     -H 'Connection: Upgrade' \
     -H 'Upgrade: websocket' \
     -H 'Sec-WebSocket-Version: 13' \
     -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
     -H 'Host: '"${target}" \
-    "http://${target}${ws_path}" 2>/dev/null || echo "000")
+    "http://${target}${ws_path}" 2>/dev/null) || true
+  status=${status:-000}
   if [[ "$status" == "101" ]]; then
     ok "WS    ws://${target}${ws_path} → 101 Switching Protocols"
     return 0
