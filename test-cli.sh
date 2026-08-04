@@ -1174,32 +1174,64 @@ assert_not_empty "help" "$OUT"
 OUT=$(timeout 5 "$SPEL" --json connect ws://localhost:9999 2>&1)
 assert_jq "connect (no endpoint) → failure" "$OUT" 'has("error")'
 
-# The native binary must be able to speak plain HTTP itself: GraalVM enables no
-# http URL protocol unless the build asks for it, and a binary without it fails
-# EVERY `connect http://host:port` while blaming the browser (issue #112).
-# A local server that 404s /json/version separates the two failures: HTTP that
-# works reports "not a DevTools endpoint", a dead HTTP stack reports a transport
-# error instead.
+# The native binary must be able to speak HTTP **and HTTPS** itself: GraalVM
+# enables no URL protocol unless the build asks for it, and a binary without it
+# fails EVERY `connect http(s)://host:port` while blaming the browser (issue
+# #112). A hosted or reverse-proxied CDP grid is only ever reachable over TLS,
+# so https:// is probed here too — the preflight used to fetch /json/version in
+# plaintext and refused those endpoints with a transport error.
+# A local server that 404s /json/version separates the two failures: a working
+# stack reports "not a DevTools endpoint", a dead one a transport error.
 # The kernel picks the port (a hardcoded one sits inside the ephemeral range)
 # and the port is published only once the socket is really listening — `sleep 1`
 # is not enough for a cold server on a loaded runner, and the miss looked
 # exactly like a spel bug: "127.0.0.1:PORT is not accepting connections".
-# The server is the JDK's own http server: every machine that can build spel has
-# `java`, while a macOS runner without python3 turned this test into a phantom
-# spel failure.
-FAKE_HTTP_DIR="/tmp/spel-fake-http-$$"
-mkdir -p "$FAKE_HTTP_DIR"
-FAKE_HTTP_PORTFILE="$FAKE_HTTP_DIR/port"
-FAKE_HTTP_LOG="$FAKE_HTTP_DIR/log"
-TEMP_FILES+=("$FAKE_HTTP_DIR/FakeHttp.java" "$FAKE_HTTP_PORTFILE" "$FAKE_HTTP_LOG")
-cat > "$FAKE_HTTP_DIR/FakeHttp.java" << 'FAKE_HTTP_EOF'
+# The server is the JDK's own http server, and its certificate comes from the
+# JDK's own keytool: every machine that can build spel has `java`, while a macOS
+# runner without python3 turned this test into a phantom spel failure.
+fake_endpoint_case() {
+  local scheme="$1"
+  local upper
+  upper=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
+  local label="connect $scheme:// → native binary speaks $upper (/json/version fetched)"
+  local dir="/tmp/spel-fake-$scheme-$$"
+  local portfile="$dir/port"
+  local log="$dir/log"
+  local store="$dir/keystore.p12"
+  mkdir -p "$dir"
+  TEMP_FILES+=("$dir/FakeHttp.java" "$portfile" "$log" "$store")
+  cat > "$dir/FakeHttp.java" << 'FAKE_HTTP_EOF'
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsServer;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.net.InetSocketAddress;
+import java.security.KeyStore;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 
 public class FakeHttp {
   public static void main(String[] args) throws Exception {
-    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    InetSocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
+    HttpServer server;
+    if (args.length > 2) {
+      char[] pass = args[2].toCharArray();
+      KeyStore ks = KeyStore.getInstance("PKCS12");
+      try (FileInputStream in = new FileInputStream(args[1])) {
+        ks.load(in, pass);
+      }
+      KeyManagerFactory kmf =
+          KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+      kmf.init(ks, pass);
+      SSLContext ctx = SSLContext.getInstance("TLS");
+      ctx.init(kmf.getKeyManagers(), null, null);
+      HttpsServer https = HttpsServer.create(addr, 0);
+      https.setHttpsConfigurator(new HttpsConfigurator(ctx));
+      server = https;
+    } else {
+      server = HttpServer.create(addr, 0);
+    }
     server.createContext("/", exchange -> {
       exchange.sendResponseHeaders(404, -1);
       exchange.close();
@@ -1212,33 +1244,53 @@ public class FakeHttp {
   }
 }
 FAKE_HTTP_EOF
-java "$FAKE_HTTP_DIR/FakeHttp.java" "$FAKE_HTTP_PORTFILE" > "$FAKE_HTTP_LOG" 2>&1 &
-FAKE_HTTP_PID=$!
-FAKE_HTTP_PORT=""
-FAKE_HTTP_READY=0
-for _ in $(seq 1 150); do
-  if [[ -z "$FAKE_HTTP_PORT" && -s "$FAKE_HTTP_PORTFILE" ]]; then
-    FAKE_HTTP_PORT=$(cat "$FAKE_HTTP_PORTFILE")
+  local -a java_args=("$dir/FakeHttp.java" "$portfile")
+  if [[ "$scheme" == "https" ]]; then
+    local keytool
+    keytool=$(command -v keytool || echo "$(dirname "$(command -v java)")/keytool")
+    if ! "$keytool" -genkeypair -alias spel -keyalg RSA -keysize 2048 \
+      -dname CN=localhost -validity 1 -ext SAN=ip:127.0.0.1,dns:localhost \
+      -keystore "$store" -storetype PKCS12 -storepass spelspel -keypass spelspel \
+      > "$log" 2>&1; then
+      TOTAL_COUNT=$((TOTAL_COUNT + 1))
+      error "$label" \
+        "harness: keytool could not generate a test certificate (keytool=$keytool): $(tr '\n' ' ' < "$log" 2>/dev/null | head -c 300)"
+      rm -rf "$dir"
+      return
+    fi
+    java_args+=("$store" "spelspel")
   fi
-  if [[ -n "$FAKE_HTTP_PORT" ]] &&
-    curl -s -o /dev/null -m 2 "http://127.0.0.1:${FAKE_HTTP_PORT}/json/version"; then
-    FAKE_HTTP_READY=1
-    break
+  java "${java_args[@]}" > "$log" 2>&1 &
+  local pid=$!
+  local port=""
+  local ready=0
+  for _ in $(seq 1 150); do
+    if [[ -z "$port" && -s "$portfile" ]]; then
+      port=$(cat "$portfile")
+    fi
+    if [[ -n "$port" ]] &&
+      curl -sk -o /dev/null -m 2 "$scheme://127.0.0.1:${port}/json/version"; then
+      ready=1
+      break
+    fi
+    sleep 0.4
+  done
+  if [[ $ready -eq 1 ]]; then
+    local out
+    out=$(timeout 15 "$SPEL" --json connect "$scheme://127.0.0.1:${port}" 2>&1)
+    assert_jq_contains "$label" "$out" '.error' 'not a DevTools endpoint'
+  else
+    TOTAL_COUNT=$((TOTAL_COUNT + 1))
+    error "$label" \
+      "harness: fake $upper server never answered within 60s (java=$(command -v java || echo missing), port=${port:-unwritten}): $(tr '\n' ' ' < "$log" 2>/dev/null | head -c 300)"
   fi
-  sleep 0.4
-done
-if [[ $FAKE_HTTP_READY -eq 1 ]]; then
-  OUT=$(timeout 15 "$SPEL" --json connect "http://127.0.0.1:${FAKE_HTTP_PORT}" 2>&1)
-  assert_jq_contains "connect http:// → native binary speaks HTTP (/json/version fetched)" \
-    "$OUT" '.error' 'not a DevTools endpoint'
-else
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  error "connect http:// → native binary speaks HTTP (/json/version fetched)" \
-    "harness: fake HTTP server never answered within 60s (java=$(command -v java || echo missing), port=${FAKE_HTTP_PORT:-unwritten}): $(tr '\n' ' ' < "$FAKE_HTTP_LOG" 2>/dev/null | head -c 300)"
-fi
-kill "$FAKE_HTTP_PID" 2>/dev/null
-wait "$FAKE_HTTP_PID" 2>/dev/null
-rm -rf "$FAKE_HTTP_DIR"
+  kill "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+  rm -rf "$dir"
+}
+
+fake_endpoint_case http
+fake_endpoint_case https
 
 
 timeout 10 "$SPEL" install >/dev/null 2>&1

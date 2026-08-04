@@ -47,7 +47,8 @@
    [java.nio.file Files Path]
    [java.util Base64]
    [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]
-   [java.util.concurrent.locks ReentrantLock]))
+   [java.util.concurrent.locks ReentrantLock]
+   [javax.net.ssl HostnameVerifier HttpsURLConnection SSLContext SSLSocketFactory TrustManager X509TrustManager]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -410,6 +411,45 @@
       [loopback win-ip]
       [loopback])))
 
+(def ^:private probe-ssl-context
+  "TLS context for the CDP endpoint probes.
+
+   The probes are DIAGNOSTICS, not a security boundary: the connection itself is
+   made by Playwright, which validates TLS on its own. Remote CDP grids sit behind
+   internal or self-signed certificates all the time, so a probe that verified them
+   would refuse endpoints Playwright connects to happily — a preflight must never be
+   stricter than the connection it guards. Nothing but `GET /json/version` and a
+   WebSocket upgrade ever travels over it."
+  (delay
+    (doto (SSLContext/getInstance "TLS")
+      (.init nil
+        (into-array TrustManager
+          [(reify X509TrustManager
+             (checkClientTrusted [_ _chain _auth] nil)
+             (checkServerTrusted [_ _chain _auth] nil)
+             (getAcceptedIssuers [_] (make-array java.security.cert.X509Certificate 0)))])
+        (java.security.SecureRandom.)))))
+
+(defn- open-cdp-http-connection
+  "Opens a timeout-bounded HTTP(S) connection to a CDP endpoint URL. `https://`
+   URLs get `probe-ssl-context`, so a TLS-fronted endpoint (a hosted browser
+   service, an internal Chrome grid behind a reverse proxy) is reachable at all."
+  ^HttpURLConnection [^String url timeout-ms]
+  (let [conn (.openConnection (URL. url))]
+    (when (instance? HttpsURLConnection conn)
+      (doto ^HttpsURLConnection conn
+        (.setSSLSocketFactory (.getSocketFactory ^SSLContext @probe-ssl-context))
+        (.setHostnameVerifier (reify HostnameVerifier
+                                (verify [_ _hostname _session] true)))))
+    (doto ^HttpURLConnection conn
+      (.setConnectTimeout (int timeout-ms))
+      (.setReadTimeout (int timeout-ms)))))
+
+(defn- json-version-url
+  "`/json/version` URL for a CDP endpoint; `secure?` picks https over http."
+  ^String [secure? ^String host port]
+  (str (if secure? "https" "http") "://" host ":" port "/json/version"))
+
 (defn- read-cdp-json-version
   "HTTP-GETs /json/version on the given host:port and returns
    `{:port N :browser \"Chrome/…\" :host H}` iff:
@@ -423,18 +463,18 @@
    Two-arity preserved for backwards compat with direct test call-sites
    that pass [port timeout-ms]; those default to loopback, which matches
    the historical behaviour. The three-arity form `[host port timeout-ms]`
-   lets WSL callers probe the Windows host IP as well.
+   lets WSL callers probe the Windows host IP as well. The four-arity form
+   adds `secure?`, which speaks TLS — required by `https://` CDP endpoints.
 
    (Non-primitive arity — keeps the var compatible with `with-redefs` test
    stubs that don't carry `IFn$LLO` hints.)"
   ([port timeout-ms]
-   (read-cdp-json-version "127.0.0.1" port timeout-ms))
+   (read-cdp-json-version "127.0.0.1" port timeout-ms false))
   ([^String host port timeout-ms]
+   (read-cdp-json-version host port timeout-ms false))
+  ([^String host port timeout-ms secure?]
    (try
-     (let [url  (URL. (str "http://" host ":" port "/json/version"))
-           conn (doto (.openConnection url)
-                  (.setConnectTimeout (int timeout-ms))
-                  (.setReadTimeout (int timeout-ms))
+     (let [conn (doto (open-cdp-http-connection (json-version-url secure? host port) timeout-ms)
                   (.connect))]
        (try
          (when (= 200 (.getResponseCode ^HttpURLConnection conn))
@@ -460,27 +500,26 @@
    Two-arity form `[port timeout-ms]` defaults to loopback (backwards compat
    with tests and with local-browser call-sites like `auto-launch-browser!`).
    Three-arity form `[host port timeout-ms]` lets WSL discovery probe the
-   Windows host IP."
+   Windows host IP. Four-arity form adds `secure?` for `https://` endpoints."
   ([port timeout-ms]
-   (probe-http-cdp "127.0.0.1" port timeout-ms))
+   (probe-http-cdp "127.0.0.1" port timeout-ms false))
   ([^String host port timeout-ms]
-   (when (read-cdp-json-version host port timeout-ms)
+   (probe-http-cdp host port timeout-ms false))
+  ([^String host port timeout-ms secure?]
+   (when (read-cdp-json-version host port timeout-ms secure?)
      port)))
 
 (defn- cdp-http-transport-error
   "Returns the failure message when an HTTP request to /json/version cannot even
    complete — an unsupported `http` URL protocol in a misbuilt native image, a
-   connection reset, a timeout — and nil when the exchange completed, whatever
-   its status.
+   connection reset, a timeout, a TLS handshake that never completed — and nil
+   when the exchange completed, whatever its status. `secure?` speaks HTTPS.
 
    Used only on the failure path of `assert-cdp-endpoint-reachable!` so a broken
    HTTP stack is never reported as a stale browser."
-  [^String host port timeout-ms]
+  [^String host port timeout-ms secure?]
   (try
-    (let [url (URL. (str "http://" host ":" port "/json/version"))
-          conn (doto ^HttpURLConnection (.openConnection url)
-                 (.setConnectTimeout (int timeout-ms))
-                 (.setReadTimeout (int timeout-ms)))]
+    (let [conn (open-cdp-http-connection (json-version-url secure? host port) timeout-ms)]
       (try
         (.getResponseCode ^HttpURLConnection conn)
         nil
@@ -727,7 +766,7 @@
    (:browser (read-cdp-json-version host port 200))))
 
 (defn probe-ws-target
-  "Verifies that a CDP ws:// URL points at a target that still EXISTS.
+  "Verifies that a CDP ws:// or wss:// URL points at a target that still EXISTS.
 
    A live TCP socket is not enough: a browser restart leaves stale
    DevToolsActivePort / session caches behind, and the old browser target id
@@ -735,30 +774,41 @@
    upgrade handshake by hand (no Origin header, so `--remote-allow-origins`
    isn't required) and accept only `HTTP/1.1 101`.
 
+   `wss://` defaults to port 443 and runs the handshake through
+   `probe-ssl-context`: a plaintext handshake written into a TLS listener reads
+   back as a dead target, which is how remote CDP endpoints used to be refused.
+
    Returns true/false, never throws."
   [^String ws-url ^long timeout-ms]
   (try
-    (let [uri  (java.net.URI. ws-url)
-          host (or (.getHost uri) "127.0.0.1")
-          port (let [p (.getPort uri)] (if (pos? p) p 80))
-          path (let [p (.getRawPath uri)] (if (str/blank? p) "/" p))
-          key  (.encodeToString (java.util.Base64/getEncoder) (byte-array 16))]
-      (with-open [^java.net.Socket s (java.net.Socket.)]
-        (.connect s (java.net.InetSocketAddress. ^String host (int port)) (int timeout-ms))
-        (.setSoTimeout s (int timeout-ms))
-        (let [out (.getOutputStream s)
-              req (str "GET " path " HTTP/1.1\r\n"
-                    "Host: " host ":" port "\r\n"
-                    "Upgrade: websocket\r\n"
-                    "Connection: Upgrade\r\n"
-                    "Sec-WebSocket-Version: 13\r\n"
-                    "Sec-WebSocket-Key: " key "\r\n\r\n")]
-          (.write out (.getBytes req "UTF-8"))
-          (.flush out)
-          (let [rdr    (java.io.BufferedReader.
-                         (java.io.InputStreamReader. (.getInputStream s) "UTF-8"))
-                status (.readLine rdr)]
-            (boolean (and status (str/includes? status " 101")))))))
+    (let [uri     (java.net.URI. ws-url)
+          secure? (= "wss" (some-> (.getScheme uri) str/lower-case))
+          host    (or (.getHost uri) "127.0.0.1")
+          port    (let [p (.getPort uri)] (if (pos? p) p (if secure? 443 80)))
+          path    (let [p (.getRawPath uri)] (if (str/blank? p) "/" p))
+          key     (.encodeToString (java.util.Base64/getEncoder) (byte-array 16))]
+      (with-open [^java.net.Socket plain (java.net.Socket.)]
+        (.connect plain (java.net.InetSocketAddress. ^String host (int port)) (int timeout-ms))
+        (.setSoTimeout plain (int timeout-ms))
+        (with-open [^java.net.Socket s (if secure?
+                                         (doto ^java.net.Socket
+                                           (.createSocket ^SSLSocketFactory (.getSocketFactory ^SSLContext @probe-ssl-context)
+                                             plain host (int port) true)
+                                           (.setSoTimeout (int timeout-ms)))
+                                         plain)]
+          (let [out (.getOutputStream s)
+                req (str "GET " path " HTTP/1.1\r\n"
+                      "Host: " host ":" port "\r\n"
+                      "Upgrade: websocket\r\n"
+                      "Connection: Upgrade\r\n"
+                      "Sec-WebSocket-Version: 13\r\n"
+                      "Sec-WebSocket-Key: " key "\r\n\r\n")]
+            (.write out (.getBytes req "UTF-8"))
+            (.flush out)
+            (let [rdr    (java.io.BufferedReader.
+                           (java.io.InputStreamReader. (.getInputStream s) "UTF-8"))
+                  status (.readLine rdr)]
+              (boolean (and status (str/includes? status " 101"))))))))
     (catch Exception _ false)))
 
 (defn discover-external-cdp-endpoints
@@ -4362,21 +4412,29 @@
    blocks the daemon command loop until the client transport times out. So we
    check the endpoint ourselves first and throw a readable error instead.
 
-   ws://  — requires a live TCP socket on host:port.
-   http:// — additionally requires a valid /json/version DevTools response."
+   ws:// / wss:// — requires a live TCP socket on host:port whose WebSocket
+   upgrade answers 101; wss:// handshakes over TLS and defaults to port 443.
+   http:// / https:// — additionally requires a valid /json/version DevTools
+   response; https:// fetches it over TLS and defaults to port 443.
+
+   Playwright accepts https:// and wss:// endpoints itself (its driver fetches
+   `<endpoint>/json/version` and dials wss:// transports), so this preflight
+   probes them the same way instead of downgrading them to plaintext."
   [^String url]
   (let [^java.net.URI uri (try (java.net.URI. url) (catch Exception _ nil))
-        scheme (when uri (some-> (.getScheme uri) str/lower-case))
-        host   (or (when uri (.getHost uri)) "127.0.0.1")
-        port   (long (let [p (long (if uri (.getPort uri) -1))]
-                       (if (pos? p) p (if (= scheme "https") 443 80))))
+        scheme  (when uri (some-> (.getScheme uri) str/lower-case))
+        secure? (contains? #{"https" "wss"} scheme)
+        host    (or (when uri (.getHost uri)) "127.0.0.1")
+        port    (long (let [p (long (if uri (.getPort uri) -1))]
+                        (if (pos? p) p (if secure? 443 80))))
+        http-scheme (if secure? "https" "http")
         fail!  (fn [msg hint]
                  (throw (ex-info msg {:error_code "cdp_endpoint_unreachable"
                                       :url        url
                                       :hint       hint})))]
     (when (nil? scheme)
       (fail! (str "Invalid CDP URL: " url)
-        "Expected http://host:port or ws://host:port/devtools/browser/<id>"))
+        "Expected http(s)://host:port or ws(s)://host:port/devtools/browser/<id>"))
     (when-not (try
                 (with-open [^java.net.Socket s (java.net.Socket.)]
                   (.connect s (java.net.InetSocketAddress. ^String host (int port)) 1500)
@@ -4385,13 +4443,14 @@
       (fail! (str "CDP browser endpoint unreachable: " host ":" port " is not accepting connections")
         (str "Start the browser with --remote-debugging-port=" port
           " --remote-debugging-address=" host " --remote-allow-origins='*', "
-          "then verify: curl http://" host ":" port "/json/version")))
+          "then verify: curl " http-scheme "://" host ":" port "/json/version")))
     (when (and (str/starts-with? (str scheme) "http")
-            (not (probe-http-cdp host port 2000)))
-      (if-let [transport-error (cdp-http-transport-error host port 2000)]
+            (not (probe-http-cdp host port 2000 secure?)))
+      (if-let [transport-error (cdp-http-transport-error host port 2000 secure?)]
         (fail! (str "CDP probe could not complete an HTTP request to " host ":" port ": " transport-error)
-          (str "The port accepts TCP but this build could not speak HTTP to it. "
-            "Verify the endpoint with: curl http://" host ":" port "/json/version"))
+          (str "The port accepts TCP but this build could not speak "
+            (if secure? "HTTPS" "HTTP") " to it. "
+            "Verify the endpoint with: curl " http-scheme "://" host ":" port "/json/version"))
         (fail! (str "CDP endpoint at " host ":" port " is listening but /json/version is not a DevTools endpoint")
           (str "The port is held by a stale or non-DevTools process. Fully quit the browser "
             "and relaunch it with --remote-debugging-port=" port " --remote-allow-origins='*'."))))
@@ -4399,8 +4458,8 @@
             (not (probe-ws-target url 2000)))
       (fail! (str "CDP browser target no longer exists at " url)
         (str "That ws:// browser id is stale — the browser was restarted since it was cached. "
-          "Re-discover the current endpoint: curl http://" host ":" port "/json/version, "
-          "or connect to http://" host ":" port " instead of the cached ws:// URL.")))
+          "Re-discover the current endpoint: curl " http-scheme "://" host ":" port "/json/version, "
+          "or connect to " http-scheme "://" host ":" port " instead of the cached ws:// URL.")))
     true))
 
 (defn- connect-cdp!
@@ -4462,16 +4521,18 @@
 
 (defn- cdp-http-base
   "Converts a CDP WebSocket URL like `ws://localhost:9222/devtools/browser/abc`
-   into the HTTP base `http://localhost:9222`. Returns nil if the URL cannot
-   be parsed."
+   into the HTTP base `http://localhost:9222` — and a `wss://` URL into an
+   `https://` base, defaulting to port 443, so `/json/list` stays reachable on a
+   TLS-fronted endpoint. Returns nil if the URL cannot be parsed."
   [^String ws-url]
   (when ws-url
     (try
-      (let [uri  (java.net.URI. ws-url)
-            host (.getHost uri)
-            port (.getPort uri)]
-        (when (and host (pos? port))
-          (str "http://" host ":" port)))
+      (let [uri     (java.net.URI. ws-url)
+            secure? (= "wss" (some-> (.getScheme uri) str/lower-case))
+            host    (.getHost uri)
+            port    (let [p (.getPort uri)] (if (pos? p) p (if secure? 443 80)))]
+        (when host
+          (str (if secure? "https" "http") "://" host ":" port)))
       (catch Exception _ nil))))
 
 (defmethod handle-cmd "auth_save" [_ {:strs [name url username password]}]
@@ -4540,10 +4601,8 @@
       :else
       (let [list-url (str http-base "/json/list")
             body     (try
-                       (let [conn (doto ^HttpURLConnection (.openConnection ^URL (URL. list-url))
-                                    (.setRequestMethod "GET")
-                                    (.setConnectTimeout 2000)
-                                    (.setReadTimeout 2000))]
+                       (let [conn (doto (open-cdp-http-connection list-url 2000)
+                                    (.setRequestMethod "GET"))]
                          (with-open [is (.getInputStream conn)]
                            (slurp is)))
                        (catch Exception e
