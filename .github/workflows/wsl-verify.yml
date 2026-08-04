@@ -66,27 +66,47 @@ jobs:
           head -1 dev/wsl-cdp-diag.sh | od -c | head -1
 
       # ─────────────────────────────────────────────────────────────────
-      # 0. Try to enable mirrored networking BEFORE WSL is provisioned.
+      # 0. Pin WSL networking to NAT BEFORE the distro is provisioned.
       # ─────────────────────────────────────────────────────────────────
-      # Mirrored mode unifies WSL's loopback with Windows's loopback, so
-      # 127.0.0.1 inside WSL IS the Windows Chrome socket without any
-      # gateway resolution. Requires Windows 11 22H2+ and a sufficiently
-      # recent WSL2 kernel; older images silently fall back to NAT, and
-      # the diag script's exit code tells us which mode we got:
-      #   exit 0 → mirrored (or a portproxy, which has the same effect)
-      #   exit 2 → NAT — the spel WSL host-resolution fix is what kept
-      #            the diagnostic from failing entirely
-      # Either outcome counts as a pass for this job.
-      - name: Write .wslconfig with networkingMode=mirrored (best-effort)
+      # Do NOT ask for networkingMode=mirrored here. GitHub's windows-
+      # latest image cannot configure it — `wsl --install` reports
+      # RegisterDistro/CreateVm/ConfigureNetworking/0x803b0015 — and WSL's
+      # own fallback for a failed mirrored setup is networkingMode *None*,
+      # i.e. a distro with no network at all. That is what silently broke
+      # this job for weeks: apt could not resolve archive.ubuntu.com, the
+      # `additional-packages` install exited 100, and `continue-on-error`
+      # painted the run green anyway.
+      #
+      # NAT is also the interesting mode: under NAT, WSL's loopback does
+      # NOT reach Windows Chrome, so spel must resolve the Windows host
+      # through the default gateway — the exact fix this job verifies.
+      # The diag script accepts either outcome:
+      #   exit 0 → loopback works (unified networking, or a port proxy)
+      #   exit 2 → NAT — the spel WSL host-resolution fix is what carried
+      #            the diagnostic instead of it failing entirely
+      - name: Pin WSL networking to NAT
         shell: pwsh
         run: |
           $cfg = Join-Path $env:USERPROFILE ".wslconfig"
           @"
           [wsl2]
-          networkingMode=mirrored
+          networkingMode=nat
           "@ | Out-File -FilePath $cfg -Encoding ascii -Force
           Write-Host "Wrote $cfg"
           Get-Content $cfg
+
+      # Windows Defender Firewall drops inbound TCP from the WSL NAT
+      # subnet by default. Without this rule the diagnostic would be
+      # measuring the firewall instead of spel's host resolution.
+      - name: Allow inbound CDP traffic from WSL
+        shell: pwsh
+        run: |
+          $name = "spel WSL CDP 9222"
+          Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue |
+            Remove-NetFirewallRule -ErrorAction SilentlyContinue
+          New-NetFirewallRule -DisplayName $name -Direction Inbound `
+            -Action Allow -Protocol TCP -LocalPort 9222 -Profile Any | Out-Null
+          Write-Host "Firewall rule '$name' installed"
 
       # ─────────────────────────────────────────────────────────────────
       # 1. Provision WSL2 + Ubuntu on the Windows runner.
@@ -283,16 +303,14 @@ jobs:
               break
             }
 
-            # Dump logs and the udd contents so we can see what Chrome
-            # did on its way out.
-            Write-Host "  [FAIL] ${($b.Name)} didn't expose /json/version. Logs:"
-            if (Test-Path $stderrLog) {
-              Write-Host "  --- stderr ---"
-              Get-Content $stderrLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
-            }
-            if (Test-Path $stdoutLog) {
-              Write-Host "  --- stdout ---"
-              Get-Content $stdoutLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
+            # Dump Chrome's own log and the udd contents so we can see
+            # what it did on its way out.
+            Write-Host "  [FAIL] $($b.Name) didn't expose /json/version. Logs:"
+            if (Test-Path $chromeLog) {
+              Write-Host "  --- chrome log ---"
+              Get-Content $chromeLog | Select-Object -First 40 | ForEach-Object { Write-Host "    $_" }
+            } else {
+              Write-Host "  --- no chrome log written at $chromeLog ---"
             }
             Write-Host "  --- udd contents ---"
             Get-ChildItem -Recurse -Depth 2 $udd -ErrorAction SilentlyContinue |
