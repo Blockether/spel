@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.23] - 2026-08-04
+
+### Changed
+- Probe TLS-fronted CDP endpoints over HTTPS and WSS
+- Serve the fake /json/version endpoint from the JDK, not python3
+- Wait for the fake /json/version server instead of sleeping a second
+- Fix session list crash, wait output, silent snapshots and response-handler overflow
+- docs: require reproduce, RED, then GREEN for reported bugs
+- fix: enable http URL protocol in the native image so CDP connect works
+- release: update version files for v0.9.22, bump to next dev version
+
+
 ## [v0.9.22] - 2026-08-03
 
 ### Changed
@@ -1891,7 +1903,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.22...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.23...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1969,3 +1981,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.20]: https://github.com/Blockether/spel/releases/tag/v0.9.20
 [v0.9.21]: https://github.com/Blockether/spel/releases/tag/v0.9.21
 [v0.9.22]: https://github.com/Blockether/spel/releases/tag/v0.9.22
+[v0.9.23]: https://github.com/Blockether/spel/releases/tag/v0.9.23
