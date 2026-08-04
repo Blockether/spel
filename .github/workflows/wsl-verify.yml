@@ -523,6 +523,40 @@ jobs:
             (when-not is-wsl?
               (die "wsl? returned false on a WSL runner")))
 
+          ;; 1b. How can /proc/net/route be read in THIS kernel? `slurp` raises
+          ;;     java.io.IOException: Invalid argument here, so try every way.
+          (println)
+          (println "  --- /proc/net/route read strategies ---")
+          (let [p (.toPath (java.io.File. "/proc/net/route"))
+                attempt (fn [label f]
+                          (println (format "  [%-24s] %s" label
+                                     (try (pr-str (f))
+                                       (catch Throwable t
+                                         (str "THREW " (.getName (class t)) ": " (.getMessage t)))))))]
+            (attempt "slurp" #(slurp (java.io.File. "/proc/net/route")))
+            (attempt "Files/readString" #(java.nio.file.Files/readString p))
+            (attempt "Files/readAllBytes" #(String. (java.nio.file.Files/readAllBytes p)))
+            (attempt "single 64k read" #(let [b (byte-array 65536)]
+                                          (with-open [in (java.io.FileInputStream. "/proc/net/route")]
+                                            (let [n (.read in b)]
+                                              [n (String. b 0 (max n 0))]))))
+            (attempt "line-seq" #(with-open [r (clojure.java.io/reader (java.io.File. "/proc/net/route"))]
+                                   (doall (line-seq r))))
+            (attempt "Files/lines" #(with-open [s (java.nio.file.Files/lines p)]
+                                      (vec (.toArray s))))
+            (attempt "cat via sh" #(let [pr (.start (doto (ProcessBuilder. ["sh" "-c" "cat /proc/net/route"])
+                                                      (.redirectErrorStream true)))
+                                         out (slurp (.getInputStream pr))]
+                                     (.waitFor pr)
+                                     out))
+            (attempt "ip route show default" #(let [pr (.start (doto (ProcessBuilder. ["ip" "route" "show" "default"])
+                                                                 (.redirectErrorStream true)))
+                                                    out (slurp (.getInputStream pr))]
+                                                (.waitFor pr)
+                                                out))
+            (attempt "/etc/resolv.conf" #(slurp "/etc/resolv.conf")))
+          (println)
+
           ;; 2. Gateway IP — instrumented: the parser, the file read and the
           ;;    WSL check are reported separately so a nil here names its cause.
           (let [f   (java.io.File. "/proc/net/route")
