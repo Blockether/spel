@@ -666,3 +666,77 @@
                         (catch clojure.lang.ExceptionInfo e (.getMessage e)))]
               (expect (str/includes? (str msg) "is not a DevTools endpoint")))
             (finally (.stop srv 0))))))))
+
+;; =============================================================================
+;; /proc/net/route parsing — the pure half of wsl-default-gateway-ip
+;;
+;; The "WSL ↔ Windows CDP diagnostic" job asserted a dotted-quad gateway and
+;; got nil while `cat /proc/net/route` in the very same distro showed a default
+;; route, with no way to tell a failed read from a failed parse: the whole
+;; lookup was one fn wrapped in `(catch Exception _ nil)`.
+;; =============================================================================
+
+(defdescribe parse-proc-net-route-gateway-test
+  "`platform/parse-proc-net-route-gateway` turns the kernel's little-endian hex
+   route table into the dotted-quad gateway of the default route."
+
+  (describe "WSL2 NAT route table"
+    (it "decodes the default route's gateway"
+      ;; 01E01DAC little-endian => 172.29.224.1
+      (expect (= "172.29.224.1"
+                (platform/parse-proc-net-route-gateway
+                  (str "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"
+                    "eth0\t00000000\t01E01DAC\t0003\t0\t0\t0\t00000000\t0\t0\t0\n"
+                    "eth0\t001DE0AC\t00000000\t0001\t0\t0\t0\t00F0FFFF\t0\t0\t0\n")))))
+
+    (it "picks the default route even when it is not the first data row"
+      (expect (= "172.24.96.1"
+                (platform/parse-proc-net-route-gateway
+                  (str "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\n"
+                    "eth0\t0060187B\t00000000\t0001\t0\t0\t0\t00FFFFFF\n"
+                    "eth0\t00000000\t016018AC\t0003\t0\t0\t0\t00000000\n")))))
+
+    (it "tolerates space separators and leading whitespace"
+      (expect (= "10.0.0.1"
+                (platform/parse-proc-net-route-gateway
+                  (str "Iface Destination Gateway Flags RefCnt Use Metric Mask\n"
+                    "  eth0 00000000 0100000A 0003 0 0 0 00000000\n"))))))
+
+  (describe "tables with no usable default route"
+    (it "returns nil for a header-only table"
+      (expect (nil? (platform/parse-proc-net-route-gateway
+                      "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\n"))))
+
+    (it "returns nil when the only default route is on-link (gateway 0.0.0.0)"
+      ;; WSL1 shares the Windows stack and reports no gateway to dial.
+      (expect (nil? (platform/parse-proc-net-route-gateway
+                      (str "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\n"
+                        "eth0\t00000000\t00000000\t0001\t0\t0\t0\t00000000\n")))))
+
+    (it "returns nil for a truncated row"
+      (expect (nil? (platform/parse-proc-net-route-gateway "eth0\t00000000\n"))))
+
+    (it "returns nil for a non-hex gateway column"
+      (expect (nil? (platform/parse-proc-net-route-gateway
+                      "eth0\t00000000\tZZZZZZZZ\t0003\t0\t0\t0\t00000000\n"))))
+
+    (it "returns nil for an empty table, empty string, or nil"
+      (expect (nil? (platform/parse-proc-net-route-gateway "")))
+      (expect (nil? (platform/parse-proc-net-route-gateway "\n\n")))
+      (expect (nil? (platform/parse-proc-net-route-gateway nil))))))
+
+(defdescribe read-proc-net-route-test
+  "`platform/read-proc-net-route` is the impure half: it either returns the
+   file's text or nil, and never throws."
+
+  (it "returns a string on Linux/WSL and nil elsewhere, never throws"
+    (let [r (platform/read-proc-net-route)]
+      (expect (or (nil? r) (string? r)))
+      (when (.exists (File. "/proc/net/route"))
+        (expect (string? r))
+        (expect (str/includes? (str/lower-case r) "destination")))))
+
+  (it "agrees with wsl-default-gateway-ip inside WSL"
+    (when (platform/wsl?)
+      (expect (= (platform/parse-proc-net-route-gateway (platform/read-proc-net-route))
+                (platform/wsl-default-gateway-ip))))))

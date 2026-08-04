@@ -38,40 +38,55 @@
                 (str/includes? content "wsl")))))
         (catch Exception _ false)))))
 
+(defn parse-proc-net-route-gateway
+  "Pure: given the text of `/proc/net/route`, returns the default route's
+   gateway as a dotted quad, or nil when the table holds no usable default
+   route.
+
+   The kernel stores the gateway as a little-endian 32-bit hex string, so
+   reversing the byte pairs and joining with dots yields the dotted-quad
+   form. A default route with gateway `00000000` (0.0.0.0) is on-link and
+   points at no host, so it is skipped like any other unusable row."
+  [route-table]
+  (when (string? route-table)
+    (first
+      (keep
+        (fn [line]
+          (let [cols (str/split (str/trim line) #"\s+")]
+            ;; First non-header line whose Destination column is all
+            ;; zeros IS the default route — its Gateway column holds
+            ;; the host we want.
+            (when (and (>= (count cols) 3)
+                    (= (nth cols 1) "00000000"))
+              (let [hex (nth cols 2)]
+                (when (and (= (count hex) 8)
+                        (not= hex "00000000"))
+                  (try
+                    (str/join "."
+                      (reverse
+                        (for [^long i [0 1 2 3]]
+                          (Integer/parseInt
+                            (subs hex (int (* 2 i)) (int (* 2 (inc i)))) 16))))
+                    (catch NumberFormatException _ nil)))))))
+        (str/split-lines route-table)))))
+
+(defn read-proc-net-route
+  "Returns the text of `/proc/net/route`, or nil when it cannot be read.
+
+   Reads the file directly instead of shelling out to `ip route`, so the
+   call is pure-file and GraalVM-native-image friendly."
+  []
+  (try
+    (slurp (java.io.File. "/proc/net/route"))
+    (catch Exception _ nil)))
+
 (defn wsl-default-gateway-ip
   "Returns the default-gateway IP as seen from inside WSL (which under
    classic NAT networking IS the Windows host), or nil if we're not in
-   WSL / can't determine it.
-
-   Reads `/proc/net/route` directly instead of shelling out to `ip route`,
-   so the call is pure-file and GraalVM-native-image friendly. The kernel
-   stores the gateway as a little-endian 32-bit hex string; reversing the
-   byte pairs and joining with dots yields the dotted-quad form."
+   WSL / can't determine it."
   []
   (when (wsl?)
-    (try
-      (let [content (slurp "/proc/net/route")
-            lines   (str/split-lines content)]
-        (first
-          (keep
-            (fn [line]
-              (let [cols (str/split line #"\s+")]
-                ;; First non-header line whose Destination column is all
-                ;; zeros IS the default route — its Gateway column holds
-                ;; the host we want.
-                (when (and (>= (count cols) 3)
-                        (= (nth cols 1) "00000000"))
-                  (let [hex (nth cols 2)]
-                    (when (and (string? hex) (= (count hex) 8))
-                      (try
-                        (str/join "."
-                          (reverse
-                            (for [^long i [0 1 2 3]]
-                              (Integer/parseInt
-                                (subs hex (int (* 2 i)) (int (* 2 (inc i)))) 16))))
-                        (catch NumberFormatException _ nil)))))))
-            lines)))
-      (catch Exception _ nil))))
+    (parse-proc-net-route-gateway (read-proc-net-route))))
 
 ;; =============================================================================
 ;; CDP probe — shared between daemon.clj and sci_env.clj

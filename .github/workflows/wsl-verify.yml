@@ -508,6 +508,7 @@ jobs:
         run: |
           cat > wsl-cdp-test.clj <<'ENDCLJ'
           (require '[com.blockether.spel.daemon :as d]
+                   '[com.blockether.spel.platform :as platform]
                    '[clojure.string :as str])
 
           (defn- die [msg]
@@ -522,8 +523,21 @@ jobs:
             (when-not is-wsl?
               (die "wsl? returned false on a WSL runner")))
 
-          ;; 2. Gateway IP
-          (let [gw (d/wsl-default-gateway-ip)]
+          ;; 2. Gateway IP — instrumented: the parser, the file read and the
+          ;;    WSL check are reported separately so a nil here names its cause.
+          (let [f   (java.io.File. "/proc/net/route")
+                raw (try
+                      {:text (slurp f)}
+                      (catch Throwable t
+                        {:throw (str (.getName (class t)) ": " (.getMessage t))}))
+                gw  (d/wsl-default-gateway-ip)]
+            (println "  /proc/net/route exists?  =>" (.exists f)
+              "canRead?" (.canRead f) "length" (.length f))
+            (println "  slurp /proc/net/route     =>" (pr-str raw))
+            (println "  (platform/wsl?)          =>" (platform/wsl?))
+            (println "  (read-proc-net-route)    =>" (pr-str (platform/read-proc-net-route)))
+            (println "  (parse … slurped text)   =>"
+              (pr-str (platform/parse-proc-net-route-gateway (:text raw))))
             (println "  (wsl-default-gateway-ip) =>" gw)
             (when-not (and (string? gw) (re-matches #"\d+\.\d+\.\d+\.\d+" gw))
               (die (str "wsl-default-gateway-ip returned invalid: " (pr-str gw)))))
