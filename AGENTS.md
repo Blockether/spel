@@ -14,6 +14,15 @@ Spel is a Clojure Playwright library with SCI and CLI/daemon surfaces. Implement
 - SCI binding-map entries are named `defn`s, never anonymous functions. `sci_eval` returns `pr-str`; plain `evaluate` returns raw values.
 - Playwright evaluation returns Java maps/lists, not Clojure maps/vectors. Do not remove an unused public var solely to satisfy lint; it may be API.
 
+## Fixing a reported bug: reproduce, RED, then GREEN
+
+- Reproduce first, from the report's own steps, before touching the implementation. If it does not reproduce, that IS the finding: narrow or refute the report instead of fixing something adjacent.
+- Reproduce on the surface the report used. A JVM-green reproduction proves nothing about a bug reported against the native `spel` binary (URL protocols, reflection, resources are native-only failures) — rebuild and drive the binary, or `./test-cli.sh`, before believing it.
+- Turn the reproduction into a test in the suite and watch it **fail against the unfixed code** (RED), for the reported reason — not for a typo, a missing require, or a different error. A regression test nobody saw red proves nothing.
+- Then apply the fix and rerun the same test unchanged (GREEN). In a managed REPL: load the pre-fix namespace, run the test, keep the failure text, reload the fixed namespace, rerun. Report both. Narrow with `clojure -M:test -n com.blockether.spel.my-test` or `--var com.blockether.spel.my-test/my-test`.
+- Every regression test names its issue in a comment **on the test** — `;; Regression, issue #N: <what used to happen>` directly above the `defdescribe`/`it`/`deftest` (or a section banner carrying `(issue #N)`). The comment describes the wrong behavior, not what the code now does; it is the only link back to the report after the branch is merged.
+- The fix and its test ship in the same commit. A fix without a red-then-green test is unfinished and stays uncommitted.
+
 ## Tests and generated files
 
 - Test at the owning surface: SCI/daemon in `cli_integration_test.clj`, parsing in `cli_test.clj`, native commands in `test-cli.sh`, and other behavior in its matching `*_test.clj`. Assert browser/DOM state, not only absence of exceptions.
