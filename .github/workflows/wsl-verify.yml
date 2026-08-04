@@ -344,6 +344,59 @@ jobs:
           Write-Host $resp.Content
 
       # ─────────────────────────────────────────────────────────────────
+      # 2b. Make the CDP port reachable from the WSL NAT subnet.
+      # ─────────────────────────────────────────────────────────────────
+      # `--remote-debugging-address=0.0.0.0` is what we tell users to pass,
+      # but recent Chromium builds ignore it in headless mode and bind the
+      # DevTools socket to Windows 127.0.0.1 only — from WSL under NAT that
+      # address is the WSL VM's own loopback, so nothing answers. `netsh
+      # portproxy` on the vEthernet (WSL) address is the documented bridge:
+      # it exposes 9222 on exactly the IP that WSL sees as its default
+      # gateway, which is the host spel resolves. When Chrome DID bind
+      # 0.0.0.0 we leave it alone — a portproxy on the same port would
+      # collide with it.
+      - name: Expose CDP on the WSL-facing address
+        shell: pwsh
+        run: |
+          Write-Host "--- listeners on 9222 ---"
+          $listeners = (netstat -ano | Select-String ":9222\s") -join "`n"
+          Write-Host $listeners
+
+          $wslNic = Get-NetIPAddress -AddressFamily IPv4 |
+            Where-Object { $_.InterfaceAlias -like "vEthernet (WSL*" } |
+            Select-Object -First 1
+          if (-not $wslNic) {
+            Write-Host "No vEthernet (WSL) adapter — mirrored/unified networking, nothing to bridge"
+            Get-NetIPAddress -AddressFamily IPv4 |
+              ForEach-Object { Write-Host "  $($_.InterfaceAlias) → $($_.IPAddress)" }
+            exit 0
+          }
+          $wslIp = $wslNic.IPAddress
+          Write-Host "WSL-facing host address: $wslIp ($($wslNic.InterfaceAlias))"
+
+          if ($listeners -match "0\.0\.0\.0:9222") {
+            Write-Host "Chrome already listens on 0.0.0.0:9222 — no portproxy needed"
+          } else {
+            netsh interface portproxy delete v4tov4 listenaddress=$wslIp listenport=9222 2>$null | Out-Null
+            netsh interface portproxy add v4tov4 `
+              listenaddress=$wslIp listenport=9222 `
+              connectaddress=127.0.0.1 connectport=9222
+            Write-Host "--- portproxy table ---"
+            netsh interface portproxy show v4tov4 | ForEach-Object { Write-Host $_ }
+          }
+
+          # Prove the bridge from the Windows side before crossing into WSL.
+          try {
+            $resp = Invoke-WebRequest -UseBasicParsing `
+              -Uri "http://${wslIp}:9222/json/version" -TimeoutSec 5
+            Write-Host "--- /json/version via $wslIp (Windows) ---"
+            Write-Host $resp.Content
+          } catch {
+            Write-Error "CDP not reachable on ${wslIp}:9222 from Windows itself: $_"
+            exit 1
+          }
+
+      # ─────────────────────────────────────────────────────────────────
       # 3. From inside WSL, run the diagnostic script end-to-end.
       # ─────────────────────────────────────────────────────────────────
       # We pass the DTAP path through an env var since the runner-generated
