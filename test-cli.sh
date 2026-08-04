@@ -1180,29 +1180,43 @@ assert_jq "connect (no endpoint) → failure" "$OUT" 'has("error")'
 # A local server that 404s /json/version separates the two failures: HTTP that
 # works reports "not a DevTools endpoint", a dead HTTP stack reports a transport
 # error instead.
-# The kernel picks the port (a hardcoded one sits inside the ephemeral range) and
-# the server is polled until it really answers: `sleep 1` is not enough for a cold
-# python3 on a loaded macOS runner, and the miss looked exactly like a spel bug —
-# "127.0.0.1:PORT is not accepting connections".
-FAKE_HTTP_PORTFILE="/tmp/spel-fake-http-port-$$"
-TEMP_FILES+=("$FAKE_HTTP_PORTFILE")
-python3 -u -c "
-import http.server
-class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(404)
-        self.send_header('Content-Length','0')
-        self.end_headers()
-    def log_message(self,*a): pass
-srv = http.server.HTTPServer(('127.0.0.1', 0), H)
-with open('${FAKE_HTTP_PORTFILE}', 'w') as f:
-    f.write(str(srv.server_address[1]))
-srv.serve_forever()
-" &
+# The kernel picks the port (a hardcoded one sits inside the ephemeral range)
+# and the port is published only once the socket is really listening — `sleep 1`
+# is not enough for a cold server on a loaded runner, and the miss looked
+# exactly like a spel bug: "127.0.0.1:PORT is not accepting connections".
+# The server is the JDK's own http server: every machine that can build spel has
+# `java`, while a macOS runner without python3 turned this test into a phantom
+# spel failure.
+FAKE_HTTP_DIR="/tmp/spel-fake-http-$$"
+mkdir -p "$FAKE_HTTP_DIR"
+FAKE_HTTP_PORTFILE="$FAKE_HTTP_DIR/port"
+FAKE_HTTP_LOG="$FAKE_HTTP_DIR/log"
+TEMP_FILES+=("$FAKE_HTTP_DIR/FakeHttp.java" "$FAKE_HTTP_PORTFILE" "$FAKE_HTTP_LOG")
+cat > "$FAKE_HTTP_DIR/FakeHttp.java" << 'FAKE_HTTP_EOF'
+import com.sun.net.httpserver.HttpServer;
+import java.io.FileWriter;
+import java.net.InetSocketAddress;
+
+public class FakeHttp {
+  public static void main(String[] args) throws Exception {
+    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/", exchange -> {
+      exchange.sendResponseHeaders(404, -1);
+      exchange.close();
+    });
+    server.start();
+    try (FileWriter out = new FileWriter(args[0])) {
+      out.write(String.valueOf(server.getAddress().getPort()));
+    }
+    Thread.currentThread().join();
+  }
+}
+FAKE_HTTP_EOF
+java "$FAKE_HTTP_DIR/FakeHttp.java" "$FAKE_HTTP_PORTFILE" > "$FAKE_HTTP_LOG" 2>&1 &
 FAKE_HTTP_PID=$!
 FAKE_HTTP_PORT=""
 FAKE_HTTP_READY=0
-for _ in $(seq 1 100); do
+for _ in $(seq 1 150); do
   if [[ -z "$FAKE_HTTP_PORT" && -s "$FAKE_HTTP_PORTFILE" ]]; then
     FAKE_HTTP_PORT=$(cat "$FAKE_HTTP_PORTFILE")
   fi
@@ -1211,7 +1225,7 @@ for _ in $(seq 1 100); do
     FAKE_HTTP_READY=1
     break
   fi
-  sleep 0.2
+  sleep 0.4
 done
 if [[ $FAKE_HTTP_READY -eq 1 ]]; then
   OUT=$(timeout 15 "$SPEL" --json connect "http://127.0.0.1:${FAKE_HTTP_PORT}" 2>&1)
@@ -1220,10 +1234,11 @@ if [[ $FAKE_HTTP_READY -eq 1 ]]; then
 else
   TOTAL_COUNT=$((TOTAL_COUNT + 1))
   error "connect http:// → native binary speaks HTTP (/json/version fetched)" \
-    "harness: local python3 HTTP server on port '${FAKE_HTTP_PORT:-unknown}' never answered within 20s"
+    "harness: fake HTTP server never answered within 60s (java=$(command -v java || echo missing), port=${FAKE_HTTP_PORT:-unwritten}): $(tr '\n' ' ' < "$FAKE_HTTP_LOG" 2>/dev/null | head -c 300)"
 fi
 kill "$FAKE_HTTP_PID" 2>/dev/null
 wait "$FAKE_HTTP_PID" 2>/dev/null
+rm -rf "$FAKE_HTTP_DIR"
 
 
 timeout 10 "$SPEL" install >/dev/null 2>&1
