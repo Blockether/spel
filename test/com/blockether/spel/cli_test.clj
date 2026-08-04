@@ -2756,3 +2756,46 @@
     (it "prints the loaded path"
       (expect (= "Loaded: /tmp/state-x.json\n"
                 (render-result {:success true :data {:state "loaded" :path "/tmp/state-x.json"}}))))))
+
+;; =============================================================================
+;; Regression, issue #117: a downloaded release binary never started its daemon.
+;; Release assets are published as `spel-macos-arm64`, `spel-linux-x64`, … and the
+;; launcher only re-exec'd itself when the executable's file name was exactly
+;; `spel`/`spel.exe`, so the renamed asset spawned
+;; `java -cp <empty> clojure.main -m com.blockether.spel.native` and the JVM died
+;; with "Could not find or load main class clojure.main".
+;; =============================================================================
+
+(defdescribe daemon-launch-command-test
+  "How the CLI relaunches itself as a daemon."
+
+  (describe "native image"
+    (it "re-execs the running binary whatever the file is named"
+      (expect (= ["/opt/bin/spel-macos-arm64" "daemon" "--session" "s1"]
+                (sut/daemon-launch-command
+                  {:native?   true
+                   :exec-path "/opt/bin/spel-macos-arm64"
+                   :classpath ""}
+                  ["daemon" "--session" "s1"]))))
+
+    (it "re-execs a binary named spel too"
+      (expect (= ["/usr/local/bin/spel" "daemon"]
+                (sut/daemon-launch-command
+                  {:native? true :exec-path "/usr/local/bin/spel" :classpath ""}
+                  ["daemon"]))))
+
+    (it "re-execs spel.exe on Windows"
+      (expect (= ["C:\\tools\\spel-windows-x64.exe" "daemon"]
+                (sut/daemon-launch-command
+                  {:native? true :exec-path "C:\\tools\\spel-windows-x64.exe" :classpath ""}
+                  ["daemon"])))))
+
+  (describe "jvm"
+    (it "relaunches through the classpath, never through the java executable path"
+      (expect (= ["java" "-cp" "/cp/spel.jar" "clojure.main"
+                  "-m" "com.blockether.spel.native" "daemon"]
+                (sut/daemon-launch-command
+                  {:native?   false
+                   :exec-path "/usr/bin/java"
+                   :classpath "/cp/spel.jar"}
+                  ["daemon"]))))))

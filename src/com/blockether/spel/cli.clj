@@ -3684,6 +3684,33 @@
         {:session session :pid pid :killed killed? :method "forced process-tree kill"
          :alive   (process-alive? pid)}))))
 
+(defn- native-image?
+  "True when this process is a GraalVM native image at runtime."
+  []
+  (some? (System/getProperty "org.graalvm.nativeimage.imagecode")))
+
+(defn- java-launcher?
+  "True when `exec-path` is the JVM launcher itself rather than a spel binary."
+  [^String exec-path]
+  (contains? #{"java" "java.exe" "javaw.exe"}
+    (str/lower-case (.getName (java.io.File. exec-path)))))
+
+(defn daemon-launch-command
+  "Command vector that spawns a daemon subprocess for `args`.
+
+   A native image re-execs ITSELF: the running executable *is* spel whatever the
+   file happens to be named, and release assets are published as
+   `spel-<os>-<arch>`. Matching the file name instead meant a downloaded asset
+   relaunched itself as `java -cp <empty> clojure.main` and never started.
+   Only a JVM run - where the current executable is the `java` launcher -
+   relaunches through the classpath."
+  [{:keys [native? exec-path classpath]} args]
+  (if (and exec-path (or native? (not (java-launcher? exec-path))))
+    (into [exec-path] args)
+    (into ["java" "-cp" classpath
+           "clojure.main" "-m" "com.blockether.spel.native"]
+      args)))
+
 (defn- start-daemon-process!
   "Starts a new daemon subprocess and waits until its socket is connectable.
    Returns true if the daemon started successfully."
@@ -3702,16 +3729,12 @@
                     (into ["--channel" (:channel opts)])
                     (:cdp opts)
                     (into ["--cdp" (:cdp opts)]))
-        pb        (if (and exec-path
-                        (or (str/ends-with? exec-path "spel")
-                          (str/ends-with? exec-path "spel.exe")))
-                    (ProcessBuilder. ^java.util.List
-                      (into [exec-path] args))
-                    (let [classpath (System/getProperty "java.class.path")]
-                      (ProcessBuilder. ^java.util.List
-                        (into ["java" "-cp" classpath
-                               "clojure.main" "-m" "com.blockether.spel.native"]
-                          args))))]
+        pb        (ProcessBuilder. ^java.util.List
+                    (daemon-launch-command
+                      {:native?   (native-image?)
+                       :exec-path exec-path
+                       :classpath (System/getProperty "java.class.path")}
+                      args))]
     (.redirectOutput pb
       (ProcessBuilder$Redirect/appendTo
         (java.io.File. (.toString (log/log-file-path session)))))
