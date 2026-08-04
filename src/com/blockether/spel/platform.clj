@@ -10,7 +10,9 @@
   (:require
    [clojure.string :as str])
   (:import
-   [java.net HttpURLConnection URL]))
+   [java.io File]
+   [java.net HttpURLConnection URL]
+   [java.nio.file Files]))
 
 (def ^:const common-cdp-ports
   "Default TCP ports scanned when auto-discovering a running CDP browser.
@@ -73,11 +75,15 @@
 (defn read-proc-net-route
   "Returns the text of `/proc/net/route`, or nil when it cannot be read.
 
-   Reads the file directly instead of shelling out to `ip route`, so the
-   call is pure-file and GraalVM-native-image friendly."
+   Reads through `Files/readString` and not `slurp`: this file reports
+   `length 0` and the WSL2 kernel's procfs answers the small chunked reads an
+   `InputStreamReader` performs with `IOException: Invalid argument`, so `slurp`
+   and `line-seq` both fail there while one NIO read of the whole file succeeds
+   (proven in the WSL <-> Windows CDP diagnostic job). Stays pure-file, so no
+   `ip route` subprocess and no native-image trouble."
   []
   (try
-    (slurp (java.io.File. "/proc/net/route"))
+    (Files/readString (.toPath (File. "/proc/net/route")))
     (catch Exception _ nil)))
 
 (defn wsl-default-gateway-ip

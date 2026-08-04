@@ -35,11 +35,6 @@ jobs:
   wsl-diag:
     name: WSL ↔ Windows CDP diagnostic
     runs-on: windows-latest
-    # Mark non-blocking while we iterate on GH-runner-specific quirks
-    # (WSL install caveats, Chrome flag behaviour under headless, etc.).
-    # Once it's stable for a week or two we flip this off.
-    continue-on-error: true
-
     steps:
       # Force LF line endings for bash scripts even though we're on a
       # Windows runner. `.gitattributes` pins dev/wsl-cdp-diag.sh to LF
@@ -523,55 +518,14 @@ jobs:
             (when-not is-wsl?
               (die "wsl? returned false on a WSL runner")))
 
-          ;; 1b. How can /proc/net/route be read in THIS kernel? `slurp` raises
-          ;;     java.io.IOException: Invalid argument here, so try every way.
-          (println)
-          (println "  --- /proc/net/route read strategies ---")
-          (let [p (.toPath (java.io.File. "/proc/net/route"))
-                attempt (fn [label f]
-                          (println (format "  [%-24s] %s" label
-                                     (try (pr-str (f))
-                                       (catch Throwable t
-                                         (str "THREW " (.getName (class t)) ": " (.getMessage t)))))))]
-            (attempt "slurp" #(slurp (java.io.File. "/proc/net/route")))
-            (attempt "Files/readString" #(java.nio.file.Files/readString p))
-            (attempt "Files/readAllBytes" #(String. (java.nio.file.Files/readAllBytes p)))
-            (attempt "single 64k read" #(let [b (byte-array 65536)]
-                                          (with-open [in (java.io.FileInputStream. "/proc/net/route")]
-                                            (let [n (.read in b)]
-                                              [n (String. b 0 (max n 0))]))))
-            (attempt "line-seq" #(with-open [r (clojure.java.io/reader (java.io.File. "/proc/net/route"))]
-                                   (doall (line-seq r))))
-            (attempt "Files/lines" #(with-open [s (java.nio.file.Files/lines p)]
-                                      (vec (.toArray s))))
-            (attempt "cat via sh" #(let [pr (.start (doto (ProcessBuilder. ["sh" "-c" "cat /proc/net/route"])
-                                                      (.redirectErrorStream true)))
-                                         out (slurp (.getInputStream pr))]
-                                     (.waitFor pr)
-                                     out))
-            (attempt "ip route show default" #(let [pr (.start (doto (ProcessBuilder. ["ip" "route" "show" "default"])
-                                                                 (.redirectErrorStream true)))
-                                                    out (slurp (.getInputStream pr))]
-                                                (.waitFor pr)
-                                                out))
-            (attempt "/etc/resolv.conf" #(slurp "/etc/resolv.conf")))
-          (println)
-
-          ;; 2. Gateway IP — instrumented: the parser, the file read and the
-          ;;    WSL check are reported separately so a nil here names its cause.
-          (let [f   (java.io.File. "/proc/net/route")
-                raw (try
-                      {:text (slurp f)}
-                      (catch Throwable t
-                        {:throw (str (.getName (class t)) ": " (.getMessage t))}))
+          ;; 2. Gateway IP — the file read and the pure parse are reported
+          ;;    separately so a nil here names its own cause.
+          (let [raw (platform/read-proc-net-route)
                 gw  (d/wsl-default-gateway-ip)]
-            (println "  /proc/net/route exists?  =>" (.exists f)
-              "canRead?" (.canRead f) "length" (.length f))
-            (println "  slurp /proc/net/route     =>" (pr-str raw))
             (println "  (platform/wsl?)          =>" (platform/wsl?))
-            (println "  (read-proc-net-route)    =>" (pr-str (platform/read-proc-net-route)))
-            (println "  (parse … slurped text)   =>"
-              (pr-str (platform/parse-proc-net-route-gateway (:text raw))))
+            (println "  (read-proc-net-route)    =>" (pr-str raw))
+            (println "  (parse … route table)    =>"
+              (pr-str (platform/parse-proc-net-route-gateway raw)))
             (println "  (wsl-default-gateway-ip) =>" gw)
             (when-not (and (string? gw) (re-matches #"\d+\.\d+\.\d+\.\d+" gw))
               (die (str "wsl-default-gateway-ip returned invalid: " (pr-str gw)))))
