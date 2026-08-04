@@ -1180,8 +1180,13 @@ assert_jq "connect (no endpoint) → failure" "$OUT" 'has("error")'
 # A local server that 404s /json/version separates the two failures: HTTP that
 # works reports "not a DevTools endpoint", a dead HTTP stack reports a transport
 # error instead.
-FAKE_HTTP_PORT=59787
-python3 -c "
+# The kernel picks the port (a hardcoded one sits inside the ephemeral range) and
+# the server is polled until it really answers: `sleep 1` is not enough for a cold
+# python3 on a loaded macOS runner, and the miss looked exactly like a spel bug —
+# "127.0.0.1:PORT is not accepting connections".
+FAKE_HTTP_PORTFILE="/tmp/spel-fake-http-port-$$"
+TEMP_FILES+=("$FAKE_HTTP_PORTFILE")
+python3 -u -c "
 import http.server
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -1189,15 +1194,36 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-Length','0')
         self.end_headers()
     def log_message(self,*a): pass
-http.server.HTTPServer(('127.0.0.1',${FAKE_HTTP_PORT}),H).serve_forever()
+srv = http.server.HTTPServer(('127.0.0.1', 0), H)
+with open('${FAKE_HTTP_PORTFILE}', 'w') as f:
+    f.write(str(srv.server_address[1]))
+srv.serve_forever()
 " &
 FAKE_HTTP_PID=$!
-sleep 1
-OUT=$(timeout 15 "$SPEL" --json connect "http://127.0.0.1:${FAKE_HTTP_PORT}" 2>&1)
+FAKE_HTTP_PORT=""
+FAKE_HTTP_READY=0
+for _ in $(seq 1 100); do
+  if [[ -z "$FAKE_HTTP_PORT" && -s "$FAKE_HTTP_PORTFILE" ]]; then
+    FAKE_HTTP_PORT=$(cat "$FAKE_HTTP_PORTFILE")
+  fi
+  if [[ -n "$FAKE_HTTP_PORT" ]] &&
+    curl -s -o /dev/null -m 2 "http://127.0.0.1:${FAKE_HTTP_PORT}/json/version"; then
+    FAKE_HTTP_READY=1
+    break
+  fi
+  sleep 0.2
+done
+if [[ $FAKE_HTTP_READY -eq 1 ]]; then
+  OUT=$(timeout 15 "$SPEL" --json connect "http://127.0.0.1:${FAKE_HTTP_PORT}" 2>&1)
+  assert_jq_contains "connect http:// → native binary speaks HTTP (/json/version fetched)" \
+    "$OUT" '.error' 'not a DevTools endpoint'
+else
+  TOTAL_COUNT=$((TOTAL_COUNT + 1))
+  error "connect http:// → native binary speaks HTTP (/json/version fetched)" \
+    "harness: local python3 HTTP server on port '${FAKE_HTTP_PORT:-unknown}' never answered within 20s"
+fi
 kill "$FAKE_HTTP_PID" 2>/dev/null
 wait "$FAKE_HTTP_PID" 2>/dev/null
-assert_jq_contains "connect http:// → native binary speaks HTTP (/json/version fetched)" \
-  "$OUT" '.error' 'not a DevTools endpoint'
 
 
 timeout 10 "$SPEL" install >/dev/null 2>&1
