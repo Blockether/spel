@@ -1,1 +1,0 @@
-2026-08-04T13:24:28.271Z WARN  [spel] cmd cdp_reconnect -> error in 5ms code=unknown error="No previous CDP connection found. Connect first: spel connect <url>"
