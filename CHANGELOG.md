@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.25] - 2026-08-05
+
+### Changed
+- Render test status as a glyph tile in the alternative report
+- fix(platform): read /proc/net/route with a single NIO read
+- ci(wsl-verify): probe every /proc/net/route read strategy
+- refactor(platform): split the WSL gateway lookup into a pure parser
+- fix(wsl-diag): report one curl status per probe
+- ci(wsl-verify): bridge CDP onto the WSL-facing address
+- ci(wsl-verify): pin WSL networking to NAT so the distro has a network
+- release: update version files for v0.9.24, bump to next dev version
+
+
 ## [v0.9.24] - 2026-08-04
 
 ### Changed
@@ -1912,7 +1925,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.24...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.25...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1992,3 +2005,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.22]: https://github.com/Blockether/spel/releases/tag/v0.9.22
 [v0.9.23]: https://github.com/Blockether/spel/releases/tag/v0.9.23
 [v0.9.24]: https://github.com/Blockether/spel/releases/tag/v0.9.24
+[v0.9.25]: https://github.com/Blockether/spel/releases/tag/v0.9.25
