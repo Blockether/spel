@@ -983,7 +983,9 @@
        ">"
        "<summary class=\"test-card-summary\">"
        (detail-marker)
-       "<span class=\"test-status-badge " (status-class status) "\">" (status-icon status) " " (str/upper-case status) "</span>"
+       "<span class=\"test-status-badge " (status-class status) "\" title=\"" (html-escape (str/upper-case status)) "\">"
+       (status-icon status)
+       "<span class=\"sr-only\">" (html-escape (str/upper-case status)) "</span></span>"
        "<span class=\"test-name\">" name "</span>"
        (when (pos? step-count)
          (str "<span class=\"test-chip\">" step-count (if (= 1 step-count) " step" " steps") "</span>"))
@@ -1769,8 +1771,14 @@
 
   /* Test cards */
   .test-card {
+    /* Width of the card's left rail: 3px and colored when something needs
+       attention, 1px and neutral when it does not. Summary and body give the
+       missing 2px back as padding, so every test name starts on the same
+       column whatever its status. */
+    --status-rail: 1px;
     margin-top: 0.5rem;
     border: 1px solid var(--border);
+    border-left-width: var(--status-rail);
     border-radius: var(--radius-md);
     background: var(--bg-panel);
     box-shadow: var(--shadow);
@@ -1778,23 +1786,28 @@
     transition: box-shadow 0.12s ease, transform 0.12s ease;
   }
   .test-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .test-card.status-failed { border-left: 3px solid var(--accent-red); }
-  .test-card.status-broken { border-left: 3px solid var(--accent-yellow); }
-  /* Passed test-cards keep the default neutral border — only failures
-     and broken deserve a colored accent rail. */
-  .test-card.status-passed { border-left: 1px solid var(--border); }
-  .test-card.status-skipped { border-left: 3px solid var(--text-muted); }
+  /* Passed test-cards keep the default neutral hairline — only failures,
+     broken and skipped deserve a colored accent rail. */
+  .test-card.status-failed { --status-rail: 3px; border-left-color: var(--accent-red); }
+  .test-card.status-broken { --status-rail: 3px; border-left-color: var(--accent-yellow); }
+  .test-card.status-skipped { --status-rail: 3px; border-left-color: var(--text-muted); }
+  .test-card.status-passed { --status-rail: 1px; border-left-color: var(--border); }
   .test-card > summary {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 0.7rem;
+    padding: 0.5rem 0.7rem 0.5rem calc(0.7rem + 3px - var(--status-rail));
     cursor: pointer;
     list-style: none;
   }
   .test-card > summary::-webkit-details-marker { display: none; }
+  /* A failure is loud in the text too, not only in the tile: the name is what
+     a reader scans for, so it carries the status color as well. */
+  .test-card.status-failed > summary > .test-name { color: var(--accent-red); font-weight: 600; }
+  .test-card.status-broken > summary > .test-name { color: var(--accent-yellow); font-weight: 600; }
+  .test-card.status-skipped > summary > .test-name { color: var(--text-muted); }
   .test-card-body {
-    padding: 0.5rem 0.7rem 0.7rem;
+    padding: 0.5rem 0.7rem 0.7rem calc(0.7rem + 3px - var(--status-rail));
     border-top: 1px solid var(--border);
   }
   /* Flat mode — used in single-test reports so the test isn't visually
@@ -1816,35 +1829,50 @@
     border-top: none;
   }
 
-  /* Status badges */
+  /* Status badges — a square tile carrying the glyph and nothing else. The
+     word is kept for screen readers (`.sr-only`) and as the `title` tooltip:
+     spelled out on the row, `PASSED` was the widest, loudest element on a
+     passing line and paid maximum ink for the least information (and the
+     longer `SKIPPED` knocked the name column out of alignment). */
   .test-status-badge {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.2rem 0.55rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    font-size: 0.95rem;
     border-radius: var(--radius-sm);
-    color: #fff;
-    /* Every badge carries a border, transparent on the solid variants, so the
-       outlined ones line up on the same baseline and share one height. */
+    /* Every tile carries a border, transparent on the solid variants, so the
+       tinted ones share one size and one baseline. */
     border: 1px solid transparent;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     flex-shrink: 0;
   }
-  /* Status pill colors — scoped to the badge element so `.status-*`
+  /* Status tile colors — scoped to the badge element so `.status-*`
      classes on `.step-item` / `.suite-section` / etc. don't get a
      solid red/yellow background that would swallow the step text. */
-  /* Passed and skipped are non-events — render them as outlined pills so the
+  /* Passed and skipped are non-events — a tinted tile with colored ink, so the
      eye slides past them. Failures (red/yellow) stay solid and dominate. */
   .test-status-badge.status-passed {
-    background: transparent;
+    background: var(--accent-green-light);
     color: var(--accent-green);
-    border: 1px solid var(--accent-green-border);
+    border-color: var(--accent-green-border);
   }
   .test-status-badge.status-failed { background: var(--accent-red); color: #fff; }
   .test-status-badge.status-broken { background: var(--accent-yellow); color: #fff; }
-  .test-status-badge.status-skipped { background: transparent; color: var(--text-muted); border-color: var(--border); }
+  .test-status-badge.status-skipped { background: rgba(63, 63, 63, 0.07); color: var(--text-muted); border-color: var(--border); }
   .test-status-badge.status-unknown { background: var(--text-secondary); color: #fff; }
+  /* Screen-reader-only text — the status word the tile no longer prints. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .test-name {
     flex: 1;
     min-width: 150px;

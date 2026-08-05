@@ -417,6 +417,33 @@
         (clean-dir! results-dir)
         (clean-dir! output-dir)))
 
+    (it "renders the status as a glyph tile, with the word only for screen readers"
+      (let [results-dir (tmp-dir "alternative-results-badge")
+            output-dir (tmp-dir "alternative-output-badge")]
+        (write-result! results-dir "uuid-bp" "passed" "ok-test" 1000 2000)
+        (write-result! results-dir "uuid-bf" "failed" "bad-test" 1000 2000)
+        (alternative-report/generate! (.getAbsolutePath results-dir)
+          (.getAbsolutePath output-dir))
+        (let [html (slurp (io/file output-dir "index.html"))]
+          ;; The status word is no longer printed on the row: it survives as the
+          ;; tooltip and as screen-reader text next to the glyph.
+          (expect (str/includes? html "<span class=\"sr-only\">PASSED</span>"))
+          (expect (str/includes? html "<span class=\"sr-only\">FAILED</span>"))
+          (expect (str/includes? html "title=\"PASSED\""))
+          (expect (not (str/includes? html "</svg> PASSED")))
+          ;; The badge is a square tile, not a letter-spaced pill.
+          (let [badge-css (second (re-find #"(?s)\.test-status-badge \{(.*?)\}" html))]
+            (expect (str/includes? badge-css "width: 1.35rem;"))
+            (expect (str/includes? badge-css "height: 1.35rem;"))
+            (expect (not (str/includes? badge-css "letter-spacing")))
+            (expect (not (str/includes? badge-css "text-transform"))))
+          ;; A failure is colored in the name too, and the rail no longer
+          ;; shifts non-passing rows two pixels to the right.
+          (expect (str/includes? html ".test-card.status-failed > summary > .test-name"))
+          (expect (str/includes? html "calc(0.7rem + 3px - var(--status-rail))")))
+        (clean-dir! results-dir)
+        (clean-dir! output-dir)))
+
     (it "accepts explicit :run-info opt (caller supplies metadata directly)"
       (let [results-dir (tmp-dir "alternative-results-runopts")
             output-dir (tmp-dir "alternative-output-runopts")]
