@@ -197,10 +197,11 @@
             wrapped  (sut/wrap-boundaries true payload)]
         (expect (.contains wrapped payload))))
 
-    (it "nil text becomes empty between delimiters (not NPE)"
-      (let [wrapped (sut/wrap-boundaries true nil)]
-        (expect (.contains wrapped "<untrusted-content>"))
-        (expect (.contains wrapped "</untrusted-content>")))))
+    ;; Regression, user report: empty output was rendered as an empty
+    ;; <untrusted-content> block.
+    (it "leaves empty output unwrapped"
+      (doseq [text [nil "" "  \n"]]
+        (expect (= text (sut/wrap-boundaries true text))))))
 
   (describe "disabled"
 

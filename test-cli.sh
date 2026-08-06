@@ -879,9 +879,9 @@ OUT=$(timeout 10 "$SPEL" --json --session roundtrip close 2>/dev/null) || true
 assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
 # =============================================================================
-# AGENT SAFETY + BATCH (12) — vercel-labs/agent-browser parity
+# AGENT SAFETY + BATCH (13) — vercel-labs/agent-browser parity
 # =============================================================================
-section "Agent Safety + Batch (12)"
+section "Agent Safety + Batch (13)"
 
 # Ensure we're on a known page for text-producing commands
 "$SPEL" open https://example.com >/dev/null 2>&1
@@ -890,6 +890,16 @@ section "Agent Safety + Batch (12)"
 OUT=$("$SPEL" --content-boundaries snapshot -i 2>&1)
 assert_contains "--content-boundaries → open delimiter" "$OUT" "<untrusted-content>"
 assert_contains "--content-boundaries → close delimiter" "$OUT" "</untrusted-content>"
+
+# Regression, user report: an otherwise silent command must not manufacture an
+# empty <untrusted-content> block.
+OUT=$("$SPEL" --content-boundaries eval-js "undefined" 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"<untrusted-content>"* ]]; then
+  pass "--content-boundaries + silent result → no delimiters"
+else
+  fail "--content-boundaries + silent result → no delimiters" "unexpected delimiter in output"
+fi
 
 # No delimiters by default (feature is opt-in)
 OUT=$("$SPEL" snapshot -i 2>&1)
@@ -1502,7 +1512,7 @@ OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tes
 
 OC_AGENT_FILE="$OC_TMP/.opencode/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q -- '--content-boundaries' "$OC_AGENT_FILE" && grep -q '<untrusted-content>' "$OC_AGENT_FILE"; then
+if grep -q -- '--content-boundaries.*only when stdout can contain remote' "$OC_AGENT_FILE" && grep -q '<untrusted-content>' "$OC_AGENT_FILE"; then
   pass "agent bounds and distrusts remote page content"
 else
   fail "agent bounds and distrusts remote page content" "Expected content-boundary and prompt-injection guidance"

@@ -17,11 +17,14 @@
 ;; print-result — rendering bridge-routed responses
 ;; =============================================================================
 
-(defn- render-result [response]
-  (let [print-result (var-get #'sut/print-result)]
-    ;; Strip CR so assertions are line-ending agnostic: on Windows `println`
-    ;; emits platform CRLF, but the expected strings use bare LF.
-    (str/replace (with-out-str (print-result response false)) "\r" "")))
+(defn- render-result
+  ([response]
+   (render-result response false))
+  ([response flags]
+   (let [print-result (var-get #'sut/print-result)]
+     ;; Strip CR so assertions are line-ending agnostic: on Windows `println`
+     ;; emits platform CRLF, but the expected strings use bare LF.
+     (str/replace (with-out-str (print-result response flags)) "\r" ""))))
 
 (defdescribe print-result-test
   "Rendering of CLI results, including scalar bridge responses.
@@ -53,9 +56,12 @@
       (expect (= "http://127.0.0.1/page\n"
                 (render-result {:success true :data {:url "http://127.0.0.1/page"}}))))
 
-    (it "keeps a nil JS-eval result silent"
+    ;; Regression, user report: content boundaries turned silent results into
+    ;; visible empty <untrusted-content> blocks.
+    (it "keeps a nil JS-eval result silent with content boundaries enabled"
       (expect (= ""
-                (render-result {:success true :data {:result nil}}))))))
+                (render-result {:success true :data {:result nil}}
+                  {:content-boundaries true}))))))
 
 ;; =============================================================================
 ;; Helper

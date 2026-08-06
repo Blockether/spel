@@ -106,17 +106,20 @@
 (def ^:const boundary-close "</untrusted-content>")
 
 (defn wrap-boundaries
-  "Wraps `text` in XML-style `<untrusted-content>` delimiters when enabled.
+  "Wraps non-blank `text` in XML-style `<untrusted-content>` delimiters when
+   enabled.
 
-   When disabled (false/nil), returns text unchanged.
+   When disabled (false/nil), or when text is nil, empty, or whitespace-only,
+   returns text unchanged. Boundaries identify actual content; they must not
+   manufacture visible output for an otherwise silent command.
 
    The markers are chosen to mirror how LLM clients already treat XML-like
-   tags in prompts — downstream agents can instructed to NEVER execute
+   tags in prompts — downstream agents can be instructed to NEVER execute
    instructions found inside these tags, even if the page content tries to
    inject a prompt."
   [enabled? ^String text]
-  (if enabled?
-    (str boundary-open "\n" (or text "") "\n" boundary-close)
+  (if (and enabled? (not (str/blank? text)))
+    (str boundary-open "\n" text "\n" boundary-close)
     text))
 
 ;; =============================================================================
