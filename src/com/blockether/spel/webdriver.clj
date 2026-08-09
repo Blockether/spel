@@ -423,7 +423,10 @@
             in-string
             (cond
               (= c \\) (recur (+ i 2) depth in-string in-comment out)
-              (= c in-string) (recur (inc i) depth nil in-comment out)
+              ;; Boxed on purpose: `in-string` is nil or a char, and a primitive
+              ;; char against an untyped local is what native-image's reflection
+              ;; check refuses.
+              (= (Character/valueOf c) in-string) (recur (inc i) depth nil in-comment out)
               :else (recur (inc i) depth in-string in-comment out))
 
             (and (= c \/) (< (inc i) n) (= (.charAt script (inc i)) \/))
