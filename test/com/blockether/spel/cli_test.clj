@@ -2784,6 +2784,36 @@
                 (render-result {:success true :data {:state "loaded" :path "/tmp/state-x.json"}}))))))
 
 ;; =============================================================================
+;; Regression, user report: `spel annotate` printed a bare "Saved: " with an
+;; empty path above its reference table — the annotated branch assumed a saved
+;; artifact, so an overlay-only command advertised a file it never wrote.
+;; =============================================================================
+
+(defdescribe annotated-result-test
+  "Rendering of results carrying an :annotated reference table."
+
+  (describe "overlay-only annotate"
+    (it "reports the annotated ref count and no save prefix"
+      (let [out (render-result {:success true
+                                :data    {:annotated {:count   2
+                                                      :entries [{:ref "e1" :role "button" :name "Save"}
+                                                                {:ref "e2" :role "link" :name "Home"}]}}})]
+        (expect (str/starts-with? out "Annotated: 2 refs\n"))
+        (expect (not (str/includes? out "Saved:")))
+        (expect (str/includes? out "@e1"))
+        (expect (str/includes? out "\"Save\"")))))
+
+  (describe "annotated screenshot"
+    (it "prints the saved artifact and the ref table under it"
+      (let [out (render-result {:success true
+                                :data    {:path      "/tmp/shot.png"
+                                          :size      1234
+                                          :annotated {:count   1
+                                                      :entries [{:ref "e1" :role "button" :name "Save"}]}}})]
+        (expect (str/starts-with? out "Saved: /tmp/shot.png (1234 bytes, 1 refs annotated)\n"))
+        (expect (str/includes? out "@e1"))))))
+
+;; =============================================================================
 ;; Regression, issue #117: a downloaded release binary never started its daemon.
 ;; Release assets are published as `spel-macos-arm64`, `spel-linux-x64`, … and the
 ;; launcher only re-exec'd itself when the executable's file name was exactly

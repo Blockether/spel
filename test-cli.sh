@@ -1457,6 +1457,11 @@ else
   fail "annotate --full → count >= viewport-only count" "full=$FULL_COUNT viewport=$VIEWPORT_COUNT"
 fi
 
+# Plain text: overlay-only annotate saves no file, so it reports the ref count
+# and prints the reference table instead of a bare "Saved: ".
+OUT=$("$SPEL" annotate 2>&1)
+assert_contains "annotate (plain text) → 'Annotated:' count" "$OUT" "Annotated:"
+
 OUT=$("$SPEL" --json unannotate 2>&1)
 assert_jq "unannotate → .removed" "$OUT" '.removed == true'
 

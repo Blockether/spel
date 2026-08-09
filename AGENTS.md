@@ -6,7 +6,9 @@ Spel is a Clojure Playwright library with SCI and CLI/daemon surfaces. Implement
 
 - Load the `spel` skill before browser work.
 - Create a unique named session (`agent-<timestamp>`) for every command; never use the user's default session, and always close sessions you create.
-- Inspect `snapshot -i` before clicking and use element refs. Capture screenshots for visual changes.
+- Inspect `snapshot -i -c` before clicking and act through its `@refs`. Every row carries its box (`[pos:X,Y W×H]`), so state geometry as those figures instead of describing a picture; `get box <sel>` answers a single element.
+- Prove a visual change with `screenshot -a <path>` (or `overview`): it draws the boxes and prints the `@ref  role  name` reference table, and that table belongs in the answer. Scope a busy page first (`-s <sel>`, `-d N`, `--max-output N`) — an unscoped article annotates thousands of refs.
+- The agent-facing contract for the two rules above lives in `templates/agents/spel.md` and `templates/skills/spel/SKILL.md`; keep them and this section in step.
 
 ## Architecture and SCI
 

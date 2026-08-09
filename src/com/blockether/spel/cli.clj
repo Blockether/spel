@@ -3915,17 +3915,22 @@
           (:base64 data)
           (println (str "Screenshot captured (" (:size data) " bytes)"))
 
-          ;; Annotated screenshot (screenshot --annotate / overview / emulate) —
-          ;; print path + a deterministic list of labeled refs so the user (or
-          ;; downstream LLM) can match visual labels back to ref IDs.
+          ;; Annotated screenshot (screenshot --annotate / overview / emulate) and
+          ;; overlay-only `annotate` — print the artifact line, then a deterministic
+          ;; table of labeled refs so the user (or downstream LLM) can match the
+          ;; drawn boxes back to ref IDs.
           (:annotated data)
           (let [entries  (get-in data [:annotated :entries] [])
                 cnt      (get-in data [:annotated :count] (count entries))
                 max-role (reduce max 6 (map #(count (str (:role %))) entries))
                 max-ref  (reduce max 6 (map #(count (str (:ref %))) entries))]
-            (println (str "Saved: " (:path data)
-                       (when (:size data)
-                         (str " (" (:size data) " bytes, " cnt " refs annotated)"))))
+            ;; `annotate` injects overlays and writes no file — printing a bare
+            ;; "Saved: " here would advertise an empty artifact path.
+            (println (if-let [shot-path (:path data)]
+                       (str "Saved: " shot-path
+                         (when (:size data)
+                           (str " (" (:size data) " bytes, " cnt " refs annotated)")))
+                       (str "Annotated: " cnt (if (= 1 cnt) " ref" " refs"))))
             (doseq [{:keys [ref role name]} entries]
               (println (format (str "  @%-" max-ref "s  %-" max-role "s  %s")
                          (str ref)
