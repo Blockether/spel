@@ -1,2 +1,0 @@
-Merged 1 files from 1 directories into /tmp/merge-invalid-test2713518728092011466/merged/
-  1 test results
