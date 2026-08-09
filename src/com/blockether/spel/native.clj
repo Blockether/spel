@@ -647,31 +647,18 @@
   (let [v (System/getenv "SPEL_SESSION")]
     (when-not (str/blank? v) v)))
 
-(def ^:private cli-value-flags
-  "CLI flags that TAKE A VALUE and are owned by `cli.clj`'s parser.
+(def ^:private native-commands
+  "Every first token THIS namespace dispatches on, including the bare help and
+   version spellings. Anything else is a cli.clj command.
 
-   `parse-global-flags` left every unrecognized token in `:command-args`, so a
-   single flag in front of a command this namespace dispatches (`eval-sci`,
-   `daemon`, `init-agents`, `report`) hid that command completely. Recognition
-   here is only about finding the command; cli.clj still re-parses the original
-   args for its own commands."
-  #{"--provider" "--bundle-id" "--app" "--udid" "--platform-version"
-    "--appium-url" "--device" "--max-output" "--allowed-domains"})
-
-(def ^:private cli-boolean-flags
-  "Valueless CLI flags owned by `cli.clj`'s parser — see `cli-value-flags`."
-  #{"--content-boundaries"})
-
-(defn- cli-flag-assignment
-  "Splits an `=` spelling of a known CLI value flag: \"--provider=ios\" →
-   [\"provider\" \"ios\"]. Returns nil for anything else."
-  [arg]
-  (when (string? arg)
-    (let [eq (long (.indexOf ^String arg "="))]
-      (when (pos? eq)
-        (let [flag (subs ^String arg 0 eq)]
-          (when (contains? cli-value-flags flag)
-            [(subs flag 2) (subs ^String arg (inc eq))]))))))
+   `parse-global-flags` used to leave a flag it did not recognize in
+   `:command-args`, so ONE unknown flag in front of a command hid it and
+   `spel --provider ios eval-sci '(+ 1 2)'` answered `Unknown command:
+   eval-sci`. The parser now consumes leading unknown flags generically, and
+   this closed set — not a copy of cli.clj's flag list, which would drift — is
+   what tells a flag's VALUE apart from the command."
+  #{"init-agents" "ci-assemble" "merge-reports" "report" "daemon" "eval-sci"
+    "version" "--version" "help" "--help" "-h"})
 
 (defn- parse-global-flags
   "Pre-parses global flags from args.
@@ -798,29 +785,43 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :channel val))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
-          ;; Flags that belong to cli.clj's own parser but are legal ANYWHERE
-          ;; on the line. They are consumed here for one reason: so the COMMAND
-          ;; token can still be found. Leaving them in `cmd-args` made
-          ;; `spel --provider ios eval-sci '(+ 1 2)'` dispatch on "--provider"
-          ;; and die with `Unknown command: eval-sci` — including for
-          ;; --content-boundaries/--max-output/--allowed-domains, which the
-          ;; shipped agent skill tells every agent to pass. CLI commands are
-          ;; parsed from the ORIGINAL args, so nothing is lost for them; the
-          ;; values are kept in :cli-flags for the commands parsed HERE.
-          (cli-flag-assignment arg)
-          (let [[flag value] (cli-flag-assignment arg)]
-            (recur (rest remaining) cmd-args (assoc-in opts [:cli-flags flag] value)))
+          ;; A `--flag` this parser does not know belongs to cli.clj, and it is
+          ;; consumed here for ONE reason: so the COMMAND token behind it can
+          ;; still be found. `spel --provider ios eval-sci '(+ 1 2)'` used to
+          ;; dispatch on "--provider" and die with `Unknown command: eval-sci`.
+          ;;
+          ;; No list of cli.clj's flags lives here: a second flag registry
+          ;; drifts the day a flag is added over there, which is this same bug
+          ;; one release later. Whether the token after a flag is its VALUE or
+          ;; the command is decided by `native-commands` — the closed set this
+          ;; namespace owns and can never be wrong about.
+          ;;
+          ;; Only LEADING flags are consumed: once a command is in `cmd-args`
+          ;; the rest of the line belongs to that command's own parser
+          ;; (`report --results-dir`, `daemon --port`, eval-sci's script args).
+          ;; CLI commands re-parse the ORIGINAL args, so nothing is lost for
+          ;; them; the values are kept in :cli-flags for the commands parsed HERE.
+          (and (empty? cmd-args)
+            (string? arg)
+            (str/starts-with? ^String arg "--")
+            (not (contains? native-commands arg)))
+          (let [eq  (long (.indexOf ^String arg "="))
+                nxt (second remaining)]
+            (cond
+              (pos? eq)
+              (recur (rest remaining) cmd-args
+                (assoc-in opts [:cli-flags (subs ^String arg 2 eq)]
+                  (subs ^String arg (inc eq))))
 
-          (contains? cli-value-flags arg)
-          (let [value (second remaining)]
-            (if value
+              (and (string? nxt)
+                (not (contains? native-commands nxt))
+                (not (str/starts-with? ^String nxt "-")))
               (recur (drop 2 remaining) cmd-args
-                (assoc-in opts [:cli-flags (subs ^String arg 2)] value))
-              (recur (rest remaining) (conj cmd-args arg) opts)))
+                (assoc-in opts [:cli-flags (subs ^String arg 2)] nxt))
 
-          (contains? cli-boolean-flags arg)
-          (recur (rest remaining) cmd-args
-            (assoc-in opts [:cli-flags (subs ^String arg 2)] true))
+              :else
+              (recur (rest remaining) cmd-args
+                (assoc-in opts [:cli-flags (subs ^String arg 2)] true))))
 
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))

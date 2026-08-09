@@ -614,3 +614,21 @@
 
   (it "answers a blank script with a legal body"
     (expect (= "return undefined;" (sut/wrap-expression-script "   ")))))
+
+;; Regression, issue #120 (second round): the classification asked regexes of
+;; the RAW script and called any trailing-semicolon script an expression, so
+;; `a = 1; b = 2;` was sent as `return (a = 1; b = 2);` and the word `return`
+;; inside a string counted as the script's own return.
+(defdescribe wrap-script-classification-test
+  "Classification reads blanked code, never the raw text (issue #120)"
+
+  (it "never joins two statements into one expression"
+    (expect (= "a = 1; b = 2;" (sut/wrap-expression-script "a = 1; b = 2;"))))
+
+  (it "is not fooled by the word return inside a string"
+    (expect (= "var a = 'return x';\nreturn (a);"
+              (sut/wrap-expression-script "var a = 'return x'; a"))))
+
+  (it "is not fooled by a statement keyword inside a string"
+    (expect (= "return ('for (;;) x');"
+              (sut/wrap-expression-script "'for (;;) x'")))))

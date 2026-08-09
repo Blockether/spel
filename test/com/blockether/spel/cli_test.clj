@@ -2910,3 +2910,35 @@
               (first (:command-args
                       (#'com.blockether.spel.native/parse-global-flags
                        ["--content-boundaries" "init-agents"])))))))
+
+;; Regression, issue #119 (second round): the first fix copied cli.clj's flag
+;; NAMES into native.clj. That second registry drifts the day a flag is added
+;; over there, and the command disappears again — the same bug, one release
+;; later. Recognition now rests on the closed set of commands this namespace
+;; dispatches, so no flag has to be known in advance.
+(defdescribe native-unknown-flag-passthrough-test
+  "A flag this parser never heard of still cannot hide the command (issue #119)"
+
+  (it "finds the command behind a flag nobody registered here"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--brand-new-flag" "whatever" "eval-sci" "(+ 1 2)"])]
+      (expect (= ["eval-sci" "(+ 1 2)"] (vec (:command-args g))))
+      (expect (= "whatever" (get-in g [:cli-flags "brand-new-flag"])))))
+
+  (it "treats a flag standing directly before a command as valueless"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--brand-new-flag" "daemon"])]
+      (expect (= ["daemon"] (vec (:command-args g))))
+      (expect (true? (get-in g [:cli-flags "brand-new-flag"])))))
+
+  (it "still dispatches help and version"
+    (doseq [token ["--help" "-h" "help" "--version" "version"]]
+      (expect (= [token]
+                (vec (:command-args
+                      (#'com.blockether.spel.native/parse-global-flags [token])))))))
+
+  (it "leaves a command's own flags to that command"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["report" "--results-dir" "out"])]
+      (expect (= ["report" "--results-dir" "out"] (vec (:command-args g))))
+      (expect (nil? (:cli-flags g))))))

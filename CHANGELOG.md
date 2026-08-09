@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Dispatch `eval-sci`, `daemon` and `init-agents` behind any CLI-owned flag; `--provider`, `--bundle-id`, `--udid`, `--device`, `--app`, `--platform-version`, `--appium-url`, `--content-boundaries`, `--max-output` and `--allowed-domains` no longer print `Unknown command` (#119)
-- Run multi-statement JavaScript through `evaluate`: a statement sequence is treated as a function body and its last expression is returned (#120)
+- Dispatch `eval-sci`, `daemon`, `report` and `init-agents` behind ANY leading flag, known here or not: recognition rests on the closed set of commands this binary dispatches instead of a copy of the CLI's flag names, so a flag added to the CLI can never turn a command into `Unknown command` again (#119)
+- Run multi-statement JavaScript through `evaluate`: a statement sequence is treated as a function body and its last expression is returned, and the script is classified from a scan that blanks strings, template literals and comments, so a `;` or a `return` inside a string decides nothing (#120)
 - Give every command the open-ended budget on an iOS session, so a healthy `snapshot`/`click` is no longer interrupted after 25s (#121)
 - Report a budget interrupt as `command_timeout` with `SPEL_COMMAND_BUDGET_MS`, whichever side of the interrupt answers first, instead of "was cancelled" (#122)
 - Let an iOS command outlast a browser page: a session's per-command WebDriver timeout is 300s, so a `snapshot` of a real hybrid app (measured 76s for a 2.1 MB WDA source dump) no longer fails with `request timed out` (#121)
