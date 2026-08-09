@@ -792,8 +792,8 @@
         (.setSoTimeout plain (int timeout-ms))
         (with-open [^java.net.Socket s (if secure?
                                          (doto ^java.net.Socket
-                                           (.createSocket ^SSLSocketFactory (.getSocketFactory ^SSLContext @probe-ssl-context)
-                                             plain host (int port) true)
+                                          (.createSocket ^SSLSocketFactory (.getSocketFactory ^SSLContext @probe-ssl-context)
+                                            plain host (int port) true)
                                            (.setSoTimeout (int timeout-ms)))
                                          plain)]
           (let [out (.getOutputStream s)
@@ -1018,25 +1018,25 @@
       (cond
         (> (System/currentTimeMillis) deadline)
         (do (.destroyForcibly proc)
-          (clear-auto-launch-lock! port)
-          (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
-                   {:port port :engine "lightpanda" :pid pid})))
+            (clear-auto-launch-lock! port)
+            (throw (ex-info (str "Lightpanda did not start within 15 seconds on port " port)
+                     {:port port :engine "lightpanda" :pid pid})))
 
         (not (.isAlive proc))
         (do (clear-auto-launch-lock! port)
-          (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
-                   {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
+            (throw (ex-info (str "Lightpanda process exited immediately (exit " (.exitValue proc) "). Binary: " bin)
+                     {:port port :engine "lightpanda" :exit-code (.exitValue proc)})))
 
         (probe-http-cdp port 500)
         (do (log/info! "[engine] Lightpanda ready on port " port)
-          {:cdp-url (str "ws://127.0.0.1:" port)
-           :port port
-           :process proc
-           :browser-pid pid})
+            {:cdp-url (str "ws://127.0.0.1:" port)
+             :port port
+             :process proc
+             :browser-pid pid})
 
         :else
         (do (Thread/sleep (long wait))
-          (recur deadline (min 100 (* 2 (long wait)))))))))
+            (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (declare kill-auto-launched-browser!)
 
@@ -1070,7 +1070,7 @@
         ;; because `open` spawns in background and we can't get the PID
         cmd       (into [binary] browser-args)
         _         (do (log/info! "auto-launch: starting " channel " on port " port)
-                    (log/info! "auto-launch: temp profile: " tmp-dir))
+                      (log/info! "auto-launch: temp profile: " tmp-dir))
         pb        (doto (ProcessBuilder. ^java.util.List (java.util.ArrayList. ^java.util.Collection cmd))
                     (.redirectOutput ProcessBuilder$Redirect/DISCARD)
                     (.redirectErrorStream true))
@@ -1106,7 +1106,7 @@
 
         :else
         (do (Thread/sleep (long wait))
-          (recur deadline (min 100 (* 2 (long wait)))))))))
+            (recur deadline (min 100 (* 2 (long wait)))))))))
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
@@ -1270,7 +1270,7 @@
   (when-let [b (:browser @!state)]
     (if (instance? com.microsoft.playwright.Browser b)
       (try (.isConnected ^com.microsoft.playwright.Browser b)
-        (catch Throwable _ false))
+           (catch Throwable _ false))
       true)))
 
 (defn- page-open?
@@ -1279,7 +1279,7 @@
   (when-let [p (:page @!state)]
     (if (instance? com.microsoft.playwright.Page p)
       (try (not (.isClosed ^com.microsoft.playwright.Page p))
-        (catch Throwable _ false))
+           (catch Throwable _ false))
       true)))
 
 (defn- adopt-foreign-pages!
@@ -1292,7 +1292,7 @@
     :cdp-foreign true
     :adopted-context context
     :adopted-pages (into #{} (try (.pages ^BrowserContext context)
-                               (catch Exception _ nil)))
+                                  (catch Exception _ nil)))
     :spel-pages #{}))
 
 (defn- new-spel-page!
@@ -1829,9 +1829,9 @@
     (if-let [^Response resp (get @!network-responses (parse-long (subs ref-id 1)))]
       (let [^Request req  (.request resp)
             req-headers   (try (into {} (.allHeaders req))
-                            (catch Exception _ (get-in entry [:request :headers])))
+                               (catch Exception _ (get-in entry [:request :headers])))
             resp-headers  (try (into {} (.allHeaders resp))
-                            (catch Exception _ (get-in entry [:response :headers])))
+                               (catch Exception _ (get-in entry [:response :headers])))
             body          (when (should-capture-response-body? (:resource_type entry) resp-headers)
                             (try (.text resp) (catch Exception _ nil)))
             enriched      (-> entry
@@ -2045,7 +2045,7 @@
                       (if (and (not no-auto?)
                             (contains? #{"alert" "beforeunload"} dtype))
                         (try (.accept d)
-                          (catch Exception _ nil))
+                             (catch Exception _ nil))
                         ;; Park until an explicit response arrives on the
                         ;; promise. Playwright dispatches onDialog on its own
                         ;; event thread so blocking here is safe.
@@ -2193,7 +2193,7 @@
                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
                         (get flags "headers")             (assoc :extra-http-headers
                                                             (try (json/read-json (get flags "headers"))
-                                                              (catch Exception _ {})))
+                                                                 (catch Exception _ {})))
                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
                         (get flags "download-path")       (assoc :accept-downloads true))
           pw          (core/create)]
@@ -2409,10 +2409,10 @@
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
-                  (catch Exception _ nil)))
+                     (catch Exception _ nil)))
      :enabled (when found?
                 (try (boolean (locator/is-enabled? loc))
-                  (catch Exception _ nil)))}))
+                     (catch Exception _ nil)))}))
 
 (defn- refresh-snapshot!
   "Captures a fresh snapshot and updates daemon ref state."
@@ -3294,15 +3294,15 @@
   (cond
     (get params "text")
     (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
-      {:found_text (get params "text")})
+        {:found_text (get params "text")})
 
     (get params "url")
     (do (unwrap-anomaly! (page/wait-for-url (pg) (get params "url")))
-      {:url (get params "url")})
+        {:url (get params "url")})
 
     (get params "function")
     (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
-      {:function_completed true})
+        {:function_completed true})
 
     (get params "selector")
     (let [sel (get params "selector")]
@@ -3313,11 +3313,11 @@
 
     (get params "state")
     (do (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword (get params "state"))))
-      {:state (get params "state")})
+        {:state (get params "state")})
 
     (get params "timeout")
     (do (unwrap-anomaly! (page/wait-for-timeout (pg) (double (get params "timeout"))))
-      {:waited (get params "timeout")})
+        {:waited (get params "timeout")})
 
     :else
     {:error "No wait condition specified"}))
@@ -3738,13 +3738,13 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                  (snapshot-after-action!)
-                  {:found by :value value :action "click"})
+                    (snapshot-after-action!)
+                    {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                  (snapshot-after-action!)
-                  {:found by :value value :action "fill"})
+                    (snapshot-after-action!)
+                    {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
-                  {:found by :value value :action "type"})
+                    {:found by :value value :action "type"})
       "check"   (do (locator/check loc) {:found by :value value :action "check"})
       "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
       "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
@@ -3891,7 +3891,7 @@
   (let [cookie (Cookie. name value)]
     (if domain
       (do (.setDomain cookie domain)
-        (.setPath cookie (or path "/")))
+          (.setPath cookie (or path "/")))
       (.setUrl cookie (or url (page/url (pg)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
       (.addCookies ^BrowserContext (ctx) cookie-list))
@@ -3984,12 +3984,12 @@
                        (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
                        (get flags "headers")             (assoc :extra-http-headers
                                                            (try (json/read-json (get flags "headers"))
-                                                             (catch Exception _ {}))))
+                                                                (catch Exception _ {}))))
         ctx-opts     (merge base-opts extra-opts)]
     ;; Save in-flight trace + storage state before teardown
     (save-inflight-trace!)
     (let [storage-state (try (.storageState ^BrowserContext (:context @!state))
-                          (catch Exception _ nil))]
+                             (catch Exception _ nil))]
       (when-let [p (:page @!state)]
         (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
       (when-let [c (:context @!state)]
@@ -4050,15 +4050,15 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   (if url
     (do (page/unroute! (pg) url)
-      (swap! !routes dissoc url)
-      (when (empty? @!routes)
-        (release-cdp-route-lock-if-owned!))
-      {:route_removed url})
+        (swap! !routes dissoc url)
+        (when (empty? @!routes)
+          (release-cdp-route-lock-if-owned!))
+        {:route_removed url})
     (do (doseq [[u _] @!routes]
           (page/unroute! (pg) u))
-      (reset! !routes {})
-      (release-cdp-route-lock-if-owned!)
-      {:all_routes_removed true})))
+        (reset! !routes {})
+        (release-cdp-route-lock-if-owned!)
+        {:all_routes_removed true})))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -4099,34 +4099,34 @@
   ;; dialog fires.
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:accept text])
-      {:dialog_handler "accept" :text text :pending false})
+        {:dialog_handler "accept" :text text :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-      (let [handler (reify java.util.function.Consumer
-                      (accept [_ dialog]
-                        (try (.accept ^Dialog dialog (or text ""))
-                          (catch Exception _ nil))
-                        (install-default-dialog-handler! (pg)
-                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-        (reset! !dialog-handler handler)
-        (.onDialog ^Page (pg) handler))
-      {:dialog_handler "accept" :text text :pending true})))
+        (let [handler (reify java.util.function.Consumer
+                        (accept [_ dialog]
+                          (try (.accept ^Dialog dialog (or text ""))
+                               (catch Exception _ nil))
+                          (install-default-dialog-handler! (pg)
+                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+          (reset! !dialog-handler handler)
+          (.onDialog ^Page (pg) handler))
+        {:dialog_handler "accept" :text text :pending true})))
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
   (if-let [p @!pending-dialog-promise]
     (do (deliver p [:dismiss nil])
-      {:dialog_handler "dismiss" :pending false})
+        {:dialog_handler "dismiss" :pending false})
     (do (when-let [old @!dialog-handler]
           (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-      (let [handler (reify java.util.function.Consumer
-                      (accept [_ dialog]
-                        (try (.dismiss ^Dialog dialog)
-                          (catch Exception _ nil))
-                        (install-default-dialog-handler! (pg)
-                          (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-        (reset! !dialog-handler handler)
-        (.onDialog ^Page (pg) handler))
-      {:dialog_handler "dismiss" :pending true})))
+        (let [handler (reify java.util.function.Consumer
+                        (accept [_ dialog]
+                          (try (.dismiss ^Dialog dialog)
+                               (catch Exception _ nil))
+                          (install-default-dialog-handler! (pg)
+                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
+          (reset! !dialog-handler handler)
+          (.onDialog ^Page (pg) handler))
+        {:dialog_handler "dismiss" :pending true})))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
@@ -4206,7 +4206,7 @@
         (let [new-pg (new-spel-page! new-ctx)]
           (if (anomaly/anomaly? new-pg)
             (do (.close ^BrowserContext new-ctx)
-              {:error (str "Failed to create page: " (:anomaly/message new-pg))})
+                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
                ;; Re-register console, error, and request listeners on new page
@@ -4283,9 +4283,9 @@
         launch-flags (:launch-flags state)
         viewport (try (when page (page/viewport-size page)) (catch Exception _ nil))
         tab-count (try (when context (count (.pages ^com.microsoft.playwright.BrowserContext context)))
-                    (catch Exception _ nil))
+                       (catch Exception _ nil))
         cookies-count (try (when context (count (.cookies ^com.microsoft.playwright.BrowserContext context)))
-                        (catch Exception _ nil))
+                           (catch Exception _ nil))
         ios? (= "ios" (get launch-flags "provider"))
         ios-sess (:ios-session state)]
     (if ios?
@@ -4864,10 +4864,12 @@
 ;; =============================================================================
 
 (defn- ios-provider?
-  "Returns true when the session's persisted launch flags select the iOS
-   provider."
+  "Returns true when this daemon drives the iOS provider — either its persisted
+   launch flags select it, or an iOS session is already live."
   []
-  (= "ios" (get-in @!state [:launch-flags "provider"])))
+  (let [state @!state]
+    (or (= "ios" (get-in state [:launch-flags "provider"]))
+      (some? (:ios-session state)))))
 
 (defn- stop-ios-backend!
   "Idempotent iOS cleanup. Releases only session-owned resources (WebDriver
@@ -5224,7 +5226,7 @@
 
       (get params "timeout")
       (do (Thread/sleep (long (get params "timeout")))
-        {:waited (get params "timeout")})
+          {:waited (get params "timeout")})
 
       :else
       {:error "No wait condition specified"})))
@@ -5261,8 +5263,8 @@
   (let [b (ios-backend)]
     (if (and x y)
       (do (backend/tap! b [(long x) (long y)] {})
-        (ios-snapshot-after-action! b)
-        {:tapped [(long x) (long y)]})
+          (ios-snapshot-after-action! b)
+          {:tapped [(long x) (long y)]})
       (do
         (when (str/blank? (str selector))
           (throw (ex-info "tap requires a selector/@ref or x y coordinates" {})))
@@ -5338,7 +5340,7 @@
    nothing and works even when the browser stopped answering."
   []
   (try (when-let [p (:page @!state)] (page/url p))
-    (catch Throwable _ nil)))
+       (catch Throwable _ nil)))
 
 (defn- restore-page!
   "Re-opens `url` on the freshly relaunched browser so a recovered session lands
@@ -5364,7 +5366,7 @@
   [action params]
   (let [attempt (fn run-command []
                   (try {:ok (dispatch-cmd action params)}
-                    (catch Throwable e {:threw e})))
+                       (catch Throwable e {:threw e})))
         url-before (current-url-quietly)
         {:keys [ok threw]} (attempt)
         anomaly (when (anomaly/anomaly? ok) ok)
@@ -5532,16 +5534,41 @@
           (str " code=" (:code failure)
             (when-let [m (:message failure)] (str " error=" (pr-str m)))))))))
 
+(defn- budget-exceeded-response
+  "The answer for a command the daemon interrupted because it outran its
+   budget. It is produced from BOTH ends of that interrupt — the watchdog that
+   fires it and the worker that catches the `InterruptedException` — because
+   whichever answer reaches the client first must carry the same diagnosis and
+   the same escape hatch."
+  [^String cid ^String action ^long budget-ms]
+  (json/write-json-str
+    {:success    false
+     :error      (str "command '" action "' exceeded the daemon budget of "
+                   budget-ms "ms and was interrupted")
+     :error_code "command_timeout"
+     :hint       (str "Raise the ceiling with SPEL_COMMAND_BUDGET_MS=<ms> if the work is "
+                   "genuinely long; the daemon is still alive and `spel health` shows "
+                   "what is running.")
+     :command_id cid}))
+
 (defn- cancelled-response
   "The answer for a command that ended because it was cancelled. Its own failure
    text describes a torn-down browser call (\"Failed to read message\") and points
-   a caret at the user's snippet — which reads like a bug in that snippet."
+   a caret at the user's snippet — which reads like a bug in that snippet.
+
+   A budget interrupt is NOT a cancellation, even though it arrives as the same
+   `InterruptedException`: the ledger records why the interrupt was sent, so a
+   worker that loses the race to the watchdog still reports the budget instead
+   of sending the user to `spel health`, which shows nothing for a command that
+   has already ended."
   [^String cid ^String action]
-  (json/write-json-str
-    {:success    false
-     :error      (str "command " cid " (" action ") was cancelled")
-     :error_code "cancelled"
-     :hint       "`spel health` lists what is still running"}))
+  (if-let [budget-ms (get-in @!ledger [cid :cancel-reason :budget-ms])]
+    (budget-exceeded-response cid action (long budget-ms))
+    (json/write-json-str
+      {:success    false
+       :error      (str "command " cid " (" action ") was cancelled")
+       :error_code "cancelled"
+       :hint       "`spel health` lists what is still running"})))
 
 (def ^:private default-command-budget-ms
   "Hard ceiling for ONE browser command inside the daemon.
@@ -5563,15 +5590,26 @@
   "Budget for `action`: at least `default-command-budget-ms`, always at least
    2x the configured action timeout, and minutes for open-ended work.
 
+   `ios?` says the session is driven by the iOS provider, where EVERY command
+   is open-ended — a `snapshot` is a WDA page-source dump of the whole native
+   tree and a `click` waits on that tree — so the browser's 25s ceiling
+   interrupted healthy commands mid-flight. Matching on an `ios` action NAME
+   was never enough: the iOS backend answers the ordinary `snapshot`, `click`
+   and `type` actions, and only the daemon's own state knows which backend
+   they reach. The single-argument arity asks that state, which is empty in
+   the CLI process — clients pass `ios?` explicitly.
+
    Public because the CLI must size its transport timeout from the same number —
    see `client-timeout-ms`."
-  ^long [action]
-  (if (or (contains? open-ended-actions action)
-        (str/starts-with? (str action) "ios"))
-    900000
-    (max (long default-command-budget-ms)
-      (* 2 (long (or (get-in @!state [:launch-flags "timeout"])
-                   default-action-timeout-ms))))))
+  (^long [action] (command-budget-ms action (ios-provider?)))
+  (^long [action ios?]
+   (if (or ios?
+         (contains? open-ended-actions action)
+         (str/starts-with? (str action) "ios"))
+     900000
+     (max (long default-command-budget-ms)
+       (* 2 (long (or (get-in @!state [:launch-flags "timeout"])
+                    default-action-timeout-ms)))))))
 
 (def ^:private client-transport-slack-ms
   "Head start the daemon keeps over its client. The daemon must report a wedged
@@ -5580,15 +5618,18 @@
 
 (defn client-timeout-ms
   "Transport budget a client must allow for `action`: the daemon's own budget
-   plus slack.
+   plus slack. `ios?` mirrors `command-budget-ms` — a CLI process cannot read
+   the daemon's state, so it says so from its own flags.
 
    The invariant is client timeout > daemon budget. Violating it (a flat 30s
    client against the 900s budget for `sci_eval`/`ios*`) made the CLI walk away
    from commands the daemon was still executing: the work continued unwatched,
    the reply landed on a closed socket, and the session log filled with
    `handle-connection: Broken pipe` instead of an answer."
-  ^long [action]
-  (+ (command-budget-ms action) (long client-transport-slack-ms)))
+  (^long [action]
+   (+ (command-budget-ms action) (long client-transport-slack-ms)))
+  (^long [action ios?]
+   (+ (command-budget-ms action ios?) (long client-transport-slack-ms))))
 
 (def ^:private signal-frame-prefixes
   ["com.blockether." "com.microsoft.playwright." "sci."])
@@ -5628,7 +5669,11 @@
 (defn- run-guarded-command!
   "Runs a non-control command on a worker thread under `!command-lock`, bounded
    by `command-budget-ms`. On expiry the worker is interrupted, its stack is
-   logged, and the client gets an actionable error instead of a silent hang."
+   logged, and the client gets an actionable error instead of a silent hang.
+
+   The interrupt reason is recorded in the ledger BEFORE the interrupt is sent,
+   so the worker's own `InterruptedException` answer — which races this one and
+   sometimes wins — reports the budget rather than a phantom cancellation."
   [cid action params]
   (let [budget (command-budget-ms action)
         result (promise)
@@ -5668,16 +5713,10 @@
         (do
           (log/warn! "command " cid " (" action ") exceeded " budget
             "ms — interrupting it. Stack: " (str/join " | " (stuck-command-frames worker)))
-          (swap! !ledger assoc-in [cid :cancel-requested] true)
+          (swap! !ledger update cid merge {:cancel-requested true
+                                           :cancel-reason    {:budget-ms budget}})
           (.interrupt worker)
-          (json/write-json-str
-            {:success    false
-             :error      (str "command '" action "' exceeded the daemon budget of "
-                           budget "ms and was interrupted")
-             :error_code "command_timeout"
-             :hint       (str "The daemon is still alive — `spel health` shows what is running. "
-                           "Raise the ceiling with SPEL_COMMAND_BUDGET_MS if the work is genuinely long.")
-             :command_id cid}))))))
+          (budget-exceeded-response cid action budget))))))
 
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
@@ -6073,10 +6112,10 @@
                            ::closed
                            (do (log/warn! "accept failed: " (.getMessage e)
                                  " — still listening")
-                             (Thread/sleep 50)
-                             ::retry))))]
+                               (Thread/sleep 50)
+                               ::retry))))]
           (cond
             (identical? ::closed client) nil
             (identical? ::retry client)  (recur)
             :else (do (submit-virtual #(handle-connection client))
-                    (recur))))))))
+                      (recur))))))))

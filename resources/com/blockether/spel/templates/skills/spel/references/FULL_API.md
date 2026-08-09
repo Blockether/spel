@@ -518,12 +518,14 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 | Function | Args | Description |
 |----------|------|-------------|
+| `capture-failure` | [result] | Returns an anomaly when a raw capture result cannot be parsed, else nil. |
 | `capture-full-snapshot` | [page] | Captures a snapshot of the page and all its iframes. |
 | `capture-script` | [opts] | Returns the capture-snapshot JS with optional flags injected. |
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
 | `capture-webdriver` | [driver] \| [driver opts] | Captures an accessibility snapshot through a W3C WebDriver session. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
+| `decode-capture-result` | [result] | Parses the capture script's JSON payload into a string-keyed map. |
 | `diff-snapshots` | [baseline current] | Compares two accessibility snapshot strings line-by-line. |
 | `flatten-tree` | [tree] | Flattens a YAML-like tree string by stripping all leading whitespace. |
 | `parse-capture-result` | [result] \| [result opts] | Parses the raw JS capture result into the public snapshot map. |
@@ -890,8 +892,11 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/ios-permission` | [service] \| [bundle-id service] | Returns an iOS application permission value. |
 | `spel/ios-set-orientation!` | [requested] | Rotates the iOS device to :portrait or :landscape. |
 | `spel/ios-set-permission!` | [service access] \| [bundle-id service access] | Sets an app permission. Access accepts :grant, :revoke, or :reset. |
+| `spel/ios-tap-dom!` | [x y] | Taps a WEB-VIEWPORT coordinate (CSS pixels) as a native XCUITest gesture. |
+| `spel/ios-tap-element!` | [css] | Taps the element matching a CSS selector inside the app's WebView, natively. |
 | `spel/ios-terminate-app!` | [] \| [bundle-id] | Terminates the bound or requested iOS application. |
 | `spel/ios-uninstall-app!` | [bundle-id] | Uninstalls an iOS application by bundle identifier. |
+| `spel/ios-viewport-offset` | [] | Returns the native-point offset of the app's web viewport on the screen. |
 | `spel/keyboard` | [] |  |
 | `spel/keyboard-press` | [key] | Presses a key on the focused page/native element. |
 | `spel/last-element` | [sel] | Returns the last element matching the locator. |

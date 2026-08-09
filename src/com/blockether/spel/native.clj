@@ -647,6 +647,32 @@
   (let [v (System/getenv "SPEL_SESSION")]
     (when-not (str/blank? v) v)))
 
+(def ^:private cli-value-flags
+  "CLI flags that TAKE A VALUE and are owned by `cli.clj`'s parser.
+
+   `parse-global-flags` left every unrecognized token in `:command-args`, so a
+   single flag in front of a command this namespace dispatches (`eval-sci`,
+   `daemon`, `init-agents`, `report`) hid that command completely. Recognition
+   here is only about finding the command; cli.clj still re-parses the original
+   args for its own commands."
+  #{"--provider" "--bundle-id" "--app" "--udid" "--platform-version"
+    "--appium-url" "--device" "--max-output" "--allowed-domains"})
+
+(def ^:private cli-boolean-flags
+  "Valueless CLI flags owned by `cli.clj`'s parser — see `cli-value-flags`."
+  #{"--content-boundaries"})
+
+(defn- cli-flag-assignment
+  "Splits an `=` spelling of a known CLI value flag: \"--provider=ios\" →
+   [\"provider\" \"ios\"]. Returns nil for anything else."
+  [arg]
+  (when (string? arg)
+    (let [eq (long (.indexOf ^String arg "="))]
+      (when (pos? eq)
+        (let [flag (subs ^String arg 0 eq)]
+          (when (contains? cli-value-flags flag)
+            [(subs flag 2) (subs ^String arg (inc eq))]))))))
+
 (defn- parse-global-flags
   "Pre-parses global flags from args.
    Returns {:timeout-ms long?, :debug? bool, :json? bool, :autoclose? bool,
@@ -772,6 +798,30 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :channel val))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
+          ;; Flags that belong to cli.clj's own parser but are legal ANYWHERE
+          ;; on the line. They are consumed here for one reason: so the COMMAND
+          ;; token can still be found. Leaving them in `cmd-args` made
+          ;; `spel --provider ios eval-sci '(+ 1 2)'` dispatch on "--provider"
+          ;; and die with `Unknown command: eval-sci` — including for
+          ;; --content-boundaries/--max-output/--allowed-domains, which the
+          ;; shipped agent skill tells every agent to pass. CLI commands are
+          ;; parsed from the ORIGINAL args, so nothing is lost for them; the
+          ;; values are kept in :cli-flags for the commands parsed HERE.
+          (cli-flag-assignment arg)
+          (let [[flag value] (cli-flag-assignment arg)]
+            (recur (rest remaining) cmd-args (assoc-in opts [:cli-flags flag] value)))
+
+          (contains? cli-value-flags arg)
+          (let [value (second remaining)]
+            (if value
+              (recur (drop 2 remaining) cmd-args
+                (assoc-in opts [:cli-flags (subs ^String arg 2)] value))
+              (recur (rest remaining) (conj cmd-args arg) opts)))
+
+          (contains? cli-boolean-flags arg)
+          (recur (rest remaining) cmd-args
+            (assoc-in opts [:cli-flags (subs ^String arg 2)] true))
+
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
@@ -803,10 +853,17 @@
         ;; The transport needs headroom for multi-action scripts but should fail
         ;; fast if something truly hangs — not block forever.
         action-timeout (or (:timeout-ms global) 10000)
-        eval-timeout   (max 120000 (* 4 (long action-timeout)))
+        cli-flags      (:cli-flags global)
+        ios?           (= "ios" (get cli-flags "provider"))
+        ;; An iOS eval pays for a simulator boot, an Appium start and a WDA
+        ;; build before the first form runs; 120s expires mid-boot.
+        eval-timeout   (max (if ios? 900000 120000) (* 4 (long action-timeout)))
         ;; Build _flags for daemon (same pattern as CLI mode in cli.clj).
         ;; The daemon uses these to configure browser type, profile, etc.
-        eval-flags   (cond-> {}
+        ;; :cli-flags carries the provider/device selection that
+        ;; `parse-global-flags` consumed, so `--provider ios eval-sci` starts
+        ;; the iOS backend instead of a headless Chromium.
+        eval-flags   (cond-> (or cli-flags {})
                        (:browser global) (assoc "browser" (:browser global))
                        (:channel global) (assoc "channel" (:channel global))
                        (:profile global) (assoc "profile" (:profile global))

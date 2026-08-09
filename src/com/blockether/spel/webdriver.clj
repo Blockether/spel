@@ -393,8 +393,76 @@
 ;; JavaScript evaluation
 ;; =============================================================================
 
+(defn- top-level-semicolons
+  "Indexes of the `;` characters that sit at depth 0 of `script` — outside
+   parentheses, brackets, braces, strings, template literals and comments.
+
+   Such a `;` is the one construct that cannot appear in a JS EXPRESSION, so
+   it is what separates `a + 1` (wrappable in `return (…)`) from `a = 1; a`
+   (a function body). A `for (;;)` header's semicolons sit inside parentheses
+   and are therefore invisible here, which is exactly right. A top-level regex
+   literal containing `;` is not tracked; the practical cost is that such a
+   script is treated as a body."
+  [^String script]
+  (let [n (.length script)]
+    (loop [i 0, depth 0, in-string nil, in-comment nil, out []]
+      (if (>= i n)
+        out
+        (let [c (.charAt script i)]
+          (cond
+            in-comment
+            (cond
+              (and (= in-comment :line) (= c \newline))
+              (recur (inc i) depth in-string nil out)
+
+              (and (= in-comment :block) (= c \*) (< (inc i) n) (= (.charAt script (inc i)) \/))
+              (recur (+ i 2) depth in-string nil out)
+
+              :else (recur (inc i) depth in-string in-comment out))
+
+            in-string
+            (cond
+              (= c \\) (recur (+ i 2) depth in-string in-comment out)
+              (= c in-string) (recur (inc i) depth nil in-comment out)
+              :else (recur (inc i) depth in-string in-comment out))
+
+            (and (= c \/) (< (inc i) n) (= (.charAt script (inc i)) \/))
+            (recur (+ i 2) depth in-string :line out)
+
+            (and (= c \/) (< (inc i) n) (= (.charAt script (inc i)) \*))
+            (recur (+ i 2) depth in-string :block out)
+
+            (or (= c \") (= c \') (= c \`))
+            (recur (inc i) depth c in-comment out)
+
+            (or (= c \() (= c \[) (= c \{))
+            (recur (inc i) (inc depth) in-string in-comment out)
+
+            (or (= c \)) (= c \]) (= c \}))
+            (recur (inc i) (dec depth) in-string in-comment out)
+
+            (and (= c \;) (zero? depth))
+            (recur (inc i) depth in-string in-comment (conj out i))
+
+            :else (recur (inc i) depth in-string in-comment out)))))))
+
+(def ^:private statement-start-re
+  "Keywords that can only begin a STATEMENT, so `return (script)` could never
+   be valid for a script starting with one."
+  #"^(?:var|let|const|if|for|while|do|switch|try|throw|function|class|debugger)(?![\w$])")
+
+(defn- statement-start?
+  [^String s]
+  (boolean (re-find statement-start-re (str/triml (str s)))))
+
+(defn- has-return?
+  "True when the script already produces its own value with `return`, in which
+   case spel must not add one."
+  [^String s]
+  (boolean (re-find #"(?:^|[^\w$.])return(?![\w$])" (str s))))
+
 (defn wrap-expression-script
-  "Wraps an expression-oriented script for W3C execute-script semantics.
+  "Wraps a script for W3C execute-script semantics.
 
    W3C execute-script runs a function BODY and only returns values from an
    explicit `return`. Playwright-style expressions (including spel's snapshot
@@ -403,12 +471,34 @@
      (wrap-expression-script \"document.title\")
      ;; => \"return (document.title);\"
 
-   Scripts that already start with `return` (after trimming) pass through."
+   Scripts that already start with `return` (after trimming) pass through.
+
+   A STATEMENT SEQUENCE is a function body, and wrapping one in `return (…)`
+   used to fail with a bare `Unexpected token ';'` that named neither spel's
+   wrapper nor the offending statement — so multi-statement JS was simply
+   impossible through this path:
+
+     (wrap-expression-script \"var a = 1; a + 1\")
+     ;; => \"var a = 1;\\nreturn (a + 1);\"
+
+   The value of a body is its LAST statement, and only when that statement is
+   an expression and the body returns nothing itself. A body with its own
+   `return`, or one ending in a statement, passes through untouched."
   ^String [^String script]
-  (let [trimmed (str/trim (or script ""))]
-    (if (str/starts-with? trimmed "return ")
-      trimmed
-      (str "return (" trimmed ");"))))
+  (let [trimmed     (str/trim (or script ""))
+        last-semi   (peek (top-level-semicolons trimmed))
+        head        (when last-semi (subs trimmed 0 (inc (long last-semi))))
+        tail        (when last-semi (str/trim (subs trimmed (inc (long last-semi)))))
+        expression? (and (not (statement-start? trimmed))
+                      (or (nil? last-semi) (str/blank? tail)))]
+    (cond
+      (str/blank? trimmed) "return undefined;"
+      (str/starts-with? trimmed "return ") trimmed
+      expression? (str "return (" (str/replace trimmed #";\s*$" "") ");")
+      (has-return? trimmed) trimmed
+      (and (seq tail) (not (statement-start? tail)))
+      (str head "\nreturn (" tail ");")
+      :else trimmed)))
 
 (defn evaluate
   "POST /session/{id}/execute/sync — executes JavaScript synchronously.

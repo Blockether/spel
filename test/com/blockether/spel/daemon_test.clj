@@ -1557,7 +1557,7 @@
       (with-tls-cdp-endpoint
         (fn [{:keys [https-port]}]
           (let [err (try (@#'sut/assert-cdp-endpoint-reachable! (str "http://127.0.0.1:" https-port))
-                      (catch Exception e e))]
+                         (catch Exception e e))]
             (expect (instance? Exception err))
             (expect (str/includes? (str (:hint (ex-data err)))
                       (str "http://127.0.0.1:" https-port))))))))
@@ -1568,3 +1568,46 @@
                 (@#'sut/cdp-http-base "wss://grid.example.com/devtools/browser/abc")))
       (expect (= "http://grid.example.com:80"
                 (@#'sut/cdp-http-base "ws://grid.example.com/devtools/browser/abc"))))))
+
+;; =============================================================================
+;; Unit Tests — iOS budgets and budget-interrupt reporting
+;; =============================================================================
+
+;; Regression, issue #121: only actions NAMED ios* were treated as open-ended,
+;; but the iOS backend answers the ordinary `snapshot`/`click`/`type` actions —
+;; so a healthy iOS snapshot was interrupted after the browser's 25s ceiling.
+(defdescribe ios-command-budget-test
+  "The iOS provider makes every command open-ended (issue #121)"
+
+  (it "gives ordinary actions the long budget on an iOS session"
+    (expect (= 900000 (sut/command-budget-ms "snapshot" true)))
+    (expect (= 900000 (sut/command-budget-ms "click" true)))
+    (expect (= 900000 (sut/command-budget-ms "type" true))))
+
+  (it "leaves the browser budget where it was"
+    (expect (< (sut/command-budget-ms "snapshot" false) 900000)))
+
+  (it "keeps the client outside the daemon budget for iOS"
+    (expect (> (sut/client-timeout-ms "snapshot" true)
+              (sut/command-budget-ms "snapshot" true)))))
+
+;; Regression, issue #122: a command interrupted for outrunning its budget
+;; answered "was cancelled" with a `spel health` hint — which lists nothing for
+;; a command that has already ended — and never mentioned the budget or
+;; SPEL_COMMAND_BUDGET_MS, so the ceiling was invisible to the caller.
+(defdescribe budget-interrupt-reporting-test
+  "A budget interrupt reports the budget, whichever answer wins (issue #122)"
+
+  (it "reports command_timeout when the ledger records a budget interrupt"
+    (let [cid "test-budget-interrupt"]
+      (swap! @#'sut/!ledger assoc cid {:id cid :cancel-reason {:budget-ms 25000}})
+      (try
+        (let [resp (json/read-json (#'sut/cancelled-response cid "snapshot"))]
+          (expect (= "command_timeout" (get resp "error_code")))
+          (expect (str/includes? (get resp "error") "25000ms"))
+          (expect (str/includes? (get resp "hint") "SPEL_COMMAND_BUDGET_MS")))
+        (finally (swap! @#'sut/!ledger dissoc cid)))))
+
+  (it "still reports a genuine cancellation as cancelled"
+    (let [resp (json/read-json (#'sut/cancelled-response "test-plain-cancel" "snapshot"))]
+      (expect (= "cancelled" (get resp "error_code"))))))

@@ -576,3 +576,41 @@
           (expect (= "LANDSCAPE" (get-in write [:body "orientation"])))
           (expect (= "GET" (:method read)))
           (expect (= "/session/sess-1/orientation" (:path read))))))))
+
+;; =============================================================================
+;; Script wrapping — statement sequences
+;; =============================================================================
+
+;; Regression, issue #120: every script was wrapped in `return (…)`, so a
+;; multi-statement script such as `a = 1; 'x'` reached the driver as
+;; `return (a = 1; 'x');` and failed with a bare `Unexpected token ';'` that
+;; named neither spel's wrapper nor the offending statement.
+(defdescribe wrap-statement-sequence-test
+  "A statement sequence is a function body, not an expression (issue #120)"
+
+  (it "returns the last expression of a statement sequence"
+    (expect (= "var a = 1;\nreturn (a + 1);"
+              (sut/wrap-expression-script "var a = 1; a + 1"))))
+
+  (it "keeps an assignment sequence runnable"
+    (expect (= "a = 1;\nreturn ('x');"
+              (sut/wrap-expression-script "a = 1; 'x'"))))
+
+  (it "never adds a second return to a body that returns for itself"
+    (expect (= "var a = 1;\nif (a) { return a; }"
+              (sut/wrap-expression-script "var a = 1;\nif (a) { return a; }"))))
+
+  (it "passes a statement-only body through untouched"
+    (expect (= "var a = 1;" (sut/wrap-expression-script "var a = 1;"))))
+
+  (it "drops a single trailing semicolon from an expression"
+    (expect (= "return (document.title);"
+              (sut/wrap-expression-script "document.title;"))))
+
+  (it "ignores semicolons inside strings, template literals and comments"
+    (expect (= "return (f('a;b'));" (sut/wrap-expression-script "f('a;b')")))
+    (expect (= "return (`a;${b}`);" (sut/wrap-expression-script "`a;${b}`")))
+    (expect (= "return (x /* a;b */);" (sut/wrap-expression-script "x /* a;b */"))))
+
+  (it "answers a blank script with a legal body"
+    (expect (= "return undefined;" (sut/wrap-expression-script "   ")))))

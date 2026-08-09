@@ -849,3 +849,136 @@
     (let [p (sut/lock-path "SOME-UDID")]
       (expect (str/includes? (str p) "spel-ios-sim-lock-SOME-UDID"))
       (expect (false? (Files/exists p (into-array java.nio.file.LinkOption [])))))))
+
+;; =============================================================================
+;; Hybrid apps: DOM coordinates → native taps
+;; =============================================================================
+
+(defn- fake-hybrid-session
+  "A session record shaped like `start!`'s, with no driver behind it: every
+   WebDriver call in these tests is redefined."
+  []
+  {:webdriver      :fake
+   :context*       (atom "WEBVIEW_1")
+   :native-refs*   (atom {})
+   :operation-lock (ReentrantLock. true)})
+
+;; Regression, issue #123: a hybrid app could be READ through
+;; `with-webview-context` but never TAPPED from what it read — DOM rects are
+;; webview CSS pixels, XCUITest gestures are screen points, and the offset
+;; between them was unreachable from a NATIVE_APP session, so the difference
+;; had to be hand-calibrated per device.
+(defdescribe hybrid-dom-tap-test
+  "DOM coordinates reach a native tap (issue #123)"
+
+  (it "exposes the web-viewport offset of the session"
+    (with-redefs [webdriver/viewport-offset (fn [_] {:x 0 :y 62})]
+      (expect (= {:x 0 :y 62} (sut/viewport-offset (fake-hybrid-session))))))
+
+  (it "adds the offset and taps in the native context, then restores the webview"
+    (let [ctx  (atom "WEBVIEW_1")
+          taps (atom [])]
+      (with-redefs [webdriver/contexts        (fn [_] ["NATIVE_APP" "WEBVIEW_1"])
+                    webdriver/current-context (fn [_] @ctx)
+                    webdriver/switch-context  (fn [_ target] (reset! ctx target) target)
+                    webdriver/viewport-offset (fn [_] {:x 0 :y 62})
+                    webdriver/tap-screen      (fn [_ x y]
+                                                (swap! taps conj {:x x :y y :context @ctx})
+                                                nil)]
+        (let [result (sut/tap-dom-point! (fake-hybrid-session) 100 200)]
+          (expect (= {:x 100 :y 262} (select-keys result [:x :y])))
+          (expect (= {:x 0 :y 62} (:offset result)))
+          (expect (= [{:x 100 :y 262 :context "NATIVE_APP"}] @taps))
+          (expect (= "WEBVIEW_1" @ctx))))))
+
+  (it "measures a selector inside the webview and taps it natively"
+    (let [ctx         (atom "NATIVE_APP")
+          measured-in (atom nil)
+          taps        (atom [])]
+      (with-redefs [webdriver/contexts               (fn [_] ["NATIVE_APP" "WEBVIEW_1"])
+                    webdriver/current-context        (fn [_] @ctx)
+                    webdriver/switch-context         (fn [_ target] (reset! ctx target) target)
+                    webdriver/find-element-by-css    (fn [_ _] "element-1")
+                    webdriver/element-viewport-center (fn [_ _]
+                                                        (reset! measured-in @ctx)
+                                                        {:x 10 :y 20})
+                    webdriver/viewport-offset        (fn [_] {:x 0 :y 62})
+                    webdriver/tap-screen             (fn [_ x y]
+                                                       (swap! taps conj {:x x :y y :context @ctx})
+                                                       nil)]
+        (let [result (sut/tap-dom-element! (fake-hybrid-session) "#composer")]
+          (expect (= "WEBVIEW_1" @measured-in))
+          (expect (= {:x 10 :y 20} (:dom result)))
+          (expect (= {:x 10 :y 82} (select-keys result [:x :y])))
+          (expect (= [{:x 10 :y 82 :context "NATIVE_APP"}] @taps))
+          (expect (= "NATIVE_APP" @ctx)))))))
+
+;; =============================================================================
+;; Prerequisite guidance on a failed session
+;; =============================================================================
+
+;; Regression, issue #124: a missing XCUITest driver lets Appium start happily
+;; and fails at session creation, so the user saw a raw WebDriver dump while
+;; `setup-instructions` — which names `appium driver install xcuitest` — was
+;; only reachable when the appium PROCESS itself failed to start.
+(defdescribe prerequisite-guidance-test
+  "A failed XCUITest session says what is missing (issue #124)"
+
+  (it "names the failed checks and how to install the driver"
+    (binding [sut/*command-runner*
+              (fn [cmd]
+                (if (= "appium" (first cmd))
+                  {:exit 1 :out "" :err "command not found: appium"}
+                  {:exit 0 :out "" :err ""}))]
+      (let [guidance (#'sut/prerequisite-guidance)]
+        (expect (string? guidance))
+        (expect (str/includes? guidance "appium on PATH"))
+        (expect (str/includes? guidance "XCUITest driver installed"))
+        (expect (str/includes? guidance "appium driver install xcuitest")))))
+
+  (it "attaches that guidance to a session that could not be created"
+    (when (sut/macos?)
+      (let [udid (str "TEST-GUIDANCE-" (System/nanoTime))
+            devices-json
+            (str "{\"devices\":{\"com.apple.CoreSimulator.SimRuntime.iOS-26-0\":"
+              "[{\"udid\":\"" udid "\",\"name\":\"iPhone Test\","
+              "\"state\":\"Booted\",\"isAvailable\":true}]}}")]
+        (binding [sut/*command-runner*
+                  (fn [cmd]
+                    (cond
+                      (some #{"list"} cmd) {:exit 0 :out devices-json :err ""}
+                      (= "appium" (first cmd)) {:exit 1 :out "" :err "not found"}
+                      :else {:exit 0 :out "" :err ""}))]
+          (let [message (try
+                          (sut/start! {:session "sess-guidance"
+                                       :udid udid
+                                       :appium-url "http://127.0.0.1:9"
+                                       :session-timeout-ms 500})
+                          nil
+                          (catch Exception e (ex-message e)))]
+            (expect (string? message))
+            (expect (str/includes? message "appium driver install xcuitest"))))
+        (expect (nil? (sut/read-lock udid)))))))
+
+;; =============================================================================
+;; Per-command WebDriver timeout
+;; =============================================================================
+
+;; Regression: every `snapshot` and `click` against a real hybrid app failed
+;; with "request timed out" because an iOS session inherited the browser's 60s
+;; per-command WebDriver ceiling, while a WDA `/source` dump of the Vis
+;; Companion measured 76s for 2.1 MB — the answer arrived after spel gave up.
+(defdescribe ios-command-timeout-test
+  "An iOS command outlasts a browser page"
+
+  (it "defaults above the WebDriver browser ceiling"
+    (expect (> (long sut/default-command-timeout-ms)
+              (long webdriver/default-command-timeout-ms))))
+
+  (it "gives session creation and per-command work separate budgets"
+    (expect (= {:timeout-ms 180000 :command-timeout-ms sut/default-command-timeout-ms}
+              (sut/session-timeouts {}))))
+
+  (it "honors explicit timeouts from the caller"
+    (expect (= {:timeout-ms 1000 :command-timeout-ms 2000}
+              (sut/session-timeouts {:session-timeout-ms 1000 :command-timeout-ms 2000})))))

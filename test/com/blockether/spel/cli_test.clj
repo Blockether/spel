@@ -2855,3 +2855,58 @@
                    :exec-path "/usr/bin/java"
                    :classpath "/cp/spel.jar"}
                   ["daemon"]))))))
+
+;; =============================================================================
+;; Native dispatch — CLI-owned flags must not hide the command
+;; =============================================================================
+
+;; Regression, issue #119: parse-global-flags stripped only its own handful of
+;; flags and left everything else in :command-args, so `spel --provider ios
+;; eval-sci '(+ 1 2)'` dispatched on "--provider" and printed
+;; `Unknown command: eval-sci` — including for --content-boundaries,
+;; --max-output and --allowed-domains, which the shipped skill tells agents to
+;; pass on every call.
+(defdescribe native-cli-flag-passthrough-test
+  "CLI-owned flags never hide the command that follows them (issue #119)"
+
+  (it "finds eval-sci after every CLI value flag"
+    (doseq [[flag value] [["--provider" "ios"]
+                          ["--bundle-id" "com.example.app"]
+                          ["--udid" "ABC-123"]
+                          ["--device" "iPhone 17 Pro"]
+                          ["--app" "/tmp/Example.app"]
+                          ["--platform-version" "26.0"]
+                          ["--appium-url" "http://127.0.0.1:4723"]
+                          ["--max-output" "500"]
+                          ["--allowed-domains" "example.org"]]]
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               [flag value "eval-sci" "(+ 1 2)"])]
+        (expect (= "eval-sci" (first (:command-args g))))
+        (expect (= value (get-in g [:cli-flags (subs flag 2)]))))))
+
+  (it "finds eval-sci after a valueless CLI flag"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--content-boundaries" "eval-sci" "(+ 1 2)"])]
+      (expect (= "eval-sci" (first (:command-args g))))
+      (expect (true? (get-in g [:cli-flags "content-boundaries"])))))
+
+  (it "accepts the = spelling"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--provider=ios" "eval-sci" "(+ 1 2)"])]
+      (expect (= "eval-sci" (first (:command-args g))))
+      (expect (= "ios" (get-in g [:cli-flags "provider"])))))
+
+  (it "leaves the command and its code argument intact"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--provider" "ios" "--max-output" "100" "eval-sci" "(+ 1 2)"])]
+      (expect (= ["eval-sci" "(+ 1 2)"] (vec (:command-args g))))))
+
+  (it "finds daemon and init-agents behind the same flags"
+    (expect (= "daemon"
+              (first (:command-args
+                      (#'com.blockether.spel.native/parse-global-flags
+                       ["--provider" "ios" "daemon"])))))
+    (expect (= "init-agents"
+              (first (:command-args
+                      (#'com.blockether.spel.native/parse-global-flags
+                       ["--content-boundaries" "init-agents"])))))))

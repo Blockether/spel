@@ -393,6 +393,21 @@
   [requested]
   (ios/set-orientation! (require-ios-session!) requested))
 
+(defn sci-ios-viewport-offset
+  "Returns the native-point offset of the app's web viewport on the screen."
+  []
+  (ios/viewport-offset (require-ios-session!)))
+
+(defn sci-ios-tap-dom!
+  "Taps a WEB-VIEWPORT coordinate (CSS pixels) as a native XCUITest gesture."
+  [x y]
+  (ios/tap-dom-point! (require-ios-session!) x y))
+
+(defn sci-ios-tap-element!
+  "Taps the element matching a CSS selector inside the app's WebView, natively."
+  [css]
+  (ios/tap-dom-element! (require-ios-session!) css))
+
 (defn sci-start!
   ([] (sci-start! {}))
   ([opts]
@@ -2195,6 +2210,9 @@
                   ['ios-hide-keyboard!    sci-ios-hide-keyboard!]
                   ['ios-orientation       sci-ios-orientation]
                   ['ios-set-orientation!  sci-ios-set-orientation!]
+                  ['ios-viewport-offset   sci-ios-viewport-offset]
+                  ['ios-tap-dom!          sci-ios-tap-dom!]
+                  ['ios-tap-element!      sci-ios-tap-element!]
                   ;; Navigation
                   ['navigate      sci-goto]
                   ['goto          sci-goto]

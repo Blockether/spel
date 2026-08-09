@@ -541,6 +541,44 @@
 ;; Session lifecycle
 ;; =============================================================================
 
+(defn- prerequisite-guidance
+  "Diagnosis to attach when creating the XCUITest session failed: the doctor
+   checks that are RED, plus how to fix them. Returns nil when every check
+   passes — then the WebDriver error is the real story and must not be buried.
+
+   `setup-instructions` existed but was only reachable when the `appium`
+   PROCESS failed to start. A missing XCUITest driver starts Appium happily and
+   fails at session creation, so the user saw a raw `Unknown automationName`
+   WebDriver dump and no mention of `appium driver install xcuitest`. Diagnosis
+   runs only on the failure path, so a healthy start pays nothing for it."
+  []
+  (let [failed (try (remove :ok (doctor)) (catch Exception _ nil))]
+    (when (seq failed)
+      (str "Failed iOS prerequisite checks: "
+        (str/join ", " (map :check failed))
+        "\n\n" setup-instructions))))
+
+(def default-command-timeout-ms
+  "Per-command WebDriver timeout for an iOS session, in milliseconds.
+
+   `webdriver/default-command-timeout-ms` is 60s, which is a browser's number.
+   A real hybrid app is nothing like a browser page: a WDA `/source` dump of
+   the Vis Companion's native tree measured 76s for 2.1 MB, so every `snapshot`
+   — and every `click` that waits on that tree — failed with `request timed out`
+   just before the answer arrived. The daemon already grants iOS commands an
+   open-ended budget (`daemon/command-budget-ms`); this is the same decision one
+   layer down, so the two ceilings agree instead of the lower one winning."
+  300000)
+
+(defn session-timeouts
+  "WebDriver timeout options for an iOS session, from `opts`.
+
+   Session creation may install and launch WDA (180s); every later command
+   answers from a live WDA (`default-command-timeout-ms`)."
+  [{:keys [session-timeout-ms command-timeout-ms]}]
+  {:timeout-ms         (or session-timeout-ms 180000)
+   :command-timeout-ms (or command-timeout-ms default-command-timeout-ms)})
+
 (defn start!
   "Starts a full iOS application session: select → lock → boot → Appium →
    WebDriver session.
@@ -559,10 +597,13 @@
                            spel will never kill it.
      :startup-timeout-ms - Long, optional. Appium startup timeout.
      :session-timeout-ms - Long, optional. WebDriver session-creation timeout.
+     :command-timeout-ms - Long, optional. Per-command WebDriver timeout;
+                           defaults to `default-command-timeout-ms`.
 
    Returns an IosSession record."
   [{:keys [session device udid platform-version bundle-id app auto-webview
-           extra-capabilities appium-url startup-timeout-ms session-timeout-ms]
+           extra-capabilities appium-url startup-timeout-ms session-timeout-ms
+           command-timeout-ms]
     :as _opts}]
   (when-not (macos?)
     (throw (ex-info (str "The iOS provider requires macOS with Xcode. "
@@ -595,8 +636,17 @@
                                          :app              app
                                          :auto-webview     auto-webview
                                          :extra            extra-capabilities})
-            wd        (webdriver/create-session base-url caps
-                        {:timeout-ms (or session-timeout-ms 180000)})]
+            wd        (try
+                        (webdriver/create-session base-url caps
+                          (session-timeouts {:session-timeout-ms session-timeout-ms
+                                             :command-timeout-ms command-timeout-ms}))
+                        (catch Exception e
+                          (if-let [guidance (prerequisite-guidance)]
+                            (throw (ex-info (str (ex-message e) "\n\n" guidance)
+                                     (assoc (or (ex-data e) {})
+                                       :ios/setup-instructions setup-instructions)
+                                     e))
+                            (throw e))))]
         (->IosSession selected wd base-url (:process appium)
           (boolean appium)          ;; appium-owned? — false for external URL
           (boolean booted-by-spel?)
@@ -785,6 +835,63 @@
            (if restore-error
              (throw restore-error)
              (:value outcome))))))))
+
+;; =============================================================================
+;; Hybrid apps: DOM coordinates → native taps
+;; =============================================================================
+
+(defn viewport-offset
+  "Returns {:x :y} — where the app's web viewport starts on the device screen,
+   in native points.
+
+   A hybrid app is driven from TWO coordinate systems: `spel/evaluate` inside
+   `with-webview-context` reads CSS pixels relative to the WebView, while every
+   XCUITest gesture is an absolute screen point. Without this number, a tap
+   computed from `getBoundingClientRect()` lands a status bar too high and the
+   only way forward was to hand-calibrate the difference per device."
+  [{:keys [webdriver]}]
+  (webdriver/viewport-offset webdriver))
+
+(defn tap-dom-point!
+  "Taps the device screen at a WEB-VIEWPORT coordinate (CSS pixels), from any
+   context.
+
+   The offset is applied here and the gesture is performed in NATIVE_APP
+   context — where XCUITest gestures belong — and the previous context is
+   restored, so this is safe to call from inside a webview script's flow.
+   Returns {:x :y :offset {:x :y}} in screen points."
+  [{:keys [webdriver] :as ios-session} x y]
+  (with-operation ios-session
+    (fn tap-dom-point-operation []
+      (let [{ox :x oy :y} (webdriver/viewport-offset webdriver)
+            sx (+ (long x) (long ox))
+            sy (+ (long y) (long oy))]
+        (with-context ios-session :native {}
+          (fn tap-native [] (webdriver/tap-screen webdriver sx sy)))
+        {:x sx :y sy :offset {:x ox :y oy}}))))
+
+(defn tap-dom-element!
+  "Taps the element matching a CSS selector inside the app's WebView.
+
+   Measures in the webview context (scroll into view, then
+   `getBoundingClientRect` center), then taps in the native context through
+   `tap-dom-point!`. Both switches are serialized by the session operation
+   lock, so the element cannot scroll away between the measurement and the
+   gesture. Returns the screen point plus the `:dom` center it came from."
+  [ios-session css]
+  (with-operation ios-session
+    (fn tap-dom-element-operation []
+      (let [wd     (:webdriver ios-session)
+            center (with-context ios-session :webview {}
+                     (fn measure-in-webview []
+                       (let [el (webdriver/find-element-by-css wd css)]
+                         (or (webdriver/element-viewport-center wd el)
+                           (let [r (webdriver/element-rect wd el)]
+                             {:x (long (+ (double (:x r)) (/ (double (:width r)) 2.0)))
+                              :y (long (+ (double (:y r)) (/ (double (:height r)) 2.0)))})))))]
+        (assoc (tap-dom-point! ios-session (:x center) (:y center))
+          :selector css
+          :dom center)))))
 
 (def app-states
   "Appium numeric application-state values mapped to descriptive keywords."
