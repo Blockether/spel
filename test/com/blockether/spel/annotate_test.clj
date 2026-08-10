@@ -522,10 +522,15 @@
                   yb (double (or (get-in b [:bbox :y]) 0))]
               (expect (<= ya yb)))))))
 
-    (it "marks never overlap each other on a dense grid of tiny controls"
+    (it "marks keep a pixel of air between them on a dense grid of tiny controls"
 
       ;; Regression: every label was drawn at its own box's top-left, so a row of
-      ;; 13x13 checkboxes piled its labels into one unreadable stack.
+      ;; 13x13 checkboxes piled its labels into one unreadable stack. Then the
+      ;; scorer only refused REAL overlap, so a mark was free to stop exactly on
+      ;; its neighbour's edge — the numbers read as one long number, and the
+      ;; sub-pixel rounding of another machine's checkbox turned that graze into
+      ;; an overlap: this suite passed here and failed on CI with 19 clashing
+      ;; pairs, each mark on the one a row below it. Air is the assertion now.
       (core/with-testing-page [pg]
         (page/set-content! pg (str "<html><body style='margin:0'>"
                                 (apply str (for [i (range 40)]
@@ -539,14 +544,19 @@
                         ".map(function(e){var r = e.getBoundingClientRect();"
                         "return [r.left, r.top, r.right, r.bottom];})"))
               rs    (mapv (fn [r] (mapv double r)) rects)
-              clash (for [i (range (count rs))
+              ;; Gap between two rectangles: positive when they are apart on some
+              ;; axis, negative when they overlap on both.
+              gaps  (for [i (range (count rs))
                           j (range (inc i) (count rs))
                           :let [[l1 t1 r1 b1] (nth rs i)
-                                [l2 t2 r2 b2] (nth rs j)]
-                          :when (and (< l1 r2) (< l2 r1) (< t1 b2) (< t2 b1))]
-                      [i j])]
+                                [l2 t2 r2 b2] (nth rs j)]]
+                      (max (- l1 r2) (- l2 r1) (- t1 b2) (- t2 b1)))
+              clash (count (filter neg? gaps))]
           (expect (> (count rs) 10))
-          (expect (empty? clash))
+          (expect (zero? clash))
+          ;; Measured 7px here; one whole pixel is the promise, so a machine that
+          ;; rounds a checkbox differently still cannot make two numbers touch.
+          (expect (>= (double (apply min gaps)) 1.0))
           (sut/remove-overlays! pg))))
 
     (it "a mark never lands on the first words of the row it names, and buries no neighbour"

@@ -342,9 +342,10 @@
    corner inside when the box can spare one. Chasing whitespace across the row
    produced marks that overlapped nothing and pointed at nothing; on a dense
    page an unattached number is less readable than a slightly crowded one. So
-   candidates are scored instead of accepted or refused: overlapping a mark
-   already placed costs six times overlapping the page's own words, drift is
-   charged per pixel and capped at two mark widths, and the cheapest slot wins.
+   candidates are scored instead of accepted or refused: coming within two pixels
+   of a mark already placed costs six times overlapping the page's own words —
+   two numbers that touch read as one longer number — drift is charged per pixel
+   and capped at two mark widths, and the cheapest slot wins.
 
    All elements get a data-spel-annotate attribute for cleanup.
    Refs should be pre-filtered to visible-only before calling this."
@@ -370,6 +371,7 @@
       "  }"
       ;; Occupied mark rectangles, in placement order.
       "  var taken = [];"
+      "  var MARK_GAP = 2;"
       ;; A mark should not sit on top of a word, and `taken` only knows about
       ;; other marks. So measure the page's own words ONCE, in document
       ;; coordinates: a Range around each text node gives a line's box rather
@@ -419,7 +421,13 @@
       "    var onHead = overlap(r, head);"
       "    var c = textCost(r) - 0.95 * Math.max(0, overlap(r, own) - onHead) + 2 * onHead;"
       "    if (c < 0) c = 0;"
-      "    for (var i = 0; i < taken.length; i++) c += 6 * overlap(r, taken[i]);"
+      ;; Marks are kept a PIXEL APART, not merely non-overlapping: two numbers
+      ;; whose boxes touch read as one longer number, and a slot that only just
+      ;; misses on this machine's sub-pixel rounding lands on the neighbour on the
+      ;; next one. Scoring the mark's rectangle grown by `MARK_GAP` charges that
+      ;; near miss, so the cheapest slot is one with air around it.
+      "    var g = {l: r.l - MARK_GAP, t: r.t - MARK_GAP, r: r.r + MARK_GAP, b: r.b + MARK_GAP};"
+      "    for (var i = 0; i < taken.length; i++) c += 6 * overlap(g, taken[i]);"
       "    return c;"
       "  }"
       ;; Measure the mark in the DOM, then score slots by what they cost.
