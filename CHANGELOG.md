@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.26] - 2026-08-10
+
+### Changed
+- fix(ci): block-scalar the NVD steps so the security audit can run at all
+- fix(annotate): keep a pixel of air between two marks, not just no overlap
+- fix(annotate): keep the number off the words that name the row
+- feat(annotate): number the boxes and keep the number off the words
+- fix(webdriver): read the script's value from its structure, not from its punctuation
+- refactor(native,webdriver): decide from what the code IS, not from a copied list
+- fix(webdriver): box the quote character so native-image sees no reflection
+- fix(ios,cli): make every iOS ceiling and the flag parser fit real work
+- Make the agent propose boxed snapshots and carry the ref table
+- Keep content boundaries silent for empty output
+- release: update version files for v0.9.25, bump to next dev version
+
+
 ### Fixed
 
 - Annotate a page the way the agent research does it, and make the drawing readable on a dense one: a bare NUMBER instead of a `@ref role name` caption stamped over the element; one colour per entry shared by the box outline and its mark, so a number is paired with its box by hue and not by luck; and only what can be ACTED on is drawn — prose roles (`paragraph`, `span`, `text`, `listitem`, `navigation`) are in the snapshot, not on the picture, and come back with `--text`. Placement scores every slot against the page's own words (text nodes measured with a Range) and against the marks already placed: a word belonging to the element the mark NAMES is nearly free to cover, EXCEPT over that element's head, because a number on the first letters of a title (`Story number 12` read as `12ory number 12`) is exactly what made an annotated list unreadable; and a number may step along its row as far as its own element is wide, so a row-wide link reaches the clear paper beside it while a small button keeps its number close. Measured on Hacker News: 181 marks, 0 on a title's first words, 0 mark collisions; a 25-row link list with no vertical gap 0 marks burying a neighbour's word (worst overlap 3% of a mark); a 40-field grid and a tight button toolbar 0 and 0; mark width 8–20px against ~150px for the old caption. The `#N  @ref  role  name` table under the artifact is the legend, and `--dimensions` puts `WxH` back on a mark when the size must be visible in the pixels.
@@ -1942,7 +1958,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.25...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.26...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2023,3 +2039,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.23]: https://github.com/Blockether/spel/releases/tag/v0.9.23
 [v0.9.24]: https://github.com/Blockether/spel/releases/tag/v0.9.24
 [v0.9.25]: https://github.com/Blockether/spel/releases/tag/v0.9.25
+[v0.9.26]: https://github.com/Blockether/spel/releases/tag/v0.9.26
