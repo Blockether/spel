@@ -452,8 +452,8 @@
                                     "message" "coordinates out of bounds"}}})
       (expect
         (try (sut/tap (fake-session srv) 10 20)
-             false
-             (catch clojure.lang.ExceptionInfo _ true)))
+          false
+          (catch clojure.lang.ExceptionInfo _ true)))
       (expect (not-any? #(= "/session/sess-1/actions" (:path %))
                 @(:requests srv)))))
 
@@ -623,7 +623,7 @@
   "Classification reads blanked code, never the raw text (issue #120)"
 
   (it "never joins two statements into one expression"
-    (expect (= "a = 1; b = 2;" (sut/wrap-expression-script "a = 1; b = 2;"))))
+    (expect (= "a = 1;\nreturn (b = 2);" (sut/wrap-expression-script "a = 1; b = 2;"))))
 
   (it "is not fooled by the word return inside a string"
     (expect (= "var a = 'return x';\nreturn (a);"
@@ -632,3 +632,45 @@
   (it "is not fooled by a statement keyword inside a string"
     (expect (= "return ('for (;;) x');"
               (sut/wrap-expression-script "'for (;;) x'")))))
+
+;; Regression, issue #120 (third round): `return` was matched as raw TEXT with a
+;; trailing space, so `return(x)` was wrapped into `return (return(x));`; a
+;; `return` belonging to a NESTED function counted as the script's own, so
+;; `const f = () => { return 1 }; f()` answered undefined; a regex literal was
+;; not blanked, so `x = /;/.test(s)` was split mid-literal; and a trailing `;`
+;; on the last statement threw its value away.
+(defdescribe wrap-script-value-test
+  "The script's value is its last top-level expression (issue #120)"
+
+  (it "reads return as a token, not as the text \"return \""
+    (expect (= "return(document.title)"
+              (sut/wrap-expression-script "return(document.title)")))
+    (expect (= "return\n  document.title;"
+              (sut/wrap-expression-script "return\n  document.title;"))))
+
+  (it "never lets a nested function's return speak for the script"
+    (expect (= "const f = () => { return 1 };\nreturn (f());"
+              (sut/wrap-expression-script "const f = () => { return 1 }; f()")))
+    (expect (= "function f(){ return 1 };\nreturn (f());"
+              (sut/wrap-expression-script "function f(){ return 1 }; f()"))))
+
+  (it "still lets the script's own return through, block or not"
+    (expect (= "var a = 1;\nif (a) { return a; }"
+              (sut/wrap-expression-script "var a = 1;\nif (a) { return a; }"))))
+
+  (it "blanks a regex literal instead of splitting inside it"
+    (expect (= "return (x = /;/.test('a'));"
+              (sut/wrap-expression-script "x = /;/.test('a')")))
+    (expect (= "let s = 'a'.replace(/;/g,'');\nreturn (s);"
+              (sut/wrap-expression-script "let s = 'a'.replace(/;/g,''); s"))))
+
+  (it "still divides where a division is written"
+    (expect (= "const r = 10 / 2;\nreturn (r);"
+              (sut/wrap-expression-script "const r = 10 / 2; r"))))
+
+  (it "keeps the last statement's value across a trailing semicolon"
+    (expect (= "var a = 1;\nreturn (document.title);"
+              (sut/wrap-expression-script "var a = 1; document.title;"))))
+
+  (it "answers a comment-only script with a legal body"
+    (expect (= "return undefined;" (sut/wrap-expression-script "// just a comment")))))

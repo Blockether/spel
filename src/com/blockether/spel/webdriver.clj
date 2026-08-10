@@ -35,7 +35,7 @@
   60000)
 
 (defrecord WebDriverSession
-           [base-url session-id capabilities command-timeout-ms])
+  [base-url session-id capabilities command-timeout-ms])
 
 ;; =============================================================================
 ;; HTTP transport
@@ -112,12 +112,12 @@
         resp-body  (.body resp)]
     (if (<= 200 status 299)
       (let [parsed (try (json/read-json resp-body)
-                        (catch Exception e
-                          (throw (ex-info (str "WebDriver returned malformed JSON from " path)
-                                   {:webdriver/http-status status
-                                    :webdriver/endpoint    path
-                                    :webdriver/body        resp-body}
-                                   e))))]
+                     (catch Exception e
+                       (throw (ex-info (str "WebDriver returned malformed JSON from " path)
+                                {:webdriver/http-status status
+                                 :webdriver/endpoint    path
+                                 :webdriver/body        resp-body}
+                                e))))]
         parsed)
       (decode-error! status path resp-body))))
 
@@ -393,25 +393,59 @@
 ;; JavaScript evaluation
 ;; =============================================================================
 
-(defn- scan-script
-  "Reads `script` once and returns the two facts the wrapper needs.
+(def ^:private regex-after-keyword-re
+  "Keywords after which a `/` can only open a REGEX literal, never divide.
+   These are JavaScript's own grammar, not a list spel maintains about itself."
+  #"(?:^|[^\w$.])(?:return|typeof|instanceof|case|in|of|new|delete|do|else|void|yield|await|throw)$")
+
+(defn- regex-literal-start?
+  "True when the `/` following `before` (the BLANKED code scanned so far) opens
+   a regex literal rather than a division. A division can only follow a value:
+   `)`, `]` or the end of an identifier or number — and an identifier that is a
+   keyword is not a value."
+  [^String before]
+  (let [b (str/trimr before)
+        n (.length b)]
+    (if (zero? n)
+      true
+      (let [c (.charAt b (dec n))]
+        (cond
+          (or (= c \)) (= c \])) false
+          (or (Character/isLetterOrDigit c) (= c \_) (= c \$))
+          (boolean (re-find regex-after-keyword-re b))
+          :else true)))))
+
+(def ^:private value-char
+  "A string, template literal or regex literal is blanked to this digit rather
+   than to a space: the offsets survive AND the fact that a VALUE stands there
+   survives, so `a = 1; 'x'` still reads as two statements and `'for (;;) x'`
+   still reads as an expression."
+  \0)
+
+(defn- fill-value!
+  "Blanks `[from to)` of `buf` to `value-char`."
+  [^chars buf from to]
+  (loop [i (long from)]
+    (when (< i (long to))
+      (aset-char buf i value-char)
+      (recur (inc i)))))
+
+(defn- blank-script
+  "Reads `script` once and returns the two facts every later question is asked
+   of.
 
      :semicolons  indexes of the `;` characters at depth 0 — outside
-                  parentheses, brackets, braces, strings, template literals and
-                  comments. Such a `;` is the one construct that cannot appear
-                  in a JS EXPRESSION, so it is what separates `a + 1`
-                  (wrappable in `return (…)`) from `a = 1; a` (a function
-                  body). A `for (;;)` header's semicolons sit inside
-                  parentheses and are therefore invisible here, which is
+                  parentheses, brackets, braces, strings, template literals,
+                  regex literals and comments. Such a `;` is the one construct
+                  that cannot appear in a JS EXPRESSION, so it is what
+                  separates `a + 1` (wrappable in `return (…)`) from `a = 1; a`
+                  (a function body). A `for (;;)` header's semicolons sit
+                  inside parentheses and are therefore invisible here, which is
                   exactly right.
-     :code        the same script with every string, template literal and
-                  comment blanked to spaces, offsets preserved. EVERY other
-                  question about the script is asked of this text, so a
-                  `return` or a `for` living inside a string literal cannot
-                  answer it.
-
-   A top-level regex literal containing `;` is not tracked; the practical cost
-   is that such a script is treated as a body."
+     :code        the same script with every string, template literal, regex
+                  literal and comment blanked to spaces, offsets preserved. A
+                  `return`, a `for` or a `;` living inside one of those cannot
+                  answer a question about the script's structure."
   [^String script]
   (let [n   (.length script)
         buf (char-array n \space)]
@@ -424,7 +458,7 @@
             (cond
               (and (= in-comment :line) (= c \newline))
               (do (aset-char buf i \newline)
-                  (recur (inc i) depth in-string nil semis))
+                (recur (inc i) depth in-string nil semis))
 
               (and (= in-comment :block) (= c \*) (< (inc i) n) (= (.charAt script (inc i)) \/))
               (recur (+ i 2) depth in-string nil semis)
@@ -433,12 +467,16 @@
 
             in-string
             (cond
-              (= c \\) (recur (+ i 2) depth in-string in-comment semis)
+              (= c \\) (do (fill-value! buf i (min n (+ i 2)))
+                         (recur (+ i 2) depth in-string in-comment semis))
               ;; `in-string` holds the opening quote as an int CODE POINT: an
               ;; int comparison is reflection-free, while a primitive char
               ;; compared against a nilable local is what native-image refuses.
-              (== (int c) (long in-string)) (recur (inc i) depth nil in-comment semis)
-              :else (recur (inc i) depth in-string in-comment semis))
+              (== (int c) (long in-string))
+              (do (fill-value! buf i (inc i))
+                (recur (inc i) depth nil in-comment semis))
+              :else (do (fill-value! buf i (inc i))
+                      (recur (inc i) depth in-string in-comment semis)))
 
             (and (= c \/) (< (inc i) n) (= (.charAt script (inc i)) \/))
             (recur (+ i 2) depth in-string :line semis)
@@ -446,22 +484,96 @@
             (and (= c \/) (< (inc i) n) (= (.charAt script (inc i)) \*))
             (recur (+ i 2) depth in-string :block semis)
 
+            ;; A regex literal is a VALUE written with delimiters, so its `;`
+            ;; and quotes are not the script's. Skipping to the closing `/`
+            ;; leaves the flags to be read as the identifier characters they
+            ;; are.
+            (and (= c \/) (regex-literal-start? (String. ^chars buf 0 i)))
+            (let [close (loop [j (inc i), in-class false]
+                          (cond
+                            (>= j n) n
+                            (= (.charAt script j) \\) (recur (+ j 2) in-class)
+                            (= (.charAt script j) \[) (recur (inc j) true)
+                            (= (.charAt script j) \]) (recur (inc j) false)
+                            (and (not in-class) (= (.charAt script j) \newline)) j
+                            (and (not in-class) (= (.charAt script j) \/)) (inc j)
+                            :else (recur (inc j) in-class)))]
+              (fill-value! buf i (min n (long close)))
+              (recur (long close) depth in-string in-comment semis))
+
             (or (= c \") (= c \') (= c \`))
-            (recur (inc i) depth (int c) in-comment semis)
+            (do (fill-value! buf i (inc i))
+              (recur (inc i) depth (int c) in-comment semis))
 
             :else
             (do (aset-char buf i c)
-                (cond
-                  (or (= c \() (= c \[) (= c \{))
-                  (recur (inc i) (inc depth) in-string in-comment semis)
+              (cond
+                (or (= c \() (= c \[) (= c \{))
+                (recur (inc i) (inc depth) in-string in-comment semis)
 
-                  (or (= c \)) (= c \]) (= c \}))
-                  (recur (inc i) (dec depth) in-string in-comment semis)
+                (or (= c \)) (= c \]) (= c \}))
+                (recur (inc i) (dec depth) in-string in-comment semis)
 
-                  (and (= c \;) (zero? depth))
-                  (recur (inc i) depth in-string in-comment (conj semis i))
+                (and (= c \;) (zero? depth))
+                (recur (inc i) depth in-string in-comment (conj semis i))
 
-                  :else (recur (inc i) depth in-string in-comment semis)))))))))
+                :else (recur (inc i) depth in-string in-comment semis)))))))))
+
+(def ^:private control-head-re
+  "A `)` that closes one of these heads is followed by a BLOCK, not by a
+   function body."
+  #"(?:^|[^\w$.])(?:if|for|while|switch|catch|with)\s*$")
+
+(def ^:private own-return-re
+  #"(?:^|[^\w$.])return(?![\w$])")
+
+(defn- scan-returns
+  "Indexes of the `return` keywords that belong to THE SCRIPT — read off the
+   BLANKED code, and counted only outside any nested function body.
+
+   A W3C script IS a function body, so a `return` at its own level (including
+   one inside an `if` block) is the script producing its value, and spel must
+   not add a second one. A `return` inside a nested function or arrow belongs
+   to that function; treating it as the script's own is what made
+   `const f = () => { return 1 }; f()` evaluate to undefined."
+  [^String code]
+  (let [n (.length code)]
+    (loop [i 0, parens [], opens {}, braces [], fn-depth 0, returns []]
+      (if (>= i n)
+        returns
+        (let [c (.charAt code i)]
+          (cond
+            (= c \() (recur (inc i) (conj parens i) opens braces fn-depth returns)
+
+            (= c \))
+            (recur (inc i) (cond-> parens (seq parens) pop)
+              (cond-> opens (seq parens) (assoc i (peek parens)))
+              braces fn-depth returns)
+
+            (= c \{)
+            (let [before (str/trimr (subs code 0 i))
+                  m      (.length before)
+                  prev   (when (pos? m) (.charAt before (dec m)))
+                  fn?    (cond
+                           (str/ends-with? before "=>") true
+                           (= prev \))
+                           (let [open (get opens (dec m))
+                                 head (if open (str/trimr (subs code 0 (long open))) "")]
+                             (not (re-find control-head-re head)))
+                           :else false)]
+              (recur (inc i) parens opens (conj braces fn?)
+                (cond-> fn-depth fn? inc) returns))
+
+            (= c \})
+            (let [fn? (peek braces)]
+              (recur (inc i) parens opens (cond-> braces (seq braces) pop)
+                (cond-> fn-depth fn? dec) returns))
+
+            (and (zero? fn-depth) (= c \r)
+              (re-find own-return-re (subs code (max 0 (dec i)) (min n (+ i 7)))))
+            (recur (+ i 6) parens opens braces fn-depth (conj returns i))
+
+            :else (recur (inc i) parens opens braces fn-depth returns)))))))
 
 (def ^:private statement-start-re
   "Keywords that can only begin a STATEMENT, so `return (script)` could never
@@ -474,12 +586,20 @@
   [^String code]
   (boolean (re-find statement-start-re (str/triml (str code)))))
 
-(defn- has-return?
-  "True when the script already produces its own value with `return`, in which
-   case spel must not add one. Asked of the BLANKED code, so the word `return`
-   inside a string literal cannot fake it."
-  [^String code]
-  (boolean (re-find #"(?:^|[^\w$.])return(?![\w$])" (str code))))
+(defn- script-segments
+  "The script's top-level statements as `{:start :text :code}`, split on the
+   top-level semicolons. `:code` is that statement's BLANKED text, so a segment
+   that is only a comment reads as blank."
+  [^String trimmed ^String code semicolons]
+  (let [n     (.length trimmed)
+        bound (conj (vec semicolons) n)]
+    (first
+      (reduce (fn [[segs start] end]
+                [(conj segs {:start start
+                             :text  (subs trimmed start (long end))
+                             :code  (subs code start (long end))})
+                 (inc (long end))])
+        [[] 0] bound))))
 
 (defn wrap-expression-script
   "Wraps a script for W3C execute-script semantics.
@@ -491,7 +611,8 @@
      (wrap-expression-script \"document.title\")
      ;; => \"return (document.title);\"
 
-   Scripts that already start with `return` (after trimming) pass through.
+   Scripts that return for themselves pass through — `return` is read as a
+   TOKEN, so `return(x)` and `return\\n x` are that script too.
 
    A STATEMENT SEQUENCE is a function body, and wrapping one in `return (…)`
    used to fail with a bare `Unexpected token ';'` that named neither spel's
@@ -501,30 +622,30 @@
      (wrap-expression-script \"var a = 1; a + 1\")
      ;; => \"var a = 1;\\nreturn (a + 1);\"
 
-   The rule, decided from `scan-script` rather than from the raw text: a script
-   is an EXPRESSION when it holds no top-level `;` other than a trailing one
-   and does not open with a statement keyword. Otherwise it is a body, and only
-   a body that returns nothing itself and ends in an expression gets that last
-   expression returned. Everything else passes through untouched."
+   The rule, decided from the blanked source rather than from the raw text: a
+   script is an EXPRESSION when it holds no top-level `;` other than a trailing
+   one and does not open with a statement keyword. Otherwise it is a body, and
+   a body that returns nothing itself gets its LAST top-level statement
+   returned when that statement is an expression — a trailing `;` is
+   punctuation and never decides whether the script has a value. Everything
+   else passes through untouched."
   ^String [^String script]
-  (let [trimmed   (str/trim (or script ""))
-        {:keys [semicolons code]} (scan-script trimmed)
-        last-semi (peek semicolons)
-        head      (when last-semi (subs trimmed 0 (inc (long last-semi))))
-        tail      (when last-semi (str/trim (subs trimmed (inc (long last-semi)))))
-        tail-code (when last-semi (str/trim (subs code (inc (long last-semi)))))
-        ;; A trailing `;` is punctuation on an expression; a second one means
-        ;; two statements, and `return (a = 1; b = 2);` is not JavaScript.
+  (let [trimmed  (str/trim (or script ""))
+        {:keys [semicolons code]} (blank-script trimmed)
+        segments (script-segments trimmed code semicolons)
+        last-seg (last (remove #(str/blank? (:code %)) segments))
+        trailing-only? (and (= 1 (count semicolons))
+                         (str/blank? (subs code (inc (long (peek semicolons))))))
         expression? (and (not (statement-start? code))
-                      (or (empty? semicolons)
-                        (and (= 1 (count semicolons)) (str/blank? tail))))]
+                      (or (empty? semicolons) trailing-only?))]
     (cond
-      (str/blank? trimmed) "return undefined;"
-      (str/starts-with? trimmed "return ") trimmed
+      (str/blank? code) "return undefined;"
+      (re-find #"^return(?![\w$])" code) trimmed
       expression? (str "return (" (str/replace trimmed #";\s*$" "") ");")
-      (has-return? code) trimmed
-      (and (seq tail) (not (statement-start? tail-code)))
-      (str head "\nreturn (" tail ");")
+      (seq (scan-returns code)) trimmed
+      (and last-seg (not (statement-start? (:code last-seg))))
+      (str (str/trimr (subs trimmed 0 (:start last-seg)))
+        "\nreturn (" (str/trim (:text last-seg)) ");")
       :else trimmed)))
 
 (defn evaluate
@@ -835,10 +956,10 @@
    unit-test fakes)."
   [session]
   (let [rect (try (execute-mobile session "mobile: viewportRect" {})
-                  (catch Exception _ nil))]
+               (catch Exception _ nil))]
     (if (instance? java.util.Map rect)
       (let [info  (try (execute-mobile session "mobile: deviceScreenInfo" {})
-                       (catch Exception _ nil))
+                    (catch Exception _ nil))
             scale (let [s (when (instance? java.util.Map info)
                             (.get ^java.util.Map info "scale"))]
                     (if (and (number? s) (pos? (double s))) (double s) 1.0))
