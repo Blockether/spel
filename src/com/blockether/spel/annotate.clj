@@ -274,94 +274,204 @@
 ;; JavaScript injection
 ;; =============================================================================
 
+(defn refs->entries
+  "Converts a refs map to a sorted, numbered list of entry maps.
+
+   Entries are sorted top→down, left→right (by bbox y then x) for natural
+   reading order and then numbered from 1. Each entry has :mark, :ref, :role,
+   :name, :bbox.
+
+   The :mark is the whole overlay label — a one- or two-character number that
+   fits inside a 13×13 checkbox. Everything else the reader needs about the
+   element lives in this table, which is the only thing mapping a drawn mark
+   back to a ref.
+
+   Used by build-inject-js, inject-overlays! and helpers/overview! to produce a
+   deterministic, LLM-friendly listing of annotated elements."
+  [refs]
+  (->> refs
+    (map (fn [[ref-id info]]
+           {:ref  ref-id
+            :role (:role info)
+            :name (:name info)
+            :bbox (:bbox info)}))
+    (sort-by (fn [{:keys [bbox]}]
+               [(double (or (:y bbox) 0.0))
+                (double (or (:x bbox) 0.0))]))
+    (map-indexed (fn [idx entry] (assoc entry :mark (inc (long idx)))))
+    vec))
+
 (defn- build-inject-js
   "Builds JavaScript that injects annotation overlays into the page DOM.
 
    Creates absolutely-positioned elements for each ref:
-   - Bounding box (colored border + semi-transparent fill)
-   - Compact label inside the box: e2yrjz heading 768×45
+   - Bounding box: a 2px outline, no fill, so the content under it stays legible
+   - Mark: that entry's number from `refs->entries`, and nothing else
 
-   Labels are placed inside the top-left of the bounding box to avoid
-   inter-element collisions. For very small elements (height < 16px)
-   the label is placed to the right of the box instead.
+   The mark is deliberately tiny. A badge that spells the ref id, the role and
+   the size is wider than most controls, so on a form it covers the very labels
+   the screenshot was taken to show. Set-of-Mark implementations paint a bare
+   index for that reason; identity, role and name are carried by the entry table
+   the caller prints beside the image.
+
+   Marks are placed collision-aware, in reading order: each takes the first
+   candidate slot — inside the box when the mark fits, else above, below or
+   beside it — that lies inside the document and does not overlap a mark already
+   placed. Dense grids fan out instead of stacking.
 
    All elements get a data-spel-annotate attribute for cleanup.
    Refs should be pre-filtered to visible-only before calling this."
   [refs opts]
-  (let [show-boxes  (get opts :show-boxes true)
-        show-labels (get opts :show-badges true)
-        show-dims   (get opts :show-dimensions true)
-        items       (sort-by key refs)
-        ;; Refs whose bbox contains another ref — badge goes top-right
-        container-ids (if show-labels
-                        (into #{}
-                          (for [[id-a info-a] items
-                                [id-b info-b] items
-                                :when (not= id-a id-b)
-                                :let [ba (:bbox info-a) bb (:bbox info-b)]
-                                :when (and ba bb (bbox-contains? ba bb))]
-                            id-a))
-                        #{})]
+  (let [show-boxes (get opts :show-boxes true)
+        show-marks (get opts :show-badges true)
+        show-dims  (get opts :show-dimensions false)]
     (str
       "(function() {"
       "  var sx = window.scrollX || 0;"
       "  var sy = window.scrollY || 0;"
+      "  var de = document.documentElement;"
+      "  var docW = Math.max(de.scrollWidth, de.clientWidth);"
+      "  var docH = Math.max(de.scrollHeight, de.clientHeight);"
       "  var container = document.createElement('div');"
       "  container.setAttribute('data-spel-annotate', 'root');"
       "  container.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none;';"
       "  document.documentElement.appendChild(container);"
+      ;; Occupied mark rectangles, in placement order.
+      "  var taken = [];"
+      "  function isFree(r) {"
+      "    for (var i = 0; i < taken.length; i++) {"
+      "      var t = taken[i];"
+      "      if (r.l < t.r && t.l < r.r && r.t < t.b && t.t < r.b) return false;"
+      "    }"
+      "    return true;"
+      "  }"
+      ;; A mark must not sit on top of a word, and `taken` only knows about
+      ;; other marks. So measure the page's own words ONCE, in document
+      ;; coordinates: a Range around each text node gives a line's box rather
+      ;; than its block's, which is the difference between "this paragraph is
+      ;; busy" and "these 40 pixels are". Hit-testing with elementFromPoint
+      ;; would only see the viewport; the whole page is annotated.
+      "  var texts = [];"
+      "  (function() {"
+      "    var tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;"
+      "    while ((n = tw.nextNode())) {"
+      "      if (!n.nodeValue || !n.nodeValue.trim()) continue;"
+      "      var rg = document.createRange();"
+      "      rg.selectNode(n);"
+      "      var rs = rg.getClientRects();"
+      "      for (var i = 0; i < rs.length; i++) {"
+      "        var q = rs[i];"
+      "        if (q.width > 0 && q.height > 0) texts.push({l: q.left + sx, t: q.top + sy, r: q.right + sx, b: q.bottom + sy});"
+      "      }"
+      "    }"
+      "  })();"
+      ;; Bucketed by row so a long article costs a row scan, not a full scan.
+      "  var BUCKET = 64, byRow = {};"
+      "  for (var ti = 0; ti < texts.length; ti++) {"
+      "    var q = texts[ti];"
+      "    for (var rb = Math.floor(q.t / BUCKET); rb <= Math.floor(q.b / BUCKET); rb++) {"
+      "      (byRow[rb] = byRow[rb] || []).push(q);"
+      "    }"
+      "  }"
+      "  function coversText(r) {"
+      "    for (var rb = Math.floor(r.t / BUCKET); rb <= Math.floor(r.b / BUCKET); rb++) {"
+      "      var list = byRow[rb];"
+      "      if (!list) continue;"
+      "      for (var i = 0; i < list.length; i++) {"
+      "        var q = list[i];"
+      "        if (r.l < q.r - 1 && q.l + 1 < r.r && r.t < q.b - 1 && q.t + 1 < r.b) return true;"
+      "      }"
+      "    }"
+      "    return false;"
+      "  }"
+      ;; Measure the mark in the DOM, then try candidate slots.
+      "  function placeMark(mark, x, y, w, h) {"
+      "    container.appendChild(mark);"
+      "    var mw = mark.offsetWidth, mh = mark.offsetHeight;"
+      ;; Outside the box first, and on the side a line of text does not start:
+      ;; a mark dropped at a box's top-left eats the first letters of the word
+      ;; it points at. Inside is a late candidate, for a box big enough to
+      ;; spare a corner.
+      "    var cands = [[x - mw - 1, y], [x + w + 1, y], [x + w - mw, y - mh - 1], [x + w - mw, y + h + 1], [x, y - mh - 1], [x, y + h + 1]];"
+      "    if (w >= mw + 2 && h >= mh + 2) cands.push([x + w - mw - 1, y + 1]);"
+      "    cands.push([x, y]);"
+      "    var spot = null;"
+      ;; Pass 1 wants a slot free of other marks AND of the page's own words.
+      "    for (var i = 0; i < cands.length && !spot; i++) {"
+      "      var cx = Math.min(Math.max(cands[i][0], 0), Math.max(0, docW - mw));"
+      "      var cy = Math.min(Math.max(cands[i][1], 0), Math.max(0, docH - mh));"
+      "      var r = {l: cx, t: cy, r: cx + mw, b: cy + mh};"
+      "      if (isFree(r) && !coversText(r)) spot = r;"
+      "    }"
+      ;; The slots touching the box are all busy: walk this row's own
+      ;; whitespace, outward from the element, before giving up on legibility.
+      ;; A list of one-line rows has no margin above or below, but it almost
+      ;; always has one at the end of the line.
+      "    for (var b = 0; b < 3 && !spot; b++) {"
+      "      var by = Math.min(Math.max([y, y - mh - 1, y + h + 1][b], 0), Math.max(0, docH - mh));"
+      "      for (var gx = x + w + 2; gx <= docW - mw && !spot; gx += mw + 2) {"
+      "        var gr = {l: gx, t: by, r: gx + mw, b: by + mh};"
+      "        if (isFree(gr) && !coversText(gr)) spot = gr;"
+      "      }"
+      "      for (var hx = x - mw - 2; hx >= 0 && !spot; hx -= mw + 2) {"
+      "        var hr = {l: hx, t: by, r: hx + mw, b: by + mh};"
+      "        if (isFree(hr) && !coversText(hr)) spot = hr;"
+      "      }"
+      "    }"
+      ;; Nothing on this row is free of text: take the least bad adjacent slot.
+      "    for (var j = 0; j < cands.length && !spot; j++) {"
+      "      var jx = Math.min(Math.max(cands[j][0], 0), Math.max(0, docW - mw));"
+      "      var jy = Math.min(Math.max(cands[j][1], 0), Math.max(0, docH - mh));"
+      "      var jr = {l: jx, t: jy, r: jx + mw, b: jy + mh};"
+      "      if (isFree(jr)) spot = jr;"
+      "    }"
+      ;; Every slot was taken (a dense grid): step down until something is
+      ;; free, again preferring a step that lands on no word.
+      "    for (var fpass = 0; fpass < 2 && !spot; fpass++) {"
+      "      for (var s = 1; s <= 40 && !spot; s++) {"
+      "        var fx = Math.min(Math.max(x, 0), Math.max(0, docW - mw));"
+      "        var fy = Math.min(Math.max(y - mh + s * (mh + 1), 0), Math.max(0, docH - mh));"
+      "        var fr = {l: fx, t: fy, r: fx + mw, b: fy + mh};"
+      "        if (isFree(fr) && (fpass === 1 || !coversText(fr))) spot = fr;"
+      "      }"
+      "    }"
+      "    if (!spot) spot = {l: x, t: y, r: x + mw, b: y + mh};"
+      "    mark.style.left = spot.l + 'px';"
+      "    mark.style.top = spot.t + 'px';"
+      "    taken.push(spot);"
+      "  }"
       (apply str
-        (for [[ref-id info] items
-              :let [{:keys [role bbox]} info
-                    {:keys [width height]} bbox
-                    width (double width) height (double height)]
-              :when (and (pos? width) (pos? height))]
+        (for [{:keys [ref mark bbox]} (refs->entries refs)
+              :let [{:keys [width height]} bbox]
+              :when (and (pos? (double width)) (pos? (double height)))]
           (str
-          ;; Find the actual DOM element and get its real position
             "  (function() {"
-            "    var el = document.querySelector('[data-pw-ref=\"" ref-id "\"]');"
+            "    var el = document.querySelector('[data-pw-ref=\"" ref "\"]');"
             "    if (!el) return;"
             "    var r = el.getBoundingClientRect();"
-            "    var dx = r.left + sx, dy = r.top + sy;"
-            "    var dw = r.width, dh = r.height;"
-          ;; Bounding box at element's document position
+            "    var x = r.left + sx, y = r.top + sy, w = r.width, h = r.height;"
             (when show-boxes
-              (let [is-container (contains? container-ids ref-id)]
-                (str
-                  "    var box = document.createElement('div');"
-                  "    box.setAttribute('data-spel-annotate', 'box');"
-                  "    box.style.cssText = 'position:absolute;pointer-events:none;"
-                  "border:1.5px solid " brand-amber ";"
-                  (when-not is-container
-                    "background:rgba(255,196,32,0.18);")
-                  "box-sizing:border-box;';"
-                  "    box.style.top = dy + 'px';"
-                  "    box.style.left = dx + 'px';"
-                  "    box.style.width = dw + 'px';"
-                  "    box.style.height = dh + 'px';"
-                  "    container.appendChild(box);")))
-          ;; Compact label
-            (when show-labels
-              (let [label-text (str ref-id " " role
-                                 (when show-dims
-                                   " ' + Math.round(dw) + 'x' + Math.round(dh) + '"))
-                    is-container (contains? container-ids ref-id)]
-                (str
-                  "    var lbl = document.createElement('div');"
-                  "    lbl.setAttribute('data-spel-annotate', 'label');"
-                  "    lbl.textContent = '" label-text "';"
-                  "    lbl.style.cssText = 'position:absolute;pointer-events:none;"
-                  "background:" brand-ink ";"
-                  "color:" brand-amber ";font:700 10px/15px " brand-mono ";padding:0 4px;white-space:nowrap;box-shadow:1px 1px 0 0 " brand-charcoal ";';"
-                  (if is-container
-                    ;; Container labels: top-right (avoid overlapping child labels at top-left)
-                    (str "    lbl.style.top = dy + 'px';"
-                      "    lbl.style.left = (dx + dw) + 'px';"
-                      "    lbl.style.transform = 'translateX(-100%)';")
-                    ;; Leaf labels: top-left inside box, or right-side for tiny elements
-                    (str "    if (dh >= 16) { lbl.style.top = dy + 'px'; lbl.style.left = dx + 'px'; }"
-                      "    else { lbl.style.top = dy + 'px'; lbl.style.left = (dx + dw + 2) + 'px'; }"))
-                  "    container.appendChild(lbl);")))
+              (str
+                "    var box = document.createElement('div');"
+                "    box.setAttribute('data-spel-annotate', 'box');"
+                "    box.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;border:2px solid " brand-amber ";';"
+                "    box.style.top = y + 'px';"
+                "    box.style.left = x + 'px';"
+                "    box.style.width = w + 'px';"
+                "    box.style.height = h + 'px';"
+                "    container.appendChild(box);"))
+            (when show-marks
+              (str
+                "    var mark = document.createElement('div');"
+                "    mark.setAttribute('data-spel-annotate', 'mark');"
+                "    mark.setAttribute('data-spel-ref', '" ref "');"
+                "    mark.textContent = '" mark "'"
+                (when show-dims " + ' ' + Math.round(w) + 'x' + Math.round(h)")
+                ";"
+                "    mark.style.cssText = 'position:absolute;pointer-events:none;background:" brand-ink
+                ";color:" brand-amber ";font:700 11px/14px " brand-mono
+                ";padding:0 3px;white-space:nowrap;box-shadow:1px 1px 0 0 " brand-charcoal ";';"
+                "    placeMark(mark, x, y, w, h);"))
             "  })();")))
       "})();")))
 
@@ -428,26 +538,6 @@
 ;; Public API
 ;; =============================================================================
 
-(defn refs->entries
-  "Converts a refs map to a sorted list of entry maps.
-
-   Entries are sorted top→down, left→right (by bbox y then x) for natural
-   reading order. Each entry has :ref, :role, :name, :bbox.
-
-   Used by inject-overlays! and helpers/overview! to produce a deterministic,
-   LLM-friendly listing of annotated elements."
-  [refs]
-  (->> refs
-    (map (fn [[ref-id info]]
-           {:ref   ref-id
-            :role  (:role info)
-            :name  (:name info)
-            :bbox  (:bbox info)}))
-    (sort-by (fn [{:keys [bbox]}]
-               [(double (or (:y bbox) 0.0))
-                (double (or (:x bbox) 0.0))]))
-    vec))
-
 (defn inject-overlays!
   "Injects annotation overlays into the page DOM for visible elements only.
 
@@ -468,8 +558,8 @@
                          snapshot (elements tagged with data-pw-ref).
       :full-page       - Boolean (default false). Annotate all elements on the page,
                          not just those visible in the current viewport.
-      :show-dimensions - Boolean (default true). Show width x height in labels.
-      :show-badges     - Boolean (default true). Show compact labels.
+      :show-dimensions - Boolean (default false). Append width x height to each mark.
+      :show-badges     - Boolean (default true). Draw the mark numbers.
       :show-boxes      - Boolean (default true). Show bounding box outlines.
 
     Returns: {:count N :entries [{:ref :role :name :bbox} ...]} where entries
@@ -514,8 +604,8 @@
     `opts` - Map, optional.
       :scope           - String. CSS selector or snapshot ref (@e2yrjz, e2yrjz) to restrict
                          annotations to a subtree.
-      :show-dimensions - Boolean (default true). Show width x height in labels.
-      :show-badges     - Boolean (default true). Show compact labels.
+      :show-dimensions - Boolean (default false). Append width x height to each mark.
+      :show-badges     - Boolean (default true). Draw the mark numbers.
       :show-boxes      - Boolean (default true). Show bounding box outlines.
       :full-page       - Boolean (default false). Capture full scrollable page.
 

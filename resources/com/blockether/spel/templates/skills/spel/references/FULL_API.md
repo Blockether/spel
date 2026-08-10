@@ -1445,8 +1445,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
 | `annotate` | Show annotation overlays (visible elements) |
 | `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |
-| `--no-badges` | Hide ref labels |
-| `--no-dimensions` | Hide size labels |
+| `--no-badges` | Hide the mark numbers |
+| `--dimensions`, `--dims` | Add `WxH` to each mark (off by default) |
 | `--no-boxes` | Hide bounding boxes |
 | `unannotate` | Remove annotation overlays |
 | `pdf <path>` | Save as PDF |

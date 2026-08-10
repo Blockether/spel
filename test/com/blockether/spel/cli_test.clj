@@ -525,15 +525,19 @@
         (expect (= "annotate" (:action c)))
         (expect (false? (:show-badges c)))))
 
-    (it "parses annotate --no-dimensions"
-      (let [c (cmd ["annotate" "--no-dimensions"])]
+    (it "parses annotate --dimensions"
+      (let [c (cmd ["annotate" "--dimensions"])]
         (expect (= "annotate" (:action c)))
-        (expect (false? (:show-dimensions c)))))
+        (expect (true? (:show-dimensions c)))))
 
-    (it "parses annotate --no-dims"
-      (let [c (cmd ["annotate" "--no-dims"])]
+    (it "parses annotate --dims"
+      (let [c (cmd ["annotate" "--dims"])]
         (expect (= "annotate" (:action c)))
-        (expect (false? (:show-dimensions c)))))
+        (expect (true? (:show-dimensions c)))))
+
+    (it "leaves dimensions off unless asked"
+      (let [c (cmd ["annotate"])]
+        (expect (nil? (:show-dimensions c)))))
 
     (it "parses annotate --no-boxes"
       (let [c (cmd ["annotate" "--no-boxes"])]
@@ -541,10 +545,9 @@
         (expect (false? (:show-boxes c)))))
 
     (it "parses annotate with all options disabled"
-      (let [c (cmd ["annotate" "--no-badges" "--no-dims" "--no-boxes"])]
+      (let [c (cmd ["annotate" "--no-badges" "--no-boxes"])]
         (expect (= "annotate" (:action c)))
         (expect (false? (:show-badges c)))
-        (expect (false? (:show-dimensions c)))
         (expect (false? (:show-boxes c)))))
 
     (it "parses annotate --full"

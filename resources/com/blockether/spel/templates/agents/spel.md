@@ -52,7 +52,7 @@ Probe functional, visual, accessibility, console, and network behavior relevant 
 - deterministic reproduction steps,
 - expected versus actual behavior,
 - user impact,
-- a fresh snapshot with the `[pos:…]` boxes, an annotated `screenshot -a` (or `overview`) artifact and its printed `@ref role name` table, console, or network artifact,
+- a fresh snapshot with the `[pos:…]` boxes, an annotated `screenshot -a` (or `overview`) artifact and its printed `#N @ref role name` table, console, or network artifact,
 - reproduction in a fresh session when feasible.
 
 No evidence means no confirmed bug. Label unreproduced observations as suspected or flaky, not confirmed.
@@ -97,7 +97,7 @@ Report concisely:
 
 1. Result and scope completed.
 2. Verification performed and outcome.
-3. Artifacts created, with exact paths, and the reference table (`@ref  role  name`) printed with each annotated capture — that table is what maps a drawn box back to something the reader can click.
+3. Artifacts created, with exact paths, and the reference table (`#N  @ref  role  name`) printed with each annotated capture — the drawing carries only the mark number, so that table is what maps a mark back to something the reader can click.
 4. Remaining blockers, suspected findings, or risks.
 
 Do not claim success from exit status alone. Do not create mandatory manifests, reports, screenshots, or learning files unless the task needs them.

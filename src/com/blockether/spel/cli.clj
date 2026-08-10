@@ -482,8 +482,8 @@
       "  --crop-to-content          Crop screenshot to actual content height"
       "  -a, --annotate             Overlay ref labels ([ref role]) on visible"
       "                             elements before capturing (LLM-friendly)"
-      "  --no-badges                (with --annotate) Hide element type badges"
-      "  --no-dimensions, --no-dims (with --annotate) Hide dimension overlays"
+      "  --no-badges                (with --annotate) Hide the mark numbers"
+      "  --dimensions, --dims       (with --annotate) Add WxH to each mark"
       "  --no-boxes                 (with --annotate) Hide bounding boxes"])
 
    "annotate"
@@ -497,12 +497,12 @@
       "  spel annotate"
       "  spel annotate --no-badges"
       "  spel annotate -s \"#main\""
-      "  spel annotate --no-boxes --no-dims"
+      "  spel annotate --no-boxes"
       ""
       "Flags:"
       "  -f, --full                Annotate all elements (not just viewport)"
-      "  --no-badges               Hide element type badges"
-      "  --no-dimensions, --no-dims  Hide dimension overlays"
+      "  --no-badges               Hide the mark numbers"
+      "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
       "  -s, --scope SEL           Scope annotations to selector"])
 
@@ -614,8 +614,8 @@
       ""
       "Flags:"
       "  -a, --all                 Include iframe content (capture-full-snapshot)"
-      "  --no-badges               Hide element type badges"
-      "  --no-dimensions, --no-dims  Hide dimensions"
+      "  --no-badges               Hide the mark numbers"
+      "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
       "  -s, --scope SEL           Scope overview annotations to selector"])
 
@@ -656,8 +656,8 @@
       ""
       "Flags:"
       "  -a, --all                 Include iframe content"
-      "  --no-badges               Hide element type badges"
-      "  --no-dimensions, --no-dims  Hide dimensions"
+      "  --no-badges               Hide the mark numbers"
+      "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"])
 
    "pdf"
@@ -1838,11 +1838,11 @@
         ;; Missing files are silent, except an explicit --config path that
         ;; cannot be read — that is a hard error so typos get caught.
         config-defaults (try (spel-config/load-config cli-config-path)
-                             (catch Exception e
-                               (binding [*out* *err*]
-                                 (println (str "spel: " (.getMessage e))))
-                               (System/exit 1)
-                               {}))
+                          (catch Exception e
+                            (binding [*out* *err*]
+                              (println (str "spel: " (.getMessage e))))
+                            (System/exit 1)
+                            {}))
         ;; Read environment variable defaults (env wins over config file)
         env-defaults (cond-> (merge {:session "default" :headless true :json false :stealth true}
                                config-defaults)
@@ -2283,19 +2283,19 @@
                                                idx1 (long (.indexOf ^java.util.List v "-d"))
                                                idx2 (long (.indexOf ^java.util.List v "--depth"))
                                                idx  (long (cond (>= idx1 0) idx1
-                                                                (>= idx2 0) idx2
-                                                                :else -1))]
+                                                            (>= idx2 0) idx2
+                                                            :else -1))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                  (catch Exception _ nil)))))
+                                               (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
                            (assoc :selector (let [v    (vec cmd-args)
                                                   idx1 (long (.indexOf ^java.util.List v "-s"))
                                                   idx2 (long (.indexOf ^java.util.List v "--selector"))
                                                   idx  (long (cond (>= idx1 0) idx1
-                                                                   (>= idx2 0) idx2
-                                                                   :else -1))]
+                                                               (>= idx2 0) idx2
+                                                               :else -1))]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))
                            (or (snap-flags "-a") (snap-flags "--all"))
@@ -2413,7 +2413,7 @@
                              second-arg (first rest-pos)
                              amount    (if second-arg
                                          (try (Integer/parseInt second-arg)
-                                              (catch Exception _ 500))
+                                           (catch Exception _ 500))
                                          500)
                              ;; Third positional as selector, or second if it's not a number
                              sel       (or in-idx
@@ -2425,7 +2425,7 @@
                                            ;; If second-arg wasn't a number, it's a selector
                                          (when (and second-arg
                                                  (not (try (Integer/parseInt second-arg) true
-                                                           (catch Exception _ false)))
+                                                        (catch Exception _ false)))
                                                  (or (str/starts-with? second-arg "@")
                                                    (str/starts-with? second-arg "#")
                                                    (str/starts-with? second-arg ".")))
@@ -2449,26 +2449,26 @@
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                  (catch Exception _ nil)))))
+                                               (catch Exception _ nil)))))
                            (some #{"--timeout"} cmd-args)
                            (assoc :timeout (let [idx (long (.indexOf ^java.util.List v "--timeout"))]
                                              (when (>= idx 0)
                                                (try (Double/parseDouble (nth cmd-args (inc idx)))
-                                                    (catch Exception _ nil)))))))
+                                                 (catch Exception _ nil)))))))
 
             "drag-by"  (let [positional (remove #(str/starts-with? % "-") cmd-args)
                              v          (vec cmd-args)]
                          (cond-> {:action    "drag-by"
                                   :selector  (first positional)
                                   :dx        (try (Double/parseDouble (second positional))
-                                                  (catch Exception _ 0))
+                                               (catch Exception _ 0))
                                   :dy        (try (Double/parseDouble (nth positional 2))
-                                                  (catch Exception _ 0))}
+                                               (catch Exception _ 0))}
                            (some #{"--steps"} cmd-args)
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                  (catch Exception _ nil)))))))
+                                               (catch Exception _ nil)))))))
 
             "upload"   {:action "upload"
                         :selector (first cmd-args)
@@ -2491,8 +2491,8 @@
                              (assoc :annotate true)
                              (some #{"--no-badges"} cmd-args)
                              (assoc :show-badges false)
-                             (some #{"--no-dimensions" "--no-dims"} cmd-args)
-                             (assoc :show-dimensions false)
+                             (some #{"--dimensions" "--dims"} cmd-args)
+                             (assoc :show-dimensions true)
                              (some #{"--no-boxes"} cmd-args)
                              (assoc :show-boxes false)))
 
@@ -2502,8 +2502,8 @@
                          (assoc :full-page true)
                          (some #{"--no-badges"} cmd-args)
                          (assoc :show-badges false)
-                         (some #{"--no-dimensions" "--no-dims"} cmd-args)
-                         (assoc :show-dimensions false)
+                         (some #{"--dimensions" "--dims"} cmd-args)
+                         (assoc :show-dimensions true)
                          (some #{"--no-boxes"} cmd-args)
                          (assoc :show-boxes false)
                          ;; Parse -s <selector-or-ref>
@@ -2567,7 +2567,7 @@
                            path (assoc :path (resolve-path path))
                            (some #{"-a" "--all"} cmd-args) (assoc :all true)
                            (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
-                           (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
+                           (some #{"--dimensions" "--dims"} cmd-args) (assoc :show-dimensions true)
                            (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)
                            (some #{"-s" "--scope"} cmd-args)
                            (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
@@ -2589,7 +2589,7 @@
                           path (assoc :path (resolve-path path))
                           (some #{"-a" "--all"} cmd-args) (assoc :all true)
                           (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
-                          (some #{"--no-dimensions" "--no-dims"} cmd-args) (assoc :show-dimensions false)
+                          (some #{"--dimensions" "--dims"} cmd-args) (assoc :show-dimensions true)
                           (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)))
 
 ;; PDF
@@ -2962,7 +2962,7 @@
                                       {:action "state_clean"
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                               (catch Exception _ 30)))})
+                                                            (catch Exception _ 30)))})
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
@@ -3113,7 +3113,7 @@
    Override with SPEL_CLIENT_TIMEOUT_MS."
   (or (when-let [v (System/getenv "SPEL_CLIENT_TIMEOUT_MS")]
         (try (let [n (Long/parseLong (str/trim v))] (when (pos? n) n))
-             (catch NumberFormatException _ nil)))
+          (catch NumberFormatException _ nil)))
     30000))
 
 (defn- client-timeout-for
@@ -3169,9 +3169,9 @@
              (json/read-json result :key-fn keyword))))
        (finally
          (try (.close channel)
-              (catch Exception e
-                (binding [*out* *err*]
-                  (println (str "warn: close-channel: " (.getMessage e)))))))))))
+           (catch Exception e
+             (binding [*out* *err*]
+               (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
   "True when `pid` names a live process. Uses ProcessHandle rather than a
@@ -3199,7 +3199,7 @@
         (ready?)                                true
         (>= (System/currentTimeMillis) deadline) false
         :else (do (Thread/sleep (long wait))
-                  (recur (min 100 (* 2 wait))))))))
+                (recur (min 100 (* 2 wait))))))))
 
 (defonce ^:private !orphan-scan-cache (atom nil))
 
@@ -3230,7 +3230,7 @@
           (.destroy ph)
           (or (wait-for-exit pid grace-ms)
             (do (.destroyForcibly ph)
-                (wait-for-exit pid 2000))))))
+              (wait-for-exit pid 2000))))))
     (catch Exception _ false)))
 
 (defn- force-terminate-tree!
@@ -3258,9 +3258,9 @@
   "Deletes stale socket and PID files for a session."
   [session]
   (try (Files/deleteIfExists (daemon/socket-path session))
-       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
+    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
   (try (Files/deleteIfExists (daemon/pid-file-path session))
-       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
+    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
 
 (defn- read-pid
   "Reads the PID from a session's PID file, or nil if unavailable."
@@ -3268,7 +3268,7 @@
   (let [pid-path (daemon/pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
-           (catch Exception _ nil)))))
+        (catch Exception _ nil)))))
 
 (defn- discover-sessions
   "Returns a seq of spel session names (alive or ghost). Thin wrapper around
@@ -3766,7 +3766,7 @@
           (daemon/daemon-running? session)
           (socket-connectable? session))
     (let [resp (try (send-command! session {:action "session_info"} 5000)
-                    (catch Exception _ nil))]
+                 (catch Exception _ nil))]
       (when (get-in resp [:data :headless])
         (restart-daemon! session))))
 
@@ -3866,18 +3866,18 @@
               (do (doseq [{:keys [id action running_ms]} items]
                     (println (str "Cancelled " id " " action
                                " (running " running_ms "ms)")))
-                  (when-let [n (:note data)]
-                    (println (str "  note: " n))))))
+                (when-let [n (:note data)]
+                  (println (str "  note: " n))))))
 
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
-              (when (:url data)
-                (println (str "\n  URL: " (:url data))))
-              (when (:title data)
-                (println (str "  Title: " (:title data))))
-              (when (:description data)
-                (println (str "  Description: " (:description data)))))
+            (when (:url data)
+              (println (str "\n  URL: " (:url data))))
+            (when (:title data)
+              (println (str "  Title: " (:title data))))
+            (when (:description data)
+              (println (str "  Description: " (:description data)))))
 
           ;; Auth vault — list of credentials (never shows passwords)
           (:credentials data)
@@ -3905,11 +3905,11 @@
           ;; DevTools URL — for `spel devtools`
           (:devtools_url data)
           (do (println "DevTools:")
-              (println (str "  Page:  " (:page_url data)))
-              (when (:title data)
-                (println (str "  Title: " (:title data))))
-              (println (str "  Open:  " (:devtools_url data)))
-              (println (str "  CDP:   " (:cdp_ws data))))
+            (println (str "  Page:  " (:page_url data)))
+            (when (:title data)
+              (println (str "  Title: " (:title data))))
+            (println (str "  Open:  " (:devtools_url data)))
+            (println (str "  CDP:   " (:cdp_ws data))))
 
           ;; Screenshot
           (:base64 data)
@@ -3923,7 +3923,8 @@
           (let [entries  (get-in data [:annotated :entries] [])
                 cnt      (get-in data [:annotated :count] (count entries))
                 max-role (reduce max 6 (map #(count (str (:role %))) entries))
-                max-ref  (reduce max 6 (map #(count (str (:ref %))) entries))]
+                max-ref  (reduce max 6 (map #(count (str (:ref %))) entries))
+                max-mark (reduce max 1 (map #(count (str (:mark %))) entries))]
             ;; `annotate` injects overlays and writes no file — printing a bare
             ;; "Saved: " here would advertise an empty artifact path.
             (println (if-let [shot-path (:path data)]
@@ -3931,8 +3932,11 @@
                          (when (:size data)
                            (str " (" (:size data) " bytes, " cnt " refs annotated)")))
                        (str "Annotated: " cnt (if (= 1 cnt) " ref" " refs"))))
-            (doseq [{:keys [ref role name]} entries]
-              (println (format (str "  @%-" max-ref "s  %-" max-role "s  %s")
+            ;; The drawn overlay carries the mark number only — this table is the
+            ;; only thing mapping a mark back to a ref, a role and a name.
+            (doseq [{:keys [mark ref role name]} entries]
+              (println (format (str "  #%-" max-mark "s  @%-" max-ref "s  %-" max-role "s  %s")
+                         (str mark)
                          (str ref)
                          (str role)
                          (if (str/blank? (str name)) "" (str "\"" name "\""))))))
@@ -4059,7 +4063,7 @@
 
           (:markdown data)
           (do (print (:markdown data))
-              (.flush *out*))
+            (.flush *out*))
 
           ;; Boolean results
           (contains? data :visible)
@@ -4151,7 +4155,7 @@
             (do (doseq [c (:cancelled data)]
                   (println (str "Cancelled " (:id c) " " (:action c)
                              " after " (:running_ms c) "ms")))
-                (when-let [n (:note data)] (println (str "Note: " n))))
+              (when-let [n (:note data)] (println (str "Note: " n))))
             (println "Nothing in flight."))
 
           ;; Close
@@ -4335,8 +4339,8 @@
                          (let [entry       (first remaining)
                                sub-args    (mapv str entry)
                                parsed      (try (parse-args sub-args)
-                                                (catch Exception e
-                                                  {:command {:error (str "parse error: " (.getMessage e))}}))
+                                             (catch Exception e
+                                               {:command {:error (str "parse error: " (.getMessage e))}}))
                                sub-command (:command parsed)]
                            (if-let [err (:error sub-command)]
                              (let [result {:cmd sub-args :success false :error err}]
@@ -4362,12 +4366,12 @@
         (if json?
           (println (json/write-json-str summary :escape-slash false))
           (do (println (str "Batch: " (count (filter :success results)) "/" (count results) " succeeded"))
-              (doseq [[i r] (map-indexed vector results)]
-                (let [idx     (long i)
-                      mark    (if (:success r) "✓" "✗")
-                      cmd-str (str/join " " (:cmd r))
-                      tail    (if-let [e (:error r)] (str " — " e) "")]
-                  (println (format "  [%d] %s %s%s" (inc idx) mark cmd-str tail))))))
+            (doseq [[i r] (map-indexed vector results)]
+              (let [idx     (long i)
+                    mark    (if (:success r) "✓" "✗")
+                    cmd-str (str/join " " (:cmd r))
+                    tail    (if-let [e (:error r)] (str " — " e) "")]
+                (println (format "  [%d] %s %s%s" (inc idx) mark cmd-str tail))))))
         (System/exit (if all-ok? 0 1))))
 
     ;; Markdownify — hybrid local/temporary-session command
@@ -4378,7 +4382,7 @@
           (> input-count 1)
           (do (binding [*out* *err*]
                 (println "Error: markdownify accepts only one of --file or --input or --url"))
-              (System/exit 1))
+            (System/exit 1))
 
           (or file input url)
           (let [session   (str "markdownify-" (System/currentTimeMillis))
@@ -4604,13 +4608,13 @@
                          ;; Treat as retriable — kill stale daemon and restart
                            (and (nil? res) (< retries 5))
                            (do (swap! !daemon-failure assoc :error nil :attempts retries)
-                               (warn-daemon-restart! (:session flags) nil (inc retries))
-                               (Thread/sleep 200)
-                               (kill-stale-daemon! (:session flags))
-                               (ensure-daemon! (:session flags) flags)
-                               (recur (inc retries)))
+                             (warn-daemon-restart! (:session flags) nil (inc retries))
+                             (Thread/sleep 200)
+                             (kill-stale-daemon! (:session flags))
+                             (ensure-daemon! (:session flags) flags)
+                             (recur (inc retries)))
                            :else (do (swap! !daemon-failure assoc :attempts retries)
-                                     res)))))]
+                                   res)))))]
       (if response
         (if (and output-file (:success response))
           ;; Write to file: SRT as raw text, JSON for action_log
@@ -4622,7 +4626,7 @@
             (println (str "Written to: " output-file))
             (System/exit 0))
           (do (print-result response flags)
-              (System/exit (if (:success response) 0 1))))
+            (System/exit (if (:success response) 0 1))))
         (let [{:keys [error attempts]} @!daemon-failure]
           (log/error! "no daemon response: session=" (:session flags)
             " attempts=" attempts " cause=" (transport-cause error))

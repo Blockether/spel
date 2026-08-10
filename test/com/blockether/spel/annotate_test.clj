@@ -68,77 +68,97 @@
                                       (expect (.contains ^String js "z-index:2147483647"))
                                       (expect (.contains ^String js "pointer-events:none")))))
 
-    (it "includes ref IDs and roles in label text"
+    (it "labels carry the mark number only — never the ref id, role or size"
+
+      ;; Regression: the label spelled "e4khqh textbox 153x21", ~150px of ink for
+      ;; a 153x21 control, so on a form every badge covered the neighbouring
+      ;; field's own label. The mark is the number; the table carries the rest.
+      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+                                      (expect (.contains ^String js "mark.textContent = '1'"))
+                                      (expect (.contains ^String js "mark.textContent = '3'"))
+                                      (expect (not (.contains ^String js "e1 button")))
+                                      (expect (not (.contains ^String js "e2 link")))
+                                      (expect (not (.contains ^String js "Math.round(w)"))))))
+
+    (it "numbers marks in reading order, exactly as refs->entries reports them"
+
+      (core/with-testing-page [_pg] (let [entries (sut/refs->entries test-refs)]
+                                      (expect (= [1 2 3] (mapv :mark entries)))
+                                      (expect (= ["e3" "e1" "e2"] (mapv :ref entries))))))
+
+    (it "stamps the ref on the drawn mark so a click target stays reachable"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-                                      (expect (.contains ^String js "e1 button"))
-                                      (expect (.contains ^String js "e2 link"))
-                                      (expect (.contains ^String js "e3 heading")))))
-
-    (it "includes dimensions computed from element rect"
-
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-        ;; Dims are now computed in JS via Math.round(dw) + 'x' + Math.round(dh)
-                                      (expect (.contains ^String js "Math.round(dw)")))))
+                                      (expect (.contains ^String js "data-spel-ref")))))
 
     (it "uses the Blockether brand palette (amber box, ink chip)"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
         ;; box border → amber accent
                                       (expect (.contains ^String js "#ffc420"))
-        ;; label chip → ink background
+        ;; mark chip → ink background
                                       (expect (.contains ^String js "#262626"))
-        ;; label chip → JetBrains Mono
+        ;; mark chip → JetBrains Mono
                                       (expect (.contains ^String js "JetBrains Mono"))))))
 
-  (describe "compact label placement"
-    (it "places label inside box for tall elements (dh >= 16)"
-
-      (core/with-testing-page [_pg] (let [refs {"e1" {:role "button" :name "OK" :bbox {:x 10 :y 20 :width 60 :height 25}}}
-                                          js   (build-inject-js refs {})]
-        ;; Position computed from element rect via JS
-                                      (expect (.contains ^String js "if (dh >= 16)")))))
-
-    (it "places label to the right for small elements (dh < 16)"
-
-      (core/with-testing-page [_pg] (let [refs {"e1" {:role "link" :name "X" :bbox {:x 10 :y 20 :width 40 :height 12}}}
-                                          js   (build-inject-js refs {})]
-        ;; Small element fallback: left = dx + dw + 2
-                                      (expect (.contains ^String js "(dx + dw + 2)")))))
-
-    (it "uses a single label element, not separate badge and dims"
+  (describe "mark placement"
+    (it "measures the mark in the DOM and takes the first free slot"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-        ;; No separate badge or dim elements
-                                      (expect (not (.contains ^String js "'badge'")))
-                                      (expect (not (.contains ^String js "'dim'")))
-        ;; Uses label
-                                      (expect (.contains ^String js "'label'"))))))
+                                      (expect (.contains ^String js "function placeMark"))
+                                      (expect (.contains ^String js "function isFree"))
+                                      (expect (.contains ^String js "mark.offsetWidth"))
+                                      (expect (.contains ^String js "taken.push(spot)")))))
+
+    (it "keeps the mark off an isolated control and parks it in the margin beside it"
+
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<html><body style='margin:0'><button id='b' style='position:absolute;left:100px;top:100px;width:300px;height:200px'>Save</button></body></html>")
+        (let [snap (snapshot/capture-snapshot pg)
+              _    (sut/inject-overlays! pg (:refs snap))
+              geo  (page/evaluate pg
+                     (str "(function(){"
+                       "var m = document.querySelector('[data-spel-annotate=\"mark\"]').getBoundingClientRect();"
+                       "var b = document.getElementById('b').getBoundingClientRect();"
+                       "var apart = m.right <= b.left + 1 || m.left >= b.right - 1 || m.bottom <= b.top + 1 || m.top >= b.bottom - 1;"
+                       "var near = Math.max(b.left - m.right, m.left - b.right, b.top - m.bottom, m.top - b.bottom) <= 4;"
+                       "return [apart ? 1 : 0, near ? 1 : 0, Math.round(m.width)];})()"))
+              [apart near width] (mapv long geo)]
+          (expect (= 1 apart))
+          (expect (= 1 near))
+          ;; A mark is a number, not a caption: it stays narrow enough to park.
+          (expect (< width 40))
+          (sut/remove-overlays! pg))))
+
+    (it "clamps every candidate inside the document"
+
+      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+                                      (expect (.contains ^String js "docW - mw"))
+                                      (expect (.contains ^String js "docH - mh"))))))
 
   (describe "option toggles"
     (it "excludes boxes when :show-boxes false"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-boxes false})]
-        ;; Should still have labels, but no box border divs
-                                      (expect (.contains ^String js "e1 button"))
-                                      (expect (not (.contains ^String js "border:1px solid"))))))
+        ;; Should still have marks, but no box outline divs
+                                      (expect (.contains ^String js "mark.textContent"))
+                                      (expect (not (.contains ^String js "border:2px solid"))))))
 
-    (it "excludes labels when :show-badges false"
+    (it "excludes marks when :show-badges false"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-badges false})]
-        ;; No label elements
-                                      (expect (not (.contains ^String js "lbl.textContent")))
-        ;; But should still have boxes with border
-                                      (expect (.contains ^String js "border:1.5px solid")))))
+        ;; No mark elements
+                                      (expect (not (.contains ^String js "mark.textContent")))
+        ;; But should still have boxes with an outline
+                                      (expect (.contains ^String js "border:2px solid")))))
 
-    (it "excludes dimensions from label when :show-dimensions false"
+    (it "adds dimensions to the mark only when :show-dimensions true"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-dimensions false})]
-        ;; No JS dim computation in label text
-                                      (expect (not (.contains ^String js "Math.round(dw)")))
-        ;; But ref + role still present
-                                      (expect (.contains ^String js "e1 button"))
-                                      (expect (.contains ^String js "e2 link")))))
+      (core/with-testing-page [_pg] (let [off (build-inject-js test-refs {})
+                                          on  (build-inject-js test-refs {:show-dimensions true})]
+                                      (expect (not (.contains ^String off "Math.round(w)")))
+                                      (expect (.contains ^String on "Math.round(w)"))
+                                      (expect (.contains ^String on "Math.round(h)")))))
 
     (it "generates minimal JS with all options disabled"
 
@@ -161,7 +181,7 @@
 
       (core/with-testing-page [_pg] (let [js (build-inject-js {"e1" {:role "button" :name "OK"
                                                                      :bbox {:x 10 :y 10 :width 30 :height 20}}} {})]
-                                      (expect (.contains ^String js "e1 button"))
+                                      (expect (.contains ^String js "mark.textContent = '1'"))
                                       (expect (.contains ^String js "data-pw-ref")))))
 
     (it "skips refs with zero-size bbox"
@@ -503,6 +523,72 @@
             (let [ya (double (or (get-in a [:bbox :y]) 0))
                   yb (double (or (get-in b [:bbox :y]) 0))]
               (expect (<= ya yb)))))))
+
+    (it "marks never overlap each other on a dense grid of tiny controls"
+
+      ;; Regression: every label was drawn at its own box's top-left, so a row of
+      ;; 13x13 checkboxes piled its labels into one unreadable stack.
+      (core/with-testing-page [pg]
+        (page/set-content! pg (str "<html><body style='margin:0'>"
+                                (apply str (for [i (range 40)]
+                                             (str "<label style='display:inline-block;width:60px'>"
+                                               "<input type='checkbox' id='c" i "'></label>")))
+                                "</body></html>"))
+        (let [snap  (snapshot/capture-snapshot pg)
+              _     (sut/inject-overlays! pg (:refs snap))
+              rects (page/evaluate pg
+                      (str "Array.from(document.querySelectorAll('[data-spel-annotate=\"mark\"]'))"
+                        ".map(function(e){var r = e.getBoundingClientRect();"
+                        "return [r.left, r.top, r.right, r.bottom];})"))
+              rs    (mapv (fn [r] (mapv double r)) rects)
+              clash (for [i (range (count rs))
+                          j (range (inc i) (count rs))
+                          :let [[l1 t1 r1 b1] (nth rs i)
+                                [l2 t2 r2 b2] (nth rs j)]
+                          :when (and (< l1 r2) (< l2 r1) (< t1 b2) (< t2 b1))]
+                      [i j])]
+          (expect (> (count rs) 10))
+          (expect (empty? clash))
+          (sut/remove-overlays! pg))))
+
+    (it "a mark never lands on the page's own text in a tight list"
+
+      ;; Regression: marks were only kept off each other, so on a link list with
+      ;; no vertical gap every number was dropped onto the first letters of a
+      ;; title — the picture named the rows it had made unreadable.
+      (core/with-testing-page [pg]
+        (page/set-content! pg (str "<html><body style='margin:0;font:13px monospace;width:900px'>"
+                                (apply str (for [i (range 25)]
+                                             (str "<div style='line-height:14px'>"
+                                               "<a href='#a" i "'>Story number " i " with a reasonably long title</a> "
+                                               "<span>(example.com)</span></div>")))
+                                "</body></html>"))
+        (let [snap    (snapshot/capture-snapshot pg)
+              _       (sut/inject-overlays! pg (:refs snap))
+              covered (page/evaluate pg
+                        (str "(function(){"
+                          "var marks = Array.from(document.querySelectorAll('[data-spel-annotate=\"mark\"]'))"
+                          "  .map(function(e){return e.getBoundingClientRect();});"
+                          "var tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, texts = [];"
+                          "while ((n = tw.nextNode())) {"
+                          "  if (!n.nodeValue.trim()) continue;"
+                          "  var rg = document.createRange(); rg.selectNode(n);"
+                          "  var rs = rg.getClientRects();"
+                          "  for (var i = 0; i < rs.length; i++) if (rs[i].width > 0 && rs[i].height > 0) texts.push(rs[i]);"
+                          "}"
+                          "var hit = 0;"
+                          "for (var m = 0; m < marks.length; m++) {"
+                          "  var a = marks[m];"
+                          "  for (var t = 0; t < texts.length; t++) {"
+                          "    var b = texts[t];"
+                          "    if (a.left < b.right - 1 && b.left + 1 < a.right && a.top < b.bottom - 1 && b.top + 1 < a.bottom) { hit++; break; }"
+                          "  }"
+                          "}"
+                          "return [marks.length, hit];})()"))
+              [n hit] (mapv long covered)]
+          (expect (> n 10))
+          (expect (zero? hit))
+          (sut/remove-overlays! pg))))
 
     (it "annotated is larger than raw screenshot"
 

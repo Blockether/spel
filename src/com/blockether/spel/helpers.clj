@@ -268,8 +268,8 @@
    `page` - Playwright Page instance.
    `opts` - Map, optional.
      :path            - String. Output file path (if nil, returns bytes only).
-     :show-dimensions - Boolean (default true).
-     :show-badges     - Boolean (default true).
+     :show-dimensions - Boolean (default false). Append width x height to each mark.
+     :show-badges     - Boolean (default true). Draw the mark numbers.
      :show-boxes      - Boolean (default true).
      :scope           - String. CSS selector or ref to restrict annotations.
      :all-frames?     - Boolean. Include iframe content via capture-full-snapshot
@@ -307,7 +307,7 @@
                           (annotate/remove-overlays! page)))]
      (if-let [path (:path opts)]
        (do (save-bytes! ss-bytes path)
-           {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
+         {:path path :size (alength ^bytes ss-bytes) :annotated annotated})
        {:bytes ss-bytes :annotated annotated}))))
 
 ;; =============================================================================

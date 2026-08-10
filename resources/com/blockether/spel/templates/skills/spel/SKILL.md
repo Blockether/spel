@@ -33,16 +33,16 @@ Use `--allowed-domains "example.com,*.example.com"` when scope is known. Add `--
 
 A snapshot is the proposal, never a bare screenshot: every row already carries geometry — `link "Learn more" [@e6t2x4] [pos:256,186 82×18]` — so an overlap, an indent, a hit target or an element below the fold is REPORTED as those figures. `get box <sel>` answers a single element; `snapshot -i -S --minimal` explains two boxes that measure the same but look different.
 
-Pair every visual claim with an annotated artifact. `screenshot -a <path>` (or `overview`) draws the boxes and prints the reference table under the saved path; `annotate` draws them in the live page and prints the same table without saving a file:
+Pair every visual claim with an annotated artifact. `screenshot -a <path>` (or `overview`) draws an outline around each element, stamps it with a MARK — a bare number, placed in the margin so it never covers the text it points at — and prints the reference table under the saved path; `annotate` draws the same in the live page and prints the table without saving a file:
 
 ```bash
 spel --session "$SESSION" screenshot -a /tmp/page.png
 # Saved: /tmp/page.png (23494 bytes, 3 refs annotated)
-#   @e2yrjz  heading  "Example Domain"
-#   @e6t2x4  link     "Learn more"
+#   #1  @e2yrjz  heading  "Example Domain"
+#   #2  @e6t2x4  link     "Learn more"
 ```
 
-Carry that table into the answer — it is the only thing that maps a drawn box back to a ref the reader can act on. Scope it or the table becomes the report: an unscoped Wikipedia article annotates 2057 refs. Narrow with `annotate -s "<sel>"` then `screenshot`, `overview -s "<sel>"`, `snapshot -i -c -s "<sel>"`, `-d N`, or the global `--max-output N`; run `unannotate` when overlays were injected manually.
+The picture carries the number and nothing else, so the table is the whole legend: it is the only thing mapping a drawn mark to a ref the reader can act on, and an answer that shows the image without it is unreadable. Marks are numbered top→down, left→right and are placed collision-aware, so a dense form stays legible. `--dimensions` adds `WxH` to each mark when the size must be visible in the pixels; the figures otherwise come from `snapshot -i`. Scope a busy page or the table becomes the report: an unscoped Wikipedia article annotates 2057 refs. Narrow with `annotate -s "<sel>"` then `screenshot`, `overview -s "<sel>"`, `snapshot -i -c -s "<sel>"`, `-d N`, or the global `--max-output N`; run `unannotate` when overlays were injected manually.
 
 ## Choose the surface
 
