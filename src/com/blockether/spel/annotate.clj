@@ -32,27 +32,46 @@
   ;; injected script. Double quotes are valid CSS and safe inside 'single' JS.
   "\"JetBrains Mono\",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace")
 
+(def ^:private mark-palette
+  "Outline/mark colours, cycled by entry number.
+
+   One amber for every element is what made a dense page unreadable: 200 marks
+   and 200 boxes in one colour say nothing about which mark belongs to which
+   box. Set-of-Mark implementations colour each element and paint its label in
+   that same colour, so the pairing is carried by hue instead of by proximity
+   alone. Numbering is in reading order, so neighbours always differ.
+
+   Every entry is dark enough to carry white text."
+  ["#d7263d" "#1565c0" "#2e7d32" "#c2410c" "#6a1b9a"
+   "#00796b" "#ad1457" "#4527a0" "#8d6e00" "#374151"])
+
 ;; =============================================================================
 ;; Annotation filtering (reduce clutter by skipping structural elements)
 ;; =============================================================================
 
-(def ^:private annotatable-roles
-  "Roles that are rendered as annotation overlays.
+(def ^:private actionable-roles
+  "Roles that are rendered as annotation overlays by default.
 
-   Interactive elements, content anchors, and text containers.
-   Pure layout/structural roles (region, group, form, etc.) are filtered
-   out to reduce clutter. Containment dedup handles overlap when a
-   paragraph wraps a link — the link wins, the paragraph is suppressed."
+   What an agent can ACT on, plus the two landmarks it steers by (heading,
+   img). Prose is deliberately absent: on a news page every link is also a
+   text node, so marking both drew two boxes and two numbers per row and the
+   picture stopped answering \"what can I click\". The words are already in the
+   snapshot; the overlay is the action layer. Pass :show-text to add them back."
   #{"button" "link" "textbox" "searchbox" "combobox" "checkbox" "radio"
     "switch" "slider" "spinbutton" "menuitem" "menuitemcheckbox"
     "menuitemradio" "option" "treeitem" "tab"
-    "heading" "img" "dialog" "alertdialog" "navigation" "progressbar"
-    "paragraph" "p" "span" "listitem" "text"})
+    "heading" "img" "dialog" "alertdialog" "progressbar"})
+
+(def ^:private text-roles
+  "Text containers, drawn only when :show-text is set."
+  #{"paragraph" "p" "span" "listitem" "text" "navigation"})
 
 (defn- annotatable-role?
   "Returns true if the role should be drawn as an annotation overlay."
-  [role]
-  (contains? annotatable-roles role))
+  ([role] (annotatable-role? role false))
+  ([role show-text?]
+   (or (contains? actionable-roles role)
+     (and show-text? (contains? text-roles role)))))
 
 (defn- bbox-contains?
   "Returns true if outer bbox fully contains inner bbox (with 2px epsilon).
@@ -101,6 +120,8 @@
                           ;; Don't suppress mixed-content containers — they have
                           ;; their own direct text content distinct from children
                           (not (:mixed info-a)))
+                  ;; `long` here is what keeps the comparisons below off boxed
+                  ;; math; clj-kondo calls it redundant, the reflection check does not.
                   :let [area-a (long (bbox-area bbox-a))
                         area-b (long (bbox-area bbox-b))]
                   ;; A zero-area child (invisible/hidden element) must not
@@ -117,15 +138,17 @@
   "Filters refs to only those worth rendering as overlays.
 
    Two-step process:
-   1. Remove structural roles (paragraph, list, span, etc.)
+   1. Keep actionable roles only (plus text containers when `:show-text` is set)
    2. Remove containers whose bbox fully wraps a smaller ref
 
    Returns a subset of refs suitable for `build-inject-js`."
-  [refs]
-  (-> (into {}
-        (filter (fn [[_ info]] (annotatable-role? (:role info))))
-        refs)
-    remove-containers))
+  ([refs] (filter-annotatable refs {}))
+  ([refs opts]
+   (let [show-text? (boolean (:show-text opts))]
+     (-> (into {}
+           (filter (fn [[_ info]] (annotatable-role? (:role info) show-text?)))
+           refs)
+       remove-containers))))
 
 ;; =============================================================================
 ;; Viewport filtering (fast, Clojure-side pre-filter)
@@ -314,10 +337,14 @@
    index for that reason; identity, role and name are carried by the entry table
    the caller prints beside the image.
 
-   Marks are placed collision-aware, in reading order: each takes the first
-   candidate slot — inside the box when the mark fits, else above, below or
-   beside it — that lies inside the document and does not overlap a mark already
-   placed. Dense grids fan out instead of stacking.
+   A mark and its box share one colour from `mark-palette`, and the mark is
+   always placed in a slot TOUCHING its box — above, below or beside it, or in a
+   corner inside when the box can spare one. Chasing whitespace across the row
+   produced marks that overlapped nothing and pointed at nothing; on a dense
+   page an unattached number is less readable than a slightly crowded one. So
+   candidates are scored instead of accepted or refused: overlapping a mark
+   already placed costs six times overlapping the page's own words, drift is
+   charged per pixel and capped at two mark widths, and the cheapest slot wins.
 
    All elements get a data-spel-annotate attribute for cleanup.
    Refs should be pre-filtered to visible-only before calling this."
@@ -336,20 +363,18 @@
       "  container.setAttribute('data-spel-annotate', 'root');"
       "  container.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none;';"
       "  document.documentElement.appendChild(container);"
+      "  function overlap(a, b) {"
+      "    var w = Math.min(a.r, b.r) - Math.max(a.l, b.l);"
+      "    var h = Math.min(a.b, b.b) - Math.max(a.t, b.t);"
+      "    return (w > 0 && h > 0) ? w * h : 0;"
+      "  }"
       ;; Occupied mark rectangles, in placement order.
       "  var taken = [];"
-      "  function isFree(r) {"
-      "    for (var i = 0; i < taken.length; i++) {"
-      "      var t = taken[i];"
-      "      if (r.l < t.r && t.l < r.r && r.t < t.b && t.t < r.b) return false;"
-      "    }"
-      "    return true;"
-      "  }"
-      ;; A mark must not sit on top of a word, and `taken` only knows about
+      ;; A mark should not sit on top of a word, and `taken` only knows about
       ;; other marks. So measure the page's own words ONCE, in document
       ;; coordinates: a Range around each text node gives a line's box rather
-      ;; than its block's, which is the difference between "this paragraph is
-      ;; busy" and "these 40 pixels are". Hit-testing with elementFromPoint
+      ;; than its block's, which is the difference between \"this paragraph is
+      ;; busy\" and \"these 40 pixels are\". Hit-testing with elementFromPoint
       ;; would only see the viewport; the whole page is annotated.
       "  var texts = [];"
       "  (function() {"
@@ -373,76 +398,82 @@
       "      (byRow[rb] = byRow[rb] || []).push(q);"
       "    }"
       "  }"
-      "  function coversText(r) {"
+      "  function textCost(r) {"
+      "    var c = 0;"
       "    for (var rb = Math.floor(r.t / BUCKET); rb <= Math.floor(r.b / BUCKET); rb++) {"
       "      var list = byRow[rb];"
       "      if (!list) continue;"
-      "      for (var i = 0; i < list.length; i++) {"
-      "        var q = list[i];"
-      "        if (r.l < q.r - 1 && q.l + 1 < r.r && r.t < q.b - 1 && q.t + 1 < r.b) return true;"
-      "      }"
+      "      for (var i = 0; i < list.length; i++) c += overlap(r, list[i]);"
       "    }"
-      "    return false;"
+      "    return c;"
       "  }"
-      ;; Measure the mark in the DOM, then try candidate slots.
+      ;; Covering a NEIGHBOUR is what makes an annotated page unreadable; covering
+      ;; the TAIL of the element the mark NAMES is not, because the reader already
+      ;; has that row in the table and the words that identify a control are its
+      ;; first ones. So own text is discounted almost to nothing EXCEPT over the
+      ;; element's head, where a number on the first letters is the very thing the
+      ;; marks were accused of: `Story number 12` read as `12ory number 12`.
+      "  function markCost(r, own) {"
+      "    var hw = Math.min(60, Math.max(12, (own.r - own.l) * 0.3));"
+      "    var head = {l: own.l, t: own.t, r: Math.min(own.r, own.l + hw), b: own.b};"
+      "    var onHead = overlap(r, head);"
+      "    var c = textCost(r) - 0.95 * Math.max(0, overlap(r, own) - onHead) + 2 * onHead;"
+      "    if (c < 0) c = 0;"
+      "    for (var i = 0; i < taken.length; i++) c += 6 * overlap(r, taken[i]);"
+      "    return c;"
+      "  }"
+      ;; Measure the mark in the DOM, then score slots by what they cost.
       "  function placeMark(mark, x, y, w, h) {"
       "    container.appendChild(mark);"
       "    var mw = mark.offsetWidth, mh = mark.offsetHeight;"
-      ;; Outside the box first, and on the side a line of text does not start:
-      ;; a mark dropped at a box's top-left eats the first letters of the word
-      ;; it points at. Inside is a late candidate, for a box big enough to
-      ;; spare a corner.
-      "    var cands = [[x - mw - 1, y], [x + w + 1, y], [x + w - mw, y - mh - 1], [x + w - mw, y + h + 1], [x, y - mh - 1], [x, y + h + 1]];"
-      "    if (w >= mw + 2 && h >= mh + 2) cands.push([x + w - mw - 1, y + 1]);"
-      "    cands.push([x, y]);"
-      "    var spot = null;"
-      ;; Pass 1 wants a slot free of other marks AND of the page's own words.
-      "    for (var i = 0; i < cands.length && !spot; i++) {"
+      ;; Candidates are [left, top, drift]: drift is how far the slot sits from
+      ;; the element it names. A number that wandered into the page margin names
+      ;; nothing the reader can find, so the search is SHORT — every slot touches
+      ;; the box or sits within two mark widths of it, and drift is expensive.
+      ;; Outside first, above before beside, because a mark dropped at a box's
+      ;; top-left eats the first letters of the word it points at.
+      "    var cands = [[x, y - mh, 0], [x + w - mw, y - mh, 0], [x - mw, y, 0], [x + w, y, 0],"
+      "                 [x, y + h, 0], [x + w - mw, y + h, 0], [x - mw, y - mh, 0], [x + w, y - mh, 0],"
+      "                 [x - mw, y + h - mh, 0], [x + w, y + h - mh, 0]];"
+      "    if (w >= mw + 4 && h >= mh + 4) { cands.push([x + w - mw - 1, y + 1, 0]); cands.push([x + 1, y + 1, 0]); }"
+      "    cands.push([x, y, 0]);"
+      ;; A dense row (a list of small links) can leave every touching slot on ink.
+      ;; Then a step ALONG the row is allowed, and two forces decide how far. Drift
+      ;; is priced per pixel against the pixels of type the slot would bury, so a
+      ;; number crosses a gutter to reach clear paper and refuses to wander when
+      ;; the paper it would reach is inked anyway. And the walk is bounded by the
+      ;; element's OWN width: a row-wide link owns the white space beside it, while
+      ;; a 40px button keeps its number within a mark or two — a number that drifts
+      ;; further than its element is wide has started naming its neighbour.
+      "    var maxD = Math.min(160, Math.max(2 * (mw + 2), w));"
+      "    for (var band = 0; band < 3; band++) {"
+      "      var by = [y, y - mh, y + h][band];"
+      "      for (var step = 1; step <= 10; step++) {"
+      "        var d = step * (mw + 2);"
+      "        if (d > maxD) break;"
+      "        cands.push([x + w + d, by, d]);"
+      "        cands.push([x - mw - d, by, d]);"
+      "      }"
+      "    }"
+      "    var spot = null, best = Infinity;"
+      "    for (var i = 0; i < cands.length; i++) {"
       "      var cx = Math.min(Math.max(cands[i][0], 0), Math.max(0, docW - mw));"
       "      var cy = Math.min(Math.max(cands[i][1], 0), Math.max(0, docH - mh));"
       "      var r = {l: cx, t: cy, r: cx + mw, b: cy + mh};"
-      "      if (isFree(r) && !coversText(r)) spot = r;"
+      ;; Ties go to the earlier (more natural) slot; that bias is far below the
+      ;; area of any real overlap.
+      "      var c = markCost(r, {l: x, t: y, r: x + w, b: y + h}) + cands[i][2] * 0.45 + i * 0.05;"
+      "      if (c < best) { best = c; spot = r; }"
+      "      if (best === 0) break;"
       "    }"
-      ;; The slots touching the box are all busy: walk this row's own
-      ;; whitespace, outward from the element, before giving up on legibility.
-      ;; A list of one-line rows has no margin above or below, but it almost
-      ;; always has one at the end of the line.
-      "    for (var b = 0; b < 3 && !spot; b++) {"
-      "      var by = Math.min(Math.max([y, y - mh - 1, y + h + 1][b], 0), Math.max(0, docH - mh));"
-      "      for (var gx = x + w + 2; gx <= docW - mw && !spot; gx += mw + 2) {"
-      "        var gr = {l: gx, t: by, r: gx + mw, b: by + mh};"
-      "        if (isFree(gr) && !coversText(gr)) spot = gr;"
-      "      }"
-      "      for (var hx = x - mw - 2; hx >= 0 && !spot; hx -= mw + 2) {"
-      "        var hr = {l: hx, t: by, r: hx + mw, b: by + mh};"
-      "        if (isFree(hr) && !coversText(hr)) spot = hr;"
-      "      }"
-      "    }"
-      ;; Nothing on this row is free of text: take the least bad adjacent slot.
-      "    for (var j = 0; j < cands.length && !spot; j++) {"
-      "      var jx = Math.min(Math.max(cands[j][0], 0), Math.max(0, docW - mw));"
-      "      var jy = Math.min(Math.max(cands[j][1], 0), Math.max(0, docH - mh));"
-      "      var jr = {l: jx, t: jy, r: jx + mw, b: jy + mh};"
-      "      if (isFree(jr)) spot = jr;"
-      "    }"
-      ;; Every slot was taken (a dense grid): step down until something is
-      ;; free, again preferring a step that lands on no word.
-      "    for (var fpass = 0; fpass < 2 && !spot; fpass++) {"
-      "      for (var s = 1; s <= 40 && !spot; s++) {"
-      "        var fx = Math.min(Math.max(x, 0), Math.max(0, docW - mw));"
-      "        var fy = Math.min(Math.max(y - mh + s * (mh + 1), 0), Math.max(0, docH - mh));"
-      "        var fr = {l: fx, t: fy, r: fx + mw, b: fy + mh};"
-      "        if (isFree(fr) && (fpass === 1 || !coversText(fr))) spot = fr;"
-      "      }"
-      "    }"
-      "    if (!spot) spot = {l: x, t: y, r: x + mw, b: y + mh};"
       "    mark.style.left = spot.l + 'px';"
       "    mark.style.top = spot.t + 'px';"
       "    taken.push(spot);"
       "  }"
       (apply str
         (for [{:keys [ref mark bbox]} (refs->entries refs)
-              :let [{:keys [width height]} bbox]
+              :let [{:keys [width height]} bbox
+                    color (nth mark-palette (mod (dec (long mark)) (count mark-palette)))]
               :when (and (pos? (double width)) (pos? (double height)))]
           (str
             "  (function() {"
@@ -454,7 +485,9 @@
               (str
                 "    var box = document.createElement('div');"
                 "    box.setAttribute('data-spel-annotate', 'box');"
-                "    box.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;border:2px solid " brand-amber ";';"
+                "    box.setAttribute('data-spel-ref', '" ref "');"
+                "    var bw = (w < 48 || h < 24) ? 1 : 2;"
+                "    box.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;border:' + bw + 'px solid " color ";';"
                 "    box.style.top = y + 'px';"
                 "    box.style.left = x + 'px';"
                 "    box.style.width = w + 'px';"
@@ -468,9 +501,11 @@
                 "    mark.textContent = '" mark "'"
                 (when show-dims " + ' ' + Math.round(w) + 'x' + Math.round(h)")
                 ";"
-                "    mark.style.cssText = 'position:absolute;pointer-events:none;background:" brand-ink
-                ";color:" brand-amber ";font:700 11px/14px " brand-mono
-                ";padding:0 3px;white-space:nowrap;box-shadow:1px 1px 0 0 " brand-charcoal ";';"
+                ;; The white ring keeps the number readable when the cheapest
+                ;; slot still lands on ink.
+                "    mark.style.cssText = 'position:absolute;pointer-events:none;background:" color
+                ";color:#ffffff;font:700 10px/12px " brand-mono
+                ";padding:0 1px;white-space:nowrap;box-shadow:0 0 0 1px rgba(255,255,255,0.95);';"
                 "    placeMark(mark, x, y, w, h);"))
             "  })();")))
       "})();")))
@@ -571,7 +606,7 @@
    (let [;; Phase 0: scope filter (restrict to DOM subtree)
          scoped      (apply-scope page (:scope opts) refs)
           ;; Phase 1: filter to annotatable roles + remove containers
-         annotatable (filter-annotatable scoped)
+         annotatable (filter-annotatable scoped opts)
           ;; Phase 2: fast Clojure-side bbox filter (skip when :full-page)
          vp          (when-not (:full-page opts) (page/viewport-size page))
          in-viewport (if vp (visible-refs vp annotatable) annotatable)

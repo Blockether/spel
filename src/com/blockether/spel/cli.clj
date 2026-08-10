@@ -484,7 +484,8 @@
       "                             elements before capturing (LLM-friendly)"
       "  --no-badges                (with --annotate) Hide the mark numbers"
       "  --dimensions, --dims       (with --annotate) Add WxH to each mark"
-      "  --no-boxes                 (with --annotate) Hide bounding boxes"])
+      "  --no-boxes                 (with --annotate) Hide bounding boxes"
+      "  --text                     (with --annotate) Also mark text containers"])
 
    "annotate"
    (str/join \newline
@@ -504,6 +505,7 @@
       "  --no-badges               Hide the mark numbers"
       "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
+      "  --text                    Also mark text containers (off by default)"
       "  -s, --scope SEL           Scope annotations to selector"])
 
    "unannotate"
@@ -617,6 +619,7 @@
       "  --no-badges               Hide the mark numbers"
       "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
+      "  --text                    Also mark text containers (off by default)"
       "  -s, --scope SEL           Scope overview annotations to selector"])
 
    "debug"
@@ -658,7 +661,8 @@
       "  -a, --all                 Include iframe content"
       "  --no-badges               Hide the mark numbers"
       "  --dimensions, --dims      Add WxH to each mark"
-      "  --no-boxes                Hide bounding boxes"])
+      "  --no-boxes                Hide bounding boxes"
+      "  --text                    Also mark text containers (off by default)"])
 
    "pdf"
    (str/join \newline
@@ -2494,7 +2498,9 @@
                              (some #{"--dimensions" "--dims"} cmd-args)
                              (assoc :show-dimensions true)
                              (some #{"--no-boxes"} cmd-args)
-                             (assoc :show-boxes false)))
+                             (assoc :show-boxes false)
+                             (some #{"--text"} cmd-args)
+                             (assoc :show-text true)))
 
           ;; Annotate (inject overlays onto the page for visible elements)
             "annotate" (cond-> {:action "annotate"}
@@ -2506,6 +2512,8 @@
                          (assoc :show-dimensions true)
                          (some #{"--no-boxes"} cmd-args)
                          (assoc :show-boxes false)
+                         (some #{"--text"} cmd-args)
+                         (assoc :show-text true)
                          ;; Parse -s <selector-or-ref>
                          (some #{"-s" "--scope"} cmd-args)
                          (assoc :selector (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
@@ -2569,6 +2577,7 @@
                            (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
                            (some #{"--dimensions" "--dims"} cmd-args) (assoc :show-dimensions true)
                            (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)
+                           (some #{"--text"} cmd-args) (assoc :show-text true)
                            (some #{"-s" "--scope"} cmd-args)
                            (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
                                                            (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
@@ -2590,7 +2599,8 @@
                           (some #{"-a" "--all"} cmd-args) (assoc :all true)
                           (some #{"--no-badges"} cmd-args) (assoc :show-badges false)
                           (some #{"--dimensions" "--dims"} cmd-args) (assoc :show-dimensions true)
-                          (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)))
+                          (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)
+                          (some #{"--text"} cmd-args) (assoc :show-text true)))
 
 ;; PDF
             "pdf"      {:action "pdf" :path (resolve-path (or (first cmd-args) "page.pdf"))}

@@ -540,10 +540,10 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `annotated-screenshot` | [page refs] \| [page refs opts] | Takes a screenshot with annotation overlays (convenience function). |
 | `audit-screenshot` | [page caption] \| [page caption opts] | Takes a screenshot with an optional caption bar at the bottom. |
 | `check-visible-refs` | [page refs] | Runs JavaScript in the page to determine which refs are truly visible. |
-| `filter-annotatable` | [refs] | Filters refs to only those worth rendering as overlays. |
+| `filter-annotatable` | [refs] \| [refs opts] | Filters refs to only those worth rendering as overlays. |
 | `inject-action-markers!` | [page ref-ids] | Injects prominent pre-action markers on specific snapshot refs. |
 | `inject-overlays!` | [page refs] \| [page refs opts] | Injects annotation overlays into the page DOM for visible elements only. |
-| `refs->entries` | [refs] | Converts a refs map to a sorted list of entry maps. |
+| `refs->entries` | [refs] | Converts a refs map to a sorted, numbered list of entry maps. |
 | `remove-action-markers!` | [page] | Removes all pre-action markers from the page DOM. |
 | `remove-containers` | [refs] | Removes refs whose bbox fully contains another ref's bbox. |
 | `remove-overlays!` | [page] | Removes all annotation overlays from the page DOM. |
@@ -1446,8 +1446,9 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `annotate` | Show annotation overlays (visible elements) |
 | `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |
 | `--no-badges` | Hide the mark numbers |
-| `--dimensions`, `--dims` | Add `WxH` to each mark (off by default) |
+| `--dimensions, --dims` | Add WxH to each mark |
 | `--no-boxes` | Hide bounding boxes |
+| `--text` | Also mark text containers |
 | `unannotate` | Remove annotation overlays |
 | `pdf <path>` | Save as PDF |
 | `markdownify` | Convert page or HTML input to Markdown |

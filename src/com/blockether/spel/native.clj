@@ -110,6 +110,7 @@
   (println "    --no-badges             Hide the mark numbers")
   (println "    --dimensions, --dims    Add WxH to each mark")
   (println "    --no-boxes              Hide bounding boxes")
+  (println "    --text                  Also mark text containers")
   (println "  unannotate                Remove annotation overlays")
   (println "  pdf <path>                Save as PDF")
   (println "  markdownify               Convert page or HTML input to Markdown")

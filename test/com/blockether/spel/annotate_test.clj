@@ -94,10 +94,9 @@
     (it "uses the Blockether brand palette (amber box, ink chip)"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-        ;; box border → amber accent
-                                      (expect (.contains ^String js "#ffc420"))
-        ;; mark chip → ink background
-                                      (expect (.contains ^String js "#262626"))
+        ;; box + mark → the first palette colour, one hue per entry
+                                      (expect (.contains ^String js "#d7263d"))
+                                      (expect (.contains ^String js "#ffffff"))
         ;; mark chip → JetBrains Mono
                                       (expect (.contains ^String js "JetBrains Mono"))))))
 
@@ -106,7 +105,7 @@
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
                                       (expect (.contains ^String js "function placeMark"))
-                                      (expect (.contains ^String js "function isFree"))
+                                      (expect (.contains ^String js "function markCost"))
                                       (expect (.contains ^String js "mark.offsetWidth"))
                                       (expect (.contains ^String js "taken.push(spot)")))))
 
@@ -142,15 +141,15 @@
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-boxes false})]
         ;; Should still have marks, but no box outline divs
                                       (expect (.contains ^String js "mark.textContent"))
-                                      (expect (not (.contains ^String js "border:2px solid"))))))
+                                      (expect (not (.contains ^String js "box.style.cssText"))))))
 
     (it "excludes marks when :show-badges false"
 
       (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-badges false})]
         ;; No mark elements
                                       (expect (not (.contains ^String js "mark.textContent")))
-        ;; But should still have boxes with an outline
-                                      (expect (.contains ^String js "border:2px solid")))))
+        ;; But should still have boxes with an outline (width adapts to the element)
+                                      (expect (.contains ^String js "px solid")))))
 
     (it "adds dimensions to the mark only when :show-dimensions true"
 
@@ -225,26 +224,25 @@
                                           result (sut/filter-annotatable refs)]
                                       (expect (= 0 (count result))))))
 
-    (it "keeps listitem role (annotatable for list content)"
+    (it "keeps listitem role only with :show-text"
 
-      (core/with-testing-page [_pg] (let [refs {"e1" {:role "listitem" :bbox {:x 0 :y 30 :width 300 :height 25}}}
-                                          result (sut/filter-annotatable refs)]
-                                      (expect (= 1 (count result)))
-                                      (expect (contains? result "e1")))))
+      (core/with-testing-page [_pg] (let [refs {"e1" {:role "listitem" :bbox {:x 0 :y 30 :width 300 :height 25}}}]
+                                      (expect (= 0 (count (sut/filter-annotatable refs))))
+                                      (expect (contains? (sut/filter-annotatable refs {:show-text true}) "e1")))))
 
-    (it "keeps text containers (paragraph, span)"
+    (it "drops text containers (paragraph, span) by default"
 
       (core/with-testing-page [_pg] (let [refs {"e1" {:role "paragraph" :bbox {:x 0 :y 0 :width 300 :height 20}}
-                                                "e2" {:role "span"      :bbox {:x 0 :y 30 :width 100 :height 15}}}
-                                          result (sut/filter-annotatable refs)]
-                                      (expect (= 2 (count result))))))
+                                                "e2" {:role "span"      :bbox {:x 0 :y 30 :width 100 :height 15}}}]
+        ;; Prose is in the snapshot; the overlay answers what can be acted on.
+                                      (expect (= 0 (count (sut/filter-annotatable refs))))
+                                      (expect (= 2 (count (sut/filter-annotatable refs {:show-text true})))))))
 
-    (it "keeps text role (generic divs with text content)"
+    (it "keeps text role only with :show-text (generic divs with text content)"
 
-      (core/with-testing-page [_pg] (let [refs {"e1" {:role "text" :bbox {:x 0 :y 0 :width 200 :height 20}}}
-                                          result (sut/filter-annotatable refs)]
-                                      (expect (= 1 (count result)))
-                                      (expect (contains? result "e1")))))
+      (core/with-testing-page [_pg] (let [refs {"e1" {:role "text" :bbox {:x 0 :y 0 :width 200 :height 20}}}]
+                                      (expect (= 0 (count (sut/filter-annotatable refs))))
+                                      (expect (contains? (sut/filter-annotatable refs {:show-text true}) "e1")))))
 
     (it "paragraph wrapping link is removed by containment dedup"
 
@@ -302,7 +300,7 @@
 
       (core/with-testing-page [_pg] (let [refs {"e1" {:role "paragraph" :mixed true :bbox {:x 0 :y 0 :width 300 :height 20}}
                                                 "e2" {:role "text"      :bbox {:x 5 :y 2 :width 60  :height 16}}}
-                                          result (sut/filter-annotatable refs)]
+                                          result (sut/filter-annotatable refs {:show-text true})]
         ;; e1 paragraph has :mixed true (own text besides child) → not suppressed
                                       (expect (= 2 (count result)))
                                       (expect (contains? result "e1"))
@@ -312,7 +310,7 @@
 
       (core/with-testing-page [_pg] (let [refs {"e1" {:role "text" :bbox {:x 0 :y 0 :width 300 :height 20}}
                                                 "e2" {:role "text" :bbox {:x 5 :y 2 :width 60  :height 16}}}
-                                          result (sut/filter-annotatable refs)]
+                                          result (sut/filter-annotatable refs {:show-text true})]
         ;; e1 has no :mixed flag → pure container → suppressed
                                       (expect (= 1 (count result)))
                                       (expect (contains? result "e2")))))
@@ -344,7 +342,7 @@
                   ;; e3 paragraph wraps e4 link (link bbox inside paragraph bbox)
                                                 "e3" {:role "paragraph" :bbox {:x 0 :y 120 :width 768 :height 25}}
                                                 "e4" {:role "link"      :bbox {:x 2 :y 122 :width 80  :height 19}}}
-                                          result (sut/filter-annotatable refs)]
+                                          result (sut/filter-annotatable refs {:show-text true})]
         ;; e3 paragraph contains e4 link → e3 suppressed by containment dedup
         ;; heading, standalone paragraph (e2), and link all kept
                                       (expect (= 3 (count result)))
@@ -551,11 +549,15 @@
           (expect (empty? clash))
           (sut/remove-overlays! pg))))
 
-    (it "a mark never lands on the page's own text in a tight list"
+    (it "a mark never lands on the first words of the row it names, and buries no neighbour"
 
       ;; Regression: marks were only kept off each other, so on a link list with
       ;; no vertical gap every number was dropped onto the first letters of a
-      ;; title — the picture named the rows it had made unreadable.
+      ;; title — `Story number 12` rendered as `12ory number 12`, the picture
+      ;; naming the rows it had made unreadable. Two figures decide it now: no
+      ;; mark covers its own element's head, and no mark buries a NEIGHBOUR's
+      ;; word (sitting on the tail of the element it names is free — the reader
+      ;; already has that row in the `#N @ref role name` table).
       (core/with-testing-page [pg]
         (page/set-content! pg (str "<html><body style='margin:0;font:13px monospace;width:900px'>"
                                 (apply str (for [i (range 25)]
@@ -567,27 +569,76 @@
               _       (sut/inject-overlays! pg (:refs snap))
               covered (page/evaluate pg
                         (str "(function(){"
-                          "var marks = Array.from(document.querySelectorAll('[data-spel-annotate=\"mark\"]'))"
-                          "  .map(function(e){return e.getBoundingClientRect();});"
+                          "var marks = Array.from(document.querySelectorAll('[data-spel-annotate=\"mark\"]'));"
+                          "var own = {};"
+                          "Array.from(document.querySelectorAll('[data-spel-annotate=\"box\"]')).forEach(function(b){"
+                          "  own[b.getAttribute('data-spel-ref')] = b.getBoundingClientRect(); });"
                           "var tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, texts = [];"
                           "while ((n = tw.nextNode())) {"
                           "  if (!n.nodeValue.trim()) continue;"
+                          "  if (n.parentElement && n.parentElement.closest('[data-spel-annotate]')) continue;"
                           "  var rg = document.createRange(); rg.selectNode(n);"
                           "  var rs = rg.getClientRects();"
                           "  for (var i = 0; i < rs.length; i++) if (rs[i].width > 0 && rs[i].height > 0) texts.push(rs[i]);"
                           "}"
-                          "var hit = 0;"
+                          "var ov = function(a, b){ return Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))"
+                          "  * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)); };"
+                          "var worst = 0, buried = 0, onHead = 0;"
                           "for (var m = 0; m < marks.length; m++) {"
-                          "  var a = marks[m];"
+                          "  var a = marks[m].getBoundingClientRect(), mine = own[marks[m].getAttribute('data-spel-ref')], s = 0;"
                           "  for (var t = 0; t < texts.length; t++) {"
-                          "    var b = texts[t];"
-                          "    if (a.left < b.right - 1 && b.left + 1 < a.right && a.top < b.bottom - 1 && b.top + 1 < a.bottom) { hit++; break; }"
+                          "    var o = ov(a, texts[t]); if (!o) continue;"
+                          ;; Words inside the element the mark names are its own; skip them.
+                          "    if (mine && ov(texts[t], mine) > 0.5 * texts[t].width * texts[t].height) continue;"
+                          "    s += o;"
                           "  }"
+                          "  var pct = Math.round(100 * s / (a.width * a.height));"
+                          "  if (pct > 25) buried++;"
+                          "  if (pct > worst) worst = pct;"
+                          ;; The head is the first few characters — the ones that say which row this is.
+                          "  if (mine && a.left <= mine.left + 4 && a.right >= mine.left + 4"
+                          "      && a.top <= mine.top + mine.height / 2 && a.bottom >= mine.top + mine.height / 2) onHead++;"
                           "}"
-                          "return [marks.length, hit];})()"))
-              [n hit] (mapv long covered)]
+                          "return [marks.length, buried, worst, onHead];})()"))
+              [n buried worst on-head] (mapv long covered)]
           (expect (> n 10))
-          (expect (zero? hit))
+          ;; Not one number sits on the first letters of its own title.
+          (expect (zero? on-head))
+          ;; And none buries a neighbour's word: measured 0 of 25, worst 3%.
+          (expect (zero? buried))
+          (expect (<= worst 10))
+          (sut/remove-overlays! pg))))
+
+    (it "a mark wears its own box's colour, and neighbours differ"
+
+      ;; Regression: one amber for every element meant a dense page's numbers
+      ;; could not be paired with the boxes they named.
+      (core/with-testing-page [pg]
+        (page/set-content! pg (str "<html><body style='margin:0'>"
+                                (apply str (for [i (range 4)]
+                                             (str "<button style='display:block;width:120px;height:40px'>Go " i "</button>")))
+                                "</body></html>"))
+        (let [snap  (snapshot/capture-snapshot pg)
+              _     (sut/inject-overlays! pg (:refs snap))
+              pairs (page/evaluate pg
+                      (str "(function(){"
+                        "var out = [];"
+                        "var marks = Array.from(document.querySelectorAll('[data-spel-annotate=\"mark\"]'));"
+                        "for (var i = 0; i < marks.length; i++) {"
+                        "  var ref = marks[i].getAttribute('data-spel-ref');"
+                        "  var box = document.querySelector('[data-spel-annotate=\"box\"][data-spel-ref=\"' + ref + '\"]');"
+                        "  var cs = getComputedStyle(marks[i]), bs = getComputedStyle(box);"
+                        "  out.push(cs.backgroundColor + '|' + bs.borderTopColor);"
+                        "}"
+                        "return out;})()"))
+              pairs (mapv str pairs)]
+          (expect (>= (count pairs) 4))
+          ;; Mark chip and box outline are the same hue, entry by entry.
+          (doseq [p pairs]
+            (let [[chip outline] (str/split p #"\|")]
+              (expect (= chip outline))))
+          ;; Numbering is in reading order, so consecutive entries never repeat.
+          (expect (= (count pairs) (count (distinct pairs))))
           (sut/remove-overlays! pg))))
 
     (it "annotated is larger than raw screenshot"

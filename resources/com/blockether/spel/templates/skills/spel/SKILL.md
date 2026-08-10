@@ -33,7 +33,7 @@ Use `--allowed-domains "example.com,*.example.com"` when scope is known. Add `--
 
 A snapshot is the proposal, never a bare screenshot: every row already carries geometry — `link "Learn more" [@e6t2x4] [pos:256,186 82×18]` — so an overlap, an indent, a hit target or an element below the fold is REPORTED as those figures. `get box <sel>` answers a single element; `snapshot -i -S --minimal` explains two boxes that measure the same but look different.
 
-Pair every visual claim with an annotated artifact. `screenshot -a <path>` (or `overview`) draws an outline around each element, stamps it with a MARK — a bare number, placed in the margin so it never covers the text it points at — and prints the reference table under the saved path; `annotate` draws the same in the live page and prints the table without saving a file:
+Pair every visual claim with an annotated artifact. `screenshot -a <path>` (or `overview`) outlines each actionable element in its own colour, stamps it with a MARK in that same colour — a bare number, placed clear of the words it points at — and prints the reference table under the saved path; `annotate` draws the same in the live page and prints the table without saving a file:
 
 ```bash
 spel --session "$SESSION" screenshot -a /tmp/page.png
@@ -42,7 +42,7 @@ spel --session "$SESSION" screenshot -a /tmp/page.png
 #   #2  @e6t2x4  link     "Learn more"
 ```
 
-The picture carries the number and nothing else, so the table is the whole legend: it is the only thing mapping a drawn mark to a ref the reader can act on, and an answer that shows the image without it is unreadable. Marks are numbered top→down, left→right and are placed collision-aware, so a dense form stays legible. `--dimensions` adds `WxH` to each mark when the size must be visible in the pixels; the figures otherwise come from `snapshot -i`. Scope a busy page or the table becomes the report: an unscoped Wikipedia article annotates 2057 refs. Narrow with `annotate -s "<sel>"` then `screenshot`, `overview -s "<sel>"`, `snapshot -i -c -s "<sel>"`, `-d N`, or the global `--max-output N`; run `unannotate` when overlays were injected manually.
+The picture carries the number and nothing else, so the table is the whole legend: it is the only thing mapping a drawn mark to a ref the reader can act on, and an answer that shows the image without it is unreadable. A mark and its box share one colour, so on a crowded page the pairing survives; marks are numbered top→down, left→right and placed against both the marks already drawn and the page's own words. Only what can be acted on is drawn — paragraphs, spans and list items are read from `snapshot -i`, or added to the picture with `--text`. `--dimensions` adds `WxH` to each mark when the size must be visible in the pixels. Scope a busy page or the table becomes the report: an unscoped Wikipedia article annotates hundreds of refs. Narrow with `annotate -s "<sel>"` then `screenshot`, `overview -s "<sel>"`, `snapshot -i -c -s "<sel>"`, `-d N`, or the global `--max-output N`; run `unannotate` when overlays were injected manually.
 
 ## Choose the surface
 
