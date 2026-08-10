@@ -98,7 +98,7 @@ jobs:
         id: guard
         env:
           CLJ_WATSON_NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run:
+        run: |
           if [ -z "${CLJ_WATSON_NVD_API_KEY}" ]; then
             echo "::warning::NVD_API_KEY secret not set — skipping the NVD/dependency-check scan. Add it in repository Actions secrets."
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -129,7 +129,7 @@ jobs:
           # Scope the external-service credential to the scanner process only;
           # setup/cache actions must never inherit it.
           CLJ_WATSON_NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run:
+        run: |
           set -uo pipefail
           clojure -M:clj-watson scan -p deps.edn -a '*' \
             -t dependency-check -o sarif > clj-watson-nvd.raw 2> clj-watson-nvd.stderr || true
