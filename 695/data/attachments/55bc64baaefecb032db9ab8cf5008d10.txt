@@ -1,0 +1,11 @@
+[viewport: 800x600]
+- body
+  - heading "Registration Form" [@e9lf13] [level=2] [pos:20,40 760×28]
+  - form [@e5eg9h] [pos:20,88 760×200]
+    - div
+      - label "Email Address" [@e5e404] [pos:20,88 760×16]
+      - textbox "Email Address" [@e6psmb] [pos:20,108 300×36]
+    - div
+      - label "Password" [@e5w4lz] [pos:20,164 760×16]
+      - textbox "Password" [@e18c1v] [pos:20,184 300×36]
+    - button "Create Account" [@e88kk3] [clickable] [pos:20,250 149×38]
