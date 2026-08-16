@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.27] - 2026-08-16
+
+### Changed
+- fix(cli): find a daemon by the command line the OS keeps
+- build(make): run the native-image gate inside make lint
+- fix(core): keep the handler-error tally unboxed
+- fix(daemon): report a navigation that never arrived
+- perf(daemon): snapshot where a ref is used, not after every action
+- fix(ios): root a native ref XPath where WDA can resolve it
+- perf(ios): stop re-dumping the XCTest tree after every gesture
+- fix(daemon): end a command on a crashed renderer, and cap the snapshot
+- fix(daemon): keep a session alive when a command never comes back
+- fix(daemon): serve one session name with one daemon
+- release: update version files for v0.9.26, bump to next dev version
+
+
 ## [v0.9.26] - 2026-08-10
 
 ### Changed
@@ -1958,7 +1974,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.26...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.27...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2040,3 +2056,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.24]: https://github.com/Blockether/spel/releases/tag/v0.9.24
 [v0.9.25]: https://github.com/Blockether/spel/releases/tag/v0.9.25
 [v0.9.26]: https://github.com/Blockether/spel/releases/tag/v0.9.26
+[v0.9.27]: https://github.com/Blockether/spel/releases/tag/v0.9.27
