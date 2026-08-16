@@ -75,6 +75,7 @@ Use the bundled HTML or Markdown report asset when the user requests a formal QA
 - Re-snapshot after navigation, modal changes, rerenders, or stale-ref errors.
 - Prefer `@refs`, role/name, label, and test-id targeting over brittle selectors.
 - Propose the snapshot, not a bare screenshot, and state every geometric claim — edge, gutter, overlap, hit target, below the fold — as the `[pos:X,Y W×H]` figures it was read from (`get box <sel>` for one element).
+- Read what the tree cannot state with `eval-js`: `visualViewport` and keyboard insets, scroll offsets, computed styles, the geometry of a node no ref names. One JSON string back, and the answer quotes those numbers.
 - Scope annotations (`annotate -s`, `overview -s`, `snapshot -s`, `-d N`, `--max-output N`) before capturing a busy page; an unscoped article still annotates hundreds of refs. The overlay draws actionable elements only — pass `--text` when prose must appear in the picture.
 - Split navigation from readiness checks; use URL/text/DOM/load conditions instead of arbitrary sleep.
 - Use `--interactive` for captcha, 2FA, protected login, or a requested visual walkthrough. Let the user perform the protected step, then continue in the same session.
@@ -84,7 +85,7 @@ Use the bundled HTML or Markdown report asset when the user requests a formal QA
 
 - Stuck command: `spel --session "$SESSION" health --json` reads that session's command ledger — the in-flight command, its id, and how long it has been running — then `spel --session "$SESSION" cancel <id>`.
 - `daemon_busy` means the ledger already holds another command; cancel it instead of retrying. `command_timeout` means the watchdog killed a command that exceeded `SPEL_COMMAND_BUDGET_MS` (default 25s); the daemon stays usable.
-- Stale ref: fresh `snapshot -i`, then retry once with the corrected target.
+- Stale ref: `click`/`fill` exits **1** with `Error: Ref <id> not found.` plus the available refs, so a miss is never silent — chain commands with `&&` or that exit code is swallowed. Fresh `snapshot -i`, then retry once with the corrected target.
 - Missing output: inspect `spel --session "$SESSION" logs -n 100`.
 - Browser crash: allow spel's next-command recovery before replacing the session.
 - Unreachable target or unsatisfied auth: report the concrete blocker; do not fabricate completion.
