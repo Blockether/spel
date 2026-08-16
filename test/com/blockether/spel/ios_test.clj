@@ -118,6 +118,32 @@
                     (throw (ex-info "reflective SAX entrypoint called" {})))]
       (expect (= 2 (:counter (sut/native-snapshot-from-xml sample-native-source)))))))
 
+;; Regression, issue #129: every native ref XPath began with Appium's <AppiumAUT>
+;; wrapper, which WDA's XPath engine cannot see, so a ref that snapshot -i had
+;; just printed answered "no such element" and was reported as stale.
+(defdescribe native-ref-xpath-root-test
+  "Native ref XPaths are rooted where WDA resolves them"
+
+  (it "drops the AppiumAUT wrapper that GET /source adds"
+    (let [refs (:refs (sut/native-snapshot-from-xml sample-native-source))]
+      (expect (seq refs))
+      (doseq [[_ info] refs]
+        (expect (not (str/includes? (:locator info) "AppiumAUT")))
+        (expect (str/starts-with? (:locator info) "/XCUIElementTypeApplication[1]/")))))
+
+  (it "roots a source that arrives without the wrapper the same way"
+    (let [refs (:refs (sut/native-snapshot-from-xml
+                        (-> sample-native-source
+                          (str/replace "<AppiumAUT>" "")
+                          (str/replace "</AppiumAUT>" ""))))]
+      (expect (seq refs))
+      (doseq [[_ info] refs]
+        (expect (str/starts-with? (:locator info) "/XCUIElementTypeApplication[1]/")))))
+
+  (it "spends no tree line and no depth level on the wrapper"
+    (let [tree (:tree (sut/native-snapshot-from-xml sample-native-source))]
+      (expect (str/starts-with? tree "- application \"Example\""))
+      (expect (not (str/includes? tree "- node"))))))
 ;; =============================================================================
 ;; Device parsing
 ;; =============================================================================

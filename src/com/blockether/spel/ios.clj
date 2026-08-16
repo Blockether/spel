@@ -1098,16 +1098,18 @@
 
 (defn native-snapshot-from-xml
   "Converts Appium's XCTest XML source into a compact semantic tree with
-   snapshot-scoped native refs. Each ref stores an XPath locator.
+   snapshot-scoped native refs. Each ref stores an XPath locator rooted at the
+   application element, which is where WDA resolves an XPath query.
 
    Returns {:tree :refs :counter :native true :context \"NATIVE_APP\"}."
   [source]
-  (let [root    (xml/parse
-                  (ByteArrayInputStream. (.getBytes (str source) "UTF-8"))
-                  native-startparse-sax-safe)
-        refs*   (atom {})
-        counter (atom 0)
-        lines*  (atom [])]
+  (let [root     (xml/parse
+                   (ByteArrayInputStream. (.getBytes (str source) "UTF-8"))
+                   native-startparse-sax-safe)
+        root-tag (name (:tag root))
+        refs*    (atom {})
+        counter  (atom 0)
+        lines*   (atom [])]
     (letfn [(walk [node path depth]
               (when (map? node)
                 (let [tag      (name (:tag node))
@@ -1127,14 +1129,20 @@
                     (swap! refs* assoc ref-id
                       {:role role :name label :type type :value value
                        :selector selector :using "xpath" :locator path}))
-                  (loop [children (filter map? (:content node))
-                         tag-counts {}]
-                    (when-let [child (first children)]
-                      (let [child-tag (name (:tag child))
-                            index     (inc (long (get tag-counts child-tag 0)))]
-                        (walk child (str path "/" child-tag "[" index "]") (inc (long depth)))
-                        (recur (rest children) (assoc tag-counts child-tag index))))))))]
-      (walk root (str "/" (name (:tag root)) "[1]") 0)
+                  (walk-children (:content node) path (inc (long depth))))))
+            (walk-children [content path depth]
+              (loop [children   (filter map? content)
+                     tag-counts {}]
+                (when-let [child (first children)]
+                  (let [child-tag (name (:tag child))
+                        index     (inc (long (get tag-counts child-tag 0)))]
+                    (walk child (str path "/" child-tag "[" index "]") depth)
+                    (recur (rest children) (assoc tag-counts child-tag index))))))]
+      ;; Appium wraps GET /source in <AppiumAUT>, but WDA resolves an XPath against
+      ;; the application element, so a locator carrying the wrapper matches nothing.
+      (if (str/starts-with? root-tag "XCUIElementType")
+        (walk root (str "/" root-tag "[1]") 0)
+        (walk-children (:content root) "" 0))
       {:tree (str/join "\n" @lines*)
        :refs @refs*
        :counter @counter
