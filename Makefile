@@ -39,8 +39,9 @@ allure: test-allure allure-serve ## Tests → report → open in browser
 format: ## Auto-format all source files
 	clojure-lsp format
 
-lint: ## Diagnostics via clojure-lsp (includes clj-kondo)
+lint: ## The two gates CI runs: clojure-lsp diagnostics (clj-kondo) + GraalVM native-image safety
 	clojure-lsp diagnostics --raw
+	@$(MAKE) --no-print-directory validate-safe-graal
 
 validate-safe-graal: ## Check src for GraalVM native-image safety (reflection/boxed math)
 	@echo "Checking root src for GraalVM native-image safety..."

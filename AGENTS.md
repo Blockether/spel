@@ -28,7 +28,7 @@ Spel is a Clojure Playwright library with SCI and CLI/daemon surfaces. Implement
 ## Tests and generated files
 
 - Test at the owning surface: SCI/daemon in `cli_integration_test.clj`, parsing in `cli_test.clj`, native commands in `test-cli.sh`, and other behavior in its matching `*_test.clj`. Assert browser/DOM state, not only absence of exceptions.
-- Before finishing, run `make lint`, `make test`, and `make test-cli`.
+- Before finishing, run `make lint` (clojure-lsp plus the GraalVM native-image gate CI enforces) and `make test` (Clojure suite plus `test-cli.sh`). The work is finished when the CI run on the pushed commit is green — a release tag may only be cut from such a commit.
 - Edit agent templates only under `resources/com/blockether/spel/templates/`; never edit generated `.opencode` files. After upgrades, regenerate with `spel init-agents --force --no-tests`.
 
 ## Releases
