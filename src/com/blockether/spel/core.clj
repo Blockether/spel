@@ -84,7 +84,7 @@
 
 (defn- record-handler-error!
   "Counts one failure of `label` and returns its running total."
-  [label ^Throwable e]
+  ^long [label ^Throwable e]
   (let [now (System/currentTimeMillis)]
     (long (get-in (swap! !handler-errors update label
                     (fn [entry]
