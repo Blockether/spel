@@ -7,6 +7,7 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.cli :as cli]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as sut]
    [com.blockether.spel.page :as page]
@@ -18,6 +19,7 @@
    [com.sun.net.httpserver HttpHandler HttpsConfigurator HttpsServer]
    [java.io BufferedReader File FileInputStream InputStreamReader]
    [java.net InetAddress InetSocketAddress]
+   [java.nio.file Files]
    [java.security KeyStore]
    [javax.net.ssl KeyManagerFactory SSLContext]))
 
@@ -1611,3 +1613,81 @@
   (it "still reports a genuine cancellation as cancelled"
     (let [resp (json/read-json (#'sut/cancelled-response "test-plain-cancel" "snapshot"))]
       (expect (= "cancelled" (get resp "error_code"))))))
+
+;; =============================================================================
+;; Regression, issue #126: two `spel --session s` commands that started together
+;; each concluded that no daemon was running and each spawned one. The second
+;; daemon deleted the first's socket and PID file and bound its own socket at
+;; the same path, so the first kept a browser nobody could reach while every
+;; later command answered from a blank session — and all of it reported success.
+;; =============================================================================
+
+(defn- session-daemon-pids
+  "PIDs of the live daemon processes started for `session`, read from the
+   process table.
+
+   The PID file names exactly one owner by construction, so only the process
+   table can witness two processes answering to the same session name.
+
+   Params:
+   `session` - String session name.
+
+   Returns:
+   Vector of Long PIDs."
+  [^String session]
+  (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
+    (filter (fn [^java.lang.ProcessHandle ph]
+              (let [command (.orElse (.commandLine (.info ph)) "")]
+                (and (str/includes? command "daemon")
+                  (str/includes? command (str "--session " session))))))
+    (mapv (fn [^java.lang.ProcessHandle ph] (.pid ph)))))
+
+(defn- kill-session-daemons!
+  "Force-kills every daemon process for `session` and removes its files."
+  [^String session]
+  (doseq [pid (session-daemon-pids session)]
+    (when-let [ph (.orElse (java.lang.ProcessHandle/of (long pid)) nil)]
+      (.destroyForcibly ^java.lang.ProcessHandle ph)))
+  (doseq [^java.nio.file.Path p [(sut/socket-path session) (sut/pid-file-path session)]]
+    (try (Files/deleteIfExists p) (catch Exception _ nil))))
+
+(defdescribe session-ownership-test
+  "One session name is served by one daemon (issue #126)"
+
+  (it "answers two simultaneous starts with a single daemon"
+    (let [session (str "spel-ownership-" (System/currentTimeMillis))]
+      (try
+        (run! deref (mapv (fn [_] (future (cli/ensure-daemon! session {}))) (range 2)))
+        ;; The loser exits on its own, and on a loaded machine it is still on
+        ;; its way out when the winner is already serving: settle the process
+        ;; table instead of snapshotting it.
+        (let [deadline (+ (System/currentTimeMillis) 15000)]
+          (loop []
+            (when (and (> (count (session-daemon-pids session)) 1)
+                    (< (System/currentTimeMillis) deadline))
+              (Thread/sleep 100)
+              (recur))))
+        (expect (= 1 (count (session-daemon-pids session))))
+        ;; The log is the second witness: only the owner may reach the socket.
+        (let [text (str/join "\n" (logging/read-lines session {:lines 200}))]
+          (expect (= 1 (count (re-seq #"listening on" text)))))
+        (finally
+          (kill-session-daemons! session)))))
+
+  (it "takes over a session whose recorded owner is gone and says so"
+    (let [session (str "spel-stale-owner-" (System/currentTimeMillis))
+          err     (java.io.StringWriter.)]
+      (try
+        ;; Above every platform's pid_max, so the file names a process that
+        ;; cannot be alive — a daemon killed with SIGKILL leaves exactly this.
+        (Files/writeString (sut/pid-file-path session) "999999"
+          (into-array java.nio.file.OpenOption []))
+        (binding [*err* err]
+          (cli/ensure-daemon! session {}))
+        (expect (= 1 (count (session-daemon-pids session))))
+        ;; Replacing a dead daemon in silence is what made the fresh, blank
+        ;; browser look like a second one nobody asked for.
+        (expect (str/includes? (str err) "999999"))
+        (expect (str/includes? (str err) "fresh browser"))
+        (finally
+          (kill-session-daemons! session))))))

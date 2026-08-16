@@ -3478,6 +3478,21 @@
     (println (str "spel: daemon not responding (" (transport-cause e) ") — restarting"
                " (attempt " attempt "/5); browser state for session '" session "' is reset"))))
 
+(defn- warn-lost-daemon!
+  "Tells the user on stderr that the daemon which served this session between
+   commands is gone, so the command about to run starts a blank browser.
+   `warn-daemon-restart!` covers a daemon that vanishes DURING a command; one
+   killed BETWEEN two commands was replaced in silence, which is exactly what
+   makes the next `open` look like spel opened the browser a second time."
+  [session]
+  (when-let [pid (read-pid session)]
+    (let [reason (daemon-exit-reason session)]
+      (log/warn! "daemon gone: session=" session " pid=" pid
+        (when reason (str " reason=" reason)))
+      (binding [*out* *err*]
+        (println (str "spel: daemon " pid " for session '" session "' is gone"
+                   (when reason (str " — " reason))
+                   "; starting a fresh browser (page, cookies and refs from before are lost)"))))))
 (defn daemon-failure-report
   "Multi-line explanation for a command that never got a daemon response.
 
@@ -3728,8 +3743,6 @@
   "Starts a new daemon subprocess and waits until its socket is connectable.
    Returns true if the daemon started successfully."
   [session opts]
-  ;; Clean up any stale files before starting
-  (cleanup-session-files! session)
   (let [info      (.info (java.lang.ProcessHandle/current))
         exec-path (when (.isPresent (.command info))
                     (.get (.command info)))
@@ -3786,9 +3799,11 @@
       ;; Process alive but socket broken — kill and clean up
       (kill-stale-daemon! session)))
 
-  ;; Start daemon if not running
+  ;; Start daemon if not running. A PID file left behind by a daemon that is
+  ;; no longer alive is the between-commands death: say so before the
+  ;; replacement starts blank.
   (when-not (daemon/daemon-running? session)
-    (cleanup-session-files! session)
+    (warn-lost-daemon! session)
     (start-daemon-process! session opts)))
 
 ;; =============================================================================

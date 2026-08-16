@@ -44,7 +44,7 @@
    [java.lang ProcessBuilder$Redirect]
    [java.net HttpURLConnection StandardProtocolFamily UnixDomainSocketAddress URL]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
-   [java.nio.file Files Path]
+   [java.nio.file FileAlreadyExistsException Files Path StandardOpenOption]
    [java.util Base64]
    [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]
    [java.util.concurrent.locks ReentrantLock]
@@ -5921,6 +5921,61 @@
         (= (str/trim (String. (Files/readAllBytes pid-path))) (my-pid))
         (catch Exception _ false)))))
 
+(defn- live-daemon-pid
+  "Returns the PID recorded in `session`'s PID file when that process is still
+   alive, else nil. A record naming a dead process is stale, not an owner."
+  [^String session]
+  (let [pid-path (pid-file-path session)]
+    (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
+      (try
+        (let [pid (Long/parseLong (str/trim (String. (Files/readAllBytes pid-path))))
+              ph  (.orElse (java.lang.ProcessHandle/of pid) nil)]
+          (when (and ph (.isAlive ^java.lang.ProcessHandle ph)) pid))
+        (catch Exception _ nil)))))
+
+(defn- claim-session!
+  "Claims the session NAME for this process. Returns nil when this process now
+   owns the session, or the PID of the live daemon that already owns it.
+
+   The PID file is the ownership record for a session name, so the claim is an
+   atomic CREATE_NEW that either wins or loses — never a delete-then-write. Two
+   `spel --session S` invocations fired together used to start two daemons that
+   both wiped the record and both bound the socket: two browsers launched, the
+   first one unreachable, and every later command silently answered by the
+   second.
+
+   A record naming a dead process is stale: it is removed and the claim
+   retried."
+  [^String session]
+  (let [pid-path (pid-file-path session)
+        mine     (my-pid)]
+    (loop [attempt 0]
+      (let [claimed? (try
+                       (Files/writeString pid-path mine
+                         (into-array java.nio.file.OpenOption
+                           [StandardOpenOption/CREATE_NEW StandardOpenOption/WRITE]))
+                       true
+                       (catch FileAlreadyExistsException _ false)
+                       (catch Exception e
+                         ;; An unwritable run directory is not a competing
+                         ;; owner: serve the session rather than refuse to
+                         ;; start at all.
+                         (warn "claim-session" e)
+                         true))]
+        (if claimed?
+          nil
+          (if-let [owner (live-daemon-pid session)]
+            owner
+            (if (< (long attempt) 2)
+              ;; Stale record: the process it names is gone, so the socket and
+              ;; flags it left behind are gone with it.
+              (do (cleanup! session)
+                  (recur (inc (long attempt))))
+              ;; The record keeps reappearing and never names a live process —
+              ;; take the name rather than spin on it.
+              (do (try (Files/writeString pid-path mine (into-array java.nio.file.OpenOption []))
+                       (catch Exception e (warn "claim-session" e)))
+                  nil))))))))
 (defn- save-inflight-trace!
   "If tracing is active, stops the trace and saves it to an auto-generated path.
    Logs a warning to stderr so the user knows where the trace file went.
@@ -6031,52 +6086,16 @@
        (when-not @!in-shutdown-hook
          (.halt (Runtime/getRuntime) 0))))))
 
-(defn start-daemon!
-  "Starts the daemon server. Blocks until shutdown.
-
-   Params:
-   `opts` - Map:
-     :session  - String (default 'default')
-     :headless - Boolean (default true)
-     :browser  - String (optional, e.g. 'firefox', 'webkit')
-     :cdp      - String (optional, CDP endpoint URL)"
-  [opts]
-  (let [session  (get opts :session "default")
-        headless (get opts :headless true)
-        browser  (get opts :browser)
-        cdp-url  (get opts :cdp)
-        sock-path (socket-path session)
-        pid-path  (pid-file-path session)]
-    ;; One log system: the daemon logs through the same sink the CLI writes to
-    ;; and `spel logs` reads. Mirroring to stderr is off — the daemon's stdout
-    ;; and stderr are already redirected into that same file by the CLI, so a
-    ;; mirror would duplicate every line.
-    (log/init! {:session session :component "daemon" :mirror :off})
-    (log/info! "daemon starting session=" session
-      " pid=" (.pid (java.lang.ProcessHandle/current))
-      " headless=" headless
-      (when browser (str " browser=" browser))
-      (when cdp-url (str " cdp=" cdp-url)))
-
-    ;; Store session config + initial launch flags (browser type from CLI args)
-    (swap! !state assoc :headless headless :session session)
-    (when browser
-      (swap! !state assoc-in [:launch-flags "browser"] browser))
-    (when cdp-url
-      (swap! !state assoc-in [:launch-flags "cdp"] cdp-url))
-
-    ;; Persist launch flags so CLI can recover them (e.g. --cdp) on subsequent commands
-    (persist-launch-flags!)
-
-    ;; Clean up stale socket
-    (cleanup! session)
-
-    ;; Write PID file
-    (Files/writeString pid-path
-      (str (.pid (java.lang.ProcessHandle/current)))
-      (into-array java.nio.file.OpenOption []))
-
-    ;; Create Unix domain socket server
+(defn- serve-session!
+  "Binds the session socket and serves connections until shutdown. Only the
+   process that claimed `session` may call this: binding the socket is what
+   makes a daemon reachable under that name, so it happens exactly once."
+  [^String session]
+  (let [sock-path (socket-path session)]
+    ;; A socket file outlives the process that bound it and bind refuses to
+    ;; reuse the path. Deleting it is safe here and only here: the session is
+    ;; already claimed, so no live daemon is listening on it.
+    (try (Files/deleteIfExists sock-path) (catch Exception e (warn "delete-socket" e)))
     (let [addr   (UnixDomainSocketAddress/of (.toString sock-path))
           server (ServerSocketChannel/open StandardProtocolFamily/UNIX)]
       (.bind server addr)
@@ -6119,3 +6138,53 @@
             (identical? ::retry client)  (recur)
             :else (do (submit-virtual #(handle-connection client))
                       (recur))))))))
+
+(defn start-daemon!
+  "Starts the daemon server. Blocks until shutdown.
+
+   One session NAME is served by one daemon. The PID file is the ownership
+   record and `claim-session!` picks the winner, so a start that loses the race
+   exits without launching a browser instead of stealing the socket from the
+   daemon already serving that name.
+
+   Params:
+   `opts` - Map:
+     :session  - String (default 'default')
+     :headless - Boolean (default true)
+     :browser  - String (optional, e.g. 'firefox', 'webkit')
+     :cdp      - String (optional, CDP endpoint URL)"
+  [opts]
+  (let [session  (get opts :session "default")
+        headless (get opts :headless true)
+        browser  (get opts :browser)
+        cdp-url  (get opts :cdp)]
+    ;; One log system: the daemon logs through the same sink the CLI writes to
+    ;; and `spel logs` reads. Mirroring to stderr is off — the daemon's stdout
+    ;; and stderr are already redirected into that same file by the CLI, so a
+    ;; mirror would duplicate every line.
+    (log/init! {:session session :component "daemon" :mirror :off})
+    (log/info! "daemon starting session=" session
+      " pid=" (.pid (java.lang.ProcessHandle/current))
+      " headless=" headless
+      (when browser (str " browser=" browser))
+      (when cdp-url (str " cdp=" cdp-url)))
+
+    (if-let [owner (claim-session! session)]
+      ;; Losing the race is a normal outcome, not a failure: the CLI that
+      ;; spawned this process finds the winner's socket and talks to the one
+      ;; browser. Starting a second one is what made spel look like it opened
+      ;; the browser twice.
+      (log/info! "session=" session " already served by pid " owner
+        " — this daemon exits without starting a browser")
+      (do
+        ;; Store session config + initial launch flags (browser type from CLI args)
+        (swap! !state assoc :headless headless :session session)
+        (when browser
+          (swap! !state assoc-in [:launch-flags "browser"] browser))
+        (when cdp-url
+          (swap! !state assoc-in [:launch-flags "cdp"] cdp-url))
+
+        ;; Persist launch flags so CLI can recover them (e.g. --cdp) on subsequent commands
+        (persist-launch-flags!)
+
+        (serve-session! session)))))
