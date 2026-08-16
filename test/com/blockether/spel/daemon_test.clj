@@ -2295,3 +2295,28 @@
           (fn [] (#'sut/dispatch-cmd "snapshot" {}))))
       (expect (false? (:refs-stale? @state-atom)))
       (expect (= {"e2" {:role "link"}} (:refs @state-atom))))))
+
+;; Regression, issue #131: a failed navigation was reported as a successful one.
+;; `handle-cmd "navigate"` discarded the anomaly `page/navigate` returns, so
+;; `spel open` answered rc=0 with the URL of the tab it never left — a blocked,
+;; refused or unresolvable address looked exactly like a page that loaded.
+(defdescribe navigation-failure-test
+  "a navigation that never arrived is reported as a failure"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a URL the browser cannot reach"
+    (it "answers an error instead of the URL of the tab that stayed put"
+      (core/with-testing-page [pg]
+        (let [state-atom (deref #'sut/!state)
+              before     @state-atom
+              ctx        (.context ^com.microsoft.playwright.Page pg)]
+          (try
+            (reset! state-atom (assoc before :browser (.browser ctx) :context ctx :page pg))
+            (let [resp (json/read-json
+                         (#'sut/process-command
+                          (json/write-json-str {"action" "navigate"
+                                                "url"    "http://127.0.0.1:1/"})))]
+              (expect (false? (get resp "success")))
+              (expect (str/includes? (str (get resp "error")) "127.0.0.1:1")))
+            (finally
+              (reset! state-atom before))))))))

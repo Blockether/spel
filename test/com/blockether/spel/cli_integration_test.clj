@@ -819,6 +819,9 @@
         (expect (true? (:offline r)))))
 
     (it "disable offline"
+      ;; The previous case leaves the shared browser offline, and until issue #131
+      ;; a navigation that failed for it was reported as a page that loaded.
+      (cmd "set_offline" {"enabled" false})
       (nav! "/test-page")
       (cmd "set_offline" {"enabled" true})
       (let [r (cmd "set_offline" {"enabled" false})]

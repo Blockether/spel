@@ -936,7 +936,9 @@ fi
 
 OUT=$(timeout 15 "$SPEL" --json --allowed-domains "only-this.example" open https://example.com 2>&1)
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if echo "$OUT" | jq -e '.error' >/dev/null 2>&1 || echo "$OUT" | grep -qi "blockedbyclient\|block\|error"; then
+# The daemon must REPORT the block: matching the word "error" anywhere in the
+# output once passed on a chrome-error:// URL under a rc=0 success (issue #131).
+if echo "$OUT" | jq -e '.error' >/dev/null 2>&1; then
   pass "--allowed-domains blocks non-allowed navigation"
 else
   fail "--allowed-domains blocks non-allowed navigation" "expected error, got: $(echo "$OUT" | head -c 200)"

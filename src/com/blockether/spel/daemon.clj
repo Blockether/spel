@@ -3011,7 +3011,10 @@
   ;; Set viewport before navigation so the page renders at the requested size.
   (when (and viewport-width viewport-height)
     (page/set-viewport-size! (pg) (long viewport-width) (long viewport-height)))
-  (page/navigate (pg) url)
+  ;; `page/navigate` answers an anomaly instead of throwing, and a discarded one
+  ;; turned a blocked, refused or unresolvable address into a successful command
+  ;; reporting the URL of the tab the caller never left (issue #131).
+  (unwrap-anomaly! (page/navigate (pg) url))
   (page/wait-for-load-state (pg))
   ;; Track page navigation for page refs
   (track-page-navigation! (page/url (pg)) 200 (try (page/title (pg)) (catch Exception _ "")))
