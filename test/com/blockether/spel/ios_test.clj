@@ -982,3 +982,80 @@
   (it "honors explicit timeouts from the caller"
     (expect (= {:timeout-ms 1000 :command-timeout-ms 2000}
               (sut/session-timeouts {:session-timeout-ms 1000 :command-timeout-ms 2000})))))
+
+;; =============================================================================
+;; Window size and context listing — cost of a native gesture
+;; =============================================================================
+
+;; Regression, issue #128: every direction swipe re-read the window rect, a call
+;; WDA answers from a fresh snapshot of the whole app (7.4 s median on a webview
+;; app), for a value that only changes when the device rotates.
+(defdescribe native-window-size-test
+  "native gestures reuse the window size until the device rotates"
+
+  (let [rect-session (fn [] (sut/map->IosSession {:webdriver :fake
+                                                  :context* (atom "NATIVE_APP")
+                                                  :viewport* (atom nil)}))]
+
+    (it "reads the window rect once for repeated swipes"
+      (let [reads*  (atom 0)
+            session (rect-session)]
+        (with-redefs [webdriver/window-rect (fn [_] (swap! reads* inc)
+                                              {:x 0 :y 0 :width 390 :height 844})
+                      webdriver/swipe-screen (fn [_ _] nil)]
+          (sut/swipe session {:direction :up :distance 300})
+          (sut/swipe session {:direction :down :distance 300})
+          (sut/swipe session {:direction :up :distance 300}))
+        (expect (= 1 @reads*))))
+
+    (it "reads it again after a rotation"
+      (let [reads*  (atom 0)
+            session (rect-session)]
+        (with-redefs [webdriver/window-rect (fn [_] (swap! reads* inc)
+                                              {:x 0 :y 0 :width 390 :height 844})
+                      webdriver/swipe-screen (fn [_ _] nil)
+                      webdriver/set-orientation (fn [_ requested] requested)]
+          (sut/swipe session {:direction :up :distance 300})
+          (sut/set-orientation! session :landscape)
+          (sut/swipe session {:direction :up :distance 300}))
+        (expect (= 2 @reads*))))
+
+    (it "reads it again after another application takes the window"
+      (let [reads*  (atom 0)
+            session (rect-session)]
+        (with-redefs [webdriver/window-rect (fn [_] (swap! reads* inc)
+                                              {:x 0 :y 0 :width 390 :height 844})
+                      webdriver/swipe-screen (fn [_ _] nil)
+                      webdriver/activate-app (fn [_ bundle] bundle)
+                      webdriver/switch-context (fn [_ context] context)]
+          (sut/swipe session {:direction :up :distance 300})
+          (sut/activate-app! session "com.example.other")
+          (sut/swipe session {:direction :up :distance 300}))
+        (expect (= 2 @reads*))))))
+
+;; Regression, issue #128: entering a context the session was already in still
+;; listed the application's contexts, and a wrapped operation listed twice —
+;; 302 listings, 58 s of one session's WDA time.
+(defdescribe context-listing-test
+  "already being in the requested context lists no contexts"
+
+  (it "answers the current context without listing"
+    (let [listings* (atom 0)
+          session   (sut/map->IosSession {:webdriver :fake
+                                          :context* (atom "NATIVE_APP")})]
+      (with-redefs [webdriver/current-context (fn [_] "NATIVE_APP")
+                    webdriver/contexts (fn [_] (swap! listings* inc) ["NATIVE_APP"])]
+        (expect (= "NATIVE_APP" (sut/use-context! session :native)))
+        (expect (= "NATIVE_APP" (sut/use-context! session "NATIVE_APP")))
+        (expect (zero? @listings*)))))
+
+  (it "lists them when the target is another context"
+    (let [listings* (atom 0)
+          session   (sut/map->IosSession {:webdriver :fake
+                                          :context* (atom "NATIVE_APP")})]
+      (with-redefs [webdriver/current-context (fn [_] "NATIVE_APP")
+                    webdriver/contexts (fn [_] (swap! listings* inc)
+                                         ["NATIVE_APP" "WEBVIEW_1"])
+                    webdriver/switch-context (fn [_ context] context)]
+        (expect (= "WEBVIEW_1" (sut/use-context! session :webview)))
+        (expect (= 1 @listings*))))))

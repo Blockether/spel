@@ -7,6 +7,7 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.backend :as backend]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.daemon :as sut]
@@ -2138,3 +2139,92 @@
           (finally
             ((var-get #'sut/forget-crashed-page!) page)
             (reset! state-atom before)))))))
+
+;; =============================================================================
+;; iOS ref freshness — what a gesture is allowed to cost
+;; =============================================================================
+
+;; Regression, issue #128: every iOS gesture captured a full snapshot nobody
+;; asked for — 62 s per capture on a webview app, 7 of 15 captures in one
+;; session — and the refs it published were only ever read by a later @ref.
+(defdescribe ios-ref-freshness-test
+  "iOS refs are recaptured where an @ref is used, not after every action"
+
+  (it "uses a ref map that no command has invalidated"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {"e1" {:selector "xpath=/x[1]"}} :counter 1
+                          :refs-stale? false})
+      (with-redefs [backend/capture-snapshot! (fn [_ _] (swap! captures* inc)
+                                                {:refs {} :counter 0})]
+        (#'sut/ios-check-ref! :backend "@e1"))
+      (expect (zero? @captures*))))
+
+  (it "recaptures once when an earlier command may have repainted the screen"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {"e1" {:selector "xpath=/old[1]"}} :counter 1
+                          :refs-stale? true})
+      (with-redefs [backend/capture-snapshot!
+                    (fn [_ _] (swap! captures* inc)
+                      {:refs {"e1" {:selector "xpath=/new[1]"}} :counter 1})]
+        (#'sut/ios-check-ref! :backend "@e1")
+        (#'sut/ios-check-ref! :backend "@e1"))
+      (expect (= 1 @captures*))
+      (expect (= "xpath=/new[1]" (get-in @state-atom [:refs "e1" :selector])))
+      (expect (false? (:refs-stale? @state-atom)))))
+
+  (it "reports a ref the recapture cannot find as stale"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {} :counter 0 :refs-stale? true})
+      (with-redefs [backend/capture-snapshot! (fn [_ _] {:refs {"e9" {}} :counter 1})]
+        (let [error (try
+                      (#'sut/ios-check-ref! :backend "@e1")
+                      nil
+                      (catch clojure.lang.ExceptionInfo e e))]
+          (expect (some? error))
+          (expect (true? (:stale-ref (ex-data error))))))))
+
+  (it "invalidates refs after a command that can repaint, but not after a read"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {"e1" {}} :counter 1 :refs-stale? false})
+      (with-redefs [sut/ios-provider? (constantly true)
+                    sut/handle-ios-cmd (fn [_ _] {:ok true})]
+        (#'sut/dispatch-cmd "scroll" {})
+        (expect (true? (:refs-stale? @state-atom)))
+        (swap! state-atom assoc :refs-stale? false)
+        (#'sut/dispatch-cmd "get_text" {})
+        (expect (false? (:refs-stale? @state-atom))))))
+
+  (it "invalidates refs even when the command fails"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {"e1" {}} :counter 1 :refs-stale? false})
+      (with-redefs [sut/ios-provider? (constantly true)
+                    sut/handle-ios-cmd (fn [_ _] (throw (ex-info "tap failed" {})))]
+        (try (#'sut/dispatch-cmd "tap" {}) (catch Exception _ nil)))
+      (expect (true? (:refs-stale? @state-atom)))))
+
+  (it "resolves an @ref for a command whose handler never checked one"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {"e1" {:selector "xpath=/old[1]"}} :counter 1
+                          :refs-stale? true})
+      (with-redefs [sut/ios-provider? (constantly true)
+                    sut/ios-backend (constantly :backend)
+                    backend/capture-snapshot! (fn [_ _] (swap! captures* inc)
+                                                {:refs {"e1" {:selector "xpath=/new[1]"}}
+                                                 :counter 1})
+                    sut/handle-ios-cmd (fn [_ _] {:text "hello"})]
+        (#'sut/dispatch-cmd "get_text" {"selector" "@e1"}))
+      (expect (= 1 @captures*))))
+
+  (it "leaves a plain selector alone"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {} :counter 0 :refs-stale? true})
+      (with-redefs [sut/ios-provider? (constantly true)
+                    sut/ios-backend (constantly :backend)
+                    backend/capture-snapshot! (fn [_ _] (swap! captures* inc) {:refs {} :counter 0})
+                    sut/handle-ios-cmd (fn [_ _] {:tapped "name=Send"})]
+        (#'sut/dispatch-cmd "tap" {"selector" "name=Send"}))
+      (expect (zero? @captures*)))))

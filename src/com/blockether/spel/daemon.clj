@@ -5125,31 +5125,54 @@
   (ensure-ios-backend!)
   (:backend @!state))
 
-(defn- ios-snapshot-after-action!
-  "Captures a snapshot through the iOS backend and stores refs in state.
-   Returns the tree string (or nil when capture fails)."
+(defn- ios-publish-refs!
+  "Makes a captured iOS snapshot's refs the current ones."
+  [snap]
+  (swap! !state assoc
+    :refs (:refs snap) :counter (:counter snap) :refs-stale? false)
+  snap)
+
+(defn- ios-refresh-refs!
+  "Recaptures the screen so @refs describe what is on it now. Returns nil when
+   the capture fails; the caller then reports the ref as stale."
   [b]
   (try
-    (let [snap (backend/capture-snapshot! b {})]
-      (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-      (:tree snap))
+    (ios-publish-refs! (backend/capture-snapshot! b {}))
     (catch Exception e
       (warn "ios-snapshot" e)
       nil)))
 
 (defn- ios-check-ref!
-  "For @refs, verifies the ref exists in the current snapshot ref map,
-   refreshing once before failing with a stale-ref error."
+  "Verifies an @ref against the screen as it is NOW: recaptures when an earlier
+   command may have repainted it, then fails with a stale-ref error when the
+   ref is gone.
+
+   A native recapture reads the app's whole XCTest hierarchy — seconds on a
+   webview-heavy app — so it is paid here, where a ref is about to be used,
+   and never after an action that no ref follows."
   [b ^String selector]
   (when (ref? selector)
-    (let [ref-id (str/replace selector #"^@" "")]
+    (let [ref-id (str/replace selector #"^@" "")
+          state  @!state]
+      (when (or (:refs-stale? state) (not (get (:refs state) ref-id)))
+        (ios-refresh-refs! b))
       (when-not (get (:refs @!state) ref-id)
-        (ios-snapshot-after-action! b)
-        (when-not (get (:refs @!state) ref-id)
-          (throw (ex-info (str "Ref " ref-id " not found.\n"
-                            "  - Element found: No\n"
-                            "  - Suggestion: run 'snapshot -i' and retry.")
-                   {:selector selector :found false :stale-ref true})))))))
+        (throw (ex-info (str "Ref " ref-id " not found.\n"
+                          "  - Element found: No\n"
+                          "  - Suggestion: run 'snapshot -i' and retry.")
+                 {:selector selector :found false :stale-ref true}))))))
+
+(defn- ios-resolve-refs!
+  "Makes an @ref selector resolvable before the command that uses it runs.
+
+   Every iOS command names its element in the same param, so the check lives on
+   the dispatch path instead of in each handler: a handler that forgot it acted
+   on whatever element the stale ref now named. `snapshot` is exempt — it
+   recaptures by itself and its selector only scopes that capture."
+  [action params]
+  (let [selector (get params "selector")]
+    (when (and (string? selector) (ref? selector) (not= "snapshot" action))
+      (ios-check-ref! (ios-backend) selector))))
 
 (defmulti ^:private handle-ios-cmd
   "Command dispatch for the iOS application backend. Only backend-neutral
@@ -5173,7 +5196,6 @@
   (let [b (ios-backend)]
     (page/validate-url url (or raw-input url))
     (backend/navigate! b url {})
-    (ios-snapshot-after-action! b)
     {:url      (backend/current-url b)
      :title    (try (backend/page-title b) (catch Exception _ nil))
      :provider "ios"}))
@@ -5184,7 +5206,7 @@
         snap    (backend/capture-snapshot! b (cond-> {}
                                                (get params "selector")
                                                (assoc :scope (get params "selector"))))
-        _       (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+        _       (ios-publish-refs! snap)
         tree    (filter-snapshot-tree (:tree snap) params)
         context (ios/current-context (:ios-session @!state))]
     (cond-> {:snapshot tree
@@ -5207,33 +5229,25 @@
     (if (and x y)
       (do
         (backend/tap! b [(long x) (long y)] {})
-        (ios-snapshot-after-action! b)
         {:clicked [(long x) (long y)]})
       (do
         (when (str/blank? (str selector))
           (throw (ex-info "click requires a selector, @ref, or x y coordinates" {})))
-        (ios-check-ref! b selector)
         (backend/click! b selector {})
-        (ios-snapshot-after-action! b)
         {:clicked selector}))))
 
 (defmethod handle-ios-cmd "fill" [_ {:strs [selector value]}]
   (let [b (ios-backend)]
-    (ios-check-ref! b selector)
     (backend/fill! b selector value {})
-    (ios-snapshot-after-action! b)
     {:filled selector}))
 
 (defmethod handle-ios-cmd "type" [_ {:strs [selector text]}]
-  (let [b (ios-backend)]
-    (ios-check-ref! b selector)
-    (ios/type-element! (:ios-session @!state) selector text)
-    (ios-snapshot-after-action! b)
-    {:typed selector}))
+  (ios-backend)
+  (ios/type-element! (:ios-session @!state) selector text)
+  {:typed selector})
 
 (defmethod handle-ios-cmd "clear" [_ {:strs [selector]}]
   (let [b (ios-backend)]
-    (ios-check-ref! b selector)
     (backend/clear! b selector {})
     {:cleared selector}))
 
@@ -5313,19 +5327,16 @@
 (defmethod handle-ios-cmd "back" [_ _]
   (let [b (ios-backend)]
     (backend/go-back! b)
-    (ios-snapshot-after-action! b)
     {:url (backend/current-url b)}))
 
 (defmethod handle-ios-cmd "forward" [_ _]
   (let [b (ios-backend)]
     (backend/go-forward! b)
-    (ios-snapshot-after-action! b)
     {:url (backend/current-url b)}))
 
 (defmethod handle-ios-cmd "reload" [_ _]
   (let [b (ios-backend)]
     (backend/reload! b)
-    (ios-snapshot-after-action! b)
     {:url (backend/current-url b)}))
 
 (defmethod handle-ios-cmd "cookies_get" [_ {:strs [urls]}]
@@ -5429,25 +5440,21 @@
   {:hidden true})
 
 (defmethod handle-ios-cmd "scroll" [_ {:strs [direction amount selector smooth]}]
-  (let [b         (ios-backend)
-        direction (keyword (or direction "down"))
+  (ios-backend)
+  (let [direction (keyword (or direction "down"))
         result    (ios/scroll (:ios-session @!state) direction (long (or amount 500))
                     {:selector selector :smooth? (boolean smooth)})]
-    (ios-snapshot-after-action! b)
     {:scrolled (name direction) :from (:from result) :to (:to result)}))
 
 (defmethod handle-ios-cmd "tap" [_ {:strs [selector x y]}]
   (let [b (ios-backend)]
     (if (and x y)
       (do (backend/tap! b [(long x) (long y)] {})
-          (ios-snapshot-after-action! b)
           {:tapped [(long x) (long y)]})
       (do
         (when (str/blank? (str selector))
           (throw (ex-info "tap requires a selector/@ref or x y coordinates" {})))
-        (ios-check-ref! b selector)
         (let [result (backend/tap! b selector {})]
-          (ios-snapshot-after-action! b)
           {:tapped selector :x (:x result) :y (:y result)})))))
 
 (defmethod handle-ios-cmd "swipe" [_ {:strs [direction distance from to duration]}]
@@ -5459,7 +5466,6 @@
                to        (assoc :to (mapv long to))
                duration  (assoc :duration (long duration)))
         result (backend/swipe! b opts)]
-    (ios-snapshot-after-action! b)
     {:swiped (or direction "coordinates")
      :from (:from result)
      :to (:to result)}))
@@ -5479,6 +5485,15 @@
     "action_log" "action_log_srt" "action_log_clear"
     "sci_eval"})
 
+(def ^:private ios-refs-preserving-actions
+  "iOS commands that cannot repaint the screen, so the ref map from the last
+   snapshot still describes it. Every other command — including one added
+   later — invalidates the refs, and the recapture is deferred to the next
+   @ref, so a gesture nobody follows with a ref pays for no snapshot at all."
+  #{"snapshot" "screenshot" "url" "title" "content" "session_info" "device_list"
+    "get_text" "get_attribute" "get_value" "get_count" "count" "get_box"
+    "bounding_box" "is_visible" "is_enabled" "is_checked" "cookies_get"
+    "health" "session_list" "action_log" "action_log_srt" "find_free_port"})
 (defn- with-ios-request-lock
   "Runs an iOS daemon request under the session operation lock when the
    session has already been started. The lock is reentrant, so scoped SCI
@@ -5493,17 +5508,23 @@
    active, otherwise to the regular Playwright handlers."
   [action params]
   (if (ios-provider?)
-    (if (contains? ios-passthrough-actions action)
-      (do
-        ;; SCI provider functions need the same lazily-created iOS session
-        ;; even when sci_eval is the first command sent to the daemon.
-        (when (= "sci_eval" action) (ios-backend))
+    (try
+      (if (contains? ios-passthrough-actions action)
+        (do
+          ;; SCI provider functions need the same lazily-created iOS session
+          ;; even when sci_eval is the first command sent to the daemon.
+          (when (= "sci_eval" action) (ios-backend))
+          (with-ios-request-lock
+            (fn dispatch-ios-passthrough []
+              (handle-cmd action params))))
         (with-ios-request-lock
-          (fn dispatch-ios-passthrough []
-            (handle-cmd action params))))
-      (with-ios-request-lock
-        (fn dispatch-ios-command []
-          (handle-ios-cmd action params))))
+          (fn dispatch-ios-command []
+            (ios-resolve-refs! action params)
+            (handle-ios-cmd action params))))
+      (finally
+        ;; A failed command repaints as readily as a successful one.
+        (when-not (contains? ios-refs-preserving-actions action)
+          (swap! !state assoc :refs-stale? true))))
     (handle-cmd action params)))
 
 (def ^:private no-recovery-actions

@@ -56,6 +56,7 @@
             app
             context*
             native-refs*
+            viewport*
             operation-lock])
 
 ;; =============================================================================
@@ -661,6 +662,7 @@
                        ;; was asked to auto-enter a webview.
                        (when-not auto-webview "NATIVE_APP"))))
           (atom {})
+          (atom nil)
           (ReentrantLock. true)))
       (catch Exception e
         ;; Full rollback, in dependency order: reap the entire Appium tree
@@ -772,31 +774,38 @@
 
    `requested` may be :native, :webview (first available webview), or an
    exact context name. Waits up to `:timeout-ms` (default 10000) for a
-   matching webview to appear. Returns the selected context name. Does not
-   issue a WebDriver switch when the requested context is already active."
+   matching webview to appear. Returns the selected context name.
+
+   Already being in the requested context is answered from the session's own
+   context: listing the app's contexts is a WDA round trip that walks every
+   inspectable webview, and a wrapped operation asks twice — once to enter and
+   once to restore."
   ([ios-session requested] (use-context! ios-session requested {}))
   ([{:keys [webdriver] :as ios-session} requested {:keys [timeout-ms]}]
    (with-operation ios-session
      (fn use-context-operation []
-       (let [deadline (+ (System/currentTimeMillis) (long (or timeout-ms 10000)))]
-         (loop []
-           (let [available (contexts ios-session)]
-             (if-let [target (resolve-context-name available requested)]
-               (if (= target (read-current-context ios-session))
-                 target
-                 (let [selected (webdriver/switch-context webdriver target)]
-                   (when-let [context* (:context* ios-session)]
-                     (reset! context* selected))
-                   (when-let [refs* (:native-refs* ios-session)]
-                     (reset! refs* {}))
-                   selected))
-               (if (> (System/currentTimeMillis) deadline)
-                 (throw (ex-info (str "iOS context " (pr-str requested)
-                                   " is not available. Available contexts: "
-                                   (str/join ", " available)
-                                   ". WKWebView DOM access requires isInspectable=true.")
-                          {:ios/context requested :ios/contexts available}))
-                 (do (Thread/sleep 250) (recur)))))))))))
+       (let [deadline (+ (System/currentTimeMillis) (long (or timeout-ms 10000)))
+             current  (read-current-context ios-session)]
+         (if (and current (= current (resolve-context-name [current] requested)))
+           current
+           (loop []
+             (let [available (contexts ios-session)]
+               (if-let [target (resolve-context-name available requested)]
+                 (if (= target (read-current-context ios-session))
+                   target
+                   (let [selected (webdriver/switch-context webdriver target)]
+                     (when-let [context* (:context* ios-session)]
+                       (reset! context* selected))
+                     (when-let [refs* (:native-refs* ios-session)]
+                       (reset! refs* {}))
+                     selected))
+                 (if (> (System/currentTimeMillis) deadline)
+                   (throw (ex-info (str "iOS context " (pr-str requested)
+                                     " is not available. Available contexts: "
+                                     (str/join ", " available)
+                                     ". WKWebView DOM access requires isInspectable=true.")
+                            {:ios/context requested :ios/contexts available}))
+                   (do (Thread/sleep 250) (recur))))))))))))
 
 (defn with-context
   "Runs callback in a requested Appium context and restores the exact prior
@@ -905,13 +914,15 @@
   "Activates an installed application by bundle identifier without creating
    a new session. The session returns to NATIVE_APP so stale webview state is
    never carried across applications. Returns the bundle identifier."
-  [{:keys [webdriver context* native-refs*] :as ios-session} bundle-id]
+  [{:keys [webdriver context* native-refs* viewport*] :as ios-session} bundle-id]
   (let [bundle (or bundle-id (:bundle-id ios-session)
                  (throw (ex-info "Application activation requires a bundle identifier." {})))]
     (webdriver/activate-app webdriver bundle)
     (webdriver/switch-context webdriver "NATIVE_APP")
     (when context* (reset! context* "NATIVE_APP"))
     (when native-refs* (reset! native-refs* {}))
+    ;; Another application owns the window now, and it may size it differently.
+    (when viewport* (reset! viewport* nil))
     bundle))
 
 (defn app-state
@@ -929,9 +940,10 @@
   "Launches the session-bound or requested installed application."
   ([ios-session] (launch-app! ios-session nil {}))
   ([ios-session bundle-id] (launch-app! ios-session bundle-id {}))
-  ([{:keys [webdriver] :as ios-session} bundle-id opts]
+  ([{:keys [webdriver viewport*] :as ios-session} bundle-id opts]
    (let [bundle (target-bundle-id ios-session bundle-id)]
      (webdriver/launch-app webdriver bundle opts)
+     (when viewport* (reset! viewport* nil))
      (use-context! ios-session :native)
      bundle)))
 
@@ -1246,8 +1258,11 @@
 
 (defn set-orientation!
   "Rotates the iOS device to :portrait or :landscape."
-  [{:keys [webdriver]} requested]
-  (webdriver/set-orientation webdriver requested))
+  [{:keys [webdriver viewport*]} requested]
+  (let [result (webdriver/set-orientation webdriver requested)]
+    ;; Width and height swap on rotation, so the cached window size is void.
+    (when viewport* (reset! viewport* nil))
+    result))
 
 ;; =============================================================================
 ;; Gestures
@@ -1292,6 +1307,18 @@
                         ". Use up, down, left, or right.")
                {:ios/direction direction})))))
 
+(defn- native-window-size
+  "Returns {:width :height} of the app window, cached for the session.
+
+   WDA answers /window/rect from a fresh accessibility snapshot of the whole
+   application, so the call costs what the app's element tree costs — seconds
+   on a webview-heavy app — while the value itself only changes on rotation."
+  [{:keys [webdriver viewport*]}]
+  (or (when viewport* @viewport*)
+    (let [size (select-keys (webdriver/window-rect webdriver) [:width :height])]
+      (when viewport* (reset! viewport* size))
+      size)))
+
 (defn swipe
   "Performs a low-level native touch swipe on an iOS session.
 
@@ -1299,11 +1326,12 @@
      (swipe session {:direction :up :distance 500 :duration 800})
      (swipe session {:from [200 600] :to [200 100] :duration 800})
 
-   Direction-based swipes derive coordinates from the live web viewport."
+   Direction-based swipes derive coordinates from the app window in a native
+   context and from the live web viewport in a webview."
   [{:keys [webdriver] :as ios-session} {:keys [direction distance from to duration]}]
   (let [native?  (native-context? ios-session)
         viewport (if native?
-                   (select-keys (webdriver/window-rect webdriver) [:width :height])
+                   (native-window-size ios-session)
                    (viewport-size webdriver))
         coords   (if (and from to)
                    {:from from :to to}
