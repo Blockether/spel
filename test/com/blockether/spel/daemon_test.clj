@@ -1691,3 +1691,304 @@
         (expect (str/includes? (str err) "fresh browser"))
         (finally
           (kill-session-daemons! session))))))
+
+;; =============================================================================
+;; Retained detail under a long-lived session (issue #125)
+;; =============================================================================
+;;
+;; Regression, issue #125: the daemon kept the FULL detail of every response and
+;; console message it had ever seen — `!network-full`, `!console-full` and
+;; `!pages` only ever grew, capped by nothing a session reaches. A shadow-cljs
+;; dev build streams ~1000 module files per page load, so 14 reloads of one page
+;; walked the measured daemon from 150 MB to 455 MB of RSS; commands then
+;; overran their budget and the page answered blank while `health` said "ok".
+
+(defdescribe retained-detail-window-test
+  "Full network, console and page detail follows the sliding window."
+  (around [f] (core/with-testing-browser ((:around test-server/with-test-server) f)))
+
+  (describe "more responses than the window holds"
+    (it "retains at most one window of full entries"
+      (core/with-testing-page [pg]
+        (page/navigate pg (str test-server/*test-server-url* "/health"))
+        (let [network-full (var-get #'sut/!network-full)
+              window       (long (var-get #'sut/max-window-per-page))
+              n            (+ window 200)
+              _            (reset! network-full {})
+              {:keys [handled]} (burst-handler-nesting pg (var-get #'sut/track-response!) n)]
+          (expect (= n handled))
+          (expect (<= (count @network-full) window))))))
+
+  (describe "more console messages than the window holds"
+    (it "retains at most one window of full entries"
+      (core/with-testing-page [pg]
+        (page/navigate pg (str test-server/*test-server-url* "/health"))
+        (let [console-full    (var-get #'sut/!console-full)
+              console-counter (var-get #'sut/!console-counter)
+              window          (long (var-get #'sut/max-window-per-page))
+              n               (+ window 200)
+              before          (long @console-counter)]
+          (reset! console-full {})
+          (page/on-console pg (var-get #'sut/track-console-entry!))
+          (page/evaluate pg
+            (str "(()=>{for(let i=0;i<" n ";i++){console.log('spel-retention',i);}return 'logged';})()"))
+          (let [deadline (+ (System/currentTimeMillis) 60000)]
+            (while (and (< (- (long @console-counter) before) n)
+                     (< (System/currentTimeMillis) (long deadline)))
+              (page/wait-for-timeout pg 100)))
+          (expect (= n (- (long @console-counter) before)))
+          (expect (<= (count @console-full) window))))))
+
+  (describe "more navigations than the window holds"
+    (it "retains at most one window of pages"
+      (let [pages  (var-get #'sut/!pages)
+            window (long (var-get #'sut/max-window-per-page))
+            track  (var-get #'sut/track-page-navigation!)]
+        (reset! pages [])
+        (dotimes [i (+ window 200)]
+          (track (str "http://example.test/" i) 200 (str "page " i)))
+        (expect (<= (count @pages) window))))))
+;; Regression, issue #125: every command that touched the page registered ANOTHER
+;; console, page-error and response listener on it. `console_start` twice left two
+;; live console listeners, and a long-lived session accumulated one more copy of
+;; every handler per navigation, so one arriving response ran N handlers on an
+;; ever deeper stack — the "per-load state accumulation" the report suspected.
+(defn- counting-page
+  "A Playwright `Page` that only counts listener registrations, so a test can ask
+   how many listeners spel put on one page without launching a browser.
+
+   Params:
+   `!counts` - Atom holding {:console n :page-error n :response n}.
+
+   Returns:
+   A `com.microsoft.playwright.Page` proxy; every other method is unsupported."
+  [!counts]
+  (proxy [com.microsoft.playwright.Page] []
+    (onConsoleMessage [_] (swap! !counts update :console (fnil inc 0)))
+    (onPageError [_] (swap! !counts update :page-error (fnil inc 0)))
+    (onResponse [_] (swap! !counts update :response (fnil inc 0)))))
+
+(defdescribe page-instrumentation-test
+  "Tests for page instrumentation — one page carries one set of spel listeners"
+
+  (describe "console_start and errors_start on an instrumented page"
+    (it "never adds a second listener for the same event"
+      (let [counts   (atom {})
+            page     (counting-page counts)
+            !state   (var-get #'sut/!state)
+            restore  @!state
+            handle   (var-get #'sut/handle-cmd)]
+        (try
+          (reset! !state (assoc restore :page page))
+          ((var-get #'sut/instrument-page!) page)
+          (dotimes [_ 3]
+            (handle "console_start" {})
+            (handle "errors_start" {}))
+          (expect (= 1 (:console @counts)))
+          (expect (= 1 (:page-error @counts)))
+          (finally (reset! !state restore))))))
+
+  (describe "repeated instrumentation of one page"
+    (it "registers each listener exactly once"
+      (let [counts (atom {})
+            page   (counting-page counts)]
+        (dotimes [_ 5] ((var-get #'sut/instrument-page!) page))
+        (expect (= {:console 1 :page-error 1 :response 1} @counts))))
+
+    (it "instruments a second page on its own"
+      (let [counts (atom {})
+            first-page  (counting-page counts)
+            second-page (counting-page counts)]
+        ((var-get #'sut/instrument-page!) first-page)
+        ((var-get #'sut/instrument-page!) second-page)
+        (expect (= {:console 2 :page-error 2 :response 2} @counts))))))
+
+;; =============================================================================
+;; Health reports broken instrumentation
+;; =============================================================================
+
+;; Regression, issue #125: while the response handler threw on every event the
+;; daemon kept answering "ok", so an agent concluded "blank page, no console
+;; output" instead of "instrumentation is broken" and kept driving a dead
+;; session.
+(defdescribe health-handler-error-test
+  "`health` after an event handler has been failing"
+
+  (describe "a handler that has thrown"
+    (it "answers degraded and names the label, the class and the count"
+      (let [session (str "daemon-test-" (System/nanoTime))]
+        (core/reset-handler-errors!)
+        (logging/init! {:session session :component "daemon" :mirror :off})
+        (try
+          (let [h (core/guarded-handler "response"
+                    (fn [_] (throw (StackOverflowError.))))]
+            (dotimes [_ 3] (h :resp)))
+          (let [data (get (json/read-json
+                            (#'sut/process-command
+                             (json/write-json-str {"action" "health"})))
+                       "data")
+                [failure] (get data "handler_errors")]
+            (expect (= "degraded" (get data "status")))
+            (expect (= "response" (get failure "label")))
+            (expect (= 3 (get failure "count")))
+            (expect (= "java.lang.StackOverflowError" (get failure "error"))))
+          (finally
+            (core/reset-handler-errors!)
+            (logging/init! {:session "default" :component "daemon" :mirror :off})
+            (try (.delete (.toFile (logging/log-file-path session)))
+                 (catch Exception _ nil)))))))
+
+  (describe "a daemon whose handlers are fine"
+    (it "answers ok with an empty tally"
+      (core/reset-handler-errors!)
+      (let [data (get (json/read-json
+                        (#'sut/process-command
+                         (json/write-json-str {"action" "health"})))
+                   "data")]
+        (expect (= "ok" (get data "status")))
+        (expect (empty? (get data "handler_errors")))))))
+
+;; =============================================================================
+;; Uptime measures this daemon
+;; =============================================================================
+
+;; Regression, issue #125: `System/currentTimeMillis` evaluated at namespace load
+;; is frozen into the native image, so every daemon reported the age of the
+;; BINARY. The report's "leftover daemon with about 9 days of uptime" was in
+;; fact one minute old, which sent the diagnosis after state accumulated over
+;; days instead of the burst in front of it.
+(defdescribe daemon-uptime-test
+  "`health` reports the age of this daemon, not of the binary it runs"
+
+  (describe "before the daemon serves anything"
+    (it "has no clock yet and reports no uptime"
+      (let [!started (var-get #'sut/!daemon-started-at)
+            restore  @!started]
+        (try
+          (reset! !started nil)
+          (let [data (get (json/read-json
+                            (#'sut/process-command
+                             (json/write-json-str {"action" "health"})))
+                       "data")]
+            (expect (= 0 (get data "uptime_ms"))))
+          (finally (reset! !started restore))))))
+
+  (describe "once it is serving"
+    (it "counts from the moment it started"
+      (let [!started (var-get #'sut/!daemon-started-at)
+            restore  @!started]
+        (try
+          (reset! !started (- (System/currentTimeMillis) 5000))
+          (let [data (get (json/read-json
+                            (#'sut/process-command
+                             (json/write-json-str {"action" "health"})))
+                       "data")]
+            (expect (<= 5000 (long (get data "uptime_ms")) 20000)))
+          (finally (reset! !started restore)))))))
+
+;; Regression, issue #125: a browser on its way out answered `newPage` with an
+;; anomaly MAP; the daemon stored that map as its page, and every command after
+;; it — `health` included — died in 0 ms with "PersistentArrayMap cannot be cast
+;; to Page". Nothing ever cleared it, so the session stayed dead until it was
+;; killed by hand.
+(defdescribe poisoned-page-handle-test
+  "a tab that could not be created never becomes the daemon's page"
+
+  (describe "when the browser answers with an anomaly instead of a tab"
+    (it "throws, and says what failed"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/fault
+                         "Target page, context or browser has been closed"
+                         {})]
+        (try
+          (with-redefs [core/new-page-from-context (fn [_] failure)]
+            (let [msg (try
+                        (#'sut/new-spel-page! ::context)
+                        nil
+                        (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+              (expect (some? msg))
+              (expect (str/includes? msg "could not open a browser tab"))
+              (expect (str/includes? msg "Target page, context or browser has been closed"))))
+          (finally (reset! state-atom before)))))
+
+    (it "leaves no map where a Playwright page belongs"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/fault "Browser has been closed" {})]
+        (try
+          (with-redefs [core/new-page-from-context (fn [_] failure)]
+            (try (#'sut/new-spel-page! ::context)
+                 (catch clojure.lang.ExceptionInfo _ nil)))
+          (expect (not-any? map? (:spel-pages @state-atom)))
+          (expect (not (map? (:page @state-atom))))
+          (finally (reset! state-atom before))))))
+
+  (describe "when the browser answers with a tab"
+    (it "records it as spel-owned"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            tab        (Object.)]
+        (try
+          (with-redefs [core/new-page-from-context (fn [_] tab)]
+            (expect (identical? tab (#'sut/new-spel-page! ::context))))
+          (expect (contains? (:spel-pages @state-atom) tab))
+          (finally (reset! state-atom before)))))))
+
+;; Regression, issue #125: `health` reported "connected, page open" for a browser
+;; relaunched onto about:blank, so a session that answered "No page loaded" to
+;; every page command still looked healthy.
+(defdescribe health-page-url-test
+  "`health` reports which URL the page sits on"
+
+  (describe "with no page open"
+    (it "carries the key with no url"
+      (let [browser (:browser (#'sut/handle-cmd "health" {}))]
+        (expect (contains? browser :page_url))
+        (expect (nil? (:page_url browser)))))))
+
+;; Regression, issue #125: a command parked inside a Playwright call ignored its
+;; interrupt and kept the command lock, so every command after it answered
+;; "daemon is busy" naming a command `health` no longer listed — the session was
+;; dead for good while reporting itself healthy.
+(defdescribe wedged-command-test
+  "a command that will not die costs its browser, not the whole session"
+
+  (describe "when a command ignores its interrupt"
+    (it "answers the caller and still serves the next command"
+      (let [!stop   (atom false)
+            !lost   (deref #'sut/!lost-commands)
+            !ledger (deref #'sut/!ledger)
+            restore @!lost]
+        (try
+          (with-redefs [sut/command-budget-ms (fn ^long [_] 300)]
+            (let [wedged (with-redefs-fn
+                           {#'sut/process-command*
+                            (fn [_ _]
+                              (while (not @!stop)
+                                (try (Thread/sleep 20)
+                                     (catch InterruptedException _ nil)))
+                              "{\"success\":true}")}
+                           (fn [] (#'sut/run-guarded-command! "c-wedge" "reload" {})))
+                  next-one (with-redefs-fn
+                             {#'sut/process-command*
+                              (fn [_ _] "{\"success\":true,\"data\":\"fresh\"}")}
+                             (fn [] (#'sut/run-guarded-command! "c-next" "reload" {})))]
+              (expect (str/includes? wedged "budget"))
+              (expect (str/includes? next-one "fresh"))
+              (expect (= ["reload"] (mapv :action @!lost)))))
+          (finally
+            (reset! !stop true)
+            (reset! !lost restore)
+            (swap! !ledger dissoc "c-wedge" "c-next"))))))
+
+  (describe "once a command has been abandoned"
+    (it "says so in health instead of reporting a healthy session"
+      (let [!lost   (deref #'sut/!lost-commands)
+            restore @!lost]
+        (try
+          (reset! !lost [{:id "c9" :action "reload" :at (System/currentTimeMillis)}])
+          (let [resp (#'sut/handle-cmd "health" {})]
+            (expect (= "degraded" (:status resp)))
+            (expect (= "reload" (:action (first (:lost_commands resp))))))
+          (finally (reset! !lost restore)))))))

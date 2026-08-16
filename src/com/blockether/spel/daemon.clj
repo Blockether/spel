@@ -1181,9 +1181,22 @@
 (defonce ^:private !command-seq (atom 0))
 (defonce ^:private !commands-total (atom 0))
 (defonce ^:private !last-command-at (atom nil))
-(defonce ^:private !daemon-started-at (atom (System/currentTimeMillis)))
+;; nil until this process starts serving. A `System/currentTimeMillis` evaluated
+;; here is baked into the native image at BUILD time, so every daemon reported
+;; the age of the binary — the first #125 report diagnosed a "9-day-old daemon"
+;; that was one minute old. The clock starts in `start-daemon!`.
+(defonce ^:private !daemon-started-at (atom nil))
 (def ^:private default-action-timeout-ms 10000)
-(defonce ^:private ^ReentrantLock !command-lock (ReentrantLock. true))
+;; Serialises browser commands. An ATOM holding the lock, not the lock itself: a
+;; command parked inside a Playwright call that no interrupt reaches never gives
+;; its lock back, and every command after it then waited on a holder that would
+;; never let go while `health` still answered "ok" (issue #125).
+;; `abandon-wedged-command!` replaces the lock; the zombie keeps the old one.
+(defonce ^:private !command-lock (atom (ReentrantLock. true)))
+
+;; Commands this daemon gave up on, newest last. A session that lost a command
+;; lost its page, its refs and its capture with it, so `health` says so.
+(defonce ^:private !lost-commands (atom []))
 
 (def ^:private control-actions
   "Commands that must answer even while browser execution is wedged."
@@ -1297,9 +1310,21 @@
 
 (defn- new-spel-page!
   "Creates a tab and records it as spel-owned. Provenance is positive: only tabs
-   opened through this fn may ever be closed by spel in a foreign browser."
+   opened through this fn may ever be closed by spel in a foreign browser.
+
+   Playwright hands back an ANOMALY MAP instead of a page when the browser is on
+   its way out, and storing that map as `:page` poisoned the session for good:
+   every later command — `health` included — died in 0 ms with
+   `PersistentArrayMap cannot be cast to Page`, so the session answered nothing
+   anyone could act on and never recovered (issue #125). Refusing it here turns
+   that into an ordinary throw, which the recovery paths already answer by
+   dropping the dead handles and relaunching the browser."
   [context]
   (let [p (core/new-page-from-context context)]
+    (when (core/anomaly? p)
+      (throw (ex-info (str "could not open a browser tab: "
+                        (or (::anomaly/message p) "the browser went away"))
+               {:error_code :browser_handle_lost})))
     (swap! !state update :spel-pages (fnil conj #{}) p)
     p))
 
@@ -1335,6 +1360,9 @@
     (swap! !state assoc :pw nil :browser nil :context nil :page nil
       :refs {} :counter 0 :cdp-connected false :cdp-foreign false
       :adopted-context nil :adopted-pages #{} :spel-pages #{})
+    ;; The relaunched browser gets fresh listeners, so failures counted against
+    ;; the old ones no longer describe the live session.
+    (core/reset-handler-errors!)
     (submit-virtual (fn discard-dead-playwright []
                       (try (when pw (core/close! pw)) (catch Throwable _ nil))))
     :dead))
@@ -1636,6 +1664,35 @@
 
 (defonce ^:private !session-entry-count (atom 0))
 
+(defn- conj-window
+  "Appends `entry` to a sliding-window vector, dropping whatever falls out of
+   `limit`.
+
+   Trimming with `subvec` alone is the leak it looks like a fix for: a SubVector
+   pins the vector it was cut from, so a window that reads 1000 entries kept
+   every entry the session had ever seen (measured: 20000 held behind a
+   1000-entry window). Copying the survivors into a fresh vector is what
+   actually releases them."
+  [w entry ^long limit]
+  (let [updated (conj w entry)
+        n       (long (count updated))]
+    (if (> n limit)
+      (into [] (subvec updated (- n limit)))
+      updated)))
+
+(defn- retain-window
+  "Records `entry` under `prefix` + `entry-no` and drops the ref that just left
+   the window.
+
+   `network get @nN` and `console get @cN` answer from these maps, so they hold
+   exactly what the window still lists. Unbounded, one shadow-cljs dev page load
+   (~1000 module files, each with request and response headers) stayed behind
+   for the life of the daemon."
+  [m ^String prefix entry-no entry limit]
+  (-> m
+    (assoc (str prefix entry-no) entry)
+    (dissoc (str prefix (- (long entry-no) (long limit))))))
+
 (def ^:private max-preview-body-bytes (long 65536))
 (def ^:private preview-body-resource-types #{"fetch" "xhr"})
 
@@ -1735,11 +1792,12 @@
   "Tracks a page navigation into the pages list."
   [url status title]
   (let [ref-id (str "p" (swap! !page-counter inc))]
-    (swap! !pages conj {:ref (str "@" ref-id)
-                        :url url
-                        :status (or status 200)
-                        :title (or title "")
-                        :navigated_at (System/currentTimeMillis)})
+    (swap! !pages conj-window {:ref (str "@" ref-id)
+                               :url url
+                               :status (or status 200)
+                               :title (or title "")
+                               :navigated_at (System/currentTimeMillis)}
+      max-window-per-page)
     (str "@" ref-id)))
 
 (defonce ^:private !network-responses (atom (sorted-map)))  ;; entry number -> Response, read off the dispatch thread
@@ -1793,7 +1851,7 @@
                                 :body post-data}
                       :response {:headers resp-headers
                                  :body nil}}]
-      (swap! !network-full assoc ref-id full-entry)
+      (swap! !network-full retain-window "n" entry-no full-entry max-window-per-page)
       ;; Parked responses follow the sliding window: only a ref the window still
       ;; lists can be fetched, so the oldest handle is dropped with it.
       (swap! !network-responses
@@ -1802,13 +1860,7 @@
             (if (> (count m) (long max-window-per-page))
               (dissoc m (first (keys m)))
               m))))
-      (swap! !network-window
-        (fn [w]
-          (let [updated (conj w entry)
-                n (count updated)]
-            (if (> (long n) (long max-window-per-page))
-              (subvec updated (- (long n) (long max-window-per-page)))
-              updated))))
+      (swap! !network-window conj-window entry max-window-per-page)
       (swap! !session-entry-count inc))))
 
 (defn- materialize-network-entry!
@@ -1847,7 +1899,8 @@
   "Tracks a console message into the sliding window."
   [^ConsoleMessage msg]
   (when (< (long @!session-entry-count) (long max-session-total))
-    (let [ref-id (str "c" (swap! !console-counter inc))
+    (let [entry-no (long (swap! !console-counter inc))
+          ref-id (str "c" entry-no)
           page-url (try (.url (.page msg)) (catch Exception _ "unknown"))
           ;; Get stack trace if available via location
           location (try
@@ -1861,14 +1914,8 @@
                  :page page-url
                  :page_ref (current-page-ref page-url)}
           entry (if location (assoc entry :stack location) entry)]
-      (swap! !console-full assoc ref-id entry)
-      (swap! !console-window
-        (fn [w]
-          (let [updated (conj w entry)
-                n (count updated)]
-            (if (> (long n) (long max-window-per-page))
-              (subvec updated (- (long n) (long max-window-per-page)))
-              updated))))
+      (swap! !console-full retain-window "c" entry-no entry max-window-per-page)
+      (swap! !console-window conj-window entry max-window-per-page)
       (swap! !session-entry-count inc))))
 
 (defn- track-response!
@@ -1880,16 +1927,61 @@
                :method (.method req)
                :status (.status resp)
                :resource-type (.resourceType req)}]
-    (swap! !tracked-requests
-      (fn [reqs]
-        (let [updated (conj reqs entry)
-              n (long (count updated))]
-          (if (> n (long max-tracked-requests))
-            (subvec updated (- n (long max-tracked-requests)))
-            updated))))
+    (swap! !tracked-requests conj-window entry max-tracked-requests)
     ;; TASK-013: also track into enriched sliding window
     (track-network-entry! resp)))
 
+;; Pages that already carry spel's listeners. Playwright keeps every listener
+;; until you remove it and spel removes none, so this set is the only thing
+;; standing between one page and two copies of the same handler.
+(defonce ^:private !instrumented-pages (atom #{}))
+
+(defn- page-live?
+  "True when `pg` is still open. A closed page can never fire another event, so
+   it leaves the instrumented set instead of being remembered forever.
+
+   Params:
+   `pg` - Page instance.
+
+   Returns:
+   Boolean."
+  [pg]
+  (try (not (.isClosed ^Page pg)) (catch Throwable _ false)))
+
+(defn- instrument-page!
+  "Registers spel's console, page-error and response listeners on `pg` — exactly
+   once per page, however often it is called.
+
+   Nine command paths used to re-register the whole set on the page they were
+   about to use, and Playwright never removes a listener you do not remove
+   yourself. Opening a window, reconnecting over CDP or calling `console_start`
+   therefore left the page running two, three, four copies of every handler:
+   each copy recorded the same console line again and repeated the same work on
+   the same response event, on a stack already carrying the copies before it.
+   That accumulation is what issue #125 saw as a session that goes quiet after
+   enough navigations.
+
+   Params:
+   `pg` - Page instance; nil is ignored.
+
+   Returns:
+   `pg`."
+  [pg]
+  (when pg
+    (let [[seen _] (swap-vals! !instrumented-pages
+                     (fn [pages] (conj (into #{} (filter page-live?) pages) pg)))]
+      (when-not (contains? seen pg)
+        (page/on-console pg (fn [^ConsoleMessage msg]
+                              (swap! !console-messages conj-window
+                                {:type (.type msg) :text (.text msg)}
+                                max-window-per-page)
+                              (track-console-entry! msg)))
+        (page/on-page-error pg (fn [error]
+                                 (swap! !page-errors conj-window
+                                   {:message (str error)}
+                                   max-window-per-page)))
+        (page/on-response pg track-response!))))
+  pg)
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
 
@@ -1980,15 +2072,7 @@
               new-ctx (core/new-context (:browser @!state) ctx-opts)
               new-pg  (new-spel-page! new-ctx)]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-          ;; Re-register console, error, and request listeners on new page
-          (page/on-console new-pg (fn [msg]
-                                    (swap! !console-messages conj
-                                      {:type (.type ^ConsoleMessage msg)
-                                       :text (.text ^ConsoleMessage msg)})))
-          (page/on-page-error new-pg (fn [error]
-                                       (swap! !page-errors conj
-                                         {:message (str error)})))
-          (page/on-response new-pg track-response!))))))
+          (instrument-page! new-pg))))))
 
 (defn- auto-save-session-state!
   "Saves the current browser context state (cookies/storage) to a file.
@@ -2342,17 +2426,9 @@
         ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
         (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
         (reset! !console-messages [])
-        (page/on-console pg-inst (fn [^ConsoleMessage msg]
-                                   (swap! !console-messages conj
-                                     {:type (.type msg)
-                                      :text (.text msg)})
-                                   (track-console-entry! msg)))
         (reset! !page-errors [])
-        (page/on-page-error pg-inst (fn [error]
-                                      (swap! !page-errors conj
-                                        {:message (str error)})))
         (reset! !tracked-requests [])
-        (page/on-response pg-inst track-response!)
+        (instrument-page! pg-inst)
         ;; Auto-load persisted session state (not for persistent/CDP profiles)
         (when-not (or profile-dir (get flags "cdp"))
           (auto-load-session-state!))))))
@@ -3558,12 +3634,7 @@
                  (new-spel-page! (:context @!state))
                  "Failed to create new window/page")
         _      (swap! !state assoc :page new-pg)
-        _      (page/on-console new-pg (fn [^ConsoleMessage msg]
-                                         (swap! !console-messages conj
-                                           {:type (.type msg) :text (.text msg)})))
-        _      (page/on-page-error new-pg (fn [error]
-                                            (swap! !page-errors conj {:message (str error)})))
-        _      (page/on-response new-pg track-response!)]
+        _      (instrument-page! new-pg)]
     {:window "new" :url (try (page/url new-pg) (catch Exception _ "about:blank"))}))
 
 (defmethod handle-cmd "keydown" [_ {:strs [key]}]
@@ -3826,16 +3897,9 @@
                         "Failed to create page for device")]
           (swap! !state assoc :context new-ctx :page new-pg :tracing? false :device device)
           (reset! !console-messages [])
-          (page/on-console new-pg (fn [msg]
-                                    (swap! !console-messages conj
-                                      {:type (.type ^ConsoleMessage msg)
-                                       :text (.text ^ConsoleMessage msg)})))
           (reset! !page-errors [])
-          (page/on-page-error new-pg (fn [error]
-                                       (swap! !page-errors conj
-                                         {:message (str error)})))
           (reset! !tracked-requests [])
-          (page/on-response new-pg track-response!)
+          (instrument-page! new-pg)
           (when current-url (page/navigate new-pg current-url))
           {:device device :preset preset}))
       {:error (str "Unknown device: " device
@@ -3864,16 +3928,9 @@
                     "Failed to create page with credentials")]
       (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
       (reset! !console-messages [])
-      (page/on-console new-pg (fn [msg]
-                                (swap! !console-messages conj
-                                  {:type (.type ^ConsoleMessage msg)
-                                   :text (.text ^ConsoleMessage msg)})))
       (reset! !page-errors [])
-      (page/on-page-error new-pg (fn [error]
-                                   (swap! !page-errors conj
-                                     {:message (str error)})))
       (reset! !tracked-requests [])
-      (page/on-response new-pg track-response!)
+      (instrument-page! new-pg)
       (when current-url (page/navigate new-pg current-url))
       {:credentials_set true})))
 
@@ -4004,14 +4061,9 @@
                       "Failed to create page in recreated context")]
         (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
         (reset! !console-messages [])
-        (page/on-console new-pg (fn [^ConsoleMessage msg]
-                                  (swap! !console-messages conj
-                                    {:type (.type msg) :text (.text msg)})))
         (reset! !page-errors [])
-        (page/on-page-error new-pg (fn [error]
-                                     (swap! !page-errors conj {:message (str error)})))
         (reset! !tracked-requests [])
-        (page/on-response new-pg track-response!)
+        (instrument-page! new-pg)
         (when current-url (page/navigate new-pg current-url))
         new-pg))))
 
@@ -4172,16 +4224,13 @@
   {:errors "cleared"})
 
 (defmethod handle-cmd "console_start" [_ _]
-  (page/on-console (pg) (fn [msg]
-                          (swap! !console-messages conj
-                            {:type (.type ^ConsoleMessage msg)
-                             :text (.text ^ConsoleMessage msg)})))
+  ;; Console capture is already on for every page spel instruments; asking again
+  ;; must not add a second listener that records every message twice.
+  (instrument-page! (pg))
   {:console "listening"})
 
 (defmethod handle-cmd "errors_start" [_ _]
-  (page/on-page-error (pg) (fn [error]
-                             (swap! !page-errors conj
-                               {:message (str error)})))
+  (instrument-page! (pg))
   {:errors "listening"})
 
 ;; --- Phase 4: State Management ---
@@ -4209,18 +4258,10 @@
                 {:error (str "Failed to create page: " (:anomaly/message new-pg))})
             (do
               (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-               ;; Re-register console, error, and request listeners on new page
               (reset! !console-messages [])
-              (page/on-console new-pg (fn [msg]
-                                        (swap! !console-messages conj
-                                          {:type (.type ^ConsoleMessage msg)
-                                           :text (.text ^ConsoleMessage msg)})))
               (reset! !page-errors [])
-              (page/on-page-error new-pg (fn [error]
-                                           (swap! !page-errors conj
-                                             {:message (str error)})))
               (reset! !tracked-requests [])
-              (page/on-response new-pg track-response!)
+              (instrument-page! new-pg)
               (when current-url (page/navigate new-pg current-url))
               {:state "loaded" :path state-path})))))))
 
@@ -4480,18 +4521,10 @@
     (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true)
     (swap! !state assoc-in [:launch-flags "cdp"] url)
     (persist-launch-flags!)
-    ;; Auto-register console, error, and request listeners
     (reset! !console-messages [])
-    (page/on-console pg-inst (fn [msg]
-                               (swap! !console-messages conj
-                                 {:type (.type ^ConsoleMessage msg)
-                                  :text (.text ^ConsoleMessage msg)})))
     (reset! !page-errors [])
-    (page/on-page-error pg-inst (fn [error]
-                                  (swap! !page-errors conj
-                                    {:message (str error)})))
     (reset! !tracked-requests [])
-    (page/on-response pg-inst track-response!)
+    (instrument-page! pg-inst)
     (cond-> {:connected url :url (page/url pg-inst)}
       warning-payload (merge warning-payload))))
 
@@ -4797,18 +4830,42 @@
 
 ;; --- Health & the command ledger ---
 
+(defn- current-page-url
+  "URL the page currently sits on, or nil when it sits on nothing.
+
+   `.url` is a local field read on the Playwright client — never a round trip to
+   the browser — so `health` keeps its promise of answering while every real
+   browser call is wedged."
+  []
+  (try
+    (when-let [p (pg)]
+      (let [u (page/url p)]
+        (when-not (contains? #{nil "" "about:blank"} u) u)))
+    (catch Throwable _ nil)))
+
 (defmethod handle-cmd "health" [_ _]
   ;; Deliberately free of Playwright calls — this is the ONE answer a client can
   ;; still get when every browser call is wedged. Everything below is read from
   ;; daemon-local state.
   (let [now       (System/currentTimeMillis)
-        started   (long @!daemon-started-at)
+        started   (long (or @!daemon-started-at now))
         in-flight (ledger-entries)
         launched? (some? (:browser @!state))
         connected (boolean (browser-connected?))
-        last-at   @!last-command-at]
+        last-at   @!last-command-at
+        handlers  (core/handler-errors)
+        lost      @!lost-commands]
     {:status         (cond
                        (and launched? (not connected)) "degraded"
+                       ;; Instrumentation that throws on every event is the
+                       ;; failure that looks like success: commands still
+                       ;; answer, console capture is empty, and the caller
+                       ;; reads a blank page (issue #125). Say it out loud.
+                       (seq handlers)                  "degraded"
+                       ;; A command that never came back took the page and the
+                       ;; refs with it — the session survives, but it is not the
+                       ;; one the caller had (issue #125).
+                       (seq lost)                      "degraded"
                        (seq in-flight)                 "busy"
                        :else                           "ok")
      :session        (:session @!state)
@@ -4822,9 +4879,12 @@
      :browser        {:launched  launched?
                       :connected connected
                       :page_open (boolean (page-open?))
+                      :page_url  (current-page-url)
                       :type      (get-in @!state [:launch-flags "browser"] "chromium")
                       :headless  (boolean (:headless @!state))
                       :cdp       (current-cdp-url)}
+     :handler_errors handlers
+     :lost_commands  lost
      :socket         (try (.toString (socket-path (:session @!state))) (catch Exception _ nil))
      :session_idle_timeout_ms @!session-idle-timeout-ms}))
 
@@ -5666,10 +5726,50 @@
        :hint       "Inspect it with `spel health`, then `spel cancel all` to clear it."
        :in_flight  in-flight})))
 
+(def ^:private wedge-grace-ms
+  "How long an interrupted command gets to answer before the daemon writes it off.
+   A call still talking to a live browser answers in milliseconds; only one whose
+   browser will never answer needs the whole grace."
+  2000)
+
+(def ^:private max-lost-commands
+  "Lost commands kept for `health` — enough to show a pattern, never enough to
+   grow without bound."
+  5)
+
+(defn- abandon-wedged-command!
+  "Gives up on a command that survived its interrupt, and gives the SESSION back.
+
+   A browser call parked in Playwright's pipe cannot be interrupted: the worker
+   held `!command-lock` for as long as the browser stayed silent, so every later
+   command answered `daemon_busy` naming a command `health` no longer listed —
+   the session was dead and reported itself healthy (issue #125). So the lock is
+   replaced rather than waited on, the browser whose pipe swallowed the call is
+   dropped — which is also what finally unblocks the zombie — and the loss is
+   recorded where `health` shows it.
+
+   Params:
+   `cid`    - String. Command id.
+   `action` - String. Command name.
+
+   Returns:
+   nil."
+  [cid action]
+  (log/warn! "command " cid " (" action ") did not answer its interrupt — abandoning it,"
+    " dropping the browser and freeing the session; the next command starts a fresh browser")
+  (swap! !lost-commands conj-window
+    {:id cid :action action :at (System/currentTimeMillis)}
+    max-lost-commands)
+  (reset! !command-lock (ReentrantLock. true))
+  (drop-browser-handles!)
+  nil)
+
 (defn- run-guarded-command!
   "Runs a non-control command on a worker thread under `!command-lock`, bounded
    by `command-budget-ms`. On expiry the worker is interrupted, its stack is
-   logged, and the client gets an actionable error instead of a silent hang.
+   logged, and the client gets an actionable error instead of a silent hang. A
+   worker that does not answer its interrupt is abandoned, taking its browser
+   with it, so the session serves the next command instead of dying.
 
    The interrupt reason is recorded in the ledger BEFORE the interrupt is sent,
    so the worker's own `InterruptedException` answer — which races this one and
@@ -5682,19 +5782,20 @@
                  (fn []
                    (deliver result
                      (try
-                       (let [queued-at (System/nanoTime)]
-                         (if (.tryLock !command-lock (quot budget 2) TimeUnit/MILLISECONDS)
+                       (let [queued-at (System/nanoTime)
+                             ^ReentrantLock lock @!command-lock]
+                         (if (.tryLock lock (quot budget 2) TimeUnit/MILLISECONDS)
                            (try
-                             ;; Lock wait and run time are different failures. Logging
-                             ;; only their sum made commands queued behind one long
-                             ;; sci_eval look like several independently slow commands.
+                              ;; Lock wait and run time are different failures. Logging
+                              ;; only their sum made commands queued behind one long
+                              ;; sci_eval look like several independently slow commands.
                              (let [waited-ms (quot (- (System/nanoTime) queued-at) 1000000)]
                                (when (>= waited-ms 1000)
                                  (log/info! "command " cid " (" action ") waited "
                                    (human-duration waited-ms) " for the command lock")))
                              (swap! !ledger assoc-in [cid :phase] "running")
                              (process-command* action params)
-                             (finally (.unlock !command-lock)))
+                             (finally (.unlock lock)))
                            (busy-response action)))
                        (catch InterruptedException _
                          (cancelled-response cid action))
@@ -5716,6 +5817,12 @@
           (swap! !ledger update cid merge {:cancel-requested true
                                            :cancel-reason    {:budget-ms budget}})
           (.interrupt worker)
+          ;; An interrupt only reaches a thread that can take one. A call parked
+          ;; in Playwright's pipe cannot, and it holds the lock while it waits
+          ;; (issue #125), so a command that ignores its interrupt is written off
+          ;; and the session is handed back to the next caller.
+          (when (= ::timeout (deref result wedge-grace-ms ::timeout))
+            (abandon-wedged-command! cid action))
           (budget-exceeded-response cid action budget))))))
 
 (defn- process-command
@@ -6177,6 +6284,9 @@
       (log/info! "session=" session " already served by pid " owner
         " — this daemon exits without starting a browser")
       (do
+        ;; The daemon's clock starts HERE, in the process that serves the
+        ;; session, so uptime is this daemon's age and not the native image's.
+        (reset! !daemon-started-at (System/currentTimeMillis))
         ;; Store session config + initial launch flags (browser type from CLI args)
         (swap! !state assoc :headless headless :session session)
         (when browser

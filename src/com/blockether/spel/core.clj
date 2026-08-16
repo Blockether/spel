@@ -47,6 +47,54 @@
       "exactly one argument, so write (fn [x] ...)")
     (str "event handler for " label " threw")))
 
+(def ^:private handler-error-log-cap
+  "How many failures of one event label reach the log before the flood collapses
+   into a running count. One shadow-cljs dev page load fires a thousand
+   responses; a handler failing on each of them wrote a thousand identical WARN
+   lines and left the session log unreadable (issue #125)."
+  10)
+
+(defonce ^:private !handler-errors (atom {}))
+
+(defn handler-errors
+  "Every event-handler failure this process has recorded, worst first.
+
+   The daemon reports these in `health`, because a handler that throws on every
+   response is the failure that looks like nothing at all: commands still
+   succeed, console capture is silently empty and the caller reads a blank page
+   instead of broken instrumentation.
+
+   Returns:
+   Vector of maps with `:label`, `:count`, `:error`, `:message`, `:first_at`
+   and `:last_at`."
+  []
+  (->> @!handler-errors
+    (map (fn [[label entry]] (assoc entry :label label)))
+    (sort-by (comp - long :count))
+    vec))
+
+(defn reset-handler-errors!
+  "Forgets every recorded handler failure.
+
+   Called when the browser handles are dropped: the relaunched browser carries
+   fresh listeners, so the old tally no longer describes the live session."
+  []
+  (reset! !handler-errors {})
+  nil)
+
+(defn- record-handler-error!
+  "Counts one failure of `label` and returns its running total."
+  [label ^Throwable e]
+  (let [now (System/currentTimeMillis)]
+    (long (get-in (swap! !handler-errors update label
+                    (fn [entry]
+                      {:count    (inc (long (:count entry 0)))
+                       :error    (.getName (class e))
+                       :message  (or (not-empty (str (.getMessage e))) "<no message>")
+                       :first_at (or (:first_at entry) now)
+                       :last_at  now}))
+            [label :count]))))
+
 (defn guarded-handler
   "Wraps a user event handler so a throwing handler cannot wedge the browser.
 
@@ -71,7 +119,17 @@
      (try
        (handler arg)
        (catch Throwable e
-         (log/exception! (handler-problem label e) e)
+         (let [n (record-handler-error! label e)]
+           (cond
+             (<= n (long handler-error-log-cap))
+             (log/exception! (handler-problem label e) e)
+
+             (= n (inc (long handler-error-log-cap)))
+             (log/warn! (handler-problem label e) " — " n " times now; further"
+               " failures are counted, not logged, and `spel health` reports the"
+               " running total. Full trace of this one:\n" (log/full-trace e))
+
+             :else nil))
          (when on-error
            (try (on-error arg e)
                 (catch Throwable e2

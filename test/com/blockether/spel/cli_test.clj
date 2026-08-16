@@ -2593,8 +2593,39 @@
     (let [out (sut/health-report {:status "ok" :session "a" :uptime "1s" :commands_total 1
                                   :in_flight []
                                   :browser {:launched true :connected true :page_open true
-                                            :type "chromium" :headless false}})]
+                                            :page_url "https://example.org" :type "chromium"
+                                            :headless false}})]
       (expect (str/includes? out "chromium headed, connected, page open"))))
+
+  ;; Regression, issue #125: a browser relaunched after it went away sits on
+  ;; about:blank, and `health` called that "connected, page open" while every page
+  ;; command answered "No page loaded" — nothing told the caller the page was gone.
+  (it "calls a blank page blank instead of an open one"
+    (let [out (sut/health-report {:status "ok" :session "a" :uptime "1s" :commands_total 1
+                                  :in_flight []
+                                  :browser {:launched true :connected true :page_open true
+                                            :page_url nil :type "chromium" :headless true}})]
+      (expect (str/includes? out "connected, blank page — no URL loaded yet"))))
+
+  ;; Regression, issue #125: a daemon whose response handler threw on every
+  ;; event still reported a healthy session, so the caller kept driving a page
+  ;; whose console and network capture were silently dead.
+  (it "names a failing event handler and what to do about it"
+    (let [out (sut/health-report {:status "degraded" :session "a" :uptime "9 min"
+                                  :commands_total 12 :in_flight []
+                                  :handler_errors [{:label "response" :count 799
+                                                    :error "java.lang.StackOverflowError"}]})]
+      (expect (str/includes? out "handlers:  response ×799 java.lang.StackOverflowError"))
+      (expect (str/includes? out "close this session"))))
+
+  ;; Regression, issue #125: a command that never came back left the session
+  ;; answering `daemon is busy` for a command health did not list at all.
+  (it "names a command the daemon gave up on"
+    (let [out (sut/health-report {:status "degraded" :session "a" :uptime "3 min"
+                                  :commands_total 25 :in_flight []
+                                  :lost_commands [{:id "c25" :action "reload"}]})]
+      (expect (str/includes? out "lost:      reload (c25)"))
+      (expect (str/includes? out "the next command opens a fresh one"))))
 
   (it "omits the in-flight line for a daemon that is not running"
     (let [out (sut/health-report {:status "down" :session "a" :log "/tmp/spel-a.log"})]

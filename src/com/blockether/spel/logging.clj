@@ -218,6 +218,38 @@
                      acc))]
       (str head (when origin (str " at " origin)) causes))))
 
+(def ^:private max-trace-frames
+  "How many stack frames `full-trace` prints. A StackOverflowError arrives
+   carrying a thousand near-identical frames; the cycle that produced it is
+   always visible at the top, so the rest is elided with a count instead of
+   filling the session log."
+  40)
+
+(defn full-trace
+  "Renders `e` as `describe-throwable` followed by its stack frames, one per
+   line, capped at `max-trace-frames`.
+
+   The one-line rendering names the origin frame and nothing below it, which is
+   enough for a lone failure and useless for a repeating one: issue #125 could
+   not be diagnosed from the log because every WARN line stopped at the top
+   frame. Callers print this once per burst, never per event.
+
+   Params:
+   `e` - Throwable; nil renders instead of throwing.
+
+   Returns:
+   A multi-line String."
+  [^Throwable e]
+  (if (nil? e)
+    "<no exception>"
+    (let [frames (vec (.getStackTrace e))
+          shown  (subvec frames 0 (min (count frames) (long max-trace-frames)))
+          more   (- (count frames) (count shown))]
+      (str/join "\n"
+        (concat [(describe-throwable e)]
+          (map #(str "    at " %) shown)
+          (when (pos? more) [(str "    ... " more " more frames")]))))))
+
 (defn exception!
   "Logs an exception with a context label at warn level. Used in cleanup paths
    where we continue despite errors but never swallow them silently.

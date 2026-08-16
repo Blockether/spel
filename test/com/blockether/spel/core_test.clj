@@ -469,3 +469,61 @@
                                              (fn [_ _] (reset! released true)))]
         (capture-log (fn [] (.accept c :route)))
         (expect (true? @released))))))
+
+;; =============================================================================
+;; Handler failure tally — what `spel health` reports
+;; =============================================================================
+
+;; Regression, issue #125: a handler that threw on every response wrote one WARN
+;; line per response — 799 for a single shadow-cljs dev page load — while every
+;; command still answered "ok", so the caller read a blank page instead of
+;; broken instrumentation.
+(defdescribe handler-error-tally-test
+  "Tests for the event-handler failure tally behind `spel health`"
+
+  (describe "a burst of failures from one handler"
+    (it "logs the first few, collapses the rest, and counts every one"
+      (sut/reset-handler-errors!)
+      (let [cap       (long (var-get #'sut/handler-error-log-cap))
+            h         (sut/guarded-handler "response"
+                        (fn [_] (throw (ex-info "boom" {}))))
+            [_ lines] (capture-log (fn [] (dotimes [_ 200] (h :resp))))
+            named     (filter #(str/includes? % "event handler for response threw") lines)
+            collapsed (filter #(str/includes? % "counted, not logged") lines)
+            entry     (first (sut/handler-errors))]
+        (expect (= (inc cap) (count named)))
+        (expect (= 1 (count collapsed)))
+        (expect (= "response" (:label entry)))
+        (expect (= 200 (:count entry)))
+        (expect (= "clojure.lang.ExceptionInfo" (:error entry)))
+        (expect (= "boom" (:message entry)))))
+
+    (it "prints one full stack trace for the burst, not one per event"
+      (sut/reset-handler-errors!)
+      (let [h         (sut/guarded-handler "response"
+                        (fn [_] (throw (ex-info "boom" {}))))
+            [_ lines] (capture-log (fn [] (dotimes [_ 400] (h :resp))))
+            frames    (filter #(str/includes? % "    at ") lines)]
+        (expect (pos? (count frames)))
+        ;; 400 failures, and the log holds one trace plus the capped lines —
+        ;; the log no longer grows with the burst.
+        (expect (< (count lines) 60)))))
+
+  (describe "several failing handlers"
+    (it "reports the worst one first"
+      (sut/reset-handler-errors!)
+      (capture-log
+        (fn []
+          (let [console  (sut/guarded-handler "console" (fn [_] (throw (ex-info "c" {}))))
+                response (sut/guarded-handler "response" (fn [_] (throw (ex-info "r" {}))))]
+            (console :msg)
+            (dotimes [_ 5] (response :resp)))))
+      (expect (= ["response" "console"] (mapv :label (sut/handler-errors))))))
+
+  (describe "a browser that was replaced"
+    (it "forgets a tally that no longer describes the live session"
+      (capture-log
+        (fn [] ((sut/guarded-handler "response" (fn [_] (throw (ex-info "boom" {})))) :resp)))
+      (expect (seq (sut/handler-errors)))
+      (sut/reset-handler-errors!)
+      (expect (empty? (sut/handler-errors))))))

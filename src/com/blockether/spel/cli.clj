@@ -1183,7 +1183,7 @@
       "Usage:"
       "  spel health [--json]"
       ""
-      "Status: ok | busy | degraded (browser gone) | unresponsive | down"
+      "Status: ok | busy | degraded (browser gone or an event handler failing) | unresponsive | down"
       "Exit code is 0 for ok/busy, 1 otherwise."
       ""
       "Examples:"
@@ -3585,7 +3585,8 @@
    browser is still there, and where to look."
   [h]
   (let [{:keys [status session pid uptime commands_total in_flight browser
-                socket log last_exit cause hint state_issue stale_pid]} h
+                socket log last_exit cause hint state_issue stale_pid
+                handler_errors lost_commands]} h
         head (str (or session "default") ": " status
                (condp = status
                  "down"         " — no daemon process"
@@ -3604,7 +3605,8 @@
                 (cond
                   (not (:launched browser))  "not launched yet"
                   (not (:connected browser)) "GONE — relaunches on the next command"
-                  (:page_open browser)       "connected, page open"
+                  (:page_url browser)        "connected, page open"
+                  (:page_open browser)       "connected, blank page — no URL loaded yet"
                   :else                      "connected, no page"))])
            (when-not (= "down" status)
              [(str "  in flight: "
@@ -3612,6 +3614,24 @@
                   (str/join ", " (map #(str (:id %) " " (:action %) " (" (:running %) ")")
                                    in_flight))
                   "none"))])
+           ;; A handler that throws on every event breaks capture in silence,
+           ;; so the count belongs where a caller already looks (issue #125).
+           (when (seq handler_errors)
+             [(str "  handlers:  "
+                (str/join ", "
+                  (map (fn [entry]
+                         (str (:label entry) " ×" (:count entry)
+                           " " (:error entry)))
+                    handler_errors))
+                " — capture is broken; close this session and start a fresh one")])
+            ;; A command that never came back took the page and the refs with
+            ;; it. The session answers again, but it is not the one the caller
+            ;; had, and only this line says so (issue #125).
+           (when (seq lost_commands)
+             [(str "  lost:      "
+                (str/join ", " (map (fn [entry] (str (:action entry) " (" (:id entry) ")"))
+                                 lost_commands))
+                " — never answered; the browser was dropped, so the next command opens a fresh one")])
            (when socket [(str "  socket:    " socket)])
            (when log    [(str "  log:       " log)])
            (when hint   [(str "  hint:      " hint)]))
