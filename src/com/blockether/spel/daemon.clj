@@ -2546,28 +2546,79 @@
 (defn- ref? [^String s]
   (boolean (re-matches #"@e[a-z0-9]+" s)))
 
+(defn- publish-refs!
+  "Makes a captured snapshot's refs the current ones.
+
+   The generation counter is how `dispatch-cmd` tells a command that published
+   refs from one that may have invalidated them."
+  [snap]
+  (swap! !state
+    (fn [state]
+      (assoc state
+        :refs (:refs snap)
+        :counter (:counter snap)
+        :refs-stale? false
+        :refs-generation (inc (long (or (:refs-generation state) 0))))))
+  snap)
+
+(defn- refresh-snapshot!
+  "Captures a fresh snapshot and updates daemon ref state."
+  []
+  (publish-refs! (snapshot/capture-snapshot (pg))))
+
+(defn- ensure-refs-current!
+  "Captures a snapshot only when the stored refs are missing or may be
+   outdated — for a caller that needs every ref of the page as it is now."
+  []
+  (let [state @!state]
+    (when (or (:refs-stale? state) (empty? (:refs state)))
+      (refresh-snapshot!))))
+
+(defn- missing-ref-error
+  "The error for an @ref no capture can find, listing what is addressable."
+  [^String selector ^String ref-id]
+  (let [refs (:refs @!state)
+        hint (if (seq refs)
+               (let [rows (for [[k v] (sort-by key refs)]
+                            (str "  @" k "  " (:role v)
+                              (when-let [n (:name v)]
+                                (when-not (str/blank? n)
+                                  (str " \"" (if (> (count n) 40)
+                                               (str (subs n 0 37) "...")
+                                               n) "\"")))))]
+                 (str "Available refs:\n" (str/join "\n" rows)
+                   "\nRun 'snapshot' to refresh."))
+               "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
+    (ex-info (str "Ref " ref-id " not found.\n" hint)
+      {:selector selector :found false :stale-ref true})))
+
+(defn- ref-locator!
+  "Locates the element an @ref names.
+
+   A capture stamps data-pw-ref onto the DOM, so a ref outlives most actions and
+   matching it costs one selector query, while the walk that would refresh every
+   ref costs 170 ms on a 12k-element page and seconds on a large app. The walk
+   is therefore paid here, when a ref is used and its stamp is gone, and never
+   after an action whose tree nobody reads."
+  [^String selector ^String ref-id]
+  (let [state @!state
+        loc   (snapshot/resolve-ref (pg) ref-id)]
+    (cond
+      (and (contains? (:refs state) ref-id) (not (:refs-stale? state))) loc
+      (pos? (locator/count-elements loc))                               loc
+      :else
+      (do
+        (refresh-snapshot!)
+        (if (contains? (:refs @!state) ref-id)
+          (snapshot/resolve-ref (pg) ref-id)
+          (throw (missing-ref-error selector ref-id)))))))
+
 (defn- resolve-selector
-  "Resolves a selector — if it's a ref (@e2yrjz) resolve via snapshot,
-   otherwise return a regular CSS locator.
-   Throws immediately if the ref was never captured in a snapshot."
+  "Resolves a selector — an @ref through the snapshot that stamped it, anything
+   else as a regular locator."
   [^String selector]
   (if (ref? selector)
-    (let [ref-id (str/replace selector #"^@" "")
-          refs   (:refs @!state)]
-      (when-not (get refs ref-id)
-        (let [hint (if (seq refs)
-                     (let [rows (for [[k v] (sort-by key refs)]
-                                  (str "  @" k "  " (:role v)
-                                    (when-let [n (:name v)]
-                                      (when-not (str/blank? n)
-                                        (str " \"" (if (> (count n) 40)
-                                                     (str (subs n 0 37) "...")
-                                                     n) "\"")))))]
-                       (str "Available refs:\n" (str/join "\n" rows)
-                         "\nRun 'snapshot' to refresh."))
-                     "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
-          (throw (ex-info (str "Ref " ref-id " not found.\n" hint) {}))))
-      (snapshot/resolve-ref (pg) ref-id))
+    (ref-locator! selector (str/replace selector #"^@" ""))
     (page/locator (pg) selector)))
 
 (declare unwrap-anomaly!)
@@ -2596,13 +2647,6 @@
                 (try (boolean (locator/is-enabled? loc))
                      (catch Exception _ nil)))}))
 
-(defn- refresh-snapshot!
-  "Captures a fresh snapshot and updates daemon ref state."
-  []
-  (let [snap (snapshot/capture-snapshot (pg))]
-    (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-    snap))
-
 (defn- throw-click-error!
   "Throws an ex-info with rich click diagnostics and the original cause."
   [selector {:keys [found visible enabled]} cause]
@@ -2619,14 +2663,8 @@
              cause))))
 
 (defn- click-with-ref-recovery!
-  "Clicks a selector with stale-ref recovery and fail-fast diagnostics.
-
-   For @e refs:
-   1) preflight locator existence
-   2) refresh snapshot once if missing
-   3) fail fast with diagnostics when still missing
-
-   For non-ref selectors, still performs preflight diagnostics before click.
+  "Clicks a selector, failing fast with diagnostics instead of waiting out a
+   Playwright timeout on an element that is not on the page.
 
    `opts` (optional map) is passed through to `locator/click`. Commonly used
    keys: `:modifiers` (e.g. `[:meta]` for cmd-click → opens link in new tab),
@@ -2634,24 +2672,7 @@
    caller overrides it."
   ([^String selector] (click-with-ref-recovery! selector nil))
   ([^String selector opts]
-   (let [ref-selector? (and selector (ref? selector))
-         ref-id        (when ref-selector? (str/replace selector #"^@" ""))
-         loc           (if ref-selector?
-                         (let [refs          (:refs @!state)
-                               ref-present?  (contains? refs ref-id)
-                               fresh-snap    (when-not ref-present? (refresh-snapshot!))
-                               fresh-present (if fresh-snap
-                                               (contains? (:refs fresh-snap) ref-id)
-                                               ref-present?)]
-                           (when-not fresh-present
-                             (throw (ex-info
-                                      (str "Ref " ref-id " not found.\n"
-                                        "Click failed for " selector "\n"
-                                        "  - Element found: No\n"
-                                        "  - Suggestion: run 'snapshot -i' and retry click.")
-                                      {:selector selector :found false :stale-ref true})))
-                           (snapshot/resolve-ref (pg) ref-id))
-                         (resolve-selector selector))
+   (let [loc  (resolve-selector selector)
          diag (locator-diagnostics loc)]
      (when-not (:found diag)
        (throw (ex-info
@@ -2728,18 +2749,6 @@
                  "document.querySelector('meta[name=description]')?.content || ''")]
       (when-not (str/blank? desc) desc))
     (catch Exception _ nil)))
-
-(defn- snapshot-after-action!
-  "Captures a snapshot, stores refs in state, returns the tree string.
-
-   Accepts optional opts map with :scope (CSS selector) to restrict
-   the snapshot to a DOM subtree."
-  ([]
-   (snapshot-after-action! {}))
-  ([opts]
-   (let [snap (snapshot/capture-snapshot (pg) opts)]
-     (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-     (:tree snap))))
 
 ;; =============================================================================
 ;; Error Helpers — used by command handlers and process-command
@@ -3017,7 +3026,6 @@
                           "spel-screenshot-"
                           (System/currentTimeMillis) ".png"))
           ^bytes ss-bytes (page/screenshot (pg))]
-      (snapshot-after-action!)
       (let [out-path (Path/of ^String path-str (into-array String []))]
         (when-let [parent (.getParent out-path)]
           (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
@@ -3025,11 +3033,9 @@
           ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)
        :viewport (page/viewport-size (pg))})
-    (do
-      (snapshot-after-action!)
-      (cond-> {:url (page/url (pg)) :title (page/title (pg))}
-        viewport-width (assoc :viewport (page/viewport-size (pg)))
-        (page-description) (assoc :description (page-description))))))
+    (cond-> {:url (page/url (pg)) :title (page/title (pg))}
+      viewport-width (assoc :viewport (page/viewport-size (pg)))
+      (page-description) (assoc :description (page-description)))))
 
 (defn- build-structured-refs
   "Builds the structured refs map for JSON output (AC-5/AC-6)."
@@ -3070,7 +3076,7 @@
     ;; caused it — never rendered as a successful snapshot with an empty tree.
     (if (anomaly/anomaly? snap)
       snap
-      (let [_          (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
+      (let [_          (publish-refs! snap)
             tree       (cond-> (filter-snapshot-tree (:tree snap) params)
                          (:truncated snap)
                          (str "\n" (snapshot/truncation-note (:truncated snap))))
@@ -3102,7 +3108,6 @@
         opts     (cond-> {}
                    new-tab? (assoc :modifiers [(new-tab-modifier)]))]
     (click-with-ref-recovery! selector opts))
-  (snapshot-after-action!)
   (cond-> {:clicked selector}
     (get params "new-tab") (assoc :new-tab true)))
 
@@ -3124,13 +3129,11 @@
 (defmethod handle-cmd "fill" [_ {:strs [selector value]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/fill (resolve-selector selector) value))
-  (snapshot-after-action!)
   {:filled selector})
 
 (defmethod handle-cmd "type" [_ {:strs [selector text]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/type-text (resolve-selector selector) text))
-  (snapshot-after-action!)
   {:typed selector})
 
 (defmethod handle-cmd "press" [_ {:strs [key selector]}]
@@ -3138,7 +3141,6 @@
   (if selector
     (unwrap-anomaly! (locator/press (resolve-selector selector) key))
     (.press ^Keyboard (page/page-keyboard (pg)) key))
-  (snapshot-after-action!)
   {:pressed key})
 
 (defmethod handle-cmd "hover" [_ {:strs [selector]}]
@@ -3152,25 +3154,21 @@
 (defmethod handle-cmd "check" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/check (resolve-selector selector)))
-  (snapshot-after-action!)
   {:checked selector})
 
 (defmethod handle-cmd "uncheck" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/uncheck (resolve-selector selector)))
-  (snapshot-after-action!)
   {:unchecked selector})
 
 (defmethod handle-cmd "select" [_ {:strs [selector values]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/select-option (resolve-selector selector) values))
-  (snapshot-after-action!)
   {:selected selector})
 
 (defmethod handle-cmd "dblclick" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (unwrap-anomaly! (locator/dblclick (resolve-selector selector)))
-  (snapshot-after-action!)
   {:dblclicked selector})
 
 (defmethod handle-cmd "focus" [_ {:strs [selector]}]
@@ -3290,8 +3288,7 @@
                (contains? params "show-badges")     (assoc :show-badges (get params "show-badges"))
                (contains? params "show-dimensions") (assoc :show-dimensions (get params "show-dimensions"))
                (contains? params "show-boxes")      (assoc :show-boxes (get params "show-boxes")))
-        ;; Capture fresh snapshot for refs
-        _         (snapshot-after-action!)
+        _         (ensure-refs-current!)
         refs      (:refs @!state)
         annotated (if (seq refs)
                     (annotate/inject-overlays! (pg) refs opts)
@@ -3351,7 +3348,7 @@
                (get params "scope")              (assoc :scope (get params "scope"))
                (get params "device")             (assoc :device (get params "device")))
         snap (helpers/inspect! (pg) opts)]
-    (snapshot-after-action!)
+    (publish-refs! snap)
     {:tree (:tree snap)
      :refs (:refs snap)
      :counter (:counter snap)
@@ -3455,26 +3452,22 @@
         result    (unwrap-anomaly!
                     (if sel
                       (locator/scroll (resolve-selector sel) direction opts)
-                      (page/scroll (pg) direction opts)))
-        _         (snapshot-after-action!)]
+                      (page/scroll (pg) direction opts)))]
     result))
 
 (defmethod handle-cmd "back" [_ _]
   (ensure-page-loaded!)
   (page/go-back (pg))
-  (snapshot-after-action!)
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "forward" [_ _]
   (ensure-page-loaded!)
   (page/go-forward (pg))
-  (snapshot-after-action!)
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "reload" [_ _]
   (ensure-page-loaded!)
   (page/reload (pg))
-  (snapshot-after-action!)
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "wait" [_ params]
@@ -3528,7 +3521,6 @@
   (let [pages (core/context-pages (ctx))
         pg-inst (nth pages (int index))]
     (swap! !state assoc :page pg-inst)
-    (snapshot-after-action!)
     {:tab index :url (page/url pg-inst)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
@@ -3761,7 +3753,6 @@
 (defmethod handle-cmd "scrollintoview" [_ {:strs [selector]}]
   (ensure-page-loaded!)
   (locator/scroll-into-view (resolve-selector selector))
-  (snapshot-after-action!)
   {:scrolled_into_view selector})
 
 (defmethod handle-cmd "find_scrollable" [_ _params]
@@ -3859,7 +3850,6 @@
         (locator/evaluate-locator src-loc
           (drag-js (double sx) (double sy) (double tx) (double ty)
             (long (or steps 10)))))))
-  (snapshot-after-action!)
   {:dragged {:from source :to target}})
 
 (defmethod handle-cmd "drag-by" [_ {:strs [selector dx dy steps]}]
@@ -3867,14 +3857,12 @@
   (let [loc  (resolve-selector selector)
         opts (when steps {:steps (long steps)})]
     (unwrap-anomaly! (locator/drag-by (pg) loc dx dy opts))
-    (snapshot-after-action!)
     {:dragged_by {:selector selector :dx dx :dy dy}}))
 
 (defmethod handle-cmd "upload" [_ {:strs [selector files]}]
   (ensure-page-loaded!)
   (let [file-paths (if (string? files) [files] files)]
     (locator/set-input-files! (resolve-selector selector) file-paths)
-    (snapshot-after-action!)
     {:uploaded {:selector selector :files file-paths}}))
 
 (defmethod handle-cmd "get_value" [_ {:strs [selector]}]
@@ -3920,10 +3908,8 @@
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
       "click"   (do (locator/click loc)
-                    (snapshot-after-action!)
                     {:found by :value value :action "click"})
       "fill"    (do (locator/fill loc find_value)
-                    (snapshot-after-action!)
                     {:found by :value value :action "fill"})
       "type"    (do (locator/type-text loc find_value)
                     {:found by :value value :action "type"})
@@ -5525,7 +5511,16 @@
         ;; A failed command repaints as readily as a successful one.
         (when-not (contains? ios-refs-preserving-actions action)
           (swap! !state assoc :refs-stale? true))))
-    (handle-cmd action params)))
+    ;; A browser ref is a stamp in the DOM, so a needless invalidation costs one
+    ;; selector query, not a walk: every command that did not publish refs is
+    ;; taken to have changed the page — including evaluate, which used to leave
+    ;; the refs looking fresh after rewriting the document.
+    (let [generation (:refs-generation @!state)]
+      (try
+        (handle-cmd action params)
+        (finally
+          (when (= generation (:refs-generation @!state))
+            (swap! !state assoc :refs-stale? true)))))))
 
 (def ^:private no-recovery-actions
   "Actions never re-run after a browser loss: lifecycle and diagnostics, where

@@ -14,7 +14,9 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.test-server :as test-server]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.locator :as locator]
    [com.blockether.spel.logging :as logging]
+   [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
   (:import
    [com.sun.net.httpserver HttpHandler HttpsConfigurator HttpsServer]
@@ -2228,3 +2230,68 @@
                     sut/handle-ios-cmd (fn [_ _] {:tapped "name=Send"})]
         (#'sut/dispatch-cmd "tap" {"selector" "name=Send"}))
       (expect (zero? @captures*)))))
+
+;; Regression, issue #130: every browser action captured a full snapshot whose
+;; tree was thrown away — 90% of a click on a 12k-element page — while evaluate
+;; rewrote the document and left the refs looking fresh.
+(defdescribe web-ref-freshness-test
+  "Browser refs are captured where an @ref is used, not after every action"
+
+  (it "matches a stamp that outlived the action instead of walking again"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {"e1" {:role "button"}} :counter 1 :refs-stale? true})
+      (with-redefs [snapshot/resolve-ref       (fn [_ _] :loc)
+                    locator/count-elements     (fn ^long [_] 1)
+                    snapshot/capture-snapshot  (fn [& _] (swap! captures* inc) {:refs {} :counter 0})]
+        (with-redefs-fn {#'sut/pg (constantly :page)}
+          (fn [] (expect (= :loc (#'sut/resolve-selector "@e1"))))))
+      (expect (zero? @captures*))))
+
+  (it "walks once when the stamp is gone"
+    (let [state-atom (deref #'sut/!state)
+          captures*  (atom 0)]
+      (reset! state-atom {:refs {"e1" {:role "button"}} :counter 1 :refs-stale? true})
+      (with-redefs [snapshot/resolve-ref      (fn [_ _] :loc)
+                    locator/count-elements    (fn ^long [_] 0)
+                    snapshot/capture-snapshot (fn [& _] (swap! captures* inc)
+                                                {:refs {"e1" {:role "button"}} :counter 1})]
+        (with-redefs-fn {#'sut/pg (constantly :page)}
+          (fn [] (expect (= :loc (#'sut/resolve-selector "@e1"))))))
+      (expect (= 1 @captures*))
+      (expect (false? (:refs-stale? @state-atom)))))
+
+  (it "reports a ref no capture can find as stale, and lists what is addressable"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {} :counter 0 :refs-stale? true})
+      (with-redefs [snapshot/resolve-ref      (fn [_ _] :loc)
+                    locator/count-elements    (fn ^long [_] 0)
+                    snapshot/capture-snapshot (fn [& _] {:refs {"e9" {:role "button" :name "Submit"}}
+                                                         :counter 1})]
+        (with-redefs-fn {#'sut/pg (constantly :page)}
+          (fn []
+            (let [error (try (#'sut/resolve-selector "@e1")
+                             nil
+                             (catch clojure.lang.ExceptionInfo e e))]
+              (expect (some? error))
+              (expect (true? (:stale-ref (ex-data error))))
+              (expect (str/includes? (ex-message error) "@e9"))))))))
+
+  (it "invalidates refs after a command that published none"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {"e1" {}} :counter 1 :refs-stale? false :refs-generation 3})
+      (with-redefs-fn {#'sut/ios-provider? (constantly false)
+                       #'sut/handle-cmd    (fn [_ _] {:ok true})}
+        (fn [] (#'sut/dispatch-cmd "evaluate" {})))
+      (expect (true? (:refs-stale? @state-atom)))))
+
+  (it "leaves the refs a command published alone"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:refs {} :counter 0 :refs-stale? true :refs-generation 3})
+      (with-redefs [snapshot/capture-snapshot (fn [& _] {:refs {"e2" {:role "link"}} :counter 1})]
+        (with-redefs-fn {#'sut/pg            (constantly :page)
+                         #'sut/ios-provider? (constantly false)
+                         #'sut/handle-cmd    (fn [_ _] (#'sut/refresh-snapshot!) {:ok true})}
+          (fn [] (#'sut/dispatch-cmd "snapshot" {}))))
+      (expect (false? (:refs-stale? @state-atom)))
+      (expect (= {"e2" {:role "link"}} (:refs @state-atom))))))
