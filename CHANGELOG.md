@@ -20,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(daemon): end a command on a crashed renderer, and cap the snapshot
 - fix(daemon): keep a session alive when a command never comes back
 - fix(daemon): serve one session name with one daemon
-- release: update version files for v0.9.26, bump to next dev version
 
 
 ## [v0.9.26] - 2026-08-10
@@ -36,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(ios,cli): make every iOS ceiling and the flag parser fit real work
 - Make the agent propose boxed snapshots and carry the ref table
 - Keep content boundaries silent for empty output
-- release: update version files for v0.9.25, bump to next dev version
 
 
 ### Fixed
@@ -66,7 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(wsl-diag): report one curl status per probe
 - ci(wsl-verify): bridge CDP onto the WSL-facing address
 - ci(wsl-verify): pin WSL networking to NAT so the distro has a network
-- release: update version files for v0.9.24, bump to next dev version
 
 
 ## [v0.9.24] - 2026-08-04
@@ -75,7 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recognise a daemon started from any spel binary name
 - Start the daemon from a native binary of any file name
 - Transport snapshot captures as JSON text
-- release: update version files for v0.9.23, bump to next dev version
 
 
 ## [v0.9.23] - 2026-08-04
@@ -87,14 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix session list crash, wait output, silent snapshots and response-handler overflow
 - docs: require reproduce, RED, then GREEN for reported bugs
 - fix: enable http URL protocol in the native image so CDP connect works
-- release: update version files for v0.9.22, bump to next dev version
 
 
 ## [v0.9.22] - 2026-08-03
 
 ### Changed
 - fix(daemon): keep sessions alive when user handlers or clients fail
-- release: update version files for v0.9.21, bump to next dev version
 
 
 ## [v0.9.21] - 2026-08-01
@@ -102,28 +96,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - feat(init-agents): warn when generated skill references drift
 - ci: wait for matching CI before releasing
-- release: update version files for v0.9.20, bump to next dev version
 
 
 ## [v0.9.20] - 2026-08-01
 
 ### Changed
 - docs(agents): harden the native iOS verification loop
-- release: update version files for v0.9.19, bump to next dev version
 
 
 ## [v0.9.19] - 2026-08-01
 
 ### Changed
 - chore: prepare v0.9.19 release
-- release: update version files for v0.9.18, bump to next dev version
 
 
 ## [v0.9.18] - 2026-08-01
 
 ### Changed
 - feat(ios): expose device orientation controls
-- release: update version files for v0.9.17, bump to next dev version
 
 
 ## [v0.9.17] - 2026-08-01
@@ -131,7 +121,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Fix native iOS snapshot XML parsing
 - ci(security): add CVE dependency scanning
-- release: update version files for v0.9.16, bump to next dev version
 
 
 ## [v0.9.16] - 2026-07-28
@@ -139,14 +128,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - fix(daemon): require accepted CDP before auto-launch succeeds
 - Fix auto-launch readiness probe
-- release: update version files for v0.9.15, bump to next dev version
 
 
 ## [v0.9.15] - 2026-07-27
 
 ### Changed
 - fix(daemon): heal dead browser handles and make message-less errors diagnosable
-- release: update version files for v0.9.14, bump to next dev version
 
 
 ## [v0.9.14] - 2026-07-27
@@ -155,7 +142,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs(agents): centralize release instructions in AGENTS.md
 - fix(ci,docs): guard release tag against SPEL_VERSION, document init-agents
 - fix(report): flatten step tree, indent header chips
-- release: update version files for v0.9.13, bump to next dev version
 
 
 ### Changed
@@ -266,7 +252,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(browser): embeddable spel.js engine + loopback bridge, shipped in native image
 - fix(report): drop duplicated awesome/ sub-report + cap PR report retention
 - chore(ci): cap Allure report retention MAX_REPORTS 15 -> 5
-- release: update version files for v0.9.8, bump to next dev version
 
 
 ### Added
@@ -427,7 +412,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(alt-report): markdown + HTML attachments, merged HTTP step, assertion polish
 - feat(cdp): scan 9223 alongside 9222/9229, extract to platform/common-cdp-ports
 - feat(alt-report): merge HTTP step + body, live iframe for HTML attachments
-- release: update version files for v0.9.4, bump to next dev version
 
 
 ## [v0.9.4] - 2026-04-15
@@ -435,7 +419,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - refactor(alt-report): soften green for passed — outline only, no bg tint
 - feat(alt-report): tighten failure UX — full trace, per-step errors, no dupe
-- release: update version files for v0.9.3, bump to next dev version
 
 
 ## [v0.9.3] - 2026-04-14
@@ -443,7 +426,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - test(alt-report): add second result in toolbar tests to leave single mode
 - feat(alt-report): polish single-test mode + rich-headers showcase test
-- release: update version files for v0.9.2, bump to next dev version
 
 
 ## [v0.9.2] - 2026-04-13
@@ -452,14 +434,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(test): normalize CRLF in sci_eval stdout assertions for Windows
 - feat(sci): full math class surface — Math, StrictMath, MathContext, RoundingMode, Random family
 - test(sci_eval): pin println + result contract (issue #106)
-- release: update version files for v0.9.1, bump to next dev version
 
 
 ## [v0.9.1] - 2026-04-13
 
 ### Changed
 - refactor(report): rename "block" alternative report to "alternative"
-- release: update version files for v0.9.0, bump to next dev version
 
 
 ## [v0.9.0] - 2026-04-13
@@ -468,7 +448,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(page,sci): evaluate-file, add-init-script!, new-cdp-session
 - fix(sci): restore pprint/pp/clojure.pprint — all backed by zprint
 - refactor(sci): drop clojure.pprint alias + dead fork-sci-ctx
-- release: update version files for v0.8.0, bump to next dev version
 
 
 ## [v0.8.0] - 2026-04-12
@@ -553,7 +532,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: agent-browser parity III — config file, upgrade, Lightpanda, dialog/confirm, allow-file, screenshot output flags
 - feat: agent-browser parity II — iOS device, profile clone, HAR, auth vault, and more
 - feat: agent-browser parity — annotated screenshot, security trio, batch
-- release: update version files for v0.7.11, bump to next dev version
 
 
 ## [v0.7.11] - 2026-04-02
@@ -567,7 +545,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix CDP discovery on Chrome/Edge M144+ WebSocket-only mode
 - fix: render paragraph and listitem in a11y-tree->markdown
 - fix: default markdownify to a11y snapshot output and preserve readable line breaks
-- release: update version files for v0.7.10, bump to next dev version
 
 
 ## [v0.7.10] - 2026-03-30
@@ -578,7 +555,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix: add src/clj, test/clj, src/cljc, test/cljc to default source paths
 - chore: remove stale planning docs
 - chore: clean cljfmt config and bump allure CLI to 3.3.1
-- release: update version files for v0.7.9, bump to next dev version
 
 
 ## [v0.7.9] - 2026-03-29
@@ -586,7 +562,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - docs: document SPEL_ALLURE_CWD env var for read-only filesystems
 - fix: support SPEL_ALLURE_CWD for allure on read-only filesystems
-- release: update version files for v0.7.8, bump to next dev version
 
 
 ## [v0.7.8] - 2026-03-29
@@ -600,7 +575,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ci(release): shallow clone + targeted fetch to skip gh-pages download
 - ci: reuse CI native image artifacts in release — only build linux-arm64
 - fix(test): restore session idle timeout after daemon_test to prevent mid-test daemon kill
-- release: update version files for v0.7.7, bump to next dev version
 
 
 ## [v0.7.7] - 2026-03-18
@@ -610,21 +584,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: comprehensive retry documentation across all skill references
 - feat(retry): add retry-guard predicate + catch exceptions in retry loop (#98)
 - fix(retry): guard :status cast with number? check in default :retry-when (#98)
-- release: update version files for v0.7.6, bump to next dev version
 
 
 ## [v0.7.6] - 2026-03-18
 
 ### Changed
 - fix(allure): pretty-print JSON bodies in cURL and remove 500-char truncation
-- release: update version files for v0.7.5, bump to next dev version
 
 
 ## [v0.7.5] - 2026-03-18
 
 ### Changed
 - fix(allure): always use resolved full URL in HTTP exchange attachments
-- release: update version files for v0.7.4, bump to next dev version
 
 
 ## [v0.7.4] - 2026-03-18
@@ -640,7 +611,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: fix diff tooling claim — spel has snapshot diff and pixel diff
 - docs: fix 5 factual errors in comparison after deep verification (#90)
 - docs: update comparison with agent-browser 0.20.11 (native Rust rewrite)
-- release: update version files for v0.7.3, bump to next dev version
 
 
 ## [v0.7.3] - 2026-03-15
@@ -649,7 +619,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: surface scroll metrics in snapshot -S for overflow containers (#96)
 - docs: add agent install hint comment to README (#93)
 - fix(ci,ui): reliable PR detection fallback and hash-based URL routing (#94, #95)
-- release: update version files for v0.7.2, bump to next dev version
 
 
 ## [v0.7.2] - 2026-03-15
@@ -668,7 +637,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: add issue #89 reproduction steps and learnings to AGENTS.md
 - test: add behavioral keyboard press tests with dedicated HTML page (#89)
 - fix: expose aria-disabled in snapshots and add single-arg keyboard press (#88, #89)
-- release: update version files for v0.7.1, bump to next dev version
 
 
 ## [v0.7.1] - 2026-03-14
@@ -676,7 +644,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - fix(cli): add --cdp-url alias and regenerate docs with CDP/dialog functions (issue #87)
 - fix(cli): markdownify --url handles protocol-less URLs and redirects (issue #86)
-- release: update version files for v0.7.0, bump to next dev version
 
 
 ## [v0.7.0] - 2026-03-14
@@ -684,14 +651,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - fix(graal): add Dialog interface to reflection config for SCI interop
 - fix(sci): expose dialog manipulation functions in SCI (issue #85)
-- release: update version files for v0.6.10, bump to next dev version
 
 
 ## [v0.6.10] - 2026-03-13
 
 ### Changed
 - feat(daemon): auto-shutdown after CDP idle timeout (default 30min)
-- release: update version files for v0.6.9, bump to next dev version
 
 
 ## [v0.6.9] - 2026-03-13
@@ -705,14 +670,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(daemon): use ProcessHandle for portable pid liveness checks
 - fix(evals): handle missing opencode binary in real eval smoke
 - feat(evals): enforce real-site fast-path orchestration
-- release: update version files for v0.6.8, bump to next dev version
 
 
 ## [v0.6.8] - 2026-03-13
 
 ### Changed
 - fix: resolve boxed math warning in daemon.clj for GraalVM
-- release: update version files for v0.6.7, bump to next dev version
 
 
 ## [v0.6.7] - 2026-03-13
@@ -723,7 +686,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(evals): remove compiled python cache artifacts
 - feat(evals): add real orchestrator eval harness and references docs
 - fix(daemon): fail fast on shared CDP route ownership
-- release: update version files for v0.6.6, bump to next dev version
 
 
 ## [v0.6.6] - 2026-03-12
@@ -734,7 +696,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(tests): align init-agents help assertions with current CLI
 - docs: fix README rendering and remove duplicated setup notes
 - fix(daemon): stop returning snapshots from action responses
-- release: update version files for v0.6.5, bump to next dev version
 
 
 ## [v0.6.5] - 2026-03-11
@@ -743,8 +704,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: align skill and agent templates with session-first CDP workflow
 - fix: humanize unknown runtime errors and harden free-port handling
 - fix(cli): resolve relative paths against caller CWD, add spel/eval-js alias
-- release: update version files for v0.6.4, bump to next dev version
-- release: update version files for v0.6.3, bump to next dev version
 
 
 ## [v0.6.4] - 2026-03-11
@@ -757,34 +716,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - fix(search): remove dead card-style renderer code and ANSI color helpers
-- release: update version files for v0.6.2, bump to next dev version
 - fix(skill): add missing presenter/visual refs to SKILL.md index
-- release: update version files for v0.6.1, bump to next dev version
 - feat(report): port CSS_PATTERNS.md design system into report HTML
-- release: update version files for v0.6.0, bump to next dev version
 - fix(search): forward --json flag from native binary to search command
 - feat(search): add DuckDuckGo fallback via HTML endpoint with anti-detection and fast block detection
-- release: update version files for v0.5.27, bump to next dev version
 - feat(search): retry with backoff, markdown output, warning field
-- release: update version files for v0.5.26, bump to next dev version
 - fix: session close timing + forward --channel to daemon subprocess
-- release: update version files for v0.5.25, bump to next dev version
 - feat: restructure 7 audit commands under 'spel audit' umbrella
-- release: update version files for v0.5.24, bump to next dev version
 - fix: CLI bugs (--session screenshot, --session close, --channel) + presenter design system alignment
 - chore: mark agent-helpers-v0523 plan complete (105/105)
 - fix(tests): align CLI assertion with actual orchestrator template wording
-- release: update version files for v0.5.23, bump to next dev version
 - Merge branch 'agent-helpers-v0523': add 6 QA helpers, wire agents, fix dark theme (v0.5.23)
 - feat(helpers): add 6 QA helpers, wire helpers into agents, fix report dark theme
 - chore: mark agent-consolidation plan complete in boulder state
 - chore: add F-wave review evidence and update notepads
 - fix(agents): replace stale spel-test-generator refs in explorer and automator templates
-- release: update version files for v0.5.22, bump to next dev version
 - refactor(agents): consolidate 14 agents to 8, apply Anthropic skill-building principles
-- release: update version files for v0.5.21, bump to next dev version
 - refactor(agents): merge visual-qa into bug-hunter, consolidate to 14 agents
-- release: update version files for v0.5.20, bump to next dev version
 - fix(refs): remove 'navigate directly' anti-patterns from NAVIGATION_WAIT and COMMON_PROBLEMS
 - refactor(agents): consolidate to 15 agents, enforce human-like navigation
 - feat(autotrainer): add bounded training loop with iteration, feedback, convergence
@@ -792,15 +740,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(helpers): add overview all-frames plus debug and emulate commands
 - test(init-agents): add 113 unit tests for agent scaffolding logic
 - chore(agents): regenerate test specs README for 0.5.19
-- release: update version files for v0.5.19, bump to next dev version
 - chore: remove LEARNINGS.md and bugfind-reports from repo root
-- release: update version files for v0.5.18, bump to next dev version
 - feat(agents): add orchestrator routing, discovery pipeline, report template enhancements, and Unbound site audit
 - fix(init-agents): use record format for tools in product-analyst template
 - fix(init-agents): suppress --ns warning when --no-tests is set
-- release: update version files for v0.5.17, bump to next dev version
 - feat(init-agents): add opt-in learnings and markdown report scaffolding
-- release: update version files for v0.5.16, bump to next dev version
 - feat(report): elevate unified report clarity and visual storytelling
 - fix(init-agents): improve Claude template transformation fidelity
 - chore: wire orphaned refs into subagent-ref-map + delete dogfood-report.html
@@ -827,7 +771,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(discovery): add discovery workflow prompt
 - refactor(agents): strip duplicated patterns from bugfind pipeline agents
 - refactor(agents): extract 5 common patterns to AGENT_COMMON.md
-- release: update version files for v0.5.15, bump to next dev version
 - fix(templates): change orchestrator mode from 'agent' to 'all' and add visual checks + viewport sections to QA report
 - feat(templates): enforce multi-viewport testing with structured evidence
 - fix(templates): require annotated screenshots with action markers as bug evidence
@@ -836,14 +779,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - style(templates): humanize all 43 agent/skill markdown files
 - feat(action-log): add daemon-level action tracking with SRT export
 - feat(templates): add QA report HTML template and integrate dogfood workflow
-- release: update version files for v0.5.14, bump to next dev version
 - feat(templates): add 4 orchestrator agents for smart pipeline routing
-- release: update version files for v0.5.13, bump to next dev version
 - fix(templates): allow all bash commands for subagent-only agents
 - test(snapshot): add 6 Playwright integration tests for [pos:X,Y W×H] tree output
 - feat(snapshot): add [pos:X,Y W×H] screen position to tree output
 - feat(visual-diff): add semantic region enrichment with accessibility snapshot labels
-- release: update version files for v0.5.12, bump to next dev version
 - feat(templates): integrate QA methodology into bugfind agent templates
 - feat(templates): integrate OpenAI QA methodology into test agent templates
 - fix(docs): replace deprecated --eval with eval-sci in source code, README, and docs
@@ -853,9 +793,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(test-cli): use portable mktemp for macOS compatibility
 - fix(docs): add missing search, role, and allure namespaces to generated API docs
 - feat(templates): add cookie consent, snapshot-first interaction, and e-commerce patterns to agent templates
-- release: update version files for v0.5.11, bump to next dev version
 - fix: visual diff shows original image with red overlay, snake_case JSON, CLI routing
-- release: update version files for v0.5.10, bump to next dev version
 - fix: correct diff CLI test assertions to use kebab-case jq keys
 - feat: expose constants/ and device/ namespaces in SCI eval environment
 - fix: correct 5 ref docs to match implementation
@@ -864,14 +802,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add pixel-level screenshot diffing via pixelmatch + Playwright Canvas
 - docs: collapse proxy config and env vars under <details>
 - fix: implement SPEL_CHANNEL env var + sync README env var table with code
-- release: update version files for v0.5.9, bump to next dev version
 - feat(cdp): add Microsoft Edge support to auto-connect discovery
 - fix(ci): reduce gh-pages size from 12.7 GB to under 1 GB — fix GitHub Pages deployment
-- release: update version files for v0.5.8, bump to next dev version
 - fix(cdp): handle Chrome 136+ --user-data-dir requirement and M144+ WebSocket-only mode
-- release: update version files for v0.5.7, bump to next dev version
 - feat: delete chrome_cookies, remove state export, add --auto-connect
-- release: update version files for v0.5.6, bump to next dev version
 - fix(release): fetch tags in release job, reorder Clojars deploy after GitHub release
 - chore: trigger release v0.5.5
 - Delete LESSONS.md
@@ -897,7 +831,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(init-agents): deprecate --loop=vscode with error message
 - feat(snapshot): add position properties to MINIMAL style tier
 - fix: resolve strict mode violations in drag tests and boxed math warnings
-- release: update version files for v0.5.3, bump to next dev version
 - docs: collapse guided install section by default
 - docs: agentic guided install with env vars reference
 - docs: remove test example from README, link to SKILL.md instead
@@ -919,7 +852,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: add one-shot LLM installation section + surface corporate CA setup (fixes #47)
 - docs(skill): add daemon hang/kill troubleshooting to COMMON_PROBLEMS.md
 - docs: add release process to AGENTS.md — tag-only, never manual
-- release: update version files for v0.5.2, bump to next dev version
 - release: bump to next dev version 0.5.3
 - release: v0.5.2 (v0.5.1 tag immutable, re-releasing as 0.5.2)
 - release: bump to next dev version 0.5.2
@@ -932,7 +864,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(docs): audit and correct comparison file — 6 sections had stale claims
 - docs: rewrite POTENTIAL_TASKS.md — correct 13 features mislabeled as missing
 - chore: remove TASK-003 (sequential refs) — rejected by design, hash refs preferred
-- release: update version files for v0.5.0, bump to next dev version
 - chore: remove 9 completed tasks from TASKS.md — verified via CLI
 - fix(docs): mark link URLs and structured refs as done in 0.5.0 — verified via CLI
 - release: v0.5.0 — extensions, download, flat snapshots, profile support, comparison update
@@ -968,7 +899,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - release: v0.4.2 — viewport on open, crop-to-content screenshots (#33)
 - remove .opencode/skills/ - auto-generated, shouldn't be tracked
 - remove opencode agents/prompts cruft, keep oh-my-opencode.json + skills/
-- release: update version files for v0.4.1, bump to next dev version
 - release: v0.4.1
 - chore: bump oh-my-opencode 3.8.5 → 3.9.0
 - feat: validate URLs on open — reject invalid domains with clear error (closes #36)
@@ -988,7 +918,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix search reliability — block detection, faster timeouts, diagnostics, --debug flag
 - Add opts arity to page/wait-for-function for explicit timeout control
 - feat: add Thread/sleep, System, File interop to SCI sandbox + codegen→eval round-trip tests
-- release: update version files for v0.4.0, bump to next dev version
 - release: bump version to 0.4.0
 - fix: rename spel/eval-js → spel/evaluate in test-cli.sh bash test
 - Rename SCI embedded API to mirror library function names exactly
@@ -1091,7 +1020,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Builds list grid: square cards, 6 per row, wider container
 - CT reporter parity, builds list redesign, lint cleanup
 - Bump opencode
-- release: update version files for v0.3.1, bump to next dev version
 - BLO-93: Fix CI lint - commit clj-kondo config to suppress unused-binding
 - BLO-93: Fix CI lint failure - reduce unused-binding to info level
 - Restore .lsp/config.edn with unused-public-var linter disabled
@@ -1157,7 +1085,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BLO-87: Fix ct namespace nesting in Allure - use common parent
 - BLO-88: Fix Allure workflow - make github-pages environment conditional for PRs
 - BLO-88: Enable Allure reports for PR/branches
-- release: update version files for v0.3.0, bump to next dev version
 - BLO-86: Release v0.3.0
 - fix: add missing closing paren in navigate handler defmethod
 - BLO-85: Fix --screenshot flag not saving file when used with open command
@@ -1181,11 +1108,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: include test-e2e in Playwright tracing source directories
 - fix: promote Native CLI to top-level README section, fix broken nav anchor
 - feat: add spel.roles namespace, replace AriaRole imports with idiomatic Clojure vars
-- release: update version files for v0.2.0, bump to next dev version
 - chore: set SPEL_VERSION to 0.2.0 for release
 - feat: Allure version in builds, classpath trace viewer, with-traced-page default, cljfmt
 - feat: eval file support, --load-state flag, SCI page/locator namespaces
-- release: update version files for v0.1.0, bump to next dev version
 - feat: interactive test mode, spel.allure imports, init-agents --dir, code formatting
 - feat: add storage state API, version management, and SKILL docs
 - feat: add --interactive to eval mode, storage state examples to codegen help
@@ -1254,14 +1179,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - fix(skill): add missing presenter/visual refs to SKILL.md index
-- release: update version files for v0.6.1, bump to next dev version
 
 
 ## [v0.6.1] - 2026-03-11
 
 ### Changed
 - feat(report): port CSS_PATTERNS.md design system into report HTML
-- release: update version files for v0.6.0, bump to next dev version
 
 
 ## [v0.6.0] - 2026-03-11
@@ -1269,28 +1192,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - fix(search): forward --json flag from native binary to search command
 - feat(search): add DuckDuckGo fallback via HTML endpoint with anti-detection and fast block detection
-- release: update version files for v0.5.27, bump to next dev version
 
 
 ## [v0.5.27] - 2026-03-10
 
 ### Changed
 - feat(search): retry with backoff, markdown output, warning field
-- release: update version files for v0.5.26, bump to next dev version
 
 
 ## [v0.5.26] - 2026-03-10
 
 ### Changed
 - fix: session close timing + forward --channel to daemon subprocess
-- release: update version files for v0.5.25, bump to next dev version
 
 
 ## [v0.5.25] - 2026-03-10
 
 ### Changed
 - feat: restructure 7 audit commands under 'spel audit' umbrella
-- release: update version files for v0.5.24, bump to next dev version
 
 
 ## [v0.5.24] - 2026-03-10
@@ -1299,7 +1218,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix: CLI bugs (--session screenshot, --session close, --channel) + presenter design system alignment
 - chore: mark agent-helpers-v0523 plan complete (105/105)
 - fix(tests): align CLI assertion with actual orchestrator template wording
-- release: update version files for v0.5.23, bump to next dev version
 
 
 ## [v0.5.23] - 2026-03-10
@@ -1310,21 +1228,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore: mark agent-consolidation plan complete in boulder state
 - chore: add F-wave review evidence and update notepads
 - fix(agents): replace stale spel-test-generator refs in explorer and automator templates
-- release: update version files for v0.5.22, bump to next dev version
 
 
 ## [v0.5.22] - 2026-03-09
 
 ### Changed
 - refactor(agents): consolidate 14 agents to 8, apply Anthropic skill-building principles
-- release: update version files for v0.5.21, bump to next dev version
 
 
 ## [v0.5.21] - 2026-03-09
 
 ### Changed
 - refactor(agents): merge visual-qa into bug-hunter, consolidate to 14 agents
-- release: update version files for v0.5.20, bump to next dev version
 
 
 ## [v0.5.20] - 2026-03-09
@@ -1337,14 +1252,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(helpers): add overview all-frames plus debug and emulate commands
 - test(init-agents): add 113 unit tests for agent scaffolding logic
 - chore(agents): regenerate test specs README for 0.5.19
-- release: update version files for v0.5.19, bump to next dev version
 
 
 ## [v0.5.19] - 2026-03-08
 
 ### Changed
 - chore: remove LEARNINGS.md and bugfind-reports from repo root
-- release: update version files for v0.5.18, bump to next dev version
 - feat(agents): add orchestrator routing, discovery pipeline, report template enhancements, and Unbound site audit
 
 
@@ -1353,14 +1266,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - fix(init-agents): use record format for tools in product-analyst template
 - fix(init-agents): suppress --ns warning when --no-tests is set
-- release: update version files for v0.5.17, bump to next dev version
 
 
 ## [v0.5.17] - 2026-03-07
 
 ### Changed
 - feat(init-agents): add opt-in learnings and markdown report scaffolding
-- release: update version files for v0.5.16, bump to next dev version
 
 
 ## [v0.5.16] - 2026-03-07
@@ -1392,7 +1303,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(discovery): add discovery workflow prompt
 - refactor(agents): strip duplicated patterns from bugfind pipeline agents
 - refactor(agents): extract 5 common patterns to AGENT_COMMON.md
-- release: update version files for v0.5.15, bump to next dev version
 
 
 ## [v0.5.15] - 2026-03-07
@@ -1406,14 +1316,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - style(templates): humanize all 43 agent/skill markdown files
 - feat(action-log): add daemon-level action tracking with SRT export
 - feat(templates): add QA report HTML template and integrate dogfood workflow
-- release: update version files for v0.5.14, bump to next dev version
 
 
 ## [v0.5.14] - 2026-03-06
 
 ### Changed
 - feat(templates): add 4 orchestrator agents for smart pipeline routing
-- release: update version files for v0.5.13, bump to next dev version
 
 
 ## [v0.5.13] - 2026-03-06
@@ -1423,7 +1331,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - test(snapshot): add 6 Playwright integration tests for [pos:X,Y W×H] tree output
 - feat(snapshot): add [pos:X,Y W×H] screen position to tree output
 - feat(visual-diff): add semantic region enrichment with accessibility snapshot labels
-- release: update version files for v0.5.12, bump to next dev version
 
 
 ## [v0.5.12] - 2026-03-06
@@ -1438,14 +1345,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(test-cli): use portable mktemp for macOS compatibility
 - fix(docs): add missing search, role, and allure namespaces to generated API docs
 - feat(templates): add cookie consent, snapshot-first interaction, and e-commerce patterns to agent templates
-- release: update version files for v0.5.11, bump to next dev version
 
 
 ## [v0.5.11] - 2026-03-06
 
 ### Changed
 - fix: visual diff shows original image with red overlay, snake_case JSON, CLI routing
-- release: update version files for v0.5.10, bump to next dev version
 
 
 ## [v0.5.10] - 2026-03-06
@@ -1459,7 +1364,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add pixel-level screenshot diffing via pixelmatch + Playwright Canvas
 - docs: collapse proxy config and env vars under <details>
 - fix: implement SPEL_CHANNEL env var + sync README env var table with code
-- release: update version files for v0.5.9, bump to next dev version
 
 
 ## [v0.5.9] - 2026-03-05
@@ -1467,21 +1371,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - feat(cdp): add Microsoft Edge support to auto-connect discovery
 - fix(ci): reduce gh-pages size from 12.7 GB to under 1 GB — fix GitHub Pages deployment
-- release: update version files for v0.5.8, bump to next dev version
 
 
 ## [v0.5.8] - 2026-03-05
 
 ### Changed
 - fix(cdp): handle Chrome 136+ --user-data-dir requirement and M144+ WebSocket-only mode
-- release: update version files for v0.5.7, bump to next dev version
 
 
 ## [v0.5.7] - 2026-03-05
 
 ### Changed
 - feat: delete chrome_cookies, remove state export, add --auto-connect
-- release: update version files for v0.5.6, bump to next dev version
 
 
 ## [v0.5.6] - 2026-03-05
@@ -1512,7 +1413,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(init-agents): deprecate --loop=vscode with error message
 - feat(snapshot): add position properties to MINIMAL style tier
 - fix: resolve strict mode violations in drag tests and boxed math warnings
-- release: update version files for v0.5.3, bump to next dev version
 - docs: collapse guided install section by default
 
 
@@ -1539,7 +1439,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: add one-shot LLM installation section + surface corporate CA setup (fixes #47)
 - docs(skill): add daemon hang/kill troubleshooting to COMMON_PROBLEMS.md
 - docs: add release process to AGENTS.md — tag-only, never manual
-- release: update version files for v0.5.2, bump to next dev version
 - release: bump to next dev version 0.5.3
 
 
@@ -1557,7 +1456,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(docs): audit and correct comparison file — 6 sections had stale claims
 - docs: rewrite POTENTIAL_TASKS.md — correct 13 features mislabeled as missing
 - chore: remove TASK-003 (sequential refs) — rejected by design, hash refs preferred
-- release: update version files for v0.5.0, bump to next dev version
 - chore: remove 9 completed tasks from TASKS.md — verified via CLI
 - fix(docs): mark link URLs and structured refs as done in 0.5.0 — verified via CLI
 
@@ -1770,7 +1668,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Builds list grid: square cards, 6 per row, wider container
 - CT reporter parity, builds list redesign, lint cleanup
 - Bump opencode
-- release: update version files for v0.3.1, bump to next dev version
 
 
 ## [v0.3.1] - 2026-02-22
@@ -1841,7 +1738,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BLO-87: Fix ct namespace nesting in Allure - use common parent
 - BLO-88: Fix Allure workflow - make github-pages environment conditional for PRs
 - BLO-88: Enable Allure reports for PR/branches
-- release: update version files for v0.3.0, bump to next dev version
 
 
 ## [v0.3.0] - 2026-02-20
@@ -1870,7 +1766,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: include test-e2e in Playwright tracing source directories
 - fix: promote Native CLI to top-level README section, fix broken nav anchor
 - feat: add spel.roles namespace, replace AriaRole imports with idiomatic Clojure vars
-- release: update version files for v0.2.0, bump to next dev version
 
 
 ## [v0.2.0] - 2026-02-19
@@ -1879,7 +1774,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore: set SPEL_VERSION to 0.2.0 for release
 - feat: Allure version in builds, classpath trace viewer, with-traced-page default, cljfmt
 - feat: eval file support, --load-state flag, SCI page/locator namespaces
-- release: update version files for v0.1.0, bump to next dev version
 
 
 ## [v0.1.0] - 2026-02-19
