@@ -1846,11 +1846,11 @@
         ;; Missing files are silent, except an explicit --config path that
         ;; cannot be read — that is a hard error so typos get caught.
         config-defaults (try (spel-config/load-config cli-config-path)
-                          (catch Exception e
-                            (binding [*out* *err*]
-                              (println (str "spel: " (.getMessage e))))
-                            (System/exit 1)
-                            {}))
+                             (catch Exception e
+                               (binding [*out* *err*]
+                                 (println (str "spel: " (.getMessage e))))
+                               (System/exit 1)
+                               {}))
         ;; Read environment variable defaults (env wins over config file)
         env-defaults (cond-> (merge {:session "default" :headless true :json false :stealth true}
                                config-defaults)
@@ -2427,7 +2427,7 @@
                              second-arg (first rest-pos)
                              amount    (if second-arg
                                          (try (Integer/parseInt second-arg)
-                                           (catch Exception _ 500))
+                                              (catch Exception _ 500))
                                          500)
                              ;; Third positional as selector, or second if it's not a number
                              sel       (or in-idx
@@ -2439,7 +2439,7 @@
                                            ;; If second-arg wasn't a number, it's a selector
                                          (when (and second-arg
                                                  (not (try (Integer/parseInt second-arg) true
-                                                        (catch Exception _ false)))
+                                                           (catch Exception _ false)))
                                                  (or (str/starts-with? second-arg "@")
                                                    (str/starts-with? second-arg "#")
                                                    (str/starts-with? second-arg ".")))
@@ -2463,26 +2463,26 @@
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                            (some #{"--timeout"} cmd-args)
                            (assoc :timeout (let [idx (long (.indexOf ^java.util.List v "--timeout"))]
                                              (when (>= idx 0)
                                                (try (Double/parseDouble (nth cmd-args (inc idx)))
-                                                 (catch Exception _ nil)))))))
+                                                    (catch Exception _ nil)))))))
 
             "drag-by"  (let [positional (remove #(str/starts-with? % "-") cmd-args)
                              v          (vec cmd-args)]
                          (cond-> {:action    "drag-by"
                                   :selector  (first positional)
                                   :dx        (try (Double/parseDouble (second positional))
-                                               (catch Exception _ 0))
+                                                  (catch Exception _ 0))
                                   :dy        (try (Double/parseDouble (nth positional 2))
-                                               (catch Exception _ 0))}
+                                                  (catch Exception _ 0))}
                            (some #{"--steps"} cmd-args)
                            (assoc :steps (let [idx (long (.indexOf ^java.util.List v "--steps"))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))))
+                                                  (catch Exception _ nil)))))))
 
             "upload"   {:action "upload"
                         :selector (first cmd-args)
@@ -2982,7 +2982,7 @@
                                       {:action "state_clean"
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                                            (catch Exception _ 30)))})
+                                                               (catch Exception _ 30)))})
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
@@ -3133,7 +3133,7 @@
    Override with SPEL_CLIENT_TIMEOUT_MS."
   (or (when-let [v (System/getenv "SPEL_CLIENT_TIMEOUT_MS")]
         (try (let [n (Long/parseLong (str/trim v))] (when (pos? n) n))
-          (catch NumberFormatException _ nil)))
+             (catch NumberFormatException _ nil)))
     30000))
 
 (defn- client-timeout-for
@@ -3189,9 +3189,9 @@
              (json/read-json result :key-fn keyword))))
        (finally
          (try (.close channel)
-           (catch Exception e
-             (binding [*out* *err*]
-               (println (str "warn: close-channel: " (.getMessage e)))))))))))
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println (str "warn: close-channel: " (.getMessage e)))))))))))
 
 (defn- process-alive?
   "True when `pid` names a live process. Uses ProcessHandle rather than a
@@ -3219,7 +3219,7 @@
         (ready?)                                true
         (>= (System/currentTimeMillis) deadline) false
         :else (do (Thread/sleep (long wait))
-                (recur (min 100 (* 2 wait))))))))
+                  (recur (min 100 (* 2 wait))))))))
 
 (defonce ^:private !orphan-scan-cache (atom nil))
 
@@ -3250,7 +3250,7 @@
           (.destroy ph)
           (or (wait-for-exit pid grace-ms)
             (do (.destroyForcibly ph)
-              (wait-for-exit pid 2000))))))
+                (wait-for-exit pid 2000))))))
     (catch Exception _ false)))
 
 (defn- force-terminate-tree!
@@ -3278,9 +3278,9 @@
   "Deletes stale socket and PID files for a session."
   [session]
   (try (Files/deleteIfExists (daemon/socket-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-socket: " (.getMessage e))))))
   (try (Files/deleteIfExists (daemon/pid-file-path session))
-    (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
+       (catch Exception e (binding [*out* *err*] (println (str "warn: delete-pid: " (.getMessage e)))))))
 
 (defn- read-pid
   "Reads the PID from a session's PID file, or nil if unavailable."
@@ -3288,7 +3288,7 @@
   (let [pid-path (daemon/pid-file-path session)]
     (when (Files/exists pid-path (into-array java.nio.file.LinkOption []))
       (try (str/trim (String. (Files/readAllBytes pid-path)))
-        (catch Exception _ nil)))))
+           (catch Exception _ nil)))))
 
 (defn- discover-sessions
   "Returns a seq of spel session names (alive or ghost). Thin wrapper around
@@ -3651,6 +3651,38 @@
            (when hint   [(str "  hint:      " hint)]))
       (str/join "\n"))))
 
+(def ^:private proc-cmdline-os?
+  "Whether this OS keeps a process's whole argv in /proc/<pid>/cmdline."
+  (str/starts-with? (str/lower-case (System/getProperty "os.name" "")) "linux"))
+
+(defn- process-command-line
+  "The full command line of `ph`, or nil when the OS will not tell us.
+
+   `ProcessHandle`'s own answer is not enough on Linux: it is filled from a
+   fixed-size read of /proc/<pid>/cmdline, while a daemon started from a JVM
+   carries 7288 characters of classpath before its `--session <name>` (measured
+   here), so the part that names the session never arrives and the daemon looks
+   like a bystander. The kernel keeps the whole argv; macOS and Windows have no
+   such limit and answer through the JDK (issue #132).
+
+   Params:
+   `ph` - ProcessHandle to describe.
+
+   Returns:
+   String command line, or nil."
+  ^String [^java.lang.ProcessHandle ph]
+  (or (when proc-cmdline-os?
+        (try
+          (let [p (Path/of (str "/proc/" (.pid ph) "/cmdline") (into-array String []))]
+            (when (Files/isReadable p)
+              (-> (String. ^bytes (Files/readAllBytes p) java.nio.charset.StandardCharsets/UTF_8)
+                (str/replace \u0000 \space)
+                str/trim
+                not-empty)))
+          (catch Exception _ nil)))
+    (let [cl (.commandLine (.info ph))]
+      (when (.isPresent cl) (str (.get cl))))))
+
 (defn daemon-process-entry
   "`{:pid :session}` when `cmd` is the command line of a spel DAEMON, else nil.
 
@@ -3675,9 +3707,9 @@
    Session discovery is file-based, so a daemon whose socket or PID file is gone
    — deleted by hand, wiped by a `-9`, or lost to a crash — becomes unreachable:
    `session list` cannot show it and `kill --all-sessions` cannot kill it, while
-   it still holds a browser, a port and hundreds of MB. Asking `ProcessHandle`
-   instead is the only way to find those, and behaves the same on macOS, Linux
-   and Windows.
+   it still holds a browser, a port and hundreds of MB. The process table is
+   the only place left to look, read through `process-command-line`: the JDK's
+   own view of a command line is cut short on Linux (issue #132).
 
    A full `allProcesses` scan costs one `.info` syscall per process, and a single
    CLI invocation asks for it several times (health, kill, session resolution),
@@ -3691,11 +3723,8 @@
       (let [self    (.pid (java.lang.ProcessHandle/current))
             entries (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
                       (keep (fn [^java.lang.ProcessHandle h]
-                              (let [info (.info h)
-                                    cmd  (when (.isPresent (.commandLine info))
-                                           (.get (.commandLine info)))]
-                                (when-not (= self (.pid h))
-                                  (daemon-process-entry (.pid h) cmd)))))
+                              (when-not (= self (.pid h))
+                                (daemon-process-entry (.pid h) (process-command-line h)))))
                       (into []))]
         (reset! !orphan-scan-cache {:at now :entries entries})
         entries))))
@@ -3706,12 +3735,9 @@
   (try
     (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim (str pid))))]
       (when (.isPresent handle)
-        (let [^java.lang.ProcessHandle ph (.get handle)
-              info (.info ph)
-              cmd  (when (.isPresent (.commandLine info))
-                     (.get (.commandLine info)))]
+        (let [^java.lang.ProcessHandle ph (.get handle)]
           (when (.isAlive ph)
-            (daemon-process-entry (.pid ph) cmd)))))
+            (daemon-process-entry (.pid ph) (process-command-line ph))))))
     (catch Exception _ nil)))
 
 (defn daemon-process-for-session
@@ -3823,7 +3849,7 @@
           (daemon/daemon-running? session)
           (socket-connectable? session))
     (let [resp (try (send-command! session {:action "session_info"} 5000)
-                 (catch Exception _ nil))]
+                    (catch Exception _ nil))]
       (when (get-in resp [:data :headless])
         (restart-daemon! session))))
 
@@ -3925,18 +3951,18 @@
               (do (doseq [{:keys [id action running_ms]} items]
                     (println (str "Cancelled " id " " action
                                " (running " running_ms "ms)")))
-                (when-let [n (:note data)]
-                  (println (str "  note: " n))))))
+                  (when-let [n (:note data)]
+                    (println (str "  note: " n))))))
 
           ;; Snapshot responses
           (:snapshot data)
           (do (print-snapshot (:snapshot data))
-            (when (:url data)
-              (println (str "\n  URL: " (:url data))))
-            (when (:title data)
-              (println (str "  Title: " (:title data))))
-            (when (:description data)
-              (println (str "  Description: " (:description data)))))
+              (when (:url data)
+                (println (str "\n  URL: " (:url data))))
+              (when (:title data)
+                (println (str "  Title: " (:title data))))
+              (when (:description data)
+                (println (str "  Description: " (:description data)))))
 
           ;; Auth vault — list of credentials (never shows passwords)
           (:credentials data)
@@ -3964,11 +3990,11 @@
           ;; DevTools URL — for `spel devtools`
           (:devtools_url data)
           (do (println "DevTools:")
-            (println (str "  Page:  " (:page_url data)))
-            (when (:title data)
-              (println (str "  Title: " (:title data))))
-            (println (str "  Open:  " (:devtools_url data)))
-            (println (str "  CDP:   " (:cdp_ws data))))
+              (println (str "  Page:  " (:page_url data)))
+              (when (:title data)
+                (println (str "  Title: " (:title data))))
+              (println (str "  Open:  " (:devtools_url data)))
+              (println (str "  CDP:   " (:cdp_ws data))))
 
           ;; Screenshot
           (:base64 data)
@@ -4122,7 +4148,7 @@
 
           (:markdown data)
           (do (print (:markdown data))
-            (.flush *out*))
+              (.flush *out*))
 
           ;; Boolean results
           (contains? data :visible)
@@ -4214,7 +4240,7 @@
             (do (doseq [c (:cancelled data)]
                   (println (str "Cancelled " (:id c) " " (:action c)
                              " after " (:running_ms c) "ms")))
-              (when-let [n (:note data)] (println (str "Note: " n))))
+                (when-let [n (:note data)] (println (str "Note: " n))))
             (println "Nothing in flight."))
 
           ;; Close
@@ -4398,8 +4424,8 @@
                          (let [entry       (first remaining)
                                sub-args    (mapv str entry)
                                parsed      (try (parse-args sub-args)
-                                             (catch Exception e
-                                               {:command {:error (str "parse error: " (.getMessage e))}}))
+                                                (catch Exception e
+                                                  {:command {:error (str "parse error: " (.getMessage e))}}))
                                sub-command (:command parsed)]
                            (if-let [err (:error sub-command)]
                              (let [result {:cmd sub-args :success false :error err}]
@@ -4425,12 +4451,12 @@
         (if json?
           (println (json/write-json-str summary :escape-slash false))
           (do (println (str "Batch: " (count (filter :success results)) "/" (count results) " succeeded"))
-            (doseq [[i r] (map-indexed vector results)]
-              (let [idx     (long i)
-                    mark    (if (:success r) "✓" "✗")
-                    cmd-str (str/join " " (:cmd r))
-                    tail    (if-let [e (:error r)] (str " — " e) "")]
-                (println (format "  [%d] %s %s%s" (inc idx) mark cmd-str tail))))))
+              (doseq [[i r] (map-indexed vector results)]
+                (let [idx     (long i)
+                      mark    (if (:success r) "✓" "✗")
+                      cmd-str (str/join " " (:cmd r))
+                      tail    (if-let [e (:error r)] (str " — " e) "")]
+                  (println (format "  [%d] %s %s%s" (inc idx) mark cmd-str tail))))))
         (System/exit (if all-ok? 0 1))))
 
     ;; Markdownify — hybrid local/temporary-session command
@@ -4441,7 +4467,7 @@
           (> input-count 1)
           (do (binding [*out* *err*]
                 (println "Error: markdownify accepts only one of --file or --input or --url"))
-            (System/exit 1))
+              (System/exit 1))
 
           (or file input url)
           (let [session   (str "markdownify-" (System/currentTimeMillis))
@@ -4667,13 +4693,13 @@
                          ;; Treat as retriable — kill stale daemon and restart
                            (and (nil? res) (< retries 5))
                            (do (swap! !daemon-failure assoc :error nil :attempts retries)
-                             (warn-daemon-restart! (:session flags) nil (inc retries))
-                             (Thread/sleep 200)
-                             (kill-stale-daemon! (:session flags))
-                             (ensure-daemon! (:session flags) flags)
-                             (recur (inc retries)))
+                               (warn-daemon-restart! (:session flags) nil (inc retries))
+                               (Thread/sleep 200)
+                               (kill-stale-daemon! (:session flags))
+                               (ensure-daemon! (:session flags) flags)
+                               (recur (inc retries)))
                            :else (do (swap! !daemon-failure assoc :attempts retries)
-                                   res)))))]
+                                     res)))))]
       (if response
         (if (and output-file (:success response))
           ;; Write to file: SRT as raw text, JSON for action_log
@@ -4685,7 +4711,7 @@
             (println (str "Written to: " output-file))
             (System/exit 0))
           (do (print-result response flags)
-            (System/exit (if (:success response) 0 1))))
+              (System/exit (if (:success response) 0 1))))
         (let [{:keys [error attempts]} @!daemon-failure]
           (log/error! "no daemon response: session=" (:session flags)
             " attempts=" attempts " cause=" (transport-cause error))

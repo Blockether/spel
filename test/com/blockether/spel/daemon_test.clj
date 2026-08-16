@@ -1625,11 +1625,14 @@
 ;; =============================================================================
 
 (defn- session-daemon-pids
-  "PIDs of the live daemon processes started for `session`, read from the
-   process table.
+  "PIDs of the live daemon processes started for `session`, as the shipped
+   process scan sees them.
 
    The PID file names exactly one owner by construction, so only the process
-   table can witness two processes answering to the same session name.
+   table can witness two processes answering to the same session name. It is
+   read through `cli/orphan-daemon-processes` so this test exercises the code
+   `session list` and `kill --all-sessions` run: a private copy of the scan hid
+   a Linux blind spot for four releases (issue #132).
 
    Params:
    `session` - String session name.
@@ -1637,12 +1640,10 @@
    Returns:
    Vector of Long PIDs."
   [^String session]
-  (->> (iterator-seq (.iterator (java.lang.ProcessHandle/allProcesses)))
-    (filter (fn [^java.lang.ProcessHandle ph]
-              (let [command (.orElse (.commandLine (.info ph)) "")]
-                (and (str/includes? command "daemon")
-                  (str/includes? command (str "--session " session))))))
-    (mapv (fn [^java.lang.ProcessHandle ph] (.pid ph)))))
+  (#'cli/invalidate-process-scan!)
+  (->> (cli/orphan-daemon-processes)
+    (filter (fn [entry] (= session (:session entry))))
+    (mapv (fn [entry] (Long/parseLong ^String (:pid entry))))))
 
 (defn- kill-session-daemons!
   "Force-kills every daemon process for `session` and removes its files."

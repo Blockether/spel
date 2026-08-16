@@ -2703,6 +2703,28 @@
     (it "ignores a process with no command line at all"
       (expect (nil? (sut/daemon-process-entry 47 nil))))))
 
+;; Regression, issue #132: a daemon started from a JVM was invisible on Linux.
+;; The JDK fills `ProcessHandle`'s command line from a fixed-size read of
+;; /proc/<pid>/cmdline, and 7288 characters of classpath came before
+;; `--session <name>`, so `session list` could not show that daemon and
+;; `kill --all-sessions` could not kill it.
+(defdescribe long-command-line-scan-test
+  "A daemon is recognised from the command line the OS keeps, not the excerpt the JDK returns."
+
+  (it "finds a daemon whose command line outgrows the JDK's Linux excerpt"
+    (when-not (str/includes? (str/lower-case (System/getProperty "os.name")) "windows")
+      (let [session (str "spel-longcmd-" (System/currentTimeMillis))
+            padding (apply str (repeat 8000 "x"))
+            proc    (.start (ProcessBuilder. ^java.util.List
+                              ["/bin/sh" "-c" "while :; do sleep 0.5; done" padding
+                               "com.blockether.spel.native" "daemon" "--session" session]))]
+        (try
+          (let [entry (sut/daemon-process-at-pid (.pid proc))]
+            (expect (= session (:session entry)))
+            (expect (= (str (.pid proc)) (:pid entry))))
+          (finally
+            (.destroyForcibly proc)))))))
+
 (defdescribe daemon-pid-integrity-test
   "Stale PID files must be visible as unhealthy and must never kill a bystander."
 
