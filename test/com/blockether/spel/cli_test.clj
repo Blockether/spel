@@ -2627,6 +2627,18 @@
       (expect (str/includes? out "lost:      reload (c25)"))
       (expect (str/includes? out "the next command opens a fresh one"))))
 
+  ;; Regression, issue #127: a page whose renderer died still read "connected,
+  ;; page open" while every command answered "Target crashed", so the caller
+  ;; retried into a tab that no longer existed.
+  (it "says the renderer crashed instead of calling the page open"
+    (let [out (sut/health-report {:status "degraded" :session "a" :uptime "4 min"
+                                  :commands_total 8 :in_flight []
+                                  :browser {:launched true :connected true :page_open false
+                                            :page_crashed true :page_url "https://example.org"
+                                            :type "chromium" :headless true}})]
+      (expect (str/includes? out "renderer CRASHED"))
+      (expect (str/includes? out "opens a fresh tab"))))
+
   (it "omits the in-flight line for a daemon that is not running"
     (let [out (sut/health-report {:status "down" :session "a" :log "/tmp/spel-a.log"})]
       (expect (str/includes? out "a: down — no daemon process"))
@@ -2976,3 +2988,24 @@
              ["report" "--results-dir" "out"])]
       (expect (= ["report" "--results-dir" "out"] (vec (:command-args g))))
       (expect (nil? (:cli-flags g))))))
+
+;; Regression, issue #127: the snapshot walk had no element budget, so a page
+;; with 150 000 elements burned the whole 25 s command budget and answered
+;; nothing while the renderer's memory doubled. `--max-nodes` is the caller's
+;; way to spend more of it deliberately.
+(defdescribe snapshot-node-budget-flag-test
+  "Tests for the snapshot --max-nodes flag"
+
+  (describe "snapshot --max-nodes"
+    (it "passes the element budget through as a number"
+      (let [c (cmd ["snapshot" "--max-nodes" "5000"])]
+        (expect (= "snapshot" (:action c)))
+        (expect (= 5000 (:max_nodes c)))))
+
+    (it "leaves the key out when the flag is absent"
+      (expect (nil? (:max_nodes (cmd ["snapshot"])))))
+
+    (it "keeps working next to a selector"
+      (let [c (cmd ["snapshot" "-s" "main" "--max-nodes" "100"])]
+        (expect (= "main" (:selector c)))
+        (expect (= 100 (:max_nodes c)))))))

@@ -468,10 +468,27 @@
   // an error rather than silently returning a partial (or empty) tree.
   const MAX_DEPTH = 1500;
 
+  // Node and wall-clock budgets. A capture used to walk whatever it was pointed
+  // at: 150k elements took the whole 25s command budget and pushed the renderer
+  // from 250MB to 630MB before answering, 600k elements reached 1.9GB and the
+  // renderer was killed with the session inside it (issue #127). The walk now
+  // stops at the first budget it hits and says so — a partial tree the caller
+  // can act on beats a renderer that dies holding the page.
+  const MAX_NODES = typeof __MAX_NODES__ === 'number' ? __MAX_NODES__ : 25000;
+  const CAPTURE_DEADLINE = Date.now() + (typeof __CAPTURE_MS__ === 'number' ? __CAPTURE_MS__ : 10000);
+  let visited = 0;
+  let truncated = null;
+
   function walk(el, depth) {
     if (depth > MAX_DEPTH)
       throw new Error('snapshot depth limit of ' + MAX_DEPTH + ' exceeded: the DOM is nested deeper than the accessibility walker can serialize');
     if (!el || el.nodeType !== 1) return null;
+    if (truncated) return null;
+    visited++;
+    if (visited > MAX_NODES) { truncated = 'nodes'; return null; }
+    // Date.now() per element is itself measurable on a big DOM, so the deadline
+    // is read once every 256 elements — the walk overshoots by at most that.
+    if ((visited & 255) === 0 && Date.now() > CAPTURE_DEADLINE) { truncated = 'time'; return null; }
     if (!isVisible(el)) return null;
 
     const tag = el.tagName.toLowerCase();
@@ -621,9 +638,11 @@
   try {
     tree = walk(_root, 0);
   } catch (e) {
-    return JSON.stringify({ tree: null, refs: {}, counter: 0, error: String((e && e.message) || e) });
+    return JSON.stringify({ tree: null, refs: {}, counter: 0, visited: visited, error: String((e && e.message) || e) });
   }
-  return JSON.stringify({ tree: tree, refs: refs, counter: counter });
+  return JSON.stringify({ tree: tree, refs: refs, counter: counter,
+                          visited: visited, truncated: truncated,
+                          nodeBudget: MAX_NODES });
 })()")
 
 ;; =============================================================================
@@ -671,7 +690,9 @@
   [opts]
   (let [scope-selector (:scope opts)
         with-styles    (:styles opts)
-        styles-detail  (or (:styles-detail opts) "base")]
+        styles-detail  (or (:styles-detail opts) "base")
+        max-nodes      (:max-nodes opts)
+        capture-ms     (:capture-ms opts)]
     (cond-> js-capture-snapshot
       scope-selector
       (str/replace "typeof __SCOPE__ === 'string' ? __SCOPE__ : null"
@@ -681,7 +702,13 @@
         "true")
       with-styles
       (str/replace "typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base'"
-        (str "'" styles-detail "'")))))
+        (str "'" styles-detail "'"))
+      max-nodes
+      (str/replace "typeof __MAX_NODES__ === 'number' ? __MAX_NODES__ : 25000"
+        (str (long max-nodes)))
+      capture-ms
+      (str/replace "typeof __CAPTURE_MS__ === 'number' ? __CAPTURE_MS__ : 10000"
+        (str (long capture-ms))))))
 
 (defn- format-attrs
   "Formats ARIA attributes into a string like '[level=2] [checked]'."
@@ -834,10 +861,11 @@
    Map with :tree, :raw-tree, :refs, :counter, :viewport, :device."
   ([result] (parse-capture-result result {}))
   ([result opts]
-   (let [raw-tree (get result "tree")
-         raw-refs (get result "refs")
-         counter  (get result "counter")
-         vp       (:viewport opts)]
+   (let [raw-tree  (get result "tree")
+         raw-refs  (get result "refs")
+         counter   (get result "counter")
+         truncated (get result "truncated")
+         vp        (:viewport opts)]
      {:tree    (when raw-tree
                  (let [lines  (render-tree raw-tree 0)
                        dev    (:device opts)
@@ -870,7 +898,31 @@
       :raw-tree raw-tree
       :counter  (or counter 0)
       :viewport vp
+      :truncated (when truncated
+                   {:reason  truncated
+                    :visited (get result "visited")
+                    :limit   (get result "nodeBudget")})
       :device   (:device opts)})))
+
+(defn truncation-note
+  "One line saying the capture stopped on a budget, or nil when it did not.
+
+   A partial tree that does not SAY it is partial is worse than no tree: the
+   caller reads a page that ends where the walk gave up and reports elements as
+   missing. The note names the budget that stopped it and the two ways out.
+
+   Params:
+   `truncated` - The `:truncated` map from `parse-capture-result`, or nil.
+
+   Returns:
+   String or nil."
+  [truncated]
+  (when-let [reason (:reason truncated)]
+    (str "[partial snapshot: the walk stopped after " (:visited truncated) " elements — "
+      (if (= "time" reason)
+        "it ran out of capture time. Scope it with -s <selector>; a bigger node budget cannot buy time back.]"
+        (str "it hit the node budget of " (:limit truncated)
+          ". Scope it with -s <selector>, or raise it with --max-nodes <n>.]")))))
 
 (defn capture-snapshot
   "Captures an accessibility snapshot of the page with numbered refs.

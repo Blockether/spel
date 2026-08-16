@@ -1600,18 +1600,17 @@
 (defdescribe budget-interrupt-reporting-test
   "A budget interrupt reports the budget, whichever answer wins (issue #122)"
 
-  (it "reports command_timeout when the ledger records a budget interrupt"
-    (let [cid "test-budget-interrupt"]
-      (swap! @#'sut/!ledger assoc cid {:id cid :cancel-reason {:budget-ms 25000}})
-      (try
-        (let [resp (json/read-json (#'sut/cancelled-response cid "snapshot"))]
-          (expect (= "command_timeout" (get resp "error_code")))
-          (expect (str/includes? (get resp "error") "25000ms"))
-          (expect (str/includes? (get resp "hint") "SPEL_COMMAND_BUDGET_MS")))
-        (finally (swap! @#'sut/!ledger dissoc cid)))))
+  (it "reports command_timeout when the interrupt was sent by the budget"
+    (let [resp (json/read-json
+                 (#'sut/cancelled-response "test-budget-interrupt" "snapshot"
+                                           {:budget-ms 25000}))]
+      (expect (= "command_timeout" (get resp "error_code")))
+      (expect (str/includes? (get resp "error") "25000ms"))
+      (expect (str/includes? (get resp "hint") "SPEL_COMMAND_BUDGET_MS"))))
 
   (it "still reports a genuine cancellation as cancelled"
-    (let [resp (json/read-json (#'sut/cancelled-response "test-plain-cancel" "snapshot"))]
+    (let [resp (json/read-json
+                 (#'sut/cancelled-response "test-plain-cancel" "snapshot" nil))]
       (expect (= "cancelled" (get resp "error_code"))))))
 
 ;; =============================================================================
@@ -1766,7 +1765,8 @@
   (proxy [com.microsoft.playwright.Page] []
     (onConsoleMessage [_] (swap! !counts update :console (fnil inc 0)))
     (onPageError [_] (swap! !counts update :page-error (fnil inc 0)))
-    (onResponse [_] (swap! !counts update :response (fnil inc 0)))))
+    (onResponse [_] (swap! !counts update :response (fnil inc 0)))
+    (onCrash [_] (swap! !counts update :crash (fnil inc 0)))))
 
 (defdescribe page-instrumentation-test
   "Tests for page instrumentation — one page carries one set of spel listeners"
@@ -1793,7 +1793,7 @@
       (let [counts (atom {})
             page   (counting-page counts)]
         (dotimes [_ 5] ((var-get #'sut/instrument-page!) page))
-        (expect (= {:console 1 :page-error 1 :response 1} @counts))))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1} @counts))))
 
     (it "instruments a second page on its own"
       (let [counts (atom {})
@@ -1801,7 +1801,7 @@
             second-page (counting-page counts)]
         ((var-get #'sut/instrument-page!) first-page)
         ((var-get #'sut/instrument-page!) second-page)
-        (expect (= {:console 2 :page-error 2 :response 2} @counts))))))
+        (expect (= {:console 2 :page-error 2 :response 2 :crash 2} @counts))))))
 
 ;; =============================================================================
 ;; Health reports broken instrumentation
@@ -1992,3 +1992,149 @@
             (expect (= "degraded" (:status resp)))
             (expect (= "reload" (:action (first (:lost_commands resp))))))
           (finally (reset! !lost restore)))))))
+
+;; Regression, issue #127: Playwright never fails a call whose renderer died.
+;; Measured: kill the render process while an `evaluate` is parked and the call
+;; is STILL parked 33 s later, while the crash event lands on that same thread
+;; within milliseconds. The daemon therefore waited out its full 25 s budget,
+;; then answered "Target crashed" to every later command forever — `open`
+;; answered rc=0 in 3 ms echoing the old URL without navigating, and `health`
+;; kept saying "ok — connected, page open".
+(defdescribe renderer-crash-recovery-test
+  "a tab whose renderer died is replaced instead of being reported as open"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a page killed by its own renderer crash"
+    (it "stops counting as open and is swapped for a fresh tab"
+      (core/with-testing-page [pg]
+        (let [state-atom (deref #'sut/!state)
+              before     @state-atom
+              ctx        (.context ^com.microsoft.playwright.Page pg)]
+          (try
+            (reset! state-atom (assoc before :browser (.browser ctx) :context ctx :page pg))
+            ((var-get #'sut/instrument-page!) pg)
+            (page/navigate pg "chrome://crash")
+            ;; Playwright dispatches events on the thread of a call in flight, so
+            ;; the crash record lands on the first call that touches the dead tab.
+            (page/evaluate pg "1+1")
+            (expect ((var-get #'sut/page-crashed?) pg))
+            (expect (not ((var-get #'sut/page-open?))))
+            ;; A command that meets a crash already recorded is told what it
+            ;; lost, instead of being sent into the dead tab for one more
+            ;; "Target crashed".
+            (let [thrown (try (#'sut/dispatch-with-recovery "evaluate" {"script" "1+1"})
+                              nil
+                              (catch clojure.lang.ExceptionInfo e e))]
+              (expect (some? thrown))
+              (expect (= :page_crashed (:error_code (ex-data thrown))))
+              (expect (str/includes? (ex-message thrown) "renderer crashed")))
+            (let [fresh (:page @state-atom)]
+              (expect (not (identical? pg fresh)))
+              (expect ((var-get #'sut/page-open?)))
+              (expect (not ((var-get #'sut/page-crashed?) pg))))
+            ;; And the navigation the caller retries really navigates, instead of
+            ;; answering rc=0 with the URL of the tab that died.
+            (let [resp (json/read-json
+                         (#'sut/process-command
+                          (json/write-json-str {"action" "navigate"
+                                                "url"    "data:text/html,<h1>fresh</h1>"})))]
+              (expect (true? (get resp "success")))
+              (expect (str/includes? (str (get-in resp ["data" "url"])) "fresh")))
+            (finally
+              ((var-get #'sut/forget-crashed-page!) pg)
+              (reset! state-atom before))))))))
+
+(defdescribe crashed-command-test
+  "the answer a caller gets when the renderer dies under their command"
+
+  (describe "a command still running when the crash lands"
+    (it "ends on the crash instead of waiting out the command budget"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            !ledger    (deref #'sut/!ledger)
+            page       (Object.)
+            !stop      (atom false)]
+        (try
+          (swap! state-atom assoc :page page)
+          (doto (Thread. ^Runnable (fn []
+                                     (Thread/sleep 300)
+                                     ((var-get #'sut/note-page-crash!) page)))
+            (.setDaemon true)
+            (.start))
+          (let [started (System/currentTimeMillis)
+                resp    (with-redefs-fn
+                          {#'sut/process-command*
+                           (fn [_ _]
+                             (while (not @!stop)
+                               (try (Thread/sleep 20)
+                                    (catch InterruptedException _ (reset! !stop true))))
+                             "{\"success\":true}")}
+                          (fn [] (#'sut/run-guarded-command! "c-crash" "evaluate" {})))
+                elapsed (- (System/currentTimeMillis) started)
+                data    (json/read-json resp)]
+            (expect (= "page_crashed" (get data "error_code")))
+            (expect (str/includes? (get data "error") "renderer crashed"))
+            ;; The budget is 25 s; ending on the crash costs one watch slice.
+            (expect (< elapsed 5000)))
+          (finally
+            (reset! !stop true)
+            ((var-get #'sut/forget-crashed-page!) page)
+            (reset! state-atom before)
+            (swap! !ledger dissoc "c-crash"))))))
+
+  (describe "the worker's own interrupt answer"
+    (it "reports the crash and the page it happened on, not a phantom cancellation"
+      (let [data (json/read-json
+                   (#'sut/cancelled-response "c-x" "snapshot"
+                                             {:page-crashed true :url "https://example.org/app"}))]
+        (expect (= "page_crashed" (get data "error_code")))
+        (expect (str/includes? (get data "error") "renderer crashed"))
+        (expect (str/includes? (get data "error") "https://example.org/app"))))
+
+    ;; Regression, issue #127: `ledger-finish!` removes the entry before the last
+    ;; caller runs, so a cancelled answer that re-read the reason from the ledger
+    ;; found nothing and told the user their command "was cancelled" — 90 ms after
+    ;; the daemon had logged the renderer crash that ended it.
+    (it "survives the ledger entry being finished first"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            page       (Object.)
+            !stop      (atom false)]
+        (try
+          (swap! state-atom assoc :page page)
+          (doto (Thread. ^Runnable (fn []
+                                     (Thread/sleep 300)
+                                     ((var-get #'sut/note-page-crash!) page)))
+            (.setDaemon true)
+            (.start))
+          (let [data (with-redefs-fn
+                       {#'sut/process-command*
+                        (fn [_ _]
+                          (while (not @!stop)
+                            (try (Thread/sleep 20)
+                                 (catch InterruptedException _ (reset! !stop true))))
+                          "{\"success\":false,\"error\":\"Failed to read message\"}")}
+                       (fn [] (json/read-json
+                                (#'sut/process-command
+                                 (json/write-json-str {"action" "evaluate" "script" "1+1"})))))]
+            (expect (= "page_crashed" (get data "error_code"))))
+          (finally
+            (reset! !stop true)
+            ((var-get #'sut/forget-crashed-page!) page)
+            (reset! state-atom before))))))
+
+  (describe "health while the tab is dead"
+    (it "answers degraded and calls the page crashed instead of open"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            page       (Object.)]
+        (try
+          (swap! state-atom assoc :page page)
+          ((var-get #'sut/note-page-crash!) page)
+          (let [resp (#'sut/handle-cmd "health" {})]
+            (expect (= "degraded" (:status resp)))
+            (expect (true? (get-in resp [:browser :page_crashed])))
+            (expect (false? (get-in resp [:browser :page_open]))))
+          (finally
+            ((var-get #'sut/forget-crashed-page!) page)
+            (reset! state-atom before)))))))

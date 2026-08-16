@@ -1468,3 +1468,59 @@
           (expect (not (anomaly/anomaly? snap)))
           (expect (pos? (long (:counter snap))))
           (expect (str/includes? (:tree snap) "DEEPBOTTOM")))))))
+
+;; Regression, issue #127: the capture walked every element on the page with no
+;; budget at all. Measured on a real daemon: 15 000 elements captured in 641 ms,
+;; 150 000 elements burned the whole 25 s command budget and answered NOTHING
+;; while the renderer's memory climbed 252 MB -> 628 MB, and 600 000 elements
+;; took it to 1.95 GB — the walk itself is what pushed Chromium into killing the
+;; tab the caller was working in.
+(defn- fill-buttons!
+  "Appends `n` buttons to the page body, each with its own accessible name."
+  [pg n]
+  (page/evaluate pg
+    (str "(()=>{const f=document.createDocumentFragment();"
+      "for(let i=0;i<" n ";i++){const b=document.createElement('button');"
+      "b.textContent='BTN'+i;f.appendChild(b);}"
+      "document.body.appendChild(f);return document.querySelectorAll('button').length;})()")))
+
+(defdescribe snapshot-node-budget-test
+  "capture-snapshot against a DOM bigger than the budget it is given"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "more elements than the node budget allows"
+    (it "stops on the budget and says the tree is partial"
+      (core/with-testing-page [pg]
+        (fill-buttons! pg 3000)
+        (let [snap (sut/capture-snapshot pg {:max-nodes 500})
+              trunc (:truncated snap)]
+          (expect (not (anomaly/anomaly? snap)))
+          (expect (= "nodes" (:reason trunc)))
+          (expect (= 500 (long (:limit trunc))))
+          (expect (<= (long (:visited trunc)) 501))
+          (let [note (sut/truncation-note trunc)]
+            (expect (str/includes? note "partial snapshot"))
+            (expect (str/includes? note "node budget of 500"))
+            (expect (str/includes? note "--max-nodes")))))))
+
+  (describe "a walk that runs out of capture time"
+    (it "names the time budget rather than the node budget"
+      (core/with-testing-page [pg]
+        (fill-buttons! pg 3000)
+        (let [trunc (:truncated (sut/capture-snapshot pg {:capture-ms 0}))
+              note  (sut/truncation-note trunc)]
+          (expect (= "time" (:reason trunc)))
+          (expect (str/includes? note "ran out of capture time"))
+          ;; A bigger node budget cannot buy time back, so the note must not send
+          ;; the caller to --max-nodes when the clock is what stopped the walk.
+          (expect (str/includes? note "-s <selector>"))
+          (expect (not (str/includes? note "--max-nodes")))))))
+
+  (describe "a page that fits inside the budget"
+    (it "captures every element and says nothing about truncation"
+      (core/with-testing-page [pg]
+        (fill-buttons! pg 300)
+        (let [snap (sut/capture-snapshot pg {})]
+          (expect (nil? (:truncated snap)))
+          (expect (nil? (sut/truncation-note (:truncated snap))))
+          (expect (str/includes? (:tree snap) "BTN299")))))))

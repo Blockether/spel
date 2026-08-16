@@ -1275,6 +1275,55 @@
 ;; is nil, so stale handles used to make every later command answer
 ;; "Target page, context or browser has been closed" — for the rest of the
 ;; session, with no way back short of killing the daemon.
+;; --- Renderer crashes ---
+;; A crashed tab is NOT a closed tab. Playwright answers `isClosed` from local
+;; state, so the handle still reports itself open while every call on it fails
+;; with "Target crashed" — measured: kill the renderer process and `snapshot`,
+;; `eval-js` and `get text` fail for the rest of the session, `open` answers OK
+;; without navigating anywhere, and `health` still says "connected, page open"
+;; (issue #127). Membership in this registry is what makes such a page count as
+;; not open, so the ordinary reopen path replaces it.
+(defonce ^:private !crashed-pages (atom #{}))
+
+(defn- page-crashed?
+  "True when `p` is a page whose renderer died.
+
+   Params:
+   `p` - Page instance or nil.
+
+   Returns:
+   Boolean."
+  [p]
+  (boolean (and p (contains? @!crashed-pages p))))
+
+(defn- note-page-crash!
+  "Records that `p`'s renderer died — once per page — and says so in the log.
+
+   Params:
+   `p` - Page instance or nil.
+
+   Returns:
+   nil."
+  [p]
+  (when p
+    (let [[seen _] (swap-vals! !crashed-pages conj p)]
+      (when-not (contains? seen p)
+        (log/warn! "the page's renderer crashed — out of memory, or killed from "
+          "outside. The tab is dead: the next command opens a fresh one, and the "
+          "DOM, the refs and the scroll position it had are gone")))))
+
+(defn- forget-crashed-page!
+  "Drops `p` from the crash registry once the daemon has stopped using it, so the
+   registry cannot grow for the life of a long session.
+
+   Params:
+   `p` - Page instance or nil.
+
+   Returns:
+   nil."
+  [p]
+  (when p (swap! !crashed-pages disj p) nil))
+
 (defn- browser-connected?
   "True when the launched browser is still connected. Playwright answers from
    local connection state, so this never round-trips into a wedged browser.
@@ -1287,13 +1336,20 @@
       true)))
 
 (defn- page-open?
-  "True when the current page handle is still open."
+  "True when the current page handle is still usable: open, and not the corpse of
+   a crashed renderer. Both failures are answered the same way — reopen the tab —
+   and only this predicate can tell the caller they happened.
+
+   A handle spel does not recognise (a CDP or WebDriver page) counts as alive,
+   but a crash recorded against it still wins: the crash is a fact, the liveness
+   of a foreign handle is only a guess."
   []
   (when-let [p (:page @!state)]
-    (if (instance? com.microsoft.playwright.Page p)
-      (try (not (.isClosed ^com.microsoft.playwright.Page p))
-           (catch Throwable _ false))
-      true)))
+    (and (not (page-crashed? p))
+      (if (instance? com.microsoft.playwright.Page p)
+        (try (not (.isClosed ^com.microsoft.playwright.Page p))
+             (catch Throwable _ false))
+        true))))
 
 (defn- adopt-foreign-pages!
   "Marks the current CDP attachment as FOREIGN — a browser the user owns — and
@@ -1384,12 +1440,19 @@
         (drop-browser-handles!))
 
       (and browser context page (not (page-open?)))
-      (try
-        (let [fresh (new-spel-page! context)]
-          (swap! !state assoc :page fresh :refs {} :counter 0)
-          (log/warn! "page was closed outside the daemon — opened a fresh one")
-          :page-reopened)
-        (catch Throwable _ (drop-browser-handles!)))
+      (let [crashed? (page-crashed? page)]
+        (try
+          (let [fresh (new-spel-page! context)]
+            (swap! !state assoc :page fresh :refs {} :counter 0)
+            (forget-crashed-page! page)
+            (if crashed?
+              (log/warn! "the page's renderer had crashed — opened a fresh tab; "
+                "navigate again, the old page and its refs are gone")
+              (log/warn! "page was closed outside the daemon — opened a fresh one"))
+            :page-reopened)
+          (catch Throwable _
+            (forget-crashed-page! page)
+            (drop-browser-handles!))))
 
       :else nil)))
 
@@ -1411,6 +1474,43 @@
   "True when an error message says the browser went away."
   [msg]
   (boolean (and msg (some #(str/includes? ^String msg ^String %) browser-gone-markers))))
+
+(def ^:private page-crash-markers
+  "Playwright wordings that mean this PAGE's renderer process died while the
+   browser itself is still connected. The tab cannot be used again — but the
+   browser can, so the answer is a fresh tab, not a relaunch."
+  ["Target crashed"
+   "Page crashed"])
+
+(defn- page-crashed-message?
+  "True when an error message says the page's renderer died.
+
+   Params:
+   `msg` - Error message string or nil.
+
+   Returns:
+   Boolean."
+  [msg]
+  (boolean (and msg (some #(str/includes? ^String msg ^String %) page-crash-markers))))
+
+(defn- page-crash-message
+  "What the caller is told when a renderer crash ended their command: what died,
+   what spel did about it, and what is gone.
+
+   Params:
+   `action` - String action name.
+   `url`    - The URL the dead page was on, or nil.
+
+   Returns:
+   String."
+  [action url]
+  (str "the page's renderer crashed while '" action "' was running — out of memory, "
+    "or killed from outside. The tab is gone, and with it the DOM, the refs and "
+    "anything typed into it"
+    (if (and url (not (contains? #{"" "about:blank"} url)))
+      (str "; it was on " url)
+      "")
+    ". Re-run the command — spel opens a fresh tab for it."))
 
 (defn- throwable-chain-message
   "Messages of a throwable and its causes, joined — Playwright's real reason is
@@ -1980,6 +2080,12 @@
                                  (swap! !page-errors conj-window
                                    {:message (str error)}
                                    max-window-per-page)))
+        ;; The crash listener only RECORDS the death: it runs on whichever
+        ;; thread is pumping the Playwright pipe — often the very command parked
+        ;; inside the call the crash just killed — and acting from there would
+        ;; interrupt whatever that thread happens to be doing. The command
+        ;; watchdog reads the record and interrupts its own worker.
+        (page/on-crash pg (fn [_] (note-page-crash! pg)))
         (page/on-response pg track-response!))))
   pg)
 (defn- pg ^Page [] (:page @!state))
@@ -2948,6 +3054,7 @@
         all?           (get params "all")
         styles?        (get params "styles")
         styles-detail  (get params "styles_detail")
+        max-nodes      (get params "max_nodes")
         no-network?    (get params "no_network")
         no-console?    (get params "no_console")
         device         (:device @!state)
@@ -2957,16 +3064,20 @@
                                                            sel           (assoc :scope sel)
                                                            styles?       (assoc :styles true)
                                                            styles-detail (assoc :styles-detail styles-detail)
+                                                           max-nodes     (assoc :max-nodes max-nodes)
                                                            device        (assoc :device device))))]
     ;; A crashed renderer or an aborted capture is surfaced on the command that
     ;; caused it — never rendered as a successful snapshot with an empty tree.
     (if (anomaly/anomaly? snap)
       snap
       (let [_          (swap! !state assoc :refs (:refs snap) :counter (:counter snap))
-            tree       (filter-snapshot-tree (:tree snap) params)
+            tree       (cond-> (filter-snapshot-tree (:tree snap) params)
+                         (:truncated snap)
+                         (str "\n" (snapshot/truncation-note (:truncated snap))))
             structured (build-structured-refs (:refs snap))]
         (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
                  :refs structured :pages @!pages}
+          (:truncated snap)           (assoc :truncated (:truncated snap))
           (:viewport snap)            (assoc :viewport (:viewport snap))
           (:device snap)              (assoc :device (:device snap))
           (page-description)          (assoc :description (page-description))
@@ -4854,7 +4965,8 @@
         connected (boolean (browser-connected?))
         last-at   @!last-command-at
         handlers  (core/handler-errors)
-        lost      @!lost-commands]
+        lost      @!lost-commands
+        crashed?  (page-crashed? (:page @!state))]
     {:status         (cond
                        (and launched? (not connected)) "degraded"
                        ;; Instrumentation that throws on every event is the
@@ -4866,6 +4978,10 @@
                        ;; refs with it — the session survives, but it is not the
                        ;; one the caller had (issue #125).
                        (seq lost)                      "degraded"
+                       ;; The tab is dead and its DOM, refs and scroll position
+                       ;; went with it; the next command opens a fresh one, so
+                       ;; the session is usable but not the one the caller had.
+                       crashed?                        "degraded"
                        (seq in-flight)                 "busy"
                        :else                           "ok")
      :session        (:session @!state)
@@ -4879,6 +4995,7 @@
      :browser        {:launched  launched?
                       :connected connected
                       :page_open (boolean (page-open?))
+                      :page_crashed crashed?
                       :page_url  (current-page-url)
                       :type      (get-in @!state [:launch-flags "browser"] "chromium")
                       :headless  (boolean (:headless @!state))
@@ -5414,6 +5531,34 @@
       (catch Throwable e
         (log/warn! "could not restore " url " after relaunch: " (.getMessage e))))))
 
+(defn- replace-crashed-page!
+  "Recovers from a renderer crash: records it, opens a fresh tab, and either
+   re-runs a navigation on that tab or tells the caller what their command lost.
+
+   Without this, `open` answered rc=0 in 3 ms echoing the URL of the dead tab
+   without navigating anywhere, and every other command answered \"Target
+   crashed\" for the rest of the session (issue #127).
+
+   Params:
+   `action`     - String action name.
+   `url-before` - URL the dead tab was on, or nil.
+   `attempt`    - Thunk answering {:ok _} or {:threw _}, re-run for a navigation.
+
+   Returns:
+   The navigation result, or throws ex-info {:error_code :page_crashed}."
+  [action url-before attempt]
+  (note-page-crash! (:page @!state))
+  (ensure-live-browser!)
+  (if (= "navigate" action)
+    ;; Navigation is the one command a crash cannot half-apply, and it is what
+    ;; the caller would type next anyway, so it is re-run on the fresh tab.
+    (let [{:keys [ok threw]} (attempt)]
+      (if threw (throw threw) ok))
+    (do
+      (restore-page! url-before)
+      (throw (ex-info (page-crash-message action url-before)
+               {:error_code :page_crashed})))))
+
 (defn- dispatch-with-recovery
   "Runs a command, and when it failed ONLY because the browser died outside the
    daemon, relaunches the browser, re-opens the page that was open, and runs the
@@ -5422,31 +5567,46 @@
    `isConnected` lags the real disconnect, so the failed call is the first
    reliable signal. Without this recovery, quitting the browser left every later
    command answering 'Target page, context or browser has been closed' for the
-   rest of the session — killing the daemon was the only way out."
+   rest of the session — killing the daemon was the only way out.
+
+   A renderer crash is checked BEFORE the command runs as well as after it
+   failed: once the crash event has been recorded there is nothing to learn from
+   sending one more call into the dead tab (issue #127)."
   [action params]
-  (let [attempt (fn run-command []
-                  (try {:ok (dispatch-cmd action params)}
-                       (catch Throwable e {:threw e})))
-        url-before (current-url-quietly)
-        {:keys [ok threw]} (attempt)
-        anomaly (when (anomaly/anomaly? ok) ok)
-        msg     (cond
-                  threw   (throwable-chain-message threw)
-                  anomaly (str (::anomaly/message anomaly) " "
-                            (when-let [ex (:playwright/exception anomaly)]
-                              (throwable-chain-message ex)))
-                  (and (map? ok) (false? (:success ok))) (str (:error ok)))]
-    (if (and (browser-gone-message? msg)
-          (not (contains? no-recovery-actions action)))
-      (do
-        (log/warn! "browser died during '" action "' — relaunching it and retrying once")
-        (drop-browser-handles!)
-        (ensure-browser!)
-        (when-not (= "navigate" action)
-          (restore-page! url-before))
-        (let [{:keys [ok threw]} (attempt)]
-          (if threw (throw threw) ok)))
-      (if threw (throw threw) ok))))
+  (let [attempt      (fn run-command []
+                       (try {:ok (dispatch-cmd action params)}
+                            (catch Throwable e {:threw e})))
+        url-before   (current-url-quietly)
+        recoverable? (not (contains? no-recovery-actions action))]
+    (if (and recoverable? (page-crashed? (:page @!state)))
+      (replace-crashed-page! action url-before attempt)
+      (let [{:keys [ok threw]} (attempt)
+            anomaly (when (anomaly/anomaly? ok) ok)
+            msg     (cond
+                      threw   (throwable-chain-message threw)
+                      anomaly (str (::anomaly/message anomaly) " "
+                                (when-let [ex (:playwright/exception anomaly)]
+                                  (throwable-chain-message ex)))
+                      (and (map? ok) (false? (:success ok))) (str (:error ok)))]
+        (cond
+          ;; A dead renderer is not a dead browser: the tab is unusable and every
+          ;; later command on it answered "Target crashed" forever, while `open`
+          ;; reported success without navigating anywhere (issue #127). The tab is
+          ;; replaced here, on the command that met the crash.
+          (and (page-crashed-message? msg) recoverable?)
+          (replace-crashed-page! action url-before attempt)
+
+          (and (browser-gone-message? msg) recoverable?)
+          (do
+            (log/warn! "browser died during '" action "' — relaunching it and retrying once")
+            (drop-browser-handles!)
+            (ensure-browser!)
+            (when-not (= "navigate" action)
+              (restore-page! url-before))
+            (let [{:keys [ok threw]} (attempt)]
+              (if threw (throw threw) ok)))
+
+          :else (if threw (throw threw) ok))))))
 
 (defmethod handle-cmd "tap" [_ _]
   ;; Playwright provider: native touch tap is iOS-only. Fail with an explicit
@@ -5611,24 +5771,61 @@
                    "what is running.")
      :command_id cid}))
 
+(defn- page-crash-response
+  "The answer for a command the daemon stopped because the page's renderer died
+   under it. Playwright never fails a call whose renderer went away — measured:
+   the call sat there until the 25s command budget interrupted it, 23 of those
+   seconds after the tab was already dead (issue #127) — so the watchdog ends it
+   as soon as the crash event lands and reports THAT, not a timeout.
+
+   Params:
+   `cid`    - String command id.
+   `action` - String action name.
+   `url`    - URL the dead page was on, or nil.
+
+   Returns:
+   JSON string."
+  [^String cid ^String action url]
+  (json/write-json-str
+    {:success    false
+     :error      (page-crash-message action url)
+     :error_code "page_crashed"
+     :hint       "Re-run the command; `spel health` shows the fresh tab."
+     :command_id cid}))
+
 (defn- cancelled-response
   "The answer for a command that ended because it was cancelled. Its own failure
    text describes a torn-down browser call (\"Failed to read message\") and points
    a caret at the user's snippet — which reads like a bug in that snippet.
 
-   A budget interrupt is NOT a cancellation, even though it arrives as the same
-   `InterruptedException`: the ledger records why the interrupt was sent, so a
-   worker that loses the race to the watchdog still reports the budget instead
-   of sending the user to `spel health`, which shows nothing for a command that
-   has already ended."
-  [^String cid ^String action]
-  (if-let [budget-ms (get-in @!ledger [cid :cancel-reason :budget-ms])]
-    (budget-exceeded-response cid action (long budget-ms))
-    (json/write-json-str
-      {:success    false
-       :error      (str "command " cid " (" action ") was cancelled")
-       :error_code "cancelled"
-       :hint       "`spel health` lists what is still running"})))
+   A budget interrupt and a renderer crash are NOT cancellations, even though
+   both arrive as the same `InterruptedException`: `reason` is the record of why
+   the interrupt was sent, so the caller is told what actually ended their
+   command instead of being sent to `spel health`, which shows nothing for a
+   command that has already ended.
+
+   The reason is passed IN rather than read from the ledger: `ledger-finish!`
+   removes the entry before the last caller runs, and reading it there answered
+   a renderer crash with a bare \"was cancelled\" (issue #127).
+
+   Params:
+   `cid`    - String command id.
+   `action` - String action name.
+   `reason` - The `:cancel-reason` map recorded before the interrupt, or nil.
+
+   Returns:
+   JSON string."
+  [^String cid ^String action reason]
+  (let [{:keys [budget-ms page-crashed url]} reason]
+    (cond
+      page-crashed (page-crash-response cid action url)
+      budget-ms    (budget-exceeded-response cid action (long budget-ms))
+      :else
+      (json/write-json-str
+        {:success    false
+         :error      (str "command " cid " (" action ") was cancelled")
+         :error_code "cancelled"
+         :hint       "`spel health` lists what is still running"}))))
 
 (def ^:private default-command-budget-ms
   "Hard ceiling for ONE browser command inside the daemon.
@@ -5740,13 +5937,21 @@
 (defn- abandon-wedged-command!
   "Gives up on a command that survived its interrupt, and gives the SESSION back.
 
-   A browser call parked in Playwright's pipe cannot be interrupted: the worker
+   LAST RESORT, and measured as such: every wedge class this daemon has been able
+   to produce now ends with a named cause first — a crashed renderer ends the
+   command in ~0.1s (kill -9 of the render process) to 1.8s (a page allocating
+   until Chrome kills it), a killed browser is rejected by Playwright in ~3ms, and
+   a script that never resolves is freed by the budget interrupt. None of those
+   reach this function. It exists for the one thing none of them cover: a worker
+   that ignores its interrupt because the call is parked in Playwright's pipe. It
    held `!command-lock` for as long as the browser stayed silent, so every later
-   command answered `daemon_busy` naming a command `health` no longer listed —
-   the session was dead and reported itself healthy (issue #125). So the lock is
-   replaced rather than waited on, the browser whose pipe swallowed the call is
-   dropped — which is also what finally unblocks the zombie — and the loss is
-   recorded where `health` shows it.
+   command answered `daemon_busy` naming a command `health` no longer listed — the
+   session was dead and reported itself healthy (issue #125).
+
+   The caller is never left to guess: the crash or budget answer is already on its
+   way out when this runs. Here the lock is replaced rather than waited on, the
+   browser whose pipe swallowed the call is dropped — which is also what finally
+   unblocks the zombie — and the loss is recorded where `health` shows it.
 
    Params:
    `cid`    - String. Command id.
@@ -5763,6 +5968,17 @@
   (reset! !command-lock (ReentrantLock. true))
   (drop-browser-handles!)
   nil)
+
+(def ^:private crash-watch-ms
+  "How often the command watchdog looks up from the answer it is waiting for.
+
+   Playwright never fails a call whose renderer died — measured: kill the render
+   process while an evaluate is in flight and the call sits there until the 25s
+   budget interrupts it, 23 of those seconds after the tab was already dead
+   (issue #127). The crash event itself arrives on the parked thread, which can
+   only record it, so the watchdog reads that record between slices and ends the
+   command on the cause instead of on the clock."
+  100)
 
 (defn- run-guarded-command!
   "Runs a non-control command on a worker thread under `!command-lock`, bounded
@@ -5798,7 +6014,8 @@
                              (finally (.unlock lock)))
                            (busy-response action)))
                        (catch InterruptedException _
-                         (cancelled-response cid action))
+                         (cancelled-response cid action
+                           (get-in @!ledger [cid :cancel-reason])))
                        (catch Throwable e
                          (json/write-json-str
                            {:success false
@@ -5808,9 +6025,28 @@
     (.setDaemon worker true)
     (swap! !ledger assoc-in [cid :thread] worker)
     (.start worker)
-    (let [r (deref result budget ::timeout)]
-      (if (not= r ::timeout)
-        r
+    (let [deadline (+ (System/currentTimeMillis) (long budget))
+          r        (loop []
+                     (let [r (deref result crash-watch-ms ::timeout)]
+                       (cond
+                         (not= r ::timeout)                       r
+                         (page-crashed? (:page @!state))          ::crashed
+                         (>= (System/currentTimeMillis) deadline) ::timeout
+                         :else                                    (recur))))]
+      (cond
+        (= r ::crashed)
+        (let [url (current-url-quietly)]
+          (log/warn! "command " cid " (" action ") was still running when the page's "
+            "renderer crashed — ending it now instead of waiting out the "
+            budget "ms budget")
+          (swap! !ledger update cid merge {:cancel-requested true
+                                           :cancel-reason    {:page-crashed true :url url}})
+          (.interrupt worker)
+          (when (= ::timeout (deref result wedge-grace-ms ::timeout))
+            (abandon-wedged-command! cid action))
+          (page-crash-response cid action url))
+
+        (= r ::timeout)
         (do
           (log/warn! "command " cid " (" action ") exceeded " budget
             "ms — interrupting it. Stack: " (str/join " | " (stuck-command-frames worker)))
@@ -5823,7 +6059,9 @@
           ;; and the session is handed back to the next caller.
           (when (= ::timeout (deref result wedge-grace-ms ::timeout))
             (abandon-wedged-command! cid action))
-          (budget-exceeded-response cid action budget))))))
+          (budget-exceeded-response cid action budget))
+
+        :else r))))
 
 (defn- process-command
   "Processes a single JSON command string. Returns a JSON response string."
@@ -5865,7 +6103,7 @@
                 entry (ledger-finish! cid)
                 resp  (if (and (:cancel-requested entry)
                             (str/includes? resp "\"success\":false"))
-                        (cancelled-response cid action)
+                        (cancelled-response cid action (:cancel-reason entry))
                         resp)]
             (log-command! action params resp (quot (- (System/nanoTime) t0) 1000000))
             resp))))
@@ -5927,8 +6165,15 @@
         (catch Throwable e
           (let [hint (reflection-error-hint e)
                 msg  (or hint (throwable-message e) (default-error-message e))
-                data (ex-data e)]
-            (json/write-json-str (cond-> (error-response msg (error-context data e))
+                data (ex-data e)
+                ;; A failure the daemon raised itself — a crashed renderer, an
+                ;; unreachable CDP endpoint — carries its own code, and it is not
+                ;; a fault in the caller's snippet, so it gets no source caret
+                ;; (issue #127).
+                code (:error_code data)]
+            (json/write-json-str (cond-> (binding [*error-source* (when-not code *error-source*)]
+                                           (error-response msg (when-not code (error-context data e))))
+                                   code (assoc :error_code (name code))
                                    (:stdout data) (assoc :data {:stdout (:stdout data)
                                                                 :stderr (:stderr data)})))))))))
 

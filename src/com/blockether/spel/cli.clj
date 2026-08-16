@@ -159,6 +159,10 @@
       "  -S, --styles         Include computed CSS styles per element"
       "      --minimal        Styles: 16 core properties (with -S)"
       "      --max            Styles: 44 properties (with -S, default: 31)"
+      "      --max-nodes N    Element budget for one capture (default: 25000)"
+      ""
+      "A capture stops at 25000 elements or 10s, whichever comes first, and says so"
+      "on its last line. Scope it with -s to read a big page in full detail."
       ""
       "On iOS NATIVE_APP, returns a compact XCTest semantic tree with @refs."
       "CSS scope and style flags apply only to DOM/webview snapshots."])
@@ -2287,21 +2291,27 @@
                                                idx1 (long (.indexOf ^java.util.List v "-d"))
                                                idx2 (long (.indexOf ^java.util.List v "--depth"))
                                                idx  (long (cond (>= idx1 0) idx1
-                                                            (>= idx2 0) idx2
-                                                            :else -1))]
+                                                                (>= idx2 0) idx2
+                                                                :else -1))]
                                            (when (>= idx 0)
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
-                                               (catch Exception _ nil)))))
+                                                  (catch Exception _ nil)))))
                          ;; Parse -s <sel>
                            (some #{"-s" "--selector"} cmd-args)
                            (assoc :selector (let [v    (vec cmd-args)
                                                   idx1 (long (.indexOf ^java.util.List v "-s"))
                                                   idx2 (long (.indexOf ^java.util.List v "--selector"))
                                                   idx  (long (cond (>= idx1 0) idx1
-                                                               (>= idx2 0) idx2
-                                                               :else -1))]
+                                                                   (>= idx2 0) idx2
+                                                                   :else -1))]
                                               (when (>= idx 0)
                                                 (nth cmd-args (inc idx) nil))))
+                         ;; Parse --max-nodes <n>: the capture's own element budget.
+                           (some #{"--max-nodes"} cmd-args)
+                           (assoc :max_nodes (let [v   (vec cmd-args)
+                                                   idx (long (.indexOf ^java.util.List v "--max-nodes"))]
+                                               (when (>= idx 0)
+                                                 (some-> (nth cmd-args (inc idx) nil) parse-long))))
                            (or (snap-flags "-a") (snap-flags "--all"))
                            (assoc :all true)
                            (or (snap-flags "-S") (snap-flags "--styles"))
@@ -3605,6 +3615,10 @@
                 (cond
                   (not (:launched browser))  "not launched yet"
                   (not (:connected browser)) "GONE — relaunches on the next command"
+                  ;; A crashed renderer leaves a handle that still calls itself
+                  ;; open, so the report said "page open" about a tab that
+                  ;; answered every command with "Target crashed" (issue #127).
+                  (:page_crashed browser)    "connected, but the page's renderer CRASHED — the next command opens a fresh tab"
                   (:page_url browser)        "connected, page open"
                   (:page_open browser)       "connected, blank page — no URL loaded yet"
                   :else                      "connected, no page"))])

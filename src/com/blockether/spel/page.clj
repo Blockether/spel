@@ -1023,6 +1023,20 @@
   [^Page page handler]
   (.onConsoleMessage page (event-consumer "console" handler)))
 
+(defn on-crash
+  "Registers a handler for the page's renderer dying.
+
+   Chromium runs the page in its own process; when that process is killed — by
+   the OS under memory pressure, or from outside — Playwright keeps answering
+   `isClosed` with false and fails every later call with \"Target crashed\".
+   This event is the only signal that the tab is gone.
+
+   Params:
+   `page`    - Page instance.
+   `handler` - Function that receives the Page."
+  [^Page page handler]
+  (.onCrash page (event-consumer "crash" handler)))
+
 (defn on-dialog
   "Registers a handler for dialogs.
    
