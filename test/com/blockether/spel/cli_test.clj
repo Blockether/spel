@@ -1834,6 +1834,13 @@
       (let [c (cmd ["network" "unroute"])]
         (expect (= "network_unroute" (:action c)))))
 
+    ;; Regression, user report: the daemon's own cdp_route_lock hint tells the user to
+    ;; run `network unroute all`, and that removed a route whose pattern was literally
+    ;; "all" — every real route stayed installed and the endpoint stayed locked.
+    (it "parses network unroute all as every route"
+      (let [c (cmd ["network" "unroute" "all"])]
+        (expect (= "network_unroute" (:action c)))
+        (expect (nil? (:url c)))))
     (it "parses network requests"
       (expect (= "network_requests" (:action (cmd ["network" "requests"])))))
 

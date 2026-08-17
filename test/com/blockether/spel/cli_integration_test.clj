@@ -1257,6 +1257,55 @@
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))
 
+    ;; Regression, user report: connecting a second session to a CDP endpoint another
+    ;; session already drives left every page command dying at "exceeded the daemon
+    ;; budget of 25000ms" — the shipped 120s lock wait outlives the 25s command
+    ;; budget, so the worker was always interrupted before the waiter could name the
+    ;; session holding the endpoint, and the endpoint looked broken instead of busy.
+    (it "answers with the lock conflict itself when the wait outlives the command budget"
+      (let [state-a       (deref #'daemon/!state)
+            cdp-url       "http://127.0.0.1:9222"
+            owner-session (str "owner-" (System/currentTimeMillis))
+            owner-pid     (daemon/pid-file-path owner-session)
+            lock-path     (#'daemon/cdp-route-lock-path cdp-url)
+            orig-wait     @(deref #'daemon/!cdp-lock-wait-s)
+            orig-poll     @(deref #'daemon/!cdp-lock-poll-interval-s)
+            orig-budget   @#'daemon/default-command-budget-ms]
+        ;; The SHIPPED wait, against a budget short enough to test: the bug is the
+        ;; relation between the two, so neither may be tuned to hide it.
+        (reset! (deref #'daemon/!cdp-lock-wait-s) 120)
+        (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
+        (alter-var-root #'daemon/default-command-budget-ms (constantly 4000))
+        (swap! state-a assoc
+          :session "integ-test"
+          :cdp-connected true
+          :launch-flags {"cdp" cdp-url "timeout" 1000})
+        (Files/writeString owner-pid
+          (str (.pid (java.lang.ProcessHandle/current)))
+          (into-array java.nio.file.OpenOption []))
+        (Files/writeString lock-path
+          (json/write-json-str {"session" owner-session
+                                "cdp" cdp-url
+                                "updated_at" (System/currentTimeMillis)})
+          (into-array java.nio.file.OpenOption []))
+        (try
+          (let [t0      (System/currentTimeMillis)
+                resp    (json/read-json
+                          (#'daemon/process-command
+                           (json/write-json-str {"action" "navigate"
+                                                 "url" (str *test-server-url* "/test-page")})))
+                elapsed (- (System/currentTimeMillis) t0)]
+            (expect (= false (get resp "success")))
+            (expect (= "cdp_route_lock" (get resp "error_code")))
+            (expect (= owner-session (get resp "owner_session")))
+            ;; The waiter must answer BEFORE the budget interrupts the worker.
+            (expect (< elapsed 4000)))
+          (finally
+            (reset! (deref #'daemon/!cdp-lock-wait-s) orig-wait)
+            (reset! (deref #'daemon/!cdp-lock-poll-interval-s) orig-poll)
+            (alter-var-root #'daemon/default-command-budget-ms (constantly orig-budget))
+            (Files/deleteIfExists owner-pid)
+            (Files/deleteIfExists lock-path)))))
     (it "process-command acquires lock when released during wait"
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"

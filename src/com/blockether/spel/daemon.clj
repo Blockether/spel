@@ -1553,6 +1553,20 @@
             2
             (Long/parseLong env-val)))))
 
+(def ^:private ^:const cdp-lock-answer-slack-ms
+  "Head start the CDP lock waiter keeps over the command budget.
+
+   `run-guarded-command!` interrupts a command that outlives `command-budget-ms`
+   and answers `command_timeout` — 'raise SPEL_COMMAND_BUDGET_MS' — which says
+   nothing about the session that holds the endpoint. So the waiter gives up
+   this many ms early and returns the conflict itself, with the owner's name."
+  1500)
+
+(def ^:dynamic *command-deadline-ms*
+  "Absolute `System/currentTimeMillis` by which the command now running must
+   answer, bound by `run-guarded-command!` from that command's budget. nil when
+   no budget governs the call — control actions, and handlers called directly."
+  nil)
 ;; --- Session idle timeout ---
 ;; Auto-shutdown daemon if no command is received within the configured window.
 ;; Default 30 minutes. It used to be 5, which is shorter than the gaps an agent
@@ -1656,38 +1670,48 @@
   "Waits for the CDP route lock to be released by another session.
    Polls on a millisecond deadline (tick <= `!cdp-lock-poll-interval-s`) up to `!cdp-lock-wait-s` seconds.
    Returns nil when lock is cleared (or was never held), or a conflict map on timeout.
-   If wait is 0, returns conflict immediately (fail-fast)."
+   If wait is 0, returns conflict immediately (fail-fast).
+
+   The wait is capped by `*command-deadline-ms*`: the configured 120s outlives
+   the 25s command budget, and a waiter interrupted by the budget reports the
+   clock instead of the session holding the endpoint."
   [^String action]
   (let [max-wait-s  (long @!cdp-lock-wait-s)
         poll-s      (long @!cdp-lock-poll-interval-s)
-        wait-ms     (* max-wait-s 1000)
+        started-at  (System/currentTimeMillis)
+        budget-end  (when-let [dl *command-deadline-ms*]
+                      (- (long dl) (long cdp-lock-answer-slack-ms)))
+        wall-end    (+ started-at (* max-wait-s 1000))
+        deadline    (long (if budget-end
+                            (min wall-end (long budget-end))
+                            wall-end))
+        wait-ms     (max 0 (- deadline started-at))
         ;; Tick fast (<= 100ms) so a released lock is picked up immediately
         ;; instead of after a whole configured second.
         tick-ms     (max 10 (min 100 (* poll-s 1000)))]
     (if-let [conflict (cdp-route-lock-conflict action)]
-      (if (zero? max-wait-s)
-        ;; Fail-fast mode
+      (if (or (zero? max-wait-s) (zero? wait-ms))
+        ;; Fail-fast — waiting is off, or the budget leaves no room to wait.
         conflict
         ;; Queue mode — poll until lock clears or timeout
         (do
           (log/info! "CDP lock held by session '" (:owner-session conflict)
-            "' — waiting (0/" max-wait-s "s)...")
-          (let [deadline (+ (System/currentTimeMillis) wait-ms)]
-            (loop []
-              (if (>= (System/currentTimeMillis) deadline)
-                ;; Timeout — return conflict for error response
-                (do
-                  (log/info! "CDP lock timeout after " max-wait-s
-                    "s — blocking action '" action "'")
-                  conflict)
-                (do
-                  (Thread/sleep (long tick-ms))
-                  (if-let [_still-locked (cdp-route-lock-conflict action)]
-                    (recur)
-                    ;; Lock cleared!
-                    (do
-                      (log/info! "CDP lock acquired while waiting")
-                      nil))))))))
+            "' — waiting (0/" (quot wait-ms 1000) "s)...")
+          (loop []
+            (if (>= (System/currentTimeMillis) deadline)
+              ;; Timeout — return conflict for error response
+              (do
+                (log/info! "CDP lock timeout after " (quot wait-ms 1000)
+                  "s — blocking action '" action "'")
+                conflict)
+              (do
+                (Thread/sleep (long tick-ms))
+                (if-let [_still-locked (cdp-route-lock-conflict action)]
+                  (recur)
+                  ;; Lock cleared!
+                  (do
+                    (log/info! "CDP lock acquired while waiting")
+                    nil)))))))
       ;; No conflict
       nil)))
 
@@ -6057,7 +6081,8 @@
    so the worker's own `InterruptedException` answer — which races this one and
    sometimes wins — reports the budget rather than a phantom cancellation."
   [cid action params]
-  (let [budget (command-budget-ms action)
+  (let [budget   (command-budget-ms action)
+        deadline (+ (System/currentTimeMillis) (long budget))
         result (promise)
         worker (Thread.
                  ^Runnable
@@ -6076,7 +6101,11 @@
                                  (log/info! "command " cid " (" action ") waited "
                                    (human-duration waited-ms) " for the command lock")))
                              (swap! !ledger assoc-in [cid :phase] "running")
-                             (process-command* action params)
+                              ;; Anything that waits inside the command must answer
+                              ;; before this deadline — an interrupt reports the clock,
+                              ;; never the cause.
+                             (binding [*command-deadline-ms* deadline]
+                               (process-command* action params))
                              (finally (.unlock lock)))
                            (busy-response action)))
                        (catch InterruptedException _
@@ -6091,8 +6120,7 @@
     (.setDaemon worker true)
     (swap! !ledger assoc-in [cid :thread] worker)
     (.start worker)
-    (let [deadline (+ (System/currentTimeMillis) (long budget))
-          r        (loop []
+    (let [r        (loop []
                      (let [r (deref result crash-watch-ms ::timeout)]
                        (cond
                          (not= r ::timeout)                       r

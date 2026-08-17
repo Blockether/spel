@@ -629,6 +629,13 @@ assert_jq "network unroute *.svg → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json network unroute 2>&1)
 assert_jq "network unroute all → .all_routes_removed" "$OUT" '.all_routes_removed == true'
 
+# Regression, user report: the daemon's cdp_route_lock hint tells the user to run
+# `network unroute all`, and that removed a route whose pattern was literally "all".
+OUT=$("$SPEL" --json network route "**/*.gif" 2>&1)
+assert_jq_eq "network route *.gif → .route_added" "$OUT" '.route_added' '**/*.gif'
+
+OUT=$("$SPEL" --json network unroute all 2>&1)
+assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_routes_removed == true'
 OUT=$("$SPEL" --json network requests 2>&1)
 assert_jq "network requests → success" "$OUT" 'has("error") | not'
 

@@ -945,7 +945,7 @@
       "  get <@ref>            Get full network entry by ref (e.g. @n1)"
       "  requests [flags]      View tracked requests (auto-tracked, last 500)"
       "  route <url> [flags]   Intercept requests matching URL pattern"
-      "  unroute <url>         Remove route for URL pattern"
+      "  unroute <url>|all     Remove route for URL pattern (`all` removes every route)"
       "  clear                 Clear tracked requests"
       ""
       "Request flags:"
@@ -968,6 +968,7 @@
       "  spel network route \"**/ads/**\" --abort"
       "  spel network route \"**/data\" --body '{\"mock\":true}'"
       "  spel network unroute \"**/api/**\""
+      "  spel network unroute all"
       "  spel network clear"])
 
    "frame"
@@ -2859,8 +2860,13 @@
                                             abort? (assoc :action_type "abort" :action "network_route")
                                             body   (assoc :action_type "fulfill" :body body)
                                             (not (or abort? body)) (assoc :action_type "continue")))
-                             "unroute"  {:action "network_unroute"
-                                         :url (second cmd-args)}
+                             "unroute"  (let [url (second cmd-args)]
+                                          ;; `unroute all` and a bare `unroute` both mean
+                                          ;; EVERY route: the daemon reads a missing url
+                                          ;; that way, and the cdp_route_lock hint tells
+                                          ;; the user to run exactly `network unroute all`.
+                                          (cond-> {:action "network_unroute"}
+                                            (and url (not= "all" url)) (assoc :url url)))
                              "requests" (let [args-v    (vec cmd-args)
                                               flag-val  (fn [flag]
                                                           (let [i (long (.indexOf ^java.util.List args-v flag))]

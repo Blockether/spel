@@ -336,6 +336,33 @@ spel --profile /tmp/fresh-profile open https://example.com
   (`spel --session <name> logs --path` locates the file;
   `SPEL_LOG_LEVEL=debug` adds detail).
 
+## 13. Another session is driving the same CDP endpoint
+
+Two spel sessions CAN attach to one CDP browser — each opens its own tab and both
+keep working. What is exclusive is **request interception**: while one session has
+routes installed (`network route …`), page-driving commands from any other session
+on that endpoint are queued behind its lock.
+
+```bash
+spel --session b connect http://127.0.0.1:9222
+# {"connected":"…","warning":"Another session ('a') already has active network routes …"}
+
+spel --session b open https://example.com
+# {"error":"CDP endpoint is currently controlled by session 'a' with active network
+#   routes…","error_code":"cdp_route_lock","owner_session":"a"}
+```
+
+Read `owner_session`, then either drive that session, or clear its routes:
+
+```bash
+spel --session a network unroute all   # releases the lock
+spel --session a close                 # or end that session entirely
+```
+
+`SPEL_CDP_LOCK_WAIT=0` fails immediately instead of queuing. The wait never exceeds
+the command budget: the answer always names the owner instead of expiring as a
+generic `command_timeout`.
+
 ## 18. `ClassCastException` in `with-retry`
 
 `with-retry` crashed with `ClassCastException: Keyword cannot be cast to Number` when the retried fn returned a map with non-numeric `:status` (e.g. `{:status :created}`).
