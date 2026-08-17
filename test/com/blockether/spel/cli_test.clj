@@ -61,7 +61,31 @@
     (it "keeps a nil JS-eval result silent with content boundaries enabled"
       (expect (= ""
                 (render-result {:success true :data {:result nil}}
-                  {:content-boundaries true}))))))
+                  {:content-boundaries true})))))
+
+  ;; Regression, user report: --json wrapped its payload in
+  ;; <untrusted-content> delimiters, so the stdout an agent was told to parse
+  ;; stopped being JSON.
+  (describe "--json output stays machine-parseable"
+    (it "leaves a JSON payload unwrapped when content boundaries are on"
+      (expect (= "{\"url\":\"http://127.0.0.1/page\"}\n"
+                (render-result {:success true :data {:url "http://127.0.0.1/page"}}
+                  {:json true :content-boundaries true}))))
+
+    (it "leaves a JSON error object unwrapped when content boundaries are on"
+      (expect (= "{\"error\":\"Ref @e1 not found.\"}\n"
+                (render-result {:success false :error "Ref @e1 not found."}
+                  {:json true :content-boundaries true}))))
+
+    (it "still wraps non-JSON stdout"
+      (expect (= "<untrusted-content>\nSpel Dev Test\n</untrusted-content>\n"
+                (render-result {:success true :data {:title "Spel Dev Test"}}
+                  {:content-boundaries true}))))
+
+    (it "keeps the same combination unwrapped when it comes off argv"
+      (expect (= "{\"url\":\"http://127.0.0.1/page\"}\n"
+                (render-result {:success true :data {:url "http://127.0.0.1/page"}}
+                  (:flags (sut/parse-args ["--json" "--content-boundaries" "url"]))))))))
 
 ;; =============================================================================
 ;; Helper

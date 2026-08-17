@@ -66,7 +66,7 @@ Global flags precede the command: `--allowed-domains "example.com,*.example.com"
 ## Gotchas
 
 - A command without `--session` targets the shared default session.
-- `--content-boundaries` wraps non-empty stdout only — silent commands stay silent and stderr is never wrapped or truncated.
+- `--content-boundaries` wraps non-empty stdout only — silent commands stay silent, `--json` output is never wrapped so it stays parseable, and stderr is never wrapped or truncated.
 - Playwright evaluation returns Java collections, not Clojure maps/vectors, and `sci-eval`-style printed strings may keep their quotes.
 - Attaching to a user's own browser needs `--remote-debugging-port` **and** `--remote-allow-origins='*'` (`references/PROFILES_CDP.md`).
 

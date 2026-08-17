@@ -1748,7 +1748,8 @@
      ""
      "Agent Safety (opt-in, all three work together or independently):"
      "  --content-boundaries    Wrap stdout in <untrusted-content> delimiters"
-     "                          (prompt-injection safety for LLM consumers)"
+     "                          (prompt-injection safety for LLM consumers;"
+     "                          --json output is never wrapped)"
      "  --max-output N          Truncate output to N characters (context window"
      "                          protection for long pages/snapshots)"
      "  --allowed-domains LIST  Comma-separated hostnames; blocks navigation AND"
@@ -4278,6 +4279,8 @@
    Transforms (all opt-in via global flags):
    - `:content-boundaries` — wraps stdout in `<untrusted-content>` delimiters
      so downstream LLMs distinguish tool output from scraped page content.
+     Never applied under `:json`, whose stdout is read by a parser: a
+     wrapped payload is no longer JSON.
    - `:max-output`         — truncates overly long output to protect the
      agent's context window.
 
@@ -4285,7 +4288,9 @@
    to see error details in full. Only the success-path stdout is transformed."
   [response flags]
   (let [json-mode? (:json flags)
-        boundaries? (:content-boundaries flags)
+        ;; --json is consumed by a parser, so the payload is handed over bare
+        ;; even when boundaries are on — the wrapper would break every reader.
+        boundaries? (and (:content-boundaries flags) (not json-mode?))
         max-chars  (:max-output flags)
         ;; Capture stdout from the inner renderer so we can post-process it.
         ;; stderr (error path) is untouched and streams directly.

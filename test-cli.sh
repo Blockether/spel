@@ -901,6 +901,17 @@ else
   fail "--content-boundaries + silent result → no delimiters" "unexpected delimiter in output"
 fi
 
+# Regression, user report: --json output is read by a parser, so content
+# boundaries must not wrap it — the delimiters made the payload invalid JSON.
+OUT=$("$SPEL" --json --content-boundaries get url 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" != *"<untrusted-content>"* ]]; then
+  pass "--json + --content-boundaries → no delimiters"
+else
+  fail "--json + --content-boundaries → no delimiters" "unexpected delimiter in JSON output"
+fi
+assert_contains "--json + --content-boundaries → JSON payload" "$OUT" '{"url":"https://example.com/"}'
+
 # No delimiters by default (feature is opt-in)
 OUT=$("$SPEL" snapshot -i 2>&1)
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
