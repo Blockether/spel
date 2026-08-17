@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.29] - 2026-08-17
+
+### Changed
+- fix(ios): measure where the web viewport starts, never assume it
+
+
 ### Fixed
 - fix(ios): measure where the web viewport starts instead of assuming a status bar
 
@@ -1878,7 +1884,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.28...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.29...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1962,3 +1968,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.26]: https://github.com/Blockether/spel/releases/tag/v0.9.26
 [v0.9.27]: https://github.com/Blockether/spel/releases/tag/v0.9.27
 [v0.9.28]: https://github.com/Blockether/spel/releases/tag/v0.9.28
+[v0.9.29]: https://github.com/Blockether/spel/releases/tag/v0.9.29
