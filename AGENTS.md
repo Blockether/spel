@@ -5,7 +5,7 @@ Spel is a Clojure Playwright library with SCI and CLI/daemon surfaces. Implement
 ## Browser automation
 
 - Load the `spel` skill before browser work.
-- Create a unique named session (`agent-<timestamp>`) for every command; never use the user's default session, and always close sessions you create.
+- Run a whole task in ONE unique named session (`agent-<timestamp>`), passing that same `--session` on every command of the task; never use the user's default session, and close the session you created when the task ends. A session is reusable browser state — a fresh session per command relaunches the browser and throws away the page.
 - Inspect `snapshot -i -c` before clicking and act through its `@refs`. Every row carries its box (`[pos:X,Y W×H]`), so state geometry as those figures instead of describing a picture; `get box <sel>` answers a single element.
 - Prove a visual change with `screenshot -a <path>` (or `overview`): it outlines each actionable element in its own colour, stamps it with a bare mark number in that same colour placed clear of the content, and prints the `#N  @ref  role  name` reference table — that table is the legend and belongs in the answer. Prose (paragraphs, spans, list items) is not drawn; read it from `snapshot`, or pass `--text` when the picture must carry it. Scope a busy page first (`-s <sel>`, `-d N`, `--max-output N`) — an unscoped article annotates hundreds of refs.
 - The agent-facing contract for the two rules above lives in `templates/agents/spel.md` and `templates/skills/spel/SKILL.md`; keep them and this section in step.
