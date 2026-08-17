@@ -2026,6 +2026,17 @@ OUT=$("$SPEL" session list --json 2>&1)
 assert_jq "SPEL_SESSION → eval-sci uses the env session" "$OUT" "[.sessions[].name] | index(\"$ENV_SESSION\") != null"
 "$SPEL" --session "$ENV_SESSION" close >/dev/null 2>&1
 
+# --json is a global flag, but eval-sci answered the daemon's EDN pr-str: `{:a 1}`
+# reached the parser as Clojure, and whatever the script printed landed beside it.
+OUT=$("$SPEL" --json eval-sci '{:a 1 :b [1 2] :c "x"}' 2>&1)
+assert_jq "eval-sci --json → result is JSON data" "$OUT" '.result.a == 1 and .result.b == [1,2] and .result.c == "x"'
+
+OUT=$("$SPEL" --json eval-sci '(do (println "printed-by-script") {:ok true})' 2>&1)
+assert_jq "eval-sci --json → script stdout rides inside the object" "$OUT" '.result.ok == true and (.stdout | contains("printed-by-script"))'
+
+OUT=$("$SPEL" --json eval-sci '(throw (ex-info "eval-sci-json-boom" {}))' 2>&1)
+assert_jq "eval-sci --json → failure is one error object" "$OUT" '.error | contains("eval-sci-json-boom")'
+
 section "Snapshot Position Props (39)"
 
 nav "https://example.com"

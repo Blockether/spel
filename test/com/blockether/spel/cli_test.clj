@@ -2114,6 +2114,64 @@
         (expect (= ["eval-sci" "(+ 1 2)"] (:command-args g)))))))
 
 ;; =============================================================================
+;; eval-sci --json output
+;; =============================================================================
+
+(defn- json-line
+  "Shorthand: the one JSON object --json eval-sci writes for a response."
+  [response]
+  (#'com.blockether.spel.native/eval-json-line response))
+
+;; Regression, user report: --json did nothing for eval-sci. The daemon's EDN
+;; pr-str went to stdout unchanged, so `{:a 1}` reached the parser as Clojure
+;; and anything the script printed landed beside the payload.
+(defdescribe eval-sci-json-output-test
+  "Tests for native.clj eval-json-line (private) — the --json eval-sci payload"
+
+  (describe "a successful evaluation"
+    (it "answers the evaluated value as JSON data, not EDN"
+      (expect (= "{\"result\":{\"a\":1,\"b\":[1,2],\"c\":\"x\"}}"
+                (json-line {:success true
+                            :data {:result "{:a 1, :b [1 2], :c \"x\"}"
+                                   :result-data {"a" 1 "b" [1 2] "c" "x"}}}))))
+
+    (it "answers a scalar result"
+      (expect (= "{\"result\":\"Example Domain\"}"
+                (json-line {:success true
+                            :data {:result "\"Example Domain\""
+                                   :result-data "Example Domain"}}))))
+
+    (it "answers null for a nil result"
+      (expect (= "{\"result\":null}"
+                (json-line {:success true :data {:result "nil" :result-data nil}}))))
+
+    (it "folds what the script printed into the same object"
+      (expect (= "{\"result\":42,\"stdout\":\"hello\\n\"}"
+                (json-line {:success true
+                            :data {:result "42" :result-data 42 :stdout "hello\n"}}))))
+
+    (it "answers the EDN string when a daemon sent no projection"
+      (expect (= "{\"result\":\"{:a 1}\"}"
+                (json-line {:success true :data {:result "{:a 1}"}})))))
+
+  (describe "a failed evaluation"
+    (it "answers an error object carrying the daemon detail"
+      (expect (= (str "{\"error\":\"Ref @e1 not found.\","
+                   "\"hint\":\"Take a fresh snapshot.\","
+                   "\"error_code\":\"ref_stale\"}")
+                (json-line {:success false
+                            :data {:error "Ref @e1 not found."}
+                            :hint "Take a fresh snapshot."
+                            :error_code "ref_stale"}))))
+
+    (it "keeps stdout printed before the failure inside the object"
+      (expect (= "{\"error\":\"boom\",\"stdout\":\"step 1\\n\"}"
+                (json-line {:success false :data {:error "boom" :stdout "step 1\n"}}))))
+
+    (it "names the failure when the daemon said nothing about it"
+      (expect (str/includes? (json-line {:success false :data {}})
+                "\"error\":\"unexpected browser error")))))
+;; =============================================================================
 ;; merge-reports arg parsing
 ;; =============================================================================
 

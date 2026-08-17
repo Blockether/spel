@@ -4858,6 +4858,48 @@
     :page @sci-env/!page
     :context @sci-env/!context))
 
+(defn- json-key
+  "A map key as a JSON object key: a keyword drops its leading colon, anything
+   else prints. Keys are where an encoder has to guess, so nothing is left for
+   it to guess about."
+  [k]
+  (cond
+    (string? k)  k
+    (keyword? k) (subs (str k) 1)
+    (symbol? k)  (str k)
+    :else        (pr-str k)))
+
+(defn- json-result
+  "Projects an evaluated SCI value onto data charred can always encode, for the
+   client that sent `result_format` \"json\".
+
+   `:result` stays the `pr-str` this protocol has always answered, and EDN is
+   not JSON — so `--json` needs the value itself, projected here where it still
+   exists. Total by construction: keywords and symbols answer their names, maps
+   and collections answer recursively (Playwright hands back java.util ones),
+   and everything with no JSON shape — a browser handle, a function, a regex, a
+   non-finite double — answers its `pr-str` instead of throwing, because a
+   throw here would poison the whole response line."
+  [v]
+  (cond
+    (nil? v)     nil
+    (string? v)  v
+    (boolean? v) v
+    (keyword? v) (subs (str v) 1)
+    (symbol? v)  (str v)
+    (char? v)    (str v)
+    (integer? v) v
+    (float? v)   (let [d (double v)]
+                   (if (Double/isFinite d) d (str v)))
+    (number? v)  (str v)
+    (instance? java.util.Map v)
+    (persistent!
+      (reduce (fn [acc e] (assoc! acc (json-key (key e)) (json-result (val e))))
+        (transient {}) v))
+    (or (coll? v) (instance? java.util.Collection v))
+    (mapv json-result v)
+    :else (pr-str v)))
+
 (defmethod handle-cmd "sci_eval" [_ params]
   ;; iOS dispatch initializes its Appium backend before entering this shared
   ;; handler. Never launch Playwright alongside it.
@@ -4903,6 +4945,11 @@
                 (seq new-console)     (assoc :console new-console)
                 (seq new-errors)      (assoc :page-errors new-errors))
               (let [base (cond-> {:result (pr-str result)}
+                           ;; `--json` on the client asks for this: the pr-str
+                           ;; above is EDN, and the value it was made from lives
+                           ;; nowhere else.
+                           (= "json" (get params "result_format"))
+                           (assoc :result-data (json-result result))
                            (seq captured-stdout) (assoc :stdout captured-stdout)
                            (seq captured-stderr) (assoc :stderr captured-stderr)
                            (seq new-console)     (assoc :console new-console)

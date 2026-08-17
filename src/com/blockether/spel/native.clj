@@ -291,6 +291,7 @@
   (println "  eval-sci <file.clj>        Evaluate Clojure file (e.g. codegen script)")
   (println "  eval-sci --interactive     Evaluate with visible browser (headed mode)")
   (println "  eval-sci --load-state F    Load auth/state before evaluation (alias: --storage-state)")
+  (println "  eval-sci '<code>' --json    Result as one JSON object: {\"result\": …}")
   (println "")
   (println "Examples:")
   (println "  spel open example.org")
@@ -827,6 +828,37 @@
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
+(defn- eval-json-line
+  "The ONE JSON object `--json` eval-sci writes to stdout.
+
+   Success answers {\"result\" …} — the evaluated value as data, the same shape
+   `spel --json eval-js` answers — and failure answers {\"error\" …} with
+   whatever the daemon knew about it. Anything the script printed rides in
+   \"stdout\": printed beside the object it would leave stdout unparseable,
+   which is the one thing --json promises.
+
+   The value comes from the daemon's JSON projection. A daemon still serving
+   from an older spel has none, so its EDN `:result` is answered as-is rather
+   than a silent null."
+  [response]
+  (let [data   (get response :data)
+        stdout (get data :stdout)
+        base   (if (and response (:success response))
+                 {:result (if (contains? data :result-data)
+                            (get data :result-data)
+                            (get data :result))}
+                 (cond-> {:error (or (get data :error)
+                                   (:error response)
+                                   "unexpected browser error (no details from runtime)")}
+                   (:hint response)       (assoc :hint (:hint response))
+                   (:error_code response) (assoc :error_code (:error_code response))
+                   (:call_log response)   (assoc :call_log (:call_log response))
+                   (:selector response)   (assoc :selector (:selector response))))]
+    (json/write-json-str
+      (cond-> base
+        (not (str/blank? stdout)) (assoc :stdout stdout))
+      :escape-slash false)))
+
 (defn- run-eval!
   "Runs eval-sci mode via daemon: sends code for evaluation, browser persists.
    The daemon lazily starts a browser on first Playwright call and keeps it
@@ -899,61 +931,64 @@
       ;; Send eval command to daemon — no transport timeout.
       ;; Playwright action timeouts are the correct control mechanism.
       ;; Include _flags so daemon knows browser type on first command.
-      (let [response     (cli/send-command! session
+      (let [json?        (:json? global)
+            response     (cli/send-command! session
                            (cond-> {"action" "sci_eval" "code" code}
                              (some? eval-args) (assoc "args" eval-args)
-                             (seq eval-flags) (assoc "_flags" eval-flags))
+                             (seq eval-flags) (assoc "_flags" eval-flags)
+                             ;; Only the daemon still holds the evaluated VALUE,
+                             ;; so the JSON projection is asked for there — the
+                             ;; `:result` it always answers is EDN, which no
+                             ;; JSON parser reads.
+                             json? (assoc "result_format" "json"))
                            eval-timeout)
             stdout-str   (get-in response [:data :stdout])
             stderr-str   (get-in response [:data :stderr])
             console-msgs (get-in response [:data :console])
             page-errors  (get-in response [:data :page-errors])]
-        ;; Print captured stdout/stderr (from println/binding *err* in evaluated code)
-        (when (and stdout-str (not (str/blank? stdout-str)))
+        ;; Print captured stdout/stderr (from println/binding *err* in evaluated code).
+        ;; Under --json the script's stdout goes INSIDE the object instead: printed
+        ;; beside it, the stdout an agent parses stops being JSON.
+        (when (and stdout-str (not (str/blank? stdout-str)) (not json?))
           (print stdout-str)
           (flush))
         (when (and stderr-str (not (str/blank? stderr-str)))
           (eprint stderr-str))
         ;; Print browser console messages and page errors to stderr
-        (when (and (seq console-msgs) (not (:json? global)))
+        (when (and (seq console-msgs) (not json?))
           (doseq [{:keys [type text]} console-msgs]
             (eprintln (str "[console." type "] " text))))
-        (when (and (seq page-errors) (not (:json? global)))
+        (when (and (seq page-errors) (not json?))
           (doseq [{:keys [message]} page-errors]
             (eprintln (str "[page-error] " message))))
-        (if (and response (:success response))
-          ;; Success — print the result
+        (when-not (and response (:success response))
+          (vreset! exit-code 1))
+        (cond
+          ;; --json — one JSON object on stdout, success or failure alike.
+          json?
+          (println (eval-json-line response))
+
+          (and response (:success response))
           (let [data       (get response :data)
                 snap-tree  (get data :snapshot)
                 result-str (get data :result)]
-            (if (:json? global)
-              (println result-str)
-              (if snap-tree
-                ;; Snapshot result — format like 'spel snapshot' output
-                (do (when-not (str/blank? (str snap-tree))
-                      (println (str/trim (str snap-tree))))
+            (if snap-tree
+              ;; Snapshot result — format like 'spel snapshot' output
+              (do (when-not (str/blank? (str snap-tree))
+                    (println (str/trim (str snap-tree))))
                   (when-let [url (get data :url)]
                     (println (str "\n  URL: " url)))
                   (when-let [title (get data :title)]
                     (println (str "  Title: " title)))
                   (when-let [desc (get data :description)]
                     (println (str "  Description: " desc))))
-                (println result-str))))
-          ;; Error from daemon
-          (do (vreset! exit-code 1)
-            (let [error-msg (or (get-in response [:data :error])
-                              (:error response)
-                              "unexpected browser error (no details from runtime)")]
-              (if (:json? global)
-                  ;; --json mode: structured error with call_log/selector
-                (let [err-map (cond-> {:error error-msg}
-                                (:hint response) (assoc :hint (:hint response))
-                                (:error_code response) (assoc :error_code (:error_code response))
-                                (:call_log response) (assoc :call_log (:call_log response))
-                                (:selector response) (assoc :selector (:selector response)))]
-                  (println (json/write-json-str err-map :escape-slash false)))
-                  ;; text mode: print full error message as-is
-                (eprintln (str "Error: " error-msg)))))))
+              (println result-str)))
+
+          :else
+          ;; text mode: print full error message as-is
+          (eprintln (str "Error: " (or (get-in response [:data :error])
+                                     (:error response)
+                                     "unexpected browser error (no details from runtime)")))))
       (catch Exception e
         (vreset! exit-code 1)
         (eprintln (str "Error: " (.getMessage e))))

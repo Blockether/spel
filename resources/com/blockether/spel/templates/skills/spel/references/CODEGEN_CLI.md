@@ -279,7 +279,7 @@ clojure -T:build native-image
 |------|---------|---------|
 | `--timeout <ms>` | `10000` | Playwright action timeout |
 | `--session <name>` | `default` | Named browser session |
-| `--json` | off | JSON output |
+| `--json` | off | JSON output — `eval-sci` answers `{"result": <value>}`, not EDN |
 | `--debug` | off | Debug output |
 | `--autoclose` | off | Close daemon after `eval-sci` |
 | `--interactive` | off | Headed browser for `eval-sci` |

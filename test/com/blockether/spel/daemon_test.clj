@@ -2321,3 +2321,44 @@
               (expect (str/includes? (str (get resp "error")) "127.0.0.1:1")))
             (finally
               (reset! state-atom before))))))))
+
+;; Regression, user report: `spel --json eval-sci` printed EDN. sci_eval only
+;; ever answered the `pr-str` of the value, so `{:a 1}` and `#{:a}` reached the
+;; parser as Clojure literals no JSON reader accepts.
+(defdescribe json-result-test
+  "Unit tests for json-result — the projection sci_eval answers under result_format json"
+
+  (describe "Clojure data"
+    (it "names keyword keys and keyword values"
+      (expect (= {"a" 1 "b" "kw"} (#'sut/json-result {:a 1 :b :kw}))))
+
+    (it "keeps a namespace on a keyword"
+      (expect (= "page/url" (#'sut/json-result :page/url))))
+
+    (it "projects nested collections"
+      (expect (= {"xs" [1 2 {"y" "z"}]} (#'sut/json-result {:xs [1 2 {:y "z"}]}))))
+
+    (it "answers a set as an array"
+      (expect (= [1] (#'sut/json-result #{1}))))
+
+    (it "prints a key that is not a string or keyword"
+      (expect (= {"1" "one"} (#'sut/json-result {1 "one"})))))
+
+  (describe "values with no JSON shape"
+    (it "prints a regex instead of throwing"
+      (expect (= "#\"ab\"" (#'sut/json-result #"ab"))))
+
+    (it "prints a non-finite double"
+      (expect (= "NaN" (#'sut/json-result Double/NaN))))
+
+    (it "prints a browser handle rather than poisoning the response"
+      (expect (str/starts-with? (#'sut/json-result (Object.)) "#object"))))
+
+  (describe "what Playwright hands back"
+    (it "projects java maps and lists"
+      (expect (= {"a" [1 2]}
+                (#'sut/json-result (java.util.HashMap. {"a" (java.util.ArrayList. [1 2])})))))
+
+    (it "encodes without an encoder ever having to guess"
+      (expect (= "{\"a\":[1,\"x\"]}"
+                (json/write-json-str (#'sut/json-result {:a [1 :x]})))))))

@@ -1665,3 +1665,4 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `eval-sci <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
 | `eval-sci --interactive` | Evaluate with visible browser (headed mode) |
 | `eval-sci --load-state F` | Load auth/state before evaluation (alias: --storage-state) |
+| `eval-sci '<code>' --json` | Result as one JSON object: `{"result": <value>}` (never EDN) |

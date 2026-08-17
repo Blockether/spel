@@ -220,7 +220,7 @@ Need something unavailable → write a `.clj` library file and use the library A
 | `--autoclose` | Close daemon after eval |
 | `--timeout <ms>` | Default action timeout |
 | `--session <name>` | Named session |
-| `--json` | JSON output |
+| `--json` | One JSON object on stdout — `{"result": <value>}`, or `{"error": …}` on failure; whatever the script printed rides in `"stdout"` |
 
 ## Tips
 

@@ -3934,3 +3934,48 @@
       (expect (every? #(= "cancelled" (:error_code %)) answers)))
     (expect (= "ok" (:status (:data (wire {:action "health"})))))
     (expect (true? (:success (wire {:action "url"}))))))
+
+;; =============================================================================
+;; sci_eval — JSON projection for --json clients
+;; =============================================================================
+
+;; Regression, user report: `spel --json eval-sci` answered EDN, because
+;; sci_eval had nothing but the `pr-str` of the value to answer with.
+(defdescribe sci-eval-json-projection-test
+  "sci_eval answers JSON-encodable data when the client asks for result_format json"
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (describe "result_format json"
+    (it "answers the evaluated value as data beside the EDN result"
+      (let [r (cmd "sci_eval" {"code" "{:a 1 :b [1 2] :c \"x\"}" "result_format" "json"})]
+        (expect (= {"a" 1 "b" [1 2] "c" "x"} (:result-data r)))
+        (expect (= "{:a 1, :b [1 2], :c \"x\"}" (:result r)))))
+
+    (it "projects what the page hands back through Playwright"
+      (let [r (cmd "sci_eval" {"code" "(spel/eval-js \"({a: 1, b: [1, 2]})\")"
+                               "result_format" "json"})]
+        (expect (= {"a" 1 "b" [1 2]} (:result-data r)))))
+
+    (it "answers a value with no JSON shape as its printed form"
+      (let [r (cmd "sci_eval" {"code" "#\"ab\"" "result_format" "json"})]
+        (expect (= "#\"ab\"" (:result-data r)))))
+
+    (it "leaves the projection out when the client did not ask for it"
+      (let [r (cmd "sci_eval" {"code" "{:a 1}"})]
+        (expect (not (contains? r :result-data)))
+        (expect (= "{:a 1}" (:result r)))))
+
+    ;; `wire` keywordizes every key on the way back, which would hide the one
+    ;; thing this proves: the projection reaches the client as JSON object keys.
+    (it "survives the JSON envelope the client actually reads"
+      (let [raw    (#'daemon/process-command
+                    (json/write-json-str {"action"        "sci_eval"
+                                          "code"          "{:a 1 :b [1 2]}"
+                                          "result_format" "json"}))
+            parsed (json/read-json raw)
+            rd     (get-in parsed ["data" "result-data"])]
+        (expect (true? (get parsed "success")))
+        (expect (= 1 (get rd "a")))
+        (expect (= [1 2] (vec (get rd "b"))))
+        (expect (= "{:a 1, :b [1 2]}" (get-in parsed ["data" "result"])))))))
