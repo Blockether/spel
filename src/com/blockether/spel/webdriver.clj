@@ -941,6 +941,31 @@
 ;; W3C pointer actions (touch)
 ;; =============================================================================
 
+(def ^:private webview-class-chain
+  "Class chain of the first WebView in the application's native element tree."
+  "**/XCUIElementTypeWebView[1]")
+
+(defn native-webview-rect
+  "Returns {:x :y :width :height} - the screen frame of the application's own
+   WebView element in native points, or nil when the native element tree holds
+   no WebView.
+
+   REQUIRES the NATIVE_APP context: in a WEBVIEW context `find-element` speaks CSS
+   to the page and cannot see the view that hosts it.
+
+   The frame is the VIEW's, never the page's. A full-screen WKWebView (Capacitor,
+   Ionic, Cordova) carries the page edge to edge, so its frame IS the page's;
+   Safari's WebView is just as large but insets the page under its own chrome. A
+   caller that wants the page's origin must first check that this frame measures
+   the same as the page inside it."
+  [session]
+  (try
+    (let [element (find-element session "-ios class chain" webview-class-chain)
+          rect    (element-rect session element)]
+      {:x      (long (:x rect))     :y      (long (:y rect))
+       :width  (long (:width rect)) :height (long (:height rect))})
+    (catch Exception _ nil)))
+
 (defn viewport-offset
   "Returns {:x :y} — the native-point offset of the web viewport within the
    device screen.

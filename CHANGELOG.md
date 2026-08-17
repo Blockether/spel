@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- fix(ios): measure where the web viewport starts instead of assuming a status bar
+
 ## [v0.9.28] - 2026-08-16
 
 ### Changed

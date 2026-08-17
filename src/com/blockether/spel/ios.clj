@@ -57,6 +57,7 @@
             context*
             native-refs*
             viewport*
+            viewport-offset*
             operation-lock])
 
 ;; =============================================================================
@@ -663,6 +664,7 @@
                        (when-not auto-webview "NATIVE_APP"))))
           (atom {})
           (atom nil)
+          (atom nil)
           (ReentrantLock. true)))
       (catch Exception e
         ;; Full rollback, in dependency order: reap the entire Appium tree
@@ -849,6 +851,9 @@
 ;; Hybrid apps: DOM coordinates → native taps
 ;; =============================================================================
 
+(def ^:private page-size-script
+  "({width: window.innerWidth, height: window.innerHeight})")
+
 (defn viewport-offset
   "Returns {:x :y} — where the app's web viewport starts on the device screen,
    in native points.
@@ -857,9 +862,42 @@
    `with-webview-context` reads CSS pixels relative to the WebView, while every
    XCUITest gesture is an absolute screen point. Without this number, a tap
    computed from `getBoundingClientRect()` lands a status bar too high and the
-   only way forward was to hand-calibrate the difference per device."
-  [{:keys [webdriver]}]
-  (webdriver/viewport-offset webdriver))
+   only way forward was to hand-calibrate the difference per device.
+
+   MEASURED, never assumed. The application's own WebView element — or the
+   application window when the tree exposes no WebView — carries a screen frame;
+   when that frame MEASURES THE SAME as the page inside it, the frame IS the page
+   and its origin is the answer. A full-screen WKWebView (Capacitor, Ionic,
+   Cordova) carries the page edge to edge, so a status-bar guess there puts every
+   DOM-derived gesture one status bar too low. When the two disagree the chrome
+   overlays the page — Safari insets it under the address bar — and those insets
+   are invisible from the element tree, so the status-bar estimate stands.
+
+   Cached for the session like the window size: it only changes when the window
+   does, and both measurements cost a context switch."
+  [{:keys [webdriver viewport-offset*] :as ios-session}]
+  (or (when viewport-offset* @viewport-offset*)
+    (let [native?   (native-context? ios-session)
+          in-native (fn run-in-native [thunk]
+                      (if native? (thunk) (with-context ios-session :native {} thunk)))
+          in-web    (fn run-in-webview [thunk]
+                      (if native? (with-context ios-session :webview {} thunk) (thunk)))
+          frame     (in-native (fn read-webview-frame []
+                                 (or (webdriver/native-webview-rect webdriver)
+                                   (try (webdriver/window-rect webdriver)
+                                     (catch Exception _ nil)))))
+          page      (try (in-web (fn read-page-size []
+                                   (let [result (webdriver/evaluate webdriver page-size-script)]
+                                     {:width  (long (get result "width"))
+                                      :height (long (get result "height"))})))
+                      (catch Exception _ nil))
+          measured  (if (and frame page
+                          (= (:width frame) (:width page))
+                          (= (:height frame) (:height page)))
+                      (select-keys frame [:x :y])
+                      (webdriver/viewport-offset webdriver))]
+      (when viewport-offset* (reset! viewport-offset* measured))
+      measured)))
 
 (defn tap-dom-point!
   "Taps the device screen at a WEB-VIEWPORT coordinate (CSS pixels), from any
@@ -872,7 +910,7 @@
   [{:keys [webdriver] :as ios-session} x y]
   (with-operation ios-session
     (fn tap-dom-point-operation []
-      (let [{ox :x oy :y} (webdriver/viewport-offset webdriver)
+      (let [{ox :x oy :y} (viewport-offset ios-session)
             sx (+ (long x) (long ox))
             sy (+ (long y) (long oy))]
         (with-context ios-session :native {}
@@ -914,15 +952,18 @@
   "Activates an installed application by bundle identifier without creating
    a new session. The session returns to NATIVE_APP so stale webview state is
    never carried across applications. Returns the bundle identifier."
-  [{:keys [webdriver context* native-refs* viewport*] :as ios-session} bundle-id]
+  [{:keys [webdriver context* native-refs* viewport* viewport-offset*] :as ios-session}
+   bundle-id]
   (let [bundle (or bundle-id (:bundle-id ios-session)
                  (throw (ex-info "Application activation requires a bundle identifier." {})))]
     (webdriver/activate-app webdriver bundle)
     (webdriver/switch-context webdriver "NATIVE_APP")
     (when context* (reset! context* "NATIVE_APP"))
     (when native-refs* (reset! native-refs* {}))
-    ;; Another application owns the window now, and it may size it differently.
+    ;; Another application owns the window now, and it may size it differently
+    ;; and start its web viewport somewhere else.
     (when viewport* (reset! viewport* nil))
+    (when viewport-offset* (reset! viewport-offset* nil))
     bundle))
 
 (defn app-state
@@ -940,10 +981,11 @@
   "Launches the session-bound or requested installed application."
   ([ios-session] (launch-app! ios-session nil {}))
   ([ios-session bundle-id] (launch-app! ios-session bundle-id {}))
-  ([{:keys [webdriver viewport*] :as ios-session} bundle-id opts]
+  ([{:keys [webdriver viewport* viewport-offset*] :as ios-session} bundle-id opts]
    (let [bundle (target-bundle-id ios-session bundle-id)]
      (webdriver/launch-app webdriver bundle opts)
      (when viewport* (reset! viewport* nil))
+     (when viewport-offset* (reset! viewport-offset* nil))
      (use-context! ios-session :native)
      bundle)))
 
@@ -1266,10 +1308,12 @@
 
 (defn set-orientation!
   "Rotates the iOS device to :portrait or :landscape."
-  [{:keys [webdriver viewport*]} requested]
+  [{:keys [webdriver viewport* viewport-offset*]} requested]
   (let [result (webdriver/set-orientation webdriver requested)]
-    ;; Width and height swap on rotation, so the cached window size is void.
+    ;; Width and height swap on rotation, so the cached window size and the
+    ;; cached web-viewport origin are void.
     (when viewport* (reset! viewport* nil))
+    (when viewport-offset* (reset! viewport-offset* nil))
     result))
 
 ;; =============================================================================
@@ -1335,7 +1379,8 @@
      (swipe session {:from [200 600] :to [200 100] :duration 800})
 
    Direction-based swipes derive coordinates from the app window in a native
-   context and from the live web viewport in a webview."
+   context and from the live web viewport in a webview; webview coordinates
+   reach the screen through the measured `viewport-offset`."
   [{:keys [webdriver] :as ios-session} {:keys [direction distance from to duration]}]
   (let [native?  (native-context? ios-session)
         viewport (if native?
@@ -1347,7 +1392,10 @@
         opts     (assoc coords :duration (or duration 800))]
     (if native?
       (webdriver/swipe-screen webdriver opts)
-      (webdriver/swipe webdriver opts))
+      (let [{ox :x oy :y} (viewport-offset ios-session)
+            shift (fn [[px py]] [(+ (long px) (long ox)) (+ (long py) (long oy))])]
+        (webdriver/swipe-screen webdriver
+          (assoc opts :from (shift (:from opts)) :to (shift (:to opts))))))
     {:from (:from coords) :to (:to coords)}))
 
 (defn scroll

@@ -898,7 +898,10 @@
   "DOM coordinates reach a native tap (issue #123)"
 
   (it "exposes the web-viewport offset of the session"
-    (with-redefs [webdriver/viewport-offset (fn [_] {:x 0 :y 62})]
+    (with-redefs [webdriver/contexts        (fn [_] ["NATIVE_APP" "WEBVIEW_1"])
+                  webdriver/current-context (fn [_] "WEBVIEW_1")
+                  webdriver/switch-context  (fn [_ target] target)
+                  webdriver/viewport-offset (fn [_] {:x 0 :y 62})]
       (expect (= {:x 0 :y 62} (sut/viewport-offset (fake-hybrid-session))))))
 
   (it "adds the offset and taps in the native context, then restores the webview"
@@ -1085,3 +1088,119 @@
                     webdriver/switch-context (fn [_ context] context)]
         (expect (= "WEBVIEW_1" (sut/use-context! session :webview)))
         (expect (= 1 @listings*))))))
+
+;; =============================================================================
+;; Hybrid apps: where the web viewport starts
+;; =============================================================================
+
+;; Regression, issue #123: the DOM -> native offset was ASSUMED to be the status
+;; bar (`mobile: viewportRect`), so on a full-screen hybrid WebView - a Capacitor
+;; WKWebView that carries the page edge to edge - every tap computed from
+;; getBoundingClientRect landed one status bar (54 pt on an iPhone 17 Pro) below
+;; its target, and the offset had to be hand-calibrated after all.
+(defn- with-fake-driver
+  "Runs `thunk` against a fake WebDriver for the viewport-offset path. `:frame` is
+   the WebView element's screen frame (nil = the tree exposes none), `:page` the
+   page's own size, `:fallback` the status-bar estimate, `:context*` the driver's
+   live context, and `:frame-spy` / `:page-spy` receive the context each
+   measurement is taken in."
+  [{:keys [frame page fallback context* frame-spy page-spy taps swipes]
+    :or   {page {:width 402 :height 874} fallback {:x 0 :y 54}}} thunk]
+  (let [ctx* (or context* (atom "NATIVE_APP"))]
+    (with-redefs [webdriver/contexts            (fn [_] ["NATIVE_APP" "WEBVIEW_1"])
+                  webdriver/current-context     (fn [_] @ctx*)
+                  webdriver/switch-context      (fn [_ context] (reset! ctx* context) context)
+                  webdriver/native-webview-rect (fn [_] (when frame-spy (frame-spy @ctx*)) frame)
+                  webdriver/window-rect         (fn [_] {:x 0 :y 0 :width 402 :height 874})
+                  webdriver/evaluate            (fn [_ _]
+                                                  (when page-spy (page-spy @ctx*))
+                                                  {"width"  (:width page)
+                                                   "height" (:height page)})
+                  webdriver/viewport-offset     (fn [_] fallback)
+                  webdriver/set-orientation     (fn [_ requested] requested)
+                  webdriver/tap-screen          (fn [_ x y]
+                                                  (when taps (swap! taps conj [x y]))
+                                                  nil)
+                  webdriver/swipe-screen        (fn [_ opts]
+                                                  (when swipes (swap! swipes conj opts))
+                                                  nil)]
+      (thunk))))
+
+(defdescribe viewport-offset-test
+  "the web viewport's screen origin is measured, not assumed"
+
+  (let [full-screen    {:x 0 :y 0 :width 402 :height 874}
+        offset-session (fn [context]
+                         (sut/map->IosSession
+                           {:webdriver        :fake
+                            :context*         (atom context)
+                            :viewport*        (atom nil)
+                            :viewport-offset* (atom nil)
+                            :operation-lock   (ReentrantLock.)}))]
+
+    ;; Measured on an iPhone 17 Pro simulator: the Capacitor WebView's frame and
+    ;; the page inside it are both 402x874, so the page starts at the screen's
+    ;; own origin and a status bar of offset would be 54 pt of error.
+    (it "is the WebView's own origin when the page fills its frame"
+      (let [session (offset-session "NATIVE_APP")]
+        (with-fake-driver {:frame full-screen :page {:width 402 :height 874}}
+          (fn [] (expect (= {:x 0 :y 0} (sut/viewport-offset session)))))))
+
+    ;; Safari on the same simulator: an equally full-screen WebView, but the page
+    ;; inside it is 402x714 because the chrome insets it - the insets are
+    ;; invisible from the element tree, so the status-bar estimate stands.
+    (it "keeps the status-bar estimate when chrome insets the page"
+      (let [session (offset-session "NATIVE_APP")]
+        (with-fake-driver {:frame full-screen :page {:width 402 :height 714}}
+          (fn [] (expect (= {:x 0 :y 54} (sut/viewport-offset session)))))))
+
+    (it "falls back to the application window when the tree exposes no WebView"
+      (let [session (offset-session "NATIVE_APP")]
+        (with-fake-driver {:frame nil :page {:width 402 :height 874}}
+          (fn [] (expect (= {:x 0 :y 0} (sut/viewport-offset session)))))))
+
+    (it "measures once per session and again after a rotation"
+      (let [reads*  (atom 0)
+            session (offset-session "NATIVE_APP")]
+        (with-fake-driver {:frame full-screen :frame-spy (fn [_] (swap! reads* inc))}
+          (fn []
+            (sut/viewport-offset session)
+            (sut/viewport-offset session)
+            (expect (= 1 @reads*))
+            (sut/set-orientation! session :landscape)
+            (sut/viewport-offset session)
+            (expect (= 2 @reads*))))))
+
+    (it "reads the frame natively and the page in the webview, then restores"
+      (let [driver-context* (atom "WEBVIEW_1")
+            frame-in        (atom [])
+            page-in         (atom [])
+            session         (offset-session "WEBVIEW_1")]
+        (with-fake-driver {:frame     full-screen
+                           :context*  driver-context*
+                           :frame-spy (fn [context] (swap! frame-in conj context))
+                           :page-spy  (fn [context] (swap! page-in conj context))}
+          (fn []
+            (expect (= {:x 0 :y 0} (sut/viewport-offset session)))
+            (expect (= ["NATIVE_APP"] @frame-in))
+            (expect (= ["WEBVIEW_1"] @page-in))
+            (expect (= "WEBVIEW_1" @driver-context*))))))
+
+    (it "taps a DOM point where the measured viewport puts it"
+      (let [taps*   (atom [])
+            session (offset-session "NATIVE_APP")]
+        (with-fake-driver {:frame full-screen :taps taps*}
+          (fn []
+            (expect (= {:x 214 :y 62 :offset {:x 0 :y 0}}
+                      (sut/tap-dom-point! session 214 62)))
+            (expect (= [[214 62]] @taps*))))))
+
+    (it "swipes a webview gesture through the measured viewport"
+      (let [swipes* (atom [])
+            session (offset-session "WEBVIEW_1")]
+        (with-fake-driver {:frame    full-screen
+                           :context* (atom "WEBVIEW_1")
+                           :swipes   swipes*}
+          (fn []
+            (sut/swipe session {:from [200 600] :to [200 100]})
+            (expect (= [{:from [200 600] :to [200 100] :duration 800}] @swipes*))))))))

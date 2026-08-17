@@ -469,6 +469,25 @@
          {:status 200 :body {"value" {"scale" 3 "statusBarSize" {"width" 390 "height" 47}}}})
         (expect (= {:x 0 :y 94} (sut/viewport-offset (fake-session srv))))))
 
+    (it "reads the application's own WebView frame from the native element tree"
+      (with-fake-server srv
+        ((:respond! srv)
+         {:status 200 :body {"value" {"element-6066-11e4-a52e-4f735466cecf" "el-7"}}}
+         {:status 200 :body {"value" {"x" 0 "y" 54 "width" 402 "height" 820}}})
+        (expect (= {:x 0 :y 54 :width 402 :height 820}
+                  (sut/native-webview-rect (fake-session srv))))
+        (let [find-req (first @(:requests srv))]
+          (expect (= "/session/sess-1/element" (:path find-req)))
+          (expect (= "-ios class chain" (get (:body find-req) "using")))
+          (expect (= "**/XCUIElementTypeWebView[1]" (get (:body find-req) "value"))))))
+
+    (it "answers nil when the native tree holds no WebView element"
+      (with-fake-server srv
+        ((:respond! srv)
+         {:status 404 :body {"value" {"error" "no such element"
+                                      "message" "An element could not be located"}}})
+        (expect (nil? (sut/native-webview-rect (fake-session srv))))))
+
     (it "tap adds the chrome offset to viewport coordinates"
       (with-fake-server srv
         ((:respond! srv)
