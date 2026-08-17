@@ -1,0 +1,10 @@
+content-encoding: br
+server: cloudflare
+age: 9112
+content-type: text/html
+allow: GET, HEAD
+cf-cache-status: HIT
+cf-ray: a2c6e80e4c3f4c91-MSP
+date: Mon, 17 Aug 2026 07:18:44 GMT
+last-modified: Wed, 12 Aug 2026 20:15:57 GMT
+cache-control: max-age=14400

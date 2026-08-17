@@ -1,0 +1,1 @@
+{"id":"53bcfb0a05988ed1fbdf9392e67117eb","fullName":"com.blockether.spel.daemon-test.Unit tests for discover-cdp-endpoint.probe-http-cdp.returns nil when endpoint responds non-200","name":"Unit tests for discover-cdp-endpoint > probe-http-cdp > returns nil when endpoint responds non-200","status":"passed","testResultsByEnv":{"default":"fcafc81b1e673c81bfd04c02a73580e1"}}
