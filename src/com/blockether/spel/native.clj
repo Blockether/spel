@@ -1568,10 +1568,15 @@
       (= "eval-sci" first-arg)
       (let [{:keys [command-args script-args]} (split-eval-tail-args (rest cmd-args))
             code-or-file (first command-args)]
-        (if code-or-file
-          (run-eval! (eval-sci-code code-or-file) script-args global)
-          (do (eprintln "Error: eval-sci requires a code argument or .clj file path")
-            (System/exit 1))))
+        (cond
+          ;; `--help` is a request for help everywhere else in the CLI; without
+          ;; this it was read as the expression and SCI answered
+          ;; `Unable to resolve symbol: --help`.
+          (or (nil? code-or-file) (#{"--help" "-h"} code-or-file))
+          (println (get cli/command-help "eval-sci"))
+
+          :else
+          (run-eval! (eval-sci-code code-or-file) script-args global)))
 
       ;; CLI command — pass NORMALIZED args (cli.clj has its own flag parser)
       :else

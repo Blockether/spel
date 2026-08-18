@@ -3239,3 +3239,18 @@
 
     (it "still prints a plain count result as a bare number"
       (expect (= "3\n" (render-result {:success true :data {:count 3}}))))))
+
+
+;; Regression, user report: `spel eval-sci --help` printed
+;; "Error: Unable to resolve symbol: --help" because the flag was read as the
+;; expression to evaluate, while every other command answers its own help.
+(defdescribe eval-sci-help-test
+  "eval-sci carries per-command help like every other command."
+
+  (describe "command-help"
+    (it "has an eval-sci entry naming its flags"
+      (let [h (get sut/command-help "eval-sci")]
+        (expect (some? h))
+        (expect (str/includes? h "eval-sci"))
+        (expect (str/includes? h "--stdin"))
+        (expect (str/includes? h "--load-state"))))))

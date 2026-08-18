@@ -1492,6 +1492,11 @@ fi
 OUT=$("$SPEL" stitch --help 2>&1)
 assert_contains "stitch --help mentions stitch" "$OUT" "stitch"
 
+# eval-sci --help (used to evaluate "--help" as Clojure)
+OUT=$("$SPEL" eval-sci --help 2>&1)
+assert_contains "eval-sci --help mentions eval-sci" "$OUT" "eval-sci"
+assert_contains "eval-sci --help mentions --stdin" "$OUT" "--stdin"
+
 # =============================================================================
 # ANNOTATE & UNANNOTATE (4)
 # =============================================================================

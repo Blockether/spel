@@ -679,6 +679,27 @@
       "  spel pdf"
       "  spel pdf page.pdf"])
 
+   "eval-sci"
+   (str/join \newline
+     ["eval-sci - Evaluate Clojure (SCI) against the browser session"
+      ""
+      "Usage:"
+      "  spel eval-sci '<code>'"
+      "  spel eval-sci <script.clj> [-- <script args>]"
+      "  spel eval-sci --stdin        (alias: -)"
+      ""
+      "Examples:"
+      "  spel eval-sci '(spel/navigate \"example.org\")'"
+      "  spel eval-sci script.clj --load-state auth.json"
+      "  echo '(+ 1 2)' | spel eval-sci --stdin"
+      ""
+      "Flags:"
+      "  --stdin, -            Read the script from stdin"
+      "  --interactive         Evaluate with a visible browser"
+      "  --load-state <file>   Load auth/storage state first (alias: --storage-state)"
+      "  --json                Print one JSON object: {\"result\": …}"
+      "  --timeout <ms>        Playwright action timeout"
+      "  --                    Everything after it is passed to the script"])
    "eval-js"
    (str/join \newline
      ["eval-js - Evaluate JavaScript in the page context"
