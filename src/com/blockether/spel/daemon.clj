@@ -1427,39 +1427,6 @@
                       (try (when pw (core/close! pw)) (catch Throwable _ nil))))
     :dead))
 
-(defn- ensure-live-browser!
-  "Reconciles daemon state with the browser that actually exists.
-   Returns :dead when dead handles were dropped (the next launch recreates
-   them), :page-reopened when only the page had been closed, else nil.
-
-   Playwright flips `isConnected` only once its driver has NOTICED the
-   disconnect, so this catches a browser already known to be gone; the one that
-   dies mid-command is caught by `dispatch-with-recovery`."
-  []
-  (let [{:keys [browser context page]} @!state]
-    (cond
-      (and browser (not (browser-connected?)))
-      (do
-        (log/warn! "browser is gone (closed outside the daemon) — dropping dead handles; the next command relaunches it")
-        (drop-browser-handles!))
-
-      (and browser context page (not (page-open?)))
-      (let [crashed? (page-crashed? page)]
-        (try
-          (let [fresh (new-spel-page! context)]
-            (swap! !state assoc :page fresh :refs {} :counter 0)
-            (forget-crashed-page! page)
-            (if crashed?
-              (log/warn! "the page's renderer had crashed — opened a fresh tab; "
-                "navigate again, the old page and its refs are gone")
-              (log/warn! "page was closed outside the daemon — opened a fresh one"))
-            :page-reopened)
-          (catch Throwable _
-            (forget-crashed-page! page)
-            (drop-browser-handles!))))
-
-      :else nil)))
-
 (def ^:private browser-gone-markers
   "Playwright/CDP wordings that mean the BROWSER, not the script, ended the
    call. Each one of them used to poison the session permanently."
@@ -1806,6 +1773,27 @@
 (defonce ^:private !page-counter (atom 0))
 
 (defonce ^:private !session-entry-count (atom 0))
+(defonce ^:private !capture-ceiling-warned? (atom false))
+
+(defn- capture-budget-left?
+  "True while this session may still record console and network entries.
+
+   A session that has recorded `max-session-total` of them stops recording: the
+   windows only ever SHOW a few thousand, and every event costs work on the
+   thread pumping the Playwright pipe. It used to stop SILENTLY and for good —
+   `spel console` kept answering with entries from hours earlier, nothing said
+   why, and no clear brought it back. That is the shape issue #125 reported. Now
+   it says so once, and `console clear` / `network clear` give the budget back.
+
+   Returns:
+   True when there is budget left."
+  []
+  (or (< (long @!session-entry-count) (long max-session-total))
+    (do (when (compare-and-set! !capture-ceiling-warned? false true)
+          (log/warn! "this session has captured " max-session-total
+            " console and network entries — capture stops here to keep the browser responsive; "
+            "`spel console clear` or `spel network clear` resumes it"))
+      false)))
 
 (defn- conj-window
   "Appends `entry` to a sliding-window vector, dropping whatever falls out of
@@ -1853,18 +1841,75 @@
       (into [] (subvec updated (- n (long max-window-total))))
       updated)))
 
-(defn- retain-window
-  "Records `entry` under `prefix` + `entry-no` and drops the ref that just left
-   the window.
+(defn- dropped-entries
+  "The entries `before` lost when a capture window became `after`.
 
-   `network get @nN` and `console get @cN` answer from these maps, so they hold
-   exactly what the window still lists. Unbounded, one shadow-cljs dev page load
-   (~1000 module files, each with request and response headers) stayed behind
-   for the life of the daemon."
-  [m ^String prefix entry-no entry limit]
-  (-> m
-    (assoc (str prefix entry-no) entry)
-    (dissoc (str prefix (- (long entry-no) (long limit))))))
+   A window only ever DROPS entries — the oldest of a tab that hit its own limit,
+   then whatever the session-wide ceiling pushed out — so the two vectors agree
+   up to the first drop and realign after it. `expected` says how many drops to
+   look for, which ends the walk at the last one instead of at the end of the
+   window.
+
+   Params:
+   `before`   - Window vector before the change.
+   `after`    - Window vector after it.
+   `expected` - How many entries left.
+
+   Returns:
+   Vector of the dropped entries."
+  [before after ^long expected]
+  (if (pos? expected)
+    (loop [i 0 j 0 out []]
+      (cond
+        (= (count out) expected) out
+        (>= i (count before))    out
+        (and (< j (count after))
+          (identical? (nth before i) (nth after j))) (recur (inc i) (inc j) out)
+        :else (recur (inc i) j (conj out (nth before i)))))
+    []))
+
+(defn- forget-detail!
+  "Forgets what stands behind refs that just left a capture window.
+
+   `network get @nN` and `console get @cN` answer from these maps, so a ref has
+   to live exactly as long as the listing that shows it. Retaining by GLOBAL
+   entry number was neither long enough nor short enough: every tab gets its own
+   slice of the window, so a second busy tab dropped the detail of entries the
+   first tab's listing still printed — refs that could no longer be fetched — and
+   one shadow-cljs dev page load (~1000 module files, request and response
+   headers each) stayed behind for the life of the daemon.
+
+   Params:
+   `!full`   - Atom of ref-id -> full entry.
+   `!parked` - Atom of entry number -> parked Response, or nil.
+   `entries` - The entries that left the window.
+
+   Returns:
+   nil."
+  [!full !parked entries]
+  (when (seq entries)
+    (let [ref-ids (mapv #(subs (str (:ref %)) 1) entries)]
+      (swap! !full (fn [m] (reduce dissoc m ref-ids)))
+      (when !parked
+        (let [numbers (keep #(parse-long (subs (str %) 1)) ref-ids)]
+          (swap! !parked (fn [m] (reduce dissoc m numbers)))))))
+  nil)
+
+(defn- track-in-window!
+  "Appends `entry` to `!window` and forgets the detail of whatever it pushed out.
+
+   Params:
+   `!window` - Atom holding the sliding window.
+   `!full`   - Atom of ref-id -> full entry.
+   `!parked` - Atom of entry number -> parked Response, or nil.
+   `entry`   - The entry to append.
+
+   Returns:
+   nil."
+  [!window !full !parked entry]
+  (let [[before after] (swap-vals! !window conj-tab-window entry max-window-per-page)]
+    (forget-detail! !full !parked
+      (dropped-entries before after (- (inc (count before)) (count after))))))
 
 (def ^:private max-preview-body-bytes (long 65536))
 (def ^:private preview-body-resource-types #{"fetch" "xhr"})
@@ -1987,7 +2032,7 @@
    `!network-responses` so `network get @nN` can read the full headers and body
    later, from the command thread where blocking is safe."
   [^Response resp tab]
-  (when (< (long @!session-entry-count) (long max-session-total))
+  (when (capture-budget-left?)
     (let [^Request req (.request resp)
           entry-no (long (swap! !network-counter inc))
           ref-id (str "n" entry-no)
@@ -2026,16 +2071,11 @@
                                 :body post-data}
                       :response {:headers resp-headers
                                  :body nil}}]
-      (swap! !network-full retain-window "n" entry-no full-entry max-window-per-page)
-      ;; Parked responses follow the sliding window: only a ref the window still
-      ;; lists can be fetched, so the oldest handle is dropped with it.
-      (swap! !network-responses
-        (fn [m]
-          (let [m (assoc m entry-no resp)]
-            (if (> (count m) (long max-window-per-page))
-              (dissoc m (first (keys m)))
-              m))))
-      (swap! !network-window conj-tab-window entry max-window-per-page)
+      (swap! !network-full assoc ref-id full-entry)
+      ;; Parked responses follow the window entry by entry: only a ref the
+      ;; window still lists can be fetched, and its handle is released with it.
+      (swap! !network-responses assoc entry-no resp)
+      (track-in-window! !network-window !network-full !network-responses entry)
       (swap! !session-entry-count inc))))
 
 (defn- materialize-network-entry!
@@ -2073,7 +2113,7 @@
 (defn- track-console-entry!
   "Tracks a console message into the sliding window of the tab it came from."
   [^ConsoleMessage msg tab]
-  (when (< (long @!session-entry-count) (long max-session-total))
+  (when (capture-budget-left?)
     (let [entry-no (long (swap! !console-counter inc))
           ref-id (str "c" entry-no)
           page-url (try (.url (.page msg)) (catch Exception _ "unknown"))
@@ -2090,8 +2130,8 @@
                  :page page-url
                  :page_ref (current-page-ref page-url)}
           entry (if location (assoc entry :stack location) entry)]
-      (swap! !console-full retain-window "c" entry-no entry max-window-per-page)
-      (swap! !console-window conj-tab-window entry max-window-per-page)
+      (swap! !console-full assoc ref-id entry)
+      (track-in-window! !console-window !console-full nil entry)
       (swap! !session-entry-count inc))))
 
 (defn- track-response!
@@ -2177,7 +2217,10 @@
    each copy recorded the same console line again and repeated the same work on
    the same response event, on a stack already carrying the copies before it.
    That accumulation is what issue #125 saw as a session that goes quiet after
-   enough navigations.
+   navigations.
+
+   Session-wide routes are (re)applied here too, so a tab this session drives is
+   a tab its mocks reach.
 
    Params:
    `pg` - Page instance; nil is ignored.
@@ -2203,7 +2246,22 @@
         ;; interrupt whatever that thread happens to be doing. The command
         ;; watchdog reads the record and interrupts its own worker.
         (page/on-crash pg (fn [_] (note-page-crash! pg)))
-        (page/on-response pg (fn [^Response resp] (track-response! resp tab))))))
+        (page/on-response pg (fn [^Response resp] (track-response! resp tab)))
+        ;; A tab the PAGE opens — target=_blank, window.open — is a tab of this
+        ;; session too, and nothing listened to it until somebody switched to it:
+        ;; everything it logged, threw or fetched while it loaded was lost, and
+        ;; the listing had no id to switch to. Playwright dispatches this event
+        ;; before any event of the new page, so instrumenting from here misses
+        ;; nothing that page does.
+        (page/on-popup pg (fn [^Page popup] (instrument-page! popup)))
+        ;; Routes belong to the SESSION, not to whichever tab was current when
+        ;; `network route` ran. Registered only there, they silently were not in
+        ;; force on a tab opened afterwards — `tab new`, a popup, the tab that
+        ;; replaces a crashed renderer, the page restored after a relaunch — so
+        ;; the request went to the real server while the session, and the CDP
+        ;; route lock it holds, still reported the mock as active.
+        (doseq [[url handler] @!routes]
+          (page/route! pg url handler)))))
   pg)
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
@@ -2267,6 +2325,32 @@
     (let [tab (current-tab)]
       (filterv #(not= tab (:tab %)) entries))))
 
+(defn- clear-window!
+  "Clears the current tab's entries from `!window` — every tab's when `all?` — and
+   forgets the detail behind every ref that left with them.
+
+   `console clear` and `network clear` used to drop the listing and keep the
+   detail, so `console get @c1` still answered for a message the session had just
+   cleared, and every parked Response stayed alive behind it.
+
+   A clear also hands back the session's capture budget: a session that stopped
+   recording at `max-session-total` records again from here.
+
+   Params:
+   `!window` - Atom holding the sliding window.
+   `!full`   - Atom of ref-id -> full entry.
+   `!parked` - Atom of entry number -> parked Response, or nil.
+   `all?`    - True to clear every tab.
+
+   Returns:
+   nil."
+  [!window !full !parked all?]
+  (reset! !session-entry-count 0)
+  (reset! !capture-ceiling-warned? false)
+  (let [[before after] (swap-vals! !window without-tab-entries all?)]
+    (forget-detail! !full !parked
+      (dropped-entries before after (- (count before) (count after))))))
+
 (defn- focus-page!
   "Makes `p` the tab this session drives — instrumented BEFORE it becomes the
    current page.
@@ -2279,6 +2363,45 @@
   (instrument-page! p)
   (swap! !state assoc :page p)
   p)
+
+(defn- ensure-live-browser!
+  "Reconciles daemon state with the browser that actually exists.
+   Returns :dead when dead handles were dropped (the next launch recreates
+   them), :page-reopened when only the page had been closed, else nil.
+
+   Playwright flips `isConnected` only once its driver has NOTICED the
+   disconnect, so this catches a browser already known to be gone; the one that
+   dies mid-command is caught by `dispatch-with-recovery`.
+
+   A tab reopened here is instrumented here. Leaving that to the caller is what
+   `replace-crashed-page!` forgot: the session came back on a tab nothing was
+   listening to, so console, page errors and network stayed silent for the rest
+   of it while `health` kept answering \"ok\"."
+  []
+  (let [{:keys [browser context page]} @!state]
+    (cond
+      (and browser (not (browser-connected?)))
+      (do
+        (log/warn! "browser is gone (closed outside the daemon) — dropping dead handles; the next command relaunches it")
+        (drop-browser-handles!))
+
+      (and browser context page (not (page-open?)))
+      (let [crashed? (page-crashed? page)]
+        (try
+          (let [fresh (new-spel-page! context)]
+            (swap! !state assoc :page fresh :refs {} :counter 0)
+            (forget-crashed-page! page)
+            (instrument-page! fresh)
+            (if crashed?
+              (log/warn! "the page's renderer had crashed — opened a fresh tab; "
+                "navigate again, the old page and its refs are gone")
+              (log/warn! "page was closed outside the daemon — opened a fresh one"))
+            :page-reopened)
+          (catch Throwable _
+            (forget-crashed-page! page)
+            (drop-browser-handles!))))
+
+      :else nil)))
 
 (defn- str->aria-role
   "Converts a lowercase role string to AriaRole enum.
@@ -2486,11 +2609,9 @@
    Auto-loads persisted session state unless --no-persist is set."
   []
   ;; Reconcile with reality first: a browser killed outside the daemon leaves
-  ;; handles that fail every command until they are dropped.
-  ;; A tab reopened by that reconcile is brand new: instrument it before the
-  ;; command runs, or the session drives a page nothing is listening to.
-  (when (= :page-reopened (ensure-live-browser!))
-    (instrument-page! (:page @!state)))
+  ;; handles that fail every command until they are dropped, and a tab reopened
+  ;; by that reconcile comes back instrumented.
+  (ensure-live-browser!)
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
           ;; --profile can be either a filesystem path (existing behavior) or
@@ -4427,15 +4548,19 @@
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
   ;; Never starts a browser: this is the documented way out of a `cdp_route_lock`,
   ;; and a session whose browser already went away still owns a lock to release.
-  (let [pg-inst (pg)]
+  ;; Every LIVE tab, not just the one in front: the session's routes are applied
+  ;; to every tab it drives, so unrouting the current page alone would leave the
+  ;; others intercepting under a lock this session had already released.
+  (let [pages (when-let [context (ctx)] (live-context-pages context))]
     (if url
-      (do (when pg-inst (page/unroute! pg-inst url))
+      (do (doseq [p pages] (page/unroute! p url))
           (swap! !routes dissoc url)
           (when (empty? @!routes)
             (release-cdp-route-lock-if-owned!))
           {:route_removed url})
-      (do (doseq [[u _] @!routes]
-            (when pg-inst (page/unroute! pg-inst u)))
+      (do (doseq [[u _] @!routes
+                  p     pages]
+            (page/unroute! p u))
           (reset! !routes {})
           (release-cdp-route-lock-if-owned!)
           {:all_routes_removed true}))))
@@ -4451,7 +4576,7 @@
 
 (defmethod handle-cmd "network_clear" [_ {:strs [all]}]
   (swap! !tracked-requests without-tab-entries all)
-  (swap! !network-window without-tab-entries all)
+  (clear-window! !network-window !network-full !network-responses all)
   {:network "cleared"})
 
 ;; --- Phase 4: Frames ---
@@ -4541,7 +4666,7 @@
 
 (defmethod handle-cmd "console_clear" [_ {:strs [all]}]
   (swap! !console-messages without-tab-entries all)
-  (swap! !console-window without-tab-entries all)
+  (clear-window! !console-window !console-full nil all)
   {:console "cleared"})
 
 (defmethod handle-cmd "errors_get" [_ {:strs [clear all]}]
@@ -5918,15 +6043,12 @@
           ;; died and retry; only a browser that is really gone is relaunched.
           (let [reconciled (ensure-live-browser!)]
             (if (and (browser-connected?) (not= :dead reconciled))
-          (do
-                (when (= :page-reopened reconciled)
-                  (instrument-page! (:page @!state)))
-            (let [{:keys [ok threw]} (attempt)]
-                  (cond
-                    (nil? threw) ok
-                    (browser-gone-message? (throwable-chain-message threw))
-                    (relaunch-and-retry! action url-before attempt)
-                    :else (throw threw))))
+              (let [{:keys [ok threw]} (attempt)]
+                (cond
+                  (nil? threw) ok
+                  (browser-gone-message? (throwable-chain-message threw))
+                  (relaunch-and-retry! action url-before attempt)
+                  :else (throw threw)))
               (relaunch-and-retry! action url-before attempt)))
 
           :else (if threw (throw threw) ok))))))

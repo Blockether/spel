@@ -1526,9 +1526,9 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `network route <url>` | Intercept requests |
+| `network route <url>` | Intercept requests — on every tab of this session, tabs opened later included |
 | `network route <url> --abort` | Block requests |
-| `network unroute [url]` | Remove routes |
+| `network unroute [url]` | Remove routes from every tab of this session |
 | `network requests [flags]` | View this tab's requests |
 | `--filter <regex>` | Filter by URL regex |
 | `--type <type>` | Filter by type (document, script, fetch, ...) |

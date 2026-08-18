@@ -1100,6 +1100,32 @@
       (expect (some #(= "logged-in-the-first-tab" (:text %))
                 (:entries (cmd "console_list" {"all" true})))))
 
+    ;; Regression, user report: a tab the PAGE opened — `target=_blank`,
+    ;; `window.open` — was instrumented by nobody until the session switched to
+    ;; it, so everything it logged while it loaded was lost, and `tab list` showed
+    ;; it with no id to switch to.
+    (it "captures a tab the page opened, without switching to it"
+      (nav! "/test-page")
+      (let [driving (:tab (cmd "console_list" {}))
+            opened  (fn []
+                      (->> (:entries (cmd "console_list" {"all" true}))
+                        (filter #(and (= "test-page-loaded" (:text %))
+                                   (not= driving (:tab %))))
+                        first))]
+        (cmd "evaluate" {"script" (str "(() => { const a = document.getElementById('link');"
+                                    " a.target = '_blank'; a.href = '/test-page'; return 'ready'; })()")})
+        (cmd "click" {"selector" "#link"})
+        (let [deadline (+ (System/currentTimeMillis) 10000)]
+          (while (and (nil? (opened)) (< (System/currentTimeMillis) (long deadline)))
+            (Thread/sleep 100)))
+        (let [entry (opened)]
+          ;; The console of a tab nobody switched to is captured …
+          (expect (some? entry))
+          ;; … the session still drives the tab that opened it …
+          (expect (= driving (:tab (cmd "console_list" {}))))
+          ;; … and the listing names the new tab by its own stable id.
+          (expect (some #(= (:tab entry) (:tab %)) (:tabs (cmd "tab_list" {})))))))
+
     (it "tracks the requests of the tab the session switched to"
       (nav! "/test-page")
       (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
@@ -1336,6 +1362,21 @@
       (let [r (cmd "network_unroute" {})]
         (expect (true? (:all_routes_removed r)))))
 
+    ;; Regression, user report: a route was registered on ONE tab. `tab new`, a
+    ;; popup, the tab replacing a crashed renderer and a browser relaunch each
+    ;; handed the session a tab the route had never reached, while the session
+    ;; and its CDP route lock still claimed the route was in force — the request
+    ;; went to the real server and the mock was silently not there.
+    (it "routes a tab opened after it was added"
+      (nav! "/test-page")
+      (cmd "network_route" {"url" "**/health"
+                            "action_type" "fulfill"
+                            "body" "{\"mocked\":true}"
+                            "status" 200
+                            "content_type" "application/json"})
+      (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+      (let [body (:result (cmd "evaluate" {"script" "fetch('/health').then(r => r.text())"}))]
+        (expect (= "{\"mocked\":true}" body))))
     (it "process-command queues then times out when another CDP session owns route lock"
       (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)

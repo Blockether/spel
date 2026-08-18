@@ -1812,7 +1812,7 @@
    how many listeners spel put on one page without launching a browser.
 
    Params:
-   `!counts` - Atom holding {:console n :page-error n :response n}.
+   `!counts` - Atom holding {:console n :page-error n :response n :crash n :popup n}.
 
    Returns:
    A `com.microsoft.playwright.Page` proxy; every other method is unsupported."
@@ -1821,7 +1821,8 @@
     (onConsoleMessage [_] (swap! !counts update :console (fnil inc 0)))
     (onPageError [_] (swap! !counts update :page-error (fnil inc 0)))
     (onResponse [_] (swap! !counts update :response (fnil inc 0)))
-    (onCrash [_] (swap! !counts update :crash (fnil inc 0)))))
+    (onCrash [_] (swap! !counts update :crash (fnil inc 0)))
+    (onPopup [_] (swap! !counts update :popup (fnil inc 0)))))
 
 (defdescribe page-instrumentation-test
   "Tests for page instrumentation — one page carries one set of spel listeners"
@@ -1848,7 +1849,7 @@
       (let [counts (atom {})
             page   (counting-page counts)]
         (dotimes [_ 5] ((var-get #'sut/instrument-page!) page))
-        (expect (= {:console 1 :page-error 1 :response 1 :crash 1} @counts))))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1} @counts))))
 
     (it "instruments a second page on its own"
       (let [counts (atom {})
@@ -1856,7 +1857,194 @@
             second-page (counting-page counts)]
         ((var-get #'sut/instrument-page!) first-page)
         ((var-get #'sut/instrument-page!) second-page)
-        (expect (= {:console 2 :page-error 2 :response 2 :crash 2} @counts))))))
+        (expect (= {:console 2 :page-error 2 :response 2 :crash 2 :popup 2} @counts))))))
+
+(defn- fake-console-message
+  "A `ConsoleMessage` carrying only what `track-console-entry!` reads off it.
+
+   Params:
+   `kind` - String console type.
+   `text` - String message text.
+
+   Returns:
+   A `com.microsoft.playwright.ConsoleMessage` proxy."
+  [^String kind ^String text]
+  (proxy [com.microsoft.playwright.ConsoleMessage] []
+    (type [] kind)
+    (text [] text)))
+
+(defn- fake-response
+  "A `Response` over a `Request`, carrying only what `track-network-entry!` reads
+   on the dispatch thread.
+
+   Params:
+   `n` - Number making the URL unique.
+
+   Returns:
+   A `com.microsoft.playwright.Response` proxy."
+  [n]
+  (let [req (proxy [com.microsoft.playwright.Request] []
+              (method [] "GET")
+              (url [] (str "http://example.test/" n))
+              (resourceType [] "fetch"))]
+    (proxy [com.microsoft.playwright.Response] []
+      (request [] req)
+      (status [] 200))))
+
+;; Regression, user report: "with these tabs, CDP, network and console there may
+;; be plenty of bugs". There were. The detail behind a ref was retained by GLOBAL
+;; entry number — every insert dropped ref number minus 1000 — while the window
+;; gives every TAB its own 1000 entries. One busy tab therefore threw away the
+;; detail of entries another tab's listing still showed: `console` printed @c1
+;; while `console get @c1` answered "not found", and the parked Response of a
+;; listed network entry was gone before anyone could read its body.
+(defdescribe capture-detail-follows-window-test
+  "The detail behind a ref lives exactly as long as the listing that shows it."
+
+  (describe "one tab floods the console window"
+    (it "keeps the detail of every ref the listing still shows"
+      (let [window  (var-get #'sut/!console-window)
+            full    (var-get #'sut/!console-full)
+            counter (var-get #'sut/!console-counter)
+            track   (var-get #'sut/track-console-entry!)
+            restore [@window @full @counter]]
+        (try
+          (reset! window [])
+          (reset! full {})
+          (reset! counter 0)
+          (with-redefs-fn {#'sut/max-window-per-page 3}
+            (fn []
+              (track (fake-console-message "log" "the quiet tab") "t1")
+              (dotimes [i 10]
+                (track (fake-console-message "log" (str "flood " i)) "t2"))))
+          (expect (some #(= "the quiet tab" (:text %)) @window))
+          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) @window))
+          (expect (= (count @window) (count @full)))
+          (finally
+            (reset! window (nth restore 0))
+            (reset! full (nth restore 1))
+            (reset! counter (nth restore 2)))))))
+
+  (describe "one tab floods the network window"
+    (it "keeps the detail and the parked response of every ref the listing still shows"
+      (let [window  (var-get #'sut/!network-window)
+            full    (var-get #'sut/!network-full)
+            parked  (var-get #'sut/!network-responses)
+            counter (var-get #'sut/!network-counter)
+            track   (var-get #'sut/track-network-entry!)
+            restore [@window @full @parked @counter]]
+        (try
+          (reset! window [])
+          (reset! full {})
+          (reset! parked (sorted-map))
+          (reset! counter 0)
+          (with-redefs-fn {#'sut/max-window-per-page 3}
+            (fn []
+              (track (fake-response 0) "t1")
+              (dotimes [i 10]
+                (track (fake-response (inc i)) "t2"))))
+          (expect (some #(= "t1" (:tab %)) @window))
+          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) @window))
+          (expect (every? #(some? (get @parked (parse-long (subs (str (:ref %)) 2)))) @window))
+          (finally
+            (reset! window (nth restore 0))
+            (reset! full (nth restore 1))
+            (reset! parked (nth restore 2))
+            (reset! counter (nth restore 3))))))))
+
+;; Regression, user report: `console clear` and `network clear` dropped the
+;; listing and kept the detail behind it — `console get @c1` still answered for a
+;; console message the session had just cleared, and every parked Response of a
+;; cleared network entry stayed alive with it.
+(defdescribe clear-forgets-detail-test
+  "Clearing a tab's capture forgets the detail behind its refs."
+
+  (describe "console clear on the tab the session drives"
+    (it "forgets that tab's refs and leaves the other tab's alone"
+      (let [window  (var-get #'sut/!console-window)
+            full    (var-get #'sut/!console-full)
+            track   (var-get #'sut/track-console-entry!)
+            !state  (var-get #'sut/!state)
+            page    (counting-page (atom {}))
+            restore [@window @full @!state]]
+        (try
+          (reset! window [])
+          (reset! full {})
+          (swap! !state assoc :page page)
+          ((var-get #'sut/instrument-page!) page)
+          (let [mine ((var-get #'sut/tab-key-of) page)]
+            (track (fake-console-message "log" "mine") mine)
+            (track (fake-console-message "log" "theirs") "t-other")
+            (let [ref-of (into {} (map (juxt :tab #(subs (str (:ref %)) 1))) @window)]
+              ((var-get #'sut/handle-cmd) "console_clear" {})
+              (expect (nil? (get @full (get ref-of mine))))
+              (expect (some? (get @full (get ref-of "t-other"))))))
+          (finally
+            (reset! window (nth restore 0))
+            (reset! full (nth restore 1))
+            (reset! !state (nth restore 2))))))))
+
+;; Regression, user report: a session that had captured `max-session-total`
+;; entries stopped recording console and network SILENTLY and for good — `spel
+;; console` kept answering with entries from hours earlier, nothing said why,
+;; and no clear ever brought capture back.
+(defdescribe capture-ceiling-test
+  "A session at its capture ceiling says so once, and a clear gives it back."
+
+  (describe "a session that has spent its capture budget"
+    (it "stops recording, says so, and records again after a clear"
+      (let [window  (var-get #'sut/!console-window)
+            full    (var-get #'sut/!console-full)
+            counted (var-get #'sut/!session-entry-count)
+            warned  (var-get #'sut/!capture-ceiling-warned?)
+            track   (var-get #'sut/track-console-entry!)
+            !state  (var-get #'sut/!state)
+            page    (counting-page (atom {}))
+            restore [@window @full @counted @warned @!state]]
+        (try
+          (reset! window [])
+          (reset! full {})
+          (reset! warned false)
+          (swap! !state assoc :page page)
+          ((var-get #'sut/instrument-page!) page)
+          (let [tab ((var-get #'sut/tab-key-of) page)]
+            (reset! counted (var-get #'sut/max-session-total))
+            (track (fake-console-message "log" "over the ceiling") tab)
+            (expect (empty? @window))
+            (expect (true? @warned))
+            ((var-get #'sut/handle-cmd) "console_clear" {})
+            (track (fake-console-message "log" "after the clear") tab)
+            (expect (= 1 (count @window)))
+            (expect (false? @warned)))
+          (finally
+            (reset! window (nth restore 0))
+            (reset! full (nth restore 1))
+            (reset! counted (nth restore 2))
+            (reset! warned (nth restore 3))
+            (reset! !state (nth restore 4))))))))
+;; Regression, user report: a tab the PAGE opens — `target=_blank`,
+;; `window.open` — was instrumented by nobody. Nothing listened to it until the
+;; session switched to it, so everything it logged, threw or fetched in between
+;; was lost, and `tab list` showed it with no id to switch to.
+(defdescribe popup-instrumentation-test
+  "A tab opened by the page is instrumented as it appears."
+
+  (describe "a page that opens a tab of its own"
+    (it "instruments the new tab and gives it an id"
+      (let [!consumer (atom nil)
+            opener    (proxy [com.microsoft.playwright.Page] []
+                        (onConsoleMessage [_])
+                        (onPageError [_])
+                        (onResponse [_])
+                        (onCrash [_])
+                        (onPopup [c] (reset! !consumer c)))
+            counts    (atom {})
+            popup     (counting-page counts)]
+        ((var-get #'sut/instrument-page!) opener)
+        (expect (some? @!consumer))
+        (.accept ^java.util.function.Consumer @!consumer popup)
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1} @counts))
+        (expect (some? ((var-get #'sut/tab-key-of) popup)))))))
 
 ;; =============================================================================
 ;; Health reports broken instrumentation
@@ -2095,6 +2283,42 @@
                                                 "url"    "data:text/html,<h1>fresh</h1>"})))]
               (expect (true? (get resp "success")))
               (expect (str/includes? (str (get-in resp ["data" "url"])) "fresh")))
+            (finally
+              ((var-get #'sut/forget-crashed-page!) pg)
+              (reset! state-atom before))))))))
+
+;; Regression, user report: the tab that replaces a crashed one was never
+;; instrumented. `replace-crashed-page!` reopens the page through
+;; `ensure-live-browser!` and threw its answer away, so console, page errors and
+;; network went silently dead for the rest of the session while `health` kept
+;; answering "ok".
+(defdescribe crash-replacement-instrumentation-test
+  "The tab that replaces a crashed one captures like any other."
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a session recovering from a renderer crash"
+    (it "captures the console of the tab it was handed"
+      (core/with-testing-page [pg]
+        (let [state-atom (deref #'sut/!state)
+              before     @state-atom
+              window     (var-get #'sut/!console-window)
+              ctx        (.context ^com.microsoft.playwright.Page pg)]
+          (try
+            (reset! state-atom (assoc before :browser (.browser ctx) :context ctx :page pg))
+            ((var-get #'sut/instrument-page!) pg)
+            (page/navigate pg "chrome://crash")
+            (page/evaluate pg "1+1")
+            (try (#'sut/dispatch-with-recovery "evaluate" {"script" "1+1"})
+                 (catch clojure.lang.ExceptionInfo _ nil))
+            (let [fresh (:page @state-atom)]
+              (expect (not (identical? pg fresh)))
+              (expect (some? ((var-get #'sut/tab-key-of) fresh)))
+              (page/evaluate fresh "console.log('spel-after-the-crash')")
+              (let [deadline (+ (System/currentTimeMillis) 5000)]
+                (while (and (not-any? #(= "spel-after-the-crash" (:text %)) @window)
+                         (< (System/currentTimeMillis) (long deadline)))
+                  (Thread/sleep 50)))
+              (expect (some #(= "spel-after-the-crash" (:text %)) @window)))
             (finally
               ((var-get #'sut/forget-crashed-page!) pg)
               (reset! state-atom before))))))))

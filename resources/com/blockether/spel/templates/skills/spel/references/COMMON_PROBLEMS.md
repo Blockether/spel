@@ -339,8 +339,8 @@ spel --profile /tmp/fresh-profile open https://example.com
 ## 13. Another session is driving the same tab
 
 Two spel sessions CAN attach to one CDP browser — each opens its own tab and both keep
-working, `network route` included: Playwright installs interception on a page, so it never
-touches a tab another session drives. Sharing an endpoint is normal.
+working, `network route` included: spel installs this session's routes on the tabs THIS session
+drives, so they never touch a tab another session drives. Sharing an endpoint is normal.
 
 Sessions only collide on the SAME tab — `spel tab <n>` can switch onto one another session
 already drives. Then page-driving commands queue behind that session's routes:
@@ -394,6 +394,16 @@ spel tab t3        # that same tab, whatever its position is now
 Closing a tab outside spel is safe for the tabs around it: every entry keeps the id of the tab that
 produced it, the closed tab drops out of `spel tab list`, and what it captured stays readable under
 `--all` until the window rolls over.
+
+A tab the PAGE opens — `target="_blank"`, `window.open` — gets its own id and is captured from the moment
+Playwright hands it over, without switching to it. Playwright cannot hand a popup over before its initial
+navigation, so a message logged in that very first instant can still be missed; everything after it —
+console, page errors, requests — lands under that tab's id.
+
+A ref lives exactly as long as the listing that shows it: `spel console get @c17` and `spel network get
+@n42` answer for every ref `spel console` / `spel network requests` still prints, and stop answering for
+the ones a clear removed. A session that has captured a million entries stops recording to keep the
+browser responsive — it says so in the log, and `spel console clear` or `spel network clear` resumes it.
 
 ## 18. `ClassCastException` in `with-retry`
 
