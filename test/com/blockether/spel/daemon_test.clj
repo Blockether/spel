@@ -1816,7 +1816,8 @@
                              :request-failed n}.
 
    Returns:
-   A `com.microsoft.playwright.Page` proxy; every other method is unsupported."
+   A `com.microsoft.playwright.Page` proxy that reports itself open; every
+   other method is unsupported."
   [!counts]
   (proxy [com.microsoft.playwright.Page] []
     (onConsoleMessage [_] (swap! !counts update :console (fnil inc 0)))
@@ -1824,7 +1825,11 @@
     (onResponse [_] (swap! !counts update :response (fnil inc 0)))
     (onCrash [_] (swap! !counts update :crash (fnil inc 0)))
     (onPopup [_] (swap! !counts update :popup (fnil inc 0)))
-    (onRequestFailed [_] (swap! !counts update :request-failed (fnil inc 0)))))
+    (onRequestFailed [_] (swap! !counts update :request-failed (fnil inc 0)))
+    ;; A page command asks whether the tab is still open before it may use it,
+    ;; and an unimplemented `isClosed` reads as a dead tab — which sends the
+    ;; command off to launch a real browser.
+    (isClosed [] false)))
 
 (defdescribe page-instrumentation-test
   "Tests for page instrumentation — one page carries one set of spel listeners"
@@ -1837,7 +1842,10 @@
             restore  @!state
             handle   (var-get #'sut/handle-cmd)]
         (try
-          (reset! !state (assoc restore :page page))
+          ;; A page command attaches the browser before it runs, so fabricated
+          ;; state must carry one: an unrecognised handle counts as connected,
+          ;; and nothing is launched.
+          (reset! !state (assoc restore :page page :browser (Object.)))
           ((var-get #'sut/instrument-page!) page)
           (dotimes [_ 3]
             (handle "console_start" {})
@@ -2257,7 +2265,9 @@
             before     @state-atom
             failure    (anomaly/anomaly ::anomaly/fault "Tracing has not been started" {})]
         (try
-          (reset! state-atom {:context (Object.) :tracing? true})
+          ;; The browser handle is what keeps `live-context` from launching one:
+          ;; this test is about the refusal, not about starting a browser.
+          (reset! state-atom {:browser (Object.) :context (Object.) :tracing? true})
           (with-redefs-fn {#'core/context-tracing (fn [_] ::tracing)
                            #'core/tracing-stop!   (fn [_ _] failure)}
             (fn []
