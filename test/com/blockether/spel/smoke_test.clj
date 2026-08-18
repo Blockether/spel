@@ -193,7 +193,7 @@
 
           (allure/step "has-url contains 'example.org'"
             (println "Asserting URL contains 'example.org'")
-            (assert/has-url pg "example.org" {:substring true}))
+            (assert/has-url pg #"example\.org"))
           (println "All page assertions passed"))
 
         (allure/step "Locator assertions on H1"

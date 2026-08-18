@@ -192,12 +192,32 @@
 
   (describe "has-url"
 
-    (it "passes when URL contains expected text"
+    (it "passes when the whole URL is given"
       (core/with-testing-page [pg]
         (page/set-content! pg test-html)
-        (let [_pa (sut/assert-that pg)]
-        ;; The URL will be a data: URL or about:blank
-          (expect (string? (page/url pg))))))))
+        (expect (nil? (sut/has-url (sut/assert-that pg) (page/url pg))))))
+
+    (it "passes for a regex that matches part of the URL"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (nil? (sut/has-url (sut/assert-that pg) #"blank")))))
+
+    ;; Regression, user report: a string is matched WHOLE, so a partial URL never
+    ;; holds — the entry COMMON_PROBLEMS.md 3 is written about.
+    (it "throws for a partial URL given as a string"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (throws? org.opentest4j.AssertionFailedError
+                  #(sut/has-url (sut/assert-that pg) "about" {:timeout 1000})))))
+
+    ;; Regression, user report: `wait --url` matches `**` globs, so the same glob in a
+    ;; URL assertion looked supported. Playwright matched it literally and spent the
+    ;; whole assertion timeout before reporting the glob back as an unequal string.
+    (it "refuses a `**` glob instead of matching it literally"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (throws? IllegalArgumentException
+                  #(sut/has-url (sut/assert-that pg) "**/blank")))))))
 
 ;; =============================================================================
 ;; Negation
@@ -217,3 +237,53 @@
               negated (sut/loc-not la)]
         ;; Hidden element is NOT visible
           (expect (nil? (sut/is-visible negated))))))))
+
+;; =============================================================================
+;; Receiver Coercion
+;; =============================================================================
+
+;; Regression, user report: an assertion handed the Page or Locator itself — the form
+;; this repo's own smoke tests use — answered a `PageImpl cannot be cast to
+;; PageAssertions` anomaly that every caller dropped, so the assertion never ran.
+;; `(assert/has-url pg #"example\.com")` passed on example.org for that reason.
+(defdescribe receiver-coercion-test
+  "Tests that assertions accept a Page/Locator, not only what assert-that returns"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "Page receiver"
+
+    (it "holds when the assertion is true"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (nil? (sut/has-title pg "Assertion Test Page")))))
+
+    (it "throws when the assertion is false"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (throws? org.opentest4j.AssertionFailedError
+                  #(sut/has-title pg "Not The Title" {:timeout 1000}))))))
+
+  (describe "Locator receiver"
+
+    (it "holds when the assertion is true"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (nil? (sut/has-text (page/locator pg "#btn1") "Click Me")))))
+
+    (it "throws when the assertion is false"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (throws? org.opentest4j.AssertionFailedError
+                  #(sut/has-text (page/locator pg "#btn1") "Wrong Text" {:timeout 1000})))))
+
+    (it "still accepts what assert-that returns"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (nil? (sut/has-text (sut/assert-that (page/locator pg "#btn1")) "Click Me"))))))
+
+  (describe "negation"
+
+    (it "negates a Locator handed straight in"
+      (core/with-testing-page [pg]
+        (page/set-content! pg test-html)
+        (expect (nil? (sut/is-visible (sut/loc-not (page/locator pg "#hidden")))))))))

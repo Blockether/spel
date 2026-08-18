@@ -61,12 +61,22 @@ See `PROFILES_CDP.md` for full stealth patches.
 
 ## 3. `assert-url` fails with partial URLs
 
-`spel/assert-url` wraps Playwright's `has-url` — exact string by default. Use a regex for substring/wildcard:
+A string is matched against the WHOLE URL, exactly; a regex is matched anywhere inside it,
+so padding it with `.*` adds nothing. `**` globs are a different dialect — `wait --url` and
+`network route` speak it, an assertion never did, and spel now refuses one instead of
+comparing it literally until the assertion times out:
 
 ```clojure
-(spel/assert-url "https://example.org/page")   ; exact
-(spel/assert-url #".*example\.com.*")          ; substring
-(spel/assert-url #".*/page.*")                 ; path prefix
+(spel/assert-url "https://example.org/page")  ; exact — the whole URL, nothing less
+(spel/assert-url #"example\.org")             ; matches anywhere in the URL
+(spel/assert-url #"/page$")                   ; anchor it yourself when it matters
+(spel/assert-url "**/page")                   ; refused — that is the `wait --url` dialect
+```
+
+Waiting for a URL is the glob form, and it waits instead of asserting:
+
+```bash
+spel wait --url "**/page"
 ```
 
 ## 4. Stale snapshot refs

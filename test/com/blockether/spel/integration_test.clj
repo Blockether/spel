@@ -229,7 +229,7 @@
     (it "has-url passes for example.org"
       (core/with-testing-page [pg]
         (page/navigate pg "https://example.org")
-        (assert/has-url pg #"example\.com"))))
+        (assert/has-url pg #"example\.org"))))
 
   (describe "locator assertions"
 
