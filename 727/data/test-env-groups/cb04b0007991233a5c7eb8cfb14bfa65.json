@@ -1,0 +1,1 @@
+{"id":"cb04b0007991233a5c7eb8cfb14bfa65","fullName":"com.blockether.spel.daemon-test.A ref from an iframe is still a ref..classifies a frame-prefixed ref as a ref, not as CSS","name":"A ref from an iframe is still a ref. > classifies a frame-prefixed ref as a ref, not as CSS","status":"passed","testResultsByEnv":{"default":"38de3c030100be87824eab8e724c76ce"}}
