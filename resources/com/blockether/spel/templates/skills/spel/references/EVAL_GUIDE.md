@@ -8,7 +8,7 @@ spel eval-sci script.clj
 echo '(spel/navigate "…") (println (spel/title))' | spel eval-sci --stdin
 ```
 
-> **Daemon mode is default.** If a daemon is running (`spel open URL` or `spel start`), `eval-sci` reuses the existing browser — no `spel/start!` / `spel/stop!` needed. Standalone scripts manage their own browser (see § Session lifecycle).
+> **Daemon mode is default.** If a daemon is running (any command starts one — `spel open URL`), `eval-sci` reuses the existing browser — no `spel/start!` / `spel/stop!` needed. Standalone scripts manage their own browser (see § Session lifecycle).
 
 ## Discovery — `spel/help`
 

@@ -2826,3 +2826,79 @@
     (it "encodes without an encoder ever having to guess"
       (expect (= "{\"a\":[1,\"x\"]}"
                 (json/write-json-str (#'sut/json-result {:a [1 :x]})))))))
+
+
+;; Regression, user report: `spel --session <s> tab list` — and `cookies`, `storage local`,
+;; `set viewport`, `set geo`, `trace start`, `state save` — as the session's FIRST command answered
+;; "NullPointerException at com.blockether.spel.core$context_pages" under a hint blaming a browser
+;; that "went away outside the daemon". Nothing had gone away: those handlers read the page or the
+;; context straight out of daemon state, so a session that had opened neither dereferenced nil.
+(def ^:private first-command-cases
+  "Every command that drives the page or the context, with the smallest parameters
+   that reach a browser handle."
+  [["tab_list"        {}]
+   ["tab_new"         {}]
+   ["tab_switch"      {"index" 0}]
+   ["tab_close"       {}]
+   ["cookies_get"     {}]
+   ["cookies_set"     {"name" "a" "value" "b"}]
+   ["cookies_clear"   {}]
+   ["storage_get"     {"type" "local"}]
+   ["storage_set"     {"type" "local" "key" "k" "value" "v"}]
+   ["storage_clear"   {"type" "local"}]
+   ["set_viewport"    {"width" 800 "height" 600}]
+   ["set_headers"     {"headers" {"X-A" "b"}}]
+   ["set_media"       {"colorScheme" "dark"}]
+   ["set_geo"         {"latitude" 52.2 "longitude" 21.0}]
+   ["set_offline"     {"enabled" true}]
+   ["set_device"      {"device" "iphone 14"}]
+   ["set_credentials" {"username" "u" "password" "p"}]
+   ["trace_start"     {}]
+   ["trace_stop"      {"path" "/tmp/spel-first-command-test.zip"}]
+   ["state_save"      {"path" "/tmp/spel-first-command-test.json"}]
+   ["state_load"      {"path" "/tmp/spel-first-command-test.json"}]
+   ["console_start"   {}]
+   ["errors_start"    {}]])
+
+(defn- probe-first-command
+  "Runs `action` on a session that has opened nothing yet, with `ensure-browser!`
+   stubbed to attach handles the way a real launch does.
+
+   Params:
+   `action` - daemon command name.
+   `params` - its wire params.
+
+   Returns:
+   {:attached? whether the command asked for a browser, :npe the NullPointerException it threw or nil}."
+  [action params]
+  (let [state-atom (deref #'sut/!state)
+        before     @state-atom
+        calls      (atom 0)]
+    (try
+      (reset! state-atom {:page nil :context nil :browser nil :session "first-command-test"})
+      (with-redefs-fn {#'sut/ensure-browser! (fn []
+                                               (swap! calls inc)
+                                               (swap! state-atom assoc
+                                                 :page (Object.) :context (Object.) :browser (Object.)))}
+        (fn []
+          (let [npe (try (#'sut/handle-cmd action params) nil
+                         (catch NullPointerException e e)
+                         (catch Throwable _ nil))]
+            {:attached? (pos? @calls) :npe npe})))
+      (finally
+        (reset! state-atom before)))))
+
+(defdescribe first-command-attach-test
+  "A page- or context-driving command may be a session's first one."
+
+  (it "attaches a browser instead of reading a nil handle out of daemon state"
+    (let [missed (->> first-command-cases
+                   (remove (fn [[action params]] (:attached? (probe-first-command action params))))
+                   (mapv first))]
+      (expect (= {:never-attached []} {:never-attached missed}))))
+
+  (it "never answers a first command with a message-less NullPointerException"
+    (let [npes (->> first-command-cases
+                 (filter (fn [[action params]] (:npe (probe-first-command action params))))
+                 (mapv first))]
+      (expect (= {:threw-npe []} {:threw-npe npes})))))

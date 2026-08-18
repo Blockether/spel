@@ -233,9 +233,10 @@ spel network clear
 ### JS eval
 
 ```bash
-spel eval "document.title"
-spel eval "document.querySelector('h1').textContent"
-spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text:a.textContent, href:a.href})))" -b
+spel eval-js "document.title"
+spel eval-js "document.querySelector('h1').textContent"
+spel eval-js "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text:a.textContent, href:a.href})))" -b
+echo 'document.title' | spel eval-js --stdin
 ```
 
 ### Console / errors

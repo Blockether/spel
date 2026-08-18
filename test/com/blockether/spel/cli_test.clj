@@ -3186,3 +3186,34 @@
       (let [c (cmd ["snapshot" "-s" "main" "--max-nodes" "100"])]
         (expect (= "main" (:selector c)))
         (expect (= 100 (:max_nodes c)))))))
+
+;; Regression, user report: two skill references told agents to pipe a generated
+;; script — `echo '(…)' | spel eval-sci --stdin` — but only `eval-js` ever read
+;; stdin, so eval-sci evaluated the FLAG and answered
+;; `Unable to resolve symbol: --stdin`.
+(defdescribe eval-sci-stdin-test
+  "Tests for the source one eval-sci invocation evaluates"
+
+  (describe "eval-sci code source"
+    (it "reads the whole of stdin for --stdin"
+      (binding [*in* (java.io.StringReader. "(+ 1 2)\n(+ 3 4)")]
+        (expect (= "(+ 1 2)\n(+ 3 4)"
+                  (#'com.blockether.spel.native/eval-sci-code "--stdin")))))
+
+    (it "reads stdin for the bare - spelling"
+      (binding [*in* (java.io.StringReader. "(spel/title)")]
+        (expect (= "(spel/title)"
+                  (#'com.blockether.spel.native/eval-sci-code "-")))))
+
+    (it "slurps an existing .clj path"
+      (let [f (java.io.File/createTempFile "spel-eval-sci" ".clj")]
+        (try
+          (spit f "(println :from-file)")
+          (expect (= "(println :from-file)"
+                    (#'com.blockether.spel.native/eval-sci-code (.getAbsolutePath f))))
+          (finally (.delete f)))))
+
+    (it "keeps an inline expression, and a missing path, as itself"
+      (expect (= "(+ 1 2)" (#'com.blockether.spel.native/eval-sci-code "(+ 1 2)")))
+      (expect (= "no-such-script.clj"
+                (#'com.blockether.spel.native/eval-sci-code "no-such-script.clj"))))))

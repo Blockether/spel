@@ -69,8 +69,8 @@ Strict mode throws when a selector matches more than one element. Options:
 (spel/all-inner-texts   ".item")
 
 (spel/count-of "li")                    ; 12
-(spel/first    "li") (spel/last "li")
-(spel/nth      "li" 2)                  ; 0-indexed
+(spel/first-element "li") (spel/last-element "li")
+(spel/nth-element   "li" 2)             ; 0-indexed
 ```
 
 ### Filtering
@@ -85,7 +85,7 @@ Strict mode throws when a selector matches more than one element. Options:
 (spel/loc-filter        ".card" {:has (spel/get-by-text "Buy now")})
 ```
 
-Selector might match multiple → narrow it, use `spel/first`, or switch to a semantic locator.
+Selector might match multiple → narrow it, use `spel/first-element`, or switch to a semantic locator.
 
 ## Accessibility snapshots
 

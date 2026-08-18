@@ -293,6 +293,7 @@
   (println "Modes:")
   (println "  eval-sci '<code>'          Evaluate Clojure expression")
   (println "  eval-sci <file.clj>        Evaluate Clojure file (e.g. codegen script)")
+  (println "  eval-sci --stdin           Evaluate the script piped on stdin (alias: -)")
   (println "  eval-sci --interactive     Evaluate with visible browser (headed mode)")
   (println "  eval-sci --load-state F    Load auth/state before evaluation (alias: --storage-state)")
   (println "  eval-sci '<code>' --json    Result as one JSON object: {\"result\": …}")
@@ -1042,7 +1043,24 @@
       {:command-args argv
        :script-args nil}
       {:command-args (subvec argv 0 sep-idx)
-       :script-args  (subvec argv (inc sep-idx))})))
+        :script-args  (subvec argv (inc sep-idx))})))
+
+(defn- eval-sci-code
+  "The Clojure source ONE `eval-sci` invocation evaluates.
+
+   `--stdin` (or `-`) reads the whole of stdin the way `eval-js --stdin` already
+   does, so a generated script can be piped instead of quoted and escaped; an
+   existing path ending in `.clj` is slurped; anything else IS the expression."
+  ^String [^String code-or-file]
+  (cond
+    (or (= "--stdin" code-or-file) (= "-" code-or-file))
+    (slurp *in*)
+
+    (and (str/ends-with? code-or-file ".clj")
+      (.exists (java.io.File. code-or-file)))
+    (slurp (java.io.File. code-or-file))
+
+    :else code-or-file))
 
 ;; =============================================================================
 ;; merge-reports helpers
@@ -1551,11 +1569,7 @@
       (let [{:keys [command-args script-args]} (split-eval-tail-args (rest cmd-args))
             code-or-file (first command-args)]
         (if code-or-file
-          (let [code (if (and (str/ends-with? code-or-file ".clj")
-                           (.exists (java.io.File. ^String code-or-file)))
-                       (slurp (java.io.File. ^String code-or-file))
-                       code-or-file)]
-            (run-eval! code script-args global))
+          (run-eval! (eval-sci-code code-or-file) script-args global)
           (do (eprintln "Error: eval-sci requires a code argument or .clj file path")
             (System/exit 1))))
 

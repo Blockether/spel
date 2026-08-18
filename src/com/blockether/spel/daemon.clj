@@ -3319,6 +3319,28 @@
     (throw (ex-info "No browser page available. Open one first: spel open <url>"
              {:error_code :no_page_loaded}))))
 
+(defn- live-context
+  "Returns the context a command should act on, attaching a browser first — the
+   `live-page` contract for the commands that address the CONTEXT rather than one
+   page: tabs, cookies, storage state, tracing, geolocation, offline.
+
+   `(ctx)` is nil until something launches the browser, so every one of those as a
+   session's FIRST command died inside Playwright with a message-less
+   NullPointerException, reported as a browser that went away outside the daemon
+   when none had ever been started.
+
+   A tab lost meanwhile is deliberately NOT raised here: `spel tab list` and
+   `spel tab <id>` are how a caller recovers from that loss, and the loss report
+   names them.
+
+   Returns:
+   BrowserContext instance."
+  ^BrowserContext []
+  (when-not (and (:page @!state) (page-open?) (browser-connected?))
+    (ensure-browser!))
+  (or (ctx)
+    (throw (ex-info "No browser context available. Open one first: spel open <url>"
+             {:error_code :no_page_loaded}))))
 (defn- ensure-page-loaded!
   "Throws if no page has been navigated to (still on about:blank). Reconciles
    dead handles first, so a browser that went away is re-attached rather than
@@ -4114,7 +4136,7 @@
     {:error "No wait condition specified"}))
 
 (defmethod handle-cmd "tab_new" [_ params]
-  (let [new-pg (new-spel-page! (ctx))]
+  (let [new-pg (new-spel-page! (live-context))]
     ;; Instrument before the first navigation, or nobody is listening when the
     ;; new tab logs while it loads.
     (focus-page! new-pg)
@@ -4123,7 +4145,7 @@
     {:tab (tab-key-of new-pg) :url (page/url new-pg)}))
 
 (defmethod handle-cmd "tab_list" [_ _]
-  (let [pages  (live-context-pages (ctx))
+  (let [pages  (live-context-pages (live-context))
         active (pg)]
     {:tabs (mapv (fn [idx p]
                    ;; A tab can close between the listing and this read; the
@@ -4144,7 +4166,7 @@
     vec))
 
 (defmethod handle-cmd "tab_switch" [_ {:strs [index tab]}]
-  (let [pages   (live-context-pages (ctx))
+  (let [pages   (live-context-pages (live-context))
         by-key  (tab-by-key tab)
         idx     (when (and (nil? by-key) (number? index)) (long index))
         target  (or by-key
@@ -4166,8 +4188,8 @@
      :url   (page/url target)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
-  (let [current (pg)
-        context (ctx)]
+  (let [current (live-page)
+        context (live-context)]
     (when (user-owned-page? current)
       (throw (ex-info
                "Refusing to close a user-owned tab. spel only closes tabs it opened itself in your browser. Switch to a tab opened by spel, or close this tab yourself in the browser."
@@ -4598,16 +4620,16 @@
 ;; --- Phase 2: Browser Settings ---
 
 (defmethod handle-cmd "set_viewport" [_ {:strs [width height]}]
-  (page/set-viewport-size! (pg) (long width) (long height))
+  (page/set-viewport-size! (live-page) (long width) (long height))
   {:viewport {:width width :height height}})
 
 (defmethod handle-cmd "set_offline" [_ {:strs [enabled]}]
   (let [offline (if (nil? enabled) true (boolean enabled))]
-    (core/context-set-offline! (ctx) offline)
+    (core/context-set-offline! (live-context) offline)
     {:offline offline}))
 
 (defmethod handle-cmd "set_headers" [_ {:strs [headers]}]
-  (page/set-extra-http-headers! (pg) headers)
+  (page/set-extra-http-headers! (live-page) headers)
   {:headers_set true})
 
 (defmethod handle-cmd "set_media" [_ {:strs [colorScheme]}]
@@ -4616,13 +4638,14 @@
                  ("light" "Light")     :light
                  ("no-preference")     :no-preference
                  :no-preference)]
-    (unwrap-anomaly! (page/emulate-media! (pg) {:color-scheme scheme}))
+    (unwrap-anomaly! (page/emulate-media! (live-page) {:color-scheme scheme}))
     {:media {:colorScheme colorScheme}}))
 
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
   (let [preset (devices/resolve-device-by-name device)]
     (if preset
-      (let [current-url  (try (page/url (pg)) (catch Exception _ nil))
+      (let [browser      (do (ensure-browser!) (:browser @!state))
+            current-url  (try (page/url (pg)) (catch Exception _ nil))
             browser-type (get-in @!state [:launch-flags "browser"] "chromium")
             ctx-opts     (if (= "firefox" browser-type)
                            (dissoc preset :is-mobile)
@@ -4631,7 +4654,7 @@
         (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
         (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
         (let [new-ctx (check-anomaly!
-                        (core/new-context (:browser @!state) ctx-opts)
+                         (core/new-context browser ctx-opts)
                         "Failed to create device context")
               new-pg  (check-anomaly!
                         (new-spel-page! new-ctx)
@@ -4647,21 +4670,23 @@
                 ". Available: " (clojure.string/join ", " (devices/available-device-names)))})))
 
 (defmethod handle-cmd "set_geo" [_ {:strs [latitude longitude accuracy]}]
-  (core/context-grant-permissions! (ctx) ["geolocation"])
-  (.setGeolocation ^BrowserContext (ctx)
-    (doto (Geolocation. (double latitude) (double longitude))
-      (.setAccuracy (double (or accuracy 1)))))
-  {:geolocation {:latitude latitude :longitude longitude}})
+  (let [context (live-context)]
+    (core/context-grant-permissions! context ["geolocation"])
+    (.setGeolocation ^BrowserContext context
+      (doto (Geolocation. (double latitude) (double longitude))
+        (.setAccuracy (double (or accuracy 1)))))
+    {:geolocation {:latitude latitude :longitude longitude}}))
 
 (defmethod handle-cmd "set_credentials" [_ {:strs [username password]}]
   ;; HTTP credentials require recreating the context
-  (let [current-url (try (page/url (pg)) (catch Exception _ nil))]
+  (let [browser     (do (ensure-browser!) (:browser @!state))
+        current-url (try (page/url (pg)) (catch Exception _ nil))]
     ;; Save in-flight trace before destroying context
     (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
     (let [new-ctx (check-anomaly!
-                    (core/new-context (:browser @!state)
+                    (core/new-context browser
                       {:http-credentials {:username username :password password}})
                     "Failed to create context with credentials")
           new-pg  (check-anomaly!
@@ -4678,11 +4703,12 @@
 ;; --- Phase 3: Cookies ---
 
 (defmethod handle-cmd "cookies_get" [_ {:strs [urls]}]
-  (let [cookies (if urls
+  (let [context (live-context)
+        cookies (if urls
                   (mapv core/cookie->map
-                    (.cookies ^BrowserContext (ctx)
+                    (.cookies ^BrowserContext context
                       (java.util.ArrayList. ^java.util.Collection (vec urls))))
-                  (core/context-cookies (ctx)))]
+                  (core/context-cookies context))]
     {:cookies cookies}))
 
 (defmethod handle-cmd "cookies_set" [_ {:strs [name value domain path url]}]
@@ -4690,13 +4716,13 @@
     (if domain
       (do (.setDomain cookie domain)
           (.setPath cookie (or path "/")))
-      (.setUrl cookie (or url (page/url (pg)))))
+      (.setUrl cookie (or url (page/url (live-page)))))
     (let [cookie-list (java.util.Collections/singletonList cookie)]
-      (.addCookies ^BrowserContext (ctx) cookie-list))
+      (.addCookies ^BrowserContext (live-context) cookie-list))
     {:cookie_set {:name name :value value}}))
 
 (defmethod handle-cmd "cookies_clear" [_ _]
-  (core/context-clear-cookies! (ctx))
+  (core/context-clear-cookies! (live-context))
   {:cookies_cleared true})
 
 ;; --- Phase 3: Storage ---
@@ -4706,16 +4732,16 @@
         js (if key
              (str st "Storage.getItem('" key "')")
              (str "JSON.stringify(Object.entries(" st "Storage))"))]
-    {:storage (unwrap-anomaly! (page/evaluate (pg) js))}))
+    {:storage (unwrap-anomaly! (page/evaluate (live-page) js))}))
 
 (defmethod handle-cmd "storage_set" [_ {:strs [type key value]}]
   (let [st (or type "local")]
-    (unwrap-anomaly! (page/evaluate (pg) (str st "Storage.setItem('" key "', '" value "')")))
+    (unwrap-anomaly! (page/evaluate (live-page) (str st "Storage.setItem('" key "', '" value "')")))
     {:storage_set {:key key :value value}}))
 
 (defmethod handle-cmd "storage_clear" [_ {:strs [type]}]
   (let [st (or type "local")]
-    (unwrap-anomaly! (page/evaluate (pg) (str st "Storage.clear()")))
+    (unwrap-anomaly! (page/evaluate (live-page) (str st "Storage.clear()")))
     {:storage_cleared st}))
 
 ;; --- Phase 3: Network ---
@@ -4949,7 +4975,7 @@
 ;; --- Phase 4: Debug ---
 
 (defmethod handle-cmd "trace_start" [_ {:strs [name]}]
-  (unwrap-anomaly! (core/tracing-start! (core/context-tracing (ctx))
+  (unwrap-anomaly! (core/tracing-start! (core/context-tracing (live-context))
     (cond-> {:screenshots true :snapshots true}
       name (assoc :name name))))
   (swap! !state assoc :tracing? true)
@@ -4957,7 +4983,7 @@
 
 (defmethod handle-cmd "trace_stop" [_ {:strs [path]}]
   (let [out-path (or path "trace.zip")]
-    (unwrap-anomaly! (core/tracing-stop! (core/context-tracing (ctx)) {:path out-path}))
+    (unwrap-anomaly! (core/tracing-stop! (core/context-tracing (live-context)) {:path out-path}))
     (swap! !state assoc :tracing? false)
     {:trace "stopped" :path out-path}))
 
@@ -4983,30 +5009,31 @@
 (defmethod handle-cmd "console_start" [_ _]
   ;; Console capture is already on for every page spel instruments; asking again
   ;; must not add a second listener that records every message twice.
-  (instrument-page! (pg))
+  (instrument-page! (live-page))
   {:console "listening"})
 
 (defmethod handle-cmd "errors_start" [_ _]
-  (instrument-page! (pg))
+  (instrument-page! (live-page))
   {:errors "listening"})
 
 ;; --- Phase 4: State Management ---
 
 (defmethod handle-cmd "state_save" [_ {:strs [path]}]
   (let [save-path (or path (str "state-" (:session @!state) ".json"))]
-    (.storageState ^BrowserContext (ctx)
+    (.storageState ^BrowserContext (live-context)
       (doto (com.microsoft.playwright.BrowserContext$StorageStateOptions.)
         (.setPath (Path/of save-path (into-array String [])))))
     {:state "saved" :path save-path}))
 
 (defmethod handle-cmd "state_load" [_ {:strs [path]}]
-  (let [state-path (or path (str "state-" (:session @!state) ".json"))
+  (let [state-path  (or path (str "state-" (:session @!state) ".json"))
+        browser     (do (ensure-browser!) (:browser @!state))
         current-url (try (page/url (pg)) (catch Exception _ nil))]
     ;; Save in-flight trace before destroying context
     (save-inflight-trace!)
     (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
     (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (let [new-ctx (core/new-context (:browser @!state) {:storage-state-path state-path})]
+    (let [new-ctx (core/new-context browser {:storage-state-path state-path})]
       (if (anomaly/anomaly? new-ctx)
         {:error (str "Failed to load state: " (:anomaly/message new-ctx))}
         (let [new-pg (new-spel-page! new-ctx)]

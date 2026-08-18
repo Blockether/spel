@@ -82,7 +82,7 @@ Notes:
 For portable auth without full profile coupling:
 
 ```bash
-spel state export -o auth.json
+spel state save auth.json
 spel --load-state auth.json open https://example.com
 ```
 

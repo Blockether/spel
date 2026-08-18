@@ -113,9 +113,9 @@ Exceptions thrown by the retried fn are caught automatically (re-thrown on the l
 (core/with-retry {:max-attempts 3 :delay-ms 200}
   (core/api-post ctx "/endpoint" {:json {:action "process"}}))
 
-;; SCI
-(spel/with-retry {:max-attempts 3}
-  (spel/api-get ctx "/flaky-endpoint"))
+;; SCI — with-retry, retry-guard and the API client live in `core`, not `spel`
+(core/with-retry {:max-attempts 3}
+  (core/api-get ctx "/flaky-endpoint"))
 ```
 
 ### `retry-guard` — poll until predicate truthy
@@ -126,12 +126,12 @@ Turns a predicate into a `:retry-when`. Also inherits the default anomaly/5xx re
 (core/with-retry {:retry-when (core/retry-guard #(= "ready" (:status %)))}
   (core/api-get ctx "/job/123"))
 
-(spel/with-retry {:retry-when (spel/retry-guard #(> (:count %) 0))}
-  (spel/api-get ctx "/queue/stats"))
+(core/with-retry {:retry-when (core/retry-guard #(> (:count %) 0))}
+  (core/api-get ctx "/queue/stats"))
 
 ;; Retry until a page element appears (non-API)
-(spel/with-retry {:max-attempts 10 :delay-ms 500
-                  :retry-when (spel/retry-guard #(:visible %))}
+(core/with-retry {:max-attempts 10 :delay-ms 500
+                  :retry-when (core/retry-guard #(:visible %))}
   (spel/inspect))
 ```
 

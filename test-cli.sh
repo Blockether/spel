@@ -2060,6 +2060,15 @@ assert_contains "eval-sci args first call → includes first" "$OUT" 'first'
 OUT=$("$SPEL" eval-sci '(pr-str *command-line-args*)' 2>&1)
 assert_contains "eval-sci args do not persist across calls" "$OUT" 'nil'
 
+# Regression, user report: the skill told agents to pipe generated code, but only
+# eval-js read stdin — eval-sci took the flag itself as the expression and died
+# with `Unable to resolve symbol: --stdin`.
+OUT=$(echo '(+ 40 2)' | "$SPEL" eval-sci --stdin 2>&1)
+assert_contains "eval-sci --stdin → evaluates the piped script" "$OUT" '42'
+
+OUT=$(echo '(str "piped-" (+ 1 1))' | "$SPEL" eval-sci - 2>&1)
+assert_contains "eval-sci - → evaluates the piped script" "$OUT" 'piped-2'
+
 # SPEL_SESSION is documented in `spel --help`; the native global parser used to
 # ignore it, so every eval-sci ran against the user's `default` daemon.
 ENV_SESSION="cli-test-env-$$"
