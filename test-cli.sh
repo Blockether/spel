@@ -636,6 +636,13 @@ assert_jq_eq "network route *.gif → .route_added" "$OUT" '.route_added' '**/*.
 
 OUT=$("$SPEL" --json network unroute all 2>&1)
 assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_routes_removed == true'
+
+# Regression, user report: `spel --session <s> --cdp <url> network route '**/*.gif'` as the
+# session's FIRST command answered browser_handle_lost — the route handler read a page no
+# command had opened yet, so the session never attached to the browser it was given.
+OUT=$(timeout 60 "$SPEL" --json --session freshroute network route "**/*.png" 2>&1)
+assert_jq_eq "network route as a session's first command → .route_added" "$OUT" '.route_added' '**/*.png'
+timeout 10 "$SPEL" --json --session freshroute close >/dev/null 2>&1 || true
 OUT=$("$SPEL" --json network requests 2>&1)
 assert_jq "network requests → success" "$OUT" 'has("error") | not'
 

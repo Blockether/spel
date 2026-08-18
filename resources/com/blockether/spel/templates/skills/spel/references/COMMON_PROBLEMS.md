@@ -345,23 +345,27 @@ on that endpoint are queued behind its lock.
 
 ```bash
 spel --session b connect http://127.0.0.1:9222
-# {"connected":"…","warning":"Another session ('a') already has active network routes …"}
+# {"connected":"…","warning":"Session 'a' is intercepting network requests on this CDP
+#   endpoint…","route_lock_owner":"a"}
 
 spel --session b open https://example.com
-# {"error":"CDP endpoint is currently controlled by session 'a' with active network
-#   routes…","error_code":"cdp_route_lock","owner_session":"a"}
+# {"error":"Session 'a' is intercepting network requests on this CDP endpoint, so action
+#   'navigate' in session 'b' cannot drive the page…","error_code":"cdp_route_lock","owner_session":"a"}
 ```
 
-Read `owner_session`, then either drive that session, or clear its routes:
+Read `owner_session`, then either drive that session, or free interception:
 
 ```bash
 spel --session a network unroute all   # releases the lock
 spel --session a close                 # or end that session entirely
 ```
 
-`SPEL_CDP_LOCK_WAIT=0` fails immediately instead of queuing. The wait never exceeds
-the command budget: the answer always names the owner instead of expiring as a
-generic `command_timeout`.
+Either frees it instantly — the next command from the other session goes straight through, no
+wait. A session that died without cleaning up frees it too: the lock names its owner, so the
+first command that finds that daemon gone deletes the lock and proceeds.
+
+`SPEL_CDP_LOCK_WAIT=0` fails immediately instead of queuing. The wait never exceeds the command
+budget: the answer always names the owner instead of expiring as a generic `command_timeout`.
 
 ## 18. `ClassCastException` in `with-retry`
 

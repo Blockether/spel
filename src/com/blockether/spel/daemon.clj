@@ -1723,8 +1723,10 @@
     (when-let [lock (active-cdp-route-lock cdp-url)]
       (let [owner (get lock "session")]
         (when (and owner (not= owner session))
-          {:warning (str "Another session ('" owner "') already has active network routes on this CDP endpoint. "
-                      "Use one session per --cdp endpoint for route interception to avoid hangs.")
+          {:warning (str "Session '" owner "' is intercepting network requests on this CDP endpoint. "
+                      "Sharing the endpoint is fine — this session drives its own tab — but commands that "
+                      "drive the page wait until '" owner "' releases its routes "
+                      "(`spel --session " owner " network unroute all`, or close that session).")
            :route_lock_owner owner})))))
 
 (defn cdp-route-lock-owner
@@ -4141,7 +4143,7 @@
                                   content_type (assoc :content-type content_type)))
                     ;; default: continue
                     (network/route-continue! route)))]
-    (page/route! (pg) url handler)
+    (page/route! (live-page) url handler)
     (swap! !routes assoc url handler)
     (when (and (:cdp-connected @!state) (current-cdp-url))
       (write-cdp-route-lock! (current-cdp-url) (:session @!state)))
@@ -4224,17 +4226,20 @@
       {:recording false :path har-path :size size})))
 
 (defmethod handle-cmd "network_unroute" [_ {:strs [url]}]
-  (if url
-    (do (page/unroute! (pg) url)
-        (swap! !routes dissoc url)
-        (when (empty? @!routes)
-          (release-cdp-route-lock-if-owned!))
-        {:route_removed url})
-    (do (doseq [[u _] @!routes]
-          (page/unroute! (pg) u))
-        (reset! !routes {})
-        (release-cdp-route-lock-if-owned!)
-        {:all_routes_removed true})))
+  ;; Never starts a browser: this is the documented way out of a `cdp_route_lock`,
+  ;; and a session whose browser already went away still owns a lock to release.
+  (let [pg-inst (pg)]
+    (if url
+      (do (when pg-inst (page/unroute! pg-inst url))
+          (swap! !routes dissoc url)
+          (when (empty? @!routes)
+            (release-cdp-route-lock-if-owned!))
+          {:route_removed url})
+      (do (doseq [[u _] @!routes]
+            (when pg-inst (page/unroute! pg-inst u)))
+          (reset! !routes {})
+          (release-cdp-route-lock-if-owned!)
+          {:all_routes_removed true}))))
 
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
   (let [reqs     @!tracked-requests
@@ -6220,12 +6225,13 @@
     (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
       (json/write-json-str
         {:success false
-         :error (str "CDP endpoint is currently controlled by session '" owner-session
-                  "' with active network routes. Timed out waiting for lock release — blocking action '" action
-                  "' in session '" (:session @!state) "'.")
-         :hint (str "Use one session per --cdp endpoint when routes are active. "
-                 "Either run `spel --session " owner-session " network unroute all` "
-                 "or close that session before retrying.")
+         :error (str "Session '" owner-session "' is intercepting network requests on this CDP endpoint, "
+                  "so action '" action "' in session '" (:session @!state) "' cannot drive the page. "
+                  "Timed out waiting for that session to release interception.")
+         :hint (str "The endpoint itself is shared — this session already has its own tab, and read-only "
+                 "commands (network requests, console, pages, tab list, url, title) answer right now. "
+                 "To drive the page, release interception: `spel --session " owner-session
+                 " network unroute all`, or close that session; either frees it immediately.")
          :error_code "cdp_route_lock"
          :owner_session owner-session
          :cdp cdp-url})

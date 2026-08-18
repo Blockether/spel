@@ -1230,6 +1230,40 @@
             (catch clojure.lang.ExceptionInfo e
               (expect (str/includes? (.getMessage e) "No browser page available")))))))))
 
+;; Regression, user report: `spel --session <s> --cdp <url> network route '**/*.gif'` as the
+;; session's FIRST command answered "NullPointerException … browser_handle_lost" — the route
+;; handler read the page straight out of daemon state, so a session that had not opened a
+;; browser yet never attached to the endpoint it was handed.
+(defdescribe network-route-attach-test
+  "A route may be a session's first command."
+
+  (it "network_route attaches a browser instead of dereferencing a nil page"
+    (let [state-atom (deref #'sut/!state)
+          routes     (deref #'sut/!routes)
+          fresh      (Object.)
+          routed     (atom nil)]
+      (reset! state-atom {:page nil :browser nil})
+      (reset! routes {})
+      (with-redefs-fn {#'sut/ensure-browser! (fn [] (swap! state-atom assoc :page fresh :browser (Object.)))
+                       #'page/route!         (fn [p url _handler] (reset! routed [p url]))}
+        (fn []
+          (let [r (#'sut/handle-cmd "network_route" {"url" "**/*.gif"})]
+            (expect (= "**/*.gif" (:route_added r)))
+            (expect (identical? fresh (first @routed))))))
+      (reset! routes {})))
+
+  (it "network_unroute releases the lock without starting a browser"
+    (let [state-atom (deref #'sut/!state)
+          routes     (deref #'sut/!routes)
+          calls      (atom 0)]
+      (reset! state-atom {:page nil :browser nil})
+      (reset! routes {"**/*.gif" identity})
+      (with-redefs-fn {#'sut/ensure-browser! (fn [] (swap! calls inc))}
+        (fn []
+          (let [r (#'sut/handle-cmd "network_unroute" {"url" "**/*.gif"})]
+            (expect (= "**/*.gif" (:route_removed r)))
+            (expect (zero? @calls))
+            (expect (empty? @routes))))))))
 ;; =============================================================================
 ;; Unit Tests — Failure diagnosis in the session log
 ;; =============================================================================

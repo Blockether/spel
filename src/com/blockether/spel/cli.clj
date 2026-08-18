@@ -4353,8 +4353,8 @@
     (when-let [cdp-url (:cdp flags)]
       (when-let [owner (daemon/cdp-route-lock-owner cdp-url)]
         (when (not= owner session)
-          (log/warn! "CDP endpoint is currently route-locked by session '" owner
-            "'. Commands requiring page control may fail fast with cdp_route_lock."))))
+          (log/warn! "Session '" owner "' is intercepting network requests on this CDP endpoint — "
+            "this session gets its own tab, but page commands wait until those routes are released."))))
     ;; Check for parse errors
     (when (:error command)
       (binding [*out* *err*]

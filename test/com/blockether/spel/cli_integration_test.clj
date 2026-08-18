@@ -1398,7 +1398,7 @@
         (try
           (let [warning (#'daemon/cdp-route-lock-warning cdp-url)]
             (expect (= owner-session (:route_lock_owner warning)))
-            (expect (str/includes? (:warning warning) "active network routes")))
+            (expect (str/includes? (:warning warning) "intercepting network requests")))
           (finally
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))))
