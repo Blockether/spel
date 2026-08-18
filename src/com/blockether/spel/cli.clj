@@ -731,17 +731,23 @@
       "  spel tab [subcommand] [args]"
       ""
       "Subcommands:"
-      "  (none)        List all tabs"
-      "  list          List all tabs"
+      "  (none)        List all tabs, with each tab's stable id"
+      "  list          List all tabs, with each tab's stable id"
       "  new [url]     Open a new tab, optionally navigating to URL"
       "  close         Close the current tab"
-      "  <n>           Switch to tab by index (0-based)"
+      "  <n>           Switch to tab by position (0-based)"
+      "  t<n>          Switch to tab by stable id (t1, t2, ...)"
+      ""
+      "A position shifts whenever a tab closes. The id `spel tab list` prints"
+      "belongs to that one tab for as long as it lives, and is the id every"
+      "console, error and network entry is tagged with."
       ""
       "Examples:"
       "  spel tab"
       "  spel tab list"
       "  spel tab new https://example.org"
       "  spel tab 0"
+      "  spel tab t3"
       "  spel tab close"])
 
    "get"
@@ -2715,9 +2721,20 @@
                            "list"  {:action "tab_list"}
                            "close" {:action "tab_close"}
                            (nil)   {:action "tab_list"}
-                           (if (re-matches #"\d+" sub)
+                           (cond
+                             ;; A position in the browser's own tab list — it shifts
+                             ;; the moment any tab before it closes.
+                             (re-matches #"\d+" sub)
                              {:action "tab_switch" :index (Integer/parseInt sub)}
-                             {:action "tab_list"})))
+
+                             ;; The stable id `spel tab list` prints and every console,
+                             ;; error and network entry carries.
+                             (re-matches #"t\d+" sub)
+                             {:action "tab_switch" :tab sub}
+
+                             :else
+                             {:error (str "Unknown tab selector '" sub "'. Use `spel tab list`, "
+                                       "`spel tab <n>` for a position or `spel tab t<n>` for a stable id.")})))
 
           ;; Getters (extended with value, attr, count, box)
             "get"      (let [what (first cmd-args)
@@ -4157,6 +4174,7 @@
           (doseq [tab (:tabs data)]
             (println (str (if (:active tab) "* " "  ")
                        "[" (:index tab) "] "
+                       (format "%-4s " (or (:tab tab) "-"))
                        (:title tab) " — " (:url tab))))
 
           ;; URL/Title

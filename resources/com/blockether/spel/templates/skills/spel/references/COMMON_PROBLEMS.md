@@ -380,6 +380,21 @@ spel console clear    # clears this tab only (--all clears every tab)
 
 `errors`, `network requests` and `network clear` take `--all` the same way. Each tab also keeps
 its own slice of the capture window, so a chatty tab can no longer evict the one under test.
+
+A tab id (`t3`) is handed out once and never reused, so it names that one tab for as long as it
+lives. A tab NUMBER is only a position in the browser's tab strip and shifts the moment anyone
+closes a tab before it — including the person at the keyboard. `spel tab list` prints both, and
+`spel tab t3` can never land on the wrong tab:
+
+```bash
+spel tab list      # * [2] t3   Checkout — https://shop.example.com/cart
+spel tab t3        # that same tab, whatever its position is now
+```
+
+Closing a tab outside spel is safe for the tabs around it: every entry keeps the id of the tab that
+produced it, the closed tab drops out of `spel tab list`, and what it captured stays readable under
+`--all` until the window rolls over.
+
 ## 18. `ClassCastException` in `with-retry`
 
 `with-retry` crashed with `ClassCastException: Keyword cannot be cast to Number` when the retried fn returned a map with non-numeric `:status` (e.g. `{:status :created}`).

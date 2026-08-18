@@ -242,6 +242,7 @@ spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text:a.
 
 Auto-captured from the moment the page opens; no `start` needed. Capture is **per tab**:
 `spel console` answers with the tab this session is on, `--all` with every tab it has opened.
+Every entry carries its tab's stable id, the one `spel tab list` prints and `spel tab t3` selects.
 
 ```bash
 spel console           spel console clear     # this tab

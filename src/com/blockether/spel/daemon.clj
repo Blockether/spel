@@ -2126,6 +2126,21 @@
   [pg]
   (try (not (.isClosed ^Page pg)) (catch Throwable _ false)))
 
+(defn- live-context-pages
+  "Pages of `context` that are still open.
+
+   `.pages` still hands back a tab that closed a moment ago, and reading its url
+   or title then throws \"Target page, context or browser has been closed\" —
+   the very wording `dispatch-with-recovery` reads as a DEAD BROWSER. Listing
+   tabs after somebody closed one therefore relaunched the whole session.
+
+   Params:
+   `context` - BrowserContext instance.
+
+   Returns:
+   Vector of Page instances."
+  [context]
+  (filterv page-live? (core/context-pages context)))
 (defn- tab-key!
   "Returns `[tab-key instrumented-before?]` for `pg`, assigning this session's
    stable id for that tab the first time the page is seen.
@@ -2193,11 +2208,43 @@
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
 
+(defn- tab-key-of
+  "This session's stable id for tab `p` — the key every entry captured from that
+   tab carries — or nil for a tab this session has never driven.
+
+   Reads only: handing out a key is `tab-key!`'s job, and listing tabs must not
+   claim ownership of one the session does not drive.
+
+   Params:
+   `p` - Page instance.
+
+   Returns:
+   String or nil."
+  [p]
+  (get-in @!tabs [:pages p]))
+
+(defn- tab-by-key
+  "Returns the live page this session tagged `k` (\"t3\"), or nil when no live
+   tab carries that id.
+
+   A tab id names ONE page for as long as that page lives. A tab NUMBER is a
+   position in the browser's own list and shifts the moment anyone — spel, the
+   site or the person at the keyboard — closes a tab before it.
+
+   Params:
+   `k` - Tab id string, or nil.
+
+   Returns:
+   Page instance or nil."
+  [k]
+  (when-not (str/blank? (str k))
+    (some (fn [[p t]] (when (and (= t k) (page-live? p)) p)) (:pages @!tabs))))
+
 (defn- current-tab
   "Returns the tab key of the page this session drives, or nil before one is
    instrumented."
   []
-  (get-in @!tabs [:pages (pg)]))
+  (tab-key-of (pg)))
 
 (defn- tab-entries
   "Returns the captured entries of the tab this session is on — or every tab's
@@ -3657,21 +3704,50 @@
     (focus-page! new-pg)
     (when-let [url (get params "url")]
       (page/navigate new-pg url))
-    {:tab "new" :url (page/url new-pg)}))
+    {:tab (tab-key-of new-pg) :url (page/url new-pg)}))
 
 (defmethod handle-cmd "tab_list" [_ _]
-  (let [pages  (core/context-pages (ctx))
+  (let [pages  (live-context-pages (ctx))
         active (pg)]
     {:tabs (mapv (fn [idx p]
-                   {:index idx :url (page/url p) :title (page/title p)
+                   ;; A tab can close between the listing and this read; the
+                   ;; whole listing must not die with it.
+                   {:index  idx
+                    :tab    (tab-key-of p)
+                    :url    (try (page/url p) (catch Throwable _ nil))
+                    :title  (try (page/title p) (catch Throwable _ ""))
                     :active (= p active)})
              (range) pages)}))
 
-(defmethod handle-cmd "tab_switch" [_ {:strs [index]}]
-  (let [pages (core/context-pages (ctx))
-        pg-inst (nth pages (int index))]
-    (focus-page! pg-inst)
-    {:tab index :url (page/url pg-inst)}))
+(defn- live-tab-keys
+  "The stable ids of every tab this session still drives, lowest first."
+  []
+  (->> (:pages @!tabs)
+    (keep (fn [[p t]] (when (page-live? p) t)))
+    (sort-by (fn [t] (long (or (parse-long (subs (str t) 1)) 0))))
+    vec))
+
+(defmethod handle-cmd "tab_switch" [_ {:strs [index tab]}]
+  (let [pages   (live-context-pages (ctx))
+        by-key  (tab-by-key tab)
+        idx     (when (and (nil? by-key) (number? index)) (long index))
+        target  (or by-key
+                  (when (and idx (nat-int? idx) (< (long idx) (long (count pages))))
+                    (nth pages (int idx))))]
+    (when-not target
+      (throw (ex-info
+               (if (str/blank? (str tab))
+                 (str "No tab " index ": this browser has " (count pages)
+                   " open, numbered 0-" (max 0 (dec (count pages)))
+                   ". A tab number is a position and shifts whenever a tab closes — `spel tab list` prints each tab's stable id and `spel tab t3` selects by that id.")
+                 (str "No live tab " tab " in this session. It drives: "
+                   (let [ks (live-tab-keys)] (if (seq ks) (str/join ", " ks) "no tab yet"))
+                   ". Ids are handed out per tab and never reused, so one that is gone stays gone."))
+               {:error_code "tab_not_found"})))
+    (focus-page! target)
+    {:tab   (tab-key-of target)
+     :index (some (fn [[i p]] (when (= p target) i)) (map-indexed vector pages))
+     :url   (page/url target)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
   (let [current (pg)
@@ -3682,7 +3758,7 @@
                {:error_code "tab_not_owned"
                 :hint "spel only closes tabs it created after attaching to an external CDP browser."})))
     (core/close-page! current)
-    (let [remaining    (core/context-pages context)
+    (let [remaining    (live-context-pages context)
           replacement? (empty? remaining)
           active       (if replacement?
                          (new-spel-page! context)
@@ -5777,6 +5853,26 @@
       (throw (ex-info (page-crash-message action url-before)
                {:error_code :page_crashed})))))
 
+(defn- relaunch-and-retry!
+  "Throws away the dead handles, brings a browser back on the page that was
+   open, and runs `attempt` once more.
+
+   Params:
+   `action`     - String action name.
+   `url-before` - URL the session was on, or nil.
+   `attempt`    - Thunk answering {:ok _} or {:threw _}.
+
+   Returns:
+   The retried result, or throws what the retry threw."
+  [action url-before attempt]
+  (log/warn! "browser died during '" action "' — relaunching it and retrying once")
+  (drop-browser-handles!)
+  (ensure-browser!)
+  (when-not (= "navigate" action)
+    (restore-page! url-before))
+  (let [{:keys [ok threw]} (attempt)]
+    (if threw (throw threw) ok)))
+
 (defn- dispatch-with-recovery
   "Runs a command, and when it failed ONLY because the browser died outside the
    daemon, relaunches the browser, re-opens the page that was open, and runs the
@@ -5815,14 +5911,23 @@
           (replace-crashed-page! action url-before attempt)
 
           (and (browser-gone-message? msg) recoverable?)
+          ;; "Target page, context or browser has been closed" is also what ONE
+          ;; closed TAB says. Relaunching for that threw the whole session away
+          ;; — its tabs, its refs and every per-tab capture — because somebody
+          ;; closed a tab spel was not even driving. Reconcile what actually
+          ;; died and retry; only a browser that is really gone is relaunched.
+          (let [reconciled (ensure-live-browser!)]
+            (if (and (browser-connected?) (not= :dead reconciled))
           (do
-            (log/warn! "browser died during '" action "' — relaunching it and retrying once")
-            (drop-browser-handles!)
-            (ensure-browser!)
-            (when-not (= "navigate" action)
-              (restore-page! url-before))
+                (when (= :page-reopened reconciled)
+                  (instrument-page! (:page @!state)))
             (let [{:keys [ok threw]} (attempt)]
-              (if threw (throw threw) ok)))
+                  (cond
+                    (nil? threw) ok
+                    (browser-gone-message? (throwable-chain-message threw))
+                    (relaunch-and-retry! action url-before attempt)
+                    :else (throw threw))))
+              (relaunch-and-retry! action url-before attempt)))
 
           :else (if threw (throw threw) ok))))))
 

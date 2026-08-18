@@ -931,7 +931,8 @@
       (nav! "/test-page")
       (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
       (let [r (cmd "tab_switch" {"index" 0})]
-        (expect (= 0 (:tab r)))))
+        (expect (= 0 (:index r)))
+        (expect (string? (:tab r)))))
 
     (it "tab_close closes current tab"
       (nav! "/test-page")
@@ -956,7 +957,85 @@
         (expect (= 1 (:remaining r)))
         (expect (= "about:blank" (:url r)))
         (expect (= "about:blank" (:url (cmd "url" {}))))
-        (expect (= 1 (count (:tabs (cmd "tab_list" {})))))))))
+        (expect (= 1 (count (:tabs (cmd "tab_list" {}))))))))
+
+  ;; Regression, user report: "what if someone deletes a tab — do you bind by id
+  ;; or by order?". Capture binds by page identity, but ONE tab closed outside
+  ;; spel used to take the whole session down with it: reading a closed tab's
+  ;; url threw "Target page, context or browser has been closed", which the
+  ;; recovery path reads as a DEAD BROWSER — it reconnected, restored the last
+  ;; URL into a brand-new tab and handed the session a new tab id, orphaning
+  ;; every console, error and network entry the old tab had captured.
+  (describe "tabs closed outside spel"
+
+    (it "leaves the listing, the current tab and its id alone"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            keeper  (:page @state-a)
+            keep-id (:tab (cmd "console_list" {}))]
+        (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+        (let [victim (:page @state-a)]
+          (cmd "tab_switch" {"tab" keep-id})
+          ;; Somebody closes that tab in the browser — not through `spel tab close`.
+          (core/close-page! victim)
+          (let [listed (cmd "tab_list" {})]
+            (expect (= 1 (count (:tabs listed))))
+            (expect (= keep-id (:tab (first (:tabs listed)))))
+            (expect (identical? keeper (:page @state-a)))
+            (expect (= keep-id (:tab (cmd "console_list" {}))))))))
+
+    (it "one closed tab is not a dead browser: the command retries in place"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            before  (select-keys @state-a [:browser :context :page])
+            calls   (atom 0)
+            multi   (deref #'daemon/handle-cmd)]
+        (try
+          (.addMethod ^clojure.lang.MultiFn multi "closed_tab_probe"
+            (fn [_ _]
+              (if (= 1 (swap! calls inc))
+                (throw (ex-info "Target page, context or browser has been closed" {}))
+                {:probe :retried})))
+          (let [r (#'daemon/dispatch-with-recovery "closed_tab_probe" {})]
+            (expect (= {:probe :retried} r))
+            (expect (= 2 @calls))
+            (expect (= before (select-keys @state-a [:browser :context :page]))))
+          (finally
+            (.removeMethod ^clojure.lang.MultiFn multi "closed_tab_probe")))))
+
+    (it "a tab id still names its tab after the tab before it closes"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)]
+        (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+        (let [doomed  (:page @state-a)
+              last-id (:tab (cmd "tab_new" {"url" (str *test-server-url* "/test-page")}))
+              keeper  (:page @state-a)
+              index-of (fn [tabs id] (:index (first (filter #(= id (:tab %)) tabs))))
+              before  (index-of (:tabs (cmd "tab_list" {})) last-id)]
+          (core/close-page! doomed)
+          (let [after (:tabs (cmd "tab_list" {}))]
+            (expect (= 2 (count after)))
+            ;; The position moved …
+            (expect (not= before (index-of after last-id)))
+            ;; … the id did not.
+            (expect (identical? keeper (#'daemon/tab-by-key last-id)))
+            (let [r (cmd "tab_switch" {"tab" last-id})]
+              (expect (= last-id (:tab r)))
+              (expect (identical? keeper (:page @state-a))))))))
+
+    (it "refuses a position or an id that is not there, and says what is"
+      (nav! "/test-page")
+      (let [by-index (try (cmd "tab_switch" {"index" 9}) nil
+                       (catch clojure.lang.ExceptionInfo e e))
+            by-id    (try (cmd "tab_switch" {"tab" "t99"}) nil
+                       (catch clojure.lang.ExceptionInfo e e))]
+        (expect (some? by-index))
+        (expect (= "tab_not_found" (:error_code (ex-data by-index))))
+        (expect (str/includes? (ex-message by-index) "spel tab list"))
+        (expect (some? by-id))
+        (expect (= "tab_not_found" (:error_code (ex-data by-id))))
+        ;; It names the ids it DOES drive, so the next command can pick one.
+        (expect (str/includes? (ex-message by-id) (:tab (cmd "console_list" {}))))))))
 
 ;; =============================================================================
 ;; 25. Console & Errors

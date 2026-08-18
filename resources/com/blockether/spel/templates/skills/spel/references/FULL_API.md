@@ -1541,9 +1541,10 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `tab` | List tabs |
+| `tab` | List tabs — position, stable id (`t3`), title and URL |
 | `tab new [url]` | New tab |
-| `tab <n>` | Switch to tab |
+| `tab <n>` | Switch by position (0-based) — positions shift when a tab closes |
+| `tab t<n>` | Switch by stable id — the id console/errors/network entries carry |
 | `tab close` | Close tab |
 
 ### Frames & Dialogs

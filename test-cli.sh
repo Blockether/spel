@@ -676,7 +676,7 @@ assert_jq "tab list → success" "$OUT" 'has("error") | not'
 
 # Open a new blank tab (tab 1), we're now on tab 1
 OUT=$("$SPEL" --json tab new 2>&1)
-assert_jq_eq "tab new → .tab" "$OUT" '.tab' 'new'
+assert_jq "tab new → stable tab id" "$OUT" '.tab | test("^t[0-9]+$")'
 
 OUT=$("$SPEL" --json tab 2>&1)
 assert_jq "tab list after new → 2 tabs" "$OUT" 'has("error") | not'
@@ -697,7 +697,7 @@ assert_jq_eq "after closing 2nd tab → back on example.com" "$OUT" '.url' 'http
 
 # Open tab with URL, switch between them
 OUT=$("$SPEL" --json tab new https://the-internet.herokuapp.com/login 2>&1)
-assert_jq_eq "tab new url → .tab" "$OUT" '.tab' 'new'
+assert_jq "tab new url → stable tab id" "$OUT" '.tab | test("^t[0-9]+$")'
 
 # We're on tab 1 (the-internet), switch to tab 0 (example.com)
 OUT=$("$SPEL" --json tab 0 2>&1)
@@ -709,6 +709,18 @@ assert_jq_eq "tab 0 → url is example.com" "$OUT" '.url' 'https://example.com/'
 # Switch back to tab 1 (the-internet)
 OUT=$("$SPEL" --json tab 1 2>&1)
 assert_jq "tab 1 (switch to 2nd) → success" "$OUT" 'has("error") | not'
+
+# A tab id is identity, a tab number is order: `spel tab list` prints both, and the
+# id keeps naming its tab after someone closes another one.
+OUT=$("$SPEL" --json tab list 2>&1)
+assert_jq "tab list → every tab reports its stable id" "$OUT" '[.tabs[] | has("tab")] | all'
+TID=$("$SPEL" --json tab list 2>&1 | jq -r '.tabs[] | select(.active) | .tab')
+OUT=$("$SPEL" --json tab "$TID" 2>&1)
+assert_jq_eq "tab <id> → lands on that same tab" "$OUT" '.tab' "$TID"
+OUT=$("$SPEL" --json tab t99 2>&1)
+assert_jq "tab t99 → refused, not silently listed" "$OUT" 'has("error")'
+OUT=$("$SPEL" --json tab 99 2>&1)
+assert_jq "tab 99 → refused with a way to find the right tab" "$OUT" '.error | test("tab list")'
 
 OUT=$("$SPEL" --json get url 2>&1)
 assert_jq_contains "tab 1 → url is the-internet" "$OUT" '.url' 'the-internet.herokuapp.com'
