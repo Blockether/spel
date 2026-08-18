@@ -1,0 +1,1 @@
+{"id":"3d5f7686bae1f7a8c9b2727cd3ea07b7","fullName":"com.blockether.spel.daemon-test.iOS refs are recaptured where an @ref is used, not after every action.leaves a plain selector alone","name":"iOS refs are recaptured where an @ref is used, not after every action > leaves a plain selector alone","status":"passed","testResultsByEnv":{"default":"43f104899a5e8c941f60128b8539a89d"}}
