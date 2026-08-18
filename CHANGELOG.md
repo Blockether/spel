@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.30] - 2026-08-18
+
+### Changed
+- docs(skill): stop routing readers to a reference that never shipped
+- fix(cli): answer `eval-sci --help` with help, not a SCI error
+- fix(snapshot): capture iframe content instead of dropping it
+- fix(pdf): apply :margin, and document what the action log records
+- fix(cli): print the action log as JSON instead of its size
+- fix(sci): let event handlers print, and make off-dialog remove one
+- test(daemon): stop two fabricated-state tests launching a browser
+- fix(daemon): start the browser before a session's first page command
+- fix(cli): honour --timeout in eval-sci and print its hint
+- fix(assertions): assert against the page you have, refuse a glob URL
+- fix(daemon): fail the command when the browser refused the side effect
+- fix(daemon): deliver the browser's events before every command answers
+- fix(daemon): fall back to a live tab when the one spel drives is killed
+- fix(daemon): capture failed requests and route every tab of the session
+- fix(daemon): keep capture alive across popups, crashes, routes and refs
+- fix(daemon): keep one closed tab from relaunching the whole session
+- fix(daemon): scope console, errors and network capture to the tab
+- fix(daemon): scope the CDP route lock to the intercepted tab
+- fix(daemon): attach the browser when a route is the session's first command
+- fix(daemon): report the CDP lock owner instead of a command timeout
+- fix(cli): answer eval-sci --json with JSON, not EDN
+- fix(cli): hand --json output over bare, never wrapped in boundaries
+- docs(skill): one spel session per task, not per command
+
+
 ## [v0.9.29] - 2026-08-17
 
 ### Changed
@@ -1884,7 +1912,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.29...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.30...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1969,3 +1997,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.27]: https://github.com/Blockether/spel/releases/tag/v0.9.27
 [v0.9.28]: https://github.com/Blockether/spel/releases/tag/v0.9.28
 [v0.9.29]: https://github.com/Blockether/spel/releases/tag/v0.9.29
+[v0.9.30]: https://github.com/Blockether/spel/releases/tag/v0.9.30
