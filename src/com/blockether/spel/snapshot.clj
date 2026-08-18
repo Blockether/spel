@@ -656,8 +656,28 @@
     (str/replace "\\" "\\\\")
     (str/replace "'" "\\'")))
 
+(defn ref?
+  "True when a selector string is a snapshot ref.
+
+   Both shapes count: the bare ref `capture-snapshot` assigns (`@e2yrjz`) and
+   the frame-prefixed one `capture-full-snapshot` assigns inside an iframe
+   (`@f1_e2yrjz`). This is the ONE classifier — a command path that rolls its
+   own regex is how a printed ref ends up in the CSS engine.
+
+   Params:
+   `s` - String selector, ref or nil.
+
+   Returns:
+   Boolean."
+  [^String s]
+  (boolean (and s (re-matches #"@(?:f\d+_)?e[a-z0-9]+" s))))
+
 (defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref (must start with @, e.g. @e04a3f)."
+  "Returns true if the scope string is a snapshot ref of the MAIN document.
+
+   A frame-prefixed ref is deliberately not one: `resolve-scope` builds a CSS
+   selector run against the page, and the attribute it names lives in the
+   frame's document."
   [^String s]
   (boolean (re-matches #"@e[a-z0-9]+" s)))
 
@@ -985,24 +1005,38 @@
        (parse-capture-result result (assoc opts :viewport vp))))))
 
 (defn capture-snapshot-for-frame
-  "Captures an accessibility snapshot for a specific frame.
+  "Captures an accessibility snapshot inside one child frame.
 
-   Refs are prefixed with the frame ordinal: f1_e1, f2_e3, etc.
+   The capture script runs in the frame's own document, so its refs collide
+   with the main frame's; every ref is prefixed with the frame ordinal
+   (`f1_e2yrjz`) in both the tree and the ref map. The block opens with an
+   `- iframe [f1]` line and its contents are indented under it, so the reader
+   sees where the page ends and the frame begins.
 
    Params:
    `frame`         - Playwright Frame instance.
-   `frame-ordinal` - Long. Frame index (1-based).
+   `frame-ordinal` - Long. Frame index (1-based, main frame excluded).
 
    Returns:
-   Same format as capture-snapshot, but with prefixed refs."
-  [^Frame _frame frame-ordinal]
-  ;; TODO: Implement frame-specific snapshot logic.
-  ;; For now, fall back to a stub — frame-specific logic will be expanded.
-  (let [prefix (str "f" frame-ordinal "_")]
-    {:tree    nil
-     :refs    {}
-     :counter 0
-     :prefix  prefix}))
+   Same format as capture-snapshot with prefixed refs, plus `:prefix`. A frame
+   that detached or refused evaluation answers an empty snapshot rather than
+   failing the whole page capture."
+  [^Frame frame frame-ordinal]
+  (let [prefix (str "f" frame-ordinal "_")
+        empty  {:tree nil :refs {} :counter 0 :prefix prefix}
+        result (try (decode-capture-result (.evaluate frame (capture-script {})))
+                 (catch Exception _ nil))]
+    (if (or (nil? result) (capture-failure result))
+      empty
+      (let [snap (parse-capture-result result {})]
+        {:tree    (when-let [t (:tree snap)]
+                    (->> (str/split-lines t)
+                      (map #(str "  " (str/replace % #"\[@(e[^\]]+)\]" (str "[@" prefix "$1]"))))
+                      (cons (str "- iframe [" (str/replace prefix #"_$" "") "]"))
+                      (str/join "\n")))
+         :refs    (into {} (map (fn [[k v]] [(str prefix k) v])) (:refs snap))
+         :counter (:counter snap)
+         :prefix  prefix}))))
 
 (defn capture-full-snapshot
   "Captures a snapshot of the page and all its iframes.
@@ -1048,12 +1082,20 @@
 
    Params:
    `page`   - Playwright Page instance.
-   `ref-id` - String. Bare ref ID without @ prefix (e.g. e2yrjz).
+   `ref-id` - String. Bare ref ID without `@` (e.g. `e2yrjz`), or a frame-
+              prefixed ref from `capture-full-snapshot` (e.g. `f1_e2yrjz`),
+              which resolves inside that frame — the attribute lives in the
+              frame's document, never in the page's.
 
    Returns:
    Locator instance for the element."
   [^Page page ^String ref-id]
-  (page/locator page (str "[data-pw-ref=\"" ref-id "\"]")))
+  (let [[_ ordinal bare] (re-matches #"f(\d+)_(.+)" (str ref-id))
+        css              (str "[data-pw-ref=\"" (or bare ref-id) "\"]")]
+    (if-let [^Frame frame (when ordinal
+                            (nth (vec (page/frames page)) (parse-long ordinal) nil))]
+      (.locator frame css)
+      (page/locator page css))))
 
 (defn ref-css-selector
   "Returns the CSS selector for a snapshot ref id.

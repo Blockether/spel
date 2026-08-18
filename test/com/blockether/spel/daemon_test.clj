@@ -2912,3 +2912,19 @@
                  (filter (fn [[action params]] (:npe (probe-first-command action params))))
                  (mapv first))]
       (expect (= {:threw-npe []} {:threw-npe npes})))))
+
+;; Regression, user report: `spel snapshot -a` printed frame-prefixed refs
+;; (@f1_e5l65o) that no command would take — the ref classifier matched only
+;; @e…, so the ref reached the CSS engine as a selector and the command died
+;; with `Unsupported token "@f1_e5l65o" while parsing css selector`.
+(defdescribe frame-ref-classification-test
+  "A ref from an iframe is still a ref."
+
+  (it "classifies a frame-prefixed ref as a ref, not as CSS"
+    (expect (#'sut/ref? "@f1_e5l65o"))
+    (expect (#'sut/ref? "@f12_e5l65o")))
+
+  (it "still classifies a plain ref and refuses a selector"
+    (expect (#'sut/ref? "@e5l65o"))
+    (expect (not (#'sut/ref? "#main")))
+    (expect (not (#'sut/ref? "@f1_")))))

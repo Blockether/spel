@@ -526,7 +526,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `capture-full-snapshot` | [page] | Captures a snapshot of the page and all its iframes. |
 | `capture-script` | [opts] | Returns the capture-snapshot JS with optional flags injected. |
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
-| `capture-snapshot-for-frame` | [_frame frame-ordinal] | Captures an accessibility snapshot for a specific frame. |
+| `capture-snapshot-for-frame` | [frame frame-ordinal] | Captures an accessibility snapshot inside one child frame. |
 | `capture-webdriver` | [driver] \| [driver opts] | Captures an accessibility snapshot through a W3C WebDriver session. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
 | `decode-capture-result` | [result] | Parses the capture script's JSON payload into a string-keyed map. |
@@ -535,6 +535,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `parse-capture-result` | [result] \| [result opts] | Parses the raw JS capture result into the public snapshot map. |
 | `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
 | `ref-css-selector` | [ref-id] | Returns the CSS selector for a snapshot ref id. |
+| `ref?` | [s] | True when a selector string is a snapshot ref. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
 | `truncation-note` | [truncated] | One line saying the capture stopped on a budget, or nil when it did not. |
 

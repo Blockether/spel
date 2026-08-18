@@ -3125,8 +3125,9 @@
 ;; Ref Resolution
 ;; =============================================================================
 
-(defn- ref? [^String s]
-  (boolean (re-matches #"@e[a-z0-9]+" s)))
+(def ^:private ref?
+  "The one snapshot-ref classifier — see `snapshot/ref?`."
+  snapshot/ref?)
 
 (defn- publish-refs!
   "Makes a captured snapshot's refs the current ones.

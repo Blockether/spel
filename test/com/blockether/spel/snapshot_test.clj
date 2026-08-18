@@ -202,27 +202,6 @@
           (expect (zero? (int count-after))))))))
 
 ;; =============================================================================
-;; Integration Tests — capture-full-snapshot
-;; =============================================================================
-
-(defdescribe capture-full-snapshot-test
-  "Integration tests for capture-full-snapshot"
-  (around [f] (core/with-testing-browser (f)))
-
-  (describe "full snapshot on page without iframes"
-
-    (it "returns same structure as capture-snapshot for simple pages"
-
-      (core/with-testing-page [pg] (page/navigate pg "https://example.org")
-        (let [snap (sut/capture-full-snapshot pg)]
-          (expect (map? snap))
-          (expect (contains? snap :tree))
-          (expect (contains? snap :refs))
-          (expect (contains? snap :counter))
-          (expect (string? (:tree snap)))
-          (expect (pos? (count (:refs snap)))))))))
-
-;; =============================================================================
 ;; Integration Tests — deterministic refs (content-hash stability)
 ;; =============================================================================
 
@@ -1524,3 +1503,49 @@
           (expect (nil? (:truncated snap)))
           (expect (nil? (sut/truncation-note (:truncated snap))))
           (expect (str/includes? (:tree snap) "BTN299")))))))
+
+
+;; Regression, user report: `capture-full-snapshot` (and `snapshot -a`) promised
+;; "includes iframes; refs prefixed f1_e1", but capture-snapshot-for-frame was a
+;; stub returning an empty tree, so iframe content was silently dropped and the
+;; page's own snapshot came back unchanged.
+(defdescribe capture-full-snapshot-test
+  "Integration tests for capture-full-snapshot across iframes"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a page with one iframe"
+    (it "includes the iframe's elements under an f1_ ref"
+      (core/with-testing-page [pg]
+        (page/set-content! pg
+          "<h1>Outer</h1><iframe srcdoc='<button>Inner</button>'></iframe>")
+        (let [snap (sut/capture-full-snapshot pg)
+              refs (:refs snap)
+              inner (first (for [[k v] refs
+                                 :when (= "Inner" (:name v))]
+                             k))]
+          (expect (str/includes? (:tree snap) "Outer"))
+          (expect (str/includes? (:tree snap) "Inner"))
+          (expect (some? inner))
+          (expect (str/starts-with? (str inner) "f1_"))
+          ;; The frame's block says whose it is instead of dangling under the
+          ;; page's last node.
+          (expect (str/includes? (:tree snap) "- iframe [f1]"))
+          (expect (pos? (long (:counter snap)))))))
+
+    (it "resolves a prefixed ref back to the element inside the frame"
+      (core/with-testing-page [pg]
+        (page/set-content! pg
+          "<h1>Outer</h1><iframe srcdoc='<button>Inner</button>'></iframe>")
+        (let [snap  (sut/capture-full-snapshot pg)
+              inner (first (for [[k v] (:refs snap)
+                                 :when (= "Inner" (:name v))]
+                             k))]
+          (expect (= "Inner" (.textContent (sut/resolve-ref pg inner))))))))
+
+  (describe "a page without iframes"
+    (it "answers the plain page snapshot"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Only</h1>")
+        (let [snap (sut/capture-full-snapshot pg)]
+          (expect (str/includes? (:tree snap) "Only"))
+          (expect (every? #(not (str/starts-with? % "f")) (keys (:refs snap)))))))))

@@ -99,36 +99,35 @@ Returns:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `:tree` | string | YAML-like a11y tree with `[@eN]` annotations |
-| `:refs` | map | `{"e2yrjz" {:role "heading" :name "Welcome" :tag "h1" :bbox {…}} …}` |
+| `:tree` | string | a11y tree with `[@eN]` annotations, first line `[viewport: W×H]` |
+| `:refs` | map | `{"e2yrjz" {:role "heading" :name "Welcome" :tag "h1" :type nil :bbox {…}} …}` |
 | `:counter` | long | Total refs assigned |
+| `:url` `:title` | string | Page URL and title at capture time |
+| `:viewport` | map | `{:width 1280 :height 720}` |
+| `:device` | string | Emulated device, or `nil` |
+| `:raw-tree` | string | The tree without ref annotations |
+| `:truncated` | map | `nil` normally; `{:reason "time"\|"nodes" :visited N :limit N}` when the walk gave up before the end (the `spel snapshot` CLI adds a `[partial snapshot: …]` line for it) |
 
-Tree example:
+Tree example (measured, `header`/`main`/`footer` page):
 
 ```
-- banner:
-  - heading "Onet" [@e2yrjz] [level=1] [pos:20,10 200×40]
-  - navigation "Main":
-    - link "News" [@e9mter] [pos:50,60 80×20]
-    - link "Sport" [@e6t2x4] [pos:140,60 80×20]
-  - search:
-    - searchbox "Search Onet" [@ea3kf5] [pos:400,15 200×30]
-    - button "Search" [@e1x9hz] [pos:610,15 60×30]
-- main:
-  - heading "Top Stories" [@e3pq7r] [level=2] [pos:20,100 300×35]
-  - article:
-    - link "Breaking: Major Event" [@e5dw2c] [pos:20,150 400×24]
-- contentinfo:
-  - link "Privacy Policy" [@e7vnw3] [pos:20,500 100×18]
+[viewport: 1280x720]
+- body
+  - banner "H" [@e2j5zc] [pos:8,8 1264×18]
+  - main [@e833h0] [pos:8,42 1264×18]
+    - paragraph "x" [@e1tr94] [pos:8,42 1264×18]
+  - contentinfo "F" [@e4bq3f] [pos:8,76 1264×18]
 ```
 
-Structural roles (banner, main, navigation) have no ref. `[level=1]` = ARIA property. `[pos:X,Y W×H]` = screen position + size.
+Every element in the tree carries a ref — landmarks (banner, main, navigation,
+contentinfo) included, so `@ref` works as a scope as well as a click target.
+`[level=1]` = ARIA property. `[pos:X,Y W×H]` = screen position + size.
 
 Ref entry:
 
 ```clojure
-{"e2yrjz" {:role "heading" :name "Onet" :tag "h1"
-           :bbox {:x 20 :y 10 :width 200 :height 40}}}
+{"e2j5zc" {:role "banner" :name "H" :tag "header" :type nil
+           :bbox {:x 8 :y 8 :width 1264 :height 18}}}
 ```
 
 ### Scoped + full
@@ -136,7 +135,7 @@ Ref entry:
 ```clojure
 (spel/capture-snapshot {:scope "#main"})
 (spel/capture-snapshot {:scope "@e3pq7r"})
-(spel/capture-full-snapshot)            ; includes iframes; refs prefixed f1_e1, f2_e3 …
+(spel/capture-full-snapshot)            ; adds each iframe under an `- iframe [f1]` block; its refs are prefixed (@f1_e5l65o)
 ```
 
 ### Resolve / clear

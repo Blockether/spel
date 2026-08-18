@@ -231,10 +231,9 @@
 ;; Helpers
 ;; =============================================================================
 
-(defn- ref?
-  "Returns true if the string is a snapshot ref (must start with @, e.g. @e04a3f)."
-  [^String s]
-  (boolean (re-matches #"@e[a-z0-9]+" s)))
+(def ^:private ref?
+  "The one snapshot-ref classifier — see `snapshot/ref?`."
+  snapshot/ref?)
 
 (defn- ->locator-assertions
   "Coerces input to LocatorAssertions. Accepts:
