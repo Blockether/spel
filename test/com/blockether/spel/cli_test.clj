@@ -3217,3 +3217,25 @@
       (expect (= "(+ 1 2)" (#'com.blockether.spel.native/eval-sci-code "(+ 1 2)")))
       (expect (= "no-such-script.clj"
                 (#'com.blockether.spel.native/eval-sci-code "no-such-script.clj"))))))
+
+;; Regression, user report: `spel action-log` printed only the entry count
+;; ("2") although its own --help promises "Show action log as JSON" and calls
+;; JSON the default; the generic :count branch of print-result claimed the
+;; payload first, so the SRT/video workflow lost every entry unless --json was
+;; passed explicitly.
+(defdescribe action-log-render-test
+  "Text rendering of the daemon's action_log payload."
+
+  (describe "spel action-log without --json"
+    (it "prints the entries as JSON, not the bare count"
+      (let [out (render-result {:success true
+                                :data    {:entries [{:idx 1 :action "navigate" :target nil}
+                                                    {:idx 2 :action "click" :target "a"}]
+                                          :count   2
+                                          :start   1000}})]
+        (expect (str/includes? out "\"action\":\"navigate\""))
+        (expect (str/includes? out "\"action\":\"click\""))
+        (expect (not= "2\n" out))))
+
+    (it "still prints a plain count result as a bare number"
+      (expect (= "3\n" (render-result {:success true :data {:count 3}}))))))

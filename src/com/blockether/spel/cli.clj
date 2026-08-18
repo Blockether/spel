@@ -4205,6 +4205,12 @@
           (contains? data :checked)
           (println (:checked data))
 
+          ;; Action log — the whole payload as JSON, which is what
+          ;; `spel action-log --help` promises and what -o writes. Must precede
+          ;; the generic :count branch, which would otherwise print only the size.
+          (and (contains? data :entries) (contains? data :start))
+          (println (json/write-json-str data :escape-slash false))
+
           ;; Count
           (:count data)
           (println (:count data))
