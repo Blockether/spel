@@ -240,10 +240,12 @@ spel eval "JSON.stringify([...document.querySelectorAll('a')].map(a => ({text:a.
 
 ### Console / errors
 
-Auto-captured from the moment the page opens; no `start` needed.
+Auto-captured from the moment the page opens; no `start` needed. Capture is **per tab**:
+`spel console` answers with the tab this session is on, `--all` with every tab it has opened.
 
 ```bash
-spel console           spel console clear
+spel console           spel console clear     # this tab
+spel console --all     spel errors --all      # every tab of the session
 spel errors            spel errors  clear
 ```
 

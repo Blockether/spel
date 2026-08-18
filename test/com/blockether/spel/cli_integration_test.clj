@@ -24,7 +24,7 @@
     :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
   (:import
-   [com.microsoft.playwright BrowserContext ConsoleMessage]
+   [com.microsoft.playwright BrowserContext]
    [java.nio.file Files Path]))
 
 ;; =============================================================================
@@ -77,6 +77,7 @@
       (reset! (deref #'daemon/!console-counter) 0)
       (reset! (deref #'daemon/!console-full) {})
       (reset! (deref #'daemon/!session-entry-count) 0)
+      (reset! (deref #'daemon/!tabs) {:next 1 :pages {}})
       ;; Reset page tracking atoms
       (reset! (deref #'daemon/!pages) [])
       (reset! (deref #'daemon/!page-counter) 0)
@@ -84,18 +85,13 @@
       (reset! (deref #'com.blockether.spel.sci-env/!action-log) [])
       (reset! (deref #'com.blockether.spel.sci-env/!action-counter) 0)
       (reset! (deref #'com.blockether.spel.sci-env/!action-log-start) 0)
-      (page/on-console pg (fn [msg]
-                            (swap! console-a conj
-                              {:type (.type ^ConsoleMessage msg)
-                               :text (.text ^ConsoleMessage msg)})
-                            (#'daemon/track-console-entry! msg)))
-      (page/on-page-error pg (fn [error]
-                               (swap! errors-a conj
-                                 {:message (str error)})))
-      (page/on-response pg #'daemon/track-response!)
       (reset! state-a {:pw core/*testing-pw* :browser core/*testing-browser* :context ctx :page pg
                        :refs {} :counter 0 :headless true :session "integ-test"
                        :launch-flags {}})
+      ;; The production listeners on the production path: they tag every entry
+      ;; with the tab it came from, which is what scopes console, errors and
+      ;; network to the tab a command acts on.
+      (#'daemon/instrument-page! pg)
       (try
         (f)
         (finally
@@ -987,6 +983,51 @@
       (let [r (cmd "console_get" {})]
         (expect (empty? (:messages r)))))
 
+    ;; Regression, user report: console capture was installed per PAGE, but `tab
+    ;; new` and `tab <n>` moved the current page without installing it — a session
+    ;; that switched tabs captured nothing at all from the tab it was driving and
+    ;; kept answering with the console of the tab it had left.
+    (it "captures the console of the tab the session switched to"
+      (nav! "/test-page")
+      (cmd "tab_new" {})
+      (cmd "evaluate" {"script" "console.log('logged-in-the-new-tab')"})
+      (Thread/sleep 300)
+      (let [entries (:entries (cmd "console_list" {}))]
+        (expect (some #(= "logged-in-the-new-tab" (:text %)) entries))))
+
+    (it "answers with this tab's console, not the one it left"
+      (nav! "/test-page")
+      (cmd "evaluate" {"script" "console.log('logged-in-the-first-tab')"})
+      (Thread/sleep 300)
+      (cmd "tab_new" {})
+      (cmd "evaluate" {"script" "console.log('logged-in-the-new-tab')"})
+      (Thread/sleep 300)
+      (let [here (:entries (cmd "console_list" {}))
+            every-tab (:entries (cmd "console_list" {"all" true}))]
+        (expect (some #(= "logged-in-the-new-tab" (:text %)) here))
+        (expect (not-any? #(= "logged-in-the-first-tab" (:text %)) here))
+        (expect (some #(= "logged-in-the-first-tab" (:text %)) every-tab))
+        (expect (some #(= "logged-in-the-new-tab" (:text %)) every-tab))))
+
+    (it "clears this tab's console and leaves the other tab's alone"
+      (nav! "/test-page")
+      (cmd "evaluate" {"script" "console.log('logged-in-the-first-tab')"})
+      (Thread/sleep 300)
+      (cmd "tab_new" {})
+      (cmd "evaluate" {"script" "console.log('logged-in-the-new-tab')"})
+      (Thread/sleep 300)
+      (cmd "console_clear" {})
+      (expect (empty? (:entries (cmd "console_list" {}))))
+      (expect (some #(= "logged-in-the-first-tab" (:text %))
+                (:entries (cmd "console_list" {"all" true})))))
+
+    (it "tracks the requests of the tab the session switched to"
+      (nav! "/test-page")
+      (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+      (Thread/sleep 300)
+      (let [urls (mapv :url (:requests (cmd "network_requests" {})))]
+        (expect (some #(str/includes? % "/second-page") urls))
+        (expect (not-any? #(str/includes? % "/test-page") urls))))
     (it "errors_get returns errors list"
       (nav! "/test-page")
       (let [r (cmd "errors_get" {})]

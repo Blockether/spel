@@ -366,6 +366,20 @@ command that finds that daemon gone deletes the lock and proceeds.
 `SPEL_CDP_LOCK_WAIT=0` fails immediately instead of queuing. The wait never exceeds the command
 budget: the answer always names the owner instead of expiring as a generic `command_timeout`.
 
+## 14. Console, errors and requests are per TAB
+
+Capture follows the tab, not the session: `spel console`, `spel errors` and `spel network
+requests` answer with the tab this session is on right now. After `spel tab new` or `spel tab
+<n>` the listing starts from that tab — nothing was lost, it belongs to the tab you left.
+
+```bash
+spel console          # this tab
+spel console --all    # every tab this session opened, each entry tagged with its tab
+spel console clear    # clears this tab only (--all clears every tab)
+```
+
+`errors`, `network requests` and `network clear` take `--all` the same way. Each tab also keeps
+its own slice of the capture window, so a chatty tab can no longer evict the one under test.
 ## 18. `ClassCastException` in `with-retry`
 
 `with-retry` crashed with `ClassCastException: Keyword cannot be cast to Number` when the retried fn returned a map with non-numeric `:status` (e.g. `{:status :created}`).

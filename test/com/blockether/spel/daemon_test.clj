@@ -1472,7 +1472,7 @@
               before       (count @network-full)
               n            400
               {:keys [max-nesting handled]}
-              (burst-handler-nesting pg (var-get #'sut/track-response!) n)]
+               (burst-handler-nesting pg (fn [resp] ((var-get #'sut/track-response!) resp "t1")) n)]
           (expect (= n handled))
           ;; Pre-fix this reached the burst size itself — one nested frame per
           ;; in-flight response — and every handler died with StackOverflowError.
@@ -1752,7 +1752,9 @@
               window       (long (var-get #'sut/max-window-per-page))
               n            (+ window 200)
               _            (reset! network-full {})
-              {:keys [handled]} (burst-handler-nesting pg (var-get #'sut/track-response!) n)]
+               {:keys [handled]} (burst-handler-nesting pg
+                                   (fn [resp] ((var-get #'sut/track-response!) resp "t1"))
+                                   n)]
           (expect (= n handled))
           (expect (<= (count @network-full) window))))))
 
@@ -1766,7 +1768,7 @@
               n               (+ window 200)
               before          (long @console-counter)]
           (reset! console-full {})
-          (page/on-console pg (var-get #'sut/track-console-entry!))
+          (page/on-console pg (fn [msg] ((var-get #'sut/track-console-entry!) msg "t1")))
           (page/evaluate pg
             (str "(()=>{for(let i=0;i<" n ";i++){console.log('spel-retention',i);}return 'logged';})()"))
           (let [deadline (+ (System/currentTimeMillis) 60000)]
@@ -1785,6 +1787,21 @@
         (dotimes [i (+ window 200)]
           (track (str "http://example.test/" i) 200 (str "page " i)))
         (expect (<= (count @pages) window))))))
+
+;; Regression, user report: the capture windows were ONE budget for the whole
+;; session, so a page logging in a tab the session had already left evicted the
+;; console of the tab it was actually driving.
+(defdescribe tab-scoped-window-test
+  "Every tab keeps its own slice of a capture window."
+
+  (describe "one tab floods the window"
+    (it "keeps the entries of the tab under test"
+      (let [conj-tab (var-get #'sut/conj-tab-window)
+            window   (reduce (fn [w i] (conj-tab w {:tab "t2" :text (str "noise " i)} 3))
+                       [{:tab "t1" :text "the entry under test"}]
+                       (range 20))]
+        (expect (some #(= "the entry under test" (:text %)) window))
+        (expect (= 3 (count (filterv #(= "t2" (:tab %)) window))))))))
 ;; Regression, issue #125: every command that touched the page registered ANOTHER
 ;; console, page-error and response listener on it. `console_start` twice left two
 ;; live console listeners, and a long-lived session accumulated one more copy of

@@ -1529,12 +1529,13 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `network route <url>` | Intercept requests |
 | `network route <url> --abort` | Block requests |
 | `network unroute [url]` | Remove routes |
-| `network requests [flags]` | View requests |
+| `network requests [flags]` | View this tab's requests |
 | `--filter <regex>` | Filter by URL regex |
 | `--type <type>` | Filter by type (document, script, fetch, ...) |
 | `--method <method>` | Filter by method (GET, POST, ...) |
 | `--status <prefix>` | Filter by status (2, 30, 404, ...) |
-| `network clear` | Clear tracked requests |
+| `--all` | Every tab of this session, not just the current one |
+| `network clear` | Clear this tab's tracked requests (`--all` for every tab) |
 
 ### Tabs & Windows
 
@@ -1565,8 +1566,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `cdp disconnect\|reconnect` | Temporarily detach/reattach CDP |
 | `find-free-port` | Print an available local TCP port |
 | `trace start / trace stop` | Record trace |
-| `console / console clear` | View/clear console (auto-captured) |
-| `errors / errors clear` | View/clear errors (auto-captured) |
+| `console / console clear` | View/clear this tab's console (auto-captured; `--all` for every tab) |
+| `errors / errors clear` | View/clear this tab's errors (auto-captured; `--all` for every tab) |
 | `highlight <sel>` | Highlight element |
 | `inspector [url]` | Launch Playwright Inspector (headed browser) |
 | `show-trace [trace]` | Open Playwright Trace Viewer |

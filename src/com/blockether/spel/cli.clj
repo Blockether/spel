@@ -943,7 +943,7 @@
       ""
       "Subcommands:"
       "  get <@ref>            Get full network entry by ref (e.g. @n1)"
-      "  requests [flags]      View tracked requests (auto-tracked, last 500)"
+       "  requests [flags]      View this tab's tracked requests (auto-tracked, last 500)"
       "  route <url> [flags]   Intercept requests matching URL pattern"
       "  unroute <url>|all     Remove route for URL pattern (`all` removes every route)"
       "  clear                 Clear tracked requests"
@@ -952,7 +952,8 @@
       "  --filter REGEX    Filter by URL regex"
       "  --type TYPE       Filter by resource type (fetch, document, script, image, etc.)"
       "  --method METHOD   Filter by HTTP method (GET, POST, etc.)"
-      "  --status PREFIX   Filter by status prefix (2 = 2xx, 404 = exact)"
+       "  --status PREFIX   Filter by status prefix (2 = 2xx, 404 = exact)"
+       "  --all             Every tab this session captured, not just the current one"
       ""
       "Route flags:"
       "  --abort           Block matching requests"
@@ -1026,37 +1027,44 @@
    (str/join \newline
      ["console - View captured console messages"
       ""
-      "Console messages are automatically captured from the moment a page opens."
+       "Console messages are automatically captured from the moment a page opens,"
+       "and belong to the tab that logged them: `spel console` answers for the tab"
+       "this session is on. `--all` shows every tab the session captured."
       ""
       "Usage:"
-      "  spel console                    List recent console entries"
+       "  spel console                    List this tab's recent console entries"
+       "  spel console --all              List every tab this session captured"
       "  spel console get @c1            Get full details for a console ref"
       "  spel console [subcommand]"
       ""
       "Subcommands:"
       "  get <@ref>    Get console entry by ref (e.g. @c1)"
-      "  clear         Clear captured messages"
+       "  clear         Clear this tab's captured messages (--all: every tab)"
       ""
       "Examples:"
       "  spel console"
-      "  spel console get @c1"
+       "  spel console --all"
+       "  spel console get @c1"
       "  spel console clear"])
 
    "errors"
    (str/join \newline
      ["errors - View captured page errors"
       ""
-      "Page errors are automatically captured from the moment a page opens."
+       "Page errors are automatically captured from the moment a page opens, and"
+       "belong to the tab that threw them: `spel errors` answers for the tab this"
+       "session is on. `--all` shows every tab the session captured."
       ""
       "Usage:"
       "  spel errors [subcommand]"
       ""
       "Subcommands:"
-      "  (none)    View all captured page errors"
-      "  clear     Clear captured errors"
+       "  (none)    View this tab's captured page errors (--all: every tab)"
+       "  clear     Clear this tab's captured errors (--all: every tab)"
       ""
       "Examples:"
-      "  spel errors"
+       "  spel errors"
+       "  spel errors --all"
       "  spel errors clear"])
 
    "pages"
@@ -2871,12 +2879,14 @@
                                               flag-val  (fn [flag]
                                                           (let [i (long (.indexOf ^java.util.List args-v flag))]
                                                             (when (>= i 0) (nth args-v (inc i) nil))))]
-                                          (cond-> {:action "network_requests"}
+                                           (cond-> {:action "network_requests"}
+                                             (some #{"--all" "-a"} args-v) (assoc :all true)
                                             (flag-val "--filter") (assoc :filter (flag-val "--filter"))
                                             (flag-val "--type")   (assoc :type   (flag-val "--type"))
                                             (flag-val "--method") (assoc :method (flag-val "--method"))
                                             (flag-val "--status") (assoc :status (flag-val "--status"))))
-                             "clear"    {:action "network_clear"}
+                             "clear"    (cond-> {:action "network_clear"}
+                                          (some #{"--all" "-a"} cmd-args) (assoc :all true))
                              ;; `network har start [path]` / `network har stop`.
                              ;; Uses context recreation to apply recordHar at
                              ;; context-create time (Playwright constraint).
@@ -2921,21 +2931,27 @@
                                     :path (resolve-path (second cmd-args))}
                            {:error (str "Unknown trace command: " sub)}))
 
-            "console"  (let [sub (first cmd-args)
-                             arg (second cmd-args)]
+            "console"  (let [args-set (set cmd-args)
+                             all?     (or (args-set "--all") (args-set "-a"))
+                             rest-args (remove #{"--all" "-a"} cmd-args)
+                             sub      (first rest-args)
+                             arg      (second rest-args)]
                          (cond
                            ;; spel console get @c1
                            (= sub "get")
                            {:action "console_get_ref" :ref arg}
 
-                           ;; spel console (no args) → list recent entries
+                           ;; spel console (no args) → the tab this session is on
                            (nil? sub)
-                           {:action "console_list"}
+                           (cond-> {:action "console_list"}
+                             all? (assoc :all true))
 
                            :else
                            (case sub
-                             ("clear" "--clear") {:action "console_clear"}
-                             {:action "console_get"})))
+                             ("clear" "--clear") (cond-> {:action "console_clear"}
+                                                   all? (assoc :all true))
+                             (cond-> {:action "console_get"}
+                               all? (assoc :all true)))))
 
           ;; Action Log
             "action-log" (let [args-set  (set cmd-args)
@@ -2958,10 +2974,14 @@
                              (cond-> {:action "action_log"}
                                out-path (assoc :_output_file (resolve-path out-path)))))
 
-            "errors"   (case (first cmd-args)
-                         "clear" {:action "errors_clear"}
-                         "--clear" {:action "errors_get" :clear true}
-                         {:action "errors_get"})
+            "errors"   (let [args-set (set cmd-args)
+                             all?     (or (args-set "--all") (args-set "-a"))
+                             sub      (first (remove #{"--all" "-a"} cmd-args))]
+                         (cond-> (case sub
+                                   "clear"   {:action "errors_clear"}
+                                   "--clear" {:action "errors_get" :clear true}
+                                   {:action "errors_get"})
+                           all? (assoc :all true)))
 
           ;; Pages
             "pages"    (let [sub (first cmd-args)

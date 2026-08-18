@@ -793,6 +793,22 @@ assert_jq "errors --clear → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" eval-sci '(spel/evaluate "console.log(\"spel-console-test-42\")") nil' 2>&1)
 assert_contains "eval-sci console → message text" "$OUT" "[console.log] spel-console-test-42"
 
+# Console capture follows the TAB, not the session: a message logged in a new tab is
+# listed there, and the tab it left shows up only under --all.
+"$SPEL" --json eval-js "console.log('spel-tab-a-log')" >/dev/null 2>&1
+"$SPEL" --json tab new >/dev/null 2>&1
+"$SPEL" --json eval-js "console.log('spel-tab-b-log')" >/dev/null 2>&1
+sleep 1
+
+OUT=$("$SPEL" --json console 2>&1)
+assert_contains "console → this tab's message" "$OUT" "spel-tab-b-log"
+assert_jq "console → not the tab it left" "$OUT" 'tostring | test("spel-tab-a-log") | not'
+
+OUT=$("$SPEL" --json console --all 2>&1)
+assert_contains "console --all → every tab of the session" "$OUT" "spel-tab-a-log"
+
+"$SPEL" --json tab close >/dev/null 2>&1
+
 # =============================================================================
 # STATE MANAGEMENT (9)
 # =============================================================================

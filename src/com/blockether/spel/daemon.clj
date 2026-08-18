@@ -1789,6 +1789,9 @@
 ;; =============================================================================
 
 (def ^:private max-window-per-page 1000)
+;; Session-wide ceiling: each tab keeps `max-window-per-page` entries of its
+;; own, so what bounds a many-tab session is this, not the tab count.
+(def ^:private max-window-total 5000)
 (def ^:private max-session-total 1000000)
 
 (defonce ^:private !network-window (atom []))
@@ -1818,6 +1821,36 @@
         n       (long (count updated))]
     (if (> n limit)
       (into [] (subvec updated (- n limit)))
+      updated)))
+
+(defn- conj-tab-window
+  "Appends `entry` to a sliding window that gives every TAB its own `limit`.
+
+   One budget for the whole session let the tab a session had already left push
+   out the entries of the tab it was actually driving: a page logging in a
+   background tab evicted the console of the page under test. Eviction is per
+   `:tab`; only the window as a whole carries a session-wide ceiling.
+
+   Params:
+   `w` - window vector.
+   `entry` - entry map, carrying the `:tab` it was captured from.
+   `limit` - entries kept per tab.
+
+   Returns:
+   The updated window vector."
+  [w entry ^long limit]
+  (let [updated (conj w entry)
+        tab     (:tab entry)
+        kept    (long (count (filterv #(= tab (:tab %)) updated)))
+        updated (if (> kept limit)
+                  (let [drop-at (long (first (keep-indexed (fn [i e] (when (= tab (:tab e)) i))
+                                               updated)))]
+                    (into [] (concat (subvec updated 0 drop-at)
+                               (subvec updated (inc drop-at)))))
+                  updated)
+        n       (long (count updated))]
+    (if (> n (long max-window-total))
+      (into [] (subvec updated (- n (long max-window-total))))
       updated)))
 
 (defn- retain-window
@@ -1953,7 +1986,7 @@
    response is lost to a StackOverflowError. The Response is parked in
    `!network-responses` so `network get @nN` can read the full headers and body
    later, from the command thread where blocking is safe."
-  [^Response resp]
+  [^Response resp tab]
   (when (< (long @!session-entry-count) (long max-session-total))
     (let [^Request req (.request resp)
           entry-no (long (swap! !network-counter inc))
@@ -1966,6 +1999,7 @@
           req-body-preview (safe-parse-json-body post-data 500)
           duration 0
           entry {:ref (str "@" ref-id)
+                 :tab tab
                  :method (.method req)
                  :url (.url req)
                  :resource_type resource-type
@@ -1979,6 +2013,7 @@
                            :response {:headers (truncate-keys resp-headers 5)
                                       :body    nil}}}
           full-entry {:ref (str "@" ref-id)
+                      :tab tab
                       :method (.method req)
                       :url (.url req)
                       :resource_type resource-type
@@ -2000,7 +2035,7 @@
             (if (> (count m) (long max-window-per-page))
               (dissoc m (first (keys m)))
               m))))
-      (swap! !network-window conj-window entry max-window-per-page)
+      (swap! !network-window conj-tab-window entry max-window-per-page)
       (swap! !session-entry-count inc))))
 
 (defn- materialize-network-entry!
@@ -2036,8 +2071,8 @@
       entry)))
 
 (defn- track-console-entry!
-  "Tracks a console message into the sliding window."
-  [^ConsoleMessage msg]
+  "Tracks a console message into the sliding window of the tab it came from."
+  [^ConsoleMessage msg tab]
   (when (< (long @!session-entry-count) (long max-session-total))
     (let [entry-no (long (swap! !console-counter inc))
           ref-id (str "c" entry-no)
@@ -2048,6 +2083,7 @@
                        (when (and loc (not (.isEmpty loc))) loc))
                      (catch Exception _ nil))
           entry {:ref (str "@" ref-id)
+                 :tab tab
                  :type (.type msg)
                  :text (.text msg)
                  :timestamp (System/currentTimeMillis)
@@ -2055,26 +2091,28 @@
                  :page_ref (current-page-ref page-url)}
           entry (if location (assoc entry :stack location) entry)]
       (swap! !console-full retain-window "c" entry-no entry max-window-per-page)
-      (swap! !console-window conj-window entry max-window-per-page)
+      (swap! !console-window conj-tab-window entry max-window-per-page)
       (swap! !session-entry-count inc))))
 
 (defn- track-response!
   "Appends a response summary to the tracked-requests ring buffer, capped at
    `max-tracked-requests` most-recent entries. Also feeds the TASK-013 sliding window."
-  [^Response resp]
+  [^Response resp tab]
   (let [^Request req (.request resp)
         entry {:url    (.url req)
                :method (.method req)
                :status (.status resp)
-               :resource-type (.resourceType req)}]
-    (swap! !tracked-requests conj-window entry max-tracked-requests)
+               :resource-type (.resourceType req)
+               :tab tab}]
+    (swap! !tracked-requests conj-tab-window entry max-tracked-requests)
     ;; TASK-013: also track into enriched sliding window
-    (track-network-entry! resp)))
+    (track-network-entry! resp tab)))
 
-;; Pages that already carry spel's listeners. Playwright keeps every listener
-;; until you remove it and spel removes none, so this set is the only thing
+;; Tabs this session has driven: Page -> the tab key ("t1", "t2", ...) every
+;; entry captured from it is tagged with. Playwright keeps every listener until
+;; you remove it and spel removes none, so this map is also the only thing
 ;; standing between one page and two copies of the same handler.
-(defonce ^:private !instrumented-pages (atom #{}))
+(defonce ^:private !tabs (atom {:next 1 :pages {}}))
 
 (defn- page-live?
   "True when `pg` is still open. A closed page can never fire another event, so
@@ -2088,9 +2126,34 @@
   [pg]
   (try (not (.isClosed ^Page pg)) (catch Throwable _ false)))
 
+(defn- tab-key!
+  "Returns `[tab-key instrumented-before?]` for `pg`, assigning this session's
+   stable id for that tab the first time the page is seen.
+
+   Every console, page-error and network entry is tagged with this key, which is
+   what scopes `spel console`, `spel errors` and `spel network requests` to the
+   tab the session is driving. Tabs closed since the last call are forgotten on
+   the way through, so a long session does not remember dead pages.
+
+   Params:
+   `pg` - Page instance.
+
+   Returns:
+   `[String Boolean]`."
+  [pg]
+  (let [[before after] (swap-vals! !tabs
+                         (fn [{:keys [next pages]}]
+                           (let [live (into {} (filter (fn [[p _]] (or (= p pg) (page-live? p)))) pages)]
+                             (if (contains? live pg)
+                               {:next next :pages live}
+                               {:next  (inc (long next))
+                                :pages (assoc live pg (str "t" next))}))))]
+    [(get-in after [:pages pg]) (contains? (:pages before) pg)]))
+
 (defn- instrument-page!
   "Registers spel's console, page-error and response listeners on `pg` — exactly
-   once per page, however often it is called.
+   once per page, however often it is called — and tags everything they capture
+   with that page's tab key.
 
    Nine command paths used to re-register the whole set on the page they were
    about to use, and Playwright never removes a listener you do not remove
@@ -2108,17 +2171,16 @@
    `pg`."
   [pg]
   (when pg
-    (let [[seen _] (swap-vals! !instrumented-pages
-                     (fn [pages] (conj (into #{} (filter page-live?) pages) pg)))]
-      (when-not (contains? seen pg)
+    (let [[tab seen?] (tab-key! pg)]
+      (when-not seen?
         (page/on-console pg (fn [^ConsoleMessage msg]
-                              (swap! !console-messages conj-window
-                                {:type (.type msg) :text (.text msg)}
+                              (swap! !console-messages conj-tab-window
+                                {:type (.type msg) :text (.text msg) :tab tab}
                                 max-window-per-page)
-                              (track-console-entry! msg)))
+                              (track-console-entry! msg tab)))
         (page/on-page-error pg (fn [error]
-                                 (swap! !page-errors conj-window
-                                   {:message (str error)}
+                                 (swap! !page-errors conj-tab-window
+                                   {:message (str error) :tab tab}
                                    max-window-per-page)))
         ;; The crash listener only RECORDS the death: it runs on whichever
         ;; thread is pumping the Playwright pipe — often the very command parked
@@ -2126,10 +2188,50 @@
         ;; interrupt whatever that thread happens to be doing. The command
         ;; watchdog reads the record and interrupts its own worker.
         (page/on-crash pg (fn [_] (note-page-crash! pg)))
-        (page/on-response pg track-response!))))
+        (page/on-response pg (fn [^Response resp] (track-response! resp tab))))))
   pg)
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
+
+(defn- current-tab
+  "Returns the tab key of the page this session drives, or nil before one is
+   instrumented."
+  []
+  (get-in @!tabs [:pages (pg)]))
+
+(defn- tab-entries
+  "Returns the captured entries of the tab this session is on — or every tab's
+   when `all?`.
+
+   Console messages, page errors and responses belong to the page that produced
+   them, so the default answer is the tab the next command will act on; `--all`
+   is how a session sees what a tab it left recorded."
+  [entries all?]
+  (if all?
+    (vec entries)
+    (let [tab (current-tab)]
+      (filterv #(= tab (:tab %)) entries))))
+
+(defn- without-tab-entries
+  "Drops the current tab's entries from `entries`, or all of them when `all?`."
+  [entries all?]
+  (if all?
+    []
+    (let [tab (current-tab)]
+      (filterv #(not= tab (:tab %)) entries))))
+
+(defn- focus-page!
+  "Makes `p` the tab this session drives — instrumented BEFORE it becomes the
+   current page.
+
+   Playwright binds console, page-error and response events to ONE page. `tab
+   new` and `tab <n>` used to move `:page` without installing them, so every
+   command after a tab switch drove a tab nothing was listening to while `spel
+   console` kept answering with the tab the session had left."
+  [p]
+  (instrument-page! p)
+  (swap! !state assoc :page p)
+  p)
 
 (defn- str->aria-role
   "Converts a lowercase role string to AriaRole enum.
@@ -2338,7 +2440,10 @@
   []
   ;; Reconcile with reality first: a browser killed outside the daemon leaves
   ;; handles that fail every command until they are dropped.
-  (ensure-live-browser!)
+  ;; A tab reopened by that reconcile is brand new: instrument it before the
+  ;; command runs, or the session drives a page nothing is listening to.
+  (when (= :page-reopened (ensure-live-browser!))
+    (instrument-page! (:page @!state)))
   (when-not (:browser @!state)
     (let [flags       (get @!state :launch-flags {})
           ;; --profile can be either a filesystem path (existing behavior) or
@@ -3132,8 +3237,8 @@
           (page-description)          (assoc :description (page-description))
           no-network?                 (dissoc :network)
           no-console?                 (dissoc :console)
-          (not no-network?)           (assoc :network @!network-window)
-          (not no-console?)           (assoc :console @!console-window))))))
+          (not no-network?)           (assoc :network (tab-entries @!network-window false))
+          (not no-console?)           (assoc :console (tab-entries @!console-window false)))))))
 
 (defn- new-tab-modifier
   "Returns the keyboard modifier that opens a link in a new tab on the current
@@ -3426,17 +3531,17 @@
   (ensure-page-loaded!)
   (let [page-diag    (helpers/debug! (pg))
         ;; Enrich with daemon-tracked console messages
-        console-msgs @!console-messages
+        console-msgs (tab-entries @!console-messages false)
         console-errs (filterv #(#{"error" "warning"} (:type %)) console-msgs)
         ;; Enrich with tracked page errors
-        page-errs    @!page-errors
+        page-errs    (tab-entries @!page-errors false)
         ;; Enrich with failed network requests (4xx/5xx)
-        net-reqs     @!tracked-requests
+        net-reqs     (tab-entries @!tracked-requests false)
         failed-net   (filterv #(>= (long (:status %)) 400) net-reqs)
         ;; Optionally clear after read
         _            (when (get params "clear")
-                       (reset! !console-messages [])
-                       (reset! !page-errors []))]
+                       (swap! !console-messages without-tab-entries false)
+                       (swap! !page-errors without-tab-entries false))]
     (merge page-diag
       {:console_errors  console-errs
        :page_errors     page-errs
@@ -3547,7 +3652,9 @@
 
 (defmethod handle-cmd "tab_new" [_ params]
   (let [new-pg (new-spel-page! (ctx))]
-    (swap! !state assoc :page new-pg)
+    ;; Instrument before the first navigation, or nobody is listening when the
+    ;; new tab logs while it loads.
+    (focus-page! new-pg)
     (when-let [url (get params "url")]
       (page/navigate new-pg url))
     {:tab "new" :url (page/url new-pg)}))
@@ -3563,7 +3670,7 @@
 (defmethod handle-cmd "tab_switch" [_ {:strs [index]}]
   (let [pages (core/context-pages (ctx))
         pg-inst (nth pages (int index))]
-    (swap! !state assoc :page pg-inst)
+    (focus-page! pg-inst)
     {:tab index :url (page/url pg-inst)}))
 
 (defmethod handle-cmd "tab_close" [_ _]
@@ -3582,6 +3689,7 @@
                          (last remaining))]
       ;; Keep every live session usable. Closing its final tab must not leave a
       ;; closed page handle or stale snapshot refs for the next command.
+      (instrument-page! active)
       (swap! !state assoc :page active :refs {} :counter 0)
       {:closed true
        :remaining (if replacement? 1 (count remaining))
@@ -3779,8 +3887,7 @@
   (let [new-pg (check-anomaly!
                  (new-spel-page! (:context @!state))
                  "Failed to create new window/page")
-        _      (swap! !state assoc :page new-pg)
-        _      (instrument-page! new-pg)]
+        _      (focus-page! new-pg)]
     {:window "new" :url (try (page/url new-pg) (catch Exception _ "about:blank"))}))
 
 (defmethod handle-cmd "keydown" [_ {:strs [key]}]
@@ -4140,11 +4247,11 @@
       entry
       {:error (str "Page ref @" ref-id " not found")})))
 
-(defmethod handle-cmd "network_list" [_ _]
-  {:entries @!network-window})
+(defmethod handle-cmd "network_list" [_ {:strs [all]}]
+  {:entries (tab-entries @!network-window all) :tab (current-tab)})
 
-(defmethod handle-cmd "console_list" [_ _]
-  {:entries @!console-window})
+(defmethod handle-cmd "console_list" [_ {:strs [all]}]
+  {:entries (tab-entries @!console-window all) :tab (current-tab)})
 
 (defmethod handle-cmd "network_route" [_ {:strs [url action_type body status content_type]}]
   (let [handler (fn [route]
@@ -4257,8 +4364,8 @@
           (release-cdp-route-lock-if-owned!)
           {:all_routes_removed true}))))
 
-(defmethod handle-cmd "network_requests" [_ {:strs [filter type method status]}]
-  (let [reqs     @!tracked-requests
+(defmethod handle-cmd "network_requests" [_ {:strs [filter type method status all]}]
+  (let [reqs     (tab-entries @!tracked-requests all)
         filtered (cond->> reqs
                    filter (filterv #(re-find (re-pattern filter) (str (:url %))))
                    type   (filterv #(= (:resource-type %) type))
@@ -4266,8 +4373,9 @@
                    status (filterv #(str/starts-with? (str (:status %)) status)))]
     {:requests filtered}))
 
-(defmethod handle-cmd "network_clear" [_ _]
-  (reset! !tracked-requests [])
+(defmethod handle-cmd "network_clear" [_ {:strs [all]}]
+  (swap! !tracked-requests without-tab-entries all)
+  (swap! !network-window without-tab-entries all)
   {:network "cleared"})
 
 ;; --- Phase 4: Frames ---
@@ -4350,22 +4458,23 @@
     (swap! !state assoc :tracing? false)
     {:trace "stopped" :path out-path}))
 
-(defmethod handle-cmd "console_get" [_ {:strs [clear]}]
-  (let [msgs @!console-messages]
-    (when clear (reset! !console-messages []))
+(defmethod handle-cmd "console_get" [_ {:strs [clear all]}]
+  (let [msgs (tab-entries @!console-messages all)]
+    (when clear (swap! !console-messages without-tab-entries all))
     {:messages msgs}))
 
-(defmethod handle-cmd "console_clear" [_ _]
-  (reset! !console-messages [])
+(defmethod handle-cmd "console_clear" [_ {:strs [all]}]
+  (swap! !console-messages without-tab-entries all)
+  (swap! !console-window without-tab-entries all)
   {:console "cleared"})
 
-(defmethod handle-cmd "errors_get" [_ {:strs [clear]}]
-  (let [errs @!page-errors]
-    (when clear (reset! !page-errors []))
+(defmethod handle-cmd "errors_get" [_ {:strs [clear all]}]
+  (let [errs (tab-entries @!page-errors all)]
+    (when clear (swap! !page-errors without-tab-entries all))
     {:errors errs}))
 
-(defmethod handle-cmd "errors_clear" [_ _]
-  (reset! !page-errors [])
+(defmethod handle-cmd "errors_clear" [_ {:strs [all]}]
+  (swap! !page-errors without-tab-entries all)
   {:errors "cleared"})
 
 (defmethod handle-cmd "console_start" [_ _]
