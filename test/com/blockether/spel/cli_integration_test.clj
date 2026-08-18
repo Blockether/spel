@@ -1023,6 +1023,85 @@
               (expect (= last-id (:tab r)))
               (expect (identical? keeper (:page @state-a))))))))
 
+    ;; Regression, user report: "what if I kill the tab and then want to drive that
+    ;; session — do I get an error and a new tab?". Killing the tab spel was driving
+    ;; opened a BLANK tab even when the session still drove others — `spel tab close`
+    ;; falls back to a live tab, the same tab closed with the mouse did not — and the
+    ;; command that met the death was answered from that blank page instead of saying
+    ;; the tab it was sent to is gone.
+    (it "falls back to a tab the session still drives, and says so once"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            keep-id (:tab (cmd "console_list" {}))
+            before  (count (:tabs (cmd "tab_list" {})))]
+        (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+        (let [victim  (:page @state-a)
+              dead-id (:tab (cmd "console_list" {}))]
+          (expect (not= keep-id dead-id))
+          (core/close-page! victim)
+          (let [e (try (cmd "url" {}) nil (catch clojure.lang.ExceptionInfo ex ex))]
+            (expect (some? e))
+            (expect (= :tab_closed (:error_code (ex-data e))))
+            ;; It names the tab that died and the tab the session is on now.
+            (expect (str/includes? (ex-message e) dead-id))
+            (expect (str/includes? (ex-message e) keep-id)))
+          ;; No blank tab was opened for it, and the session kept the tab it had.
+          (expect (= before (count (:tabs (cmd "tab_list" {})))))
+          (expect (= keep-id (:tab (cmd "console_list" {}))))
+          ;; One visible failure, not a broken session: the re-run works.
+          (expect (str/includes? (:url (cmd "url" {})) "/test-page")))))
+
+    ;; Regression, user report: same kill, but the session has nothing left to fall
+    ;; back to. It used to answer the next command from the blank replacement tab —
+    ;; `url` reported about:blank as if the session had gone there itself.
+    (it "opens a fresh tab only when the session has no live tab left"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            victim  (:page @state-a)
+            dead-id (:tab (cmd "console_list" {}))]
+        ;; Leave this session one tab, so the kill has nothing to fall back to.
+        (doseq [p (#'daemon/live-context-pages (:context @state-a))]
+          (when-not (identical? p victim) (core/close-page! p)))
+        (core/close-page! victim)
+        (let [e (try (cmd "url" {}) nil (catch clojure.lang.ExceptionInfo ex ex))]
+          (expect (some? e))
+          (expect (= :tab_closed (:error_code (ex-data e))))
+          (expect (str/includes? (ex-message e) dead-id))
+          ;; The recovery path is in the message: navigate again.
+          (expect (str/includes? (ex-message e) "spel open")))
+        ;; A fresh tab, a new id — the id that died is never handed out again.
+        (let [now-id (:tab (cmd "console_list" {}))]
+          (expect (some? now-id))
+          (expect (not= dead-id now-id)))
+        (expect (= "about:blank" (:url (cmd "url" {}))))))
+
+    ;; Regression, user report: the same kill while `network route` is active. The
+    ;; recovery hand-rolled instrument + `:page` instead of `focus-page!`, so the tab
+    ;; it landed on ran the session's routes while the CDP lock that warns another
+    ;; session off an intercepted tab stayed on the tab that had died.
+    (it "locks the tab the recovery lands on while routes are active"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            cdp-url "http://127.0.0.1:9222"
+            old     @state-a]
+        (swap! state-a assoc :cdp-connected true :launch-flags {"cdp" cdp-url})
+        (let [victim    (:page @state-a)
+              victim-id (#'daemon/current-tab-id)
+              landed    (atom nil)]
+          (try
+            (cmd "network_route" {"url" "**/health" "action_type" "abort"})
+            (core/close-page! victim)
+            (try (cmd "url" {}) (catch clojure.lang.ExceptionInfo _ nil))
+            (reset! landed (#'daemon/current-tab-id))
+            (expect (not= victim-id @landed))
+            (expect (some? (#'daemon/read-cdp-route-lock cdp-url @landed)))
+            (finally
+              (cmd "network_unroute" {})
+              (Files/deleteIfExists (#'daemon/cdp-route-lock-path cdp-url victim-id))
+              (when @landed
+                (Files/deleteIfExists (#'daemon/cdp-route-lock-path cdp-url @landed)))
+              (reset! state-a old))))))
+
     (it "refuses a position or an id that is not there, and says what is"
       (nav! "/test-page")
       (let [by-index (try (cmd "tab_switch" {"index" 9}) nil

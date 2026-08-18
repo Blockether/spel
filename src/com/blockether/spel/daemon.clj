@@ -2424,6 +2424,25 @@
       (remove #(or (identical? % current) (not (ours? %))))
       (keys (:pages @!tabs)))))
 
+(defn- session-fallback-page
+  "The live tab this session should land on when the tab it was driving is gone —
+   the highest id it still drives, which is the tab it was on before that one — or
+   nil when it drives no other live tab.
+
+   `spel tab close` has always fallen back to a live tab; the SAME tab closed with
+   the mouse got a blank new one instead, so one event left the session in two
+   different places and dropped an empty tab into the user's own browser every
+   time it happened.
+
+   Returns:
+   Page instance or nil."
+  ^Page []
+  (->> (session-live-pages)
+    (keep (fn [p] (when-let [t (tab-key-of p)] [p t])))
+    (sort-by (fn [[_ t]] (long (or (parse-long (subs (str t) 1)) 0))))
+    last
+    first))
+
 (defn- claim-cdp-route-lock!
   "Takes the CDP route lock for every tab this session drives and remembers the
    set, so the release clears exactly those tabs.
@@ -2511,6 +2530,64 @@
   (when (seq @!routes) (claim-cdp-route-lock!))
   p)
 
+(defn- note-tab-loss!
+  "Records that the tab this session was driving died, and where the session
+   landed, for the one command that has to be told about it.
+
+   Params:
+   `dead-tab` - Tab id the session lost, or nil.
+   `landed`   - Page the session drives from now on.
+   `fresh?`   - True when `landed` is a tab this recovery had to open.
+
+   Returns:
+   nil."
+  [dead-tab ^Page landed fresh?]
+  (swap! !state assoc :tab-loss
+    {:from  dead-tab
+     :to    (tab-key-of landed)
+     :url   (try (page/url landed) (catch Throwable _ nil))
+     :fresh fresh?})
+  nil)
+
+(defn- clear-tab-loss!
+  "Forgets a recorded tab loss. Every command starts without one, so a loss is
+   only ever reported by the command that ran into it.
+
+   Returns:
+   nil."
+  []
+  (swap! !state dissoc :tab-loss)
+  nil)
+
+(defn- raise-tab-loss!
+  "Fails the command that was sent to a tab which is gone.
+
+   A command must not be answered from a page the caller never chose. The tab
+   closed under it and the session moved elsewhere, so `url` used to answer
+   `about:blank` as if the session had navigated there itself, `eval-js` ran
+   against that blank page, and only the commands that need a loaded page said
+   anything at all. Saying it once, here, is what tells the caller to navigate
+   again. The record is cleared on the way out, so the next command runs
+   normally on the tab named in the message.
+
+   Returns:
+   nil when no tab was lost; throws ex-info {:error_code :tab_closed} when one was."
+  []
+  (when-let [{:keys [from to url fresh]} (:tab-loss @!state)]
+    (clear-tab-loss!)
+    (throw (ex-info
+             (str "The tab this session was driving"
+               (when from (str " (" from ")"))
+               " is gone — it was closed outside spel. "
+               (if fresh
+                 (str "spel opened a fresh tab (" to ") in the same browser: navigate again with `spel open <url>`.")
+                 (str "spel is now driving " to
+                   (when url (str " (" url ")"))
+                   ": re-run the command, or pick another tab with `spel tab list`."))
+               (when from
+                 (str " What " from " captured is still there: `spel console --all`, `spel network --all`.")))
+             {:error_code :tab_closed}))))
+
 (defn- ensure-live-browser!
   "Reconciles daemon state with the browser that actually exists.
    Returns :dead when dead handles were dropped (the next launch recreates
@@ -2523,7 +2600,12 @@
    A tab reopened here is instrumented here. Leaving that to the caller is what
    `replace-crashed-page!` forgot: the session came back on a tab nothing was
    listening to, so console, page errors and network stayed silent for the rest
-   of it while `health` kept answering \"ok\"."
+   of it while `health` kept answering \"ok\".
+
+   A tab closed outside spel is answered with a tab this session already drives —
+   a fresh one only when it drives none — and the loss is recorded, so the command
+   that ran into it is told instead of being answered from a page nobody asked
+   for."
   []
   (let [{:keys [browser context page]} @!state]
     (cond
@@ -2533,16 +2615,28 @@
         (drop-browser-handles!))
 
       (and browser context page (not (page-open?)))
-      (let [crashed? (page-crashed? page)]
+      (let [crashed? (page-crashed? page)
+            dead-tab (tab-key-of page)]
         (try
-          (let [fresh (new-spel-page! context)]
-            (swap! !state assoc :page fresh :refs {} :counter 0)
+          ;; A crashed tab is replaced, never fallen back on: `replace-crashed-page!`
+          ;; re-navigates the tab it is handed to the URL that died, and doing that
+          ;; to a live tab this session drives would throw that tab's page away.
+          (let [fallback (when-not crashed? (session-fallback-page))
+                landed   (or fallback (new-spel-page! context))]
+            (swap! !state assoc :refs {} :counter 0)
             (forget-crashed-page! page)
-            (instrument-page! fresh)
+            (focus-page! landed)
             (if crashed?
               (log/warn! "the page's renderer had crashed — opened a fresh tab; "
                 "navigate again, the old page and its refs are gone")
-              (log/warn! "page was closed outside the daemon — opened a fresh one"))
+              (do
+                (note-tab-loss! dead-tab landed (nil? fallback))
+                (if fallback
+                  (log/warn! "the tab spel was driving" (when dead-tab (str " (" dead-tab ")"))
+                    " was closed outside the daemon — fell back to " (tab-key-of landed)
+                    ", a tab this session still drives")
+                  (log/warn! "the tab spel was driving" (when dead-tab (str " (" dead-tab ")"))
+                    " was closed outside the daemon — opened a fresh one (" (tab-key-of landed) ")"))))
             :page-reopened)
           (catch Throwable _
             (forget-crashed-page! page)
@@ -3184,10 +3278,15 @@
    threw a message-less NullPointerException which no recovery path recognised,
    so every later command failed forever while `spel session` still reported a
    healthy connection (issue #109). Reconciling here re-attaches instead, and a
-   page that is still missing fails with a message that says what to do."
+   page that is still missing fails with a message that says what to do.
+
+   A command sent to a tab that is GONE fails here too: the session has landed
+   somewhere else, and answering from there would hide that the tab the caller
+   addressed no longer exists."
   ^Page []
   (when-not (and (:page @!state) (page-open?) (browser-connected?))
     (ensure-browser!))
+  (raise-tab-loss!)
   (or (pg)
     (throw (ex-info "No browser page available. Open one first: spel open <url>"
              {:error_code :no_page_loaded}))))
@@ -3405,6 +3504,9 @@
     {:hint "Start a browser session first with `spel open <url>` or `spel eval-sci '(spel/start!)'`."
      :error_code :no_browser}
 
+    (str/includes? msg "The tab this session was driving")
+    {:hint "The tab is gone, the session is not: `spel tab list` shows the tabs it still drives, `spel console --all` still has what the closed tab captured. Re-run the command, or `spel open <url>` to navigate the tab spel landed on."
+     :error_code :tab_closed}
     (re-find #"(?i)target page, context or browser has been closed|TargetClosedError" msg)
     {:hint "The browser or tab closed during the command. Re-open the page and retry. For CDP runs, verify the debug browser is still running."
      :error_code :target_closed}
@@ -4033,8 +4135,10 @@
                          (last remaining))]
       ;; Keep every live session usable. Closing its final tab must not leave a
       ;; closed page handle or stale snapshot refs for the next command.
-      (instrument-page! active)
-      (swap! !state assoc :page active :refs {} :counter 0)
+      ;; Through `focus-page!`: the session's routes and the CDP route lock that
+      ;; warns another session off an intercepted tab follow the tab it lands on.
+      (swap! !state assoc :refs {} :counter 0)
+      (focus-page! active)
       {:closed true
        :remaining (if replacement? 1 (count remaining))
        :replacement replacement?
@@ -6164,6 +6268,7 @@
    failed: once the crash event has been recorded there is nothing to learn from
    sending one more call into the dead tab (issue #127)."
   [action params]
+  (clear-tab-loss!)
   (let [attempt      (fn run-command []
                        (try {:ok (dispatch-cmd action params)}
                             (catch Throwable e {:threw e})))
@@ -6194,6 +6299,11 @@
           ;; closed a tab spel was not even driving. Reconcile what actually
           ;; died and retry; only a browser that is really gone is relaunched.
           (let [reconciled (ensure-live-browser!)]
+            ;; A closed tab is not a dead browser — but the command that met it lost
+            ;; just as much, so it is not silently re-run on whatever tab the session
+            ;; landed on. `navigate` is the exception: it IS the recovery, and
+            ;; re-running it puts the caller where they asked to be.
+            (if (= "navigate" action) (clear-tab-loss!) (raise-tab-loss!))
             (if (and (browser-connected?) (not= :dead reconciled))
               (let [{:keys [ok threw]} (attempt)]
                 (cond

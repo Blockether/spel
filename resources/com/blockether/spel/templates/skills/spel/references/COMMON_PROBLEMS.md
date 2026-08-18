@@ -398,6 +398,23 @@ Closing a tab outside spel is safe for the tabs around it: every entry keeps the
 produced it, the closed tab drops out of `spel tab list`, and what it captured stays readable under
 `--all` until the window rolls over.
 
+Kill the tab spel is ON and the session survives it — but the command that was sent to that tab is
+refused once, with `error_code` `tab_closed`, naming the tab that died and the tab spel moved to.
+spel lands on a tab this session already drives (the highest id still open) and opens a fresh one
+only when it drives none, so killing a tab never leaves a blank tab behind in a browser you own.
+Re-run the command — `spel open <url>` when it had to open a fresh tab — and the session carries on;
+`spel console --all` still holds what the dead tab captured, under its own id.
+
+```bash
+spel get title  # error tab_closed: "…was driving (t2) is gone … spel is now driving t1 (…)"
+spel tab list   # t1 is still there and no blank tab was added
+spel get title  # answers t1's title — one refusal, not a broken session
+```
+
+Which command gets refused is Playwright's timing, not spel's: `spel get url` is answered from the
+driver's own last known state, so right after the kill it can still print the dead tab's URL. The first
+command that really touches the page — `get title`, a click, an eval, a snapshot — is the one refused,
+and everything after it runs on the tab spel landed on.
 A tab the PAGE opens — `target="_blank"`, `window.open` — gets its own id and is captured from the moment
 Playwright hands it over, without switching to it. Playwright cannot hand a popup over before its initial
 navigation, so a message logged in that very first instant can still be missed; everything after it —
