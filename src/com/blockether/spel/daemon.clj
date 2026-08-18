@@ -3470,6 +3470,17 @@
      {:source (:spel/source inner) :lang (or (:spel/lang inner) :js)}
      (select-keys data [:line :column]))))
 
+(defn- strip-bare-error-prefix
+  "Drops the class-less `Error: ` head the Playwright driver puts on a browser
+   error, so a refusal renders `Error: Node is not an HTMLInputElement` instead
+   of `Error: Error: Node is not an HTMLInputElement` — every consumer (CLI,
+   JSON `:error`) states 'error' itself. A NAMED class says something the head
+   alone does not (`TypeError:`, `ReferenceError:`) and is kept."
+  [^String msg]
+  (if (and (string? msg) (str/starts-with? msg "Error: "))
+    (let [rest' (str/triml (subs msg (count "Error: ")))]
+      (if (str/blank? rest') msg rest'))
+    msg))
 (defn- error-response
   "Creates a structured error response map from an error message string.
 
@@ -3489,7 +3500,8 @@
   ([^String msg] (error-response msg nil))
   ([^String msg pos]
    (let [raw    (if (str/blank? msg) (default-error-message) msg)
-         short  (or (errors/concise raw (merge *error-source* pos)) raw)
+         short  (strip-bare-error-prefix
+                  (or (errors/concise raw (merge *error-source* pos)) raw))
          parsed (parse-playwright-error raw)
          human  (humanize-error raw)]
      (when-not (= raw short)
@@ -3538,6 +3550,12 @@
     (re-find #"(?i)target page, context or browser has been closed|TargetClosedError" msg)
     {:hint "The browser or tab closed during the command. Re-open the page and retry. For CDP runs, verify the debug browser is still running."
      :error_code :target_closed}
+
+    ;; Playwright's own wording is stale: headed Chromium prints a PDF fine.
+    ;; What is really missing is a PDF backend in Firefox and WebKit.
+    (str/includes? msg "PDF generation is only supported")
+    {:hint "PDF is Chromium-only — Firefox and WebKit have no PDF backend at all. Re-run this session with --browser chromium; headed is fine."
+     :error_code :pdf_unsupported}
 
     (re-find #"(?i)timeout .* exceeded|timed out" msg)
     {:hint "The operation timed out. Verify selector/page state and consider increasing --timeout for slow pages."
@@ -4029,7 +4047,7 @@
   ;; No ensure-page-loaded! here on purpose: evaluating JS against a blank
   ;; page is legitimate (bootstrapping a fixture, probing a replacement tab
   ;; created by `tab close`), and Playwright evaluates fine on about:blank.
-  (let [result (page/evaluate (pg) script)]
+  (let [result (unwrap-anomaly! (page/evaluate (pg) script))]
     (if base64
       {:result (.encodeToString (Base64/getEncoder)
                  (.getBytes (str result) "UTF-8"))}
@@ -4050,17 +4068,17 @@
 
 (defmethod handle-cmd "back" [_ _]
   (ensure-page-loaded!)
-  (page/go-back (pg))
+  (unwrap-anomaly! (page/go-back (pg)))
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "forward" [_ _]
   (ensure-page-loaded!)
-  (page/go-forward (pg))
+  (unwrap-anomaly! (page/go-forward (pg)))
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "reload" [_ _]
   (ensure-page-loaded!)
-  (page/reload (pg))
+  (unwrap-anomaly! (page/reload (pg)))
   {:url (page/url (pg))})
 
 (defmethod handle-cmd "wait" [_ params]
@@ -4101,7 +4119,7 @@
     ;; new tab logs while it loads.
     (focus-page! new-pg)
     (when-let [url (get params "url")]
-      (page/navigate new-pg url))
+      (unwrap-anomaly! (page/navigate new-pg url)))
     {:tab (tab-key-of new-pg) :url (page/url new-pg)}))
 
 (defmethod handle-cmd "tab_list" [_ _]
@@ -4216,15 +4234,15 @@
 
 (defmethod handle-cmd "clipboard_copy" [_ {:strs [text]}]
   (ensure-page-loaded!)
-  (page/clipboard-copy (pg) text))
+  (unwrap-anomaly! (page/clipboard-copy (pg) text)))
 
 (defmethod handle-cmd "clipboard_read" [_ _]
   (ensure-page-loaded!)
-  (page/clipboard-read (pg)))
+  (unwrap-anomaly! (page/clipboard-read (pg))))
 
 (defmethod handle-cmd "clipboard_paste" [_ _]
   (ensure-page-loaded!)
-  (page/clipboard-paste (pg)))
+  (unwrap-anomaly! (page/clipboard-paste (pg))))
 
 ;; --- Diff Engine ---
 
@@ -4343,19 +4361,19 @@
 
 (defmethod handle-cmd "pdf" [_ {:strs [path]}]
   (ensure-page-loaded!)
-  (page/pdf (pg) {:path path})
+  (unwrap-anomaly! (page/pdf (pg) {:path path}))
   {:path path})
 
 ;; --- Phase 1: Core Gaps ---
 
 (defmethod handle-cmd "keyboard_type" [_ {:strs [text]}]
   (ensure-page-loaded!)
-  (input/key-type (.keyboard ^Page (pg)) text)
+  (unwrap-anomaly! (input/key-type (.keyboard ^Page (pg)) text))
   {:typed text})
 
 (defmethod handle-cmd "keyboard_inserttext" [_ {:strs [text]}]
   (ensure-page-loaded!)
-  (input/key-insert-text (.keyboard ^Page (pg)) text)
+  (unwrap-anomaly! (input/key-insert-text (.keyboard ^Page (pg)) text))
   {:inserted text})
 
 (defmethod handle-cmd "window_new" [_ _params]
@@ -4368,26 +4386,26 @@
 
 (defmethod handle-cmd "keydown" [_ {:strs [key]}]
   (ensure-page-loaded!)
-  (input/key-down (page/page-keyboard (pg)) key)
+  (unwrap-anomaly! (input/key-down (page/page-keyboard (pg)) key))
   {:keydown key})
 
 (defmethod handle-cmd "keyup" [_ {:strs [key]}]
   (ensure-page-loaded!)
-  (input/key-up (page/page-keyboard (pg)) key)
+  (unwrap-anomaly! (input/key-up (page/page-keyboard (pg)) key))
   {:keyup key})
 
 (defmethod handle-cmd "scrollintoview" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  (locator/scroll-into-view (resolve-selector selector))
+  (unwrap-anomaly! (locator/scroll-into-view (resolve-selector selector)))
   {:scrolled_into_view selector})
 
 (defmethod handle-cmd "find_scrollable" [_ _params]
   (ensure-page-loaded!)
-  {:elements (page/find-scrollable (pg))})
+  {:elements (unwrap-anomaly! (page/find-scrollable (pg)))})
 
 (defmethod handle-cmd "scroll_position" [_ _params]
   (ensure-page-loaded!)
-  (page/scroll-position (pg)))
+  (unwrap-anomaly! (page/scroll-position (pg))))
 
 (defn- drag-point
   "Absolute page point for a drag end: the element's centre, or the given
@@ -4488,12 +4506,12 @@
 (defmethod handle-cmd "upload" [_ {:strs [selector files]}]
   (ensure-page-loaded!)
   (let [file-paths (if (string? files) [files] files)]
-    (locator/set-input-files! (resolve-selector selector) file-paths)
+    (unwrap-anomaly! (locator/set-input-files! (resolve-selector selector) file-paths))
     {:uploaded {:selector selector :files file-paths}}))
 
 (defmethod handle-cmd "get_value" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:value (locator/input-value (resolve-selector selector))})
+  {:value (unwrap-anomaly! (locator/input-value (resolve-selector selector)))})
 
 (defmethod handle-cmd "get_count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -4533,17 +4551,17 @@
                               (Integer/parseInt value))
               (throw (ex-info (str "Unknown find type: " by) {})))]
     (case find_action
-      "click"   (do (locator/click loc)
+      "click"   (do (unwrap-anomaly! (locator/click loc))
                     {:found by :value value :action "click"})
-      "fill"    (do (locator/fill loc find_value)
+      "fill"    (do (unwrap-anomaly! (locator/fill loc find_value))
                     {:found by :value value :action "fill"})
-      "type"    (do (locator/type-text loc find_value)
+      "type"    (do (unwrap-anomaly! (locator/type-text loc find_value))
                     {:found by :value value :action "type"})
-      "check"   (do (locator/check loc) {:found by :value value :action "check"})
-      "uncheck" (do (locator/uncheck loc) {:found by :value value :action "uncheck"})
-      "hover"   (do (locator/hover loc) {:found by :value value :action "hover"})
-      "focus"   (do (locator/focus loc) {:found by :value value :action "focus"})
-      "text"    {:found by :value value :text (locator/text-content loc)}
+      "check"   (do (unwrap-anomaly! (locator/check loc)) {:found by :value value :action "check"})
+      "uncheck" (do (unwrap-anomaly! (locator/uncheck loc)) {:found by :value value :action "uncheck"})
+      "hover"   (do (unwrap-anomaly! (locator/hover loc)) {:found by :value value :action "hover"})
+      "focus"   (do (unwrap-anomaly! (locator/focus loc)) {:found by :value value :action "focus"})
+      "text"    {:found by :value value :text (unwrap-anomaly! (locator/text-content loc))}
       "count"   {:found by :value value :count (locator/count-elements loc)}
       "visible" {:found by :value value :visible (locator/is-visible? loc)}
       (nil)     {:found by :value value :count (locator/count-elements loc)}
@@ -4552,14 +4570,14 @@
 ;; --- Phase 2: Mouse Control ---
 
 (defmethod handle-cmd "mouse_move" [_ {:strs [x y]}]
-  (input/mouse-move (page/page-mouse (pg)) (double x) (double y))
+  (unwrap-anomaly! (input/mouse-move (page/page-mouse (pg)) (double x) (double y)))
   {:moved {:x x :y y}})
 
 (defmethod handle-cmd "mouse_down" [_ {:strs [button]}]
   (let [^Mouse m (page/page-mouse (pg))
         btn (or button "left")]
     (if (= btn "left")
-      (input/mouse-down m)
+      (unwrap-anomaly! (input/mouse-down m))
       (.down m (options/->mouse-down-options {:button (keyword btn)})))
     {:mouse_down btn}))
 
@@ -4567,14 +4585,14 @@
   (let [^Mouse m (page/page-mouse (pg))
         btn (or button "left")]
     (if (= btn "left")
-      (input/mouse-up m)
+      (unwrap-anomaly! (input/mouse-up m))
       (.up m (options/->mouse-up-options {:button (keyword btn)})))
     {:mouse_up btn}))
 
 (defmethod handle-cmd "mouse_wheel" [_ {:strs [deltaX deltaY]}]
-  (input/mouse-wheel (page/page-mouse (pg))
+  (unwrap-anomaly! (input/mouse-wheel (page/page-mouse (pg))
     (double (or deltaX 0))
-    (double (or deltaY 0)))
+    (double (or deltaY 0))))
   {:wheel {:dx (or deltaX 0) :dy (or deltaY 0)}})
 
 ;; --- Phase 2: Browser Settings ---
@@ -4598,7 +4616,7 @@
                  ("light" "Light")     :light
                  ("no-preference")     :no-preference
                  :no-preference)]
-    (page/emulate-media! (pg) {:color-scheme scheme})
+    (unwrap-anomaly! (page/emulate-media! (pg) {:color-scheme scheme}))
     {:media {:colorScheme colorScheme}}))
 
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
@@ -4688,16 +4706,16 @@
         js (if key
              (str st "Storage.getItem('" key "')")
              (str "JSON.stringify(Object.entries(" st "Storage))"))]
-    {:storage (page/evaluate (pg) js)}))
+    {:storage (unwrap-anomaly! (page/evaluate (pg) js))}))
 
 (defmethod handle-cmd "storage_set" [_ {:strs [type key value]}]
   (let [st (or type "local")]
-    (page/evaluate (pg) (str st "Storage.setItem('" key "', '" value "')"))
+    (unwrap-anomaly! (page/evaluate (pg) (str st "Storage.setItem('" key "', '" value "')")))
     {:storage_set {:key key :value value}}))
 
 (defmethod handle-cmd "storage_clear" [_ {:strs [type]}]
   (let [st (or type "local")]
-    (page/evaluate (pg) (str st "Storage.clear()"))
+    (unwrap-anomaly! (page/evaluate (pg) (str st "Storage.clear()")))
     {:storage_cleared st}))
 
 ;; --- Phase 3: Network ---
@@ -4931,15 +4949,15 @@
 ;; --- Phase 4: Debug ---
 
 (defmethod handle-cmd "trace_start" [_ {:strs [name]}]
-  (core/tracing-start! (core/context-tracing (ctx))
+  (unwrap-anomaly! (core/tracing-start! (core/context-tracing (ctx))
     (cond-> {:screenshots true :snapshots true}
-      name (assoc :name name)))
+      name (assoc :name name))))
   (swap! !state assoc :tracing? true)
   {:trace "started" :name name})
 
 (defmethod handle-cmd "trace_stop" [_ {:strs [path]}]
   (let [out-path (or path "trace.zip")]
-    (core/tracing-stop! (core/context-tracing (ctx)) {:path out-path})
+    (unwrap-anomaly! (core/tracing-stop! (core/context-tracing (ctx)) {:path out-path}))
     (swap! !state assoc :tracing? false)
     {:trace "stopped" :path out-path}))
 
@@ -5332,8 +5350,8 @@
         url      (:url record)
         username (:username record)
         password (:password record)
-        _        (page/navigate (pg) url)
-        _        (page/wait-for-load-state (pg) "load")
+        _        (unwrap-anomaly! (page/navigate (pg) url))
+        _        (unwrap-anomaly! (page/wait-for-load-state (pg) "load"))
         ;; Heuristic form detection: pick the first visible text/email input for
         ;; username and the first password input for password. Works for the
         ;; vast majority of login forms without custom selectors.
@@ -5341,12 +5359,12 @@
                    (page/locator (pg) "input[type=email], input[type=text], input[type=tel], input[autocomplete*=username]"))
         pass-loc (locator/first-element
                    (page/locator (pg) "input[type=password]"))]
-    (locator/fill user-loc username)
-    (locator/fill pass-loc password)
+    (unwrap-anomaly! (locator/fill user-loc username))
+    (unwrap-anomaly! (locator/fill pass-loc password))
     ;; Submit: press Enter on the password field. This works for almost every
     ;; login form and avoids flaky "find the submit button by label" heuristics.
-    (locator/press pass-loc "Enter")
-    (page/wait-for-load-state (pg) "load")
+    (unwrap-anomaly! (locator/press pass-loc "Enter"))
+    (unwrap-anomaly! (page/wait-for-load-state (pg) "load"))
     {:logged_in name :url (page/url (pg)) :username username}))
 
 (defmethod handle-cmd "profiles" [_ _params]

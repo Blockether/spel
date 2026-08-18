@@ -2,15 +2,19 @@
 
 ## 1. "Session already running"
 
-Previous `spel/start!` wasn't cleaned up:
+A live library session refuses a second `spel/start!` — stop it first:
 
 ```clojure
 (spel/stop!)
 (spel/start!)
 ```
 
-If that fails, end the daemon with spel's own kill — it force-closes, then
-destroys the process, and cleans up the socket/PID files:
+A start! that FAILS leaves nothing behind: the Playwright instance it created is
+closed before the error propagates, and a browser that answers with an anomaly
+instead of a tab is refused by name rather than stored as the session's page.
+
+When it is a daemon that will not go away, end it with spel's own kill — it
+force-closes, then destroys the process, and cleans up the socket/PID files:
 
 ```bash
 spel --session <name> health   # what is it actually doing?
@@ -97,15 +101,25 @@ Wait states from least → most strict: `:commit` < `:domcontentloaded` < `:load
 
 ## 6. PDF empty / fails
 
-PDF only works in **Chromium headless**. Firefox, WebKit, and headed Chromium don't support it.
+PDF is a **Chromium** feature — headless and headed both print one. Firefox and
+WebKit have no PDF backend at all and refuse:
+
+```bash
+spel pdf out.pdf
+# Error: PDF generation is only supported for Headless Chromium
+# Hint:  PDF is Chromium-only — Firefox and WebKit have no PDF backend at all.
+#        Re-run this session with --browser chromium; headed is fine.
+```
 
 ```clojure
-(spel/start! {:browser :chromium :headless true})
+(spel/start! {:browser :chromium})
 (spel/navigate "https://example.org")
 (spel/pdf {:path "/tmp/output.pdf"})
 ```
 
-If started headed, restart: `(spel/stop!)` then `(spel/start! {:headless true})`.
+That refusal used to be thrown away: `spel pdf` printed `Saved: <path>` with exit
+code 0 for a file it never wrote. A command that answers success now did the thing
+— every daemon command carries its browser failure out instead of swallowing it.
 
 ## 7. Snapshot fns in eval
 
@@ -151,7 +165,9 @@ Rules: heavy portals → `:domcontentloaded` or `wait-for-url` after interaction
 
 ## 9. File I/O in eval mode
 
-`require` doesn't work in SCI. `clojure.java.io` is already available as `io`:
+`clojure.java.io` is already bound as `io`, and `require` works for the namespaces
+the SCI environment carries (`clojure.string`, for instance). One it does not carry
+is refused by name — `Could not find namespace cheshire.core` — never silently.
 
 ```clojure
 (slurp "/tmp/data.txt")
@@ -434,22 +450,7 @@ A ref lives exactly as long as the listing that shows it: `spel console get @c17
 the ones a clear removed. A session that has captured a million entries stops recording to keep the
 browser responsive — it says so in the log, and `spel console clear` or `spel network clear` resumes it.
 
-## 18. `ClassCastException` in `with-retry`
-
-`with-retry` crashed with `ClassCastException: Keyword cannot be cast to Number` when the retried fn returned a map with non-numeric `:status` (e.g. `{:status :created}`).
-
-**Fixed in v0.7.7.** Default `:retry-when` now guards with `(number? (:status result))` before casting. On older versions, pass explicit `:retry-when`:
-
-```clojure
-(spel/with-retry {:retry-when (fn [r] (and (map? r) (number? (:status r)) (>= (:status r) 500)))}
-  (api-get ctx "/users"))
-```
-
-## 19. Retry doesn't catch exceptions
-
-Before v0.7.7, `retry`/`with-retry` didn't catch exceptions. Now they do, and re-throw on the last attempt.
-
-## 20. Polling until a condition
+## 15. Polling until a condition
 
 Use `retry-guard` to turn a predicate into a `:retry-when`:
 
@@ -459,7 +460,7 @@ Use `retry-guard` to turn a predicate into a `:retry-when`:
   (spel/api-get ctx "/job/123"))
 ```
 
-## 21. iOS automation looks slow or disagrees with the screen
+## 16. iOS automation looks slow or disagrees with the screen
 
 An Appium/XCUITest command's wall time includes transport, WebDriverAgent, and
 XCTest quiescence. It is not the application's paint or animation duration.

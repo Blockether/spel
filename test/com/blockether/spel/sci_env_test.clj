@@ -6,6 +6,8 @@
    real Playwright session."
   (:require
    [com.blockether.spel.sci-env :as sut]
+   [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.core :as core]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 ;; =============================================================================
@@ -753,3 +755,54 @@
           (reset! sut/!browser nil)
           (reset! sut/!context nil)
           (reset! sut/!page nil))))))
+
+;; Regression, user report: COMMON_PROBLEMS answered "Session already running" by
+;; telling the reader to run (spel/stop!) first. A start! that failed after creating
+;; Playwright — no browser installed, a locked profile — left that instance and its
+;; node driver process running with nobody holding a handle, one more per retry. A
+;; browser that answered the context or the tab with an anomaly MAP had that map
+;; stored as the session's page, and every later command died casting a map to a Page.
+(defdescribe start-failure-test
+  "a start! that fails leaves nothing behind"
+
+  (describe "when the launch throws"
+    (it "closes the Playwright instance it created"
+      (let [closed (atom [])]
+        (try
+          (reset! sut/!pw nil) (reset! sut/!page nil) (reset! sut/!backend nil)
+          (with-redefs [core/create          (fn [] ::pw)
+                        core/launch-chromium (fn [_ _] (throw (ex-info "Executable doesn't exist" {})))
+                        core/close!          (fn [p] (swap! closed conj p))]
+            (let [msg (try (sut/sci-start! {})
+                           nil
+                           (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+              (expect (= "Executable doesn't exist" msg))
+              (expect (= [::pw] @closed))
+              (expect (nil? @sut/!pw))
+              (expect (nil? @sut/!page))))
+          (finally
+            (reset! sut/!pw nil) (reset! sut/!browser nil)
+            (reset! sut/!context nil) (reset! sut/!page nil))))))
+
+  (describe "when the browser answers the first tab with an anomaly"
+    (it "refuses instead of storing the map as the page"
+      (let [closed  (atom [])
+            failure (anomaly/anomaly ::anomaly/fault
+                      "Target page, context or browser has been closed" {})]
+        (try
+          (reset! sut/!pw nil) (reset! sut/!page nil) (reset! sut/!backend nil)
+          (with-redefs [core/create                (fn [] ::pw)
+                        core/launch-chromium       (fn [_ _] ::browser)
+                        core/new-context           (fn [_ _] ::context)
+                        core/new-page-from-context (fn [_] failure)
+                        core/close!                (fn [p] (swap! closed conj p))]
+            (let [msg (try (sut/sci-start! {})
+                           nil
+                           (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+              (expect (some? msg))
+              (expect (= [::pw] @closed))
+              (expect (nil? @sut/!page))
+              (expect (nil? @sut/!pw))))
+          (finally
+            (reset! sut/!pw nil) (reset! sut/!browser nil)
+            (reset! sut/!context nil) (reset! sut/!page nil)))))))

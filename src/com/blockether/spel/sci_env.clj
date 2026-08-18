@@ -186,6 +186,20 @@
                (ex-info (or msg "Playwright operation failed") result))))
     result))
 
+(defn- require-handle
+  "Answers `x` when the browser handed back a real handle, and throws when it
+   answered an anomaly instead.
+
+   Unlike `throw-if-anomaly` this ignores `!throw-on-error`: that flag decides how
+   an API RESULT is reported, while a handle stored as a map poisons every later
+   command with `PersistentArrayMap cannot be cast to Page` whatever the mode."
+  [what x]
+  (if (anomaly/anomaly? x)
+    (throw (ex-info (str "spel could not " what ": "
+                      (or (::anomaly/message x) "the browser gave no reason"))
+             (dissoc x ::anomaly/message)))
+    x))
+
 (defn- require-page! []
   (when-not @!page
     (if @!backend
@@ -424,30 +438,42 @@
      (do
        (when @!pw
          (throw (ex-info "Session already running. Call (spel/stop!) first." {})))
-       (let [pw-inst      (core/create)
-             launch-opts  (cond-> {:headless (get opts :headless true)}
-                            (:slow-mo opts) (assoc :slow-mo (:slow-mo opts)))
-             browser-type (get opts :browser :chromium)
-             browser-inst (case browser-type
-                            :chromium (core/launch-chromium pw-inst launch-opts)
-                            :firefox  (core/launch-firefox pw-inst launch-opts)
-                            :webkit   (core/launch-webkit pw-inst launch-opts))
-             ctx-opts     (cond-> {}
-                            (:viewport opts)    (assoc :viewport (:viewport opts))
-                            (:base-url opts)    (assoc :base-url (:base-url opts))
-                            (:user-agent opts)  (assoc :user-agent (:user-agent opts))
-                            (:locale opts)      (assoc :locale (:locale opts))
-                            (:timezone-id opts) (assoc :timezone-id (:timezone-id opts)))
-             ctx          (core/new-context browser-inst (when (seq ctx-opts) ctx-opts))
-             pg-inst      (core/new-page-from-context ctx)]
-         ;; Set default action timeout: explicit opts > --timeout flag > Playwright default
-         (when-let [timeout (or (:timeout opts) @!default-timeout)]
-           (page/set-default-timeout! pg-inst timeout))
-         (reset! !pw pw-inst)
-         (reset! !browser browser-inst)
-         (reset! !context ctx)
-         (reset! !page pg-inst)
-         :started)))))
+        (let [pw-inst (require-handle "start Playwright" (core/create))]
+         ;; A start! that fails after this point — no browser installed, a locked
+         ;; profile, a context the browser refuses — used to leave this Playwright
+         ;; instance and its node driver process running with nobody holding a
+         ;; handle, one more per retry. Close it before the failure leaves.
+         (try
+           (let [launch-opts  (cond-> {:headless (get opts :headless true)}
+                                (:slow-mo opts) (assoc :slow-mo (:slow-mo opts)))
+                 browser-type (get opts :browser :chromium)
+                 browser-inst (case browser-type
+                                :chromium (core/launch-chromium pw-inst launch-opts)
+                                :firefox  (core/launch-firefox pw-inst launch-opts)
+                                :webkit   (core/launch-webkit pw-inst launch-opts))
+                 ctx-opts     (cond-> {}
+                                (:viewport opts)    (assoc :viewport (:viewport opts))
+                                (:base-url opts)    (assoc :base-url (:base-url opts))
+                                (:user-agent opts)  (assoc :user-agent (:user-agent opts))
+                                (:locale opts)      (assoc :locale (:locale opts))
+                                (:timezone-id opts) (assoc :timezone-id (:timezone-id opts)))
+                 ;; Anomalies here are refusals, never handles: a map stored as the
+                 ;; page poisons every later command with a cast error.
+                 ctx          (require-handle "open a browser context"
+                                (core/new-context browser-inst (when (seq ctx-opts) ctx-opts)))
+                 pg-inst      (require-handle "open a browser tab"
+                                (core/new-page-from-context ctx))]
+             ;; Set default action timeout: explicit opts > --timeout flag > Playwright default
+             (when-let [timeout (or (:timeout opts) @!default-timeout)]
+               (page/set-default-timeout! pg-inst timeout))
+             (reset! !pw pw-inst)
+             (reset! !browser browser-inst)
+             (reset! !context ctx)
+             (reset! !page pg-inst)
+             :started)
+           (catch Throwable t
+             (try (core/close! pw-inst) (catch Throwable _ nil))
+             (throw t))))))))
 
 (defn sci-stop!
   "Stops the active session (Playwright or iOS backend), closing the

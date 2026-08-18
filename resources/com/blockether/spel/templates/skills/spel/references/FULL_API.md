@@ -206,7 +206,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `page-keyboard` | [page] | Returns the Keyboard for this page. |
 | `page-mouse` | [page] | Returns the Mouse for this page. |
 | `page-touchscreen` | [page] | Returns the Touchscreen for this page. |
-| `pdf` | [page] \| [page pdf-opts] | Generates a PDF of the page. Only works in Chromium headless. |
+| `pdf` | [page] \| [page pdf-opts] | Generates a PDF of the page. Chromium only, headless or headed alike. |
 | `reload` | [page] \| [page nav-opts] | Reloads the page. |
 | `route!` | [page pattern handler] | Registers a route handler for URL pattern. |
 | `route-from-har!` | [page har] \| [page har route-opts] | Routes requests from a HAR file. Replays recorded responses for matching requests. |
@@ -935,7 +935,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/overview` | [] \| [opts] | Takes annotated full-page screenshot. Opts: :path :show-badges :show-dimensions :show-boxes :scope :all-frames?. |
 | `spel/page` | [] | Returns the current Page instance. |
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
-| `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Only works in Chromium headless. |
+| `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Chromium only, headless or headed alike. |
 | `spel/press` | [key] \| [sel key] \| [sel key opts] | Presses a key. Single-arg form targets the focused element. Two-arg form |
 | `spel/reload` | [] | Reloads the current page (backend-aware). |
 | `spel/remove-action-markers!` | [] | Removes all pre-action markers from the current page. |

@@ -669,7 +669,8 @@
    (safe (.screenshot page (opts/->screenshot-options ss-opts)))))
 
 (defn pdf
-  "Generates a PDF of the page. Only works in Chromium headless.
+  "Generates a PDF of the page. Chromium only, headless or headed alike.
+   Firefox and WebKit have no PDF backend and answer an anomaly.
    
    Params:
    `page` - Page instance.

@@ -2222,6 +2222,100 @@
           (expect (contains? (:spel-pages @state-atom) tab))
           (finally (reset! state-atom before)))))))
 
+;; Regression, user report: COMMON_PROBLEMS listed "PDF empty / fails" as a fact of
+;; life. Every one of these handlers threw the browser's failure away and answered
+;; success: `spel pdf` printed "Saved: <path>" for a file Firefox and WebKit never
+;; wrote, `spel trace stop` reported "stopped" for a trace nobody started, `spel
+;; upload` reported an upload onto an element that is not a file input, and `spel
+;; find text ... click` reported a click that never landed — all with exit code 0.
+(defn- refusal-message
+  "Runs `f` and answers the message of the ExceptionInfo it threw, nil when it returned."
+  [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e (ex-message e))))
+
+(defdescribe discarded-failure-test
+  "a browser call that failed fails the command instead of reporting success"
+
+  (describe "when the browser answers a side effect with an anomaly"
+    (it "refuses the pdf instead of naming a file it never wrote"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/fault
+                         "PDF generation is only supported for Headless Chromium" {})]
+        (try
+          (reset! state-atom {:page (Object.)})
+          (with-redefs-fn {#'sut/ensure-page-loaded! (fn [] nil)
+                           #'page/pdf                (fn [_ _] failure)}
+            (fn []
+              (let [msg (refusal-message #(#'sut/handle-cmd "pdf" {"path" "/tmp/never-written.pdf"}))]
+                (expect (some? msg))
+                (expect (str/includes? msg "PDF generation is only supported")))))
+          (finally (reset! state-atom before)))))
+
+    (it "refuses to report a trace it never stopped"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/fault "Tracing has not been started" {})]
+        (try
+          (reset! state-atom {:context (Object.) :tracing? true})
+          (with-redefs-fn {#'core/context-tracing (fn [_] ::tracing)
+                           #'core/tracing-stop!   (fn [_ _] failure)}
+            (fn []
+              (let [msg (refusal-message #(#'sut/handle-cmd "trace_stop" {"path" "/tmp/never-written.zip"}))]
+                (expect (some? msg))
+                (expect (str/includes? msg "Tracing has not been started"))
+                ;; The trace is still running, so the daemon must not claim otherwise.
+                (expect (true? (:tracing? @state-atom))))))
+          (finally (reset! state-atom before)))))
+
+    (it "refuses an upload the element never accepted"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/fault
+                         "Node is not an HTMLInputElement" {})]
+        (try
+          (reset! state-atom {:page (Object.)})
+          (with-redefs-fn {#'sut/ensure-page-loaded!  (fn [] nil)
+                           #'sut/resolve-selector     (fn [_] ::locator)
+                           #'locator/set-input-files! (fn [_ _] failure)}
+            (fn []
+              (let [msg (refusal-message #(#'sut/handle-cmd "upload" {"selector" "h1" "files" "/tmp/a.html"}))]
+                (expect (some? msg))
+                (expect (str/includes? msg "HTMLInputElement")))))
+          (finally (reset! state-atom before)))))
+
+    (it "refuses a find click that never landed"
+      (let [state-atom (deref #'sut/!state)
+            before     @state-atom
+            failure    (anomaly/anomaly ::anomaly/busy
+                         "Timeout 10000ms exceeded waiting for locator" {})]
+        (try
+          (reset! state-atom {:page (Object.)})
+          (with-redefs-fn {#'sut/ensure-page-loaded! (fn [] nil)
+                           #'page/get-by-text        (fn [_ _] ::locator)
+                           #'locator/click           (fn [_] failure)}
+            (fn []
+              (let [msg (refusal-message #(#'sut/handle-cmd "find" {"by" "text" "value" "Submit"
+                                                                   "find_action" "click"}))]
+                (expect (some? msg))
+                (expect (str/includes? msg "Timeout 10000ms exceeded")))))
+          (finally (reset! state-atom before)))))))
+
+;; Regression, user report: a refusal stuttered. The driver's own class-less
+;; "Error: " head reached a renderer that prefixes its own, so an upload onto a
+;; non-file element printed "Error: Error: Node is not an HTMLInputElement".
+(defdescribe error-prefix-test
+  "a refusal states 'error' once"
+
+  (describe "when the driver message opens with the class-less head"
+    (it "drops the duplicate head"
+      (let [{:keys [error]} (#'sut/error-response "Error: Node is not an HTMLInputElement")]
+        (expect (= "Node is not an HTMLInputElement" error))))
+
+    (it "keeps a head that names the error class"
+      (let [{:keys [error]} (#'sut/error-response "TypeError: x is not a function")]
+        (expect (str/includes? error "TypeError"))))))
+
 ;; Regression, issue #125: `health` reported "connected, page open" for a browser
 ;; relaunched onto about:blank, so a session that answered "No page loaded" to
 ;; every page command still looked healthy.
