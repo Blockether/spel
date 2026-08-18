@@ -27,7 +27,7 @@ Shape every reply ADHD-shaped, caveman-terse — see the skill's **Reply style**
 ## Critical operating rules
 
 - Always use named session; never rely on default
-- CDP: one session per endpoint; no concurrent multi-session attach
+- CDP: sessions may share one endpoint (each gets its own tab); only the same tab is exclusive
 - Prefer snapshot refs first for interaction targeting
 - Promised output files = hard deliverables, not optional summaries
 

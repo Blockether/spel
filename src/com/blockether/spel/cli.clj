@@ -4348,13 +4348,6 @@
     ;; still sees them inline; `spel logs` replays the full stream.
     (log/init! {:session session :component "cli" :mirror :warn})
 
-    ;; Proactive warning: auto-connect (or explicit --cdp) to an endpoint that is
-    ;; already route-locked by another session can lead to command conflicts.
-    (when-let [cdp-url (:cdp flags)]
-      (when-let [owner (daemon/cdp-route-lock-owner cdp-url)]
-        (when (not= owner session)
-          (log/warn! "Session '" owner "' is intercepting network requests on this CDP endpoint — "
-            "this session gets its own tab, but page commands wait until those routes are released."))))
     ;; Check for parse errors
     (when (:error command)
       (binding [*out* *err*]

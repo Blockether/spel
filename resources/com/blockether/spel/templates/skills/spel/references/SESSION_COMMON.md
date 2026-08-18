@@ -15,8 +15,9 @@ spel --session "$SESSION" close
 
 ## CDP safety
 
-- One session per CDP endpoint.
-- Do not attach multiple concurrent sessions to the same endpoint.
+- Sessions may share one CDP endpoint — each opens its own tab and never touches another's.
+- Only a TAB is exclusive: `network route` intercepts one tab, so two sessions that end up on the
+  same tab queue behind each other's routes (`spel tab new` gives a session its own).
 - Prefer `--auto-launch` for isolated browser instances.
 
 ## Snapshot-first interaction

@@ -122,39 +122,43 @@
     (into-array String [])))
 
 (defn- cdp-route-lock-path
-  "Returns a filesystem lock path keyed by CDP endpoint URL.
-   Used to prevent multi-session route interception on the same CDP browser."
-  ^Path [^String cdp-url]
+  "Returns a filesystem lock path keyed by CDP endpoint URL and the TAB whose
+   requests are intercepted. Playwright installs interception on the page, so it
+   is a property of one tab: keyed by the endpoint alone, one session's routes
+   made every other session on that browser queue for a tab it never touches."
+  ^Path [^String cdp-url ^String tab-id]
   (let [encoder (.withoutPadding (Base64/getUrlEncoder))
-        token   (.encodeToString encoder (.getBytes cdp-url java.nio.charset.StandardCharsets/UTF_8))]
+        token   (.encodeToString encoder (.getBytes (str cdp-url "\n" tab-id)
+                                           java.nio.charset.StandardCharsets/UTF_8))]
     (Path/of (str (System/getProperty "java.io.tmpdir")
                File/separator
                "spel-cdp-route-lock-" token ".json")
       (into-array String []))))
 
 (defn- read-cdp-route-lock
-  "Reads the lock map for a CDP endpoint, or nil if absent/invalid."
-  [^String cdp-url]
-  (let [path (cdp-route-lock-path cdp-url)]
+  "Reads the lock map for one tab of a CDP endpoint, or nil if absent/invalid."
+  [^String cdp-url ^String tab-id]
+  (let [path (cdp-route-lock-path cdp-url tab-id)]
     (when (Files/exists path (into-array java.nio.file.LinkOption []))
       (try
         (json/read-json (String. (Files/readAllBytes path)))
         (catch Exception _ nil)))))
 
 (defn- clear-cdp-route-lock!
-  "Deletes the lock file for a CDP endpoint. Best-effort."
-  [^String cdp-url]
+  "Deletes the lock file for one tab of a CDP endpoint. Best-effort."
+  [^String cdp-url ^String tab-id]
   (try
-    (Files/deleteIfExists (cdp-route-lock-path cdp-url))
+    (Files/deleteIfExists (cdp-route-lock-path cdp-url tab-id))
     (catch Exception e (warn "delete-cdp-route-lock" e))))
 
 (defn- write-cdp-route-lock!
-  "Writes/overwrites the lock owner for a CDP endpoint."
-  [^String cdp-url ^String session]
+  "Writes/overwrites the lock owner for one tab of a CDP endpoint."
+  [^String cdp-url ^String tab-id ^String session]
   (let [payload {:session session
                  :cdp cdp-url
+                 :tab tab-id
                  :updated_at (System/currentTimeMillis)}]
-    (Files/writeString (cdp-route-lock-path cdp-url)
+    (Files/writeString (cdp-route-lock-path cdp-url tab-id)
       (json/write-json-str payload)
       (into-array java.nio.file.OpenOption []))))
 
@@ -1630,14 +1634,39 @@
   []
   (get-in @!state [:launch-flags "cdp"]))
 
+(defn- current-tab-id
+  "CDP target id of the tab this session drives, or nil when it has none yet.
+   A tab id is what another process can compare against: interception lives in a
+   tab, so another session's routes are only this session's business when they
+   name OUR tab. Cached per page handle — the guard runs before every page
+   command, and the id only changes when the tab does."
+  []
+  (when-let [p (pg)]
+    (let [{:keys [page id]} (:cdp-tab @!state)]
+      (if (and id (identical? page p))
+        id
+        (let [sess (page/new-cdp-session p)]
+          (when-not (core/anomaly? sess)
+            (try
+              (let [info (core/cdp-send sess "Target.getTargetInfo")]
+                (when-not (core/anomaly? info)
+                  (let [tid (get-in (json/read-json (str info)) ["targetInfo" "targetId"])]
+                    (when (string? tid)
+                      (swap! !state assoc :cdp-tab {:page p :id tid})
+                      tid))))
+              (catch Exception e (warn "cdp-target-id" e) nil)
+              (finally
+                (try (core/cdp-detach! sess) (catch Exception _ nil))))))))))
+
 (defn- active-cdp-route-lock
-  "Returns an active lock map for cdp-url, clearing stale locks automatically."
-  [^String cdp-url]
-  (when-let [lock (read-cdp-route-lock cdp-url)]
+  "Returns an active lock map for one tab of cdp-url, clearing stale locks
+   automatically."
+  [^String cdp-url ^String tab-id]
+  (when-let [lock (read-cdp-route-lock cdp-url tab-id)]
     (let [owner (get lock "session")]
       (cond
         (str/blank? owner)
-        (do (clear-cdp-route-lock! cdp-url) nil)
+        (do (clear-cdp-route-lock! cdp-url tab-id) nil)
 
         ;; Keep our own lock as active.
         (= owner (:session @!state))
@@ -1645,14 +1674,15 @@
 
         ;; If owner daemon is gone, clear stale lock.
         (not (daemon-running? owner))
-        (do (clear-cdp-route-lock! cdp-url) nil)
+        (do (clear-cdp-route-lock! cdp-url tab-id) nil)
 
         :else
         lock))))
 
 (defn- cdp-route-lock-conflict
-  "Returns conflict details when current command should be blocked due to
-   another session owning CDP route interception lock on the same endpoint."
+  "Returns conflict details when another session intercepts requests in the very
+   tab this command would drive. Sessions driving other tabs of the same browser
+   never conflict, and a session without a tab yet is about to open its own."
   [^String action]
   (let [session       (:session @!state)
         cdp-connected (true? (:cdp-connected @!state))
@@ -1660,11 +1690,13 @@
     (when (and cdp-connected
             (string? cdp-url)
             (not (contains? cdp-route-lock-exempt-actions action)))
-      (when-let [lock (active-cdp-route-lock cdp-url)]
-        (let [owner (get lock "session")]
-          (when (and owner (not= owner session))
-            {:owner-session owner
-             :cdp-url cdp-url}))))))
+      (when-let [tab-id (current-tab-id)]
+        (when-let [lock (active-cdp-route-lock cdp-url tab-id)]
+          (let [owner (get lock "session")]
+            (when (and owner (not= owner session))
+              {:owner-session owner
+               :cdp-url cdp-url
+               :tab tab-id})))))))
 
 (defn- await-cdp-route-lock
   "Waits for the CDP route lock to be released by another session.
@@ -1715,34 +1747,16 @@
       ;; No conflict
       nil)))
 
-(defn- cdp-route-lock-warning
-  "Returns a warning payload when another session owns active CDP route lock.
-   Used by the `connect` command so users get proactive guidance before hangs."
-  [^String cdp-url]
-  (let [session (:session @!state)]
-    (when-let [lock (active-cdp-route-lock cdp-url)]
-      (let [owner (get lock "session")]
-        (when (and owner (not= owner session))
-          {:warning (str "Session '" owner "' is intercepting network requests on this CDP endpoint. "
-                      "Sharing the endpoint is fine — this session drives its own tab — but commands that "
-                      "drive the page wait until '" owner "' releases its routes "
-                      "(`spel --session " owner " network unroute all`, or close that session).")
-           :route_lock_owner owner})))))
-
-(defn cdp-route-lock-owner
-  "Returns the owning session name when `cdp-url` currently has an active
-   cross-session route lock, otherwise nil. Stale locks are cleared lazily."
-  [^String cdp-url]
-  (when-let [lock (active-cdp-route-lock cdp-url)]
-    (get lock "session")))
-
 (defn- release-cdp-route-lock-if-owned!
-  "Clears CDP route lock if this daemon session currently owns it."
+  "Clears the tab lock this session took when it installed routes. The key is
+   remembered from the write: a session also releases on close, when its browser
+   is already gone and no tab can be asked for its id any more."
   []
-  (when-let [cdp-url (current-cdp-url)]
-    (when-let [lock (read-cdp-route-lock cdp-url)]
+  (when-let [{:keys [cdp tab]} (:cdp-route-lock @!state)]
+    (when-let [lock (read-cdp-route-lock cdp tab)]
       (when (= (:session @!state) (get lock "session"))
-        (clear-cdp-route-lock! cdp-url)))))
+        (clear-cdp-route-lock! cdp tab)))
+    (swap! !state dissoc :cdp-route-lock)))
 
 (defn- persist-launch-flags!
   "Writes current launch-flags to the session's flags file for CLI to read.
@@ -4145,8 +4159,10 @@
                     (network/route-continue! route)))]
     (page/route! (live-page) url handler)
     (swap! !routes assoc url handler)
-    (when (and (:cdp-connected @!state) (current-cdp-url))
-      (write-cdp-route-lock! (current-cdp-url) (:session @!state)))
+    (when-let [cdp-url (and (:cdp-connected @!state) (current-cdp-url))]
+      (when-let [tab-id (current-tab-id)]
+        (write-cdp-route-lock! cdp-url tab-id (:session @!state))
+        (swap! !state assoc :cdp-route-lock {:cdp cdp-url :tab tab-id})))
     {:route_added url}))
 
 (defn- recreate-context-with-opts!
@@ -4639,8 +4655,7 @@
   (when (str/blank? url)
     (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
   (assert-cdp-endpoint-reachable! url)
-  (let [warning-payload (cdp-route-lock-warning url)
-        pw (or (:pw @!state) (core/create))
+  (let [pw (or (:pw @!state) (core/create))
         browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String url)
         contexts (.contexts ^com.microsoft.playwright.Browser browser)
         context (if (seq contexts) (first contexts) (core/new-context browser))
@@ -4654,8 +4669,7 @@
     (reset! !page-errors [])
     (reset! !tracked-requests [])
     (instrument-page! pg-inst)
-    (cond-> {:connected url :url (page/url pg-inst)}
-      warning-payload (merge warning-payload))))
+    {:connected url :url (page/url pg-inst)}))
 
 (defn- disconnect-cdp!
   "Disconnects current CDP browser connection while preserving launch flags.
@@ -6222,19 +6236,20 @@
 
                              (get params "code")
                              {:source (get params "code") :lang :clj})]
-    (if-let [{:keys [owner-session cdp-url]} (await-cdp-route-lock action)]
+    (if-let [{:keys [owner-session cdp-url tab]} (await-cdp-route-lock action)]
       (json/write-json-str
         {:success false
-         :error (str "Session '" owner-session "' is intercepting network requests on this CDP endpoint, "
-                  "so action '" action "' in session '" (:session @!state) "' cannot drive the page. "
+         :error (str "Session '" owner-session "' is intercepting network requests in the tab "
+                  "session '" (:session @!state) "' drives, so action '" action "' cannot run. "
                   "Timed out waiting for that session to release interception.")
-         :hint (str "The endpoint itself is shared — this session already has its own tab, and read-only "
-                 "commands (network requests, console, pages, tab list, url, title) answer right now. "
-                 "To drive the page, release interception: `spel --session " owner-session
-                 " network unroute all`, or close that session; either frees it immediately.")
+         :hint (str "Interception belongs to a tab, not to the browser: this endpoint is shared, "
+                 "and any other tab is free right now — `spel --session " (:session @!state)
+                 " tab new` gives this session its own. To keep this tab, release the routes: "
+                 "`spel --session " owner-session " network unroute all`, or close that session.")
          :error_code "cdp_route_lock"
          :owner_session owner-session
-         :cdp cdp-url})
+         :cdp cdp-url
+         :tab tab})
       (try
         (let [_         (when-let [page (:page @!state)]
                           (page/set-default-timeout! page

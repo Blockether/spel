@@ -1217,11 +1217,13 @@
         (expect (true? (:all_routes_removed r)))))
 
     (it "process-command queues then times out when another CDP session owns route lock"
+      (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            tab-id         (#'daemon/current-tab-id)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url tab-id)
             ;; Set short wait/poll so test doesn't take 120s
             orig-wait @(deref #'daemon/!cdp-lock-wait-s)
             orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
@@ -1237,6 +1239,7 @@
         (Files/writeString lock-path
           (json/write-json-str {"session" owner-session
                                 "cdp" cdp-url
+                                "tab" tab-id
                                 "updated_at" (System/currentTimeMillis)})
           (into-array java.nio.file.OpenOption []))
         (try
@@ -1263,11 +1266,13 @@
     ;; budget, so the worker was always interrupted before the waiter could name the
     ;; session holding the endpoint, and the endpoint looked broken instead of busy.
     (it "answers with the lock conflict itself when the wait outlives the command budget"
+      (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path     (#'daemon/cdp-route-lock-path cdp-url)
+            tab-id         (#'daemon/current-tab-id)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url tab-id)
             orig-wait     @(deref #'daemon/!cdp-lock-wait-s)
             orig-poll     @(deref #'daemon/!cdp-lock-poll-interval-s)
             orig-budget   @#'daemon/default-command-budget-ms]
@@ -1286,6 +1291,7 @@
         (Files/writeString lock-path
           (json/write-json-str {"session" owner-session
                                 "cdp" cdp-url
+                                "tab" tab-id
                                 "updated_at" (System/currentTimeMillis)})
           (into-array java.nio.file.OpenOption []))
         (try
@@ -1307,11 +1313,13 @@
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))
     (it "process-command acquires lock when released during wait"
+      (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            tab-id         (#'daemon/current-tab-id)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url tab-id)
             orig-wait @(deref #'daemon/!cdp-lock-wait-s)
             orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
         (reset! (deref #'daemon/!cdp-lock-wait-s) 10)
@@ -1326,6 +1334,7 @@
         (Files/writeString lock-path
           (json/write-json-str {"session" owner-session
                                 "cdp" cdp-url
+                                "tab" tab-id
                                 "updated_at" (System/currentTimeMillis)})
           (into-array java.nio.file.OpenOption []))
         ;; Delete the lock file after 2s in a background thread
@@ -1347,11 +1356,13 @@
             (Files/deleteIfExists lock-path)))))
 
     (it "exempt actions skip lock queue entirely"
+      (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path      (#'daemon/cdp-route-lock-path cdp-url)
+            tab-id         (#'daemon/current-tab-id)
+            lock-path      (#'daemon/cdp-route-lock-path cdp-url tab-id)
             orig-wait @(deref #'daemon/!cdp-lock-wait-s)
             orig-poll @(deref #'daemon/!cdp-lock-poll-interval-s)]
         (reset! (deref #'daemon/!cdp-lock-wait-s) 2)
@@ -1366,6 +1377,7 @@
         (Files/writeString lock-path
           (json/write-json-str {"session" owner-session
                                 "cdp" cdp-url
+                                "tab" tab-id
                                 "updated_at" (System/currentTimeMillis)})
           (into-array java.nio.file.OpenOption []))
         (try
@@ -1380,26 +1392,50 @@
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))
 
-    (it "connect warning helper returns owner session for active lock"
+    ;; Regression, user report: a second session on a shared CDP endpoint was made to
+    ;; queue behind routes installed in a tab it never drives. Interception is a
+    ;; property of one tab — spel gives every session its own — so the endpoint looked
+    ;; exclusive when nothing about it was.
+    (it "another session's routes in its own tab never block this session"
+      (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
             cdp-url       "http://127.0.0.1:9222"
             owner-session (str "owner-" (System/currentTimeMillis))
             owner-pid     (daemon/pid-file-path owner-session)
-            lock-path     (#'daemon/cdp-route-lock-path cdp-url)]
-        (swap! state-a assoc :session "integ-test")
+            ;; The owner intercepts in ITS OWN tab, never the one this session drives.
+            other-tab     (str "OTHER-TAB-" (System/currentTimeMillis))
+            lock-path     (#'daemon/cdp-route-lock-path cdp-url other-tab)
+            orig-wait     @(deref #'daemon/!cdp-lock-wait-s)
+            orig-poll     @(deref #'daemon/!cdp-lock-poll-interval-s)]
+        (reset! (deref #'daemon/!cdp-lock-wait-s) 10)
+        (reset! (deref #'daemon/!cdp-lock-poll-interval-s) 1)
+        (swap! state-a assoc
+          :session "integ-test"
+          :cdp-connected true
+          :launch-flags {"cdp" cdp-url})
         (Files/writeString owner-pid
           (str (.pid (java.lang.ProcessHandle/current)))
           (into-array java.nio.file.OpenOption []))
         (Files/writeString lock-path
           (json/write-json-str {"session" owner-session
                                 "cdp" cdp-url
+                                "tab" other-tab
                                 "updated_at" (System/currentTimeMillis)})
           (into-array java.nio.file.OpenOption []))
         (try
-          (let [warning (#'daemon/cdp-route-lock-warning cdp-url)]
-            (expect (= owner-session (:route_lock_owner warning)))
-            (expect (str/includes? (:warning warning) "intercepting network requests")))
+          (let [t0      (System/currentTimeMillis)
+                resp    (json/read-json
+                          (#'daemon/process-command
+                           (json/write-json-str {"action" "navigate"
+                                                 "url" (str *test-server-url* "/test-page")})))
+                elapsed (- (System/currentTimeMillis) t0)]
+            (expect (= true (get resp "success")))
+            (expect (nil? (get resp "error_code")))
+            ;; Nothing to wait for: the command must not spend the lock wait window.
+            (expect (< elapsed 5000)))
           (finally
+            (reset! (deref #'daemon/!cdp-lock-wait-s) orig-wait)
+            (reset! (deref #'daemon/!cdp-lock-poll-interval-s) orig-poll)
             (Files/deleteIfExists owner-pid)
             (Files/deleteIfExists lock-path)))))))
 

@@ -336,33 +336,32 @@ spel --profile /tmp/fresh-profile open https://example.com
   (`spel --session <name> logs --path` locates the file;
   `SPEL_LOG_LEVEL=debug` adds detail).
 
-## 13. Another session is driving the same CDP endpoint
+## 13. Another session is driving the same tab
 
-Two spel sessions CAN attach to one CDP browser — each opens its own tab and both
-keep working. What is exclusive is **request interception**: while one session has
-routes installed (`network route …`), page-driving commands from any other session
-on that endpoint are queued behind its lock.
+Two spel sessions CAN attach to one CDP browser — each opens its own tab and both keep
+working, `network route` included: Playwright installs interception on a page, so it never
+touches a tab another session drives. Sharing an endpoint is normal.
+
+Sessions only collide on the SAME tab — `spel tab <n>` can switch onto one another session
+already drives. Then page-driving commands queue behind that session's routes:
 
 ```bash
-spel --session b connect http://127.0.0.1:9222
-# {"connected":"…","warning":"Session 'a' is intercepting network requests on this CDP
-#   endpoint…","route_lock_owner":"a"}
-
 spel --session b open https://example.com
-# {"error":"Session 'a' is intercepting network requests on this CDP endpoint, so action
-#   'navigate' in session 'b' cannot drive the page…","error_code":"cdp_route_lock","owner_session":"a"}
+# {"error":"Session 'a' is intercepting network requests in the tab session 'b' drives…",
+#  "error_code":"cdp_route_lock","owner_session":"a","tab":"9F2C…"}
 ```
 
-Read `owner_session`, then either drive that session, or free interception:
+Read `owner_session`, then take your own tab — or free interception in this one:
 
 ```bash
-spel --session a network unroute all   # releases the lock
-spel --session a close                 # or end that session entirely
+spel --session b tab new                # own tab: the endpoint is shared, the tab is not
+spel --session a network unroute all    # or release that session's routes
+spel --session a close                  # or end that session entirely
 ```
 
-Either frees it instantly — the next command from the other session goes straight through, no
-wait. A session that died without cleaning up frees it too: the lock names its owner, so the
-first command that finds that daemon gone deletes the lock and proceeds.
+Any of the three frees it instantly — the next command goes straight through, no wait. A
+session that died without cleaning up frees it too: the lock names its owner, so the first
+command that finds that daemon gone deletes the lock and proceeds.
 
 `SPEL_CDP_LOCK_WAIT=0` fails immediately instead of queuing. The wait never exceeds the command
 budget: the answer always names the owner instead of expiring as a generic `command_timeout`.
