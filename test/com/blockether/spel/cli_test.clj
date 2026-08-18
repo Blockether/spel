@@ -2178,6 +2178,72 @@
     (it "names the failure when the daemon said nothing about it"
       (expect (str/includes? (json-line {:success false :data {}})
                 "\"error\":\"unexpected browser error")))))
+
+;; =============================================================================
+;; eval-sci text output and the flags an eval carries
+;; =============================================================================
+
+(defn- error-lines
+  "Shorthand: the stderr lines eval-sci writes for a failed response."
+  [response]
+  (#'com.blockether.spel.native/eval-error-lines response))
+
+(defn- eval-flags
+  "Shorthand: the `_flags` an eval-sci command carries to the daemon."
+  [global]
+  (#'com.blockether.spel.native/eval-daemon-flags global))
+
+;; Regression, user report: `spel eval-sci` printed the error and swallowed the
+;; hint the very same failure answered under --json, so the reader at the
+;; terminal was the only one who never saw the sentence naming the way out.
+(defdescribe eval-sci-text-output-test
+  "Tests for native.clj eval-error-lines (private) — a failed eval without --json"
+
+  (describe "a failed evaluation"
+    (it "prints the hint the same failure carries under --json"
+      (expect (= ["Error: Timeout 1000ms exceeded."
+                  "Hint: Verify the selector and consider raising --timeout."]
+                (error-lines {:success false
+                              :data {:error "Timeout 1000ms exceeded."}
+                              :hint "Verify the selector and consider raising --timeout."
+                              :error_code "timeout"}))))
+
+    (it "prints the error alone when the daemon offered no hint"
+      (expect (= ["Error: boom"]
+                (error-lines {:success false :data {:error "boom"}}))))
+
+    (it "falls back to the response-level error"
+      (expect (= ["Error: no response from the spel daemon"]
+                (error-lines {:success false :error "no response from the spel daemon"}))))
+
+    (it "names the failure when the daemon said nothing about it"
+      (expect (str/includes? (first (error-lines {:success false :data {}}))
+                "unexpected browser error")))))
+
+;; Regression, user report: `spel --timeout 800 eval-sci ...` still waited
+;; Playwright's 10s. The flag configured a SCI env inside the CLI process while
+;; the daemon holding the page was never told what the user asked for.
+(defdescribe eval-sci-daemon-flags-test
+  "Tests for native.clj eval-daemon-flags (private) — the _flags an eval carries"
+
+  (describe "--timeout"
+    (it "rides along as the daemon's action timeout"
+      (expect (= {"timeout" 800} (eval-flags {:timeout-ms 800}))))
+
+    (it "is absent when the user asked for none"
+      (expect (= {} (eval-flags {})))))
+
+  (describe "launch flags"
+    (it "keeps browser, channel, profile and cdp beside it"
+      (expect (= {"browser" "firefox" "channel" "chrome" "profile" "/tmp/p"
+                  "cdp" "http://127.0.0.1:9222" "timeout" 5000 "auto-launch" true}
+                (eval-flags {:browser "firefox" :channel "chrome" :profile "/tmp/p"
+                             :cdp "http://127.0.0.1:9222" :timeout-ms 5000
+                             :auto-launch true}))))
+
+    (it "carries the provider selection parse-global-flags consumed"
+      (expect (= {"provider" "ios"} (eval-flags {:cli-flags {"provider" "ios"}}))))))
+
 ;; =============================================================================
 ;; merge-reports arg parsing
 ;; =============================================================================

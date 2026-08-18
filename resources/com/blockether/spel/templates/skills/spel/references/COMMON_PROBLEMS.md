@@ -34,8 +34,10 @@ Headless Chromium is detectable (missing GPU, UA patterns, `navigator.webdriver`
 spel open https://protected-site.com                   # stealth (default)
 spel --interactive open https://protected-site.com     # stealth + headed
 
-# Stealth + real Chrome cookies (most authentic)
-spel state export --profile ~/Library/Application\ Support/Google/Chrome/Default -o auth.json
+# Stealth + real Chrome cookies (most authentic): drive that profile directly,
+# or save its state once and load it into later sessions
+spel --channel chrome --profile "$HOME/Library/Application Support/Google/Chrome/Default" open https://protected-site.com
+spel state save auth.json
 spel --load-state auth.json open https://protected-site.com
 
 # Disable stealth if it causes problems
@@ -462,12 +464,17 @@ browser responsive — it says so in the log, and `spel console clear` or `spel 
 
 ## 15. Polling until a condition
 
-Use `retry-guard` to turn a predicate into a `:retry-when`:
+`with-retry`, `retry-guard` and the API client live in `core`. `spel/` is the
+implicit-page API and carries none of them, so `spel/with-retry` does not
+resolve — spel now answers with the namespace that does have the name.
+`retry-guard` turns a predicate into a `:retry-when`, retrying while the
+predicate is falsy (and on anomalies and 5xx, as the default does):
 
 ```clojure
-(spel/with-retry {:max-attempts 10 :delay-ms 1000 :backoff :fixed
-                  :retry-when (spel/retry-guard #(= "ready" (:status %)))}
-  (spel/api-get ctx "/job/123"))
+(core/with-retry {:max-attempts 10 :delay-ms 1000 :backoff :fixed
+                  :retry-when (core/retry-guard #(= 200 (:status %)))}
+  (core/api-response->map
+    (core/api-get (core/page-api (spel/page)) "https://api.example.com/job/123")))
 ```
 
 ## 16. iOS automation looks slow or disagrees with the screen

@@ -569,6 +569,42 @@
                   (catch Exception e
                     (not (.contains ^String (ex-message e) "Did you mean")))))))))
 
+
+;; Regression, user report: COMMON_PROBLEMS section 15 told the reader to call
+;; `(spel/with-retry ...)`, but that name lives in `core`. The refusal named the
+;; symbol and no namespace, so the only way out was to read spel's source.
+(defdescribe sci-namespace-hint-test
+  "An unresolvable symbol whose name another exposed namespace does bind earns a
+   'did you mean?' hint naming that namespace."
+
+  (describe "did-you-mean hint across namespaces"
+    (it "points spel/with-retry at core/with-retry"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(spel/with-retry {} 1)")
+                  false
+                  (catch Exception e
+                    (.contains ^String (ex-message e)
+                      "did you mean `core/with-retry`?"))))))
+
+    (it "points spel/api-get at core/api-get"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(spel/api-get ctx \"/job/123\")")
+                  false
+                  (catch Exception e
+                    (.contains ^String (ex-message e)
+                      "did you mean `core/api-get`?"))))))
+
+    (it "names the namespace for a bare symbol too"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (try
+                  (sut/eval-string ctx "(retry-guard odd?)")
+                  false
+                  (catch Exception e
+                    (.contains ^String (ex-message e)
+                      "did you mean `core/retry-guard`?"))))))))
+
 ;; =============================================================================
 ;; Help Function Tests
 ;; =============================================================================

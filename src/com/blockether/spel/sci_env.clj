@@ -3510,6 +3510,46 @@
           (str "spel mutators carry a trailing \"!\". "
             "Did you mean `" bang "`?"))))))
 
+(defn- namespaces-exposing
+  "Namespace symbols in `ctx` that bind `sym-name`, shortest name first.
+
+   One var is exposed under several names — `core` and
+   `com.blockether.spel.core` share a map — so the aliases of a var collapse to
+   the shortest of them: a suggestion list is only worth reading when every
+   entry names a different function."
+  [ctx sym-name]
+  (let [sym (symbol sym-name)]
+    (->> (some-> ctx :env deref :namespaces)
+      (keep (fn [[ns-sym m]] (when-let [v (get m sym)] [ns-sym v])))
+      (group-by second)
+      vals
+      (map (fn [pairs] (->> pairs (map first) (sort-by (juxt (comp count str) str)) first)))
+      (sort-by (juxt (comp count str) str))
+      vec)))
+
+(defn- namespace-variant-hint
+  "When `e` is an SCI unresolvable-symbol error and another namespace this env
+   exposes does bind that name, returns a 'did you mean?' hint naming it.
+
+   Every spel namespace has a short alias (`spel`, `core`, `loc`, `assert`, …)
+   and reaching for a function under the wrong one is the ordinary mistake —
+   `(spel/with-retry …)` is `core/with-retry`. The env already knows which
+   namespace holds the name, so the refusal says where to find it instead of
+   leaving the caller to guess. Returns nil when nothing else carries it."
+  [ctx e]
+  (when-let [sym (unresolvable-symbol e)]
+    (let [parsed (symbol sym)
+          tried  (namespace parsed)
+          bare   (name parsed)
+          owners (->> (namespaces-exposing ctx bare)
+                   (remove #(= (str %) tried))
+                   (take 2))]
+      (when (seq owners)
+        (let [suggestion (str/join " or " (map #(str "`" % "/" bare "`") owners))]
+          (if tried
+            (str "`" bare "` is not in `" tried "` — did you mean " suggestion "?")
+            (str "`" bare "` needs its namespace here — did you mean " suggestion "?")))))))
+
 (defn eval-string
   "Evaluates a Clojure string in the SCI context.
 
@@ -3523,9 +3563,11 @@
    Returns:
    Result of evaluation.
 
-   When SCI cannot resolve a symbol, appends a 'did you mean?' hint if the same
-   name with a trailing `!` (spel's mutator convention) does resolve, so a call
-   like `set-viewport-size` points clearly at `set-viewport-size!`."
+   When SCI cannot resolve a symbol, appends a 'did you mean?' hint: the same
+   name with a trailing `!` (spel's mutator convention) when that resolves, so
+   `set-viewport-size` points at `set-viewport-size!`, otherwise the namespace
+   that really binds the name, so `spel/with-retry` points at
+   `core/with-retry`."
   [ctx ^String code]
   (sci/with-bindings {sci/out *out*
                       sci/err *err*
@@ -3533,7 +3575,8 @@
     (try
       (sci/eval-string* ctx code)
       (catch Exception e
-        (if-some [hint (bang-variant-hint ctx e)]
+        (if-some [hint (or (bang-variant-hint ctx e)
+                         (namespace-variant-hint ctx e))]
           (throw (ex-info (str (ex-message e) "\n" hint) (ex-data e) e))
           (throw e))))))
 

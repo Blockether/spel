@@ -863,6 +863,37 @@
         (not (str/blank? stdout)) (assoc :stdout stdout))
       :escape-slash false)))
 
+(defn- eval-daemon-flags
+  "The `_flags` an eval-sci command carries to the daemon.
+
+   The daemon owns the browser and reads the action timeout out of the flags a
+   command brings; `set-default-timeout!` in this process only configures a SCI
+   env that never drives a page. So --timeout has to ride along here, or the
+   evaluated code keeps Playwright's 10s default while the CLI waits four times
+   the timeout the user asked for."
+  [global]
+  (cond-> (or (:cli-flags global) {})
+    (:browser global)     (assoc "browser" (:browser global))
+    (:channel global)     (assoc "channel" (:channel global))
+    (:profile global)     (assoc "profile" (:profile global))
+    (:cdp global)         (assoc "cdp" (:cdp global))
+    (:timeout-ms global)  (assoc "timeout" (:timeout-ms global))
+    (:auto-launch global) (assoc "auto-launch" true)))
+
+(defn- eval-error-lines
+  "The stderr lines a failed eval-sci writes without --json.
+
+   A failure carries more than its message: `:hint` is the sentence that names
+   the way out, and `--json` has always answered it. Text mode printed the
+   message alone, so the reader who most needs the hint — a human at a terminal
+   — was the one who never got it."
+  [response]
+  (into [(str "Error: " (or (get-in response [:data :error])
+                          (:error response)
+                          "unexpected browser error (no details from runtime)"))]
+    (when-let [hint (:hint response)]
+      [(str "Hint: " hint)])))
+
 (defn- run-eval!
   "Runs eval-sci mode via daemon: sends code for evaluation, browser persists.
    The daemon lazily starts a browser on first Playwright call and keeps it
@@ -901,12 +932,7 @@
         ;; :cli-flags carries the provider/device selection that
         ;; `parse-global-flags` consumed, so `--provider ios eval-sci` starts
         ;; the iOS backend instead of a headless Chromium.
-        eval-flags   (cond-> (or cli-flags {})
-                       (:browser global) (assoc "browser" (:browser global))
-                       (:channel global) (assoc "channel" (:channel global))
-                       (:profile global) (assoc "profile" (:profile global))
-                       (:cdp global)     (assoc "cdp" (:cdp global))
-                       (:auto-launch global) (assoc "auto-launch" true))
+        eval-flags   (eval-daemon-flags global)
         exit-code (volatile! 0)]
     (try
       ;; Ensure daemon is running (same as CLI mode)
@@ -989,10 +1015,10 @@
               (println result-str)))
 
           :else
-          ;; text mode: print full error message as-is
-          (eprintln (str "Error: " (or (get-in response [:data :error])
-                                     (:error response)
-                                     "unexpected browser error (no details from runtime)")))))
+          ;; text mode: the same failure --json answers, minus what only a
+          ;; parser reads.
+          (doseq [line (eval-error-lines response)]
+            (eprintln line))))
       (catch Exception e
         (vreset! exit-code 1)
         (eprintln (str "Error: " (.getMessage e))))
