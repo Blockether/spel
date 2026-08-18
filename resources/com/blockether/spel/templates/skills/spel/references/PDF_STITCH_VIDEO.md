@@ -42,7 +42,7 @@ Library:
 | `:width` / `:height` | String | nil | e.g. `"8.5in"` / `"11in"` |
 | `:scale` | Double | 1.0 | 0.1–2.0 |
 
-> `:margin` is not available on `page/pdf` directly. Use `report->pdf` (below) or CSS `@page` with `:prefer-css-page-size true`.
+> `:margin` takes `{:top "20px" :bottom "20px" :left "20px" :right "20px"}` (any subset, CSS units) and is applied by `page/pdf`; `report->pdf` uses exactly this default.
 
 Header/footer template classes: `date`, `title`, `url`, `pageNumber`, `totalPages`.
 
@@ -235,12 +235,14 @@ Tip: ~3 s per sentence matches most TTS voices.
 
 ## Action log + SRT subtitles
 
-Daemon auto-tracks user-facing commands (click, navigate, fill, …) with timestamps. Export as SRT for video overlays, JSON for replay.
+The daemon records every trackable **CLI command** (`spel click`, `spel open`, …) with a timestamp. Export as SRT for video overlays, JSON for replay.
+
+**Actions run inside `eval-sci` are NOT recorded** — tracking happens where the daemon dispatches a command, and one `eval-sci` is a single non-trackable command however many `spel/click` calls it makes. Drive the steps you want subtitled as CLI commands (video recording itself can stay in `eval-sci`).
 
 CLI:
 
 ```bash
-spel action-log                   # JSON dump
+spel action-log                   # JSON dump (same payload as --json)
 spel action-log --srt             # SRT format
 spel action-log --srt -o s.srt
 spel action-log --json -o s.json
@@ -258,9 +260,9 @@ eval-sci:
 
 Entry fields: `idx, timestamp, time, action, target, args, url, title, snapshot`.
 
-Tracked: navigate, click, fill, type, press, hover, check, uncheck, select, dblclick, focus, clear, screenshot, scroll, back, forward, reload, drag, tap, set-input-files.
+Tracked (`trackable-actions`, `daemon.clj`): navigate, click, fill, type, press, hover, check, uncheck, select, dblclick, focus, clear, screenshot, scroll, survey, routes, inspect, overview, debug, emulate, markdownify, back, forward, reload, drag_to, tap, swipe, set_input_files.
 
-Not tracked: snapshot, evaluate, network, console.
+Not tracked: snapshot, evaluate, network, console, eval-sci (and therefore everything it calls).
 
 ## Smooth video pacing
 
@@ -274,14 +276,14 @@ Not tracked: snapshot, evaluate, network, console.
 
 Smooth video example:
 
-```clojure
-(spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-(spel/clear-action-log!)
-(spel/navigate "https://example.org") (spel/human-pause)
-(spel/smooth-scroll 300)                 (spel/human-pause)
-(spel/click "a")                         (spel/human-pause 500 1000)
-(spit "/tmp/session.srt" (spel/export-srt))
-(spel/finish-video-recording {:save-as "/tmp/session.webm"})
+```bash
+spel eval-sci '(do (spel/start-video-recording {:video-size {:width 1920 :height 1080}}) :ok)'
+spel action-log --clear
+spel open https://example.org
+spel eval-sci '(do (spel/smooth-scroll 300) (spel/human-pause))'   # pacing only — not subtitled
+spel click "a"
+spel action-log --srt -o /tmp/session.srt
+spel eval-sci '(spel/finish-video-recording {:save-as "/tmp/session.webm"})'
 ```
 
 ## FFmpeg post-processing
@@ -313,15 +315,16 @@ ffmpeg -f concat -safe 0 -i list.txt -c copy out.mp4
 
 ```bash
 set -e
-spel eval-sci '
-  (spel/start-video-recording {:video-size {:width 1920 :height 1080}})
-  (spel/clear-action-log!)
-  (spel/navigate "https://example.org") (spel/human-pause)
-  (spel/smooth-scroll 500)               (spel/human-pause)
-  (spel/click "a")                       (spel/human-pause 500 1000)
-  (spel/finish-video-recording {:save-as "/tmp/session.webm"})'
+spel eval-sci '(do (spel/start-video-recording {:video-size {:width 1920 :height 1080}}) :ok)'
+spel action-log --clear
+
+# The subtitled steps must be CLI commands — eval-sci actions never reach the log.
+spel open https://example.org
+spel eval-sci '(spel/smooth-scroll 500)'
+spel click "a"
 
 spel action-log --srt -o /tmp/session.srt
+spel eval-sci '(spel/finish-video-recording {:save-as "/tmp/session.webm"})'
 ffmpeg -i /tmp/session.webm -vf "mpdecimate,setpts=N/30/TB" -r 30 /tmp/trimmed.mp4
 ffmpeg -i /tmp/trimmed.mp4  -vf "subtitles=/tmp/session.srt" -c:a copy /tmp/final.mp4
 

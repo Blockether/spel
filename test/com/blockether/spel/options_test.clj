@@ -4,7 +4,8 @@
    [com.blockether.spel.options :as sut]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
-   [com.microsoft.playwright BrowserType$LaunchOptions BrowserType$LaunchPersistentContextOptions Browser$NewContextOptions]))
+   [com.microsoft.playwright BrowserType$LaunchOptions BrowserType$LaunchPersistentContextOptions Browser$NewContextOptions Page$PdfOptions]
+   [com.microsoft.playwright.options Margin]))
 
 ;; =============================================================================
 ;; Launch Options
@@ -191,3 +192,37 @@
     (it "creates persistent context options with ignore-default-args"
       (let [o (sut/->launch-persistent-context-options {:ignore-default-args ["--use-mock-keychain" "--password-store=basic"]})]
         (expect (instance? BrowserType$LaunchPersistentContextOptions o))))))
+
+;; =============================================================================
+;; PDF Options
+;; =============================================================================
+
+;; Regression, user report: `report->pdf` documents a 20px default margin and
+;; passes `:margin` down to `page/pdf`, but ->pdf-options never called
+;; .setMargin — every option map's margin was dropped without a word, so no
+;; generated report PDF ever had margins.
+(defdescribe pdf-options-test
+  "Tests for ->pdf-options"
+
+  (describe "margin"
+    (it "carries a full margin map onto the Playwright options"
+      (let [^Page$PdfOptions po (sut/->pdf-options {:margin {:top "20px" :bottom "21px"
+                                                             :left "22px" :right "23px"}})
+            ^Margin m (.-margin po)]
+        (expect (= "20px" (.-top m)))
+        (expect (= "21px" (.-bottom m)))
+        (expect (= "22px" (.-left m)))
+        (expect (= "23px" (.-right m)))))
+
+    (it "carries a partial margin map, leaving the rest unset"
+      (let [^Page$PdfOptions po (sut/->pdf-options {:margin {:top "5mm"}})
+            ^Margin m (.-margin po)]
+        (expect (= "5mm" (.-top m)))
+        (expect (nil? (.-bottom m)))))
+
+    (it "leaves margin unset when no :margin is given"
+      (expect (nil? (.-margin (sut/->pdf-options {:format "A4"}))))))
+
+  (describe "other options"
+    (it "creates pdf options with format and landscape"
+      (expect (instance? Page$PdfOptions (sut/->pdf-options {:format "A4" :landscape true}))))))

@@ -51,7 +51,7 @@
     Cookie HarContentPolicy HarMode HarNotFound Proxy
     RouteFromHarUpdateContentPolicy
     ScreenSize ViewportSize
-    WaitForSelectorState WaitUntilState MouseButton]
+     WaitForSelectorState WaitUntilState MouseButton Margin]
    [java.nio.file Path Paths]))
 
 ;; =============================================================================
@@ -860,6 +860,15 @@
       (.setHeight po ^String v))
     (when (contains? opts :prefer-css-page-size)
       (.setPreferCSSPageSize po (boolean (:prefer-css-page-size opts))))
+    ;; Playwright's PdfOptions carries the margin as its own object; without
+    ;; this the whole :margin map was dropped in silence.
+    (when-let [m (:margin opts)]
+      (let [^Margin mg (Margin.)]
+        (when-let [v (:top m)] (.setTop mg ^String v))
+        (when-let [v (:bottom m)] (.setBottom mg ^String v))
+        (when-let [v (:left m)] (.setLeft mg ^String v))
+        (when-let [v (:right m)] (.setRight mg ^String v))
+        (.setMargin po mg)))
     po))
 
 ;; =============================================================================
