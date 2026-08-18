@@ -39,7 +39,7 @@
    [com.blockether.spel.platform :as platform])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
-   [com.microsoft.playwright.options AriaRole Cookie Geolocation]
+   [com.microsoft.playwright.options AriaRole Cookie Geolocation Timing]
    [java.io BufferedReader File InputStreamReader OutputStreamWriter]
    [java.lang ProcessBuilder$Redirect]
    [java.net HttpURLConnection StandardProtocolFamily UnixDomainSocketAddress URL]
@@ -1601,29 +1601,35 @@
   []
   (get-in @!state [:launch-flags "cdp"]))
 
+(defn- cdp-target-id
+  "CDP target id of tab `p`, or nil when it cannot be asked for one.
+
+   A tab id is what another process can compare against: interception lives in
+   a tab, so another session's routes are only this session's business when they
+   name one of OUR tabs. Cached per page handle — the guard runs before every
+   page command, and the id only changes when the tab does."
+  [^Page p]
+  (when p
+    (if-let [cached (get (:cdp-tabs @!state) p)]
+      cached
+      (let [sess (page/new-cdp-session p)]
+        (when-not (core/anomaly? sess)
+          (try
+            (let [info (core/cdp-send sess "Target.getTargetInfo")]
+              (when-not (core/anomaly? info)
+                (let [tid (get-in (json/read-json (str info)) ["targetInfo" "targetId"])]
+                  (when (string? tid)
+                    (swap! !state update :cdp-tabs assoc p tid)
+                    tid))))
+            (catch Exception e (warn "cdp-target-id" e) nil)
+            (finally
+              (try (core/cdp-detach! sess) (catch Exception _ nil)))))))))
+
 (defn- current-tab-id
-  "CDP target id of the tab this session drives, or nil when it has none yet.
-   A tab id is what another process can compare against: interception lives in a
-   tab, so another session's routes are only this session's business when they
-   name OUR tab. Cached per page handle — the guard runs before every page
-   command, and the id only changes when the tab does."
+  "CDP target id of the tab this session drives right now, or nil when it has
+   none yet."
   []
-  (when-let [p (pg)]
-    (let [{:keys [page id]} (:cdp-tab @!state)]
-      (if (and id (identical? page p))
-        id
-        (let [sess (page/new-cdp-session p)]
-          (when-not (core/anomaly? sess)
-            (try
-              (let [info (core/cdp-send sess "Target.getTargetInfo")]
-                (when-not (core/anomaly? info)
-                  (let [tid (get-in (json/read-json (str info)) ["targetInfo" "targetId"])]
-                    (when (string? tid)
-                      (swap! !state assoc :cdp-tab {:page p :id tid})
-                      tid))))
-              (catch Exception e (warn "cdp-target-id" e) nil)
-              (finally
-                (try (core/cdp-detach! sess) (catch Exception _ nil))))))))))
+  (cdp-target-id (pg)))
 
 (defn- active-cdp-route-lock
   "Returns an active lock map for one tab of cdp-url, clearing stale locks
@@ -1715,14 +1721,18 @@
       nil)))
 
 (defn- release-cdp-route-lock-if-owned!
-  "Clears the tab lock this session took when it installed routes. The key is
-   remembered from the write: a session also releases on close, when its browser
-   is already gone and no tab can be asked for its id any more."
+  "Clears every tab lock this session took when it installed routes. Routes are
+   session-wide, so the lock names every tab the session was driving: releasing
+   only the tab in front left the others locked by a session that no longer
+   intercepts anything. The keys are remembered from the write — a session also
+   releases on close, when its browser is already gone and no tab can be asked
+   for its id any more."
   []
-  (when-let [{:keys [cdp tab]} (:cdp-route-lock @!state)]
-    (when-let [lock (read-cdp-route-lock cdp tab)]
-      (when (= (:session @!state) (get lock "session"))
-        (clear-cdp-route-lock! cdp tab)))
+  (when-let [{:keys [cdp tabs]} (:cdp-route-lock @!state)]
+    (doseq [tab tabs]
+      (when-let [lock (read-cdp-route-lock cdp tab)]
+        (when (= (:session @!state) (get lock "session"))
+          (clear-cdp-route-lock! cdp tab))))
     (swap! !state dissoc :cdp-route-lock)))
 
 (defn- persist-launch-flags!
@@ -2020,6 +2030,39 @@
 
 (defonce ^:private !network-responses (atom (sorted-map)))  ;; entry number -> Response, read off the dispatch thread
 
+(defn- request-timing
+  "Playwright's own `Timing` for a request, or nil when the driver has none.
+
+   Reads already-materialized data, so it is safe on the event dispatch thread."
+  ^Timing [^Request req]
+  (try (.timing req) (catch Exception _ nil)))
+
+(defn- request-duration-ms
+  "Milliseconds from a request leaving the browser to its response starting.
+
+   `Timing/responseStart` is measured from `startTime` and reads -1 for a phase
+   that never happened — served from cache, aborted, failed — so a negative
+   reading is reported as 0 rather than as a nonsensical duration."
+  [^Request req]
+  (if-let [^Timing t (request-timing req)]
+    (let [response-start (.-responseStart t)]
+      (if (pos? response-start) (long (Math/round response-start)) 0))
+    0))
+
+(defn- request-elapsed-ms
+  "Milliseconds a request has been alive, from `Timing/startTime` until now.
+
+   The only duration a failed request can report: it never reached a response,
+   so `responseStart` stays -1 while the wait before the failure is exactly
+   what someone debugging a refused connection or a DNS timeout is after."
+  [^Request req]
+  (if-let [^Timing t (request-timing req)]
+    (let [start (.-startTime t)]
+      (if (pos? start)
+        (max 0 (- (System/currentTimeMillis) (long (Math/round start))))
+        0))
+    0))
+
 (defn- track-network-entry!
   "Tracks a network request/response with full details into the sliding window.
 
@@ -2042,7 +2085,7 @@
           resp-headers (try (into {} (.headers resp)) (catch Exception _ {}))
           post-data (try (.postData req) (catch Exception _ nil))
           req-body-preview (safe-parse-json-body post-data 500)
-          duration 0
+          duration (request-duration-ms req)
           entry {:ref (str "@" ref-id)
                  :tab tab
                  :method (.method req)
@@ -2148,6 +2191,55 @@
     ;; TASK-013: also track into enriched sliding window
     (track-network-entry! resp tab)))
 
+(defn- track-failed-request!
+  "Tracks a request that ended without a response: DNS failure, refused
+   connection, TLS error, an aborted route.
+
+   `Page.onResponse` never fires for these, so until this listener existed they
+   were captured by nobody and `spel network` came back empty for exactly the
+   request being debugged. The entry carries the browser's own text in `:error`
+   (`net::ERR_CONNECTION_REFUSED`) and 0 as its status — the HAR convention for
+   a response that never arrived, which keeps `:status` a number for every
+   entry. Nothing is
+   parked in `!network-responses` because there is no Response to read a body
+   from, so `network get @nN` answers from the tracked entry alone."
+  [^Request req tab]
+  (let [failure (or (try (.failure req) (catch Exception _ nil)) "request failed")
+        resource-type (try (.resourceType req) (catch Exception _ "other"))
+        method (try (.method req) (catch Exception _ "GET"))
+        url (try (.url req) (catch Exception _ ""))]
+    (swap! !tracked-requests conj-tab-window
+      {:url url :method method :status 0 :error failure
+       :resource-type resource-type :tab tab}
+      max-tracked-requests)
+    (when (capture-budget-left?)
+      (let [entry-no (long (swap! !network-counter inc))
+            ref-id (str "n" entry-no)
+            page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
+            req-headers (try (into {} (.headers req)) (catch Exception _ {}))
+            post-data (try (.postData req) (catch Exception _ nil))
+            base {:ref (str "@" ref-id)
+                  :tab tab
+                  :method method
+                  :url url
+                  :resource_type resource-type
+                  :status 0
+                  :error failure
+                  :duration_ms (request-elapsed-ms req)
+                  :timestamp (System/currentTimeMillis)
+                  :page page-url
+                  :page_ref (current-page-ref page-url)}
+            entry (assoc base :preview {:request  {:headers (truncate-keys req-headers 5)
+                                                   :body    (safe-parse-json-body post-data 500)}
+                                        :response {:headers {}
+                                                   :body    nil}})
+            full-entry (assoc base
+                         :request {:headers req-headers :body post-data}
+                         :response {:headers {} :body nil})]
+        (swap! !network-full assoc ref-id full-entry)
+        (track-in-window! !network-window !network-full !network-responses entry)
+        (swap! !session-entry-count inc)))))
+
 ;; Tabs this session has driven: Page -> the tab key ("t1", "t2", ...) every
 ;; entry captured from it is tagged with. Playwright keeps every listener until
 ;; you remove it and spel removes none, so this map is also the only thing
@@ -2247,6 +2339,11 @@
         ;; watchdog reads the record and interrupts its own worker.
         (page/on-crash pg (fn [_] (note-page-crash! pg)))
         (page/on-response pg (fn [^Response resp] (track-response! resp tab)))
+        ;; A request that never reaches a response — refused connection, DNS
+        ;; failure, TLS error, a route that aborted it — fires ONLY this event.
+        ;; Listening to responses alone left `spel network` empty for exactly
+        ;; the request someone opened the tool to debug.
+        (page/on-request-failed pg (fn [^Request req] (track-failed-request! req tab)))
         ;; A tab the PAGE opens — target=_blank, window.open — is a tab of this
         ;; session too, and nothing listened to it until somebody switched to it:
         ;; everything it logged, threw or fetched while it loaded was lost, and
@@ -2303,6 +2400,53 @@
    instrumented."
   []
   (tab-key-of (pg)))
+
+(defn- session-live-pages
+  "Every live page this session drives — the tab in front first, then every
+   other tab it has instrumented that is still open.
+
+   What belongs to the SESSION rather than to one tab — routes, the CDP route
+   lock — is applied through this. Applied to the current page alone it silently
+   skipped every tab that was already open beside it.
+
+   Scoped to the CURRENT context: `!tabs` remembers every page this session has
+   ever instrumented, and a page of a context the session has left is no longer
+   one of its tabs."
+  []
+  (let [current (pg)
+        context (ctx)
+        ours?   (fn [p]
+                  (boolean (and context
+                             (page-live? p)
+                             (try (identical? context (.context ^Page p))
+                                  (catch Exception _ false)))))]
+    (into (if (ours? current) [current] [])
+      (remove #(or (identical? % current) (not (ours? %))))
+      (keys (:pages @!tabs)))))
+
+(defn- claim-cdp-route-lock!
+  "Takes the CDP route lock for every tab this session drives and remembers the
+   set, so the release clears exactly those tabs.
+
+   Routes are session-wide. A lock naming only the tab that happened to be in
+   front let another session take one of this session's OTHER intercepted tabs
+   and be told nothing was intercepting there.
+
+   Returns:
+   The set of locked CDP target ids, or nil when this session is not on CDP."
+  []
+  (when (true? (:cdp-connected @!state))
+    (when-let [cdp-url (current-cdp-url)]
+      (let [session (:session @!state)
+            tabs    (into #{} (keep cdp-target-id) (session-live-pages))]
+        (doseq [tab tabs]
+          (write-cdp-route-lock! cdp-url tab session))
+        (when (seq tabs)
+          (swap! !state update :cdp-route-lock
+            (fn [prev]
+              {:cdp cdp-url
+               :tabs (into (if (= (:cdp prev) cdp-url) (:tabs prev #{}) #{}) tabs)})))
+        tabs))))
 
 (defn- tab-entries
   "Returns the captured entries of the tab this session is on — or every tab's
@@ -2362,6 +2506,9 @@
   [p]
   (instrument-page! p)
   (swap! !state assoc :page p)
+  ;; instrument-page! puts this session's routes on the tab it focuses; the lock
+  ;; that warns another session off an intercepted tab has to follow them there.
+  (when (seq @!routes) (claim-cdp-route-lock!))
   p)
 
 (defn- ensure-live-browser!
@@ -4461,12 +4608,17 @@
                                   content_type (assoc :content-type content_type)))
                     ;; default: continue
                     (network/route-continue! route)))]
-    (page/route! (live-page) url handler)
+    ;; A route belongs to the SESSION. Registered on `(live-page)` alone it was
+    ;; not in force on any OTHER tab already open — the request went to the real
+    ;; server while the session reported the mock as active. Tabs opened later
+    ;; get it from instrument-page!, and network_unroute already sweeps them all.
+    (let [current (live-page)]
+      (page/route! current url handler)
+      (doseq [^Page p (session-live-pages)
+              :when (not (identical? p current))]
+        (page/route! p url handler)))
     (swap! !routes assoc url handler)
-    (when-let [cdp-url (and (:cdp-connected @!state) (current-cdp-url))]
-      (when-let [tab-id (current-tab-id)]
-        (write-cdp-route-lock! cdp-url tab-id (:session @!state))
-        (swap! !state assoc :cdp-route-lock {:cdp cdp-url :tab tab-id})))
+    (claim-cdp-route-lock!)
     {:route_added url}))
 
 (defn- recreate-context-with-opts!

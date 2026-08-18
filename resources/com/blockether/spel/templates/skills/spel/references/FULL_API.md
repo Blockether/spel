@@ -68,6 +68,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `firefox` | [pw] | Returns the Firefox BrowserType. |
 | `form-data` | [] | Creates a new FormData instance. |
 | `guarded-handler` | [label handler] \| [label handler on-error] | Wraps a user event handler so a throwing handler cannot wedge the browser. |
+| `handler-errors` | [] | Every event-handler failure this process has recorded, worst first. |
 | `java->clj` | [obj] | Recursively converts Java collection types returned by Playwright's |
 | `launch` | [browser-type] \| [browser-type launch-opts] | Launches a browser of the given type. |
 | `launch-chromium` | [pw] \| [pw opts] | Launches Chromium browser. |
@@ -82,6 +83,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `page-api` | [pg] | Returns the APIRequestContext for a Page. |
 | `request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `request-options` | [opts] | Creates RequestOptions from a map. |
+| `reset-handler-errors!` | [] | Forgets every recorded handler failure. |
 | `retry` | [f] \| [f opts] | Execute `f` (a no-arg function) with retry logic. |
 | `retry-guard` | [pred] | Creates a :retry-when predicate that retries until `pred` is satisfied. |
 | `run-with-page-api` | [pg opts f] | Functional core of `with-page-api`. Creates an APIRequestContext from a Page |
@@ -189,11 +191,13 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `off-dialog` | [page handler] | Removes a previously registered dialog handler. |
 | `on-close` | [page handler] | Registers a handler for page close. |
 | `on-console` | [page handler] | Registers a handler for console messages. |
+| `on-crash` | [page handler] | Registers a handler for the page's renderer dying. |
 | `on-dialog` | [page handler] | Registers a handler for dialogs. |
 | `on-download` | [page handler] | Registers a handler for downloads. |
 | `on-page-error` | [page handler] | Registers a handler for page errors. |
 | `on-popup` | [page handler] | Registers a handler for popup pages. |
 | `on-request` | [page handler] | Registers a handler for requests. |
+| `on-request-failed` | [page handler] | Registers a handler for requests that never produced a response. |
 | `on-response` | [page handler] | Registers a handler for responses. |
 | `once-dialog` | [page handler] | Registers a one-time handler for the next dialog. |
 | `opener` | [page] | Returns the opener page, if any. |
@@ -532,6 +536,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `ref-bounding-box` | [refs ref-id] | Returns the bounding box for a ref from the last snapshot. |
 | `ref-css-selector` | [ref-id] | Returns the CSS selector for a snapshot ref id. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `truncation-note` | [truncated] | One line saying the capture stopped on a budget, or nil when it did not. |
 
 ### `annotate` — Page annotation overlays
 
@@ -1526,25 +1531,27 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 
 | Command | Description |
 |---------|-------------|
-| `network route <url>` | Intercept requests — on every tab of this session, tabs opened later included |
+| `network` | List captured entries (failed requests included) |
+| `network get @nN` | Full entry: headers, bodies, duration |
+| `network route <url>` | Intercept requests (every tab of this session) |
 | `network route <url> --abort` | Block requests |
-| `network unroute [url]` | Remove routes from every tab of this session |
+| `network unroute [url]` | Remove routes from every tab |
 | `network requests [flags]` | View this tab's requests |
 | `--filter <regex>` | Filter by URL regex |
 | `--type <type>` | Filter by type (document, script, fetch, ...) |
 | `--method <method>` | Filter by method (GET, POST, ...) |
 | `--status <prefix>` | Filter by status (2, 30, 404, ...) |
-| `--all` | Every tab of this session, not just the current one |
-| `network clear` | Clear this tab's tracked requests (`--all` for every tab) |
+| `--all` | Every tab of this session, not just this one |
+| `network clear` | Clear tracked requests (--all for every tab) |
 
 ### Tabs & Windows
 
 | Command | Description |
 |---------|-------------|
-| `tab` | List tabs — position, stable id (`t3`), title and URL |
+| `tab` | List tabs (position, id, title, URL) |
 | `tab new [url]` | New tab |
-| `tab <n>` | Switch by position (0-based) — positions shift when a tab closes |
-| `tab t<n>` | Switch by stable id — the id console/errors/network entries carry |
+| `tab <n>` | Switch by position (0-based; shifts when a tab closes) |
+| `tab t<n>` | Switch by stable id (the id every entry carries) |
 | `tab close` | Close tab |
 
 ### Frames & Dialogs
@@ -1567,8 +1574,8 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `cdp disconnect\|reconnect` | Temporarily detach/reattach CDP |
 | `find-free-port` | Print an available local TCP port |
 | `trace start / trace stop` | Record trace |
-| `console / console clear` | View/clear this tab's console (auto-captured; `--all` for every tab) |
-| `errors / errors clear` | View/clear this tab's errors (auto-captured; `--all` for every tab) |
+| `console / console clear` | View/clear this tab's console (auto-captured; --all: every tab) |
+| `errors / errors clear` | View/clear this tab's errors (auto-captured; --all: every tab) |
 | `highlight <sel>` | Highlight element |
 | `inspector [url]` | Launch Playwright Inspector (headed browser) |
 | `show-trace [trace]` | Open Playwright Trace Viewer |
@@ -1667,4 +1674,4 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `eval-sci <file.clj>` | Evaluate Clojure file (e.g. codegen script) |
 | `eval-sci --interactive` | Evaluate with visible browser (headed mode) |
 | `eval-sci --load-state F` | Load auth/state before evaluation (alias: --storage-state) |
-| `eval-sci '<code>' --json` | Result as one JSON object: `{"result": <value>}` (never EDN) |
+| `eval-sci '<code>' --json` | Result as one JSON object: {\"result\": …} |

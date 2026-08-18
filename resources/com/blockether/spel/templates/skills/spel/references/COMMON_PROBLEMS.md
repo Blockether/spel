@@ -340,7 +340,10 @@ spel --profile /tmp/fresh-profile open https://example.com
 
 Two spel sessions CAN attach to one CDP browser — each opens its own tab and both keep
 working, `network route` included: spel installs this session's routes on the tabs THIS session
-drives, so they never touch a tab another session drives. Sharing an endpoint is normal.
+drives — every one of them, tabs opened later included — so they never touch a tab another session
+drives. The interception lock names every tab this session routes, not just the one in front, so the
+other session is warned off all of them and gets them all back on `network unroute`. Sharing an
+endpoint is normal.
 
 Sessions only collide on the SAME tab — `spel tab <n>` can switch onto one another session
 already drives. Then page-driving commands queue behind that session's routes:
@@ -399,6 +402,11 @@ A tab the PAGE opens — `target="_blank"`, `window.open` — gets its own id an
 Playwright hands it over, without switching to it. Playwright cannot hand a popup over before its initial
 navigation, so a message logged in that very first instant can still be missed; everything after it —
 console, page errors, requests — lands under that tab's id.
+
+A request that never gets a response is captured like any other: a refused connection, a DNS failure, a
+TLS error or a route that aborted it is listed with `status` 0, the browser's own text in `error`
+(`net::ERR_CONNECTION_REFUSED`) and how long it waited in `duration_ms`. Before that, `spel network` was
+empty for exactly the request being debugged while devtools showed the error.
 
 A ref lives exactly as long as the listing that shows it: `spel console get @c17` and `spel network get
 @n42` answer for every ref `spel console` / `spel network requests` still prints, and stop answering for

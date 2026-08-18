@@ -1092,6 +1092,19 @@
   [^Page page handler]
   (.onResponse page (event-consumer "response" handler)))
 
+(defn on-request-failed
+  "Registers a handler for requests that never produced a response.
+
+   Fires for DNS failures, refused connections, TLS errors and aborted
+   routes — the cases `on-response` can never see.
+
+   Params:
+   `page`    - Page instance.
+   `handler` - Function that receives a Request; `(.failure request)`
+               carries the browser's error text."
+  [^Page page handler]
+  (.onRequestFailed page (event-consumer "request-failed" handler)))
+
 (defn on-close
   "Registers a handler for page close.
    

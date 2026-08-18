@@ -1812,7 +1812,8 @@
    how many listeners spel put on one page without launching a browser.
 
    Params:
-   `!counts` - Atom holding {:console n :page-error n :response n :crash n :popup n}.
+   `!counts` - Atom holding {:console n :page-error n :response n :crash n :popup n
+                             :request-failed n}.
 
    Returns:
    A `com.microsoft.playwright.Page` proxy; every other method is unsupported."
@@ -1822,7 +1823,8 @@
     (onPageError [_] (swap! !counts update :page-error (fnil inc 0)))
     (onResponse [_] (swap! !counts update :response (fnil inc 0)))
     (onCrash [_] (swap! !counts update :crash (fnil inc 0)))
-    (onPopup [_] (swap! !counts update :popup (fnil inc 0)))))
+    (onPopup [_] (swap! !counts update :popup (fnil inc 0)))
+    (onRequestFailed [_] (swap! !counts update :request-failed (fnil inc 0)))))
 
 (defdescribe page-instrumentation-test
   "Tests for page instrumentation — one page carries one set of spel listeners"
@@ -1849,7 +1851,7 @@
       (let [counts (atom {})
             page   (counting-page counts)]
         (dotimes [_ 5] ((var-get #'sut/instrument-page!) page))
-        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1} @counts))))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1 :request-failed 1} @counts))))
 
     (it "instruments a second page on its own"
       (let [counts (atom {})
@@ -1857,7 +1859,7 @@
             second-page (counting-page counts)]
         ((var-get #'sut/instrument-page!) first-page)
         ((var-get #'sut/instrument-page!) second-page)
-        (expect (= {:console 2 :page-error 2 :response 2 :crash 2 :popup 2} @counts))))))
+        (expect (= {:console 2 :page-error 2 :response 2 :crash 2 :popup 2 :request-failed 2} @counts))))))
 
 (defn- fake-console-message
   "A `ConsoleMessage` carrying only what `track-console-entry!` reads off it.
@@ -1879,17 +1881,28 @@
 
    Params:
    `n` - Number making the URL unique.
+   `response-start-ms` - Milliseconds Playwright measured between the request
+   starting and the first byte of its response. Omitted for a Request that
+   answers no timing at all.
 
    Returns:
    A `com.microsoft.playwright.Response` proxy."
-  [n]
-  (let [req (proxy [com.microsoft.playwright.Request] []
-              (method [] "GET")
-              (url [] (str "http://example.test/" n))
-              (resourceType [] "fetch"))]
-    (proxy [com.microsoft.playwright.Response] []
-      (request [] req)
-      (status [] 200))))
+  ([n] (fake-response n nil))
+  ([n response-start-ms]
+   (let [req (proxy [com.microsoft.playwright.Request] []
+               (method [] "GET")
+               (url [] (str "http://example.test/" n))
+               (resourceType [] "fetch")
+               (timing []
+                 (if response-start-ms
+                   (let [t (com.microsoft.playwright.options.Timing.)]
+                     (set! (.-startTime t) (double (System/currentTimeMillis)))
+                     (set! (.-responseStart t) (double response-start-ms))
+                     t)
+                   (throw (UnsupportedOperationException. "no timing")))))]
+     (proxy [com.microsoft.playwright.Response] []
+       (request [] req)
+       (status [] 200)))))
 
 ;; Regression, user report: "with these tabs, CDP, network and console there may
 ;; be plenty of bugs". There were. The detail behind a ref was retained by GLOBAL
@@ -1952,6 +1965,36 @@
             (reset! parked (nth restore 2))
             (reset! counter (nth restore 3))))))))
 
+;; Regression, user report: every network entry reported `duration_ms 0`. The field
+;; was a hardcoded literal, so a listing whose whole point is showing which request
+;; is slow ranked a two-second call and one served from cache exactly the same.
+(defdescribe network-duration-test
+  "A tracked response reports the time the browser really spent on it."
+
+  (describe "a response Playwright timed"
+    (it "reports that duration, and zero only when there is no measurement"
+      (let [window  (var-get #'sut/!network-window)
+            full    (var-get #'sut/!network-full)
+            parked  (var-get #'sut/!network-responses)
+            counter (var-get #'sut/!network-counter)
+            track   (var-get #'sut/track-network-entry!)
+            restore [@window @full @parked @counter]]
+        (try
+          (reset! window [])
+          (reset! full {})
+          (reset! parked (sorted-map))
+          (reset! counter 0)
+          (track (fake-response 1 250.0) "t1")
+          (track (fake-response 2) "t1")
+          (expect (= 250 (:duration_ms (first @window))))
+          (expect (= 250 (:duration_ms (get @full "n1"))))
+          ;; A Request that answers no timing at all must not lose the entry.
+          (expect (= 0 (:duration_ms (second @window))))
+          (finally
+            (reset! window (nth restore 0))
+            (reset! full (nth restore 1))
+            (reset! parked (nth restore 2))
+            (reset! counter (nth restore 3))))))))
 ;; Regression, user report: `console clear` and `network clear` dropped the
 ;; listing and kept the detail behind it — `console get @c1` still answered for a
 ;; console message the session had just cleared, and every parked Response of a
@@ -2037,13 +2080,14 @@
                         (onPageError [_])
                         (onResponse [_])
                         (onCrash [_])
+                        (onRequestFailed [_])
                         (onPopup [c] (reset! !consumer c)))
             counts    (atom {})
             popup     (counting-page counts)]
         ((var-get #'sut/instrument-page!) opener)
         (expect (some? @!consumer))
         (.accept ^java.util.function.Consumer @!consumer popup)
-        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1} @counts))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1 :request-failed 1} @counts))
         (expect (some? ((var-get #'sut/tab-key-of) popup)))))))
 
 ;; =============================================================================

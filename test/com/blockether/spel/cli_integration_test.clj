@@ -1377,6 +1377,53 @@
       (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
       (let [body (:result (cmd "evaluate" {"script" "fetch('/health').then(r => r.text())"}))]
         (expect (= "{\"mocked\":true}" body))))
+
+    ;; Regression, user report: `network route` reached the tab in front and every
+    ;; tab opened after it — never a tab this session already had open. Switching
+    ;; back to that tab sent the request to the real server while the session, and
+    ;; the CDP lock it holds, still reported the mock as in force.
+    (it "routes a tab that was already open when it was added"
+      (nav! "/test-page")
+      (let [_      (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+            _      (cmd "tab_switch" {"index" 0})
+            _      (cmd "tab_switch" {"index" 1})
+            _      (cmd "network_route" {"url" "**/health*"
+                                         "action_type" "fulfill"
+                                         "body" "{\"mocked\":true}"
+                                         "status" 200
+                                         "content_type" "application/json"})
+            on-t2  (:result (cmd "evaluate" {"script" "fetch('/health?a=' + Math.random()).then(r => r.text())"}))
+            _      (cmd "tab_switch" {"index" 0})
+            on-t1  (:result (cmd "evaluate" {"script" "fetch('/health?b=' + Math.random()).then(r => r.text())"}))]
+        (expect (= "{\"mocked\":true}" on-t2))
+        (expect (= "{\"mocked\":true}" on-t1))))
+
+    ;; Regression, user report: the CDP route lock named ONE tab — whichever was in
+    ;; front when `network route` ran — while the session's routes intercept in
+    ;; every tab it drives. A second session could take one of those other tabs,
+    ;; find no lock at all, and race an interception it had no way to see.
+    (it "locks every tab the session drives, not only the one in front"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            cdp-url "http://127.0.0.1:9222"
+            old     @state-a]
+        (swap! state-a assoc :cdp-connected true :launch-flags {"cdp" cdp-url})
+        (let [first-tab-id (#'daemon/current-tab-id)]
+          (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+          (let [second-tab-id (#'daemon/current-tab-id)]
+            (try
+              (expect (not= first-tab-id second-tab-id))
+              (cmd "network_route" {"url" "**/health" "action_type" "abort"})
+              (expect (some? (#'daemon/read-cdp-route-lock cdp-url first-tab-id)))
+              (expect (some? (#'daemon/read-cdp-route-lock cdp-url second-tab-id)))
+              ;; And releasing the routes gives every one of those tabs back.
+              (cmd "network_unroute" {})
+              (expect (nil? (#'daemon/read-cdp-route-lock cdp-url first-tab-id)))
+              (expect (nil? (#'daemon/read-cdp-route-lock cdp-url second-tab-id)))
+              (finally
+                (Files/deleteIfExists (#'daemon/cdp-route-lock-path cdp-url first-tab-id))
+                (Files/deleteIfExists (#'daemon/cdp-route-lock-path cdp-url second-tab-id))
+                (reset! state-a old)))))))
     (it "process-command queues then times out when another CDP session owns route lock"
       (nav! "/test-page")
       (let [state-a       (deref #'daemon/!state)
@@ -3440,6 +3487,36 @@
             (expect (contains? r :request))
             (expect (contains? r :response))))))))
 
+;; =============================================================================
+;; Requests that never got a response
+;; =============================================================================
+
+;; Regression, user report: a request that never got a response — connection
+;; refused, DNS failure, a route that aborts it — was captured by nobody. Only
+;; `page.onResponse` was listened to, so `spel network` stayed empty for exactly
+;; the request being debugged while the browser's own devtools showed the error.
+(defdescribe network-failed-request-test
+  "A request that failed without a response is captured like any other."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (describe "a fetch to a port nothing listens on"
+
+    (it "lists it with the browser's own error text and a ref that resolves"
+      (nav! "/test-page")
+      (let [dead-port (with-open [s (java.net.ServerSocket. 0)] (.getLocalPort s))
+            dead-url  (str "http://127.0.0.1:" dead-port "/never-answers")]
+        (cmd "evaluate" {"script" (str "fetch('" dead-url "').catch(() => 'failed')")})
+        (Thread/sleep 1000)
+        (let [entries (:entries (cmd "network_list" {}))
+              failed  (first (filter #(str/includes? (str (:url %)) "never-answers") entries))]
+          (expect (some? failed))
+          (expect (= 0 (:status failed)))
+          (expect (not (str/blank? (str (:error failed)))))
+          ;; The listing hands out a ref, so the detail behind it must answer.
+          (let [detail (cmd "network_get_ref" {"ref" (:ref failed)})]
+            (expect (str/includes? (str (:url detail)) "never-answers"))
+            (expect (not (str/blank? (str (:error detail)))))))))))
 ;; =============================================================================
 ;; TASK-013: Console list
 ;; =============================================================================
