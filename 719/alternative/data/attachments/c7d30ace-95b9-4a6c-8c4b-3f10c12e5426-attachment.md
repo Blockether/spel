@@ -1,0 +1,22 @@
+## GET http://localhost:35419/echo?user=alice&action=view → 200 OK
+
+### Response Headers
+```
+content-length: 64
+content-type: application/json
+date: Tue, 18 Aug 2026 09:35:11 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "GET",
+  "path": "/echo",
+  "query": "user=alice&action=view"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:35419/echo?user=alice&action=view'
+```
