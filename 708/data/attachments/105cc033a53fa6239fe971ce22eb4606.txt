@@ -1,1 +1,0 @@
-2026-08-16T20:11:23.467Z WARN  [spel] cmd navigate ["url"] -> error in 2012ms code=cdp_route_lock error="CDP endpoint is currently controlled by session 'owner-1786911081451' with active network routes. Timed out waiting for lock release — blocking action 'navigate' in session 'integ-test'."
