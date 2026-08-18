@@ -411,10 +411,14 @@ spel tab list   # t1 is still there and no blank tab was added
 spel get title  # answers t1's title — one refusal, not a broken session
 ```
 
-Which command gets refused is Playwright's timing, not spel's: `spel get url` is answered from the
-driver's own last known state, so right after the kill it can still print the dead tab's URL. The first
-command that really touches the page — `get title`, a click, an eval, a snapshot — is the one refused,
-and everything after it runs on the tab spel landed on.
+What a command reports is fetched when the command runs, not when the browser happened to say it. The
+Java driver only delivers what the browser told it while a call of its own is in flight, so a session
+waiting for your next command hears nothing: a tab closed in the browser read as open — `spel get url`
+printed the dead tab's address and `spel tab list` still listed it — and a `console.log` fired after the
+last command reached nobody. Every command now delivers that backlog first (one round trip, about 1 ms),
+so `get url`, `tab list`, `console`, `errors` and `network` answer for the browser as it is now, and the
+refusal above lands on the first command after the kill. `spel health` is the exception: it has to answer
+while the driver is wedged, so it reports what Playwright already had.
 A tab the PAGE opens — `target="_blank"`, `window.open` — gets its own id and is captured from the moment
 Playwright hands it over, without switching to it. Playwright cannot hand a popup over before its initial
 navigation, so a message logged in that very first instant can still be missed; everything after it —

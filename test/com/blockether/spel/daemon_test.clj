@@ -2331,6 +2331,57 @@
               ((var-get #'sut/forget-crashed-page!) pg)
               (reset! state-atom before))))))))
 
+(defn- pumped-page
+  "A Playwright `Page` that learns it is closed only when someone calls it — the
+   client's own behaviour: it reads the driver's pipe on the thread of a call in
+   flight, and never between commands.
+
+   Params:
+   `!drains` - Atom counting round trips (`waitForTimeout`).
+   `!closed` - Atom holding the liveness the NEXT `isClosed` answers.
+
+   Returns:
+   A `com.microsoft.playwright.Page` proxy; every other method is unsupported."
+  [!drains !closed]
+  (proxy [com.microsoft.playwright.Page] []
+    (waitForTimeout [_timeout] (swap! !drains inc) (reset! !closed true) nil)
+    (isClosed [] @!closed)))
+
+;; Regression, user report: `spel get url` answered the address of a tab that was
+;; already closed, and `spel console` was blind to a message logged while the
+;; session sat idle. Both read state Playwright only refreshes while a call of its
+;; own is in flight, and a daemon waiting for the next command makes no calls.
+(defdescribe driver-drain-test
+  "Every command delivers what the browser said while the session was idle."
+
+  (describe "a tab closed in the browser, behind Playwright's back"
+    (it "reads as open until the events are delivered, and closed right after"
+      (let [!drains    (atom 0)
+            !closed    (atom false)
+            page       (pumped-page !drains !closed)
+            state-atom (deref #'sut/!state)
+            before     @state-atom]
+        (try
+          (reset! state-atom (assoc before :page page))
+          (expect ((var-get #'sut/page-open?)))
+          ((var-get #'sut/drain-driver-events!))
+          (expect (= 1 @!drains))
+          (expect (not ((var-get #'sut/page-open?))))
+          (finally (reset! state-atom before))))))
+
+  (describe "the seam every command comes through"
+    (it "drains before a command that reports the browser, never before health"
+      (let [!drains (atom 0)]
+        (with-redefs-fn {#'sut/drain-driver-events! (fn [] (swap! !drains inc) nil)
+                         #'sut/dispatch-cmd         (fn [_action _params] {:success true})}
+          (fn []
+            (#'sut/dispatch-with-recovery "console_list" {})
+            (expect (= 1 @!drains))
+            ;; `health` is what you run when the driver is wedged: it must answer
+            ;; from what Playwright already has, not wait on the pipe that hangs.
+            (#'sut/dispatch-with-recovery "health" {})
+            (expect (= 1 @!drains))))))))
+
 ;; Regression, user report: the tab that replaces a crashed one was never
 ;; instrumented. `replace-crashed-page!` reopens the page through
 ;; `ensure-live-browser!` and threw its answer away, so console, page errors and

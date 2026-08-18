@@ -1339,6 +1339,30 @@
            (catch Throwable _ false))
       true)))
 
+(defn- drain-driver-events!
+  "Delivers the driver events Playwright has been holding for this client.
+
+   Its Java client dispatches driver messages only while a call of its own is in
+   flight, and nothing calls into it while the daemon waits for the next command:
+   everything the browser has said since the last one sits unread. Measured on a
+   live session — a tab closed in the browser still answered `isClosed` false 1.5 s
+   later and `url` kept handing out the dead tab's address, and a `console.log`
+   fired 300 ms after load reached its listener only when some later command
+   happened to touch the browser. `spel console` reads an atom, so it never did.
+
+   One round trip (measured: 1.2 ms) delivers all of it, listeners included. The
+   page is only the object the call is addressed to; a page Playwright already
+   knows is gone throws instead, which says the same thing.
+
+   Returns:
+   nil."
+  []
+  (let [p (:page @!state)]
+    (when (instance? Page p)
+      (try (page/wait-for-timeout p 0)
+           (catch Throwable _ nil))))
+  nil)
+
 (defn- page-open?
   "True when the current page handle is still usable: open, and not the corpse of
    a crashed renderer. Both failures are answered the same way — reopen the tab —
@@ -1346,7 +1370,11 @@
 
    A handle spel does not recognise (a CDP or WebDriver page) counts as alive,
    but a crash recorded against it still wins: the crash is a fact, the liveness
-   of a foreign handle is only a guess."
+   of a foreign handle is only a guess.
+
+   `isClosed` is answered from client state that only `drain-driver-events!`
+   refreshes, so a tab closed in the browser reads as open until the events the
+   driver queued have been delivered."
   []
   (when-let [p (:page @!state)]
     (and (not (page-crashed? p))
@@ -6187,6 +6215,14 @@
   #{"close" "health" "cancel" "session_info" "session_list"
     "connect" "cdp_disconnect" "cdp_reconnect" "state_save"})
 
+(def ^:private no-drain-actions
+  "Actions that must answer while the driver is wedged, so they never round-trip to
+   it first. `health` is the command you run when nothing else answers: it reports
+   the browser facts Playwright last delivered, which is exactly what a wedged
+   session has to show. Everything else drains first, so what it reports is the
+   browser's state and not a snapshot from whenever the last command ran."
+  #{"close" "health" "cancel" "session_info" "session_list"})
+
 (defn- current-url-quietly
   "The page's URL, or nil. Playwright answers from cached state, so this costs
    nothing and works even when the browser stopped answering."
@@ -6269,6 +6305,8 @@
    sending one more call into the dead tab (issue #127)."
   [action params]
   (clear-tab-loss!)
+  (when-not (contains? no-drain-actions action)
+    (drain-driver-events!))
   (let [attempt      (fn run-command []
                        (try {:ok (dispatch-cmd action params)}
                             (catch Throwable e {:threw e})))

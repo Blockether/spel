@@ -24,7 +24,7 @@
     :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
   (:import
-   [com.microsoft.playwright BrowserContext]
+   [com.microsoft.playwright Browser BrowserContext Page]
    [java.nio.file Files Path]))
 
 ;; =============================================================================
@@ -49,6 +49,47 @@
   "Navigate to a test-server path. Returns the handler result."
   [path]
   (cmd "navigate" {"url" (str *test-server-url* path)}))
+
+(defn- dispatch!
+  "Runs a command the way the daemon's socket does — through the recovery seam.
+   `cmd` calls the handler alone, which skips everything a command does BEFORE it
+   answers: the drain that delivers what the browser has since told Playwright."
+  [action params]
+  (#'daemon/dispatch-with-recovery action params))
+
+(defn- close-tab-in-the-browser!
+  "Closes `page`'s tab through the browser itself — the way a person does, behind
+   Playwright's back. `core/close-page!` tells the client, so it can never reproduce
+   a session that still believes the tab it drives is open."
+  [browser ^Page page]
+  (let [target (#'daemon/cdp-target-id page)]
+    ;; The CDP session is left attached on purpose: detaching is a round trip, and a
+    ;; round trip is what delivers the close event this must arrive WITHOUT. The
+    ;; browser takes it when the suite ends.
+    (core/cdp-send (.newBrowserCDPSession ^Browser browser) "Target.closeTarget" {:targetId target}))
+  ;; The browser closes the target after answering; Playwright hears about it on
+  ;; its own pipe, which is exactly what nothing is reading.
+  (Thread/sleep 200)
+  nil)
+
+(defn- reopen!
+  "Puts the session on a live tab at `path`, absorbing the tab-loss reports earlier
+   cases in the same `defdescribe` earn by leaving behind tabs they killed. Each
+   report names ONE tab and clears itself by being made — and `navigate` records
+   the loss it recovers from without reporting it — so this navigates and then
+   reads the url back until both answer: the loop a person does by hand."
+  [path]
+  (let [url  (str *test-server-url* path)
+        try! (fn [action params]
+               (try {:ok (dispatch! action params)}
+                    (catch clojure.lang.ExceptionInfo e {:threw e})))]
+    (loop [attempt 0]
+      (try! "navigate" {"url" url})
+      (let [{:keys [ok threw]} (try! "url" {})]
+        (cond
+          (nil? threw)  ok
+          (< attempt 4) (recur (inc attempt))
+          :else         (throw threw))))))
 
 ;; =============================================================================
 ;; Fixture — inject real browser into daemon state
@@ -1102,6 +1143,45 @@
                 (Files/deleteIfExists (#'daemon/cdp-route-lock-path cdp-url @landed)))
               (reset! state-a old))))))
 
+    ;; Regression, user report: "so `get url` and the like need fixing?". A tab closed
+    ;; in the BROWSER is not a tab closed through Playwright: the Java client only
+    ;; dispatches driver events while a call of its own is in flight, so `isClosed`
+    ;; stayed false and `url` kept handing out the dead tab's address — measured on a
+    ;; live session: still "open" 1.5 s after the tab was gone, and forever after that
+    ;; while the session sat idle.
+    (it "answers url from the browser, not from what Playwright last noticed"
+      (reopen! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            keep-id (:tab (cmd "console_list" {}))]
+        (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+        (let [victim   (:page @state-a)
+              dead-id  (:tab (cmd "console_list" {}))
+              dead-url (:url (cmd "url" {}))]
+          (expect (not= keep-id dead-id))
+          (close-tab-in-the-browser! (:browser @state-a) victim)
+          (let [e (try (dispatch! "url" {}) nil (catch clojure.lang.ExceptionInfo ex ex))]
+            (expect (some? e))
+            (expect (= :tab_closed (:error_code (ex-data e))))
+            (expect (str/includes? (ex-message e) dead-id)))
+          ;; One visible failure, then the session answers for the tab it drives now.
+          (expect (not= dead-url (:url (dispatch! "url" {})))))))
+
+    ;; Regression, user report: the same cache under `tab list` — a tab closed in the
+    ;; browser was still listed, with the url Playwright remembered and an empty title
+    ;; from the read that failed.
+    (it "stops listing a tab closed in the browser"
+      (reopen! "/test-page")
+      (let [state-a (deref #'daemon/!state)
+            keep-id (:tab (cmd "console_list" {}))]
+        (cmd "tab_new" {"url" (str *test-server-url* "/second-page")})
+        (let [victim  (:page @state-a)
+              dead-id (:tab (cmd "console_list" {}))]
+          (cmd "tab_switch" {"tab" keep-id})
+          (close-tab-in-the-browser! (:browser @state-a) victim)
+          (let [ids (mapv :tab (:tabs (dispatch! "tab_list" {})))]
+            (expect (some #{keep-id} ids))
+            (expect (not-any? #{dead-id} ids))))))
+
     (it "refuses a position or an id that is not there, and says what is"
       (nav! "/test-page")
       (let [by-index (try (cmd "tab_switch" {"index" 9}) nil
@@ -1133,6 +1213,18 @@
       (Thread/sleep 200) ;; give listener time to fire
       (let [r (cmd "console_get" {})]
         (expect (some #(= "test-page-loaded" (:text %)) (:messages r)))))
+
+    ;; Regression, user report: "so `get url` and the like need fixing?" — the cache
+    ;; that answered `url` held the capture too. Playwright delivers console, error
+    ;; and network events only while a call of its own is in flight, and `spel console`
+    ;; reads an atom: a message the page logged AFTER the last command reached nobody
+    ;; for as long as the session sat idle.
+    (it "delivers a message the page logged while the session sat idle"
+      (nav! "/test-page")
+      (cmd "evaluate" {"script" "setTimeout(() => console.log('logged-while-idle'), 100)"})
+      (Thread/sleep 600)
+      (let [entries (:entries (dispatch! "console_list" {}))]
+        (expect (some #(= "logged-while-idle" (:text %)) entries))))
 
     (it "console_clear empties messages"
       (nav! "/test-page")
