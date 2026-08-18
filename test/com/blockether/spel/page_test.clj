@@ -261,6 +261,36 @@
           (sut/evaluate pg "window.alert('second')")
           (expect (= 1 @once-count)))))))
 
+;; Regression, user report: FULL_API.md promised `off-dialog [page handler]`
+;; removed a dialog handler, and nothing could ever remove one — `on-dialog`
+;; hands Playwright a guard built around the handler and Playwright unregisters
+;; by object identity, so passing the handler function back threw a
+;; ClassCastException instead of taking the listener off.
+(defdescribe off-dialog-test
+  "Tests for removing a dialog handler"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "off-dialog"
+
+    (it "stops the handler on-dialog registered"
+      (core/with-testing-page [pg]
+        (let [seen     (atom 0)
+              listener (sut/on-dialog pg (fn [dialog]
+                                           (swap! seen inc)
+                                           (.dismiss dialog)))]
+          (sut/evaluate pg "window.alert('one')")
+          (expect (= 1 @seen))
+          (sut/off-dialog pg listener)
+          ;; With no listener left Playwright dismisses the dialog itself, so
+          ;; the page keeps running and the counter must stay where it was.
+          (sut/evaluate pg "window.alert('two')")
+          (expect (= 1 @seen)))))
+
+    (it "refuses the handler function, which Playwright could never match"
+      (core/with-testing-page [pg]
+        (let [handler (fn [dialog] (.dismiss dialog))]
+          (sut/on-dialog pg handler)
+          (expect (anomaly/anomaly? (sut/off-dialog pg handler))))))))
 ;; =============================================================================
 ;; get-by-role with options
 ;; =============================================================================

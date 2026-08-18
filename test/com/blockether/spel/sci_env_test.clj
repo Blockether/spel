@@ -842,3 +842,41 @@
           (finally
             (reset! sut/!pw nil) (reset! sut/!browser nil)
             (reset! sut/!context nil) (reset! sut/!page nil)))))))
+
+;; Regression, user report: the debug snippet the skill itself teaches —
+;; (spel/on-console (fn [msg] (println "[console]" msg))) — poisoned the session.
+;; The handler fired after the command that registered it had returned, SCI bound
+;; *out* for the length of that one evaluation only, and `println` then threw
+;; "sci.impl.vars.SciUnbound cannot be cast to java.io.Writer"; the guard counted
+;; the failure and `spel health` reported console capture as broken.
+(defdescribe escaping-handler-output-test
+  "Printing from a SCI function that outlives the evaluation that made it"
+
+  (describe "a handler invoked after eval-string returned"
+    (it "writes to the stdout the context was created with"
+      (let [sink    (java.io.StringWriter.)
+            handler (binding [*out* sink]
+                      (sut/eval-string (sut/create-sci-ctx)
+                        "(fn [msg] (println \"[console]\" msg))"))]
+        (handler "after")
+        (expect (= "[console] after\n" (str sink)))))
+
+    (it "prints from the thread Playwright delivers the event on"
+      (let [sink    (java.io.StringWriter.)
+            handler (binding [*out* sink]
+                      (sut/eval-string (sut/create-sci-ctx)
+                        "(fn [msg] (println \"[console]\" msg))"))
+            worker  (Thread. ^Runnable (fn [] (handler "off-thread")))]
+        (.start worker)
+        (.join worker)
+        (expect (= "[console] off-thread\n" (str sink)))))
+
+    (it "records no handler failure when the event guard invokes it"
+      (let [sink    (java.io.StringWriter.)
+            handler (binding [*out* sink]
+                      (sut/eval-string (sut/create-sci-ctx)
+                        "(fn [msg] (println \"[console]\" msg))"))]
+        (core/reset-handler-errors!)
+        ((core/guarded-handler "console" handler) "guarded")
+        (expect (empty? (core/handler-errors)))
+        (expect (= "[console] guarded\n" (str sink)))))))

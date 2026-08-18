@@ -1040,31 +1040,56 @@
 
 (defn on-dialog
   "Registers a handler for dialogs.
-   
+
    Params:
    `page`    - Page instance.
-   `handler` - Function that receives a Dialog."
+   `handler` - Function that receives a Dialog.
+
+   Returns:
+   The listener Playwright now holds — the guard around `handler`, never
+   `handler` itself. Keep it: `off-dialog` unregisters by object identity and
+   has nothing else to match on."
   [^Page page handler]
-  (.onDialog page (event-consumer "dialog" handler release-dialog!)))
+  (let [listener (event-consumer "dialog" handler release-dialog!)]
+    (.onDialog page listener)
+    listener))
 
 (defn once-dialog
   "Registers a one-time handler for the next dialog.
    The handler is automatically removed after the first dialog is handled.
-   
+
    Params:
    `page`    - Page instance.
-   `handler` - Function that receives a Dialog."
+   `handler` - Function that receives a Dialog.
+
+   Returns:
+   The listener Playwright now holds, so a one-shot handler that never fires
+   can still be taken off with `off-dialog`."
   [^Page page handler]
-  (.onceDialog page (event-consumer "dialog (once)" handler release-dialog!)))
+  (let [listener (event-consumer "dialog (once)" handler release-dialog!)]
+    (.onceDialog page listener)
+    listener))
 
 (defn off-dialog
-  "Removes a previously registered dialog handler.
+  "Removes a dialog handler registered with `on-dialog` or `once-dialog`.
 
    Params:
-   `page`    - Page instance.
-   `handler` - The handler (Consumer) to remove."
-  [^Page page handler]
-  (.offDialog page handler))
+   `page`     - Page instance.
+   `listener` - The value that registration returned. Playwright unregisters by
+                object identity, and Clojure adapts a bare function into a FRESH
+                Consumer at every interop call, so handing the handler function
+                back removed nothing and reported nothing.
+
+   Returns:
+   nil once the listener is off, or an `incorrect` anomaly when the argument is
+   not the value registration returned."
+  [^Page page listener]
+  (if (instance? java.util.function.Consumer listener)
+    (do (.offDialog page ^java.util.function.Consumer listener) nil)
+    (anomaly/anomaly ::anomaly/incorrect
+      (str "off-dialog needs the listener that on-dialog returned, not the handler "
+        "function: Playwright removes a dialog listener by object identity.")
+      {:got (some-> listener class .getName)})))
 
 (defn on-page-error
   "Registers a handler for page errors.

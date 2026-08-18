@@ -217,12 +217,18 @@ If even `spel health` cannot get an answer: `spel --session <name> kill`.
 ```
 
 Console and page errors are auto-captured in `eval-sci` (check stderr); register your own
-early, before navigation, when a script needs them:
+early, before navigation, when a script needs them — `msg` is a Java `ConsoleMessage`, so ask
+it for the parts:
 
 ```clojure
-(spel/on-console    (fn [msg] (println "[console]"    msg)))
+(spel/on-console    (fn [msg] (println "[console]" (.type msg) (.text msg))))
 (spel/on-page-error (fn [err] (println "[page-error]" err)))
 ```
+
+Events arrive only while the script sits INSIDE a browser call: `(Thread/sleep …)` dispatches
+nothing, so wait with a real one (`spel/wait-for-selector`, `spel/evaluate`). What a handler
+prints while its own command still runs comes back as that command's stdout; anything later
+goes to the session log (`spel logs -f`).
 
 ```bash
 spel network requests --status 4      # 4xx only (--status 5 for 5xx, --type fetch by kind)

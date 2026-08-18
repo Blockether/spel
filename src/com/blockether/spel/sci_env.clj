@@ -1214,9 +1214,12 @@
 (defn sci-on-dialog    [handler] (page/on-dialog (require-page!) handler))
 (defn sci-once-dialog  [handler] (page/once-dialog (require-page!) handler))
 (defn sci-off-dialog
-  "Removes a previously registered dialog handler."
-  [handler]
-  (page/off-dialog (require-page!) handler))
+  "Removes a dialog handler, taking the listener `on-dialog` returned.
+
+   Playwright unregisters by object identity, so the handler function itself
+   removes nothing — pass back what `(spel/on-dialog ...)` answered."
+  [listener]
+  (throw-if-anomaly (page/off-dialog (require-page!) listener)))
 (defn sci-on-page-error [handler] (page/on-page-error (require-page!) handler))
 (defn sci-on-request   [handler] (page/on-request (require-page!) handler))
 (defn sci-on-response  [handler] (page/on-response (require-page!) handler))
@@ -2174,6 +2177,24 @@
   [sym]
   (deref (resolve (symbol "zprint.core" (str sym)))))
 
+(defn- install-sci-io-roots!
+  "Gives SCI's `*out*`/`*err*`/`*in*` a root value: this process' own streams.
+
+   `eval-string` binds them for the length of ONE evaluation, and a SCI binding
+   is thread-local. Every callback a script registers — `spel/on-console`,
+   `route!`, `expose-function!` — outlives that evaluation and is invoked later,
+   on Playwright's dispatch thread, where `println` found `sci/out` unbound and
+   threw `SciUnbound cannot be cast to java.io.Writer`; the event guard counted
+   the failure and `spel health` reported console capture as broken.
+
+   A thread binding still wins, so a handler firing DURING an evaluation keeps
+   writing into that command's captured stdout; anything later lands in the
+   daemon's own stdout, which is the session log."
+  []
+  (sci/alter-var-root sci/out (constantly *out*))
+  (sci/alter-var-root sci/err (constantly *err*))
+  (sci/alter-var-root sci/in (constantly *in*))
+  nil)
 (defn create-sci-ctx
   "Creates a SCI context with all spel functions registered.
 
@@ -3281,6 +3302,7 @@
                       ['cpprint    (zp-resolve 'czprint)]
                       ['cpprint-str (zp-resolve 'czprint-str)]])]
 
+    (install-sci-io-roots!)
     (sci/init
       {:namespaces {;; Short aliases (original)
                     'spel     pw-map

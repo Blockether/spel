@@ -188,7 +188,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `main-frame` | [page] | Returns the main frame of the page. |
 | `navigate` | [page url] \| [page url nav-opts] | Navigates the page to a URL. |
 | `new-cdp-session` | [page] | Opens a new Chrome DevTools Protocol session bound to this page. |
-| `off-dialog` | [page handler] | Removes a previously registered dialog handler. |
+| `off-dialog` | [page listener] | Removes a dialog handler registered with `on-dialog` or `once-dialog`. |
 | `on-close` | [page handler] | Registers a handler for page close. |
 | `on-console` | [page handler] | Registers a handler for console messages. |
 | `on-crash` | [page handler] | Registers a handler for the page's renderer dying. |
@@ -922,7 +922,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/new-cdp-session` | [] | Opens a new Chrome DevTools Protocol session bound to the current |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |
 | `spel/nth-element` | [sel n] | Returns the nth element matching the locator. |
-| `spel/off-dialog` | [handler] | Removes a previously registered dialog handler. |
+| `spel/off-dialog` | [listener] | Removes a dialog handler, taking the listener `on-dialog` returned. |
 | `spel/on-close` | [handler] | Registers a handler for page close. |
 | `spel/on-console` | [handler] | Registers a handler for console messages. |
 | `spel/on-dialog` | [handler] | Registers a handler for dialogs. |
