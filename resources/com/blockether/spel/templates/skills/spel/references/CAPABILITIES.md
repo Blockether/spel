@@ -40,7 +40,6 @@ Primary references:
 - Allure reporting and CI workflows
 
 Primary references:
-- `references/TESTING_CONVENTIONS.md`
 - `references/ASSERTIONS_EVENTS.md`
 - `references/API_TESTING.md`
 - `references/ALLURE_REPORTING.md`

@@ -63,7 +63,7 @@ Use the public iOS surface documented in `references/IOS_PROVIDER.md`; raw Appiu
 
 ### Test writing
 
-Explore the flow first, then follow `references/TESTING_CONVENTIONS.md`. Generate tests at the project's expected path, run the smallest relevant target, and verify DOM/browser effects. If failure reflects stale targeting, gather fresh evidence and repair; do not hide failures with sleeps, inflated timeouts, deleted assertions, or skipped tests.
+Explore the flow first, then follow `references/ASSERTIONS_EVENTS.md`. Generate tests at the project's expected path, run the smallest relevant target, and verify DOM/browser effects. If failure reflects stale targeting, gather fresh evidence and repair; do not hide failures with sleeps, inflated timeouts, deleted assertions, or skipped tests.
 
 ### Report
 

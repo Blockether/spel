@@ -60,7 +60,7 @@ Global flags precede the command: `--allowed-domains "example.com,*.example.com"
 
 ## Testing contracts
 
-- `core/with-testing-page` / `core/with-testing-api` at fixture scope only, never nested inside `it` or `deftest`; role constants from `[com.blockether.spel.roles :as role]`; exact text by default, contains-text only when partial matching is intentional. `references/TESTING_CONVENTIONS.md` carries the project's Lazytest or clojure.test flavour.
+- `core/with-testing-page` / `core/with-testing-api` at fixture scope only, never nested inside `it` or `deftest`; role constants from `[com.blockether.spel.roles :as role]`; exact text by default, contains-text only when partial matching is intentional. The project's own test conventions rule; spel only supplies the fixtures.
 - Run the generated tests and verify browser/DOM effects before handoff. Never delete an assertion or add a sleep to make a test pass.
 
 ## Gotchas
@@ -80,7 +80,7 @@ Read only the smallest relevant file; every reference sits one level from here.
 | Sessions, profiles, CDP, browser options | `references/SESSION_COMMON.md`, `references/PROFILES_CDP.md`, `references/BROWSER_OPTIONS.md` |
 | Pages, locators, selectors, snapshots, navigation and waits | `references/PAGE_LOCATORS.md`, `references/SELECTORS_SNAPSHOTS.md`, `references/NAVIGATION_WAIT.md` |
 | SCI scripts, constants, frames, keyboard, mouse | `references/EVAL_GUIDE.md`, `references/CONSTANTS.md`, `references/FRAMES_INPUT.md` |
-| Assertions, events, API testing, test conventions | `references/ASSERTIONS_EVENTS.md`, `references/API_TESTING.md`, `references/TESTING_CONVENTIONS.md` |
+| Assertions, events, API testing, test conventions | `references/ASSERTIONS_EVENTS.md`, `references/API_TESTING.md` |
 | Network mocking, search, codegen, bridge | `references/NETWORK_ROUTING.md`, `references/SEARCH_API.md`, `references/CODEGEN_CLI.md`, `references/BRIDGE.md` |
 | Native iOS and WKWebView | `references/IOS_PROVIDER.md` |
 | PDF, stitching, video | `references/PDF_STITCH_VIDEO.md` |

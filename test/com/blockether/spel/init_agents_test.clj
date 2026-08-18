@@ -412,7 +412,24 @@
                     (distinct)
                     (remove #(let [c (#'sut/read-template %)]
                                (and c (>= (count (str/trim c)) 200)))))]
-        (expect (= [] (vec (sort blank)))))))
+        (expect (= [] (vec (sort blank))))))
+
+    ;; Regression, user report: START_HERE.md, SKILL.md and CAPABILITIES.md all
+    ;; routed the agent to `references/TESTING_CONVENTIONS.md`, a file the skill
+    ;; has never shipped — the reader followed a dead link.
+    (it "never points at a reference file it does not ship"
+      (let [templates (->> (#'sut/files-to-create "opencode" "lazytest")
+                        (map first)
+                        (remove nil?)
+                        (distinct))
+            dangling  (for [t     templates
+                            :let  [content (#'sut/read-template t)]
+                            :when content
+                            named (re-seq #"references/([A-Za-z0-9_-]+\.md)" content)
+                            :let  [target (str "skills/spel/references/" (second named))]
+                            :when (nil? (#'sut/read-template target))]
+                        [t (second named)])]
+        (expect (= [] (vec (distinct dangling)))))))
 
   (describe "claude loop target"
     (it "uses .claude directory paths"

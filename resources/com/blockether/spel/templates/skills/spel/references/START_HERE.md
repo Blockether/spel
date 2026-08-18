@@ -21,7 +21,7 @@ Shape every reply ADHD-shaped, caveman-terse — see the skill's **Reply style**
 - Navigation + wait behavior: `references/NAVIGATION_WAIT.md`
 - Browser/profile/CDP setup: `references/PROFILES_CDP.md` + `references/BROWSER_OPTIONS.md`
 - Network routing/interception: `references/NETWORK_ROUTING.md`
-- Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/TESTING_CONVENTIONS.md`
+- Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/API_TESTING.md`
 - Report templates: `references/spel-report.html`, `references/spel-report.md`
 
 ## Critical operating rules
