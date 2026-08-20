@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.31] - 2026-08-20
+
+### Changed
+- fix(reporter): defer network response materialization
+- fix(cli): keep daemon alive after launcher exits
+- fix(reporter): retain failed request network metadata
+
+
 ## [v0.9.30] - 2026-08-18
 
 ### Changed
@@ -1912,7 +1920,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.30...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.31...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1998,3 +2006,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.28]: https://github.com/Blockether/spel/releases/tag/v0.9.28
 [v0.9.29]: https://github.com/Blockether/spel/releases/tag/v0.9.29
 [v0.9.30]: https://github.com/Blockether/spel/releases/tag/v0.9.30
+[v0.9.31]: https://github.com/Blockether/spel/releases/tag/v0.9.31
