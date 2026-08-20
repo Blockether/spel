@@ -1155,10 +1155,10 @@
                       (.setSnapshots true)
                       (.setSources true)
                       (.setTitle (or (when title @title) "spel"))))
-    (let [pg     (new-page-from-context ctx)
-          !msgs  (install-console-capture! pg)]
-      (when install-network-capture!
-        (install-network-capture! pg))
+    (let [pg                (new-page-from-context ctx)
+          !msgs             (install-console-capture! pg)
+          snapshot-network! (when install-network-capture!
+                              (install-network-capture! pg))]
       (try
         (with-bindings (cond-> {}
                          page        (assoc page pg)
@@ -1167,6 +1167,10 @@
                          har         (assoc har har-file))
           (f pg))
         (finally
+          ;; Complete headers and bodies round-trip to the driver, so materialize
+          ;; them from the test thread before page teardown, never in an event callback.
+          (when snapshot-network!
+            (try (snapshot-network!) (catch Throwable _)))
           (when (instance? Page pg) (close-page! pg))
           (try (.stop tracing (doto (Tracing$StopOptions.)
                                 (.setPath (.toPath trace-file))))

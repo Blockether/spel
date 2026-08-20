@@ -597,64 +597,99 @@
     "texttrack" "eventsource" "signedexchange" "ping"
     "cspviolationreport" "preflight" "prefetch" "script"})
 
-(defn install-network-capture!
-  "Register page request lifecycle listeners that buffer complete exchanges for
-   later attachment to the Allure report. Filters out static assets (images,
-   stylesheets, fonts, scripts) — only captures API calls, documents, and
-   fetch/XHR requests. Each exchange is snapshotted before the page closes, and
-   its timestamp records the browser's request start time.
+(defn- capture-request
+  [^Request req]
+  {:request req
+   :exchange {:method          (.method req)
+              :url             (.url req)
+              :resource-type   (.resourceType req)
+              :timestamp       (epoch-ms)
+              :request-headers (try
+                                 (into {} (.headers req))
+                                 (catch Throwable _ {}))
+              :request-body    (try
+                                 (.postData req)
+                                 (catch Throwable _ nil))}})
 
-   Must be called while `*network-log*` is bound to an atom.
-   Use `flush-network-steps!` after the test body to create the allure steps."
+(defn- capture-response
+  [capture ^Response resp]
+  (let [headers (try
+                  (into {} (.headers resp))
+                  (catch Throwable _ {}))]
+    (-> capture
+      (assoc :response resp)
+      (update :exchange assoc
+        :url              (.url resp)
+        :status           (long (.status resp))
+        :status-text      (.statusText resp)
+        :response-headers headers
+        :response-body    nil
+        :content-type     (get headers "content-type")))))
+
+(defn- materialize-network-capture
+  [{:keys [exchange request response]}]
+  (let [^Request req request
+        ^Response resp response
+        request-headers (if req
+                          (try
+                            (into {} (.allHeaders req))
+                            (catch Throwable _ (:request-headers exchange)))
+                          (:request-headers exchange))
+        response-headers (if resp
+                           (try
+                             (into {} (.allHeaders resp))
+                             (catch Throwable _ (:response-headers exchange)))
+                           (:response-headers exchange))
+        response-body (if resp
+                        (try
+                          (.text resp)
+                          (catch Throwable _ (:response-body exchange)))
+                        (:response-body exchange))]
+    (cond-> (assoc exchange :request-headers request-headers)
+      resp (assoc
+             :response-headers response-headers
+             :response-body response-body
+             :content-type (get response-headers "content-type")))))
+
+(defn install-network-capture!
+  "Register event-safe page listeners and return a zero-argument snapshot function.
+   Filters out static assets (images, stylesheets, fonts, scripts) and captures
+   API calls, documents, and fetch/XHR requests. Listeners only park data already
+   carried by Playwright events; the returned function must run before page
+   teardown to materialize complete headers and response bodies without recursively
+   entering Playwright's event dispatcher. Request timestamps record browser event
+   time at the start of each request.
+
+   Must be called while `*network-log*` is bound to an atom. The page fixtures call
+   the returned snapshot function automatically. Manual callers must invoke it
+   before closing the page, then use `flush-network-steps!` after the test body."
   [pg]
   (when-let [log *network-log*]
-    (let [pending (atom {})]
+    (let [pending      (atom {})
+          captures     (atom [])
+          snapshotted? (atom false)]
       (page/on-request pg
         (fn [^Request req]
           (try
-            (let [rtype (.resourceType req)]
-              (when-not (contains? skip-resource-types rtype)
-                (swap! pending assoc req
-                  {:method           (.method req)
-                   :url              (.url req)
-                   :resource-type    rtype
-                   :timestamp        (epoch-ms)
-                   :request-headers  (try
-                                       (into {} (.allHeaders req))
-                                       (catch Throwable _ {}))
-                   :request-body     (try
-                                       (.postData req)
-                                       (catch Throwable _ nil))})))
+            (when-not (contains? skip-resource-types (.resourceType req))
+              (swap! pending assoc req (capture-request req)))
             (catch Throwable _ nil))))
-      (.onRequestFinished ^Page pg
-        (reify java.util.function.Consumer
-          (accept [_ request]
-            (let [^Request req request]
-              (try
-                (when-let [exchange (get @pending req)]
-                  (when-let [^Response resp (.response req)]
-                    (let [headers (try
-                                    (into {} (.allHeaders resp))
-                                    (catch Throwable _ {}))]
-                      (swap! log conj
-                        (assoc exchange
-                          :url              (.url resp)
-                          :status           (long (.status resp))
-                          :status-text      (.statusText resp)
-                          :response-headers headers
-                          :response-body    (try
-                                              (.text resp)
-                                              (catch Throwable _ nil))
-                          :content-type     (get headers "content-type"))))))
-                (catch Throwable _ nil)
-                (finally
-                  (swap! pending dissoc req)))))))
+      (page/on-response pg
+        (fn [^Response resp]
+          (try
+            (let [^Request req (.request resp)]
+              (when-let [capture (get @pending req)]
+                (swap! captures conj (capture-response capture resp))))
+            (catch Throwable _ nil)
+            (finally
+              (when-let [^Request req (try (.request resp) (catch Throwable _ nil))]
+                (swap! pending dissoc req))))))
       (page/on-request-failed pg
         (fn [^Request req]
           (try
-            (when-let [exchange (get @pending req)]
-              (swap! log conj
-                (assoc exchange
+            (when-let [capture (get @pending req)]
+              (swap! captures conj
+                (update capture :exchange assoc
                   :status           0
                   :status-text      (or (.failure req) "Request failed")
                   :response-headers {}
@@ -662,7 +697,10 @@
                   :content-type     nil)))
             (catch Throwable _ nil)
             (finally
-              (swap! pending dissoc req))))))))
+              (swap! pending dissoc req)))))
+      (fn snapshot-network-capture! []
+        (when (compare-and-set! snapshotted? false true)
+          (swap! log into (mapv materialize-network-capture @captures)))))))
 
 (defn flush-network-steps!
   "Create allure steps from buffered network responses. Call after the
@@ -898,19 +936,12 @@
   [resp timestamp]
   (try
     (when resp
-      (let [^Response r        resp
-            ^Request  req-obj  (.request r)
-            resp-headers       (into {} (.allHeaders r))]
-        {:method           (.method req-obj)
-         :url              (.url req-obj)
-         :status           (.status r)
-         :status-text      (.statusText r)
-         :timestamp        timestamp
-         :request-headers  (into {} (.allHeaders req-obj))
-         :request-body     (.postData req-obj)
-         :response-headers resp-headers
-         :response-body    (try (.text r) (catch Throwable _ nil))
-         :content-type     (get resp-headers "content-type")}))
+      (let [^Response r       resp
+            ^Request req-obj  (.request r)
+            capture           (-> (capture-request req-obj)
+                                (assoc-in [:exchange :timestamp] timestamp)
+                                (capture-response r))]
+        (materialize-network-capture capture)))
     (catch Throwable _ nil)))
 
 (defn attach-network-markdown!

@@ -303,6 +303,70 @@
         ;; Log should still have entries (not consumed since no context)
         (expect (= 1 (count @log)))))))
 
+;; Regression, issue #55: response bodies were read inside Playwright callbacks,
+;; recursively dispatching concurrent responses until capture failed.
+(defdescribe network-capture-materialization-test
+  "Tests event-safe network capture materialization"
+
+  (it "reads complete headers and bodies only after event callbacks return"
+    (let [listeners (atom {})
+          calls     (atom {:request-all 0 :response-all 0 :response-text 0})
+          log       (atom [])
+          response* (atom nil)
+          request   (proxy [com.microsoft.playwright.Request] []
+                      (resourceType [] "xhr")
+                      (method [] "GET")
+                      (url [] "https://example.test/failure")
+                      (headers [] {"accept" "application/json"})
+                      (allHeaders []
+                        (swap! calls update :request-all inc)
+                        {"accept" "application/json"
+                         "cookie" "trace-request=recorded"})
+                      (postData [] nil)
+                      (response [] @response*))
+          response  (proxy [com.microsoft.playwright.Response] []
+                      (request [] request)
+                      (url [] "https://example.test/failure")
+                      (status [] 500)
+                      (statusText [] "Internal Server Error")
+                      (headers [] {"content-type" "application/json"})
+                      (allHeaders []
+                        (swap! calls update :response-all inc)
+                        {"content-type" "application/json"
+                         "set-cookie" "trace-response=recorded; Path=/"})
+                      (text []
+                        (swap! calls update :response-text inc)
+                        "{\"status\":500}"))
+          pg        (proxy [com.microsoft.playwright.Page] []
+                      (onRequest [listener]
+                        (swap! listeners assoc :request listener))
+                      (onResponse [listener]
+                        (swap! listeners assoc :response listener))
+                      (onRequestFinished [listener]
+                        (swap! listeners assoc :request-finished listener))
+                      (onRequestFailed [listener]
+                        (swap! listeners assoc :request-failed listener)))]
+      (reset! response* response)
+      (let [snapshot! (binding [allure/*network-log* log]
+                        (allure/install-network-capture! pg))]
+        (.accept ^java.util.function.Consumer (:request @listeners) request)
+        (if-let [listener (:response @listeners)]
+          (.accept ^java.util.function.Consumer listener response)
+          (.accept ^java.util.function.Consumer (:request-finished @listeners) request))
+
+        (expect (fn? snapshot!))
+        (expect (= {:request-all 0 :response-all 0 :response-text 0} @calls))
+        (expect (empty? @log))
+        (when snapshot! (snapshot!))
+
+        (let [entry (first @log)]
+          (expect (= 1 (count @log)))
+          (expect (= "trace-request=recorded"
+                    (get (:request-headers entry) "cookie")))
+          (expect (= "trace-response=recorded; Path=/"
+                    (get (:response-headers entry) "set-cookie")))
+          (expect (= "{\"status\":500}" (:response-body entry))))))))
+
 ;; =============================================================================
 ;; Integration tests — network auto-capture through with-page fixture
 ;; =============================================================================
