@@ -1,0 +1,65 @@
+## GET http://127.0.0.1:35343/ → 200 OK
+
+### Timing
+Request started: 2026-08-20T10:17:04.687Z
+
+### Request Headers
+```
+accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+accept-encoding: gzip, deflate, br, zstd
+connection: keep-alive
+host: 127.0.0.1:35343
+sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+sec-fetch-dest: document
+sec-fetch-mode: navigate
+sec-fetch-site: none
+sec-fetch-user: ?1
+upgrade-insecure-requests: 1
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36
+```
+
+### Response Headers
+```
+access-control-allow-headers: Content-Type
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-allow-origin: *
+access-control-allow-private-network: true
+content-length: 1684
+content-type: text/html; charset=utf-8
+date: Thu, 20 Aug 2026 10:17:04 GMT
+```
+
+### Response Body
+```html
+<!doctype html>
+<html><head><meta charset="utf-8"><title>spel bridge</title></head>
+<body>
+<h1 style="display:flex;align-items:center;gap:10px;font-family:-apple-system,Segoe UI,sans-serif"><svg width="40" height="31" viewBox="60 18 280 220" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block" aria-label="spel"><path d="M148,60 C68,102 68,184 148,226" stroke="#C04B41" stroke-width="18" fill="none" stroke-linecap="round"/><path d="M252,60 C332,102 332,184 252,226" stroke="#C04B41" stroke-width="18" fill="none" stroke-linecap="round"/><g transform="translate(162,28)"><path d="M 4,0 C 0,0 -2,4 0,8 L 6,30 C 8,36 14,40 20,40 C 26,40 30,36 30,30 L 30,8 C 30,3 26,0 22,0 Z" fill="#E2574C"/><ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/><ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/><path d="M 9,28 Q 16,35 23,28" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/></g><g transform="translate(206,28)"><path d="M 8,0 C 4,0 0,3 0,8 L 0,30 C 0,36 4,40 10,40 C 16,40 22,36 24,30 L 30,8 C 32,4 30,0 26,0 Z" fill="#2EAD33"/><ellipse cx="10" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/><ellipse cx="22" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity="0.9"/><path d="M 9,32 Q 16,25 23,32" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/></g><path d="M 183,102 L 237,143 L 183,184 Z" fill="#2EAD33"/></svg><span>spel bridge</span></h1>
+<p>Engine loaded. This tab is subscribed to the local spel server.</p>
+<script src="/spel.js"></script>
+<script>
+  window.__spel.connect({ url: window.location.origin + "\/spel", token: "prf" });
+</script>
+</body></html>
+
+```
+
+### cURL
+```bash
+curl 'http://127.0.0.1:35343/' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  -H 'accept-encoding: gzip, deflate, br, zstd' \
+  -H 'connection: keep-alive' \
+  -H 'host: 127.0.0.1:35343' \
+  -H 'sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: document' \
+  -H 'sec-fetch-mode: navigate' \
+  -H 'sec-fetch-site: none' \
+  -H 'sec-fetch-user: ?1' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36'
+```
