@@ -42,6 +42,11 @@
 ;; Per-Test Output Capture (alter-var-root hack)
 ;; =============================================================================
 
+(defn- explicit-allure-steps?
+  "True when steps include something other than automatic network activity."
+  [steps]
+  (boolean (some #(not= "Network Activity" (:name %)) steps)))
+
 (defn- wrap-try-test-case
   "Wraps try-test-case to capture *out*/*err* and bind the Allure
    in-test API context per test case. Also captures trace/HAR paths
@@ -56,6 +61,7 @@
     (let [out-sw      (StringWriter.)
           err-sw      (StringWriter.)
           ctx-atom    (atom (allure/make-context))
+          network-log (atom [])
           ;; Capture trace/HAR/video paths (bound by fixture dynamic vars)
           trace-path  allure/*trace-path*
           har-path    allure/*har-path*
@@ -67,13 +73,17 @@
                                 allure/*output-dir*  (:output-dir @run-state)
                                 allure/*test-title*  (tc/identifier tc)
                                 allure/*test-out*    out-sw
-                                allure/*test-err*    err-sw]
-                        (original-fn tc))
+                                allure/*test-err*    err-sw
+                                allure/*network-log* network-log]
+                        (try
+                          (original-fn tc)
+                          (finally
+                            (allure/flush-network-steps!))))
           stop-ms     (System/currentTimeMillis)
           ;; Auto-generate a step when the test has no explicit allure steps.
-          ;; This ensures every test case shows at least one step in the
-          ;; Allure report with proper status, timing, and failure details.
-          _           (when (empty? (:steps @ctx-atom))
+          ;; Automatic network activity is report detail and must not hide the
+          ;; test result, timing, or failure details.
+          _           (when-not (explicit-allure-steps? (:steps @ctx-atom))
                         (let [tc-name (tc/identifier tc)
                               status  (case (:type result)
                                         :pass    "passed"
@@ -1800,11 +1810,12 @@
         ctx-links   (when ctx (:links ctx))
         ctx-params  (when ctx (:parameters ctx))
         ctx-atts    (when ctx (:attachments ctx))
-        ctx-steps   (when ctx (seq (:steps ctx)))
         ctx-desc    (when ctx (:description ctx))
-        steps       (if ctx-steps
-                      (strip-step-stack (vec ctx-steps))
-                      (build-steps-from-assertions (:assertions ts) start-ms stop-ms))
+        ctx-steps   (when ctx (vec (:steps ctx)))
+        steps       (if (explicit-allure-steps? ctx-steps)
+                      (strip-step-stack ctx-steps)
+                      (into (build-steps-from-assertions (:assertions ts) start-ms stop-ms)
+                        (strip-step-stack (vec ctx-steps))))
         out-att     (write-attachment! dir (:system-out ts) "Full stdout log")
         err-att     (write-attachment! dir (:system-err ts) "Full stderr log")
         trace-att   (when-let [tp (:allure/trace-path ts)]
@@ -1924,21 +1935,27 @@
   [f]
   (if-not @ct-run-state
     (f)
-    (let [ctx-atom (atom (allure/make-context))
-          out-sw   (StringWriter.)
-          err-sw   (StringWriter.)]
-      (binding [allure/*context*    ctx-atom
-                allure/*output-dir* (:output-dir @ct-run-state)
-                allure/*test-title* (some-> @ct-test-state :test-name)
-                allure/*test-out*   out-sw
-                allure/*test-err*   err-sw
-                *out*               (PrintWriter. out-sw true)
-                *err*               (PrintWriter. err-sw true)]
-        (f))
-      ;; After (f): inner fixtures have torn down, trace files are written.
+    (let [ctx-atom    (atom (allure/make-context))
+          network-log (atom [])
+          out-sw      (StringWriter.)
+          err-sw      (StringWriter.)]
+      (binding [allure/*context*     ctx-atom
+                allure/*output-dir*  (:output-dir @ct-run-state)
+                allure/*test-title*  (some-> @ct-test-state :test-name)
+                allure/*test-out*    out-sw
+                allure/*test-err*    err-sw
+                allure/*network-log* network-log
+                *out*                (PrintWriter. out-sw true)
+                *err*                (PrintWriter. err-sw true)]
+        (try
+          (f)
+          (finally
+            (allure/flush-network-steps!))))
+      ;; After (f): inner fixtures have torn down and network exchanges, trace,
+      ;; and HAR files have all been snapshotted into the live context.
       (when-let [ts @ct-test-state]
         (when (:ended? ts)
-          (ct-write-test-result! ts)
+          (ct-write-test-result! (assoc ts :allure-context @ctx-atom))
           (reset! ct-test-state nil))))))
 
 ;; Event handlers

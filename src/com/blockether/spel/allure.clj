@@ -37,9 +37,10 @@
    [lazytest.core :as lt-core]
    [lazytest.hooks :as lt-hooks])
   (:import
-   [com.microsoft.playwright Request Response Tracing Tracing$GroupOptions]
+   [com.microsoft.playwright Page Request Response Tracing Tracing$GroupOptions]
    [com.microsoft.playwright.options Location]
    [java.io File PrintWriter StringWriter Writer]
+   [java.time Instant]
    [java.util UUID]))
 
 ;; =============================================================================
@@ -181,9 +182,9 @@
   nil)
 
 (def ^:dynamic *network-log*
-  "Dynamic var holding an atom that buffers network responses for
+  "Dynamic var holding an atom that buffers browser network exchanges for
    automatic capture. When non-nil, `install-network-capture!` registers
-   a page on-response listener that collects response metadata here.
+   request and response listeners that collect exchange metadata here.
    Flushed to allure steps by `flush-network-steps!` after the test body.
    Bound by test fixtures when the Allure reporter is active."
   nil)
@@ -597,29 +598,71 @@
     "cspviolationreport" "preflight" "prefetch" "script"})
 
 (defn install-network-capture!
-  "Register a page on-response listener that buffers responses for later
-   attachment to the Allure report. Filters out static assets (images,
-   stylesheets, fonts, scripts) — only captures API calls, documents,
-   and fetch/XHR requests.
+  "Register page request lifecycle listeners that buffer complete exchanges for
+   later attachment to the Allure report. Filters out static assets (images,
+   stylesheets, fonts, scripts) — only captures API calls, documents, and
+   fetch/XHR requests. Each exchange is snapshotted before the page closes, and
+   its timestamp records the browser's request start time.
 
    Must be called while `*network-log*` is bound to an atom.
    Use `flush-network-steps!` after the test body to create the allure steps."
   [pg]
   (when-let [log *network-log*]
-    (page/on-response pg
-      (fn [^Response resp]
-        (try
-          (let [^Request req (.request resp)
-                rtype        (.resourceType req)]
-            (when-not (contains? skip-resource-types rtype)
-              (swap! log conj {:response    resp
-                               :method      (.method req)
-                               :url         (.url resp)
-                               :status      (long (.status resp))
-                               :status-text (.statusText resp)
-                               :resource-type rtype
-                               :timestamp   (epoch-ms)})))
-          (catch Throwable _ nil))))))
+    (let [pending (atom {})]
+      (page/on-request pg
+        (fn [^Request req]
+          (try
+            (let [rtype (.resourceType req)]
+              (when-not (contains? skip-resource-types rtype)
+                (swap! pending assoc req
+                  {:method           (.method req)
+                   :url              (.url req)
+                   :resource-type    rtype
+                   :timestamp        (epoch-ms)
+                   :request-headers  (try
+                                       (into {} (.allHeaders req))
+                                       (catch Throwable _ {}))
+                   :request-body     (try
+                                       (.postData req)
+                                       (catch Throwable _ nil))})))
+            (catch Throwable _ nil))))
+      (.onRequestFinished ^Page pg
+        (reify java.util.function.Consumer
+          (accept [_ request]
+            (let [^Request req request]
+              (try
+                (when-let [exchange (get @pending req)]
+                  (when-let [^Response resp (.response req)]
+                    (let [headers (try
+                                    (into {} (.allHeaders resp))
+                                    (catch Throwable _ {}))]
+                      (swap! log conj
+                        (assoc exchange
+                          :url              (.url resp)
+                          :status           (long (.status resp))
+                          :status-text      (.statusText resp)
+                          :response-headers headers
+                          :response-body    (try
+                                              (.text resp)
+                                              (catch Throwable _ nil))
+                          :content-type     (get headers "content-type"))))))
+                (catch Throwable _ nil)
+                (finally
+                  (swap! pending dissoc req)))))))
+      (page/on-request-failed pg
+        (fn [^Request req]
+          (try
+            (when-let [exchange (get @pending req)]
+              (swap! log conj
+                (assoc exchange
+                  :status           0
+                  :status-text      (or (.failure req) "Request failed")
+                  :response-headers {}
+                  :response-body    nil
+                  :content-type     nil)))
+            (catch Throwable _ nil)
+            (finally
+              (swap! pending dissoc req))))))))
 
 (defn flush-network-steps!
   "Create allure steps from buffered network responses. Call after the
@@ -633,11 +676,12 @@
       (when (and (seq entries) *context*)
         (step* "Network Activity"
           (fn []
-            (doseq [{:keys [response method url status]} entries]
+            (doseq [entry entries
+                    :let [{:keys [method url status]} entry]]
               (let [step-name (str status " " method " " url)]
                 (step* step-name
                   (fn []
-                    (attach-network-markdown! response)))))))))))
+                    (attach-network-markdown! entry)))))))))))
 
 ;; =============================================================================
 ;; API Step — auto-attach HTTP request/response details
@@ -737,17 +781,18 @@
 (defn render-http-markdown
   "Render an HTTP request/response exchange as a Markdown document.
    Takes a map with keys:
-     :method          - String. HTTP method.
-     :url             - String. Request/response URL.
-     :status          - Long. HTTP status code.
-     :status-text     - String. HTTP status text.
-     :request-headers - Map or nil. Request headers.
-     :request-body    - String or nil. Request body.
+     :method           - String. HTTP method.
+     :url              - String. Request/response URL.
+     :status           - Long. HTTP status code.
+     :status-text      - String. HTTP status text.
+     :timestamp        - Long or nil. Request start time in Unix milliseconds.
+     :request-headers  - Map or nil. Request headers.
+     :request-body     - String or nil. Request body.
      :response-headers - Map or nil. Response headers.
-     :response-body   - String or nil. Response body.
-     :content-type    - String or nil. Response content type.
+     :response-body    - String or nil. Response body.
+     :content-type     - String or nil. Response content type.
    Returns a Markdown string."
-  ^String [{:keys [method url status status-text
+  ^String [{:keys [method url status status-text timestamp
                    request-headers request-body
                    response-headers response-body
                    content-type]}]
@@ -756,7 +801,13 @@
         status-text (or status-text "")
         sb          (StringBuilder.)]
     ;; Title
-    (.append sb (str "## " method " " (or url "") " \u2192 " status " " status-text "\n\n"))
+    (.append sb (str "## " method " " (or url "") " → " status " " status-text "\n\n"))
+
+    ;; Request timing
+    (when timestamp
+      (.append sb "### Timing\n")
+      (.append sb (str "Request started: "
+                    (Instant/ofEpochMilli (long timestamp)) "\n\n")))
 
     ;; Request Headers — only emit when we actually captured headers.
     ;; Previously we fell back to the request line (`GET https://…`) when
@@ -843,39 +894,43 @@
           "text/markdown")))
     (catch Throwable _ nil)))
 
-(defn attach-network-markdown!
-  "Attach HTTP request/response details as Markdown for a browser network Response.
-   Extracts request/response details from a `com.microsoft.playwright.Response`
-   (the browser network variant, NOT APIResponse).
-
-   This function is public because it is referenced by the `api-step` macro
-   and `flush-network-steps!`."
-  [resp]
+(defn- browser-response->exchange
+  [resp timestamp]
   (try
     (when resp
       (let [^Response r        resp
             ^Request  req-obj  (.request r)
-            status             (.status r)
-            status-text        (.statusText r)
-            resp-headers       (into {} (.headers r))
-            body               (try (.text r) (catch Throwable _ nil))
-            ct                 (get resp-headers "content-type")
-            req-method         (.method req-obj)
-            req-url            (.url req-obj)
-            req-headers        (into {} (.headers req-obj))
-            req-body           (.postData req-obj)]
-        (attach "HTTP"
-          (render-http-markdown {:method           req-method
-                                 :url              req-url
-                                 :status           status
-                                 :status-text      status-text
-                                 :request-headers  req-headers
-                                 :request-body     req-body
-                                 :response-headers resp-headers
-                                 :response-body    body
-                                 :content-type     ct})
-          "text/markdown")))
+            resp-headers       (into {} (.allHeaders r))]
+        {:method           (.method req-obj)
+         :url              (.url req-obj)
+         :status           (.status r)
+         :status-text      (.statusText r)
+         :timestamp        timestamp
+         :request-headers  (into {} (.allHeaders req-obj))
+         :request-body     (.postData req-obj)
+         :response-headers resp-headers
+         :response-body    (try (.text r) (catch Throwable _ nil))
+         :content-type     (get resp-headers "content-type")}))
     (catch Throwable _ nil)))
+
+(defn attach-network-markdown!
+  "Attach browser HTTP request/response details as Markdown. Accepts either a
+   complete exchange map snapshotted by `install-network-capture!` or a live
+   `com.microsoft.playwright.Response`. The two-argument form also accepts the
+   request start time in Unix milliseconds for a live response.
+
+   This function is public because it is referenced by the `api-step` macro
+   and `flush-network-steps!`."
+  ([exchange-or-response]
+   (try
+     (when-let [exchange (if (map? exchange-or-response)
+                           exchange-or-response
+                           (browser-response->exchange exchange-or-response nil))]
+       (attach "HTTP" (render-http-markdown exchange) "text/markdown"))
+     (catch Throwable _ nil)))
+  ([resp timestamp]
+   (when-let [exchange (browser-response->exchange resp timestamp)]
+     (attach-network-markdown! exchange))))
 
 ;; =============================================================================
 ;; Unified Step — composable step with optional screenshot + HTTP behaviors

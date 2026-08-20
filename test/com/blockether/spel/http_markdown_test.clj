@@ -323,6 +323,69 @@
         ;;  nil when not active — both are valid)
         (expect true)))
 
+    ;; Regression, issue #55: HTTP 500 entries lost request timing and cookie headers.
+    (it "records request timing and complete headers for HTTP 500 responses"
+      (let [log         (atom [])
+            context     (atom (allure/make-context))
+            request-window-start (atom nil)
+            response-at          (atom nil)
+            attached             (atom nil)
+            output-dir  (.toFile
+                          (java.nio.file.Files/createTempDirectory
+                            "spel-network-report-"
+                            (into-array java.nio.file.attribute.FileAttribute [])))
+            was-active? (allure/reporter-active?)]
+        (try
+          (allure/set-reporter-active! true)
+          (binding [allure/*network-log* log
+                    allure/*context* context
+                    allure/*output-dir* (.getAbsolutePath output-dir)]
+            (core/with-testing-page [pg]
+              (let [cookie (doto (com.microsoft.playwright.options.Cookie.
+                                   "trace-request" "recorded")
+                             (.setUrl *test-server-url*))]
+                (.addCookies (.context pg)
+                  (java.util.Collections/singletonList cookie))
+                (reset! request-window-start (System/currentTimeMillis))
+                (page/navigate pg (str *test-server-url* "/network-failure"))
+                (page/wait-for-load-state pg)
+                (reset! response-at (System/currentTimeMillis))))
+
+            ;; Flush only after with-testing-page has closed the page and context,
+            ;; matching the reporter lifecycle for failed tests.
+            (let [entry (some #(when (= 500 (:status %)) %) @log)]
+              (expect (some? entry))
+              (when entry
+                (let [timestamp (:timestamp entry)
+                      expected  (str (java.time.Instant/ofEpochMilli timestamp))]
+                  (expect (and @request-window-start @response-at
+                            (<= (- @request-window-start 25) timestamp)
+                            (>= (- @response-at timestamp) 150)))
+                  (with-redefs [allure/attach
+                                (fn [_ content _]
+                                  (reset! attached content))]
+                    (allure/flush-network-steps!))
+                  (expect (str/includes? (or @attached "")
+                            (str "Request started: " expected)))
+                  (expect (str/includes? (or @attached "")
+                            "cookie: trace-request=recorded"))
+                  (expect (str/includes? (or @attached "")
+                            "set-cookie: trace-response=recorded; Path=/")))))
+
+            (let [har-attachment (some #(when (= "Network Activity (HAR)" (:name %)) %)
+                                   (:attachments @context))]
+              (expect (some? har-attachment))
+              (when har-attachment
+                (let [har (slurp (java.io.File. output-dir (:source har-attachment)))]
+                  (expect (str/includes? har "\"status\":500"))
+                  (expect (str/includes? har "\"startedDateTime\""))
+                  (expect (str/includes? har "trace-request=recorded"))
+                  (expect (str/includes? har "trace-response=recorded"))))))
+          (finally
+            (allure/set-reporter-active! was-active?)
+            (doseq [file (reverse (file-seq output-dir))]
+              (.delete file))))))
+
     (it "API calls through (.request (.context pg)) work correctly"
       (core/with-testing-page [pg]
         (let [resp (core/api-get (.request (.context pg))

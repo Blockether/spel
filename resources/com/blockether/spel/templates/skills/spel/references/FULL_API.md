@@ -489,7 +489,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `expect-it` | [doc expr] \| [doc attr-map? expr] | Like `lazytest.core/expect-it` with stepped expectations. |
 | `feature` | [value] | Set the feature label for this test. |
 | `flush-network-steps!` | [] | Create allure steps from buffered network responses. Call after the |
-| `install-network-capture!` | [pg] | Register a page on-response listener that buffers responses for later |
+| `install-network-capture!` | [pg] | Register page request lifecycle listeners that buffer complete exchanges for |
 | _(macro)_ `is` | [form] \| [form msg] | Like `clojure.test/is` with automatic Allure step wrapping. |
 | `issue` | [name url] | Add an issue link. |
 | _(macro)_ `it` | [doc & body] \| [doc attr-map? & body] | Like `lazytest.core/it` with automatic Allure step wrapping. |

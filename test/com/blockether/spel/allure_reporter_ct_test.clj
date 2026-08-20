@@ -18,6 +18,7 @@
 (def ^:private build-display-name @#'reporter/ct-build-display-name)
 (def ^:private build-labels @#'reporter/ct-build-labels)
 (def ^:private write-environment-properties! @#'reporter/write-environment-properties!)
+(def ^:private explicit-allure-steps? @#'reporter/explicit-allure-steps?)
 
 ;; =============================================================================
 ;; Helpers
@@ -180,3 +181,14 @@
             (expect (not (contains? props "commit.author")))))
         (finally
           (clean-dir! dir))))))
+
+;; Regression, issue #55: automatic network steps replaced test assertion details.
+(defdescribe explicit-allure-steps-test
+  "Tests automatic network-step filtering"
+
+  (it "does not count the automatic network group as an explicit test step"
+    (expect (false? (explicit-allure-steps? [{:name "Network Activity"}]))))
+
+  (it "recognizes user steps alongside automatic network activity"
+    (expect (true? (explicit-allure-steps? [{:name "a user step"}
+                                            {:name "Network Activity"}])))))

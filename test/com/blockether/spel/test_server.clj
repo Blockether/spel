@@ -320,6 +320,16 @@
             (.sendResponseHeaders exchange 301 -1)
             (.close (.getResponseBody exchange)))
 
+          (and (= "GET" method) (= "/network-failure" path))
+          (do
+            ;; Delay the 500 so tests can distinguish request start from response time.
+            (Thread/sleep 250)
+            (.set (.getResponseHeaders exchange)
+              "Set-Cookie" "trace-response=recorded; Path=/")
+            (send-response exchange 500
+              "{\"status\":500}"
+              "application/json"))
+
           (.startsWith path "/status/")
           (let [code (Integer/parseInt (subs path 8))]
             (send-response exchange code

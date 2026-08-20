@@ -1140,13 +1140,13 @@
 
 (defn- run-traced-page
   "Runs `f` on a page with Allure tracing and HAR recording.
-   `ctx` is a BrowserContext (from new-context or launch-persistent-context).
-   `allure-vars` is a map of {:page :tracing-var :trace :har :title} var references."
-  [^BrowserContext ctx allure-vars f]
+   `ctx` is a BrowserContext configured to write to `har-file`.
+   `allure-vars` contains the dynamically resolved Allure bindings and network
+   capture installer."
+  [^BrowserContext ctx ^File har-file allure-vars f]
   (let [trace-file (File/createTempFile "pw-trace-" ".zip")
-        har-file   (File/createTempFile "pw-har-" ".har")
         tracing    (.tracing ctx)
-        {:keys [page tracing-var trace har title]} allure-vars]
+        {:keys [page tracing-var trace har title install-network-capture!]} allure-vars]
     ;; For non-persistent contexts, HAR is configured via context opts.
     ;; For persistent contexts, HAR is configured via launch-persistent-context opts.
     ;; Either way, tracing is started here.
@@ -1157,6 +1157,8 @@
                       (.setTitle (or (when title @title) "spel"))))
     (let [pg     (new-page-from-context ctx)
           !msgs  (install-console-capture! pg)]
+      (when install-network-capture!
+        (install-network-capture! pg))
       (try
         (with-bindings (cond-> {}
                          page        (assoc page pg)
@@ -1204,11 +1206,15 @@
   (let [active? (try @(requiring-resolve 'com.blockether.spel.allure/reporter-active?)
                      (catch Exception _ (constantly false)))]
     [active?
-     {:page        (resolve 'com.blockether.spel.allure/*page*)
-      :tracing-var (resolve 'com.blockether.spel.allure/*tracing*)
-      :trace       (resolve 'com.blockether.spel.allure/*trace-path*)
-      :har         (resolve 'com.blockether.spel.allure/*har-path*)
-      :title       (resolve 'com.blockether.spel.allure/*test-title*)}]))
+     {:page                     (resolve 'com.blockether.spel.allure/*page*)
+      :tracing-var              (resolve 'com.blockether.spel.allure/*tracing*)
+      :trace                    (resolve 'com.blockether.spel.allure/*trace-path*)
+      :har                      (resolve 'com.blockether.spel.allure/*har-path*)
+      :title                    (resolve 'com.blockether.spel.allure/*test-title*)
+      :install-network-capture! (try
+                                  (requiring-resolve
+                                    'com.blockether.spel.allure/install-network-capture!)
+                                  (catch Exception _ nil))}]))
 
 ;; =============================================================================
 ;; Shared Testing Browser
@@ -1368,18 +1374,19 @@
    are merged into context opts. Explicit :viewport overrides the device viewport."
   [opts f]
   (let [[allure-active? allure-vars] (resolve-allure-vars)
-        profile      (:profile opts)
-        ctx-opts     (resolve-context-opts opts)]
+        allure-enabled? (allure-active?)
+        profile         (:profile opts)
+        ctx-opts        (resolve-context-opts opts)]
     (if (and *testing-browser* (not profile))
       ;; Reuse shared browser from with-testing-browser
-      (if (allure-active?)
+      (if allure-enabled?
         (let [har-file (File/createTempFile "pw-har-" ".har")
               ctx      (ensure-not-anomaly!
                          (new-context *testing-browser*
                            (merge ctx-opts
                              {:record-har-path (str har-file)
                               :record-har-mode :full})))]
-          (run-traced-page ctx allure-vars f))
+          (run-traced-page ctx har-file allure-vars f))
         (let [ctx (ensure-not-anomaly! (new-context *testing-browser* (or ctx-opts {})))]
           (run-plain-page ctx (:page allure-vars) f)))
       ;; Standalone: create full stack
@@ -1390,18 +1397,19 @@
             (let [bt-fn    (resolve-browser-type (:browser-type opts))
                   bt       (bt-fn pw)
                   combined (merge launch-opts ctx-opts)
+                  har-file (when allure-enabled?
+                             (File/createTempFile "pw-har-" ".har"))
                   ctx      (ensure-not-anomaly!
-                             (if (allure-active?)
-                               (let [har-file (File/createTempFile "pw-har-" ".har")]
-                                 (launch-persistent-context bt profile
-                                   (merge combined
-                                     {:record-har-path (str har-file)
-                                      :record-har-mode :full})))
+                             (if allure-enabled?
+                               (launch-persistent-context bt profile
+                                 (merge combined
+                                   {:record-har-path (str har-file)
+                                    :record-har-mode :full}))
                                (if (seq combined)
                                  (launch-persistent-context bt profile combined)
                                  (launch-persistent-context bt profile))))]
-              (if (allure-active?)
-                (run-traced-page ctx allure-vars f)
+              (if allure-enabled?
+                (run-traced-page ctx har-file allure-vars f)
                 (run-plain-page ctx (:page allure-vars) f)))
             ;; Normal standalone mode
             (let [launch-fn (resolve-launcher (:browser-type opts))]
@@ -1409,14 +1417,14 @@
                                        (if (seq launch-opts)
                                          (launch-fn pw launch-opts)
                                          (launch-fn pw)))]
-                (if (allure-active?)
+                (if allure-enabled?
                   (let [har-file (File/createTempFile "pw-har-" ".har")
                         ctx      (ensure-not-anomaly!
                                    (new-context browser
                                      (merge ctx-opts
                                        {:record-har-path (str har-file)
                                         :record-har-mode :full})))]
-                    (run-traced-page ctx allure-vars f))
+                    (run-traced-page ctx har-file allure-vars f))
                   (let [ctx (ensure-not-anomaly! (new-context browser (or ctx-opts {})))]
                     (run-plain-page ctx (:page allure-vars) f)))))))))))
 

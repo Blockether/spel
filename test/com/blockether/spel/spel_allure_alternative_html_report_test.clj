@@ -92,7 +92,9 @@
       "}"))
   (spit (io/file dir (str uuid "-attachment.md"))
     (str "## GET https://api.example.test/users → 200 OK\n\n"
-      "### Request Headers\n```\naccept: application/json\n```\n\n"
+      "### Timing\nRequest started: 2026-08-19T12:34:56.789Z\n\n"
+      "### Request Headers\n```\ncookie: trace-request=recorded\n```\n\n"
+      "### Response Headers\n```\nset-cookie: trace-response=recorded; Path=/\n```\n\n"
       "### Response Body\n```json\n{\"ok\":true}\n```\n\n"
       "### cURL\n```bash\ncurl 'https://api.example.test/users'\n```\n"))
   (spit (io/file dir (str uuid "-attachment.txt")) "stdout line\n")
@@ -217,6 +219,9 @@
           (expect (str/includes? html "trace-viewer/index.html?trace=../data/attachments/uuid-att-attachment.zip"))
           (expect (str/includes? html "data-testid=\"code-attachment-content\""))
           (expect (str/includes? html "class=\"language-md\""))
+          (expect (str/includes? html "Request started: 2026-08-19T12:34:56.789Z"))
+          (expect (str/includes? html "cookie: trace-request=recorded"))
+          (expect (str/includes? html "set-cookie: trace-response=recorded; Path=/"))
           (expect (str/includes? html "Full stdout log"))
           (expect (str/includes? html "Video Recording"))
           (expect (str/includes? html "data-action=\"expand-suites\""))
