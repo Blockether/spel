@@ -19,6 +19,21 @@ if ! command -v timeout >/dev/null 2>&1; then
   }
 fi
 
+# Run one command inside a disposable PTY. BSD and util-linux `script` use
+# different command syntaxes, so keep the platform split in one helper.
+run_in_fresh_pty() {
+  case "$(uname -s)" in
+    Darwin)
+      script -q /dev/null "$@"
+      ;;
+    *)
+      local command
+      printf -v command '%q ' "$@"
+      script -q -e -c "$command" /dev/null
+      ;;
+  esac
+}
+
 SPEL="${1:-./target/spel}"
 case "$SPEL" in
   /*) ;;
@@ -2469,9 +2484,9 @@ OUT=$("$SPEL" --session "$ISO_A" --json health 2>&1)
 assert_jq_eq "isolation test leaves no stale A daemon" "$OUT" '.status' 'down'
 
 # =============================================================================
-# DAEMON HEALTH, CANCEL, KILL (20)
+# DAEMON HEALTH, CANCEL, KILL (22)
 # =============================================================================
-section "Daemon health (20)"
+section "Daemon health (22)"
 
 # A daemon busy inside a long browser call used to be indistinguishable from a
 # dead one. `health` answers from daemon-local state, `cancel` interrupts named
@@ -2507,6 +2522,19 @@ assert_jq_eq "health on a live daemon → ok" "$OUT" '.status' 'ok'
 assert_jq "health reports the daemon pid" "$OUT" '.pid > 0'
 assert_jq "health reports a connected browser" "$OUT" '.browser.connected == true'
 assert_jq "idle daemon has nothing in flight" "$OUT" '(.in_flight | length) == 0'
+
+# Regression, issue #133: a CDP daemon auto-started from a short-lived PTY
+# received its terminal's hangup, so health said down and the next command lost
+# the page.
+PTY_SESSION="pty-lifetime-$$"
+run_in_fresh_pty "$SPEL" --session "$PTY_SESSION" --auto-launch --json open \
+  'data:text/html,<body data-owner="pty">PTY lifetime</body>' >/dev/null 2>&1
+sleep 1
+OUT=$("$SPEL" --session "$PTY_SESSION" --json health 2>&1)
+assert_jq_eq "auto-started CDP daemon outlives its launcher PTY" "$OUT" '.status' 'ok'
+OUT=$("$SPEL" --session "$PTY_SESSION" --json eval-js 'document.body.dataset.owner' 2>&1)
+assert_jq_eq "PTY-launched CDP daemon retains its page" "$OUT" '.result' 'pty'
+"$SPEL" --session "$PTY_SESSION" close >/dev/null 2>&1 || true
 
 OUT=$("$SPEL" --session "$HSESSION" --json cancel 2>&1)
 assert_jq_eq "cancel with nothing running → 0" "$OUT" '.count' '0'

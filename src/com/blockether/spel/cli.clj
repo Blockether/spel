@@ -3856,13 +3856,20 @@
    `spel-<os>-<arch>`. Matching the file name instead meant a downloaded asset
    relaunched itself as `java -cp <empty> clojure.main` and never started.
    Only a JVM run - where the current executable is the `java` launcher -
-   relaunches through the classpath."
-  [{:keys [native? exec-path classpath]} args]
-  (if (and exec-path (or native? (not (java-launcher? exec-path))))
-    (into [exec-path] args)
-    (into ["java" "-cp" classpath
-           "clojure.main" "-m" "com.blockether.spel.native"]
-      args)))
+   relaunches through the classpath.
+
+   POSIX launches run through `nohup`, which execs the command with SIGHUP
+   ignored. The daemon then survives the terminal that issued the first command.
+   Windows launches directly because it has no POSIX terminal hangup."
+  [{:keys [native? exec-path classpath os-name]} args]
+  (let [command (if (and exec-path (or native? (not (java-launcher? exec-path))))
+                  (into [exec-path] args)
+                  (into ["java" "-cp" classpath
+                         "clojure.main" "-m" "com.blockether.spel.native"]
+                    args))]
+    (if (str/starts-with? (str/lower-case (or os-name "")) "windows")
+      command
+      (into ["nohup"] command))))
 
 (defn- start-daemon-process!
   "Starts a new daemon subprocess and waits until its socket is connectable.
@@ -3884,7 +3891,8 @@
                     (daemon-launch-command
                       {:native?   (native-image?)
                        :exec-path exec-path
-                       :classpath (System/getProperty "java.class.path")}
+                       :classpath (System/getProperty "java.class.path")
+                       :os-name   (System/getProperty "os.name" "")}
                       args))]
     (.redirectOutput pb
       (ProcessBuilder$Redirect/appendTo

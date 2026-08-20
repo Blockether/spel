@@ -3049,34 +3049,41 @@
   "How the CLI relaunches itself as a daemon."
 
   (describe "native image"
-    (it "re-execs the running binary whatever the file is named"
-      (expect (= ["/opt/bin/spel-macos-arm64" "daemon" "--session" "s1"]
+    ;; Regression, issue #133: an auto-started POSIX daemon inherited SIGHUP
+    ;; from the launcher PTY and exited as soon as that terminal closed.
+    (it "protects a renamed POSIX binary from terminal hangup"
+      (expect (= ["nohup" "/opt/bin/spel-macos-arm64" "daemon" "--session" "s1"]
                 (sut/daemon-launch-command
                   {:native?   true
                    :exec-path "/opt/bin/spel-macos-arm64"
-                   :classpath ""}
+                   :classpath ""
+                   :os-name   "Mac OS X"}
                   ["daemon" "--session" "s1"]))))
 
-    (it "re-execs a binary named spel too"
-      (expect (= ["/usr/local/bin/spel" "daemon"]
+    (it "protects a binary named spel too"
+      (expect (= ["nohup" "/usr/local/bin/spel" "daemon"]
                 (sut/daemon-launch-command
-                  {:native? true :exec-path "/usr/local/bin/spel" :classpath ""}
+                  {:native? true :exec-path "/usr/local/bin/spel" :classpath "" :os-name "Linux"}
                   ["daemon"]))))
 
-    (it "re-execs spel.exe on Windows"
+    (it "re-execs spel.exe directly on Windows"
       (expect (= ["C:\\tools\\spel-windows-x64.exe" "daemon"]
                 (sut/daemon-launch-command
-                  {:native? true :exec-path "C:\\tools\\spel-windows-x64.exe" :classpath ""}
+                  {:native?   true
+                   :exec-path "C:\\tools\\spel-windows-x64.exe"
+                   :classpath ""
+                   :os-name   "Windows 11"}
                   ["daemon"])))))
 
   (describe "jvm"
-    (it "relaunches through the classpath, never through the java executable path"
-      (expect (= ["java" "-cp" "/cp/spel.jar" "clojure.main"
+    (it "protects the classpath relaunch from terminal hangup"
+      (expect (= ["nohup" "java" "-cp" "/cp/spel.jar" "clojure.main"
                   "-m" "com.blockether.spel.native" "daemon"]
                 (sut/daemon-launch-command
                   {:native?   false
                    :exec-path "/usr/bin/java"
-                   :classpath "/cp/spel.jar"}
+                   :classpath "/cp/spel.jar"
+                   :os-name   "Linux"}
                   ["daemon"]))))))
 
 ;; =============================================================================
