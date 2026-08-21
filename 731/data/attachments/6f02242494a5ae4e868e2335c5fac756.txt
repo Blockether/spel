@@ -1,0 +1,1 @@
+2026-08-21T02:20:02.408Z WARN  [spel] this session has captured 1000000 console and network entries — capture stops here to keep the browser responsive; `spel console clear` or `spel network clear` resumes it

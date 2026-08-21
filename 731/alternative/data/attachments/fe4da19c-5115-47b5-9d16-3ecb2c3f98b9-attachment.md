@@ -1,0 +1,66 @@
+## GET https://www.iana.org/domains/example → 301 
+
+### Timing
+Request started: 2026-08-21T02:21:11.795Z
+
+### Request Headers
+```
+:authority: www.iana.org
+:method: GET
+:path: /domains/example
+:scheme: https
+accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+accept-encoding: gzip, deflate, br, zstd
+priority: u=0, i
+referer: https://example.org/
+sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+sec-fetch-dest: document
+sec-fetch-mode: navigate
+sec-fetch-site: cross-site
+sec-fetch-user: ?1
+upgrade-insecure-requests: 1
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36
+```
+
+### Response Headers
+```
+age: 9215
+cache-control: public, max-age=21603
+cf-cache-status: HIT
+cf-ray: a2e629b4d9319ac2-SJC
+content-length: 248
+content-security-policy: upgrade-insecure-requests; default-src 'self' https://*.iana.org; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://cse.google.com https://clients1.google.com; style-src 'self' 'unsafe-inline' https://www.google.com; child-src 'self' https://www.youtube.com https://clients1.google.com https://cse.google.com https://www.google.com/; img-src 'self' https://data.iana.org https://www.iana.org https://www.google.com https://www.googleapis.com https://clients1.google.com https://*.gstatic.com;
+content-type: text/html; charset=iso-8859-1
+date: Fri, 21 Aug 2026 02:21:11 GMT
+expires: Thu, 20 Aug 2026 20:01:59 GMT
+location: http://www.iana.org/help/example-domains
+referrer-policy: origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=48211200; preload
+vary: Accept-Encoding
+x-frame-options: SAMEORIGIN
+```
+
+### cURL
+```bash
+curl 'https://www.iana.org/domains/example' \
+  -H ':authority: www.iana.org' \
+  -H ':method: GET' \
+  -H ':path: /domains/example' \
+  -H ':scheme: https' \
+  -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  -H 'accept-encoding: gzip, deflate, br, zstd' \
+  -H 'priority: u=0, i' \
+  -H 'referer: https://example.org/' \
+  -H 'sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: document' \
+  -H 'sec-fetch-mode: navigate' \
+  -H 'sec-fetch-site: cross-site' \
+  -H 'sec-fetch-user: ?1' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36'
+```
