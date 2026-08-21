@@ -182,6 +182,25 @@
                              "_flags" {"allowed-domains" "example.com"}})))]
           (expect (true? (get response "success"))))))))
 
+;; Regression, issue #134: an existing Playwright session silently accepted an
+;; explicit iOS provider and kept executing against Chromium.
+(defdescribe session-provider-conflict-test
+  "Provider identity is immutable for the lifetime of a daemon session."
+
+  (it "rejects switching a running Playwright session to iOS before merging flags"
+    (let [state-atom (deref #'sut/!state)]
+      (reset! state-atom {:launch-flags {} :session "provider-conflict-test"
+                          :refs {} :counter 0 :browser :fake-running-browser})
+      (let [response (json/read-json
+                       (#'sut/process-command
+                         (json/write-json-str
+                           {"action" "device_list"
+                            "_flags" {"provider" "ios"}})))]
+        (expect (false? (get response "success")))
+        (expect (= "session_configuration_conflict" (get response "error_code")))
+        (expect (str/includes? (get response "error") "new session"))
+        (expect (nil? (get-in @state-atom [:launch-flags "provider"])))))))
+
 (defdescribe cdp-lifecycle-command-test
   "Unit tests for cdp_disconnect/cdp_reconnect command handling"
 

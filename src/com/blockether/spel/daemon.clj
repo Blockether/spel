@@ -6475,6 +6475,26 @@
   (reset! sci-env/!action-log-start 0)
   {:cleared true})
 
+(defn- session-provider-conflict
+  "Rejects an explicit provider switch after a session backend has been chosen."
+  [incoming-flags]
+  (let [state              @!state
+        incoming-provider  (get incoming-flags "provider")
+        persisted-provider (get-in state [:launch-flags "provider"])
+        active-provider    (cond
+                             persisted-provider persisted-provider
+                             (or (:browser state) (:context state) (:page state)) "playwright"
+                             :else nil)]
+    (when (and incoming-provider active-provider
+            (not= incoming-provider active-provider))
+      {:success false
+       :error (str "Session '" (:session state) "' already uses the "
+                active-provider " provider; it cannot switch to " incoming-provider
+                ". Close it and use a new session name for a different provider.")
+       :error_code "session_configuration_conflict"
+       :provider active-provider
+       :requested_provider incoming-provider})))
+
 (defn- ios-flag-rejection
   "Returns a capability-error map when a command combines the iOS provider
    with --allowed-domains, else nil.
@@ -6874,9 +6894,10 @@
           params  (dissoc cmd "action" "_flags")]
       ;; Reset session idle timer — any command counts as activity
       (schedule-session-idle-shutdown!)
-      ;; iOS + --allowed-domains is rejected BEFORE the flags merge so the
-      ;; unsupported flag never poisons the persisted launch flags.
-      (if-let [rejection (ios-flag-rejection flags)]
+      ;; Provider conflicts and unsupported iOS capabilities are rejected BEFORE
+      ;; flags merge, so a failed command cannot change the session identity.
+      (if-let [rejection (or (session-provider-conflict flags)
+                            (ios-flag-rejection flags))]
         (json/write-json-str rejection)
         (do
           ;; Store launch flags if present (used by ensure-browser!)
