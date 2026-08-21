@@ -1204,3 +1204,17 @@
           (fn []
             (sut/swipe session {:from [200 600] :to [200 100]})
             (expect (= [{:from [200 600] :to [200 100] :duration 800}] @swipes*))))))))
+
+ ;; Regression, issue #134: Appium inherited the launcher's process group and
+;; died when a timed-out CLI's process tree closed, while the daemon stayed alive.
+(defdescribe appium-process-lifetime-test
+  "The owned Appium server outlives whichever CLI invocation started it."
+
+  (it "submits Appium to launchd instead of the launcher process group"
+    (expect (= ["launchctl" "submit" "-l" "spel.label"
+                "-o" "/tmp/appium.log" "-e" "/tmp/appium.log" "--"
+                "/bin/sh" "-c"
+                "export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
+                "spel-appium" "/test/bin" "/opt/homebrew/bin/appium" "4901"]
+              (#'sut/appium-command "spel.label" "/tmp/appium.log"
+                                    "/test/bin" "/opt/homebrew/bin/appium" 4901)))))

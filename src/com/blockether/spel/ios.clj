@@ -47,6 +47,7 @@
             webdriver
             appium-url
             appium-process
+            appium-launch-label
             appium-owned?
             simulator-booted-by-spel?
             simulator-lock
@@ -437,6 +438,36 @@
              "spel-" session ".appium.log")
     (into-array String [])))
 
+(defn- appium-launch-label
+  [session port]
+  (str "com.blockether.spel.appium."
+    (str/replace (or session "default") #"[^A-Za-z0-9_.-]" "-")
+    "." port))
+
+(defn- executable-on-path
+  [name]
+  (or (some (fn [dir]
+              (let [file (File. ^String dir ^String name)]
+                (when (and (.isFile file) (.canExecute file))
+                  (.getAbsolutePath file))))
+        (str/split (or (System/getenv "PATH") "")
+          (re-pattern (java.util.regex.Pattern/quote File/pathSeparator))))
+    name))
+
+(defn- appium-command
+  "Builds a launchd-owned Appium command, detached from the caller process group."
+  [label log-path path-env appium-bin port]
+  ["launchctl" "submit" "-l" label "-o" log-path "-e" log-path "--"
+   "/bin/sh" "-c"
+   "export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
+   "spel-appium" path-env appium-bin (str port)])
+
+(defn- stop-appium-launch!
+  [label]
+  (when label
+    (try (*command-runner* ["launchctl" "remove" label])
+         (catch Exception _ nil))))
+
 (defn start-appium!
   "Starts the installed `appium` executable on a free loopback port.
 
@@ -452,44 +483,39 @@
      :port               - Long, optional. Defaults to a free port.
      :startup-timeout-ms - Long, default 30000.
 
-   Returns {:process Process :port long :url string :log-path string}.
-   Throws ex-info when Appium fails to become ready (process is killed)."
+   Returns {:launch-label string :port long :url string :log-path string}.
+   Throws ex-info when Appium fails to become ready (launch service is removed)."
   [{:keys [session port startup-timeout-ms]}]
-  (let [port     (long (or port (find-free-port)))
-        url      (str "http://127.0.0.1:" port)
-        log-file (.toFile (appium-log-path (or session "default")))
-        cmd      ["appium" "server"
-                  "--address" "127.0.0.1"
-                  "--port" (str port)]
-        pb       (doto (ProcessBuilder. ^java.util.List (vec cmd))
-                   (.redirectOutput (ProcessBuilder$Redirect/appendTo log-file))
-                   (.redirectErrorStream true))
-        ^Process proc
-        (try
-          (.start pb)
-          (catch java.io.IOException e
-            (throw (ex-info (str "Failed to start appium: " (.getMessage e)
-                              "\n\n" setup-instructions)
-                     {:ios/appium-cmd cmd}
-                     e))))
-        deadline (+ (System/currentTimeMillis) (long (or startup-timeout-ms 30000)))]
+  (let [port       (long (or port (find-free-port)))
+        url        (str "http://127.0.0.1:" port)
+        log-file   (.toFile (appium-log-path (or session "default")))
+        log-path   (str (.getAbsolutePath log-file))
+        label      (appium-launch-label session port)
+        appium-bin (executable-on-path "appium")
+        path-env   (or (System/getenv "PATH") "")
+        cmd        (appium-command label log-path path-env appium-bin port)
+        launched   (try
+                     (*command-runner* cmd)
+                     (catch Exception e
+                       (throw (ex-info (str "Failed to start appium: " (.getMessage e)
+                                         "\n\n" setup-instructions)
+                                {:ios/appium-cmd cmd}
+                                e))))
+        _          (when-not (zero? (long (:exit launched)))
+                     (throw (ex-info (str "Failed to submit Appium launch service. See log: " log-path)
+                              {:ios/appium-cmd cmd :ios/appium-log log-path})))
+        deadline   (+ (System/currentTimeMillis) (long (or startup-timeout-ms 30000)))]
     (loop []
       (cond
         (webdriver/ready? url)
-        {:process proc :port port :url url :log-path (str (.getAbsolutePath log-file))}
-
-        (not (.isAlive proc))
-        (throw (ex-info (str "Appium exited during startup (exit " (.exitValue proc)
-                          "). See log: " (.getAbsolutePath log-file))
-                 {:ios/appium-log (str (.getAbsolutePath log-file))}))
+        {:process nil :launch-label label :port port :url url :log-path log-path}
 
         (> (System/currentTimeMillis) deadline)
         (do
-          (kill-process-tree! proc)
+          (stop-appium-launch! label)
           (throw (ex-info (str "Appium did not become ready within "
-                            (or startup-timeout-ms 30000) "ms. See log: "
-                            (.getAbsolutePath log-file))
-                   {:ios/appium-log (str (.getAbsolutePath log-file))})))
+                            (or startup-timeout-ms 30000) "ms. See log: " log-path)
+                   {:ios/appium-log log-path})))
 
         :else
         (do (Thread/sleep 250) (recur))))))
@@ -620,7 +646,8 @@
         ;; WDA on the same UDID, and a leaked boot would make the retry see
         ;; the simulator as "already Booted" and lose shutdown ownership.
         booted?*     (volatile! false)
-        appium-proc* (volatile! nil)]
+        appium-proc* (volatile! nil)
+        appium-label* (volatile! nil)]
     (try
       (let [{:keys [booted-by-spel?]} (boot-device! selected)
             _         (vreset! booted?* (boolean booted-by-spel?))
@@ -628,6 +655,7 @@
                         (start-appium! {:session session-name
                                         :startup-timeout-ms startup-timeout-ms}))
             _         (vreset! appium-proc* (:process appium))
+            _         (vreset! appium-label* (:launch-label appium))
             base-url  (or appium-url (:url appium))
             wda-port  (long (find-free-port))
             caps      (app-capabilities {:device-name      (:name selected)
@@ -649,7 +677,7 @@
                                        :ios/setup-instructions setup-instructions)
                                      e))
                             (throw e))))]
-        (->IosSession selected wd base-url (:process appium)
+        (->IosSession selected wd base-url (:process appium) (:launch-label appium)
           (boolean appium)          ;; appium-owned? — false for external URL
           (boolean booted-by-spel?)
           lock
@@ -672,6 +700,7 @@
         ;; booted it (also reaps the on-device WDA runner), release the lock.
         (when-let [^Process p @appium-proc*]
           (try (kill-process-tree! p) (catch Exception _ nil)))
+        (stop-appium-launch! @appium-label*)
         (when @booted?*
           (shutdown-device! (:udid selected)))
         (release-lock! (:udid selected) session-name)
@@ -681,15 +710,15 @@
   "Stops an iOS session idempotently, releasing ONLY owned resources:
 
    1. Delete the WebDriver session.
-   2. Kill the ENTIRE Appium process tree (incl. xcodebuild/WDA children)
-      only when :appium-owned? is true (never external).
+   2. Remove the owned launchd Appium service (or legacy process tree); never
+      touch an external Appium endpoint.
    3. Release the simulator lock.
    4. Shut down the simulator only when `shutdown-simulator?` is requested
       AND spel booted it.
 
    Safe to call multiple times and from shutdown hooks."
   ([ios-session] (stop! ios-session {}))
-  ([{:keys [device webdriver appium-process appium-owned?
+  ([{:keys [device webdriver appium-process appium-launch-label appium-owned?
             simulator-booted-by-spel? session-name] :as ios-session}
     {:keys [shutdown-simulator?]}]
    (when ios-session
@@ -697,6 +726,8 @@
        (try (webdriver/delete-session! webdriver) (catch Exception _ nil)))
      (when (and appium-owned? appium-process)
        (try (kill-process-tree! appium-process) (catch Exception _ nil)))
+     (when (and appium-owned? appium-launch-label)
+       (stop-appium-launch! appium-launch-label))
      (when (:udid device)
        (release-lock! (:udid device) (or session-name "default")))
      (when (and shutdown-simulator? simulator-booted-by-spel? (:udid device))
@@ -1230,6 +1261,16 @@
   [{:keys [webdriver] :as ios-session} selector text]
   (webdriver/send-keys webdriver (find-element ios-session selector) (str text))
   selector)
+
+(defn type-native-keys!
+  "Types through XCTest keyboard events, engaging the native iOS IME.
+   With no selector, sends keys to the focused application element."
+  ([ios-session text] (type-native-keys! ios-session nil text))
+  ([{:keys [webdriver] :as ios-session} selector text]
+   (with-operation ios-session
+     #(webdriver/native-type-keys webdriver
+        (when selector (find-element ios-session selector))
+        (str text)))))
 
 (defn element-text
   "Returns element text/accessibility label."

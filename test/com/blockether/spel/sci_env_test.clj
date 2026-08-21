@@ -67,9 +67,19 @@
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/stop!)")))))
 
+    ;; Regression, issue #134: the CLI called this operation snapshot while the
+    ;; equivalent `spel/snapshot` symbol was unresolved in SCI.
+    (it "has snapshot under the CLI-aligned name"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? spel/snapshot)")))))
+
     (it "has capture-snapshot function"
       (let [ctx (sut/create-sci-ctx)]
         (expect (true? (sut/eval-string ctx "(fn? spel/capture-snapshot)")))))
+
+    (it "has native iOS IME typing"
+      (let [ctx (sut/create-sci-ctx)]
+        (expect (true? (sut/eval-string ctx "(fn? spel/ios-type-keys!)")))))
 
     (it "has url function"
       (let [ctx (sut/create-sci-ctx)]
@@ -568,7 +578,6 @@
                   false
                   (catch Exception e
                     (not (.contains ^String (ex-message e) "Did you mean")))))))))
-
 
 ;; Regression, user report: COMMON_PROBLEMS section 15 told the reader to call
 ;; `(spel/with-retry ...)`, but that name lives in `core`. The refusal named the

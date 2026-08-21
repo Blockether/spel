@@ -391,6 +391,11 @@
   ([bundle-id service access]
    (ios/set-permission! (require-ios-session!) bundle-id service access)))
 
+(defn sci-ios-type-keys!
+  "Types through XCTest keyboard events so native iOS IME/autocorrection runs."
+  ([text] (ios/type-native-keys! (require-ios-session!) text))
+  ([selector text] (ios/type-native-keys! (require-ios-session!) selector text)))
+
 (defn sci-ios-hide-keyboard!
   "Dismisses the iOS software keyboard."
   []
@@ -2253,6 +2258,7 @@
                   ['ios-open-url!         sci-ios-open-url!]
                   ['ios-permission        sci-ios-permission]
                   ['ios-set-permission!   sci-ios-set-permission!]
+                  ['ios-type-keys!        sci-ios-type-keys!]
                   ['ios-hide-keyboard!    sci-ios-hide-keyboard!]
                   ['ios-orientation       sci-ios-orientation]
                   ['ios-set-orientation!  sci-ios-set-orientation!]
@@ -2505,6 +2511,7 @@
                   ['help           sci-help]
                   ['source         sci-source]
                   ;; Snapshot + Ref-based actions
+                  ['snapshot                 sci-snapshot]
                   ['capture-snapshot         sci-snapshot]
                   ['capture-full-snapshot    sci-full-snapshot]
                   ['resolve-ref              sci-resolve-ref]

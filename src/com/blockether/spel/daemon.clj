@@ -1183,6 +1183,7 @@
 ;; every browser call is stuck.
 (defonce ^:private !ledger (atom {}))
 (defonce ^:private !command-seq (atom 0))
+(defonce ^:private !recent-commands (atom []))
 (defonce ^:private !commands-total (atom 0))
 (defonce ^:private !last-command-at (atom nil))
 ;; nil until this process starts serving. A `System/currentTimeMillis` evaluated
@@ -1207,9 +1208,9 @@
   #{"health" "cancel" "close"})
 
 (defn- ledger-start!
-  "Records a command as in-flight on the calling thread. Returns its id."
-  [^String action]
-  (let [id (str "c" (swap! !command-seq inc))]
+  "Records a command as in-flight on the calling thread. Returns its stable id."
+  [^String action requested-id]
+  (let [id (or requested-id (str "c" (swap! !command-seq inc)))]
     (swap! !ledger assoc id {:id      id
                              :action  action
                              :phase   (if (contains? control-actions action) "running" "queued")
@@ -1233,6 +1234,17 @@
    entries like anything else, but listing them would report every idle daemon
    as busy — `health` would always find itself running."
   #{"health" "cancel"})
+
+(defn- remember-command!
+  "Retains the ten latest non-observer outcomes for timeout recovery."
+  [entry response]
+  (when-not (contains? observer-actions (:action entry))
+    (let [completed (-> (select-keys entry [:id :action :started])
+                      (assoc :phase "completed"
+                        :completed_at (System/currentTimeMillis)
+                        :response (try (json/read-json response)
+                                       (catch Exception _ response))))]
+      (swap! !recent-commands #(->> (conj % completed) (take-last 10) vec)))))
 
 (defn- ledger-entries
   "Real in-flight work, longest-running first, as wire-safe maps. Observer
@@ -5685,8 +5697,12 @@
         last-at   @!last-command-at
         handlers  (core/handler-errors)
         lost      @!lost-commands
-        crashed?  (page-crashed? (:page @!state))]
+        crashed?  (page-crashed? (:page @!state))
+        ios-error (:ios-transport-error @!state)
+        ios?      (or (= "ios" (get-in @!state [:launch-flags "provider"]))
+                    (some? (:ios-session @!state)))]
     {:status         (cond
+                       ios-error                       "degraded"
                        (and launched? (not connected)) "degraded"
                        ;; Instrumentation that throws on every event is the
                        ;; failure that looks like success: commands still
@@ -5708,6 +5724,7 @@
      :uptime_ms      (- now started)
      :uptime         (human-duration (- now started))
      :in_flight      in-flight
+     :recent_commands @!recent-commands
      :busiest_ms     (or (:running_ms (first in-flight)) 0)
      :commands_total @!commands-total
      :idle_ms        (when last-at (- now (long last-at)))
@@ -5719,6 +5736,9 @@
                       :type      (get-in @!state [:launch-flags "browser"] "chromium")
                       :headless  (boolean (:headless @!state))
                       :cdp       (current-cdp-url)}
+     :ios_transport  (when ios?
+                       {:reachable (not (some? ios-error))
+                        :last_error ios-error})
      :handler_errors handlers
      :lost_commands  lost
      :socket         (try (.toString (socket-path (:session @!state))) (catch Exception _ nil))
@@ -5767,6 +5787,23 @@
     (or (= "ios" (get-in state [:launch-flags "provider"]))
       (some? (:ios-session state)))))
 
+(defn- ios-transport-failure?
+  "True when a throwable means the active WebDriver transport is unreachable."
+  [^Throwable error]
+  (boolean
+    (some #(or (instance? java.net.ConnectException %)
+             (instance? java.net.http.HttpConnectTimeoutException %)
+             (instance? java.nio.channels.ClosedChannelException %))
+      (take-while some? (iterate #(.getCause ^Throwable %) error)))))
+
+(defn- note-ios-transport-failure!
+  "Records a known-dead iOS transport without probing from the health command."
+  [action ^Throwable error]
+  (when (and (ios-provider?) (ios-transport-failure? error))
+    (swap! !state assoc :ios-transport-error
+      {:action action
+       :error (throwable-message error)
+       :at_ms (System/currentTimeMillis)})))
 (defn- stop-ios-backend!
   "Idempotent iOS cleanup. Releases only session-owned resources (WebDriver
    session, spel-started Appium, simulator lock; simulator shutdown only when
@@ -6891,7 +6928,8 @@
                     raw-cmd)
           action  (get cmd "action")
           flags   (get cmd "_flags")
-          params  (dissoc cmd "action" "_flags")]
+          request-id (get cmd "_command_id")
+          params  (dissoc cmd "action" "_flags" "_command_id")]
       ;; Reset session idle timer — any command counts as activity
       (schedule-session-idle-shutdown!)
       ;; Provider conflicts and unsupported iOS capabilities are rejected BEFORE
@@ -6906,7 +6944,7 @@
             (swap! !state update :launch-flags merge flags)
             (persist-launch-flags!))
           (let [t0    (System/nanoTime)
-                cid   (ledger-start! action)
+                cid   (ledger-start! action request-id)
                 resp  (try
                         (if (contains? control-actions action)
                           (process-command* action params)
@@ -6921,6 +6959,7 @@
                             (str/includes? resp "\"success\":false"))
                         (cancelled-response cid action (:cancel-reason entry))
                         resp)]
+            (remember-command! entry resp)
             (log-command! action params resp (quot (- (System/nanoTime) t0) 1000000))
             resp))))
     (catch Throwable e
@@ -6976,11 +7015,14 @@
               (json/write-json-str (error-response error-msg (error-context anomaly-v))))
             :else
             (do
+              (when (ios-provider?)
+                (swap! !state dissoc :ios-transport-error))
               ;; Track user-facing actions for SRT export
               (when (trackable-actions action)
                 (track-action! action params result))
               (json/write-json-str {:success true :data result}))))
         (catch Throwable e
+          (note-ios-transport-failure! action e)
           (let [hint (reflection-error-hint e)
                 msg  (or hint (throwable-message e) (default-error-message e))
                 data (ex-data e)

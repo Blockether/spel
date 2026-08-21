@@ -2346,6 +2346,11 @@ OUT=$("$SPEL" device --help 2>&1)
 assert_contains "device --help describes Playwright presets" "$OUT" "Playwright device emulation presets"
 assert_contains "device --help points iOS discovery to SCI" "$OUT" "spel/ios-devices"
 
+# Regression, issue #134: released guidance named ios-doctor while the CLI only
+# said "Unknown command", without pointing to the SCI function.
+OUT=$("$SPEL" ios-doctor 2>&1 || true)
+assert_contains "ios-doctor points to its SCI replacement" "$OUT" "spel eval-sci '(spel/ios-doctor)'"
+
 OUT=$("$SPEL" doctor --help 2>&1 || true)
 assert_contains "removed doctor command is rejected" "$OUT" "Unknown command"
 

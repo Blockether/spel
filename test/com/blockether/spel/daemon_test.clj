@@ -2637,6 +2637,58 @@
             (reset! state-atom before)))))))
 
 ;; =============================================================================
+;; Regression, issue #134: health reported ok after the active iOS WebDriver
+;; transport had failed with a connection exception.
+;; Regression, issue #134: a client timeout did not identify its in-flight
+;; command or expose the eventual response, making a mutating retry unsafe.
+(defdescribe timeout-recovery-test
+  "Caller-generated command IDs survive execution and retain final outcomes."
+
+  (it "shows the eventual result under the same command id in health"
+    (let [recent-atom (deref #'sut/!recent-commands)
+          before @recent-atom]
+      (try
+        (reset! recent-atom [])
+        (with-redefs-fn {#'sut/process-command* (fn [_ _] "{\"success\":true,\"data\":{\"sent\":true}}")}
+          (fn []
+            (#'sut/process-command
+             (json/write-json-str {"action" "click"
+                                   "_command_id" "r-timeout-1"}))))
+        (let [command (-> (#'sut/handle-cmd "health" {}) :recent_commands last)]
+          (expect (= "r-timeout-1" (:id command)))
+          (expect (= "completed" (:phase command)))
+          (expect (true? (get-in command [:response "success"])))
+          (expect (true? (get-in command [:response "data" "sent"]))))
+        (finally
+          (reset! recent-atom before))))))
+
+(defdescribe ios-health-test
+  "Health preserves the latest known reachability of an active iOS transport."
+
+  (it "reports degraded after a connection failure and recovers after success"
+    (let [state-atom (deref #'sut/!state)
+          before @state-atom]
+      (try
+        (reset! state-atom {:session "ios-health-test"
+                            :launch-flags {"provider" "ios"}
+                            :ios-session (Object.)})
+        (with-redefs-fn {#'sut/dispatch-with-recovery
+                         (fn [_ _] (throw (java.net.ConnectException. "Appium unavailable")))}
+          (fn []
+            (#'sut/process-command* "snapshot" {})))
+        (let [health (#'sut/handle-cmd "health" {})]
+          (expect (= "degraded" (:status health)))
+          (expect (false? (get-in health [:ios_transport :reachable])))
+          (expect (= "snapshot" (get-in health [:ios_transport :last_error :action]))))
+        (with-redefs-fn {#'sut/dispatch-with-recovery (fn [_ _] {:ready true})}
+          (fn []
+            (#'sut/process-command* "snapshot" {})))
+        (let [health (#'sut/handle-cmd "health" {})]
+          (expect (= "ok" (:status health)))
+          (expect (true? (get-in health [:ios_transport :reachable]))))
+        (finally
+          (reset! state-atom before))))))
+
 ;; iOS ref freshness — what a gesture is allowed to cost
 ;; =============================================================================
 
@@ -2855,7 +2907,6 @@
     (it "encodes without an encoder ever having to guess"
       (expect (= "{\"a\":[1,\"x\"]}"
                 (json/write-json-str (#'sut/json-result {:a [1 :x]})))))))
-
 
 ;; Regression, user report: `spel --session <s> tab list` — and `cookies`, `storage local`,
 ;; `set viewport`, `set geo`, `trace start`, `state save` — as the session's FIRST command answered

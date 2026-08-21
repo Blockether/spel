@@ -2921,6 +2921,9 @@
 ;; Unit Tests — Client transport timeout
 ;; =============================================================================
 
+;; Regression, issue #134: commands sent to a persisted iOS session without
+;; repeating `--provider ios` used the generic 30-second transport timeout even
+;; though the daemon kept processing the slower XCTest operation.
 (defdescribe client-timeout-for-test
   "Unit tests for client-timeout-for — the CLI must outlive the daemon budget"
 
@@ -3246,7 +3249,6 @@
 
     (it "still prints a plain count result as a bare number"
       (expect (= "3\n" (render-result {:success true :data {:count 3}}))))))
-
 
 ;; Regression, user report: `spel eval-sci --help` printed
 ;; "Error: Unable to resolve symbol: --help" because the flag was read as the

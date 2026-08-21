@@ -282,6 +282,16 @@
           (expect (= "mobile: viewportRect" (get (:body req) "script")))
           (expect (= [{}] (get (:body req) "args")))))))
 
+    ;; Regression, issue #134: element value injection bypassed iOS IME and could
+    ;; not reproduce autocorrection-sensitive behavior.
+  (it "types characters through XCTest keyboard input"
+    (with-fake-server srv
+      (sut/native-type-keys (fake-session srv) "el-7" "Zażółć")
+      (let [body (:body (first @(:requests srv)))]
+        (expect (= "mobile: keys" (get body "script")))
+        (expect (= [{"keys" ["Z" "a" "ż" "ó" "ł" "ć"]
+                     "elementId" "el-7"}]
+                  (get body "args"))))))
   (describe "elements"
     (it "parses web and native selector strategies"
       (expect (= {:using "css selector" :value "#save"}

@@ -839,6 +839,16 @@
     (send-keys session target (str text))
     text))
 
+(defn native-type-keys
+  "Types through XCTest keyboard input so iOS IME and autocorrection participate.
+   Requires iOS 17/Xcode 15 or newer. `element-id` may be nil for the focused app."
+  ([session text] (native-type-keys session nil text))
+  ([session element-id text]
+   (execute-mobile session "mobile: keys"
+     (cond-> {"keys" (mapv str (str text))}
+       element-id (assoc "elementId" element-id)))
+   text))
+
 (defn hide-keyboard
   "Dismisses the iOS software keyboard."
   [session]

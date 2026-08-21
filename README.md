@@ -421,6 +421,10 @@ Use SCI for provider setup, lifecycle operations, and temporary WebView work:
 (spel/ios-doctor)
 (spel/ios-devices)
 
+;; After focusing a field, use XCTest keyboard events when a test must engage
+;; the native iOS IME/autocorrection instead of injecting an element value:
+(spel/ios-type-keys! "To jest zdanie do autokorekty ")
+
 (spel/with-webview-context
   {:title (spel/title)
    :url (spel/url)

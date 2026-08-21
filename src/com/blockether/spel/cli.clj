@@ -3174,6 +3174,11 @@
             "show-trace" {:action "show-trace"
                           :cli-args cmd-args}
 
+          ;; Removed iOS orchestration commands point to their SCI replacement.
+            "ios-doctor"
+            {:error (str "Unknown command: " cmd ". iOS diagnostics are available in SCI: "
+                      "spel eval-sci '(spel/ios-doctor)'.")}
+
           ;; No command given
             (nil)      {:error "No command specified. Run with --help for usage."}
 
@@ -4725,9 +4730,10 @@
               (System/exit 2))
           ;; Send command with global flags for daemon to use
           flag-keys (dissoc flags :session :headless :json :confirm-actions)
-          cmd-with-flags (if (seq flag-keys)
-                           (assoc command :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
-                           command)
+          command-id (str "r-" (java.util.UUID/randomUUID))
+          cmd-with-flags (cond-> (assoc command :_command_id command-id)
+                           (seq flag-keys)
+                           (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
           ;; Transport gets 2s headroom beyond Playwright. The browser default is
           ;; 10s: fast enough for an agent loop, still overridable with --timeout.
           ;; On iOS the client must outlast the DAEMON's own budget, not a
@@ -4736,10 +4742,7 @@
           ;; socket.
           timeout-ms (if-let [ms (:timeout flags)]
                        (+ (long ms) 2000)
-                       (if (= "ios" (:provider flags))
-                         (daemon/client-timeout-ms
-                           (or (get command "action") (get command :action)) true)
-                         default-client-timeout-ms))
+                       (client-timeout-for command))
           bridge-target (bridge/load-target)
           !daemon-failure (atom {:error nil :attempts 0})
           response (if bridge-target
@@ -4755,7 +4758,8 @@
                                                  (:timeout-ms (ex-data e)) "ms. "
                                                  "The daemon was NOT restarted; the command may still be running.")
                                         :error_code "client_timeout"
-                                        :hint (str "Inspect it: spel --session " (:session flags)
+                                        :command_id command-id
+                                        :hint (str "Inspect command " command-id ": spel --session " (:session flags)
                                                 " health. Cancel it: spel --session " (:session flags)
                                                 " cancel all.")}
                                        (when (< retries 5)
