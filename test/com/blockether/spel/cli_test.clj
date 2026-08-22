@@ -3145,10 +3145,9 @@
                        ["--content-boundaries" "init-agents"])))))))
 
 ;; Regression, issue #119 (second round): the first fix copied cli.clj's flag
-;; NAMES into native.clj. That second registry drifts the day a flag is added
-;; over there, and the command disappears again — the same bug, one release
-;; later. Recognition now rests on the closed set of commands this namespace
-;; dispatches, so no flag has to be known in advance.
+;; NAMES into native.clj. That second registry drifted when a flag was added.
+;; Generic leading flags now need no native copy; command boundaries come from
+;; the vocabularies owned by their native and CLI dispatchers.
 (defdescribe native-unknown-flag-passthrough-test
   "A flag this parser never heard of still cannot hide the command (issue #119)"
 
@@ -3175,6 +3174,29 @@
              ["report" "--results-dir" "out"])]
       (expect (= ["report" "--results-dir" "out"] (vec (:command-args g))))
       (expect (nil? (:cli-flags g))))))
+
+;; Regression, issue #119 (third round; vis session f904a444): a boolean CLI
+;; global consumed a following zero-argument CLI command as its value. Commands
+;; whose remaining arguments were all flags disappeared too, so native dispatch
+;; printed top-level help with exit 0 instead of executing the request.
+(defdescribe native-cli-command-boundary-test
+  "Native pre-parsing recognizes commands owned by both dispatchers (issue #119)"
+
+  (it "keeps a zero-argument CLI command available for CLI dispatch"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--content-boundaries" "errors"])]
+      (expect (= ["errors"] (:command-args g)))))
+
+  (it "keeps a flag-only CLI command available for CLI dispatch"
+    (let [g (#'com.blockether.spel.native/parse-global-flags
+             ["--content-boundaries" "wait" "--fn" "() => true"])]
+      (expect (= ["wait" "--fn" "() => true"] (:command-args g)))))
+
+  (it "finds native-only dispatchers behind a boolean CLI global"
+    (doseq [command ["codegen" "upgrade"]]
+      (let [g (#'com.blockether.spel.native/parse-global-flags
+               ["--content-boundaries" command])]
+        (expect (= [command] (:command-args g)))))))
 
 ;; Regression, issue #127: the snapshot walk had no element budget, so a page
 ;; with 150 000 elements burned the whole 25 s command budget and answered

@@ -1621,6 +1621,21 @@
       "  # ... make changes ..."
       "  spel diff snapshot --baseline baseline.txt"
       "  spel diff snapshot --baseline baseline.txt --json"])})
+
+(def command-aliases
+  "CLI spellings that resolve to another command's help and behavior."
+  {"goto" "open"
+   "navigate" "open"
+   "key" "press"
+   "scrollinto" "scrollintoview"
+   "quit" "close"
+   "exit" "close"})
+
+(defn known-command?
+  "True when `token` is a primary CLI command or one of its aliases."
+  [token]
+  (or (contains? command-help token)
+      (contains? command-aliases token)))
 (defn top-level-help
   "Returns the top-level help string shown by `spel --help`."
   []
@@ -4434,13 +4449,8 @@
 
     ;; Subcommand --help: print help and exit
     (when (= "help" (:action command))
-      (let [cmd-name (:for command)
-            ;; Resolve aliases to primary command name
-            resolved (get {"goto" "open" "navigate" "open"
-                           "key" "press"
-                           "scrollinto" "scrollintoview"
-                           "quit" "close" "exit" "close"}
-                       cmd-name cmd-name)
+      (let [cmd-name  (:for command)
+            resolved  (get command-aliases cmd-name cmd-name)
             help-text (get command-help resolved)]
         (cond
           help-text       (println help-text)

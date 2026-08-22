@@ -655,17 +655,12 @@
     (when-not (str/blank? v) v)))
 
 (def ^:private native-commands
-  "Every first token THIS namespace dispatches on, including the bare help and
-   version spellings. Anything else is a cli.clj command.
-
-   `parse-global-flags` used to leave a flag it did not recognize in
-   `:command-args`, so ONE unknown flag in front of a command hid it and
-   `spel --provider ios eval-sci '(+ 1 2)'` answered `Unknown command:
-   eval-sci`. The parser now consumes leading unknown flags generically, and
-   this closed set — not a copy of cli.clj's flag list, which would drift — is
-   what tells a flag's VALUE apart from the command."
-  #{"init-agents" "ci-assemble" "merge-reports" "report" "daemon" "eval-sci"
-    "version" "--version" "help" "--help" "-h"})
+  "Every first token THIS namespace dispatches on, including bare help and
+   version spellings. CLI commands remain owned by `cli/known-command?`; keeping
+   each command vocabulary with its dispatcher avoids a second flag registry."
+  #{"init-agents" "ci-assemble" "merge-reports" "report" "codegen" "search"
+    "install" "bridge" "upgrade" "inspector" "show-trace" "stitch" "daemon"
+    "eval-sci" "version" "--version" "help" "--help" "-h"})
 
 (defn- parse-global-flags
   "Pre-parses global flags from args.
@@ -792,22 +787,14 @@
               (recur (drop 2 remaining) cmd-args (assoc opts :channel val))
               (recur (rest remaining) (conj cmd-args arg) opts)))
 
-          ;; A `--flag` this parser does not know belongs to cli.clj, and it is
-          ;; consumed here for ONE reason: so the COMMAND token behind it can
-          ;; still be found. `spel --provider ios eval-sci '(+ 1 2)'` used to
-          ;; dispatch on "--provider" and die with `Unknown command: eval-sci`.
+          ;; A `--flag` this parser does not know belongs to cli.clj. Consume it
+          ;; only to expose the command behind it: the native and CLI command
+          ;; registries distinguish a BOOLEAN flag followed by a command from a
+          ;; value-taking flag. No copy of cli.clj's flag list lives here.
           ;;
-          ;; No list of cli.clj's flags lives here: a second flag registry
-          ;; drifts the day a flag is added over there, which is this same bug
-          ;; one release later. Whether the token after a flag is its VALUE or
-          ;; the command is decided by `native-commands` — the closed set this
-          ;; namespace owns and can never be wrong about.
-          ;;
-          ;; Only LEADING flags are consumed: once a command is in `cmd-args`
-          ;; the rest of the line belongs to that command's own parser
-          ;; (`report --results-dir`, `daemon --port`, eval-sci's script args).
-          ;; CLI commands re-parse the ORIGINAL args, so nothing is lost for
-          ;; them; the values are kept in :cli-flags for the commands parsed HERE.
+          ;; Only LEADING flags are consumed. Once a command is in `cmd-args`,
+          ;; the rest belongs to that command's parser. CLI commands re-parse
+          ;; the ORIGINAL args, while native modes use values kept in :cli-flags.
           (and (empty? cmd-args)
             (string? arg)
             (str/starts-with? ^String arg "--")
@@ -822,6 +809,7 @@
 
               (and (string? nxt)
                 (not (contains? native-commands nxt))
+                (not (cli/known-command? nxt))
                 (not (str/starts-with? ^String nxt "-")))
               (recur (drop 2 remaining) cmd-args
                 (assoc-in opts [:cli-flags (subs ^String arg 2)] nxt))

@@ -936,12 +936,22 @@ OUT=$(timeout 10 "$SPEL" --json --session roundtrip close 2>/dev/null) || true
 assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
 # =============================================================================
-# AGENT SAFETY + BATCH (13) — vercel-labs/agent-browser parity
+# AGENT SAFETY + BATCH (15) — vercel-labs/agent-browser parity
 # =============================================================================
-section "Agent Safety + Batch (13)"
+section "Agent Safety + Batch (15)"
 
 # Ensure we're on a known page for text-producing commands
 "$SPEL" open https://example.com >/dev/null 2>&1
+
+# Regression, vis session f904a444: native global pre-parsing consumed a
+# zero-argument CLI command, or a command followed only by flags, as though it
+# were the preceding boolean flag's value. The binary printed top-level help
+# with exit 0 instead of executing either request.
+OUT=$("$SPEL" --json --content-boundaries errors 2>&1)
+assert_jq "--content-boundaries errors → command executes" "$OUT" '.errors | type == "array"'
+
+OUT=$("$SPEL" --json --content-boundaries wait --fn "true" 2>&1)
+assert_jq "--content-boundaries wait --fn → command executes" "$OUT" '.function_completed == true'
 
 # --content-boundaries wraps plain-text stdout in <untrusted-content> tags
 OUT=$("$SPEL" --content-boundaries snapshot -i 2>&1)
