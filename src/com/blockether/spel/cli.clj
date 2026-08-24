@@ -56,6 +56,28 @@
     (str/includes? s "/")
     (str/starts-with? s "localhost")))
 
+(defn- navigation-url
+  "Preserves supported URLs, resolves existing files, and defaults to HTTPS."
+  [raw-url]
+  (when raw-url
+    (let [local-path (Path/of raw-url (into-array String []))]
+      (cond
+        (or (str/starts-with? raw-url "http://")
+          (str/starts-with? raw-url "https://")
+          (str/starts-with? raw-url "file://")
+          (str/starts-with? raw-url "data:")
+          (str/starts-with? raw-url "about:")
+          (str/starts-with? raw-url "chrome:")
+          (str/starts-with? raw-url "javascript:")
+          (str/starts-with? raw-url "blob:"))
+        raw-url
+
+        (.isFile (.toFile local-path))
+        (str (.toUri (.normalize (.toAbsolutePath local-path))))
+
+        :else
+        (str "https://" raw-url)))))
+
 ;; =============================================================================
 ;; Per-Command Help
 ;; =============================================================================
@@ -2307,19 +2329,7 @@
                   ;; (e.g. `open --width 390 --height 844 https://example.com`).
                   raw-url       (or (some #(when (looks-like-url? %) %) url-args)
                                   (first url-args))
-                  url           (when raw-url
-                                  (if (looks-like-url? raw-url)
-                                    (if (or (str/starts-with? raw-url "http://")
-                                          (str/starts-with? raw-url "https://")
-                                          (str/starts-with? raw-url "file://")
-                                          (str/starts-with? raw-url "data:")
-                                          (str/starts-with? raw-url "about:")
-                                          (str/starts-with? raw-url "chrome:")
-                                          (str/starts-with? raw-url "javascript:")
-                                          (str/starts-with? raw-url "blob:"))
-                                      raw-url
-                                      (str "https://" raw-url))
-                                    (str "https://" raw-url)))]
+                  url           (navigation-url raw-url)]
               (cond-> {:action "navigate" :url url :raw-input raw-url}
                 interactive? (assoc :interactive true)
                 screenshot?  (assoc :screenshot true)

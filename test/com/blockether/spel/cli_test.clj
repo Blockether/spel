@@ -172,6 +172,23 @@
         (expect (= "navigate" (:action c)))
         (expect (= "https://example.org" (:url c)))))
 
+    ;; Regression, issue #86: an existing relative HTML file became an HTTPS hostname.
+    (it "resolves existing relative files to file URIs"
+      (let [path "spel-open-relative-test.html"
+            file (io/file path)]
+        (try
+          (spit file "<h1>local</h1>")
+          (let [c (cmd ["open" path])]
+            (expect (= "navigate" (:action c)))
+            (expect (= (str (.toUri (.toPath file))) (:url c)))
+            (expect (= path (:raw-input c))))
+          (finally
+            (io/delete-file file true)))))
+
+    (it "keeps nonexistent HTML paths as HTTPS targets"
+      (expect (= "https://missing-spel-page.html"
+                (:url (cmd ["open" "missing-spel-page.html"])))))
+
     (it "preserves file:// protocol"
       (let [c (cmd ["open" "file:///tmp/page.html"])]
         (expect (= "navigate" (:action c)))
