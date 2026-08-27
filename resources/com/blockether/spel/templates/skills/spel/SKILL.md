@@ -41,7 +41,6 @@ Global flags precede the command: `--allowed-domains "example.com,*.example.com"
 - **`eval-js`** — one JSON string of page measurements; `--stdin` carries a big script, `-b` protects a result that would be mangled.
 - **`eval-sci`** — multi-step automation in one warm daemon session with implicit `spel/*` functions, whose arities differ from the library's — `(spel/click (spel/get-by-role role/button {:name "Continue"}))` against `(locator/click (page/get-by-role pg role/button {:name "Continue"}))`. Never `spel/start!` or `spel/stop!`; read `references/EVAL_GUIDE.md` before anything non-trivial, because SCI forbids arbitrary `require`/`import`.
 - **Library** — application and test code needing explicit Playwright objects.
-- **Bridge** — in-page automation when CDP is unavailable.
 - **iOS provider** — native and hybrid WKWebView over Appium/XCUITest: native screenshots for physical truth, WebView metrics for DOM truth, and CLI wall time is not app animation latency.
 
 ## Interaction and verification
@@ -81,7 +80,7 @@ Read only the smallest relevant file; every reference sits one level from here.
 | Pages, locators, selectors, snapshots, navigation and waits | `references/PAGE_LOCATORS.md`, `references/SELECTORS_SNAPSHOTS.md`, `references/NAVIGATION_WAIT.md` |
 | SCI scripts, constants, frames, keyboard, mouse | `references/EVAL_GUIDE.md`, `references/CONSTANTS.md`, `references/FRAMES_INPUT.md` |
 | Assertions, events, API testing, test conventions | `references/ASSERTIONS_EVENTS.md`, `references/API_TESTING.md` |
-| Network mocking, search, codegen, bridge | `references/NETWORK_ROUTING.md`, `references/SEARCH_API.md`, `references/CODEGEN_CLI.md`, `references/BRIDGE.md` |
+| Network mocking, search, and codegen | `references/NETWORK_ROUTING.md`, `references/SEARCH_API.md`, `references/CODEGEN_CLI.md` |
 | Native iOS and WKWebView | `references/IOS_PROVIDER.md` |
 | PDF, stitching, video | `references/PDF_STITCH_VIDEO.md` |
 | Visual reports, slides, report assets | `references/PRESENTER_SKILL.md`, `references/CSS_PATTERNS.md`, `references/SLIDE_PATTERNS.md`, `references/LIBRARIES.md`, `references/spel-report.html`, `references/spel-report.md` |

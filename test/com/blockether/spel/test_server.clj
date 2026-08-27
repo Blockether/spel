@@ -15,11 +15,6 @@
 
 (def ^:private request-log (atom []))
 
-(def ^:private spel-sw-js
-  "The service worker source, served same-origin so headless Chromium can
-   register it for passive-subresource capture tests."
-  (slurp (io/resource "com/blockether/spel/browser/spel-sw.js")))
-
 (defn test-server-requests [] @request-log)
 
 (defn- read-request-body ^String [^HttpExchange exchange]
@@ -292,9 +287,6 @@
 
           (and (= "GET" method) (= "/touch-page" path))
           (send-response exchange 200 touch-page-html "text/html; charset=UTF-8")
-
-          (and (= "GET" method) (= "/spel-sw.js" path))
-          (send-response exchange 200 spel-sw-js "application/javascript; charset=UTF-8")
 
           (and (= "GET" method) (= "/passive-asset.js" path))
           (send-response exchange 200 "window.__spelPassiveLoaded = true;" "application/javascript; charset=UTF-8")

@@ -23,7 +23,6 @@
    [clojure.string :as str]
    [com.blockether.spel.allure-reporter :as allure-reporter]
    [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
-   [com.blockether.spel.bridge :as bridge]
    [com.blockether.spel.ci :as ci]
    [com.blockether.spel.cli :as cli]
    [com.blockether.spel.codegen :as codegen]
@@ -288,7 +287,6 @@
   (println "Utility:")
   (println "  install [--with-deps]     Install Playwright browsers")
   (println "  version                   Show version")
-  (println "  bridge [--port N|--eject]  Serve spel.js + loopback bridge, or eject the engine")
   (println "")
   (println "Modes:")
   (println "  eval-sci '<code>'          Evaluate Clojure expression")
@@ -659,7 +657,7 @@
    version spellings. CLI commands remain owned by `cli/known-command?`; keeping
    each command vocabulary with its dispatcher avoids a second flag registry."
   #{"init-agents" "ci-assemble" "merge-reports" "report" "codegen" "search"
-    "install" "bridge" "upgrade" "inspector" "show-trace" "stitch" "daemon"
+    "install" "upgrade" "inspector" "show-trace" "stitch" "daemon"
     "eval-sci" "version" "--version" "help" "--help" "-h"})
 
 (defn- parse-global-flags
@@ -1348,115 +1346,6 @@
       (do (driver/ensure-driver!)
         (run-install! (rest cmd-args)))
 
-      ;; Bridge — serve the loopback bridge (SSE + POST) so a page can embed
-      ;; spel.js and subscribe to this box, sidestepping CDP lockdowns. With
-      ;; --eject it instead prints/writes the embedded engine (spel.js) so it
-      ;; can be distributed and <script src>-embedded independently of the
-      ;; daemon. The same file ships inside the native image (classpath
-      ;; resource); --eject unpacks it.
-      (= "bridge" first-arg)
-      (let [rest-args (vec (rest cmd-args))
-            flag      (fn [nm] (let [i (long (.indexOf ^java.util.List rest-args nm))]
-                                 (when (>= i 0) (nth rest-args (inc i) nil))))
-            sub       (first rest-args)
-            host      (or (flag "--host") "127.0.0.1")
-            port      (if-let [p (or (flag "--port") (flag "-p"))] (Long/parseLong p) 8787)
-            path      (or (flag "--path") "/spel")]
-        (cond
-          (some #{"--help" "-h"} rest-args)
-          (println (get cli/command-help "bridge"))
-
-          ;; Unpack the embedded service worker (spel-sw.js). Same-origin only,
-          ;; so drop it next to your page to add passive-subresource capture.
-          (some #{"--eject-sw"} rest-args)
-          (let [out (or (flag "-o") (flag "--output"))
-                src (bridge/sw-source)]
-            (if out
-              (do (spit out src)
-                (println (str "Wrote " (count src) " bytes to " out)))
-              (do (print src) (flush))))
-
-          ;; Write an unpacked Manifest V3 browser extension — the permanent,
-          ;; any-site, restart-proof loader. Reuses the embedded engine + worker;
-          ;; a content script injects it into every page and auto-connects, with a
-          ;; loopback host permission so there is no Local Network Access prompt.
-          (some #{"--eject-extension"} rest-args)
-          (let [out     (or (flag "-o") (flag "--output") "spel-extension")
-                tok     (or (flag "--token") (:token (bridge/read-runtime)) (bridge/persisted-token!))
-                url-arg (first (filter #(re-find #"^https?://" %) rest-args))
-                [origin epath] (bridge/eject-origin url-arg host port path)
-                files   (bridge/extension-files origin epath tok)
-                dir     (io/file out)]
-            (doseq [[rel content] files]
-              (let [f (io/file dir rel)]
-                (io/make-parents f)
-                (if (bytes? content)
-                  (with-open [o (io/output-stream f)] (.write o ^bytes content))
-                  (spit f content))))
-            (println (str "Wrote " (count files) "-file MV3 extension to " out "/"))
-            (println "Load unpacked: chrome://extensions -> Developer mode -> Load unpacked -> pick that folder.")
-            (println (str "Bridge route baked in: " origin epath
-                       (if (and tok (seq tok)) (str "  (token " tok ")") "  (no token)"))))
-
-          (some #{"--eject"} rest-args)
-          (let [out     (or (flag "-o") (flag "--output"))
-                tok     (or (flag "--token") (:token (bridge/read-runtime)) (bridge/persisted-token!))
-                loader? (or (some #{"--bookmarklet"} rest-args)
-                          (some #{"--console"} rest-args))
-                url-arg (first (filter #(re-find #"^https?://" %) rest-args))
-                [origin epath] (bridge/eject-origin url-arg host port path)
-                src     (cond
-                          (some #{"--bookmarklet"} rest-args) (bridge/bookmarklet origin epath tok)
-                          (some #{"--console"} rest-args)     (bridge/loader-script origin epath tok)
-                          :else                               (bridge/engine-source))]
-            (if out
-              (do (spit out src)
-                (println (str "Wrote " (count src) " bytes to " out)))
-              (do (print src) (when loader? (println)) (flush))))
-
-          ;; Route regular `spel <verb>` commands through the bridge. Saves the
-          ;; target URL so subsequent invocations reach the in-page engine
-          ;; instead of the Playwright daemon. Bare `use` takes the local URL.
-          (= "use" sub)
-          (let [explicit (second rest-args)
-                tok      (flag "--token")
-                rt       (bridge/read-runtime)
-                target   (cond
-                           ;; explicit URL wins (remote bridge); token optional
-                           explicit {:url explicit :token tok}
-                           ;; bare `use` on the same box: pick up the live token
-                           rt        {:url (:url rt) :token (:token rt)}
-                           ;; no running bridge and no URL — cannot know the token
-                           :else     nil)]
-            (if target
-              (do (bridge/save-target! target)
-                (println (str "spel commands now route through the bridge: " (:url target)))
-                (when (:token target) (println "  (token picked up from the running bridge)"))
-                (println "Turn this off with `spel bridge off`."))
-              (do (println "No running bridge found. Start `spel bridge` first, or give an explicit URL:")
-                (println "  spel bridge use http://host:port/spel --token <token>"))))
-
-          (= "off" sub)
-          (if (bridge/clear-target!)
-            (println "Bridge routing off — spel commands go back to the daemon.")
-            (println "Bridge routing was not enabled."))
-
-          (= "status" sub)
-          (let [target (bridge/load-target)]
-            (if target
-              (let [url  (:url target)
-                    resp (bridge/route-command! url {:action "ping"} 3000 (:token target))]
-                (println "Bridge routing: ON")
-                (println (str "  target:  " url))
-                (println (str "  browser: "
-                           (if (:success resp)
-                             "connected (ping ok)"
-                             (str "not reachable — " (:error resp))))))
-              (do (println "Bridge routing: OFF")
-                (println "Enable with `spel bridge use [url]` (default the local bridge)."))))
-
-          :else
-          (bridge/serve! :host host :port (int port) :path path)))
 
       ;; Self-upgrade — compares SPEL_VERSION to the latest GitHub release and
       ;; prints the command to run (brew/cargo/manual curl). `--check` reports

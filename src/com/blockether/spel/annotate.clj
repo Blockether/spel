@@ -18,9 +18,8 @@
    [com.microsoft.playwright Page]))
 
 ;; =============================================================================
-;; Brand palette (Blockether) — mirrors the ejected browser overlay
-;; (resources/com/blockether/spel/browser/spel.js). Amber accent, ink chips,
-;; JetBrains Mono, hard offset shadow, sharp corners, no animation.
+;; Brand palette (Blockether). Amber accent, ink chips, JetBrains Mono, hard
+;; offset shadow, sharp corners, and no animation.
 ;; =============================================================================
 
 (def ^:private brand-amber "#ffc420")

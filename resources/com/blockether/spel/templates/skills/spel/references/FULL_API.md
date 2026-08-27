@@ -1665,7 +1665,6 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 |---------|-------------|
 | `install [--with-deps]` | Install Playwright browsers |
 | `version` | Show version |
-| `bridge [--port N\|--eject]` | Serve spel.js + loopback bridge, or eject the engine |
 
 ### Modes
 

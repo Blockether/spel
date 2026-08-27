@@ -18,7 +18,6 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.spel.config :as spel-config]
-   [com.blockether.spel.bridge :as bridge]
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.logging :as log]
    [com.blockether.spel.security :as security])
@@ -1419,81 +1418,6 @@
       "  spel stitch s1.png s2.png -o full.png"
       "  spel stitch s1.png s2.png --overlap 50"])
 
-   "bridge"
-   (str/join \newline
-     ["bridge - Start the loopback bridge, or eject the embedded engine (spel.js)"
-      ""
-      "Serves spel.js and a two-way transport (SSE for commands, POST for"
-      "results) on 127.0.0.1 only. Loopback traffic never leaves the machine,"
-      "so an embedded page can be driven from spel even where CDP is disabled."
-      ""
-      "spel.js is a pure, dependency-free browser script that installs"
-      "window.__spel with a single invoke(command) entry point mapping the"
-      "spel/Playwright verb surface onto real DOM operations. Embed it with a"
-      "plain <script src> tag — no bundler, no extension, no CDP. The engine"
-      "ships inside the native image; --eject unpacks it for standalone hosting."
-      ""
-      "Route regular commands through the bridge:"
-      "  Once you run `spel bridge use`, every `spel <verb>` (click, fill,"
-      "  snapshot, get_text, ...) is sent to the connected in-page engine over"
-      "  the loopback bridge instead of the Playwright daemon — no `bridge send`,"
-      "  no CDP. The target (\"where/how we talk\") is saved in ~/.spel/bridge.json."
-      ""
-      "Usage:"
-      "  spel bridge [options]           Start the loopback bridge"
-      "  spel bridge use [url]           Route spel commands through the bridge"
-      "                                  (default the local bridge URL)"
-      "  spel bridge off                 Stop routing — commands go to the daemon"
-      "  spel bridge status              Show the active target + browser reachability"
-      "  spel bridge --eject             Print the engine to stdout"
-      "  spel bridge --eject -o spel.js  Write the engine to a file"
-      "  spel bridge --eject --bookmarklet   Print a javascript: bookmarklet loader"
-      "  spel bridge --eject --console       Print a paste-into-Console loader"
-      "  spel bridge --eject-sw -o spel-sw.js  Write the service worker (passive-"
-      "                                        subresource capture; same-origin)"
-      "  spel bridge --eject-extension -o dir  Write an unpacked MV3 browser"
-      "                                        extension (any site, survives restart)"
-      ""
-      "Options:"
-      "  --host <host>         Bind address (default: 127.0.0.1)"
-      "  -p, --port <n>        Port (default: 8787)"
-      "  --path <path>         SSE/connect path (default: /spel)"
-      "  --eject               Print/eject spel.js instead of serving"
-      "  -o, --output <file>   With --eject, write to <file> instead of stdout"
-      "  --bookmarklet         With --eject, emit a `javascript:` bookmarklet that"
-      "                        fetches spel.js from the bridge and connects"
-      "  --console             With --eject, emit the same loader without the"
-      "                        `javascript:` prefix (paste into DevTools Console)"
-      "                        (both accept an optional http://host:port/spel URL"
-      "                        to target a remote bridge; default is the local one)"
-      "  --eject-sw            Print/eject spel-sw.js, the service worker that adds"
-      "                        same-origin capture of passive subresources (img/"
-      "                        script/css/font/media). Serve it from your page's own"
-      "                        origin (a service worker is same-origin only), then"
-      "                        `sw_register` from the page."
-      "  --eject-extension     Write an unpacked Manifest V3 browser extension to the"
-      "                        -o/--output directory (default: spel-extension/). A"
-      "                        content script injects the engine + auto-connects on"
-      "                        every page — no bookmarklet, no Local Network Access"
-      "                        prompt, survives browser restarts. Load it via"
-      "                        chrome://extensions -> Developer mode -> Load unpacked."
-      "  --token <token>       Shared secret gating the bridge (default: auto)."
-      "                        Auto-generated on start and picked up by a same-box"
-      "                        `spel bridge use`; pass explicitly for a remote bridge"
-      ""
-      "Security: the bridge auto-generates a token and only accepts SSE / command /"
-      "result requests that carry it, so another page open in the same browser"
-      "cannot drive the tab or read captured traffic over loopback."
-      ""
-      "Navigation: the engine remembers its route per-tab (sessionStorage), so a"
-      "full-page reload/navigation to a page that re-loads spel.js re-subscribes"
-      "automatically. If the fixed port is busy, an ephemeral one is chosen."
-      ""
-      "Embed in a page (same machine):"
-      "  <script src=\"http://127.0.0.1:8787/spel.js\"></script>"
-      "  <script>window.__spel.connect({url:\"http://127.0.0.1:8787/spel\",token:\"...\"})</script>"
-      ""
-      "Then open http://127.0.0.1:8787/ for a ready-made harness page."])
 
    "search"
    (str/join \newline
@@ -4039,12 +3963,6 @@
     (let [{:keys [success data error]} response]
       (if success
         (cond
-          ;; Bridge-routed scalar results (get text/value/title/url returned a
-          ;; bare string from the in-page engine, not a daemon-shaped map).
-          ;; Every branch below assumes `data` is a map, so print scalars here.
-          (not (map? data))
-          (println data)
-
           ;; cancel — name what was interrupted. Printing the raw map here read
           ;; as a bare "0", which says nothing about whether anything was stopped.
           (contains? data :cancelled)
@@ -4715,11 +4633,7 @@
             (System/exit 0)))))
 
     ;; Ensure daemon is running
-    ;; Bridge routing (`spel bridge use`) short-circuits the daemon: when a
-    ;; target is saved, browser commands go to the in-page engine over the
-    ;; loopback bridge, so don't spawn a Playwright daemon we won't use.
-    (when-not (bridge/load-target)
-      (ensure-daemon! (:session flags) flags))
+    (ensure-daemon! (:session flags) flags)
 
     ;; Read from stdin if eval --stdin was used
     (let [command (if (:stdin command)
@@ -4763,11 +4677,8 @@
           timeout-ms (if-let [ms (:timeout flags)]
                        (+ (long ms) 2000)
                        (client-timeout-for command))
-          bridge-target (bridge/load-target)
           !daemon-failure (atom {:error nil :attempts 0})
-          response (if bridge-target
-                     (bridge/route-command! (:url bridge-target) cmd-with-flags timeout-ms (:token bridge-target))
-                     (loop [retries 0]
+          response (loop [retries 0]
                        (let [res (try
                                    (send-command! (:session flags) cmd-with-flags timeout-ms)
                                    (catch Exception e
@@ -4800,7 +4711,7 @@
                                (ensure-daemon! (:session flags) flags)
                                (recur (inc retries)))
                            :else (do (swap! !daemon-failure assoc :attempts retries)
-                                     res)))))]
+                                      res))))]
       (if response
         (if (and output-file (:success response))
           ;; Write to file: SRT as raw text, JSON for action_log

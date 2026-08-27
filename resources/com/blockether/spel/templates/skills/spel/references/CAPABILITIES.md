@@ -55,19 +55,6 @@ Primary references:
 - `references/BROWSER_OPTIONS.md`
 - `references/NETWORK_ROUTING.md`
 
-## Bridge — CDP-free in-page automation
-
-- Drive a real tab where CDP is disabled: embed a pure-JS engine that talks to
-  spel over a loopback server (no DevTools Protocol, no extension, no bundler)
-- `spel bridge` serve / `--eject` (ships inside the native image) / bookmarklet
-  + console loaders / MV3 browser extension (`--eject-extension`, load unpacked
-  into Chrome/Edge — any site, survives restart, no LNA prompt) / route regular
-  commands via `spel bridge use`
-- In-page network capture (fetch/XHR), overlay element picker keymap
-
-Primary references:
-- `references/BRIDGE.md`
-
 ## iOS provider — native + hybrid WKWebView
 
 - `--provider ios` drives installed apps / Simulator `.app` via Appium/XCUITest;
