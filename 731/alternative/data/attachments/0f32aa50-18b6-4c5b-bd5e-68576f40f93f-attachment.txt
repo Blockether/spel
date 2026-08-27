@@ -1,1 +1,0 @@
-2026-08-21T02:18:16.810Z WARN  [spel] cmd cdp_reconnect -> error in 8ms code=cdp_url_required error="No previous CDP connection found. Connect first: spel connect <url>"
