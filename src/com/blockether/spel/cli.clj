@@ -4669,7 +4669,7 @@
                            (seq flag-keys)
                            (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
           ;; Transport gets 2s headroom beyond Playwright. The browser default is
-          ;; 10s: fast enough for an agent loop, still overridable with --timeout.
+          ;; 10s: fast enough for an agent harness, still overridable with --timeout.
           ;; On iOS the client must outlast the DAEMON's own budget, not a
           ;; hand-picked five minutes: every iOS command runs behind WDA, and a
           ;; client that walks away first leaves the daemon answering a closed

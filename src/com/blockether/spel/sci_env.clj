@@ -142,7 +142,7 @@
 (defonce !set-session-idle-timeout-handler (atom nil))
 
 ;; Default action timeout for Playwright operations (ms).
-;; Agent loops fail fast by default; --timeout overrides it.
+;; Agent harnesses fail fast by default; --timeout overrides it.
 (defonce !default-timeout (atom 10000))
 
 ;; Bound per sci_eval call from daemon when eval-sci receives CLI args after `--`.

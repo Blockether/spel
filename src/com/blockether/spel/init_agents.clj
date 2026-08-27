@@ -1,7 +1,7 @@
 (ns com.blockether.spel.init-agents
   "CLI command to scaffold the spel agent + skill for browser automation.
 
-   Supports multiple agent loop targets via --loop:
+   Supports multiple agent harness targets via --harness:
    - opencode (default) — .opencode/agents/, .opencode/skills/
    - claude             — .claude/agents/, .claude/skills/
 
@@ -14,7 +14,7 @@
 
    Usage:
      spel init-agents --ns my-app
-     spel init-agents --ns my-app --loop=claude
+     spel init-agents --ns my-app --harness=claude
      spel init-agents --ns my-app --flavour=clojure-test
      spel init-agents --ns my-app --no-tests
      spel init-agents --dry-run"
@@ -38,8 +38,8 @@
       slurp
       str/trim)))
 
-(def ^:private loop-targets
-  "Configuration for each supported agent loop target.
+(def ^:private harness-targets
+  "Configuration for each supported agent harness target.
    Keys: agent-dir, skill-dir, agent-ext, compatibility, desc.
    The `agents` target is the tool-agnostic `.agents/skills/` layout: a single
    skill tree with the agent nested under it (compatibility: agents)."
@@ -80,8 +80,8 @@
   "Returns file specs for the single agent + skill + references.
    Each entry: [resource-path output-path description icon agent-name-or-nil].
    agent-name is non-nil for the agent template (needs frontmatter transformation)."
-  [loop-target flavour]
-  (let [{:keys [agent-dir skill-dir agent-ext]} (get loop-targets loop-target)
+  [harness-target flavour]
+  (let [{:keys [agent-dir skill-dir agent-ext]} (get harness-targets harness-target)
         testing-conventions-resource (str "flavours/" flavour "/testing-conventions.md")
         skill-files (into [["skills/spel/SKILL.md"
                             (str skill-dir "/SKILL.md")
@@ -264,15 +264,15 @@
     content))
 
 (defn- transform-agent-template
-  "Transforms an agent template for the target loop format.
+  "Transforms an agent template for the target harness format.
    Only transforms agent files (agent-name non-nil). Other files pass through unchanged.
    The `claude` and `agents` targets both need markdown frontmatter + a file-read
    skill instruction pointing at their own SKILL.md location."
-  [content loop-target agent-name]
+  [content harness-target agent-name]
   (if (nil? agent-name)
     content
-    (let [skill-dir (:skill-dir (get loop-targets loop-target))]
-      (case loop-target
+    (let [skill-dir (:skill-dir (get harness-targets harness-target))]
+      (case harness-target
         "opencode" content
         "claude"   (transform-for-claude content agent-name skill-dir)
         "agents"   (transform-for-claude content agent-name skill-dir)
@@ -346,24 +346,24 @@
     (cons "TESTING_CONVENTIONS.md" reference-files)))
 
 (defn scaffolded-skills
-  "Scaffolded spel skills sitting directly under `dir`, one entry per loop target
+  "Scaffolded spel skills sitting directly under `dir`, one entry per harness target
    whose SKILL.md exists (.opencode, .claude, .agents).
 
-   Each entry includes {:loop-target :path :file :version :references}; every
+   Each entry includes {:harness-target :path :file :version :references}; every
    existing reference shipped by spel carries its independently checked release
    marker."
   [dir]
   (into []
-    (keep (fn [[loop-target {:keys [skill-dir]}]]
+    (keep (fn [[harness-target {:keys [skill-dir]}]]
             (let [rel  (str skill-dir "/SKILL.md")
                   file (io/file dir rel)]
               (when (.isFile file)
-                {:loop-target loop-target
-                 :path        rel
-                 :file        file
-                 :version     (skill-file-version file)
-                 :references  (scaffolded-references dir skill-dir)}))))
-    (sort-by key loop-targets)))
+                {:harness-target harness-target
+                 :path           rel
+                 :file           file
+                 :version        (skill-file-version file)
+                 :references     (scaffolded-references dir skill-dir)}))))
+    (sort-by key harness-targets)))
 
 (defn find-scaffolded-skills
   "Walks up from `start-dir` (default: the process working directory) and returns
@@ -430,7 +430,7 @@
 
 (defn- parse-args
   "Parses command-line arguments into a map of options.
-   Supports: --dry-run, --force, --ns NS, --loop TARGET, --test-dir DIR, --flavour"
+   Supports: --dry-run, --force, --ns NS, --harness TARGET, --test-dir DIR, --flavour"
   [args]
   (loop [remaining args
          opts {:dry-run false
@@ -438,7 +438,7 @@
                :no-tests false
                :flavour "lazytest"
                :ns nil
-               :loop "opencode"
+               :harness "opencode"
                :test-dir "test-e2e"}]
     (if (empty? remaining)
       opts
@@ -469,13 +469,17 @@
           (recur (rest remaining)
             (assoc opts :ns (subs arg (count "--ns="))))
 
-          (= "--loop" arg)
+          (#{"--harness" "--loop"} arg)
           (recur (drop 2 remaining)
-            (assoc opts :loop (second remaining)))
+            (assoc opts :harness (second remaining)))
 
-          (str/starts-with? arg "--loop=")
+          (or (str/starts-with? arg "--harness=")
+            (str/starts-with? arg "--loop="))
           (recur (rest remaining)
-            (assoc opts :loop (subs arg (count "--loop="))))
+            (assoc opts :harness
+              (if (str/starts-with? arg "--harness=")
+                (subs arg (count "--harness="))
+                (subs arg (count "--loop=")))))
 
           (= "--test-dir" arg)
           (recur (drop 2 remaining)
@@ -497,10 +501,10 @@
 
 (defn- scaffold-file
   "Scaffolds a single file from a template.
-   Applies frontmatter transformation for non-OpenCode loop targets and release
+   Applies frontmatter transformation for non-OpenCode harness targets and release
    stamps every generated reference.
    Returns {:created true/false :skipped true/false :reason string}."
-  [resource-path output-path _description _icon opts ns-name loop-target agent-name]
+  [resource-path output-path _description _icon opts ns-name harness-target agent-name]
   (let [dry-run (:dry-run opts)
         force (:force opts)
         flavour (:flavour opts "lazytest")]
@@ -516,9 +520,9 @@
       :else
       (let [content (cond-> (-> (read-template resource-path)
                               (process-template ns-name flavour)
-                              (transform-agent-template loop-target agent-name))
+                              (transform-agent-template harness-target agent-name))
                       (str/ends-with? resource-path "SKILL.md")
-                      (set-skill-compatibility (:compatibility (get loop-targets loop-target)))
+                      (set-skill-compatibility (:compatibility (get harness-targets harness-target)))
 
                       (str/includes? output-path "/references/")
                       (stamp-reference))
@@ -533,8 +537,8 @@
 
 (defn- print-banner
   "Prints the initialization banner with the target name."
-  [loop-target no-tests]
-  (let [desc (:desc (get loop-targets loop-target))]
+  [harness-target no-tests]
+  (let [desc (:desc (get harness-targets harness-target))]
     (if no-tests
       (println (str "Initializing spel agent for " desc " (no seed test)..."))
       (println (str "Initializing spel agent for " desc "...")))
@@ -547,8 +551,8 @@
   (println "")
   (println "Usage:")
   (println "  spel init-agents --ns my-app")
-  (println "  spel init-agents --ns my-app --loop=claude")
-  (println "  spel init-agents --ns my-app --loop=agents")
+  (println "  spel init-agents --ns my-app --harness=claude")
+  (println "  spel init-agents --ns my-app --harness=agents")
   (println "  spel init-agents --ns my-app --test-dir test/e2e")
   (println "  spel init-agents --ns my-app --flavour=clojure-test")
   (println "  spel init-agents --ns my-app --no-tests")
@@ -556,7 +560,7 @@
   (println "  spel init-agents --ns my-app --force")
   (println "")
   (println "Options:")
-  (println "  --loop TARGET     Agent format: opencode (default), claude, agents")
+  (println "  --harness TARGET  Agent format: opencode (default), claude, agents")
   (println "  --ns NS           Base namespace for generated tests (e.g. my-app → my-app.e2e.seed-test)")
   (println "                    If omitted, derived from the current directory name")
   (println "  --flavour FLAVOUR Test framework: lazytest (default), clojure-test")
@@ -568,7 +572,7 @@
   (println "  --force           Overwrite existing files")
   (println "  -h, --help        Show this help")
   (println "")
-  (println "Loop targets:")
+  (println "Harness targets:")
   (println "  opencode          .opencode/agents/, .opencode/skills/")
   (println "  claude            .claude/agents/, .claude/skills/")
   (println "  agents            .agents/skills/spel/ (tool-agnostic; agent nested under skill)")
@@ -591,11 +595,11 @@
 
 (defn- print-footer
   "Prints the completion message and next steps for the user."
-  [loop-target test-dir no-tests flavour]
+  [harness-target test-dir no-tests flavour]
   (println "")
   (if no-tests
     (do
-      (if (= "opencode" loop-target)
+      (if (= "opencode" harness-target)
         (println "Done! Use @spel to get started.")
         (println "Done! Use the spel agent to get started."))
       (println "")
@@ -611,7 +615,7 @@
       (println "  3. Use spel for browser automation:")
       (println "     spel open https://example.org"))
     (let [ct? (= "clojure-test" flavour)]
-      (if (= "opencode" loop-target)
+      (if (= "opencode" harness-target)
         (println "Done! Use @spel to get started.")
         (println "Done! Use the spel agent to get started."))
       (println "")
@@ -653,11 +657,11 @@
       (:help opts)
       (print-help)
 
-      (not (contains? loop-targets (:loop opts)))
+      (not (contains? harness-targets (:harness opts)))
       (do
         (binding [*out* *err*]
-          (println (str "Error: Unknown --loop target: " (:loop opts)))
-          (println (str "Valid targets: " (str/join ", " (sort (keys loop-targets))))))
+          (println (str "Error: Unknown --harness target: " (:harness opts)))
+          (println (str "Valid targets: " (str/join ", " (sort (keys harness-targets))))))
         (System/exit 1))
 
       (not (contains? valid-flavours (:flavour opts)))
@@ -668,7 +672,7 @@
         (System/exit 1))
 
       :else
-      (let [loop-target (:loop opts)
+      (let [harness-target (:harness opts)
             no-tests (:no-tests opts)
             flavour (:flavour opts)
             ns-name (or (:ns opts)
@@ -676,19 +680,19 @@
                             (println "Warning: No --ns provided, deriving from directory name.")
                             (println "         Tip: use --ns my-app to set namespace explicitly.")
                             (println ""))
-                          (derive-namespace)))
+                        (derive-namespace)))
             test-dir (:test-dir opts)]
-        (print-banner loop-target no-tests)
+        (print-banner harness-target no-tests)
 
         ;; Scaffold agent + skill + references
-        (doseq [[resource-path output-path description icon agent-name] (files-to-create loop-target flavour)]
-          (let [result (scaffold-file resource-path output-path description icon opts ns-name loop-target agent-name)]
+        (doseq [[resource-path output-path description icon agent-name] (files-to-create harness-target flavour)]
+          (let [result (scaffold-file resource-path output-path description icon opts ns-name harness-target agent-name)]
             (print-result icon output-path description result)))
 
         (when-not no-tests
           (let [seed-ns (str ns-name ".e2e.seed-test")
                 seed-path (ns->path test-dir seed-ns)
-                seed-result (scaffold-file (seed-template-resource flavour) seed-path "seed test" "+" opts ns-name loop-target nil)]
+                seed-result (scaffold-file (seed-template-resource flavour) seed-path "seed test" "+" opts ns-name harness-target nil)]
             (print-result "+" seed-path "seed test" seed-result)))
 
-        (print-footer loop-target test-dir no-tests flavour)))))
+        (print-footer harness-target test-dir no-tests flavour)))))

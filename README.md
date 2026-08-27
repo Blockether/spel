@@ -522,13 +522,13 @@ See [codegen CLI reference](resources/com/blockether/spel/templates/skills/spel/
 
 ## Agent & Skill Files (regenerating AGENTS)
 
-`spel init-agents` scaffolds — and regenerates — the agent + skill tree that agent loops read: `SKILL.md`, every `references/*.md`, the `spel` agent file, and (optionally) a seed E2E test. Those docs ship **inside the binary**, so regenerate them after every `spel` upgrade.
+`spel init-agents` scaffolds — and regenerates — the agent + skill tree that agent harnesses read: `SKILL.md`, every `references/*.md`, the `spel` agent file, and (optionally) a seed E2E test. Those docs ship **inside the binary**, so regenerate them after every `spel` upgrade.
 
 ```bash
-# First time — pick your agent loop
-spel init-agents --ns my-app                 # OpenCode  → .opencode/agents/,  .opencode/skills/spel/
-spel init-agents --ns my-app --loop=claude   # Claude Code → .claude/agents/, .claude/skills/spel/
-spel init-agents --ns my-app --loop=agents   # tool-agnostic → .agents/skills/spel/
+# First time — pick your agent harness
+spel init-agents --ns my-app                    # OpenCode  → .opencode/agents/,  .opencode/skills/spel/
+spel init-agents --ns my-app --harness=claude   # Claude Code → .claude/agents/, .claude/skills/spel/
+spel init-agents --ns my-app --harness=agents   # tool-agnostic → .agents/skills/spel/
 
 # Regenerate after upgrading spel (overwrite the generated files, keep your seed test)
 spel version
@@ -540,7 +540,7 @@ spel init-agents --ns my-app --force --dry-run
 
 | Flag | Meaning |
 |------|---------|
-| `--loop TARGET` | `opencode` (default), `claude`, `agents` |
+| `--harness TARGET` | `opencode` (default), `claude`, `agents` |
 | `--ns NS` | Base namespace for generated tests (default: current directory name) |
 | `--flavour FLAVOUR` | `lazytest` (default) or `clojure-test` |
 | `--test-dir DIR` | Root for the seed E2E test (default: `test-e2e`) |

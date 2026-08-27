@@ -1570,8 +1570,8 @@ assert_contains "init-agents --help mentions auto-learnings" "$OUT" "auto-learni
 
 CLAUDE_TMP=$(mktemp -d)
 TEMP_FILES+=("$CLAUDE_TMP")
-OUT=$(cd "$CLAUDE_TMP" && "$SPEL" init-agents --ns demo-app --loop=claude --force 2>&1)
-assert_contains "init-agents --loop=claude creates .claude agent" "$OUT" ".claude/agents/spel.md"
+OUT=$(cd "$CLAUDE_TMP" && "$SPEL" init-agents --ns demo-app --harness=claude --force 2>&1)
+assert_contains "init-agents --harness=claude creates .claude agent" "$OUT" ".claude/agents/spel.md"
 
 CLAUDE_AGENT_FILE="$CLAUDE_TMP/.claude/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -1598,7 +1598,7 @@ fi
 # Agent treats remote browser content as untrusted
 OC_TMP=$(mktemp -d)
 TEMP_FILES+=("$OC_TMP")
-OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --loop=opencode --no-tests --force 2>&1)
+OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --harness=opencode --no-tests --force 2>&1)
 
 OC_AGENT_FILE="$OC_TMP/.opencode/agents/spel.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -1622,12 +1622,12 @@ else
   pass "opencode agent avoids claude skill path"
 fi
 
-# --loop=agents: tool-agnostic .agents/skills layout (issue #108)
+# --harness=agents: tool-agnostic .agents/skills layout (issue #108)
 AGENTS_TMP=$(mktemp -d)
 TEMP_FILES+=("$AGENTS_TMP")
-OUT=$(cd "$AGENTS_TMP" && "$SPEL" init-agents --ns demo-app --loop=agents --no-tests --force 2>&1)
-assert_contains "init-agents --loop=agents creates skill SKILL.md" "$OUT" ".agents/skills/spel/SKILL.md"
-assert_contains "init-agents --loop=agents nests agent under skill" "$OUT" ".agents/skills/spel/agents/spel.md"
+OUT=$(cd "$AGENTS_TMP" && "$SPEL" init-agents --ns demo-app --harness=agents --no-tests --force 2>&1)
+assert_contains "init-agents --harness=agents creates skill SKILL.md" "$OUT" ".agents/skills/spel/SKILL.md"
+assert_contains "init-agents --harness=agents nests agent under skill" "$OUT" ".agents/skills/spel/agents/spel.md"
 
 AGENTS_SKILL_FILE="$AGENTS_TMP/.agents/skills/spel/SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))

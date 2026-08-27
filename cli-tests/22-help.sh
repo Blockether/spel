@@ -22,7 +22,7 @@ fi
 # ── init-agents --help (must NOT be the main help) ───────────────────────────
 IA_HELP=$(timeout 5 "$SPEL" init-agents --help 2>&1)
 assert_contains "init-agents --help → own banner" "$IA_HELP" "Scaffold E2E testing agents for your editor"
-assert_contains "init-agents --help → --loop option documented" "$IA_HELP" "--loop TARGET"
+assert_contains "init-agents --help → --harness option documented" "$IA_HELP" "--harness TARGET"
 assert_contains "init-agents --help → --ns option documented" "$IA_HELP" "--ns NS"
 assert_contains "init-agents --help → --dry-run documented" "$IA_HELP" "--dry-run"
 assert_contains "init-agents --help → --force documented" "$IA_HELP" "--force"
@@ -35,16 +35,16 @@ else
   fail "init-agents --help → NOT the main spel help" "Got main help instead of init-agents help"
 fi
 
-# ── init-agents --loop=bogus → error to stderr ──────────────────────────────
-OUT=$(timeout 5 "$SPEL" init-agents --loop=bogus 2>&1)
+# ── init-agents --harness=bogus → error to stderr ───────────────────────────
+OUT=$(timeout 5 "$SPEL" init-agents --harness=bogus 2>&1)
 EXIT_CODE=$?
-assert_contains "init-agents --loop=bogus → error message" "$OUT" "Unknown --loop target: bogus"
-assert_contains "init-agents --loop=bogus → lists valid targets" "$OUT" "claude, opencode"
+assert_contains "init-agents --harness=bogus → error message" "$OUT" "Unknown --harness target: bogus"
+assert_contains "init-agents --harness=bogus → lists valid targets" "$OUT" "claude, opencode"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if [[ $EXIT_CODE -ne 0 ]]; then
-  pass "init-agents --loop=bogus → exit code non-zero"
+  pass "init-agents --harness=bogus → exit code non-zero"
 else
-  fail "init-agents --loop=bogus → exit code non-zero" "Got exit code 0"
+  fail "init-agents --harness=bogus → exit code non-zero" "Got exit code 0"
 fi
 
 # ── init-agents --dry-run opencode paths ─────────────────────────────────────
@@ -62,17 +62,17 @@ assert_contains "dry-run opencode → step: spel dep" "$OUT" "com.blockether/spe
 assert_contains "dry-run opencode → step: run command" "$OUT" "clojure -M:e2e"
 assert_contains "dry-run opencode → step: update seed URL" "$OUT" "Update the seed test URL"
 
-# ── init-agents --dry-run --loop=claude paths ────────────────────────────────
-OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --loop=claude --dry-run 2>&1)
+# ── init-agents --dry-run --harness=claude paths ─────────────────────────────
+OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --harness=claude --dry-run 2>&1)
 assert_contains "dry-run claude → banner says Claude Code" "$OUT" "for Claude Code"
 assert_contains "dry-run claude → agent dir" "$OUT" ".claude/agents/spel-test-writer.md"
 assert_contains "dry-run claude → prompt dir" "$OUT" ".claude/prompts/spel-test-workflow.md"
 assert_contains "dry-run claude → docs dir" "$OUT" ".claude/docs/spel/SKILL.md"
 assert_contains "dry-run claude → generic footer" "$OUT" 'Use the spel-orchestrator agent to get started'
 
-OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --loop=vscode --dry-run 2>&1 || true)
-assert_contains "init-agents --loop=vscode → deprecation error" "$OUT" "--loop=vscode has been removed"
-assert_contains "init-agents --loop=vscode → replacement hint" "$OUT" "Use --loop=opencode (default) or --loop=claude instead"
+OUT=$(timeout 5 "$SPEL" init-agents --ns test-app --harness=vscode --dry-run 2>&1 || true)
+assert_contains "init-agents --harness=vscode → error" "$OUT" "Unknown --harness target: vscode"
+assert_contains "init-agents --harness=vscode → replacement targets" "$OUT" "claude, opencode"
 
 # ── codegen --help ───────────────────────────────────────────────────────────
 CG_HELP=$(timeout 5 "$SPEL" codegen --help 2>&1)

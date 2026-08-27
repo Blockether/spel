@@ -270,8 +270,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - fix(win): normalize CRLF in templates + CLI output so Windows CI is green
-- test(init-agents): cover --loop=agents parsing + e2e scaffolding
-- feat(init-agents): add tool-agnostic --loop=agents flavour (#108)
+- test(init-agents): cover --harness=agents parsing + e2e scaffolding
+- feat(init-agents): add tool-agnostic --harness=agents flavour (#108)
 - feat(ios): automate native apps and hybrid webviews
 - docs(changelog): fold phantom v0.9.9 section back into Unreleased
 - feat(report): pimp the alternative HTML report to the Blockether brand
@@ -743,7 +743,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(cli): add -- args separator with *command-line-args* binding
 - feat(cli): add -- args separator with *command-line-args* binding
 - refactor(init-agents): smart ref assignment data structure
-- refactor(init-agents): deprecate --loop=vscode with error message
+- refactor(init-agents): reject the removed vscode harness
 - feat(snapshot): add position properties to MINIMAL style tier
 - fix: resolve strict mode violations in drag tests and boxed math warnings
 - docs: collapse guided install section by default
@@ -1325,7 +1325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(cli): add -- args separator with *command-line-args* binding
 - feat(cli): add -- args separator with *command-line-args* binding
 - refactor(init-agents): smart ref assignment data structure
-- refactor(init-agents): deprecate --loop=vscode with error message
+- refactor(init-agents): reject the removed vscode harness
 - feat(snapshot): add position properties to MINIMAL style tier
 - fix: resolve strict mode violations in drag tests and boxed math warnings
 - docs: collapse guided install section by default

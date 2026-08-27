@@ -29,7 +29,7 @@
         (expect (= false (:no-tests opts)))
         (expect (= "lazytest" (:flavour opts)))
         (expect (nil? (:ns opts)))
-        (expect (= "opencode" (:loop opts)))
+        (expect (= "opencode" (:harness opts)))
         (expect (= "test-e2e" (:test-dir opts))))))
 
   (describe "boolean flags"
@@ -55,18 +55,22 @@
     (it "parses --ns= syntax"
       (expect (= "my-app" (:ns (#'sut/parse-args ["--ns=my-app"]))))))
 
-  (describe "--loop"
-    (it "parses --loop with space-separated value"
-      (expect (= "claude" (:loop (#'sut/parse-args ["--loop" "claude"])))))
+  (describe "--harness"
+    (it "parses --harness with space-separated value"
+      (expect (= "claude" (:harness (#'sut/parse-args ["--harness" "claude"])))))
 
-    (it "parses --loop agents with space-separated value"
-      (expect (= "agents" (:loop (#'sut/parse-args ["--loop" "agents"])))))
+    (it "parses --harness agents with space-separated value"
+      (expect (= "agents" (:harness (#'sut/parse-args ["--harness" "agents"])))))
 
-    (it "parses --loop=agents syntax"
-      (expect (= "agents" (:loop (#'sut/parse-args ["--loop=agents"])))))
+    (it "parses --harness=agents syntax"
+      (expect (= "agents" (:harness (#'sut/parse-args ["--harness=agents"])))))
 
-    (it "parses --loop= syntax"
-      (expect (= "claude" (:loop (#'sut/parse-args ["--loop=claude"]))))))
+    (it "parses --harness= syntax"
+      (expect (= "claude" (:harness (#'sut/parse-args ["--harness=claude"]))))))
+
+  (it "accepts --loop as an unpromoted alias"
+    (expect (= "claude" (:harness (#'sut/parse-args ["--loop" "claude"]))))
+    (expect (= "agents" (:harness (#'sut/parse-args ["--loop=agents"])))))
 
   (describe "--flavour"
     (it "parses --flavour with space-separated value"
@@ -84,9 +88,9 @@
 
   (describe "combined flags"
     (it "parses multiple flags together"
-      (let [opts (#'sut/parse-args ["--ns" "my-app" "--loop=claude" "--force" "--dry-run"])]
+      (let [opts (#'sut/parse-args ["--ns" "my-app" "--harness=claude" "--force" "--dry-run"])]
         (expect (= "my-app" (:ns opts)))
-        (expect (= "claude" (:loop opts)))
+        (expect (= "claude" (:harness opts)))
         (expect (= true (:force opts)))
         (expect (= true (:dry-run opts)))))
 
@@ -430,7 +434,7 @@
                         [t (second named)])]
         (expect (= [] (vec (distinct dangling)))))))
 
-  (describe "claude loop target"
+  (describe "claude harness target"
     (it "uses .claude directory paths"
       (let [paths (output-paths (#'sut/files-to-create "claude" "lazytest"))]
         (expect (some #(str/starts-with? % ".claude/") paths))
@@ -440,7 +444,7 @@
       (let [paths (output-paths (#'sut/files-to-create "claude" "lazytest"))]
         (expect (some #(= ".claude/skills/spel/SKILL.md" %) paths)))))
 
-  (describe "agents loop target (tool-agnostic .agents/skills)"
+  (describe "agents harness target (tool-agnostic .agents/skills)"
     (it "uses .agents/skills paths only"
       (let [paths (output-paths (#'sut/files-to-create "agents" "lazytest"))]
         (expect (every? #(str/starts-with? % ".agents/skills/spel") paths))
@@ -462,7 +466,7 @@
         (expect (some #(str/includes? % "clojure-test/testing-conventions") resource-paths))))))
 
 ;; =============================================================================
-;; 9. Agents Loop — End-to-End Scaffolding
+;; 9. Agents Harness — End-to-End Scaffolding
 ;; =============================================================================
 
 (defn- temp-root
@@ -475,15 +479,15 @@
 
 (defn- scaffold!
   "Runs scaffold-file for one spec into `root` and slurps back the written file."
-  [root resource-path out-rel loop-target agent-name]
+  [root resource-path out-rel harness-target agent-name]
   (let [out (str root "/" out-rel)]
     (#'sut/scaffold-file resource-path out "desc" "+"
                          {:force true :flavour "lazytest"}
-                         "demo" loop-target agent-name)
+                         "demo" harness-target agent-name)
     (slurp out)))
 
 (defdescribe scaffold-agents-e2e-test
-  "End-to-end scaffolding for the tool-agnostic --loop=agents flavour."
+  "End-to-end scaffolding for the tool-agnostic --harness=agents flavour."
 
   (describe "SKILL.md"
     (it "is written with compatibility: agents"
@@ -551,11 +555,11 @@
     (it "finds nothing in a directory without a skill tree"
       (expect (empty? (sut/scaffolded-skills (temp-root)))))
 
-    (it "reports the loop target, path and stamped version of each skill"
+    (it "reports the harness target, path and stamped version of each skill"
       (let [root (temp-root)]
         (write-skill! root ".claude/skills/spel" "1.2.3")
         (write-skill! root ".agents/skills/spel" nil)
-        (let [by-target (into {} (map (juxt :loop-target identity))
+        (let [by-target (into {} (map (juxt :harness-target identity))
                           (sut/scaffolded-skills root))]
           (expect (= #{"agents" "claude"} (set (keys by-target))))
           (expect (= ".claude/skills/spel/SKILL.md" (:path (get by-target "claude"))))
