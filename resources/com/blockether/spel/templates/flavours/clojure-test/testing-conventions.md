@@ -1,28 +1,19 @@
 ## Testing conventions
 
-- Framework: `clojure.test` (`deftest`, `testing`, `is`, `use-fixtures`)
-- Page setup: `core/with-testing-page` (all-in-one macro: playwright + browser + context + page)
-- API testing: `core/with-testing-api` (all-in-one macro for API req contexts)
-- Assertions: exact string matching (NEVER substring unless explicitly `contains-text`)
-- Require: `[com.blockether.spel.roles :as role]` for role-based locators (`role/button`, `role/heading`). All roles available in `eval-sci` via `role/` namespace. See Enums table in SCI Eval API Reference below.
-- Integration tests: live against `example.org`
-
-Each test gets fresh browser page via `with-testing-page`. Macro handles full Playwright lifecycle → no manual playwright/browser/context management. Exact string matching by default. Substring only when spec explicitly calls `contains-text`.
-
-Run test suite:
+Use the project's `clojure.test` runner (`deftest`, `testing`, `is`, `use-fixtures`), not Lazytest CLI flags. The commands below assume a Cognitect `:test` alias; check `deps.edn` for the project's actual runner.
 
 ```bash
-# Run entire test suite (using Cognitect test-runner or your preferred runner)
 clojure -M:test
-
-# Run a single namespace
 clojure -M:test -n {{ns}}.e2e.seed-test
-
-# Run with Allure reporter (if using spel.allure integration)
-clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
+# Optional Allure integration; require the reporter as documented in the skill.
+ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
 ```
 
-`core/with-testing-page` creates full Playwright stack (playwright → browser → context → page), binds page, runs body, tears down. Allure active → tracing + HAR auto-enabled.
+Use `core/with-testing-page` for an isolated page with automatic teardown and `core/with-testing-api` for an API context. Both own a full Playwright stack; do not nest them to share cookies. Tracing and HAR are automatic when the Allure reporter is active.
+
+Assert the observable requirement. Prefer exact text for exact expectations and `contains-text` only for deliberate substring expectations. Use stable role/label/test-id locators; import `[com.blockether.spel.roles :as role]` for role constants. Snapshot refs belong to interactive exploration, not persisted tests.
+
+The public example URL below is a smoke-test placeholder, not the target for every integration test. Replace it with the requested application or a deterministic fixture. Read the skill's `references/ALLURE_REPORTING.md` only when configuring reports.
 
 ```clojure
 ;; Basic usage

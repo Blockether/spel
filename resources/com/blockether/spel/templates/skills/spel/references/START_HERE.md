@@ -1,35 +1,10 @@
 # Start Here
 
-Quick map of spel skill.
+**Use when:** Choose a first launch command when no task session exists. If one is already open, continue it instead of restarting.
 
-## Reply style
+Launch examples for the common connection modes. The skill owns operating rules and reference routing; this page is not a prerequisite for every task.
 
-Shape every reply ADHD-shaped, caveman-terse — see the skill's **Reply style**. Action first, numbered steps (max 5), restate "Step N of M", concrete time, show wins, one <2-min next action, no fluff, errors `location → cause → fix`.
-
-## What spel does
-
-- Browser automation via Playwright-native Clojure wrappers
-- `eval-sci` scripting against live daemon session
-- E2E testing, exploratory QA, visual captures, browser-driven product analysis
-
-## Fast routing
-
-- Full API surface: `references/FULL_API.md`
-- Session rules and safe defaults: `references/PROFILES_CDP.md`
-- SCI eval patterns: `references/EVAL_GUIDE.md`
-- Selectors + snapshots: `references/SELECTORS_SNAPSHOTS.md`
-- Navigation + wait behavior: `references/NAVIGATION_WAIT.md`
-- Browser/profile/CDP setup: `references/PROFILES_CDP.md` + `references/BROWSER_OPTIONS.md`
-- Network routing/interception: `references/NETWORK_ROUTING.md`
-- Test/assertion patterns: `references/ASSERTIONS_EVENTS.md` + `references/API_TESTING.md`
-- Report templates: `references/spel-report.html`, `references/spel-report.md`
-
-## Critical operating rules
-
-- Always use named session; never rely on default
-- CDP: sessions may share one endpoint (each gets its own tab); only the same tab is exclusive
-- Prefer snapshot refs first for interaction targeting
-- Promised output files = hard deliverables, not optional summaries
+Use an isolated session for ordinary work. Attach through CDP only when authorized; sessions may share an endpoint, but each must own its tab. Retain the resolved session name across commands.
 
 ## Typical starting patterns
 

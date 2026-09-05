@@ -1,5 +1,7 @@
 # Selectors, snapshots, annotations
 
+**Use when:** Inspect page structure, resolve selectors or capture annotations. Use fresh snapshot refs for interactive actions.
+
 Find elements, read page structure, produce visual overlays. Covers `eval-sci` (implicit page) + library (explicit `pg`).
 
 ## Selectors

@@ -1,5 +1,7 @@
 # API testing
 
+**Use when:** Write HTTP fixtures or API assertions inside Spel tests. Match the context lifecycle to whether cookies must be shared with a page.
+
 ## Single API context
 
 ```clojure

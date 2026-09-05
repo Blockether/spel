@@ -14,6 +14,33 @@
   [file-specs]
   (->> file-specs (map #(nth % 4)) (remove nil?)))
 
+(defdescribe template-task-boundaries-test
+  "Generated references route by task without changing runner or ownership boundaries."
+  (it "gives each instructional reference an explicit load condition"
+    (let [paths (->> (#'sut/files-to-create "opencode" "lazytest")
+                  (map first)
+                  (filter #(and % (str/includes? % "/references/")
+                             (str/ends-with? % ".md")
+                             (not (str/ends-with? % "spel-report.md"))
+                             (not (str/ends-with? % "FULL_API.md")))))]
+      (expect (seq paths))
+      (doseq [path paths]
+        (expect (str/includes? (#'sut/read-template path) "**Use when:**")))))
+  (it "keeps recovery scoped and does not supply a global kill command"
+    (let [content (#'sut/read-template "skills/spel/references/COMMON_PROBLEMS.md")]
+      (expect (not (str/includes? content "spel kill --all-sessions")))
+      (expect (str/includes? content "cancel <command-id>"))))
+  (it "does not give Cognitect the Lazytest reporter flags"
+    (let [content (#'sut/read-template "flavours/clojure-test/testing-conventions.md")]
+      (expect (not (str/includes? content "--output nested")))
+      (expect (str/includes? content "ALLURE_CLOJURE_TEST_ENABLED=true"))))
+  (it "renders readable seed namespaces for both flavours"
+    (doseq [path ["seed_test.clj.template" "seed_test_ct.clj.template"]]
+      (let [source (str/replace (#'sut/read-template path) "{{ns}}" "sample-app")
+            forms (read-string (str "[" source "]"))]
+        (expect (= 2 (count forms)))
+        (expect (= 'sample-app.e2e.seed-test (second (first forms))))))))
+
 ;; =============================================================================
 ;; 1. Argument Parsing
 ;; =============================================================================

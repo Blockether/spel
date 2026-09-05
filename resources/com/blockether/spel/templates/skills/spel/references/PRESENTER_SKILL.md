@@ -1,13 +1,15 @@
 <!-- Adapted from visual-explainer (MIT, github.com/nicobailon/visual-explainer) -->
 # Presenter reference
 
+**Use when:** Produce an explicitly requested visual report or technical diagram. Ordinary task results do not require an HTML report.
+
 Generate self-contained HTML for technical diagrams, visualizations, data tables. `spel open` to preview, `spel screenshot` to capture evidence.
 
 > **Design system.** All output uses the **spel report design system** from `CSS_PATTERNS.md` — Atkinson Hyperlegible / Manrope / IBM Plex Mono, warm earth tones (`#b2652a` brown accent). Do not invent a new palette or font stack.
 
 ## Workflow
 
-### 1. Think (5 s)
+### 1. Choose the scope
 
 - **Who's looking?** Dev understanding a system? PM seeing the big picture? → shapes density.
 - **What type?** Architecture, flowchart, sequence, data flow, schema/ER, state machine, mind map, class diagram, C4, data table, timeline, dashboard, slide deck.
@@ -57,10 +59,10 @@ Tell the user the path for re-open / sharing.
 
 ## Content spec protocol (anti-hallucination)
 
-**Rule 1 — Only user-provided information.** Never invent metrics, counts, component names, API endpoints, or file paths. User said "3 services" → show exactly 3. Missing label → `[Service Name]` placeholder, note it.
+**Rule 1 — Traceable information.** Use user-provided material or evidence actually inspected in this task. Never invent metrics, counts, component names, endpoints or paths. Mark unknowns explicitly; distinguish a measured finding from a hypothesis.
 
 **Rule 2 — Every text slot intentional.** For each text element, answer "Where did this come from?"
-- User's input (exact quote or close paraphrase) ✅
+- User input or inspected source/runtime evidence, with attribution ✅
 - Structural label ("Overview", "Step 1") ✅
 - Made up because it looked good ❌
 
@@ -130,7 +132,7 @@ Prefer `graph TD` over `graph LR` for complex diagrams.
 - **No overflow** — resize. Every grid/flex child has `min-width: 0`.
 - **Mermaid zoom controls** on every `.mermaid-wrap`.
 - **Design token check** — Atkinson Hyperlegible / Manrope / IBM Plex Mono + brown accent.
-- **Content fidelity** — every text traces to user input.
+- **Content fidelity** — every factual claim traces to supplied material or inspected evidence.
 
 ## Anti-patterns (AI slop)
 

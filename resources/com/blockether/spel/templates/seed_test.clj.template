@@ -1,7 +1,6 @@
 (ns {{ns}}.e2e.seed-test
-  "Seed test — establishes the base setup pattern for E2E tests.
-   This test tells agents how to configure the browser environment
-   so that pages are already set up correctly."
+  "Smoke-test scaffold with isolated browser setup.
+   Replace the example URL and assertions with the requested application."
   (:require
    [com.blockether.spel.core :as core]
    [com.blockether.spel.page :as page]

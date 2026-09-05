@@ -1,5 +1,7 @@
 # Capabilities
 
+**Use when:** Find which reference owns an unfamiliar capability; this inventory is not a setup checklist.
+
 Compact inventory of main spel capability areas.
 
 ## Browser control

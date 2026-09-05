@@ -1,5 +1,7 @@
 # eval-sci mode guide
 
+**Use when:** Write or debug SCI scripts. SCI has implicit page bindings and different signatures from the explicit-page library API.
+
 `eval-sci` runs Clojure inside a [SCI](https://github.com/babashka/sci) sandbox with full Playwright access. No JVM startup, no project setup.
 
 ```bash
@@ -227,7 +229,7 @@ Need something unavailable → write a `.clj` library file and use the library A
 - Browser `console.log/warn/error` prints to stderr after the eval result.
 - In daemon mode, don't call `spel/start!` / `spel/stop!` — daemon persists page state between calls, so no redundant re-navigations.
 - Prefer `spel/` over raw namespaces; it resolves strings / refs / Locator objects uniformly.
-- For SPAs, wait on `:networkidle` (or better, `wait-for-selector` / `wait-for-function`).
+- For SPAs, prefer `wait-for-selector`, `wait-for-url` or `wait-for-function` tied to the expected state; ongoing polling/streaming can prevent `:networkidle`.
 - **Never** use `spel/wait-for-timeout` or `sleep` as sync. Use event-driven waits.
 
 | Fn | Needs browser? | What | When |

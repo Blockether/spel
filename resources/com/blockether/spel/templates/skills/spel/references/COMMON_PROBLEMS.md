@@ -1,5 +1,7 @@
 # Common problems and troubleshooting
 
+**Use when:** Diagnose a specific observed failure. Read the matching symptom section; do not run recovery recipes speculatively.
+
 ## 1. "Session already running"
 
 A live library session refuses a second `spel/start!` — stop it first:
@@ -12,40 +14,26 @@ A live library session refuses a second `spel/start!` — stop it first:
 A `start!` that FAILS leaves nothing behind: the Playwright instance it created is
 closed before the error propagates.
 
-A daemon that will not go away ends with spel's own kill — it force-closes, destroys
-the process and removes the socket/PID files:
+For a stuck task, inspect the named session and cancel its specific command before considering teardown:
 
 ```bash
-spel --session <name> health   # what is it actually doing?
-spel --session <name> kill     # end it now, even mid-command
-spel kill --all-sessions       # every spel daemon, orphans included
+spel --session "$SESSION" health --json
+spel --session "$SESSION" cancel <command-id>
+# Only for an isolated daemon created by this task, after cancellation fails:
+spel --session "$SESSION" kill
 ```
 
-**Never** `pkill -f "Google Chrome"` as a recovery step — it kills the user's own
-browser. `pkill` and `rm -f` on spel's socket/PID files are last resorts for when
-`spel kill` itself is unavailable.
+Never kill all sessions, kill browser processes globally, or manually remove sockets/PID files. Detach from user-owned browsers; ask before disrupting user-owned resources.
 
 ## 2. CAPTCHA / bot detection
 
-Headless Chromium is detectable (missing GPU, UA patterns, `navigator.webdriver`).
-Stealth is on by default in the CLI; for stubborn sites try headed + real cookies:
+When a site presents a protected login, CAPTCHA or bot challenge, hand it to the user in the same named session:
 
 ```bash
-spel open https://protected-site.com                   # stealth (default)
-spel --interactive open https://protected-site.com     # stealth + headed
-
-# Stealth + real Chrome cookies (most authentic): drive that profile directly,
-# or save its state once and load it into later sessions
-spel --channel chrome --profile "$HOME/Library/Application Support/Google/Chrome/Default" open https://protected-site.com
-spel state save auth.json
-spel --load-state auth.json open https://protected-site.com
-
-# Disable stealth if it causes problems
-spel --no-stealth open https://protected-site.com
+spel --session "$SESSION" --interactive open https://example.com
 ```
 
-`PROFILES_CDP.md` has the library-side stealth patches (`stealth/stealth-args`,
-`stealth/stealth-init-script`).
+Continue after the user completes the challenge. Do not treat access controls as obstacles to bypass. Reusing a personal profile or saved authentication requires permission; protect stored cookies as credentials. See `PROFILES_CDP.md` for authorized attachment.
 
 ## 3. `assert-url` fails with partial URLs
 
@@ -142,9 +130,7 @@ CSS, or covered by another element (z-index).
 (spel/capture-snapshot)                   ; look for overlays, modals, banners
 ```
 
-A click that HANGS is a wrong readiness signal, not a wrong selector. Wait for the route
-after the click — and never replace the click with a navigation to where it would have led;
-click the link or button like a human.
+A hanging click can indicate actionability, navigation readiness, or a blocked browser call. Inspect the error, snapshot and session health before changing the wait. Preserve the click when it is part of the journey under test; direct navigation is only setup or extraction.
 
 ```clojure
 (spel/click "@eXXXX")
@@ -262,9 +248,8 @@ Exit code: 0 for `ok`/`busy`, 1 otherwise. `--json` for the full payload.
 
 ```bash
 spel --session mysession cancel c12   # interrupt one command
-spel --session mysession cancel       # interrupt everything in flight
-spel --session mysession kill         # end the daemon now
-spel kill --all-sessions              # every session, plus file-less orphans
+# Only for an isolated daemon owned by this task, if cancellation fails:
+spel --session mysession kill
 spel --session mysession logs -n 50   # ONE log: CLI + daemon lines interleaved
 ```
 

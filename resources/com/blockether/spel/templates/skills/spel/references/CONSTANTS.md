@@ -1,5 +1,7 @@
 # Constants, enums, device presets
 
+**Use when:** Look up a role, enum or device preset required by the current call.
+
 | Namespace | Holds | Count |
 |-----------|-------|------:|
 | `constants/` | Playwright enum values as flat Clojure vars | 25 |

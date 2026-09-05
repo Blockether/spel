@@ -1,46 +1,20 @@
 ## Testing conventions
 
-- Framework: `spel.allure` (`defdescribe`, `describe`, `it`, `expect`). NOT `lazytest.core`.
-- Page setup: `core/with-testing-page` → wraps playwright + browser + context + page in one macro.
-- API testing: `core/with-testing-api` → same for API req contexts.
-- Assertions: exact string matching. NEVER substring unless explicitly `contains-text`.
-- Require `[com.blockether.spel.roles :as role]` for role-based locators (`role/button`, `role/heading`). All roles work in `eval-sci` via `role/` namespace. See Enums table in SCI Eval API Reference below.
-- Integration tests: live against `example.org`
-
-### Running tests (Lazytest CLI)
+Use the project's Lazytest runner. Import test forms from `[com.blockether.spel.allure :refer [defdescribe describe it expect]]` when using Spel's Allure integration.
 
 ```bash
-# Run entire test suite
 clojure -M:test
-
-# Run a single namespace
-clojure -M:test -n com.blockether.spel.core-test
-
-# Run multiple namespaces
-clojure -M:test -n com.blockether.spel.core-test -n com.blockether.spel.page-test
-
-# Run a single test var (MUST be fully-qualified ns/var)
-clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
-
-# Run multiple vars
-clojure -M:test -v com.blockether.spel.options-test/launch-options-test \
-                -v com.blockether.spel.options-test/context-options-test
-
-# Run with metadata filter (include/exclude)
-clojure -M:test -i :smoke          # only tests tagged ^:smoke
-clojure -M:test -e :slow           # exclude tests tagged ^:slow
-
-# Run with Allure reporter
+clojure -M:test -n {{ns}}.e2e.seed-test
+clojure -M:test -v {{ns}}.e2e.seed-test/seed-test
+# Optional Allure output (Lazytest flags, not Cognitect flags)
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-
-# Watch mode (re-runs on file changes)
-clojure -M:test --watch
-
-# Run tests from a specific directory
-clojure -M:test -d test/com/blockether/spel
 ```
 
-NOTE: `-v`/`--var` needs fully-qualified symbols (`namespace/var-name`), not bare var names. Bare name → `IllegalArgumentException: no conversion to symbol`.
+Check the project's `:test` alias before using these commands. `-v` requires a fully qualified namespace/var. Run the changed test first, then the relevant suite; inspect failure counts, not just the process exit.
+
+Assert the observable requirement. Prefer exact text for exact expectations and `contains-text` only for deliberate substring expectations. Use stable role/label/test-id locators; import `[com.blockether.spel.roles :as role]` for role constants. Snapshot refs belong to interactive exploration, not persisted tests.
+
+The example URLs are smoke-test placeholders: use the requested application or a deterministic fixture for real coverage.
 
 ### with-testing-page
 
@@ -53,7 +27,7 @@ Creates full Playwright stack (playwright, browser, context, page), binds page, 
   (expect (= "Example Domain" (page/title page))))
 
 ;; With options (device, viewport, locale, etc.)
-(core/with-testing-page {:device :iphone-14} [page]
+(core/with-testing-page {:device :iphone-14 :locale "fr-FR"} [page]
   (page/navigate page "https://example.org")
   (expect (= "fr-FR" (page/evaluate page "navigator.language"))))
 
@@ -72,7 +46,7 @@ Creates full Playwright stack (playwright, browser, context, page), binds page, 
 
 ### with-testing-api
 
-Creates playwright, browser, context, API req context. Tracing on by default.
+Creates a separate Playwright/browser/context stack with automatic teardown. Tracing and HAR are enabled when the Allure reporter is active. For shared browser cookies, use the page-bound API instead of nesting testing macros.
 
 ```clojure
 (core/with-testing-api {:base-url "https://api.example.org"} [ctx]

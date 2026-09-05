@@ -1,5 +1,7 @@
 # PDF generation, image stitching, video recording
 
+**Use when:** Produce a requested PDF, stitched capture or video. Load only the relevant format section and verify the final artifact.
+
 Three capabilities: page → PDF, multi-screenshot stitching, session video.
 
 ## PDF generation

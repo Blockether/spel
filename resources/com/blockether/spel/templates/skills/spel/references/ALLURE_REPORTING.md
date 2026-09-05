@@ -1,5 +1,7 @@
 # Allure test reporting
 
+**Use when:** Configure test metadata, traces or report generation. Use only the section for your runner and output format.
+
 Rich HTML reports with embedded Playwright traces, steps, labels, attachments,
 build history.
 

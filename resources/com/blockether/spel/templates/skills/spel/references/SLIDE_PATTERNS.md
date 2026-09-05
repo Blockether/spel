@@ -1,16 +1,13 @@
 <!-- Adapted from visual-explainer (MIT, github.com/nicobailon/visual-explainer) -->
 # Slide deck patterns
 
+**Use when:** Build slides only when explicitly requested. Match detail to the audience and requested length.
+
 Self-contained HTML slide presentations. **Only use when the user explicitly requests slides** — never auto-select.
 
 ## Planning
 
-1. Enumerate every section, subsection, table row, decision in the source. Count them.
-2. Map source → slides. Every item must appear somewhere. 6 decisions → 6 slides.
-3. Pick a layout per slide; vary across the sequence.
-4. Before writing: scan the inventory, verify nothing is unmapped.
-
-Test: a reader unfamiliar with the source should be able to reconstruct every major point from the slides alone.
+Identify the audience, requested length and key source facts; map those to slides. Summarize when requested rather than forcing one slide per source item. Preserve important caveats and attribute measurements. Check that the requested message survives the reduction; an exhaustive source transcription is not required.
 
 ## Base
 

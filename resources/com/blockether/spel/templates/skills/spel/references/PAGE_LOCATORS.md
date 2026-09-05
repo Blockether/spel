@@ -1,5 +1,7 @@
 # Page locators & composable patterns
 
+**Use when:** Write stable locators or reusable test helpers. The page-object examples are optional patterns, not required scaffolding.
+
 Every locator strategy returns a Playwright `Locator` — auto-waiting, auto-retrying.
 
 ## Basic locators
@@ -210,7 +212,7 @@ Refs are ephemeral — re-snapshot after any navigation.
 
 ## Assertions
 
-Assertion fns return `nil` on success, anomaly map on failure. In tests, wrap in `(expect (nil? ...))`.
+Assertion functions return `nil` on success and throw `AssertionFailedError` for a mismatch. Driver faults can return anomaly maps; wrap the call in `(expect (nil? ...))` so those faults also fail the test.
 
 ```clojure
 (require '[com.blockether.spel.assertions :as assert])
@@ -296,7 +298,7 @@ Assertion fns return `nil` on success, anomaly map on failure. In tests, wrap in
 
 - **Semantic first.** Role / label / text survive CSS refactors. CSS is fragile.
 - **Test IDs as fallback.** No good role/label → add `data-testid`.
-- **DRY.** Define each locator once in a page object; don't repeat selectors.
+- Extract shared locators or page objects when reuse warrants it; a one-off test does not need an abstraction layer.
 - **Don't over-chain.** Break into named bindings when a `->` gets opaque.
 - **Locators are lazy.** Creating a locator doesn't touch the DOM — resolution happens on action/assertion.
 - **Iterate with `all`.** `(doseq [item (locator/all (page/locator pg ".todo-item"))] …)`

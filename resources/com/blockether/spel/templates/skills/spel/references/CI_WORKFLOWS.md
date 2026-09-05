@@ -1,5 +1,7 @@
 # GitHub Actions CI/CD workflows
 
+**Use when:** Understand Spel's own CI/release pipeline. These are repository-specific examples, not workflows to impose on a consuming project; inspect its current workflow files before changing CI.
+
 Three workflows: `.github/workflows/ci.yml`, `allure.yml`, `release.yml`.
 
 ## 1 · CI (`ci.yml`)

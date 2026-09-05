@@ -1,10 +1,12 @@
 # Common session and automation patterns
 
+**Use when:** Resolve session ownership, batching and cleanup questions. Reuse the task session rather than creating one for each example.
+
 Shared conventions for reliable spel usage.
 
 ## Session isolation
 
-Use a named session for every run. Do not rely on `default` when running concurrent flows.
+Resolve one named session per task and retain it across commands. Never use the shared default session; close only the session you created.
 
 ```bash
 SESSION="run-$(date +%s)"
@@ -37,14 +39,10 @@ echo '[["open","https://example.com"],["wait","--load","domcontentloaded"],["sna
 
 ## Evidence and outputs
 
-If a run promises output artifacts, always produce them:
-
-- screenshots (`.png`)
-- logs (`.json`, `.txt`)
-- report files (`index.html`, `summary.json`)
+Produce the artifacts requested for this task and verify they exist and open. Screenshots, logs and reports are alternatives according to scope, not a mandatory bundle for every browser action.
 
 ## Troubleshooting basics
 
-- `spel session list`
-- `spel --session <name> close`
-- remove stale sockets/pids only as last resort
+- Inspect `spel --session <name> health --json` and `spel --session <name> logs -n 100`.
+- Cancel only the in-flight command id belonging to this task; retry after diagnosing the failure.
+- Close only your session. Never remove sockets/pids manually or kill browser processes globally; use `kill` only for a verified spel daemon you own.

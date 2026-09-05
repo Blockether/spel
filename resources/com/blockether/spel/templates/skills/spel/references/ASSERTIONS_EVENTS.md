@@ -1,8 +1,10 @@
 # Assertions, events & signals
 
+**Use when:** Assert browser state or handle dialogs, downloads and file input. Look up the required assertion/event rather than loading the entire API.
+
 ## Assertions
 
-Wrap with `assert/assert-that` first. Each assertion returns `nil` on success, throws on failure. In `it`/`deftest`, always `(expect (nil? ...))` / `(is (nil? ...))`.
+Wrap with `assert/assert-that` first. Assertions return `nil` on success and throw `AssertionFailedError` for a mismatch; driver faults can return anomaly maps. In tests, `(expect (nil? ...))` / `(is (nil? ...))` also catches those returned faults.
 
 ### Page
 

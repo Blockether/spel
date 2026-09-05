@@ -1,5 +1,7 @@
 # Browser options, page utilities & advanced locator actions
 
+**Use when:** Configure launch/context options or advanced page and locator actions. Distinguish one-shot library lifecycle from an existing daemon session.
+
 ## Browser launch options
 
 ```clojure
