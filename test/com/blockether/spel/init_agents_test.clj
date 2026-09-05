@@ -2,6 +2,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.spel.init-agents :as sut]
+   [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
 
 (defn- output-paths
@@ -13,6 +14,30 @@
   "Extracts non-nil agent names from `files-to-create` specs."
   [file-specs]
   (->> file-specs (map #(nth % 4)) (remove nil?)))
+
+(defdescribe eval-guide-contract-test
+  "The SCI guide names the functions and language forms the runtime actually exposes."
+  (it "documents the registered JSON encoder"
+    (let [guide (#'sut/read-template "skills/spel/references/EVAL_GUIDE.md")
+          ctx (sci-env/create-sci-ctx)]
+      (expect (str/includes? guide "json/write-str"))
+      (doseq [sym (distinct (re-seq #"json/[\w-]+" guide))]
+        (expect (sci-env/eval-string ctx (str "(boolean (resolve '" sym "))"))))))
+  (it "runs the guide's JSON example unchanged"
+    (let [guide (#'sut/read-template "skills/spel/references/EVAL_GUIDE.md")
+          code (second (re-find #"```clojure\n(\(json/write-str[^\n]+\))\n```" guide))]
+      (expect (some? code))
+      (when code
+        (expect (= "{\"ok\":true}"
+                  (sci-env/eval-string (sci-env/create-sci-ctx) code))))))
+  (it "does not forbid supported registered requires or local macros"
+    (let [guide (#'sut/read-template "skills/spel/references/EVAL_GUIDE.md")
+          ctx (sci-env/create-sci-ctx)]
+      (expect (= "OK" (sci-env/eval-string ctx
+                        "(require '[clojure.string :as s]) (s/upper-case \"ok\")")))
+      (expect (= 4 (sci-env/eval-string ctx
+                     "(defmacro twice [x] `(+ ~x ~x)) (twice 2)")))
+      (expect (not (re-find #"(?m)^- `(?:require|defmacro)`" guide))))))
 
 (defdescribe template-task-boundaries-test
   "Generated references route by task without changing runner or ownership boundaries."
@@ -34,6 +59,17 @@
     (let [content (#'sut/read-template "flavours/clojure-test/testing-conventions.md")]
       (expect (not (str/includes? content "--output nested")))
       (expect (str/includes? content "ALLURE_CLOJURE_TEST_ENABLED=true"))))
+  (it "renders readable testing examples for both flavours"
+    (doseq [flavour ["lazytest" "clojure-test"]]
+      (let [content (#'sut/process-template
+                     (#'sut/read-template (str "flavours/" flavour "/testing-conventions.md"))
+                     "sample-app" flavour)
+            examples (re-seq #"(?s)```clojure\n(.*?)\n```" content)]
+        (expect (seq examples))
+        (doseq [[_ code] examples
+                :let [forms (read-string (str "[" code "]"))]]
+          (expect (= 2 (count forms)))
+          (expect (= 'sample-app.e2e.seed-test (second (first forms))))))))
   (it "renders readable seed namespaces for both flavours"
     (doseq [path ["seed_test.clj.template" "seed_test_ct.clj.template"]]
       (let [source (str/replace (#'sut/read-template path) "{{ns}}" "sample-app")
@@ -347,14 +383,13 @@
       (expect (str/includes? skill "automatically checks their release markers"))
       (expect (not (str/includes? skill "The installed skill matches spel")))))
 
-  (it "resolves each example session name once"
-    (let [start (#'sut/read-template
-                 "skills/spel/references/START_HERE.md")]
-      (expect (= 3 (count (re-seq #"SESSION=\"(?:exp|auto|cdp)-\$\(date \+%s\)\"" start))))
-      (expect (str/includes? start "spel --session \"$SESSION\""))
-      (expect (not (str/includes? start "spel --session exp-$(date +%s)")))
-      (expect (not (str/includes? start "spel --session auto-$(date +%s)")))
-      (expect (not (str/includes? start "spel --session cdp-$(date +%s)")))))
+  (it "resolves the shared example session name once"
+    (doseq [path ["skills/spel/SKILL.md" "skills/spel/references/START_HERE.md"]]
+      (let [content (#'sut/read-template path)]
+        (expect (= 1 (count (re-seq #"(?m)^SESSION=" content))))
+        (expect (str/includes? content "export SPEL_SESSION=\"$SESSION\""))
+        (expect (str/includes? content "spel --session \"$SESSION\""))
+        (expect (not (re-find #"spel --session .*date" content))))))
 
   (it "documents the public iOS measurement and recovery loop"
     (let [ios (#'sut/read-template
@@ -367,12 +402,13 @@
       (expect (str/includes? ios "before 0.9.17"))))
 
   (it "keeps the generated agent on the public measured iOS path"
-    (let [agent (#'sut/read-template "agents/spel.md")]
+    (let [agent (#'sut/read-template "agents/spel.md")
+          skill (#'sut/read-template "skills/spel/SKILL.md")]
       (expect (str/includes? agent "spel/with-webview-context"))
       (expect (str/includes? agent "first observable matching frame"))
       (expect (str/includes? agent "raw Appium is diagnostic evidence"))
-      (expect (str/includes? agent "spel --session \"$SESSION\" health --json"))
-      (expect (str/includes? agent "spel --session \"$SESSION\" logs -n 100"))))
+      (expect (str/includes? skill "spel --session <name> health --json"))
+      (expect (str/includes? skill "spel --session <name> logs -n 100"))))
 
   (it "keeps diagnostic commands scoped to the named session"
     (let [common (#'sut/read-template "skills/spel/references/COMMON_PROBLEMS.md")
@@ -442,24 +478,7 @@
                     (distinct)
                     (remove #(let [c (#'sut/read-template %)]
                                (and c (>= (count (str/trim c)) 200)))))]
-        (expect (= [] (vec (sort blank))))))
-
-    ;; Regression, user report: START_HERE.md, SKILL.md and CAPABILITIES.md all
-    ;; routed the agent to `references/TESTING_CONVENTIONS.md`, a file the skill
-    ;; has never shipped — the reader followed a dead link.
-    (it "never points at a reference file it does not ship"
-      (let [templates (->> (#'sut/files-to-create "opencode" "lazytest")
-                        (map first)
-                        (remove nil?)
-                        (distinct))
-            dangling  (for [t     templates
-                            :let  [content (#'sut/read-template t)]
-                            :when content
-                            named (re-seq #"references/([A-Za-z0-9_-]+\.md)" content)
-                            :let  [target (str "skills/spel/references/" (second named))]
-                            :when (nil? (#'sut/read-template target))]
-                        [t (second named)])]
-        (expect (= [] (vec (distinct dangling)))))))
+        (expect (= [] (vec (sort blank)))))))
 
   (describe "claude harness target"
     (it "uses .claude directory paths"
@@ -541,6 +560,37 @@
                       ".agents/skills/spel/references/START_HERE.md" "agents" nil)]
         (expect (str/starts-with? content
                   (str "<!-- spel-reference-version: " @@#'sut/spel-version " -->\n")))))))
+
+(defdescribe scaffold-template-matrix-test
+  "Every harness/flavour renders a self-consistent skill tree."
+  (it "routes to generated references, including the selected testing conventions"
+    (doseq [harness ["opencode" "claude" "agents"]
+            flavour ["lazytest" "clojure-test"]]
+      (let [root (java.io.File. (temp-root))
+            specs (#'sut/files-to-create harness flavour)
+            skill-dir (:skill-dir (get @#'sut/harness-targets harness))]
+        (try
+          (with-out-str
+            (doseq [[resource out description icon agent] specs]
+              (#'sut/scaffold-file resource (str root "/" out) description icon
+                                   {:force true :flavour flavour} "sample-app" harness agent)))
+          (let [skill (slurp (java.io.File. root (str skill-dir "/SKILL.md")))]
+            (expect (str/includes? skill (str "compatibility: " harness)))
+            (expect (str/includes? skill "references/TESTING_CONVENTIONS.md")))
+          (doseq [[_ out] specs
+                  :let [content (slurp (java.io.File. root out))]]
+            (expect (not (re-find #"\{\{(?:ns|version|testing-conventions)\}\}" content)))
+            (doseq [[_ reference] (re-seq #"references/([A-Za-z0-9_-]+\.(?:md|html))" content)]
+              (expect (.isFile (java.io.File. root (str skill-dir "/references/" reference))))))
+          (let [conventions (slurp (java.io.File. root
+                                     (str skill-dir "/references/TESTING_CONVENTIONS.md")))]
+            (expect (str/ends-with? conventions
+                      (#'sut/process-template
+                       (#'sut/read-template (str "flavours/" flavour "/testing-conventions.md"))
+                       "sample-app" flavour))))
+          (finally
+            (doseq [^java.io.File f (reverse (file-seq root))]
+              (.delete f))))))))
 
 ;; =============================================================================
 ;; 10. Skill / Release Drift Check

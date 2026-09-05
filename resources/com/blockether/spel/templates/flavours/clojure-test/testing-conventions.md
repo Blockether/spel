@@ -1,57 +1,28 @@
-## Testing conventions
+# Testing conventions: clojure.test
 
-Use the project's `clojure.test` runner (`deftest`, `testing`, `is`, `use-fixtures`), not Lazytest CLI flags. The commands below assume a Cognitect `:test` alias; check `deps.edn` for the project's actual runner.
+**Use when:** Writing JVM tests with the selected clojure.test flavour, not running SCI scripts.
+
+Use the project's runner with `deftest`, `testing`, `is` and `use-fixtures`. These commands assume a Cognitect `:test` alias; check `deps.edn`. Do not pass Lazytest's `--output` flags. Run the changed test first, then the relevant suite; inspect failure counts as well as exit status.
 
 ```bash
-clojure -M:test
 clojure -M:test -n {{ns}}.e2e.seed-test
-# Optional Allure integration; require the reporter as documented in the skill.
+clojure -M:test
+# Optional: configure/require the reporter per references/ALLURE_REPORTING.md.
 ALLURE_CLOJURE_TEST_ENABLED=true clojure -M:test
 ```
 
-Use `core/with-testing-page` for an isolated page with automatic teardown and `core/with-testing-api` for an API context. Both own a full Playwright stack; do not nest them to share cookies. Tracing and HAR are automatic when the Allure reporter is active.
+Use stable role/label/test-id locators, not snapshot refs in persisted tests. Assert the observable requirement; use exact text unless a substring match is intentional. Replace the smoke-test URL with the requested application or a deterministic fixture.
 
-Assert the observable requirement. Prefer exact text for exact expectations and `contains-text` only for deliberate substring expectations. Use stable role/label/test-id locators; import `[com.blockether.spel.roles :as role]` for role constants. Snapshot refs belong to interactive exploration, not persisted tests.
-
-The public example URL below is a smoke-test placeholder, not the target for every integration test. Replace it with the requested application or a deterministic fixture. Read the skill's `references/ALLURE_REPORTING.md` only when configuring reports.
+`core/with-testing-page` owns setup/teardown; its optional first map sets device, viewport, locale or `:storage-state`. `core/with-testing-api` owns a separate stack: do not nest them to share cookies. See `references/API_TESTING.md` for page-bound requests and `references/ALLURE_REPORTING.md` only when reports are needed.
 
 ```clojure
-;; Basic usage
-(core/with-testing-page [page]
-  (page/navigate page "https://example.org")
-  (is (= "Example Domain" (page/title page))))
+(ns {{ns}}.e2e.seed-test
+  (:require [clojure.test :refer [deftest is]]
+            [com.blockether.spel.core :as core]
+            [com.blockether.spel.page :as page]))
 
-;; With options (device, viewport, locale, etc.)
-(core/with-testing-page {:device :iphone-14} [page]
-  (page/navigate page "https://example.org"))
-
-;; Load saved auth state
-(core/with-testing-page {:storage-state "auth.json"} [page]
-  (page/navigate page "https://app.example.org/dashboard"))
-```
-
-`core/with-testing-api` → API equivalent. Creates playwright → browser → context → API req context, auto-tracing.
-Opts map first arg → set device, viewport, locale, load saved auth. Body receives page binding, runs inside managed context.
-
-```clojure
-(core/with-testing-api {:base-url "https://api.example.org"} [ctx]
-  (api/get ctx "/users"))
-```
-
-```clojure
-(ns my-app.e2e.seed-test
-  (:require
-   [clojure.test :refer [deftest testing is]]
-   [com.blockether.spel.assertions :as assert]
-   [com.blockether.spel.core :as core]
-   [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.roles :as role]))
-
-(deftest homepage-test
-  (testing "loads successfully"
-    (core/with-testing-page [page]
-      (page/navigate page "https://example.org")
-      (is (= "Example Domain" (page/title page)))
-      (is (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Example Domain"))))))
+(deftest seed-test
+  (core/with-testing-page [page]
+    (page/navigate page "https://example.com")
+    (is (= "Example Domain" (page/title page)))))
 ```

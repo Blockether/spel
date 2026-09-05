@@ -1,34 +1,23 @@
-# Start Here
+# Launch a task session
 
-**Use when:** Choose a first launch command when no task session exists. If one is already open, continue it instead of restarting.
+**Use when:** No task session exists. Otherwise continue the existing one.
 
-Launch examples for the common connection modes. The skill owns operating rules and reference routing; this page is not a prerequisite for every task.
-
-Use an isolated session for ordinary work. Attach through CDP only when authorized; sessions may share an endpoint, but each must own its tab. Retain the resolved session name across commands.
-
-## Typical starting patterns
+Choose one launch mode below. The skill owns session names, safety and cleanup; retain the resolved name across shell calls.
 
 ```bash
-# Resolve the name once. If later commands run in fresh shells, retain this
-# resolved value in agent state; do not evaluate the timestamp again.
-SESSION="exp-$(date +%s)"
-spel --session "$SESSION" open https://example.com
-spel --session "$SESSION" snapshot -i
-spel --session "$SESSION" eval-sci '(spel/title)'
+SESSION="agent-$(date +%s)-$$"
+export SPEL_SESSION="$SESSION"
+spel --session "$SESSION" --content-boundaries open https://example.com &&
+spel --session "$SESSION" --content-boundaries snapshot -i -c
+# Work in this session, then close it.
 spel --session "$SESSION" close
 ```
 
+For an auto-launched Chrome or an authorized CDP connection, replace the `open` command with one of these (do not run all three):
+
 ```bash
-SESSION="auto-$(date +%s)"
 spel --session "$SESSION" --auto-launch open https://example.com
-spel --session "$SESSION" --auto-launch snapshot -i
-spel --session "$SESSION" close
+spel --session "$SESSION" --cdp http://127.0.0.1:9222 open https://example.com
 ```
 
-```bash
-# Explicit CDP endpoint:
-SESSION="cdp-$(date +%s)"
-spel --session "$SESSION" --cdp http://127.0.0.1:9222 open https://example.com
-spel --session "$SESSION" --cdp http://127.0.0.1:9222 snapshot -i
-spel --session "$SESSION" close
-```
+Read `references/PROFILES_CDP.md` for connection details and `references/SESSION_COMMON.md` for tab ownership and batching.

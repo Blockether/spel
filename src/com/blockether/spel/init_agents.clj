@@ -4,6 +4,7 @@
    Supports multiple agent harness targets via --harness:
    - opencode (default) — .opencode/agents/, .opencode/skills/
    - claude             — .claude/agents/, .claude/skills/
+   - agents             — .agents/skills/spel/ (agent nested under the skill)
 
    Supports test framework flavours via --flavour:
    - lazytest (default) — defdescribe/it/expect from spel.allure, :context fixtures
@@ -51,7 +52,7 @@
    "claude"   {:agent-dir ".claude/agents"
                :skill-dir ".claude/skills/spel"
                :agent-ext ".md"
-               :compatibility "opencode"
+               :compatibility "claude"
                :desc "Claude Code"}
    "agents"   {:agent-dir ".agents/skills/spel/agents"
                :skill-dir ".agents/skills/spel"
