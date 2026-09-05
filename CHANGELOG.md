@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.33] - 2026-09-05
+
+### Changed
+- fix(templates): trim skills and verify generated contracts
+- docs(templates): streamline task-scoped agent guidance
+- feat(cli): promote harness scaffold target
+- refactor(cli): remove in-page automation bridge
+- fix(cli): open existing relative files locally
+- fix(cli): preserve commands after global flags
+
+
 ## [v0.9.32] - 2026-08-21
 
 ### Changed
@@ -1783,7 +1794,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.32...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.33...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1871,3 +1882,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.9.30]: https://github.com/Blockether/spel/releases/tag/v0.9.30
 [v0.9.31]: https://github.com/Blockether/spel/releases/tag/v0.9.31
 [v0.9.32]: https://github.com/Blockether/spel/releases/tag/v0.9.32
+[v0.9.33]: https://github.com/Blockether/spel/releases/tag/v0.9.33
