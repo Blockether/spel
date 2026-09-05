@@ -1,1 +1,0 @@
-2026-08-21T03:03:23.812Z WARN  [spel] the tab spel was driving (t10) was closed outside the daemon — opened a fresh one (t11)
