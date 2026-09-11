@@ -1,0 +1,44 @@
+# Vis Spel extension and marketplace
+
+Publish a tested browser automation package from the Spel repository.
+
+## Context
+
+The Python package belongs in `extensions/vis-spel`, not Vis. Existing CLI owns
+browser behavior. Review of 250 matching Vis sessions found repeated named-session,
+snapshot, JavaScript, screenshot, CDP, timeout and stale-reference workflows.
+Do not restore the removed browser bridge or duplicate Playwright in Python.
+The marketplace lives in Vis `apps/vis-docs`. Coordinate with concurrent docs work
+and preserve its separately committed UI and repository-validation changes.
+
+## Phases
+
+1. Package and session lifecycle
+   - Rationale: isolate concurrent callers and remove shell quoting from browser work.
+   - Data: Spel CLI JSON, official release assets and SDK package contracts.
+   - Acceptance criteria: explicit verified install; persistent exclusive leases;
+     isolated browser/CDP operations; typed results and explicit Activities.
+   - Unknowns: user clarification of “connect with code” (pairing vs SCI).
+2. Verification
+   - Rationale: unit results alone do not prove trusted-worker/browser compatibility.
+   - Data: pytest, real native CLI, extension registration and tool execution.
+   - Acceptance criteria: package tests, lint/format, make lint/test and green CI.
+   - Unknowns: native test prerequisites and external CI availability.
+3. Marketplace and publication
+   - Rationale: users need package details and feedback on the listing.
+   - Data: Vis Worker, D1, catalog UI and existing moderation workflow.
+   - Acceptance criteria: README, descriptions, comments, package/comment votes;
+     tested UI/API; source pushed to GitHub and reviewed listing published.
+   - Unknowns: marketplace moderation/deployment authentication.
+
+## Plan state
+
+- Research complete: 250 relevant historical sessions reviewed.
+- Package implemented: 14 explicit tools, verified installer, persistent reservations,
+  authorized CDP, stdin JavaScript/SCI and bundled browser skill.
+- Verification passed: 55 Python tests including real DOM and external CDP isolation;
+  trusted-worker suite; Python formatting/lint and Clojure reflection/lint; make lint/test.
+- GitHub publication and CI verification next. No native release/version change.
+- Marketplace comments, votes and README work in progress in the Vis repository.
+- Requires Vis >=0.1.64. Until its SDK is published, uv pins reviewed public SDK source.
+- Pairing-code meaning still requires clarification; the removed bridge is not restored.

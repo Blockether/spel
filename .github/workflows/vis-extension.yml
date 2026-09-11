@@ -1,0 +1,41 @@
+name: Vis extension
+
+on:
+  push:
+    branches: [main]
+    paths: ['extensions/vis-spel/**', '.github/workflows/vis-extension.yml']
+  pull_request:
+    paths: ['extensions/vis-spel/**', '.github/workflows/vis-extension.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.14']
+    defaults:
+      run:
+        working-directory: extensions/vis-spel
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run pytest -q
+      - name: Install verified native Spel and browser prerequisites
+        if: matrix.python == '3.14'
+        env:
+          PYTHONPATH: src
+        run: |
+          uv run python -c 'import subprocess; from vis_spel import Spel; installed = Spel().install(browsers=False); subprocess.run([installed.executable, "install", "--with-deps"], check=True)'
+      - name: Verify native DOM and external CDP isolation
+        if: matrix.python == '3.14'
+        env:
+          SPEL_INTEGRATION: '1'
+        run: uv run pytest tests/test_native.py -q

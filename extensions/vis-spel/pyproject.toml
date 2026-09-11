@@ -1,0 +1,35 @@
+[project]
+name = "vis-spel"
+version = "0.1.0"
+description = "Spel browser automation with verified installation, reserved sessions, CDP, JavaScript, snapshots and screenshots."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["vis-agent>=0.1.64"]
+
+[project.urls]
+Repository = "https://github.com/Blockether/spel"
+Issues = "https://github.com/Blockether/spel/issues"
+
+[tool.vis]
+category = "tools"
+source_paths = ["src"]
+skills = ["skills/browser"]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10", "ruff>=0.12,<1"]
+
+# The required Activity API is in this reviewed SDK source, not PyPI 0.1.62.
+[tool.uv.sources]
+vis-agent = { git = "https://github.com/Blockether/vis", rev = "6bb7321b41b34528838f4f4e0e5c2d6cc7e4566b", subdirectory = "packages/vis-agent" }
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = ["integration: uses the installed native Spel and a real browser"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
