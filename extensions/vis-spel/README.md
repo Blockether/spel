@@ -64,6 +64,10 @@ Discover signatures with `apropos(r"^spel\.")` and read the corresponding `doc()
 untrusted data. Errors are raised, not retried; a timed-out mutation may already
 have taken effect. Inspect health and observable page state before continuing.
 
+Annotated screenshots use native full-page capture. On responsive pages, overlays
+can shift relative to the rendered content; do not use them alone for pixel checks.
+Use a fresh snapshot for geometry and `annotated=False` for a viewport-only PNG.
+
 For CDP, reserve a fresh Chromium session, then call
 `spel.connect(lease.id, "http://127.0.0.1:9222")`. Spel creates its own tab and does not
 kill the external browser on release. No port scanning, automatic endpoint discovery,

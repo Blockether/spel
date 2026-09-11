@@ -38,11 +38,14 @@ and preserve its separately committed UI and repository-validation changes.
   authorized CDP, stdin JavaScript/SCI and bundled browser skill.
 - Verification passed: 55 Python tests including real DOM and external CDP isolation;
   trusted-worker suite; Python formatting/lint and Clojure reflection/lint; make lint/test.
-- GitHub sources pushed at a7581985975100fcc3b6521aec683c7171c465a0; extension CI
-  and full Linux/macOS/Windows native CI passed. No native release/version change.
+- Package 0.1.0 published as GitHub Release `vis-spel/v0.1.0` at
+  f0f8d51cb65b51475251d095f845945a9cdf66d4. Extension CI and full
+  Linux/macOS/Windows native CI passed before the tag. No native version change.
 - Marketplace README, descriptions, moderated comments and package/comment votes
   implemented and deployed in Vis fe7497c34; 117 tests and lint/build checks passed.
 - Uses the released PyPI SDK 0.1.64, with the same 55 Python/native tests passing.
-- Package GitHub release preparation is in progress. Public listing is blocked by
-  interactive anti-spam verification and missing Cloudflare moderation authorization.
+- Public listing remains blocked by interactive anti-spam verification and missing
+  Cloudflare moderation authorization; no submission was accepted or approved.
+- Desktop and touch layouts checked. Native full-page annotation overlays shifted
+  on the responsive page; documented the unannotated viewport alternative.
 - Pairing-code meaning still requires clarification; the removed bridge is not restored.
