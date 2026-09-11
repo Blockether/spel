@@ -35,12 +35,12 @@ installer or a redundant switching API. Simplify the extension README.
 4. Publication verification and correction
    - Rationale: a GitHub release must also have working install instructions and
      an approved catalog version; native notes must not compare extension tags.
-   - Data: the 0.1.2 README command fails SHA validation; the catalog still selects
-     0.1.1; both native changelog selectors choose an extension tag in a mixed-tag repository.
+   - Data: the initial follow-up found a README command that failed SHA validation,
+     a catalog still selecting 0.1.1 and native changelog selectors choosing extension tags.
    - Acceptance criteria: regression tests fail before correction and pass after;
      publish immutable extension 0.1.3 from green CI; approve it through the maintained
      catalog workflow; verify published install, update and rollback in a temporary directory.
-   - Unknowns: catalog publication and end-to-end checks remain.
+   - Unknowns: resolved; publication, catalog approval and package lifecycle checks passed.
 
 ## Plan state
 
@@ -65,7 +65,21 @@ installer or a redundant switching API. Simplify the extension README.
   v0.9.33...v0.9.34; the four native artifacts do not need replacement.
 - Follow-up local gates passed: make lint, make test (2,923 Clojure cases and the
   native CLI suite), 82 Python unit tests, workflow regression tests, Python formatting/lint,
-  Clojure formatting/reflection/lint, actionlint and diff checks. The opt-in publication
-  test currently rejects 0.1.3 because catalog approval has not happened yet.
-- Remaining: exact-commit CI, extension 0.1.3 publication and catalog approval,
-  then the published package lifecycle check. Keep native v0.9.34 as GitHub's latest release.
+  Clojure formatting/reflection/lint, actionlint and diff checks.
+- Extension [0.1.3](https://github.com/Blockether/spel/releases/tag/vis-spel/v0.1.3)
+  published from 1f24b0a1f008250d9b8f6ef2869687a5980f7640. Exact-commit native CI
+  34639703963 passed on Linux, macOS and Windows; extension CI 34639703954 passed
+  on Python 3.11 and 3.14, including the native browser checks.
+- Catalog publication workflow 34644569927 passed. The public API and
+  `vis-agent extension versions` both select approved 0.1.3 at that exact SHA,
+  and the catalog serves the corrected README. The 0.1.2 release notes direct
+  new installations to the corrected, approved 0.1.3 release.
+- The retained opt-in publication test passed against the public catalog:
+  install 0.1.3, roll back to 0.1.1 and update to 0.1.3 in a temporary directory.
+  The test checks the selected revision and actual installed package metadata.
+  No global extension installation or browser reservation was changed.
+- Native v0.9.34 remains GitHub's latest release; Clojars reports 0.9.34 as its
+  latest release and all four native assets have digests. Allure Report 34644422043
+  and Pages deployment 34644680876 passed.
+- Complete: native binaries, library and catalog-approved extension are published
+  and verified. No release tags or artifacts were replaced.
