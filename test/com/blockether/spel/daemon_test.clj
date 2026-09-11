@@ -2983,6 +2983,43 @@
                  (mapv first))]
       (expect (= {:threw-npe []} {:threw-npe npes})))))
 
+;; Regression, issue #136: a lost browser caused evaluate to run again against
+;; fresh state, and health presented cached observations as a live browser check.
+(defdescribe browser-state-loss-test
+  "Browser recovery never silently repeats a command against replacement state."
+  (it "marks the health browser fields as cached without calling the driver"
+    (with-redefs-fn {#'sut/drain-driver-events! (fn [] (throw (ex-info "must not probe" {})))}
+      (fn []
+        (expect (= "cached" (get-in (#'sut/dispatch-with-recovery "health" {})
+                              [:browser :state_source]))))))
+  (it "does not repeat a command that met a browser disconnect"
+    (let [state (var-get #'sut/!state)
+          before @state
+          calls (atom 0)
+          connected (atom true)]
+      (try
+        (reset! state {:browser :old})
+        (with-redefs-fn
+          {#'sut/drain-driver-events! (fn [] nil)
+           #'sut/browser-connected? (fn [] @connected)
+           #'sut/current-url-quietly (constantly "http://127.0.0.1/test-page")
+           #'sut/ensure-live-browser! (constantly :dead)
+           #'sut/drop-browser-handles! (fn [] (swap! state dissoc :browser) :dead)
+           #'sut/ensure-browser! (fn [] (reset! connected true) (swap! state assoc :browser :new))
+           #'sut/restore-page! (fn [_] nil)
+           #'sut/dispatch-cmd (fn [_ _]
+                                (if (= 1 (swap! calls inc))
+                                  (do (reset! connected false)
+                                    (throw (ex-info "Target page, context or browser has been closed" {})))
+                                  {:result :silently-replayed}))}
+          (fn []
+            (let [result (try (#'sut/dispatch-with-recovery "evaluate" {})
+                           (catch clojure.lang.ExceptionInfo e (ex-data e)))]
+              (expect (= :browser_state_lost (:error_code result)))
+              (expect (= 1 @calls))
+              (expect (:browser-state-lost @state)))))
+        (finally (reset! state before))))))
+
 ;; Regression, user report: `spel snapshot -a` printed frame-prefixed refs
 ;; (@f1_e5l65o) that no command would take — the ref classifier matched only
 ;; @e…, so the ref reached the CSS engine as a selector and the command died

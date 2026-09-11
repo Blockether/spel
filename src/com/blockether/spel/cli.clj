@@ -19,6 +19,7 @@
    [clojure.string :as str]
    [com.blockether.spel.config :as spel-config]
    [com.blockether.spel.daemon :as daemon]
+   [com.blockether.spel.driver :as driver]
    [com.blockether.spel.logging :as log]
    [com.blockether.spel.security :as security])
   (:import
@@ -3641,6 +3642,10 @@
                   (:page_url browser)        "connected, page open"
                   (:page_open browser)       "connected, blank page — no URL loaded yet"
                   :else                      "connected, no page"))])
+           (when (= "cached" (:state_source browser))
+             ["  browser state: last observed by Playwright; not a live probe"])
+           (when (:state_lost browser)
+             ["  state lost: browser replaced; in-page state and references were not restored"])
            (when-not (= "down" status)
              [(str "  in flight: "
                 (if (seq in_flight)
@@ -3802,6 +3807,15 @@
   (contains? #{"java" "java.exe" "javaw.exe"}
     (str/lower-case (.getName (java.io.File. exec-path)))))
 
+(def ^:private daemon-detach-script
+  "Uses Playwright's existing Node runtime to call setsid on POSIX without a
+   platform-specific utility or an additional runtime dependency. No shell eval."
+  (str "const {spawn} = require('node:child_process');"
+    "const child = spawn(process.argv[1], process.argv.slice(2),"
+    " {detached: true, stdio: ['ignore', 'inherit', 'inherit']});"
+    "child.once('error', e => { console.error(e.message); process.exitCode = 1; });"
+    "child.unref();"))
+
 (defn daemon-launch-command
   "Command vector that spawns a daemon subprocess for `args`.
 
@@ -3812,10 +3826,11 @@
    Only a JVM run - where the current executable is the `java` launcher -
    relaunches through the classpath.
 
-   POSIX launches run through `nohup`, which execs the command with SIGHUP
-   ignored. The daemon then survives the terminal that issued the first command.
+   POSIX launches use `node-path` from the existing Playwright driver to start
+   the daemon in a new process session. nohup alone leaves descendants exposed
+   to launcher PTY hangup when they reset signal handlers (issue #136).
    Windows launches directly because it has no POSIX terminal hangup."
-  [{:keys [native? exec-path classpath os-name]} args]
+  [{:keys [native? exec-path classpath os-name node-path]} args]
   (let [command (if (and exec-path (or native? (not (java-launcher? exec-path))))
                   (into [exec-path] args)
                   (into ["java" "-cp" classpath
@@ -3823,7 +3838,10 @@
                     args))]
     (if (str/starts-with? (str/lower-case (or os-name "")) "windows")
       command
-      (into ["nohup"] command))))
+      (do
+        (when-not (seq node-path)
+          (throw (ex-info "POSIX daemon launch requires the Playwright Node runtime" {})))
+        (into [node-path "-e" daemon-detach-script "--"] command)))))
 
 (defn- start-daemon-process!
   "Starts a new daemon subprocess and waits until its socket is connectable.
@@ -3832,6 +3850,10 @@
   (let [info      (.info (java.lang.ProcessHandle/current))
         exec-path (when (.isPresent (.command info))
                     (.get (.command info)))
+        os-name   (System/getProperty "os.name" "")
+        node-path (when-not (str/starts-with? (str/lower-case os-name) "windows")
+                    (driver/ensure-driver!)
+                    (.getPath (io/file (System/getProperty "playwright.cli.dir") "node")))
         args      (cond-> ["daemon" "--session" session]
                     (not (:headless opts true))
                     (conj "--headed")
@@ -3846,7 +3868,8 @@
                       {:native?   (native-image?)
                        :exec-path exec-path
                        :classpath (System/getProperty "java.class.path")
-                       :os-name   (System/getProperty "os.name" "")}
+                       :os-name   os-name
+                       :node-path node-path}
                       args))]
     (.redirectOutput pb
       (ProcessBuilder$Redirect/appendTo

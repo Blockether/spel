@@ -3063,46 +3063,33 @@
 ;; with "Could not find or load main class clojure.main".
 ;; =============================================================================
 
+;; Regression, issues #133 and #136: nohup kept the daemon alive but not its
+;; browser/driver after a shell-chain PTY exited. Detach the whole daemon tree.
 (defdescribe daemon-launch-command-test
   "How the CLI relaunches itself as a daemon."
-
-  (describe "native image"
-    ;; Regression, issue #133: an auto-started POSIX daemon inherited SIGHUP
-    ;; from the launcher PTY and exited as soon as that terminal closed.
-    (it "protects a renamed POSIX binary from terminal hangup"
-      (expect (= ["nohup" "/opt/bin/spel-macos-arm64" "daemon" "--session" "s1"]
-                (sut/daemon-launch-command
-                  {:native?   true
-                   :exec-path "/opt/bin/spel-macos-arm64"
-                   :classpath ""
-                   :os-name   "Mac OS X"}
-                  ["daemon" "--session" "s1"]))))
-
-    (it "protects a binary named spel too"
-      (expect (= ["nohup" "/usr/local/bin/spel" "daemon"]
-                (sut/daemon-launch-command
-                  {:native? true :exec-path "/usr/local/bin/spel" :classpath "" :os-name "Linux"}
-                  ["daemon"]))))
-
-    (it "re-execs spel.exe directly on Windows"
-      (expect (= ["C:\\tools\\spel-windows-x64.exe" "daemon"]
-                (sut/daemon-launch-command
-                  {:native?   true
-                   :exec-path "C:\\tools\\spel-windows-x64.exe"
-                   :classpath ""
-                   :os-name   "Windows 11"}
-                  ["daemon"])))))
-
-  (describe "jvm"
-    (it "protects the classpath relaunch from terminal hangup"
-      (expect (= ["nohup" "java" "-cp" "/cp/spel.jar" "clojure.main"
-                  "-m" "com.blockether.spel.native" "daemon"]
-                (sut/daemon-launch-command
-                  {:native?   false
-                   :exec-path "/usr/bin/java"
-                   :classpath "/cp/spel.jar"
-                   :os-name   "Linux"}
-                  ["daemon"]))))))
+  (it "detaches POSIX native and JVM launches using the existing driver runtime"
+    (doseq [[os native? executable classpath expected]
+            [["Mac OS X" true "/opt/bin/spel-macos-arm64" ""
+              ["/opt/bin/spel-macos-arm64" "daemon" "--session" "s1"]]
+             ["Linux" true "/path with spaces/spel" ""
+              ["/path with spaces/spel" "daemon" "--session" "s1"]]
+             ["Linux" false "/usr/bin/java" "/cp/spel.jar"
+              ["java" "-cp" "/cp/spel.jar" "clojure.main"
+               "-m" "com.blockether.spel.native" "daemon" "--session" "s1"]]]]
+      (let [command (sut/daemon-launch-command
+                      {:native? native? :exec-path executable :classpath classpath
+                       :os-name os :node-path "/driver path/node"}
+                      ["daemon" "--session" "s1"])]
+        (expect (= ["/driver path/node" "-e"] (subvec command 0 2)))
+        (expect (str/includes? (nth command 2) "detached: true"))
+        (expect (= "--" (nth command 3)))
+        (expect (= expected (subvec command 4))))))
+  (it "re-execs spel.exe directly on Windows without needing Node for detachment"
+    (expect (= ["C:/tools/spel-windows-x64.exe" "daemon"]
+              (sut/daemon-launch-command
+                {:native? true :exec-path "C:/tools/spel-windows-x64.exe"
+                 :classpath "" :os-name "Windows 11"}
+                ["daemon"])))))
 
 ;; =============================================================================
 ;; Native dispatch — CLI-owned flags must not hide the command

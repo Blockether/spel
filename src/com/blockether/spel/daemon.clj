@@ -5704,6 +5704,7 @@
     {:status         (cond
                        ios-error                       "degraded"
                        (and launched? (not connected)) "degraded"
+                       (:browser-state-lost @!state)    "degraded"
                        ;; Instrumentation that throws on every event is the
                        ;; failure that looks like success: commands still
                        ;; answer, console capture is empty, and the caller
@@ -5729,6 +5730,8 @@
      :commands_total @!commands-total
      :idle_ms        (when last-at (- now (long last-at)))
      :browser        {:launched  launched?
+                      :state_source "cached"
+                      :state_lost (boolean (:browser-state-lost @!state))
                       :connected connected
                       :page_open (boolean (page-open?))
                       :page_crashed crashed?
@@ -6353,30 +6356,29 @@
       (throw (ex-info (page-crash-message action url-before)
                {:error_code :page_crashed})))))
 
-(defn- relaunch-and-retry!
-  "Throws away the dead handles, brings a browser back on the page that was
-   open, and runs `attempt` once more.
-
-   Params:
-   `action`     - String action name.
-   `url-before` - URL the session was on, or nil.
-   `attempt`    - Thunk answering {:ok _} or {:threw _}.
-
-   Returns:
-   The retried result, or throws what the retry threw."
+(defn- recover-lost-browser!
+  "Replaces a dead browser, records the state loss, and retries only navigation.
+   Other commands must not be silently repeated against a different DOM/session."
   [action url-before attempt]
-  (log/warn! "browser died during '" action "' — relaunching it and retrying once")
+  (log/warn! "browser state lost during '" action "' — replacing browser; "
+    "only an explicit navigation can be retried")
+  (swap! !state assoc :browser-state-lost true)
   (drop-browser-handles!)
   (ensure-browser!)
-  (when-not (= "navigate" action)
-    (restore-page! url-before))
-  (let [{:keys [ok threw]} (attempt)]
-    (if threw (throw threw) ok)))
+  (if (= "navigate" action)
+    (let [{:keys [ok threw]} (attempt)]
+      (if threw (throw threw) ok))
+    (do
+      (restore-page! url-before)
+      (throw (ex-info
+               (str "Browser state was lost during '" action "'. The browser was replaced, "
+                 "but in-page state and references were not restored. The command was not retried. "
+                 "Re-establish the required page state and take a fresh snapshot before continuing.")
+               {:error_code :browser_state_lost})))))
 
 (defn- dispatch-with-recovery
-  "Runs a command, and when it failed ONLY because the browser died outside the
-   daemon, relaunches the browser, re-opens the page that was open, and runs the
-   command once more.
+  "Runs a command and recovers a dead browser without silently repeating work.
+   Only explicit navigation is safe to retry; other callers receive state loss.
 
    `isConnected` lags the real disconnect, so the failed call is the first
    reliable signal. Without this recovery, quitting the browser left every later
@@ -6392,11 +6394,17 @@
     (drain-driver-events!))
   (let [attempt      (fn run-command []
                        (try {:ok (dispatch-cmd action params)}
-                            (catch Throwable e {:threw e})))
+                         (catch Throwable e {:threw e})))
         url-before   (current-url-quietly)
         recoverable? (not (contains? no-recovery-actions action))]
-    (if (and recoverable? (page-crashed? (:page @!state)))
+    (cond
+      (and recoverable? (:browser @!state) (not (browser-connected?)))
+      (recover-lost-browser! action url-before attempt)
+
+      (and recoverable? (page-crashed? (:page @!state)))
       (replace-crashed-page! action url-before attempt)
+
+      :else
       (let [{:keys [ok threw]} (attempt)
             anomaly (when (anomaly/anomaly? ok) ok)
             msg     (cond
@@ -6430,9 +6438,9 @@
                 (cond
                   (nil? threw) ok
                   (browser-gone-message? (throwable-chain-message threw))
-                  (relaunch-and-retry! action url-before attempt)
+                  (recover-lost-browser! action url-before attempt)
                   :else (throw threw)))
-              (relaunch-and-retry! action url-before attempt)))
+              (recover-lost-browser! action url-before attempt)))
 
           :else (if threw (throw threw) ok))))))
 

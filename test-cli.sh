@@ -2586,6 +2586,14 @@ else
   fail "native navigation stability" "see focused test diagnostics above"
 fi
 
+# Regression, issue #136: PTY exit lost browser state while the daemon survived.
+section "Native session lifecycle (issue #136)"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if SPEL="$SPEL" python3 "$(dirname "$0")/cli-tests/session_lifecycle_test.py"; then
+  pass "native session lifecycle"
+else
+  fail "native session lifecycle" "see focused test diagnostics above"
+fi
 # =============================================================================
 # SUMMARY
 # =============================================================================
