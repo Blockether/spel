@@ -1,4 +1,4 @@
-# Spel 0.9.34 and vis-spel 0.1.2
+# Spel 0.9.34 and vis-spel 0.1.3
 
 Publish the native release and add release discovery to the Vis extension.
 
@@ -31,7 +31,16 @@ installer or a redundant switching API. Simplify the extension README.
    - Data: scoped diff, extension version/lock, same-commit CI.
    - Acceptance criteria: verified changes pushed; green CI; vis-spel/v0.1.2
      published without marking it as the latest native release.
-   - Unknowns: release and CI completion.
+   - Unknowns: resolved; 0.1.2 was published after both CI workflows passed.
+4. Publication verification and correction
+   - Rationale: a GitHub release must also have working install instructions and
+     an approved catalog version; native notes must not compare extension tags.
+   - Data: the 0.1.2 README command fails SHA validation; the catalog still selects
+     0.1.1; both native changelog selectors choose an extension tag in a mixed-tag repository.
+   - Acceptance criteria: regression tests fail before correction and pass after;
+     publish immutable extension 0.1.3 from green CI; approve it through the maintained
+     catalog workflow; verify published install, update and rollback in a temporary directory.
+   - Unknowns: catalog publication and end-to-end checks remain.
 
 ## Plan state
 
@@ -47,8 +56,16 @@ installer or a redundant switching API. Simplify the extension README.
   80 Python unit tests, three native browser tests (including an actual
   0.9.33 → 0.9.34 → 0.9.33 switch with live sessions), two trusted-worker tests,
   Python formatting/lint, Clojure formatting/reflection/lint and README links/examples.
-- Extension publication target: [vis-spel/v0.1.2](https://github.com/Blockether/spel/releases/tag/vis-spel/v0.1.2).
-  Publish only after this change's CI is green; keep it separate from native latest.
-- The native release workflow mixed extension tags into its generated compare
-  link. Published native notes now compare v0.9.33...v0.9.34. The workflow's tag
-  selector remains a separately reported follow-up; it did not affect artifacts.
+- Extension [0.1.2](https://github.com/Blockether/spel/releases/tag/vis-spel/v0.1.2)
+  published from 8b74535e7cbb29b4e41b79ccd75d109b06e8ca11 after native and extension CI passed.
+- Follow-up regression tests reproduced the invalid README selector and both mixed-tag
+  changelog selectors. The README now uses the approved-version path for 0.1.3;
+  native changelog generation filters native tags, and the 0.9.34 section includes
+  the commits omitted by the former selector. Published native notes already compare
+  v0.9.33...v0.9.34; the four native artifacts do not need replacement.
+- Follow-up local gates passed: make lint, make test (2,923 Clojure cases and the
+  native CLI suite), 82 Python unit tests, workflow regression tests, Python formatting/lint,
+  Clojure formatting/reflection/lint, actionlint and diff checks. The opt-in publication
+  test currently rejects 0.1.3 because catalog approval has not happened yet.
+- Remaining: exact-commit CI, extension 0.1.3 publication and catalog approval,
+  then the published package lifecycle check. Keep native v0.9.34 as GitHub's latest release.

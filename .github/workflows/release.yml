@@ -179,15 +179,15 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          PREV_TAG=$(git tag --sort=-v:refname | head -n 2 | tail -n 1)
+          PREV_TAG=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 2 | tail -n 1)
           CURRENT_TAG=${{ github.ref_name }}
 
           # The release job commits the version bump AFTER the tag, so that commit
           # belongs to no release - keep it out of every generated list.
           if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --invert-grep --grep='^release:' $CURRENT_TAG)
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --invert-grep --grep='^release:' "$CURRENT_TAG")
           else
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --invert-grep --grep='^release:' ${PREV_TAG}..${CURRENT_TAG})
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --invert-grep --grep='^release:' "${PREV_TAG}..${CURRENT_TAG}")
           fi
 
           {
@@ -272,14 +272,14 @@ jobs:
 
       - name: Update CHANGELOG.md
         run: |
-          PREV_TAG=$(git tag --sort=-v:refname | head -n 2 | tail -n 1)
+          PREV_TAG=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 2 | tail -n 1)
           CURRENT_TAG=${{ github.ref_name }}
           DATE=$(date +%Y-%m-%d)
 
           if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" --invert-grep --grep='^release:' $CURRENT_TAG)
+            COMMITS=$(git log --pretty=format:"- %s" --invert-grep --grep='^release:' "$CURRENT_TAG")
           else
-            COMMITS=$(git log --pretty=format:"- %s" --invert-grep --grep='^release:' ${PREV_TAG}..${CURRENT_TAG})
+            COMMITS=$(git log --pretty=format:"- %s" --invert-grep --grep='^release:' "${PREV_TAG}..${CURRENT_TAG}")
           fi
 
           UNRELEASED_LINE=$(grep -n '^## \[Unreleased\]' CHANGELOG.md | head -1 | cut -d: -f1)
@@ -322,7 +322,9 @@ jobs:
           git config user.name "blockether-deployer"
           git config user.email "contact@blockether.com"
           git add README.md CHANGELOG.md resources/SPEL_VERSION
-          git diff --cached --quiet && echo "No changes to commit" || {
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
             git commit -m "release: update version files for ${{ github.ref_name }}, bump to next dev version"
             git push origin main
-          }
+          fi

@@ -11,8 +11,12 @@
    mapping, which is a key/value map rather than a script."
   (:require
    [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
    [clojure.string :as str]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
+   [com.blockether.spel.allure :refer [defdescribe describe expect it]])
+  (:import
+   [java.nio.file Files]
+   [java.nio.file.attribute FileAttribute]))
 
 (def ^:private workflow-dir
   (io/file ".github" "workflows"))
@@ -61,3 +65,35 @@
                           (when-let [ls (seq (folded-run-lines f))]
                             [(.getName ^java.io.File f) (vec ls)])))
                   (workflow-files)))))))
+
+;; Native and extension releases share this repository. Extension tags must not
+;; truncate the native release notes or the committed changelog.
+(defdescribe native-release-tag-selection-test
+  "Native release changelogs compare native tags only"
+
+  (it "ignores extension tags in both changelog steps"
+    (let [selectors (re-seq #"PREV_TAG=\$\(([^\n]+)\)"
+                      (slurp (io/file workflow-dir "release.yml")))
+          dir (.toFile (Files/createTempDirectory "spel-release-tags-"
+                         (into-array FileAttribute [])))
+          run! (fn [& args]
+                 (let [{:keys [exit out err]} (apply shell/sh (concat args [:dir dir]))]
+                   (assert (zero? exit) err)
+                   (str/trim out)))]
+      (try
+        (expect (= 2 (count selectors)))
+        (run! "git" "init" "--quiet")
+        (run! "git" "-c" "user.name=Release test" "-c" "user.email=release@example.com"
+          "-c" "commit.gpgsign=false" "-c" "core.hooksPath=disabled-hooks"
+          "commit" "--quiet" "--allow-empty" "-m" "Release tag fixture")
+        (doseq [tag ["v0.9.33" "v0.9.34"]]
+          (run! "git" "tag" tag))
+        (doseq [[_ command] selectors]
+          (expect (= "v0.9.33" (run! "bash" "-c" command))))
+        (doseq [tag ["vis-spel/v0.1.0" "vis-spel/v0.1.1" "vis-spel/v0.1.2"]]
+          (run! "git" "tag" tag))
+        (doseq [[_ command] selectors]
+          (expect (= "v0.9.33" (run! "bash" "-c" command))))
+        (finally
+          (doseq [file (reverse (file-seq dir))]
+            (io/delete-file file true)))))))

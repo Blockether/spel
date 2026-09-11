@@ -9,7 +9,7 @@ Requires Vis / `vis-agent` **0.1.69+**, Python 3.11+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --revision vis-spel/v0.1.2 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.3 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -18,6 +18,18 @@ install a native binary or start a browser until you ask it to.
 The [Extension Center](https://vis.blockether.com/extensions/869b34e042a90c0bcc326445)
 lists this extension as **blockether/spel**. Its package name is **vis-spel** and its
 release tags are `vis-spel/vVERSION`. Native Spel releases use separate `vVERSION` tags.
+
+To manage the installed extension package:
+
+```sh
+vis-agent extension versions vis-spel
+vis-agent extension update vis-spel --version 0.1.3 --trust
+# To roll back: vis-agent extension rollback vis-spel --version 0.1.1 --trust
+```
+
+These commands use catalog-approved, immutable versions. Run `/reload` after a change.
+For an extension managed by Vis configuration, change its configured `version` instead. The
+commands below select the native Spel binary, independently of the extension package.
 
 ## Choose a Spel version
 

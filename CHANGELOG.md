@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.9.34] - 2026-09-11
 
 ### Changed
+
 - fix(cli): preserve browser state across PTY exit (#136)
 - feat(extension): adopt typed Vis SDK catalogs (vis#203)
 - test(cli): cover #135 native navigation end to end
@@ -17,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(extension): release vis-spel 0.1.1
 - fix(extension): keep the retired browser bridge unavailable
 - docs(extension): record publication and remaining catalog access
+- fix(extension): use published SDK and clarify screenshot bounds
+- chore(extension): merge upstream and ignore Python caches
+- feat(extension): add reserved Spel automation for Vis
 
 
 ## [v0.9.33] - 2026-09-05
