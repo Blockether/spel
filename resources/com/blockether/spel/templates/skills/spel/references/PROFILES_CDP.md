@@ -1,5 +1,7 @@
 # Browser profiles, device emulation, and CDP modes
 
+**Use when:** Choose a launch mode or attach to an authorized existing browser. Ask before disrupting user-owned browsers or using personal profiles.
+
 Use this guide to pick the right browser startup mode for automation.
 
 ## Startup modes
@@ -13,7 +15,7 @@ Use this guide to pick the right browser startup mode for automation.
 
 ## Attaching to a browser the user already has open
 
-A normal desktop Chrome/Edge cannot be attached to. The browser must have been started with a debugging port, so relaunch it once:
+Attachment requires a browser started with remote debugging. Ask before relaunching a user-owned browser; prefer an isolated instance. The following is a manual setup example, not permission to close a running browser.
 
 ```bash
 # macOS example (Edge; Chrome is the same with its own binary path)
@@ -75,7 +77,7 @@ spel --channel chrome --profile "$HOME/.config/google-chrome/Default" open https
 
 Notes:
 - Avoid sharing the same profile across concurrent runs.
-- If a profile is locked, close other browser instances or use a temp profile.
+- If a profile is locked, use an isolated temporary profile; do not close another browser without permission.
 
 ## Storage state
 

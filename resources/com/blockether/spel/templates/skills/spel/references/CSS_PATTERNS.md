@@ -1,5 +1,7 @@
 # CSS patterns for diagrams
 
+**Use when:** Style a requested Spel HTML report or diagram. This reference is not a requirement to restyle the application under test.
+
 **Canonical design system.** All presenter output uses these fonts, colors, and patterns unless the user explicitly asks for a different aesthetic. Reference implementation: `spel-report.html`.
 
 Warm earth tones · Atkinson Hyperlegible / Manrope / IBM Plex Mono · rounded cards with soft shadows · light + dark via `prefers-color-scheme`.

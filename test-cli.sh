@@ -1589,30 +1589,32 @@ else
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^description: "Browser automation' "$CLAUDE_AGENT_FILE" && ! grep -q '^description: "\\"' "$CLAUDE_AGENT_FILE"; then
+if grep -q '^description: "[^"].*"$' "$CLAUDE_AGENT_FILE" && ! grep -q '^description: "\\"' "$CLAUDE_AGENT_FILE"; then
   pass "claude description does not double-quote"
 else
   fail "claude description does not double-quote" "Expected clean quoted description in Claude frontmatter"
 fi
 
-# Agent treats remote browser content as untrusted
+# The agent loads the skill; the skill owns the shared operating contract.
 OC_TMP=$(mktemp -d)
 TEMP_FILES+=("$OC_TMP")
 OUT=$(cd "$OC_TMP" && "$SPEL" init-agents --ns demo-app --harness=opencode --no-tests --force 2>&1)
 
 OC_AGENT_FILE="$OC_TMP/.opencode/agents/spel.md"
+OC_SKILL_FILE="$OC_TMP/.opencode/skills/spel/SKILL.md"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q -- '--content-boundaries.*only when stdout can contain remote' "$OC_AGENT_FILE" && grep -q '<untrusted-content>' "$OC_AGENT_FILE"; then
-  pass "agent bounds and distrusts remote page content"
+if grep -Fq 'Load the `spel` skill before any action.' "$OC_AGENT_FILE" &&
+   grep -q -- '--content-boundaries' "$OC_SKILL_FILE" && grep -q 'untrusted data' "$OC_SKILL_FILE"; then
+  pass "agent loads the skill's remote-content safety contract"
 else
-  fail "agent bounds and distrusts remote page content" "Expected content-boundary and prompt-injection guidance"
+  fail "agent loads the skill's remote-content safety contract" "Expected skill loading and untrusted-content guidance"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if grep -q '^## Finish$' "$OC_AGENT_FILE" && grep -q 'Do not claim success from exit status alone' "$OC_AGENT_FILE"; then
-  pass "agent has evidence-based finish gate"
+if grep -qi 'verify.*observable' "$OC_AGENT_FILE" && grep -q 'command alone does not prove completion' "$OC_SKILL_FILE"; then
+  pass "agent and skill require observable verification"
 else
-  fail "agent has evidence-based finish gate" "Expected verification-focused Finish section"
+  fail "agent and skill require observable verification" "Expected evidence beyond command success"
 fi
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
@@ -2195,10 +2197,11 @@ OUT=$(cd "$SINGLE_TMP" && "$SPEL" init-agents --ns test-app --force 2>&1)
 assert_contains "force creates spel agent" "$OUT" "spel agent"
 
 SINGLE_AGENT_FILE="$SINGLE_TMP/.opencode/agents/spel.md"
-assert_contains "agent mentions session discipline" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "one unique named session"
-assert_contains "agent mentions snapshot" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "snapshot -i"
-assert_contains "agent mentions bug finding" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Bug hunt"
-assert_contains "agent mentions test generation" "$(cat "$SINGLE_AGENT_FILE" 2>/dev/null)" "Test writing"
+SINGLE_SKILL_FILE="$SINGLE_TMP/.opencode/skills/spel/SKILL.md"
+assert_contains "skill owns session discipline" "$(cat "$SINGLE_SKILL_FILE")" "one unique named session"
+assert_contains "skill owns snapshot-first interaction" "$(cat "$SINGLE_SKILL_FILE")" "snapshot -i -c"
+assert_contains "agent covers bug reports" "$(cat "$SINGLE_AGENT_FILE")" "**Bug report:**"
+assert_contains "agent covers regression testing" "$(cat "$SINGLE_AGENT_FILE")" "**Fix/test:**"
 
 section "Helpers (43)"
 

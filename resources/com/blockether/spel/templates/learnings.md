@@ -1,12 +1,6 @@
 # LEARNINGS
 
-Schema for `LEARNINGS.md` created lazily during `--learnings` run.
-
-Purpose:
-- Capture what worked, failed, confused each agent.
-- Preserve exact reproductions for high-level issues.
-- Feed evidence back into template/skill refinement.
-- Produce corrective actions applicable to agents/skills/templates.
+Use only when `--learnings` or an explicit retrospective is requested. Record actionable findings, not a transcript of every step. Omit empty sections and redact secrets or personal data from evidence.
 
 ## High-Level Issues (cross-agent synthesis)
 
@@ -27,9 +21,7 @@ Validated cross-cutting issues only.
 
 ## Agent-Scoped Learnings
 
-Each agent appends to own section.
-Don't overwrite existing sections → append newest.
-Write/update after each completed stage/pipeline, not only at end.
+Append to the relevant agent section without overwriting others. Update when a reusable finding is established or at handoff, not after every routine stage.
 
 ### Agent: <agent-name>
 #### What worked
@@ -46,8 +38,8 @@ Write/update after each completed stage/pipeline, not only at end.
 - Correction proposal (agent/skill/template): <specific edit>
 - Expected effect: <how behavior should improve>
 
-#### Instruction Confusions (quote exact text)
-- Confusing instruction: "<exact quote>"
+#### Instruction Confusions
+- Confusing instruction: <short excerpt or faithful paraphrase, with source>
 - Why confusing: <failure mode>
 - Proposed rewrite: "<replacement instruction>"
 

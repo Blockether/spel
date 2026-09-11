@@ -1,7 +1,9 @@
 <!-- Adapted from visual-explainer (MIT, github.com/nicobailon/visual-explainer) -->
 # External libraries (CDN)
 
-Optional CDN libraries for when pure CSS/HTML isn't enough. Only include what a diagram actually needs.
+**Use when:** Add a chart or diagram library to a requested report when HTML/CSS is insufficient. Offline delivery requires bundled assets.
+
+Optional libraries for diagrams that need more than HTML/CSS. CDN snippets below illustrate integration, not offline packaging: embed the required pinned assets (preserving licenses), or explicitly deliver a network-dependent artifact. Never claim a CDN-dependent report is self-contained.
 
 ## Mermaid.js
 
@@ -183,7 +185,7 @@ Always keep `font-display: swap` and always keep the system fallbacks in the sta
 
 ### Alternative pairings (only on explicit user request)
 
-Rotate — never the same pairing twice in a row.
+Choose an alternative only for an explicit request and keep it consistent across related artifacts.
 
 | Body / Heading | Mono / Label | Feel |
 |----------------|--------------|------|

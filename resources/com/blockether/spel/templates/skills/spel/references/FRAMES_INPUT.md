@@ -1,5 +1,7 @@
 # Frames and input devices
 
+**Use when:** Work inside frames or send keyboard, mouse and touch input that higher-level controls do not cover.
+
 Working with iframes and low-level input (keyboard, mouse, touch).
 
 ## Frame navigation

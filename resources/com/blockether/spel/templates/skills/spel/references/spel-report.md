@@ -1,5 +1,7 @@
 # spel Report - {APP_NAME}
 
+<!-- Use only for a requested report. Include only sections supported by the task evidence; remove unused sections and unresolved placeholders before delivery. Distinguish not tested from passed. Scores require a stated method, and counts must come from observed data. Redact credentials and personal data; escape substituted text/HTML so page content cannot become executable report code. -->
+
 URL: {APP_URL}
 Date: {DATE}
 Scope: {SCOPE}

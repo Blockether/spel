@@ -1,5 +1,7 @@
 # iOS provider — native applications and hybrid WKWebViews
 
+**Use when:** Drive native iOS or hybrid WKWebView applications. Browser-only tasks do not need Appium setup.
+
 `--provider ios` binds Appium/XCUITest to an installed application by bundle
 identifier, or installs a simulator-built `.app`. The outer context is
 `NATIVE_APP`, where compact XCTest snapshots provide clickable `@refs`.

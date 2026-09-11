@@ -1,5 +1,7 @@
 # Network & routing
 
+**Use when:** Inspect or mock traffic for the authorized test. Limit interception to owned pages and avoid exposing credentials in captures.
+
 Intercept, modify, inspect HTTP req/res. Handle WebSocket connections.
 
 ## Route handlers

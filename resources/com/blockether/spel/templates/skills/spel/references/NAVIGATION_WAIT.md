@@ -1,5 +1,7 @@
 # Page navigation + wait patterns
 
+**Use when:** Choose navigation and readiness waits for the observed application state, especially SPA transitions and streaming pages.
+
 Go to pages, wait for things. `eval-sci` (implicit page) + library (explicit `pg`).
 
 ## Navigation
@@ -40,13 +42,13 @@ Go to pages, wait for things. `eval-sci` (implicit page) + library (explicit `pg
 
 Playwright is event-driven. Don't guess — wait for the event.
 
-Pick the most specific wait available; work down only when the previous doesn't fit:
+Choose a signal that proves the next step is safe, not a fixed hierarchy of waits:
 
-1. `wait-for-load-state` (page-level readiness)
-2. `wait-for-selector` (DOM-level)
-3. `wait-for-url` (SPA route change)
-4. `wait-for-function` (custom JS condition)
-5. `spel/wait-for-timeout` — last resort, fragile
+- `wait-for-selector`: the required content/control is available.
+- `wait-for-url`: the expected route has changed.
+- `wait-for-function`: an application-specific state is observable.
+- `wait-for-load-state`: a document lifecycle event is actually the requirement.
+- Fixed delays do not prove readiness.
 
 ### `wait-for-load-state`
 
@@ -60,7 +62,7 @@ Pick the most specific wait available; work down only when the previous doesn't 
 (page/wait-for-load-state pg :networkidle)
 ```
 
-States: `:load` fires after images + stylesheets + iframes finish. `:domcontentloaded` fires once HTML is parsed + deferred scripts run (images may still load). `:networkidle` waits until no requests for 500 ms — go-to for SPAs. `:commit` is only a `navigate` option, not a `wait-for-load-state` target.
+States: `:load` includes dependent resources; `:domcontentloaded` covers parsed HTML and deferred scripts. `:networkidle` requires 500 ms without requests, which is often unsuitable for SPAs with polling or streaming. Prefer a visible content or application-state signal. `:commit` is a navigation option, not a `wait-for-load-state` target.
 
 ### `wait-for-selector`
 
@@ -168,7 +170,7 @@ Decision order after interactions on heavy pages:
 
 ### Click timeouts on SPAs
 
-Usually a wait-strategy problem, not the click. **Never skip the click and navigate directly** — simulate real user actions.
+A stalled click needs diagnosis of actionability, navigation waits and session health. Do not replace a click with direct navigation when that interaction is the behavior under test.
 
 ```clojure
 ;; WRONG — bypasses the user journey

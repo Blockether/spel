@@ -1,102 +1,29 @@
-## Testing conventions
+# Testing conventions: Lazytest
 
-- Framework: `spel.allure` (`defdescribe`, `describe`, `it`, `expect`). NOT `lazytest.core`.
-- Page setup: `core/with-testing-page` → wraps playwright + browser + context + page in one macro.
-- API testing: `core/with-testing-api` → same for API req contexts.
-- Assertions: exact string matching. NEVER substring unless explicitly `contains-text`.
-- Require `[com.blockether.spel.roles :as role]` for role-based locators (`role/button`, `role/heading`). All roles work in `eval-sci` via `role/` namespace. See Enums table in SCI Eval API Reference below.
-- Integration tests: live against `example.org`
+**Use when:** Writing JVM tests with the selected Lazytest flavour, not running SCI scripts.
 
-### Running tests (Lazytest CLI)
+Check the project's `:test` alias in `deps.edn` before using these commands. Run the changed test first, then the relevant suite; inspect failure counts as well as exit status.
 
 ```bash
-# Run entire test suite
+clojure -M:test -n {{ns}}.e2e.seed-test
 clojure -M:test
-
-# Run a single namespace
-clojure -M:test -n com.blockether.spel.core-test
-
-# Run multiple namespaces
-clojure -M:test -n com.blockether.spel.core-test -n com.blockether.spel.page-test
-
-# Run a single test var (MUST be fully-qualified ns/var)
-clojure -M:test -v com.blockether.spel.integration-test/proxy-integration-test
-
-# Run multiple vars
-clojure -M:test -v com.blockether.spel.options-test/launch-options-test \
-                -v com.blockether.spel.options-test/context-options-test
-
-# Run with metadata filter (include/exclude)
-clojure -M:test -i :smoke          # only tests tagged ^:smoke
-clojure -M:test -e :slow           # exclude tests tagged ^:slow
-
-# Run with Allure reporter
+# Optional Allure output: Lazytest flags, not Cognitect flags.
 clojure -M:test --output nested --output com.blockether.spel.allure-reporter/allure
-
-# Watch mode (re-runs on file changes)
-clojure -M:test --watch
-
-# Run tests from a specific directory
-clojure -M:test -d test/com/blockether/spel
 ```
 
-NOTE: `-v`/`--var` needs fully-qualified symbols (`namespace/var-name`), not bare var names. Bare name → `IllegalArgumentException: no conversion to symbol`.
+Use stable role/label/test-id locators, not snapshot refs in persisted tests. Assert the observable requirement; use exact text unless a substring match is intentional. Replace the smoke-test URL with the requested application or a deterministic fixture.
 
-### with-testing-page
-
-Creates full Playwright stack (playwright, browser, context, page), binds page, runs body, tears down. Tracing + HAR enabled when Allure active.
+`core/with-testing-page` owns setup/teardown; its optional first map sets device, viewport, locale or `:storage-state`. `core/with-testing-api` owns a separate stack: do not nest them to share cookies. See `references/API_TESTING.md` for page-bound requests and `references/ALLURE_REPORTING.md` only when reports are needed.
 
 ```clojure
-;; Basic usage
-(core/with-testing-page [page]
-  (page/navigate page "https://example.org")
-  (expect (= "Example Domain" (page/title page))))
+(ns {{ns}}.e2e.seed-test
+  (:require [com.blockether.spel.allure :refer [defdescribe it expect]]
+            [com.blockether.spel.core :as core]
+            [com.blockether.spel.page :as page]))
 
-;; With options (device, viewport, locale, etc.)
-(core/with-testing-page {:device :iphone-14} [page]
-  (page/navigate page "https://example.org")
-  (expect (= "fr-FR" (page/evaluate page "navigator.language"))))
-
-;; Desktop HD viewport with locale
-(core/with-testing-page {:viewport :desktop-hd :locale "fr-FR"} [page]
-  (page/navigate page "https://example.org"))
-
-;; Firefox with visible browser
-(core/with-testing-page {:browser-type :firefox :headless false} [page]
-  (page/navigate page "https://example.org"))
-
-;; Load saved auth state
-(core/with-testing-page {:storage-state "auth.json"} [page]
-  (page/navigate page "https://app.example.org/dashboard"))
-```
-
-### with-testing-api
-
-Creates playwright, browser, context, API req context. Tracing on by default.
-
-```clojure
-(core/with-testing-api {:base-url "https://api.example.org"} [ctx]
-  (api/get ctx "/users"))
-```
-
-### Test example
-
-```clojure
-(ns my-app.test
-  (:require
-   [com.blockether.spel.assertions :as assert]
-   [com.blockether.spel.core :as core]
-   [com.blockether.spel.locator :as locator]
-   [com.blockether.spel.page :as page]
-   [com.blockether.spel.roles :as role]
-   [com.blockether.spel.allure :refer [defdescribe describe expect it]]))
-
-(defdescribe my-test
-  (describe "example.org"
-
-    (it "navigates and asserts"
-      (core/with-testing-page [page]
-        (page/navigate page "https://example.org")
-        (expect (= "Example Domain" (page/title page)))
-        (expect (nil? (assert/has-text (assert/assert-that (page/locator page "h1")) "Example Domain")))))))
+(defdescribe seed-test
+  (it "loads the application"
+    (core/with-testing-page [page]
+      (page/navigate page "https://example.com")
+      (expect (= "Example Domain" (page/title page))))))
 ```
