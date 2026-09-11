@@ -1,6 +1,13 @@
-# Spel for Vis
+# blockether/spel
 
 Browser automation through the native [Spel CLI](https://github.com/Blockether/spel).
+The Extension Center name is **`blockether/spel`**, owned by the
+[Blockether GitHub organization](https://github.com/Blockether). The catalog reads
+this identity from the public repository, not from a submitter or package author.
+The Python distribution and installed extension identifier remain `vis-spel`;
+release tags remain `vis-spel/vVERSION`. Use that package identifier with
+`vis-agent extension versions`, `update` and `rollback`.
+
 The package, implementation, tests and optional skill all live in this directory.
 
 ## Install the extension
