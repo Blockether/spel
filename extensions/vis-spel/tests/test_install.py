@@ -102,3 +102,17 @@ def test_unsupported_platform():
 def test_version_is_pinned(tmp_path, version):
     with pytest.raises(ValueError):
         install.download(tmp_path, version)
+
+
+# Regression: explicit downgrades could reinstall the retired browser bridge.
+@pytest.mark.parametrize("version", ["0.9.31", "0.9.32"])
+def test_releases_with_browser_bridge_are_rejected(tmp_path, release, version):
+    data, asset, calls = release
+    data["tag_name"] = f"v{version}"
+    asset["browser_download_url"] = (
+        f"https://github.com/Blockether/spel/releases/download/v{version}/spel-macos-arm64"
+    )
+    with pytest.raises(ValueError, match="0.9.33 or newer"):
+        install.download(tmp_path, version)
+    assert not calls
+    assert not list(tmp_path.iterdir())

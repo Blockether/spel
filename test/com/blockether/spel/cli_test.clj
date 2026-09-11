@@ -84,6 +84,26 @@
   ^String [^String path]
   (str (.toAbsolutePath (java.nio.file.Path/of path (into-array String [])))))
 
+;; The retired in-page bridge must stay absent from command dispatch and artifacts.
+(defdescribe retired-browser-bridge-test
+  (it "rejects the retired command and its subcommands"
+    (doseq [args [["bridge"] ["bridge" "use"] ["bridge" "off"]
+                  ["bridge" "status"] ["bridge" "--eject"]
+                  ["bridge" "--eject-sw"] ["bridge" "--eject-extension"]]]
+      (expect (= {:error "Unknown command: bridge"} (cmd args)))))
+
+  (it "does not advertise a bridge command"
+    (expect (nil? (get sut/command-help "bridge")))
+    (expect (not (str/includes? (sut/top-level-help) "bridge"))))
+
+  (it "does not ship the retired server, engine, service worker or guide"
+    (doseq [resource ["com/blockether/spel/bridge.clj"
+                      "com/blockether/spel/browser/spel.js"
+                      "com/blockether/spel/browser/spel-sw.js"
+                      "com/blockether/spel/browser/README.md"
+                      "com/blockether/spel/templates/skills/spel/references/BRIDGE.md"]]
+      (expect (nil? (io/resource resource))))))
+
 ;; =============================================================================
 ;; iOS application provider
 ;; =============================================================================

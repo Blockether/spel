@@ -184,8 +184,8 @@ class Spel:
     ) -> Installation:
         """Download an official stable release and verify SHA-256 before use.
 
-        Defaults to Spel 0.9.33 and installing Playwright browsers. Explicitly performs
-        network downloads and writes only managed files under ~/.vis/spel plus
+        Requires Spel 0.9.33 or newer; defaults to 0.9.33 with Playwright browsers.
+        Explicitly downloads and writes only managed files under ~/.vis/spel plus
         Playwright's browser cache. Never runs at import/reload or changes PATH.
         System packages are not installed; Linux may need administrator setup.
         Failed downloads leave the previous installation and reservations intact.

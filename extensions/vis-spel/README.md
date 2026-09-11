@@ -41,10 +41,12 @@ operations are `spel.*` tools. Only release your own reservation. IDs can be sha
 for an intentional handover; they are not user-account authentication.
 
 `spel.install` uses official GitHub assets, checks the release digest and executable
-version, then installs Playwright browsers unless `browsers=False`. It never replaces
-`spel` on PATH. Managed binaries and reservations live under `~/.vis/spel`; browser
-files use Playwright's normal cache. Linux system dependencies require separate
-administrator setup. Supported native assets: Linux x64/arm64, macOS arm64, Windows x64.
+version, then installs Playwright browsers unless `browsers=False`. Spel 0.9.33 or
+newer is required; older releases with the retired browser bridge are rejected
+before downloading. It never replaces `spel` on PATH. Managed binaries and
+reservations live under `~/.vis/spel`; browser files use Playwright's normal cache.
+Linux system dependencies require separate administrator setup. Supported native
+assets: Linux x64/arm64, macOS arm64, Windows x64.
 
 ## Tools
 

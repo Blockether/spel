@@ -1561,6 +1561,18 @@ assert_jq "unannotate (idempotent) → .removed" "$OUT" '.removed == true'
 # =============================================================================
 section "Tool Commands (8)"
 
+# Guard the released native entrypoint, not only JVM command parsing.
+OUT=$("$SPEL" bridge --help 2>&1)
+assert_contains "retired bridge command is rejected" "$OUT" "Unknown command: bridge"
+
+OUT=$("$SPEL" --help 2>&1)
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$OUT" == *bridge* ]]; then
+  fail "global help does not advertise the retired bridge" "Bridge command is still advertised"
+else
+  pass "global help does not advertise the retired bridge"
+fi
+
 OUT=$("$SPEL" codegen --help 2>&1)
 assert_contains "codegen --help mentions codegen" "$OUT" "codegen"
 

@@ -40,6 +40,10 @@ def download(home: Path, version: str) -> Path:
     """Verify the GitHub release digest before atomically admitting an executable."""
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("version must be a stable version such as 0.9.33")
+    if tuple(map(int, version.split("."))) < (0, 9, 33):
+        raise ValueError(
+            "Spel 0.9.33 or newer is required; the browser bridge is not supported"
+        )
     name = asset_name(platform.system(), platform.machine())
     headers = {"User-Agent": "vis-spel", "Accept": "application/vnd.github+json"}
     request = Request(
