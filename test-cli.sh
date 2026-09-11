@@ -2576,6 +2576,16 @@ sleep 1
 OUT=$("$SPEL" --session "$HSESSION" --json health 2>&1)
 assert_jq_eq "health after kill → down" "$OUT" '.status' 'down'
 
+# The focused native navigation suite also runs independently via
+# SPEL=/path/to/spel bash cli-tests/23-navigation-stability.sh.
+section "Navigation end-to-end coverage (issue #135)"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if SPEL="$SPEL" bash "$(dirname "$0")/cli-tests/23-navigation-stability.sh"; then
+  pass "native navigation stability"
+else
+  fail "native navigation stability" "see focused test diagnostics above"
+fi
+
 # =============================================================================
 # SUMMARY
 # =============================================================================

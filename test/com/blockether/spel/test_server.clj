@@ -251,6 +251,22 @@
   </script>
 </body></html>")
 
+(def ^:private navigation-assets-page-html
+  (str "<!doctype html><title>Navigation assets</title><h1>Navigation assets</h1>"
+    "<script>window.loadedAssets=0</script>"
+    (apply str (for [i (range 400)]
+                 (str "<script async src='/passive-asset.js?i=" i
+                   "' onload='window.loadedAssets++'></script>")))))
+
+(def ^:private navigation-fetches-page-html
+  "<!doctype html><title>Navigation fetches</title><h1 id='loaded'>Loading</h1>
+<script>
+window.loadedAssets=0;
+Promise.all(Array.from({length:400},(_,i)=>
+  fetch('/health?i='+i).then(r=>r.json()).then(()=>window.loadedAssets++)))
+  .then(()=>document.getElementById('loaded').textContent='Loaded '+window.loadedAssets);
+</script>")
+
 (defn- make-handler ^HttpHandler []
   (reify HttpHandler
     (handle [_ exchange]
@@ -287,6 +303,12 @@
 
           (and (= "GET" method) (= "/touch-page" path))
           (send-response exchange 200 touch-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/navigation-assets" path))
+          (send-response exchange 200 navigation-assets-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/navigation-fetches" path))
+          (send-response exchange 200 navigation-fetches-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/passive-asset.js" path))
           (send-response exchange 200 "window.__spelPassiveLoaded = true;" "application/javascript; charset=UTF-8")
