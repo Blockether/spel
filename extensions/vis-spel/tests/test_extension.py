@@ -26,7 +26,7 @@ def test_registration_and_all_activity_states(extension):
     assert declaration.alias == "spel"
     contract = declaration.symbols[0].contract
     assert contract["name"] == "spel"
-    assert len(contract["members"]) == 14
+    assert len(contract["members"]) == 16
     for member in contract["members"]:
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
@@ -54,8 +54,7 @@ def test_registration_and_all_activity_states(extension):
 
 
 def test_activity_preserves_failure_empty_and_bounded_data(extension):
-    _, module = extension
-    render = module.presentation("Read browser snapshot")
+    render = Spel.snapshot.__vis_symbol_activity__.render
     assert "No managed" in render(phase="success", result=None).summary
     assert (
         "0.9.33"

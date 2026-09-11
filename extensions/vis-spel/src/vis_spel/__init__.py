@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
+import blockether.vis.extension as vis
+
 from .install import DEFAULT_VERSION, download
 
 
@@ -161,6 +163,26 @@ class Spel:
 
     def __init__(self, home: Path | None = None):
         self._home = home if home is not None else Path.home() / ".vis" / "spel"
+
+    def spec(
+        self, name: str | None = None
+    ) -> (
+        vis.ToolSpec | vis.NamespaceSpec | tuple[vis.ToolSpec | vis.NamespaceSpec, ...]
+    ):
+        """Inspect the public SDK catalog. None lists namespaces; use full names such as spel.snapshot.
+
+        Does not install Spel, open a database, authenticate or start a browser.
+        Unknown names raise ValueError; a non-string/non-None name raises TypeError.
+        """
+        return vis.Catalog([vis.Symbol(self, name="spel")]).spec(name)
+
+    def help(self, name: str) -> vis.HelpDocument:
+        """Read generated help for a full public name such as spel or spel.snapshot.
+
+        Uses the same SDK contracts as Vis doc(), without configuration or browser IO.
+        Unknown names raise ValueError; a non-string name raises TypeError.
+        """
+        return vis.Catalog([vis.Symbol(self, name="spel")]).help(name)
 
     @contextmanager
     def _db(self):
@@ -518,3 +540,118 @@ class Spel:
         with self._db() as db:
             db.execute("DELETE FROM reservations WHERE id=?", (session,))
         return result
+
+
+def _presentation(label):
+    """Build an explicit presentation without logging scripts, fill text or CDP URLs."""
+
+    def render(*, phase, result=None, error=None, **_):
+        if phase == "start":
+            return vis.ActivityPresentation(label, "Waiting for Spel")
+        if phase == "failure":
+            text = str(error)
+            if len(text.encode("utf-8")) > 16000:
+                text = (
+                    text.encode("utf-8")[:16000].decode("utf-8", errors="ignore")
+                    + "\nError excerpt; full error returned to the caller."
+                )
+            return vis.ActivityPresentation(
+                label, "Spel operation failed", (vis.ActivityText(text),)
+            )
+        if isinstance(result, vis.HelpDocument):
+            text = result.text.encode("utf-8")
+            excerpt = text[:16000].decode("utf-8", errors="ignore")
+            if len(text) > 16000:
+                excerpt += "\nReference excerpt; the complete document is returned to the caller."
+            return vis.ActivityPresentation(
+                label, result.tool, (vis.ActivityMarkdown(excerpt),)
+            )
+        if isinstance(result, (vis.ToolSpec, vis.NamespaceSpec, tuple)):
+            specs = result if isinstance(result, tuple) else (result,)
+            tools = tuple(
+                tool
+                for spec in specs
+                for tool in (
+                    spec.members if isinstance(spec, vis.NamespaceSpec) else (spec,)
+                )
+            )
+            return vis.ActivityPresentation(
+                label,
+                f"{len(tools)} tools",
+                (vis.ActivityText("\n".join(tool.name for tool in tools)),)
+                if tools
+                else (),
+            )
+        if isinstance(result, Installation):
+            return vis.ActivityPresentation(
+                label,
+                f"Spel {result.version}; browsers {'installed' if result.browsers_installed else 'not installed'}",
+            )
+        if isinstance(result, Reservation):
+            return vis.ActivityPresentation(
+                label, f"Reserved {result.label}", (vis.ActivityText(result.name),)
+            )
+        if result is None:
+            return vis.ActivityPresentation(label, "No managed Spel installation")
+        if isinstance(result, BrowserResult):
+            data = result.data
+            content = []
+            summary = result.session
+            if result.action == "health" and isinstance(data, dict):
+                summary = f"{result.session}: {data.get('status', 'unknown')}"
+            elif result.action == "close":
+                summary = f"Released {result.session}"
+            elif data is None or data == {} or data == []:
+                summary += ": no result data"
+            if data is not None:
+                text = json.dumps(data, ensure_ascii=False, indent=2)
+                if len(text.encode("utf-8")) > 20000:
+                    text = text.encode("utf-8")[:20000].decode("utf-8", errors="ignore")
+                    content.append(
+                        vis.ActivityText(
+                            "Browser output excerpt; the complete result is returned to the caller."
+                        )
+                    )
+                content.append(vis.ActivityCode(text, language="json"))
+            if result.warnings:
+                content.append(
+                    vis.ActivityText(
+                        result.warnings.encode("utf-8")[:4000].decode(
+                            "utf-8", errors="ignore"
+                        )
+                    )
+                )
+            return vis.ActivityPresentation(label, summary, tuple(content))
+        return None
+
+    return render
+
+
+for method, label, show_start, tag in [
+    ("install", "Install Spel", True, "mutation"),
+    ("spec", "Inspect browser tools", False, "observation"),
+    ("help", "Read browser reference", False, "observation"),
+    ("installed", "Check Spel installation", False, "observation"),
+    ("reserve", "Reserve browser session", False, "mutation"),
+    ("connect", "Connect browser through CDP", True, "mutation"),
+    ("open", "Open browser page", True, "mutation"),
+    ("snapshot", "Read browser snapshot", True, "observation"),
+    ("command", "Run browser action", True, "mutation"),
+    ("evaluate", "Run page JavaScript", True, "mutation"),
+    ("sci", "Run Spel Clojure", True, "mutation"),
+    ("screenshot", "Capture browser screenshot", True, "mutation"),
+    ("health", "Check browser session", False, "observation"),
+    ("cancel", "Cancel browser command", True, "mutation"),
+    ("logs", "Read browser logs", False, "observation"),
+    ("release", "Release browser session", True, "mutation"),
+]:
+    setattr(
+        Spel,
+        method,
+        vis.method(
+            tag=tag,
+            activity=vis.Activity(
+                label=label, show_start=show_start, render=_presentation(label)
+            ),
+        )(getattr(Spel, method)),
+    )

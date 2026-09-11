@@ -4,6 +4,29 @@
             [com.blockether.vis.internal.python.extensions-test :as fixtures]
             [lazytest.experimental.interfaces.clojure-test :refer [deftest is]]))
 
+;; Vis #203: spec/help used to be absent from the actual registered browser namespace.
+(deftest catalog-through-trusted-worker
+  (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
+        paths ["extension.py" "pyproject.toml" "uv.lock" "README.md"
+               "src/vis_spel/__init__.py" "src/vis_spel/install.py" "skills/browser/SKILL.md"]
+        sources (into {} (for [path paths] [(str "vis-spel/" path) (slurp (io/file package path))]))]
+    (#'fixtures/with-shared-packages
+     (fn [_]
+       (#'fixtures/with-fresh-loaded
+        sources
+        (fn [loaded _]
+           (is (= 1 (:loaded loaded)) (pr-str loaded))
+          (is (zero? (:failed loaded)))
+          (let [ext (#'fixtures/registered "vis-spel")
+                spec ((#'fixtures/symbol-fn ext 'spel.spec) "spel.snapshot")
+                help ((#'fixtures/symbol-fn ext 'spel.help) "spel.snapshot")]
+            (is (:success? spec) (pr-str spec))
+            (is (= "spel.snapshot" (get-in spec [:result "__vis_attrs__" "name"])))
+            (is (= "observation" (get-in spec [:result "__vis_attrs__" "tag"])))
+            (is (:success? help) (pr-str help))
+            (is (= "spel.snapshot" (get-in help [:result "__vis_attrs__" "tool"])))
+            (is (re-find #"spel.snapshot" (get-in help [:result "__vis_attrs__" "text"]))))))))))
+
 (deftest native-browser-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
         sources (into {} (for [path ["extension.py" "pyproject.toml" "uv.lock" "README.md"

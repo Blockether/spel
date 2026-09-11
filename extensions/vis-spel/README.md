@@ -24,6 +24,29 @@ Replace `REVIEWED_COMMIT_SHA` with the full reviewed commit from the [Extension 
 Then start Vis or `/reload`. Installing the extension does **not** download Spel,
 launch browsers, connect to CDP or execute the bundled skill.
 
+## Typed discovery
+
+Requires Vis / `vis-agent` SDK 0.1.69 or newer. The same typed API works before
+installation and outside Vis; importing the package never registers an extension.
+
+```python
+from vis_spel import Spel
+
+api = Spel()
+spec = api.spec("spel.snapshot")
+print(spec.parameters)
+print(api.help("spel.snapshot").text)
+```
+
+In Vis, use `await spel.spec()` to list the public namespace and
+`await spel.help("spel.snapshot")` for its generated reference. These are SDK
+`NamespaceSpec`, `ToolSpec` and `HelpDocument` values, derived from the same
+contracts as `doc("spel.snapshot")`, not captured `spel --help` output. Lookups
+never install Spel, create the sessions database, authenticate or launch a browser.
+Use full public names; unknown names raise `ValueError`, wrong types raise `TypeError`.
+Mutation metadata and Activities belong to the typed API, not a second entrypoint
+registry. The entrypoint only registers that API.
+
 ## First session
 
 In Vis `python_execution`:

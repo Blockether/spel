@@ -1,11 +1,11 @@
 [project]
 name = "vis-spel"
-version = "0.1.1"
+version = "0.1.2"
 description = "Spel browser automation with verified installation, reserved sessions, CDP, JavaScript, snapshots and screenshots."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
-dependencies = ["vis-agent>=0.1.64"]
+dependencies = ["vis-agent>=0.1.69"]
 
 [project.urls]
 Repository = "https://github.com/Blockether/spel"
