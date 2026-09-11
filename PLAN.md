@@ -29,7 +29,7 @@ and preserve its separately committed UI and repository-validation changes.
    - Data: Vis Worker, D1, catalog UI and existing moderation workflow.
    - Acceptance criteria: README, descriptions, comments, package/comment votes;
      tested UI/API; source pushed to GitHub and reviewed listing published.
-   - Unknowns: marketplace moderation/deployment authentication.
+   - Unknowns: resolved through the authenticated Extension Center publication workflow.
 
 ## Plan state
 
@@ -43,9 +43,13 @@ and preserve its separately committed UI and repository-validation changes.
   Linux/macOS/Windows native CI passed before the tag. No native version change.
 - Marketplace README, descriptions, moderated comments and package/comment votes
   implemented and deployed in Vis fe7497c34; 117 tests and lint/build checks passed.
-- Uses the released PyPI SDK 0.1.64, with the same 55 Python/native tests passing.
-- Public listing remains blocked by interactive anti-spam verification and missing
-  Cloudflare moderation authorization; no submission was accepted or approved.
+- Uses the released PyPI SDK 0.1.64. Latest extension verification: 60 Python tests,
+  including real native browser/CDP cases; formatting and lint pass.
+- Public listing approved at https://vis.blockether.com/extensions/869b34e042a90c0bcc326445.
+  GitHub stars are refreshed independently of package releases and match GitHub.
+- Linux validation passed: approved-version installation from project YAML, cached and
+  offline sync preserving source/uv state, tool registration and both real browser/CDP tests.
+  The existing Vis binary and gateway were not replaced or restarted.
 - Desktop and touch layouts checked. Native full-page annotation overlays shifted
   on the responsive page; documented the unannotated viewport alternative.
 - Pairing-code meaning still requires clarification; the removed bridge is not restored.

@@ -13,7 +13,7 @@ implementation is copied into this package.
 vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --revision REVIEWED_COMMIT_SHA --trust
 ```
 
-Replace `REVIEWED_COMMIT_SHA` with the full reviewed commit from the Extension Center.
+Replace `REVIEWED_COMMIT_SHA` with the full reviewed commit from the [Extension Center listing](https://vis.blockether.com/extensions/869b34e042a90c0bcc326445).
 Then start Vis or `/reload`. Installing the extension does **not** download Spel,
 launch browsers, connect to CDP or execute the bundled skill.
 
