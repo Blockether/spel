@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from vis_spel import Spel, _execute
+from vis_spel.install import DEFAULT_VERSION
 
 pytestmark = [
     pytest.mark.integration,
@@ -113,3 +114,32 @@ def test_cdp_release_preserves_external_browser():
         if not released:
             client.release(lease.id)
         _execute(binary, ["--session", external, "--json", "close"])
+
+
+def test_native_upgrade_and_rollback_preserve_live_sessions(tmp_path):
+    client = Spel(tmp_path)
+    leases = []
+    try:
+        original = client.install("0.9.33", browsers=False)
+        old = client.reserve()
+        leases.append(old)
+        client.open(old.id, "data:text/html,<title>Original version</title>")
+        upgraded = client.install(DEFAULT_VERSION, browsers=False)
+        assert upgraded.version == DEFAULT_VERSION
+        assert upgraded.executable != original.executable
+        new = client.reserve()
+        leases.append(new)
+        client.open(new.id, "data:text/html,<title>Upgraded version</title>")
+        assert client.install("0.9.33", browsers=False) == original
+        assert (
+            client.evaluate(old.id, "document.title").data["result"]
+            == "Original version"
+        )
+        assert (
+            client.evaluate(new.id, "document.title").data["result"]
+            == "Upgraded version"
+        )
+        assert Spel(tmp_path).installed() == original
+    finally:
+        for lease in reversed(leases):
+            client.release(lease.id)

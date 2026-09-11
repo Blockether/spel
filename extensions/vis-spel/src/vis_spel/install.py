@@ -9,11 +9,79 @@ import platform
 import re
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-DEFAULT_VERSION = "0.9.33"
+DEFAULT_VERSION = "0.9.34"
+MIN_VERSION = (0, 9, 33)
 MAX_BINARY = 256 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class Release:
+    """A supported stable native Spel release, not a vis-spel package release."""
+
+    version: str
+    url: str
+    published_at: str | None
+
+
+@dataclass(frozen=True)
+class ReleasePage:
+    """Filtered GitHub page. Follow next_page even when releases is empty."""
+
+    releases: tuple[Release, ...]
+    page: int
+    next_page: int | None
+
+
+def _metadata(path: str) -> tuple[dict | list, str]:
+    request = Request(
+        f"https://api.github.com/repos/Blockether/spel/releases{path}",
+        headers={"User-Agent": "vis-spel", "Accept": "application/vnd.github+json"},
+    )
+    with urlopen(request, timeout=30) as response:
+        payload = response.read(1024 * 1024 + 1)
+        link = response.headers.get("Link", "")
+    if len(payload) > 1024 * 1024:
+        raise RuntimeError("Release metadata exceeds 1 MiB")
+    return json.loads(payload), link
+
+
+def list_releases(page: int, per_page: int) -> ReleasePage:
+    """Read one GitHub page, excluding extension tags and unsupported native versions."""
+    if type(page) is not int or page < 1:
+        raise ValueError("page must be a positive integer")
+    if type(per_page) is not int or not 1 <= per_page <= 100:
+        raise ValueError("per_page must be an integer between 1 and 100")
+    payload, link = _metadata(f"?per_page={per_page}&page={page}")
+    if not isinstance(payload, list) or any(
+        not isinstance(item, dict) for item in payload
+    ):
+        raise RuntimeError("GitHub returned invalid release metadata")
+    releases = []
+    for item in payload:
+        tag = item.get("tag_name", "")
+        if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+            continue
+        version = tag[1:]
+        if (
+            item.get("draft")
+            or item.get("prerelease")
+            or tuple(map(int, version.split("."))) < MIN_VERSION
+        ):
+            continue
+        releases.append(
+            Release(
+                version,
+                f"https://github.com/Blockether/spel/releases/tag/{tag}",
+                item.get("published_at"),
+            )
+        )
+    return ReleasePage(
+        tuple(releases), page, page + 1 if 'rel="next"' in link else None
+    )
 
 
 def asset_name(system: str, machine: str) -> str:
@@ -40,21 +108,12 @@ def download(home: Path, version: str) -> Path:
     """Verify the GitHub release digest before atomically admitting an executable."""
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("version must be a stable version such as 0.9.33")
-    if tuple(map(int, version.split("."))) < (0, 9, 33):
+    if tuple(map(int, version.split("."))) < MIN_VERSION:
         raise ValueError(
             "Spel 0.9.33 or newer is required; the browser bridge is not supported"
         )
     name = asset_name(platform.system(), platform.machine())
-    headers = {"User-Agent": "vis-spel", "Accept": "application/vnd.github+json"}
-    request = Request(
-        f"https://api.github.com/repos/Blockether/spel/releases/tags/v{version}",
-        headers=headers,
-    )
-    with urlopen(request, timeout=30) as response:
-        payload = response.read(1024 * 1024 + 1)
-    if len(payload) > 1024 * 1024:
-        raise RuntimeError("Release metadata exceeds 1 MiB")
-    release = json.loads(payload)
+    release, _ = _metadata(f"/tags/v{version}")
     if (
         release.get("tag_name") != f"v{version}"
         or release.get("draft")

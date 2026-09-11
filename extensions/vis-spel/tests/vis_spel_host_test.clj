@@ -15,14 +15,18 @@
        (#'fixtures/with-fresh-loaded
         sources
         (fn [loaded _]
-           (is (= 1 (:loaded loaded)) (pr-str loaded))
+          (is (= 1 (:loaded loaded)) (pr-str loaded))
           (is (zero? (:failed loaded)))
           (let [ext (#'fixtures/registered "vis-spel")
                 spec ((#'fixtures/symbol-fn ext 'spel.spec) "spel.snapshot")
-                help ((#'fixtures/symbol-fn ext 'spel.help) "spel.snapshot")]
+                help ((#'fixtures/symbol-fn ext 'spel.help) "spel.snapshot")
+                releases ((#'fixtures/symbol-fn ext 'spel.releases))]
             (is (:success? spec) (pr-str spec))
             (is (= "spel.snapshot" (get-in spec [:result "__vis_attrs__" "name"])))
             (is (= "observation" (get-in spec [:result "__vis_attrs__" "tag"])))
+            (is (:success? releases) (pr-str releases))
+            (is (= 1 (get-in releases [:result "__vis_attrs__" "page"])))
+            (is (re-find #"0\.9\.33" (pr-str (:result releases))))
             (is (:success? help) (pr-str help))
             (is (= "spel.snapshot" (get-in help [:result "__vis_attrs__" "tool"])))
             (is (re-find #"spel.snapshot" (get-in help [:result "__vis_attrs__" "text"]))))))))))

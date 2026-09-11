@@ -1,55 +1,54 @@
-# Vis Spel extension and marketplace
+# Spel 0.9.34 and vis-spel 0.1.2
 
-Publish a tested browser automation package from the Spel repository.
+Publish the native release and add release discovery to the Vis extension.
 
 ## Context
 
-The Python package belongs in `extensions/vis-spel`, not Vis. Existing CLI owns
-browser behavior. Review of 250 matching Vis sessions found repeated named-session,
-snapshot, JavaScript, screenshot, CDP, timeout and stale-reference workflows.
-Do not restore the removed browser bridge or duplicate Playwright in Python.
-The marketplace lives in Vis `apps/vis-docs`. Coordinate with concurrent docs work
-and preserve its separately committed UI and repository-validation changes.
+At task start, `resources/SPEL_VERSION` was 0.9.34 and native CI was green for
+`7946bf9ba169df52cbe179ed6c3b6fdbc8f40609`. The latest published native release was
+0.9.33. `extensions/vis-spel` was prepared for 0.1.2 and required SDK 0.1.69.
+Its verified installer already selects a version for new reservations; existing
+reservations retain their executable. Add release discovery rather than a second
+installer or a redundant switching API. Simplify the extension README.
 
 ## Phases
 
-1. Package and session lifecycle
-   - Rationale: isolate concurrent callers and remove shell quoting from browser work.
-   - Data: Spel CLI JSON, official release assets and SDK package contracts.
-   - Acceptance criteria: explicit verified install; persistent exclusive leases;
-     isolated browser/CDP operations; typed results and explicit Activities.
-   - Unknowns: user clarification of “connect with code” (pairing vs SCI).
-2. Verification
-   - Rationale: unit results alone do not prove trusted-worker/browser compatibility.
-   - Data: pytest, real native CLI, extension registration and tool execution.
-   - Acceptance criteria: package tests, lint/format, make lint/test and green CI.
-   - Unknowns: native test prerequisites and external CI availability.
-3. Marketplace and publication
-   - Rationale: users need package details and feedback on the listing.
-   - Data: Vis Worker, D1, catalog UI and existing moderation workflow.
-   - Acceptance criteria: README, descriptions, comments, package/comment votes;
-     tested UI/API; source pushed to GitHub and reviewed listing published.
-   - Unknowns: resolved through the authenticated Extension Center publication workflow.
+1. Native publication
+   - Rationale: extension CI must be able to install its new default version.
+   - Data: native CI for the exact 0.9.34 commit; local make lint/test.
+   - Acceptance criteria: tag that green commit; release workflow publishes all
+     native assets and the Clojars artifact. Do not build or upload release binaries locally.
+   - Unknowns: resolved; local gates and the release workflow passed.
+2. Extension implementation and verification
+   - Rationale: callers need discoverable releases and predictable switching.
+   - Data: GitHub release metadata, existing installer and reservation tests.
+   - Acceptance criteria: typed paginated release results; stable supported native
+     versions only; upgrade/rollback and failure retention tests; explicit Activity;
+     concise README; Python, native and trusted-worker checks pass.
+   - Unknowns: resolved; live release metadata and version switching verified.
+3. Extension publication
+   - Rationale: ship the API and documentation together.
+   - Data: scoped diff, extension version/lock, same-commit CI.
+   - Acceptance criteria: verified changes pushed; green CI; vis-spel/v0.1.2
+     published without marking it as the latest native release.
+   - Unknowns: release and CI completion.
 
 ## Plan state
 
-- Research complete: 250 relevant historical sessions reviewed.
-- Package implemented: 14 explicit tools, verified installer, persistent reservations,
-  authorized CDP, stdin JavaScript/SCI and bundled browser skill.
-- Verification passed: 55 Python tests including real DOM and external CDP isolation;
-  trusted-worker suite; Python formatting/lint and Clojure reflection/lint; make lint/test.
-- Package 0.1.0 published as GitHub Release `vis-spel/v0.1.0` at
-  f0f8d51cb65b51475251d095f845945a9cdf66d4. Extension CI and full
-  Linux/macOS/Windows native CI passed before the tag. No native version change.
-- Marketplace README, descriptions, moderated comments and package/comment votes
-  implemented and deployed in Vis fe7497c34; 117 tests and lint/build checks passed.
-- Uses the released PyPI SDK 0.1.64. Latest extension verification: 60 Python tests,
-  including real native browser/CDP cases; formatting and lint pass.
-- Public listing approved at https://vis.blockether.com/extensions/869b34e042a90c0bcc326445.
-  GitHub stars are refreshed independently of package releases and match GitHub.
-- Linux validation passed: approved-version installation from project YAML, cached and
-  offline sync preserving source/uv state, tool registration and both real browser/CDP tests.
-  The existing Vis binary and gateway were not replaced or restarted.
-- Desktop and touch layouts checked. Native full-page annotation overlays shifted
-  on the responsive page; documented the unannotated viewport alternative.
-- Pairing-code meaning still requires clarification; the removed bridge is not restored.
+- Native 0.9.34 published from 7946bf9ba169df52cbe179ed6c3b6fdbc8f40609.
+  Release workflow 34630736323 passed; all four digested binaries and Clojars
+  deployment succeeded. Main's generated next-development version is now 0.9.35.
+- Local make lint passed, including the native-image reflection gate. make test
+  passed: 2,922 Clojure cases and the complete native CLI suite.
+- Extension implementation complete: typed paginated release discovery, explicit
+  Activity, native default 0.9.34 and a rewritten README. Version switching reuses
+  the existing verified installer and preserves reservation executables.
+- Release-discovery tests were red before implementation. Final checks passed:
+  80 Python unit tests, three native browser tests (including an actual
+  0.9.33 → 0.9.34 → 0.9.33 switch with live sessions), two trusted-worker tests,
+  Python formatting/lint, Clojure formatting/reflection/lint and README links/examples.
+- Extension publication target: [vis-spel/v0.1.2](https://github.com/Blockether/spel/releases/tag/vis-spel/v0.1.2).
+  Publish only after this change's CI is green; keep it separate from native latest.
+- The native release workflow mixed extension tags into its generated compare
+  link. Published native notes now compare v0.9.33...v0.9.34. The workflow's tag
+  selector remains a separately reported follow-up; it did not affect artifacts.

@@ -22,9 +22,12 @@ def test_catalog_is_available_without_registration_or_configuration(
     (namespace,) = spel.spec()
     assert isinstance(namespace, vis.NamespaceSpec)
     assert namespace.name == "spel"
-    assert len(namespace.members) == 16
+    assert len(namespace.members) == 17
     assert spel.spec("spel.reserve").tag == "mutation"
     assert spel.spec("spel.spec").tag == "observation"
+    assert spel.spec("spel.releases").tag == "observation"
+    assert spel.spec("spel.releases").returns.name == "ReleasePage"
+    assert "next_page" in spel.help("spel.releases").text
     snapshot = spel.spec("spel.snapshot")
     assert snapshot.parameters[1].kind == "keyword_only"
     assert "session" in [parameter.name for parameter in snapshot.parameters]

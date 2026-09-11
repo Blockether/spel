@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 import blockether.vis.extension as vis
 
-from .install import DEFAULT_VERSION, download
+from .install import DEFAULT_VERSION, ReleasePage, download, list_releases
 
 
 @dataclass(frozen=True)
@@ -201,16 +201,35 @@ class Spel:
         finally:
             connection.close()
 
+    def releases(self, *, page: int = 1, per_page: int = 30) -> ReleasePage:
+        """List stable native Spel releases from GitHub without installing or switching.
+
+        Returns typed releases with version, release URL and publication time.
+        Requires network access, not an installed binary or browser. Excludes drafts,
+        prereleases, extension tags and versions older than the supported 0.9.33.
+        Defaults to GitHub page 1 with 30 entries; page must be positive and per_page
+        must be 1–100. Filtering can return fewer entries, including an empty page.
+        Follow next_page with the same per_page until None. Preserves GitHub order.
+        Invalid pagination raises ValueError. HTTP/rate-limit, timeout and malformed
+        metadata errors propagate without retry; no installation state is changed.
+        """
+        return list_releases(page, per_page)
+
     def install(
         self, version: str = DEFAULT_VERSION, *, browsers: bool = True
     ) -> Installation:
-        """Download an official stable release and verify SHA-256 before use.
+        """Install or switch to a pinned official stable release after SHA-256 verification.
 
-        Requires Spel 0.9.33 or newer; defaults to 0.9.33 with Playwright browsers.
-        Explicitly downloads and writes only managed files under ~/.vis/spel plus
-        Playwright's browser cache. Never runs at import/reload or changes PATH.
-        System packages are not installed; Linux may need administrator setup.
-        Failed downloads leave the previous installation and reservations intact.
+        Requires Spel 0.9.33 or newer; defaults to 0.9.34 with Playwright browsers.
+        Use releases() to find versions. Upgrades and rollbacks use this same method.
+        New reservations use the selected version; existing reservations keep their
+        original executable, even across reloads. No running sessions are restarted.
+        Cached binaries are verified against GitHub before reuse, so network access
+        is required even for a rollback. Failed downloads, version checks or browser
+        setup leave the previous selection and all reservations intact.
+        Writes managed files under ~/.vis/spel. Browser setup uses Playwright's cache
+        and is skipped with browsers=False. Never runs at import/reload or changes
+        PATH. System packages are not installed; Linux may need administrator setup.
         """
         self._home.mkdir(mode=0o700, parents=True, exist_ok=True)
         binary = download(self._home, version)
@@ -566,6 +585,25 @@ def _presentation(label):
             return vis.ActivityPresentation(
                 label, result.tool, (vis.ActivityMarkdown(excerpt),)
             )
+        if isinstance(result, ReleasePage):
+            count = len(result.releases)
+            summary = f"{count} release{'s' if count != 1 else ''}"
+            if result.next_page is not None:
+                summary += f"; next page {result.next_page}"
+            return vis.ActivityPresentation(
+                label,
+                summary,
+                (
+                    vis.ActivityText(
+                        "\n".join(
+                            f"{release.version}  {release.url}"
+                            for release in result.releases
+                        )
+                    ),
+                )
+                if result.releases
+                else (),
+            )
         if isinstance(result, (vis.ToolSpec, vis.NamespaceSpec, tuple)):
             specs = result if isinstance(result, tuple) else (result,)
             tools = tuple(
@@ -629,6 +667,7 @@ def _presentation(label):
 
 for method, label, show_start, tag in [
     ("install", "Install Spel", True, "mutation"),
+    ("releases", "List Spel releases", True, "observation"),
     ("spec", "Inspect browser tools", False, "observation"),
     ("help", "Read browser reference", False, "observation"),
     ("installed", "Check Spel installation", False, "observation"),

@@ -9,6 +9,7 @@ from vis_spel import install
 
 class Response(io.BytesIO):
     url = "https://release-assets.githubusercontent.com/asset"
+    headers = {}
 
 
 @pytest.fixture

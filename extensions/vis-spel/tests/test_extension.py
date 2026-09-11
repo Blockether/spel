@@ -5,6 +5,7 @@ import blockether.vis.extension as vis
 import pytest
 
 from vis_spel import BrowserResult, Installation, Reservation, Spel
+from vis_spel.install import Release, ReleasePage
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def test_registration_and_all_activity_states(extension):
     assert declaration.alias == "spel"
     contract = declaration.symbols[0].contract
     assert contract["name"] == "spel"
-    assert len(contract["members"]) == 16
+    assert len(contract["members"]) == 17
     for member in contract["members"]:
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
@@ -50,6 +51,7 @@ def test_registration_and_all_activity_states(extension):
     assert Spel.reserve.__vis_symbol_activity__.show_start is False
     assert Spel.health.__vis_symbol_activity__.show_start is False
     assert Spel.install.__vis_symbol_activity__.show_start is True
+    assert Spel.releases.__vis_symbol_activity__.show_start is True
     assert Spel.evaluate.__vis_symbol_tag__ == "mutation"
 
 
@@ -85,3 +87,28 @@ def test_activity_preserves_failure_empty_and_bounded_data(extension):
     failure = render(phase="failure", error=RuntimeError("ą" * 40000))
     assert len(str(failure.to_wire()).encode()) < 32768
     assert "excerpt" in str(failure.content)
+
+
+def test_release_activity_shows_versions_count_and_pagination(extension):
+    render = Spel.releases.__vis_symbol_activity__.render
+    result = ReleasePage(
+        (
+            Release(
+                "0.9.34",
+                "https://github.com/Blockether/spel/releases/tag/v0.9.34",
+                None,
+            ),
+        ),
+        1,
+        2,
+    )
+    presentation = render(phase="success", result=result)
+    assert presentation.summary == "1 release; next page 2"
+    assert "0.9.34" in str(presentation.content)
+    assert result.releases[0].url in str(presentation.content)
+    empty = render(phase="success", result=ReleasePage((), 2, None))
+    assert empty.summary == "0 releases"
+    assert empty.content == ()
+    assert (
+        "next page 3" in render(phase="success", result=ReleasePage((), 2, 3)).summary
+    )

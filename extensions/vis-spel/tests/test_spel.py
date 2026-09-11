@@ -6,6 +6,7 @@ import pytest
 
 import vis_spel
 from vis_spel import Spel, SpelError
+from vis_spel.install import DEFAULT_VERSION
 
 
 @pytest.fixture
@@ -227,10 +228,84 @@ def test_install_runs_verified_binary_before_recording(client, monkeypatch):
 
     def run(binary, args, **kwargs):
         calls.append(args)
-        return 0, "spel 0.9.33" if args == ["version"] else "Installed", ""
+        return 0, f"spel {DEFAULT_VERSION}" if args == ["version"] else "Installed", ""
 
     monkeypatch.setattr(vis_spel, "_execute", run)
     installed = spel.install()
     assert installed.browsers_installed
+    assert installed.version == DEFAULT_VERSION == "0.9.34"
     assert calls == [["version"], ["install"]]
     assert spel.installed() == installed
+
+
+@pytest.fixture
+def versions(client, monkeypatch):
+    spel, calls = client
+    binaries = {}
+    for version in ("0.9.33", "0.9.34"):
+        binary = spel._home / version / "spel"
+        binary.parent.mkdir()
+        binary.touch()
+        binaries[version] = binary
+    monkeypatch.setattr(vis_spel, "download", lambda home, version: binaries[version])
+
+    def execute(binary, arguments, **kwargs):
+        calls.append((binary, arguments, kwargs))
+        version = next(key for key, value in binaries.items() if str(value) == binary)
+        return (
+            0,
+            f"spel {version}" if arguments == ["version"] else '{"result": "ok"}',
+            "",
+        )
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    return spel, calls, binaries
+
+
+def test_install_switches_versions_without_changing_existing_reservations(versions):
+    spel, calls, binaries = versions
+    original = spel.install("0.9.33", browsers=False)
+    old_lease = spel.reserve()
+    upgraded = spel.install("0.9.34", browsers=False)
+    new_lease = spel.reserve()
+    assert Spel(spel._home).installed() == upgraded
+    assert spel.install("0.9.33", browsers=False) == original
+    rollback_lease = spel.reserve()
+    for lease, version in (
+        (old_lease, "0.9.33"),
+        (new_lease, "0.9.34"),
+        (rollback_lease, "0.9.33"),
+    ):
+        spel.open(lease.id, "about:blank")
+        assert calls[-1][0] == str(binaries[version])
+        spel.release(lease.id)
+    assert not any(args == ["install"] for _, args, _ in calls)
+
+
+@pytest.mark.parametrize("failure", ["download", "version", "browsers"])
+def test_failed_switch_retains_installation_and_reservations(
+    versions, monkeypatch, failure
+):
+    spel, calls, binaries = versions
+    previous = spel.install("0.9.33", browsers=False)
+    lease = spel.reserve()
+    if failure == "download":
+
+        def fail(*args):
+            raise RuntimeError("Download failed")
+
+        monkeypatch.setattr(vis_spel, "download", fail)
+    else:
+        monkeypatch.setattr(
+            vis_spel,
+            "_execute",
+            lambda binary, args, **kwargs: (
+                (0, "spel 0.9.34", "")
+                if args == ["version"] and failure == "browsers"
+                else (1, "", "failed")
+            ),
+        )
+    with pytest.raises(RuntimeError):
+        spel.install("0.9.34")
+    assert Spel(spel._home).installed() == previous
+    assert spel._reservation(lease.id)["executable"] == str(binaries["0.9.33"])
