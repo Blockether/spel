@@ -1,0 +1,12 @@
+## GET http://localhost:39683/status/204 → 204 No Content
+
+### Response Headers
+```
+content-type: application/json
+date: Fri, 11 Sep 2026 11:38:04 GMT
+```
+
+### cURL
+```bash
+curl 'http://localhost:39683/status/204'
+```

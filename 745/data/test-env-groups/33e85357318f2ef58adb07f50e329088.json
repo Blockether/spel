@@ -1,0 +1,1 @@
+{"id":"33e85357318f2ef58adb07f50e329088","fullName":"com.blockether.spel.security-test.truncate: cap output length with informative suffix.edge cases.nil max-chars → no truncation","name":"truncate: cap output length with informative suffix > edge cases > nil max-chars → no truncation","status":"passed","testResultsByEnv":{"default":"fb4f0b39f97bb35ff96a4877a72b04ef"}}
