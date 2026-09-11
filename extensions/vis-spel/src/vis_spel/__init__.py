@@ -471,11 +471,12 @@ class Spel:
         annotated: bool = True,
         full_page: bool = False,
     ) -> BrowserResult:
-        """Write a PNG to an explicit absolute path; annotated by default, viewport-only.
+        """Write a PNG to an explicit absolute path; annotated full-page by default.
 
-        The native result includes the path and, for annotated captures, the reference
-        legend. Keep that legend with the artifact. Existing paths are refused rather
-        than overwritten. Attach the resulting local file with Vis attach when needed.
+        Native annotated captures always include the full page and a reference legend.
+        For a viewport-only capture, use annotated=False and full_page=False;
+        full_page only changes unannotated captures. Keep the legend with the artifact.
+        Existing paths are refused. Attach the resulting local file with Vis attach.
         """
         target = Path(path).expanduser()
         if not target.is_absolute() or target.exists() or not target.parent.is_dir():

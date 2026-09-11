@@ -6,8 +6,8 @@ The package, implementation, tests and optional skill all live in this directory
 ## Install the extension
 
 Requires **Vis 0.1.64 or newer**, Python 3.11+, Git and uv. The required Activity API
-is not present in Vis 0.1.62. Until its SDK release is available, `uv.lock` pins the
-reviewed public Vis SDK source; no SDK implementation is copied into this package.
+is not present in Vis 0.1.62. The SDK dependency is available from PyPI; no SDK
+implementation is copied into this package.
 
 ```sh
 vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --revision REVIEWED_COMMIT_SHA --trust

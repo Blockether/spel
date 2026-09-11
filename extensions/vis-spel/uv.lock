@@ -273,10 +273,14 @@ wheels = [
 [[package]]
 name = "vis-agent"
 version = "0.1.64"
-source = { git = "https://github.com/Blockether/vis?subdirectory=packages%2Fvis-agent&rev=6bb7321b41b34528838f4f4e0e5c2d6cc7e4566b#6bb7321b41b34528838f4f4e0e5c2d6cc7e4566b" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
     { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/04/5d96a249f3ef71ba97e4252098061af33edb2da544e41c0b7c4fa6dcf772/vis_agent-0.1.64.tar.gz", hash = "sha256:f8aae2f8e37f70a67987804eb2b5dcd8394c02e4203c08cb646964dec91e49d2", size = 160014, upload-time = "2026-09-11T03:25:48.383Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/74/d1/44f276b2b357be6669cd55137547c91ec446eba83c7f7ee3286131cee28f/vis_agent-0.1.64-py3-none-any.whl", hash = "sha256:47b8d8401d3f4a06d1d93ce37f5116c2c497f9ea046787040ac1f2a615e9003d", size = 127410, upload-time = "2026-09-11T03:25:46.883Z" },
 ]
 
 [[package]]
@@ -294,7 +298,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "vis-agent", git = "https://github.com/Blockether/vis?subdirectory=packages%2Fvis-agent&rev=6bb7321b41b34528838f4f4e0e5c2d6cc7e4566b" }]
+requires-dist = [{ name = "vis-agent", specifier = ">=0.1.64" }]
 
 [package.metadata.requires-dev]
 dev = [

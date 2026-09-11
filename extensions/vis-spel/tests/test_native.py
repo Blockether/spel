@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+import struct
 import time
 import uuid
 from pathlib import Path
@@ -47,9 +48,16 @@ def test_native_browser_workflow(tmp_path):
             "nil": None,
         }
         assert client.sci(lease.id, "(+ 20 22)").data["result"] in (42, "42")
+        # Native annotation is full-page; unannotated captures can be viewport-only.
+        client.command(lease.id, ["set", "viewport", "800", "600"])
+        client.evaluate(lease.id, "document.body.style.minHeight = '1800px'")
         image = tmp_path / "browser.png"
         picture = client.screenshot(lease.id, str(image))
         assert image.read_bytes().startswith(b"\x89PNG")
+        assert struct.unpack(">II", image.read_bytes()[16:24])[1] >= 1800
+        viewport = tmp_path / "viewport.png"
+        client.screenshot(lease.id, str(viewport), annotated=False)
+        assert struct.unpack(">II", viewport.read_bytes()[16:24]) == (800, 600)
         assert picture.data["annotated"]["count"] == 2
         entries = picture.data["annotated"]["entries"]
         assert {entry["name"] for entry in entries} == {"42", "Name"}

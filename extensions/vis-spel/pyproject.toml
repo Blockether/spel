@@ -19,10 +19,6 @@ skills = ["skills/browser"]
 [dependency-groups]
 dev = ["pytest>=8.3,<10", "ruff>=0.12,<1"]
 
-# The required Activity API is in this reviewed SDK source, not PyPI 0.1.62.
-[tool.uv.sources]
-vis-agent = { git = "https://github.com/Blockether/vis", rev = "6bb7321b41b34528838f4f4e0e5c2d6cc7e4566b", subdirectory = "packages/vis-agent" }
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
