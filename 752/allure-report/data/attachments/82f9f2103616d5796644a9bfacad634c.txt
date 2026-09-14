@@ -1,0 +1,6 @@
+spel: assembling Playwright Java driver v1.61.0 for linux...
+Downloading: org/clojure/clojure/1.12.5/clojure-1.12.5.pom from central
+Downloading: org/clojure/clojure/1.12.5/clojure-1.12.5.jar from central
+  - driver (resolved via tools.deps: /home/runner/.m2/repository/com/microsoft/playwright/driver/1.61.0/driver-1.61.0.jar)
+  - driver-bundle (resolved via tools.deps: /home/runner/.m2/repository/com/microsoft/playwright/driver-bundle/1.61.0/driver-bundle-1.61.0.jar)
+spel: driver ready.

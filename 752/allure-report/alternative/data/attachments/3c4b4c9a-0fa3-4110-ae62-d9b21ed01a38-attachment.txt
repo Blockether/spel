@@ -1,0 +1,13 @@
+[viewport: 800x600]
+- body
+  - div "My Application" [@e6j10q] [pos:0,0 800×68]
+  - navigation [@e82cip] [pos:0,68 800×42]
+    - link "Home" [@e192zc] [url=/home] [clickable] [pos:20,80 43×18]
+    - link "About" [@e82zj1] [url=/about] [clickable] [pos:79,80 42×18]
+    - link "Contact" [@e9adhz] [url=/contact] [clickable] [pos:137,80 55×18]
+  - div
+    - heading "Welcome to Our Platform" [@e2zspg] [level=1] [pos:20,171 760×37]
+    - paragraph "Build amazing applications with our powerful tools and intuitive interface.
+       Get started today and see the difference." [@e469v9] [pos:20,224 600×51]
+    - button "Get Started" [@e5oiv1] [clickable] [pos:20,300 130×42]
+  - div "© 2026 My Application. All rights reserved." [@e7axzm] [pos:0,560 840×40]
