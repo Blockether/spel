@@ -6,7 +6,7 @@ section "Debug (9)"
 OUT=$("$SPEL" --json trace start 2>&1)
 assert_jq_eq "trace start → .data.trace" "$OUT" '.data.trace' 'started'
 
-TRACE_PATH="/tmp/test-cli-trace.zip"
+TRACE_PATH="$TEST_TMP_DIR/test-cli-trace.zip"
 TEMP_FILES+=("$TRACE_PATH")
 OUT=$("$SPEL" --json trace stop "$TRACE_PATH" 2>&1)
 assert_jq_eq "trace stop → .data.trace" "$OUT" '.data.trace' 'stopped'

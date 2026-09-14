@@ -45,9 +45,9 @@ ERROR_COUNT=0
 TOTAL_COUNT=0
 START_TIME=$(date +%s)
 
-# Isolate the regression suite from the user's default daemon/session.
-SESSION="cli-test-$$"
-export SPEL_SESSION="$SESSION"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=cli-tests/session.sh
+source "$SCRIPT_DIR/cli-tests/session.sh"
 
 # Colors
 GREEN='\033[0;32m'
@@ -55,17 +55,6 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
-
-# Temp files for cleanup
-TEMP_FILES=()
-
-cleanup() {
-  "$SPEL" close 2>/dev/null || true
-  for f in "${TEMP_FILES[@]}"; do
-    rm -f "$f" 2>/dev/null
-  done
-}
-trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
 # Helper Functions — Real JSON Assertions
@@ -221,12 +210,10 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # Create temp files
-echo "test upload content" > /tmp/test-upload.txt
-TEMP_FILES+=(/tmp/test-upload.txt)
+echo "test upload content" > "$TEST_TMP_DIR/test-upload.txt"
+TEMP_FILES+=("$TEST_TMP_DIR/test-upload.txt")
 
-"$SPEL" close 2>/dev/null || true
-pkill -f "[s]pel daemon" 2>/dev/null || true
-"$SPEL" open https://example.com >/dev/null 2>&1
+preflight
 
 # =============================================================================
 # NAVIGATION (4)
@@ -352,7 +339,7 @@ assert_jq "select dropdown → success" "$OUT" 'has("error") | not'
 # Navigate to /upload for upload
 nav "https://the-internet.herokuapp.com/upload"
 
-OUT=$("$SPEL" --json upload "input#file-upload" /tmp/test-upload.txt 2>&1)
+OUT=$("$SPEL" --json upload "input#file-upload" "$TEST_TMP_DIR/test-upload.txt" 2>&1)
 assert_jq "upload file → success" "$OUT" 'has("error") | not'
 
 # Return to example.com
@@ -366,17 +353,17 @@ section "Screenshots & PDF (4)"
 OUT=$("$SPEL" --json screenshot 2>&1)
 assert_jq_gt "screenshot → .size > 0" "$OUT" '.size' 0
 
-SHOT_PATH="/tmp/test-cli-shot.png"
+SHOT_PATH="$TEST_TMP_DIR/test-cli-shot.png"
 TEMP_FILES+=("$SHOT_PATH")
 OUT=$("$SPEL" --json screenshot "$SHOT_PATH" 2>&1)
 assert_jq_contains "screenshot (named) → .path" "$OUT" '.path' 'test-cli-shot.png'
 
-FULL_PATH="/tmp/test-cli-full.png"
+FULL_PATH="$TEST_TMP_DIR/test-cli-full.png"
 TEMP_FILES+=("$FULL_PATH")
 OUT=$("$SPEL" --json screenshot -f "$FULL_PATH" 2>&1)
 assert_jq_gt "screenshot -f → .size > 0" "$OUT" '.size' 0
 
-PDF_PATH="/tmp/test-cli-page.pdf"
+PDF_PATH="$TEST_TMP_DIR/test-cli-page.pdf"
 TEMP_FILES+=("$PDF_PATH")
 OUT=$("$SPEL" --json pdf "$PDF_PATH" 2>&1)
 assert_jq_contains "pdf → .path" "$OUT" '.path' 'test-cli-page.pdf'
@@ -393,7 +380,7 @@ assert_jq_gt "screenshot -a → .annotated.count > 0" "$OUT" '.annotated.count' 
 assert_jq_gt "screenshot -a → .annotated.entries | length > 0" "$OUT" '.annotated.entries | length' 0
 
 # --annotate long-form writes to an explicit path
-ANNOT_PATH="/tmp/test-cli-annot.png"
+ANNOT_PATH="$TEST_TMP_DIR/test-cli-annot.png"
 TEMP_FILES+=("$ANNOT_PATH")
 OUT=$("$SPEL" --json screenshot --annotate "$ANNOT_PATH" 2>&1)
 assert_jq_contains "screenshot --annotate (named) → .path" "$OUT" '.path' 'test-cli-annot.png'
@@ -655,9 +642,9 @@ assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_r
 # Regression, user report: `spel --session <s> --cdp <url> network route '**/*.gif'` as the
 # session's FIRST command answered browser_handle_lost — the route handler read a page no
 # command had opened yet, so the session never attached to the browser it was given.
-OUT=$(timeout 60 "$SPEL" --json --session freshroute network route "**/*.png" 2>&1)
+OUT=$(timeout 60 "$SPEL" --json --session "${SESSION}-freshroute" network route "**/*.png" 2>&1)
 assert_jq_eq "network route as a session's first command → .route_added" "$OUT" '.route_added' '**/*.png'
-timeout 10 "$SPEL" --json --session freshroute close >/dev/null 2>&1 || true
+timeout 10 "$SPEL" --json --session "${SESSION}-freshroute" close >/dev/null 2>&1 || true
 OUT=$("$SPEL" --json network requests 2>&1)
 assert_jq "network requests → success" "$OUT" 'has("error") | not'
 
@@ -796,7 +783,7 @@ nav "https://example.com"
 OUT=$("$SPEL" --json trace start 2>&1)
 assert_jq_eq "trace start → .trace" "$OUT" '.trace' 'started'
 
-TRACE_PATH="/tmp/test-cli-trace.zip"
+TRACE_PATH="$TEST_TMP_DIR/test-cli-trace.zip"
 TEMP_FILES+=("$TRACE_PATH")
 OUT=$("$SPEL" --json trace stop "$TRACE_PATH" 2>&1)
 assert_jq_eq "trace stop → .trace" "$OUT" '.trace' 'stopped'
@@ -844,7 +831,7 @@ section "State Management (9)"
 OUT=$("$SPEL" --json state save 2>&1)
 assert_jq_contains "state save → .path" "$OUT" '.path' "state-$SESSION"
 
-STATE_PATH="/tmp/test-cli-state.json"
+STATE_PATH="$TEST_TMP_DIR/test-cli-state.json"
 TEMP_FILES+=("$STATE_PATH")
 OUT=$("$SPEL" --json state save "$STATE_PATH" 2>&1)
 assert_jq_contains "state save path → .path" "$OUT" '.path' 'test-cli-state'
@@ -872,8 +859,8 @@ assert_jq_eq "state rename → .renamed.to" "$OUT" '.renamed.to' 'state-renamed.
 
 # state clear --all
 "$SPEL" state save >/dev/null 2>&1
-"$SPEL" state save /tmp/test-cli-extra.json >/dev/null 2>&1
-TEMP_FILES+=("/tmp/test-cli-extra.json")
+"$SPEL" state save "$TEST_TMP_DIR/test-cli-extra.json" >/dev/null 2>&1
+TEMP_FILES+=("$TEST_TMP_DIR/test-cli-extra.json")
 OUT=$("$SPEL" --json state clear --all 2>&1)
 assert_jq_gt "state clear --all → .cleared >= 1" "$OUT" '.cleared' 0
 
@@ -895,44 +882,44 @@ assert_jq_eq "session → .session" "$OUT" '.session' "$SESSION"
 OUT=$("$SPEL" --json session list 2>&1)
 assert_jq "session list → success" "$OUT" 'has("error") | not'
 
-OUT=$(timeout 30 "$SPEL" --json --session testsession open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-testsession" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session testsession → .url" "$OUT" '.url' 'https://example.com/'
-timeout 10 "$SPEL" --session testsession close >/dev/null 2>&1 || true
+timeout 10 "$SPEL" --session "${SESSION}-testsession" close >/dev/null 2>&1 || true
 
 # --session with screenshot (auto-path)
-OUT=$(timeout 30 "$SPEL" --json --session screenshotsess open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-screenshotsess" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session screenshot setup → .url" "$OUT" '.url' 'https://example.com/'
 
-OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-screenshotsess" screenshot 2>/dev/null) || true
 assert_jq_gt "--session screenshot (auto) → .size > 0" "$OUT" '.size' 0
 
 # --session with screenshot to named path
-SESS_SHOT_PATH="/tmp/test-cli-session-shot.png"
+SESS_SHOT_PATH="$TEST_TMP_DIR/test-cli-session-shot.png"
 TEMP_FILES+=("$SESS_SHOT_PATH")
-OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot "$SESS_SHOT_PATH" 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-screenshotsess" screenshot "$SESS_SHOT_PATH" 2>/dev/null) || true
 assert_jq_contains "--session screenshot (named) → .path" "$OUT" '.path' 'test-cli-session-shot.png'
 
 # --session with screenshot to subdirectory (tests parent dir creation)
-SESS_SUBDIR="/tmp/test-cli-session-subdir"
+SESS_SUBDIR="$TEST_TMP_DIR/test-cli-session-subdir"
 SESS_SUBDIR_SHOT="$SESS_SUBDIR/evidence/shot.png"
 TEMP_FILES+=("$SESS_SUBDIR_SHOT")
 rm -rf "$SESS_SUBDIR" 2>/dev/null
-OUT=$(timeout 30 "$SPEL" --json --session screenshotsess screenshot "$SESS_SUBDIR_SHOT" 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-screenshotsess" screenshot "$SESS_SUBDIR_SHOT" 2>/dev/null) || true
 assert_jq_contains "--session screenshot (subdir) → .path" "$OUT" '.path' 'evidence/shot.png'
 
 # --session close (graceful close of named session)
-OUT=$(timeout 10 "$SPEL" --json --session screenshotsess close 2>/dev/null) || true
+OUT=$(timeout 10 "$SPEL" --json --session "${SESSION}-screenshotsess" close 2>/dev/null) || true
 assert_jq "--session close → .closed" "$OUT" '.closed == true'
 rm -rf "$SESS_SUBDIR" 2>/dev/null
 
 # --session close (no daemon running — should succeed without starting one)
-OUT=$(timeout 10 "$SPEL" --json --session nonexistent-session close 2>/dev/null) || true
+OUT=$(timeout 10 "$SPEL" --json --session "${SESSION}-nonexistent-session" close 2>/dev/null) || true
 assert_jq "--session close (no daemon) → .closed" "$OUT" '.closed == true'
 
 # --session open + close roundtrip on fresh session
-OUT=$(timeout 30 "$SPEL" --json --session roundtrip open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-roundtrip" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session roundtrip open → .url" "$OUT" '.url' 'https://example.com/'
-OUT=$(timeout 10 "$SPEL" --json --session roundtrip close 2>/dev/null) || true
+OUT=$(timeout 10 "$SPEL" --json --session "${SESSION}-roundtrip" close 2>/dev/null) || true
 assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
 # =============================================================================
@@ -1079,7 +1066,7 @@ assert_jq_eq "diff url → .url2" "$OUT" '.url2' 'https://example.org'
 assert_jq "diff url → has snapshot_diff" "$OUT" 'has("snapshot_diff")'
 
 # network har start/stop — records HAR file
-HAR_PATH="/tmp/spel-test-cli.har"
+HAR_PATH="$TEST_TMP_DIR/spel-test-cli.har"
 TEMP_FILES+=("$HAR_PATH")
 OUT=$("$SPEL" --json network har start "$HAR_PATH" 2>&1)
 assert_jq_contains "network har start → .path" "$OUT" '.path' 'spel-test-cli.har'
@@ -1131,13 +1118,13 @@ assert_jq "window new → has .url" "$OUT" 'has("url")'
 "$SPEL" tab 0 >/dev/null 2>&1
 
 # --screenshot-format jpeg + --screenshot-quality
-JPEG_PATH="/tmp/test-cli-jpeg-$$.jpg"
+JPEG_PATH="$TEST_TMP_DIR/test-cli-jpeg-$$.jpg"
 TEMP_FILES+=("$JPEG_PATH")
 OUT=$("$SPEL" --json --screenshot-format jpeg --screenshot-quality 50 screenshot "$JPEG_PATH" 2>&1)
 assert_jq_contains "screenshot --format jpeg → .path has .jpg" "$OUT" '.path' '.jpg'
 
 # --screenshot-dir (pathless screenshot goes to custom dir)
-SS_DIR="/tmp/spel-ss-test-$$"
+SS_DIR="$TEST_TMP_DIR/spel-ss-test-$$"
 mkdir -p "$SS_DIR"
 OUT=$("$SPEL" --json --screenshot-dir "$SS_DIR" screenshot 2>&1)
 assert_jq_contains "screenshot --screenshot-dir → .path in custom dir" "$OUT" '.path' "spel-ss-test-$$"
@@ -1155,7 +1142,7 @@ OUT=$("$SPEL" --json dialog status 2>&1)
 assert_jq "--no-auto-dialog dialog status works" "$OUT" '.pending == false'
 
 # spel.json config file — create temp config, verify it applies
-CONFIG_DIR="/tmp/spel-config-test-$$"
+CONFIG_DIR="$TEST_TMP_DIR/spel-config-test-$$"
 mkdir -p "$CONFIG_DIR"
 echo '{"maxOutput": 200}' > "$CONFIG_DIR/spel.json"
 OUT=$("$SPEL" --json --config "$CONFIG_DIR/spel.json" snapshot 2>&1)
@@ -1194,7 +1181,7 @@ assert_jq_contains "--engine lightpanda (no binary) → error mentions Lightpand
 # with the mock lightpanda binary. An already-running daemon has its own PATH
 # from when it was originally started.
 "$SPEL" close >/dev/null 2>&1
-MOCK_DIR="/tmp/spel-mock-lp-$$"
+MOCK_DIR="$TEST_TMP_DIR/spel-mock-lp-$$"
 mkdir -p "$MOCK_DIR"
 cat > "$MOCK_DIR/lightpanda" << 'MOCK_EOF'
 #!/bin/bash
@@ -1284,7 +1271,7 @@ fake_endpoint_case() {
   local upper
   upper=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
   local label="connect $scheme:// → native binary speaks $upper (/json/version fetched)"
-  local dir="/tmp/spel-fake-$scheme-$$"
+  local dir="$TEST_TMP_DIR/spel-fake-$scheme-$$"
   local portfile="$dir/port"
   local log="$dir/log"
   local store="$dir/keystore.p12"
@@ -1402,22 +1389,22 @@ section "Global Flags (5)"
 OUT=$("$SPEL" --json open https://example.com 2>&1)
 assert_jq_eq "--json flag → .url" "$OUT" '.url' 'https://example.com/'
 
-OUT=$(timeout 30 "$SPEL" --json --session flagtest open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-flagtest" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--session flag → .url" "$OUT" '.url' 'https://example.com/'
-timeout 10 "$SPEL" --session flagtest close >/dev/null 2>&1 || true
+timeout 10 "$SPEL" --session "${SESSION}-flagtest" close >/dev/null 2>&1 || true
 
 # --browser + --session combined (use default chromium browser)
-OUT=$(timeout 30 "$SPEL" --json --browser chromium --session chantest open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --browser chromium --session "${SESSION}-chantest" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--browser + --session open → .url" "$OUT" '.url' 'https://example.com/'
 
 # --browser + --session close
-OUT=$(timeout 10 "$SPEL" --json --browser chromium --session chantest close 2>/dev/null) || true
+OUT=$(timeout 10 "$SPEL" --json --browser chromium --session "${SESSION}-chantest" close 2>/dev/null) || true
 assert_jq "--browser + --session close → .closed" "$OUT" '.closed == true'
 
 # --browser=value syntax with --session
-OUT=$(timeout 30 "$SPEL" --json --browser=chromium --session=chaneq open https://example.com 2>/dev/null) || true
+OUT=$(timeout 30 "$SPEL" --json --browser=chromium --session="${SESSION}-chaneq" open https://example.com 2>/dev/null) || true
 assert_jq_eq "--browser=val + --session=val open → .url" "$OUT" '.url' 'https://example.com/'
-timeout 10 "$SPEL" --session chaneq close >/dev/null 2>&1 || true
+timeout 10 "$SPEL" --session "${SESSION}-chaneq" close >/dev/null 2>&1 || true
 
 # Final close
 "$SPEL" close >/dev/null 2>&1
@@ -1466,10 +1453,10 @@ section "Stitch (5)"
 # Create two small test PNGs using the spel binary itself
 "$SPEL" open https://example.com >/dev/null 2>&1
 "$SPEL" set viewport 320 240 >/dev/null 2>&1
-STITCH_A="/tmp/test-stitch-a.png"
-STITCH_B="/tmp/test-stitch-b.png"
-STITCH_OUT="/tmp/test-stitched.png"
-STITCH_OVL="/tmp/test-stitched-ovl.png"
+STITCH_A="$TEST_TMP_DIR/test-stitch-a.png"
+STITCH_B="$TEST_TMP_DIR/test-stitch-b.png"
+STITCH_OUT="$TEST_TMP_DIR/test-stitched.png"
+STITCH_OVL="$TEST_TMP_DIR/test-stitched-ovl.png"
 TEMP_FILES+=("$STITCH_A" "$STITCH_B" "$STITCH_OUT" "$STITCH_OVL")
 "$SPEL" screenshot "$STITCH_A" >/dev/null 2>&1
 "$SPEL" screenshot "$STITCH_B" >/dev/null 2>&1
@@ -1505,7 +1492,7 @@ else
 fi
 
 # stitch with non-existent file → should error
-OUT=$("$SPEL" stitch "$STITCH_A" /tmp/nonexistent-image.png -o /tmp/fail.png 2>&1)
+OUT=$("$SPEL" stitch "$STITCH_A" "$TEST_TMP_DIR/nonexistent-image.png" -o "$TEST_TMP_DIR/fail.png" 2>&1)
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 if echo "$OUT" | grep -qi "not found\|error"; then
   pass "stitch non-existent file → error message"
@@ -1805,8 +1792,8 @@ assert_contains "action-log --help mentions ffmpeg" "$OUT" "ffmpeg"
 section "Codegen + Eval Compatibility (31)"
 
 # Create a test JSONL (navigate + assert heading, no closePage — safe for daemon)
-CODEGEN_JSONL="/tmp/test-codegen-compat.jsonl"
-CODEGEN_SCRIPT="/tmp/test-codegen-compat.clj"
+CODEGEN_JSONL="$TEST_TMP_DIR/test-codegen-compat.jsonl"
+CODEGEN_SCRIPT="$TEST_TMP_DIR/test-codegen-compat.clj"
 TEMP_FILES+=("$CODEGEN_JSONL" "$CODEGEN_SCRIPT")
 
 cat > "$CODEGEN_JSONL" <<'JSONL'
@@ -1840,7 +1827,7 @@ assert_contains "codegen body → has assert/contains-text" "$OUT" "assert/conta
 assert_contains "codegen body → has role/heading" "$OUT" "role/heading"
 
 # --- Test codegen from project recording.jsonl ---
-OUT=$("$SPEL" codegen --format=script test/com/blockether/spel/recording.jsonl 2>&1)
+OUT=$("$SPEL" codegen --format=script "$SCRIPT_DIR/test/com/blockether/spel/recording.jsonl" 2>&1)
 assert_contains "codegen recording.jsonl → has core/with-testing-page" "$OUT" "core/with-testing-page"
 assert_contains "codegen recording.jsonl → has role/link" "$OUT" "role/link"
 
@@ -1891,8 +1878,8 @@ assert_contains "eval-sci → page URL contains example.com" "$URL_OUT" "example
 "$SPEL" eval-sci '(do nil)' --autoclose >/dev/null 2>&1 || true
 
 # --- NEGATIVE: prove wrong assertions FAIL (not silently swallowed) ---
-CODEGEN_BAD_JSONL="/tmp/test-codegen-bad.jsonl"
-CODEGEN_BAD_SCRIPT="/tmp/test-codegen-bad.clj"
+CODEGEN_BAD_JSONL="$TEST_TMP_DIR/test-codegen-bad.jsonl"
+CODEGEN_BAD_SCRIPT="$TEST_TMP_DIR/test-codegen-bad.clj"
 TEMP_FILES+=("$CODEGEN_BAD_JSONL" "$CODEGEN_BAD_SCRIPT")
 
 cat > "$CODEGEN_BAD_JSONL" <<'JSONL'
@@ -1951,7 +1938,7 @@ assert_jq "open --viewport → .viewport.width == 800" "$OUT" '.viewport.width =
 assert_jq "open --viewport → .viewport.height == 600" "$OUT" '.viewport.height == 600'
 
 # --crop-to-content should produce a smaller screenshot than the viewport
-CROP_PATH="/tmp/test-cli-crop.png"
+CROP_PATH="$TEST_TMP_DIR/test-cli-crop.png"
 TEMP_FILES+=("$CROP_PATH")
 OUT=$("$SPEL" --json screenshot --crop-to-content "$CROP_PATH" 2>&1)
 assert_jq_gt "screenshot --crop-to-content → .size > 0" "$OUT" '.size' 0
@@ -2228,7 +2215,7 @@ OUT=$("$SPEL" --json markdownify --input '<h1>Hello</h1><p>World</p>' 2>&1)
 assert_jq_contains "markdownify --input → heading" "$OUT" '.markdown' '# Hello'
 assert_jq_contains "markdownify --input → paragraph" "$OUT" '.markdown' 'World'
 
-MD_FILE=/tmp/test-cli-markdownify.html
+MD_FILE="$TEST_TMP_DIR/test-cli-markdownify.html"
 TEMP_FILES+=("$MD_FILE")
 printf '%s' '<html><body><h2>From File</h2><ul><li>One</li></ul></body></html>' > "$MD_FILE"
 OUT=$("$SPEL" --json markdownify --file "$MD_FILE" 2>&1)
@@ -2246,7 +2233,7 @@ OUT=$("$SPEL" --json markdownify --input '<html><head><title>DocTitle</title></h
 assert_jq_contains "markdownify --full → keeps footer content" "$OUT" '.markdown' 'Footer Noise'
 
 # markdownify --url with file:// path (issue #86 — --url path works)
-MD_URL_FILE=/tmp/test-cli-markdownify-url.html
+MD_URL_FILE="$TEST_TMP_DIR/test-cli-markdownify-url.html"
 TEMP_FILES+=("$MD_URL_FILE")
 printf '%s' '<html><head><title>URL Test</title></head><body><h1>Via URL</h1><p>Content here.</p></body></html>' > "$MD_URL_FILE"
 OUT=$("$SPEL" --json markdownify --url "file://$MD_URL_FILE" 2>&1)
@@ -2580,7 +2567,7 @@ assert_jq_eq "health after kill → down" "$OUT" '.status' 'down'
 # SPEL=/path/to/spel bash cli-tests/23-navigation-stability.sh.
 section "Navigation end-to-end coverage (issue #135)"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if SPEL="$SPEL" bash "$(dirname "$0")/cli-tests/23-navigation-stability.sh"; then
+if SPEL="$SPEL" bash "$SCRIPT_DIR/cli-tests/23-navigation-stability.sh"; then
   pass "native navigation stability"
 else
   fail "native navigation stability" "see focused test diagnostics above"
@@ -2589,7 +2576,7 @@ fi
 # Regression, issue #136: PTY exit lost browser state while the daemon survived.
 section "Native session lifecycle (issue #136)"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if SPEL="$SPEL" python3 "$(dirname "$0")/cli-tests/session_lifecycle_test.py"; then
+if SPEL="$SPEL" python3 "$SCRIPT_DIR/cli-tests/session_lifecycle_test.py"; then
   pass "native session lifecycle"
 else
   fail "native session lifecycle" "see focused test diagnostics above"
@@ -2598,7 +2585,7 @@ fi
 # Regression, Blockether/vis#227: CDP bootstrap, passive discovery and URL disclosure.
 section "Native CDP sessions (Blockether/vis#227)"
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if SPEL="$SPEL" python3 "$(dirname "$0")/cli-tests/cdp_session_test.py"; then
+if SPEL="$SPEL" python3 "$SCRIPT_DIR/cli-tests/cdp_session_test.py"; then
   pass "native CDP sessions"
 else
   fail "native CDP sessions" "see focused test diagnostics above"

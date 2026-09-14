@@ -7,7 +7,11 @@
 
 set -o pipefail
 
-SPEL="${SPEL:-$(dirname "$0")/../target/spel}"
+HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SPEL="${SPEL:-$HELPERS_DIR/../target/spel}"
+SPEL="$(cd "$(dirname "$SPEL")" && pwd)/$(basename "$SPEL")"
+# shellcheck source=session.sh
+source "$HELPERS_DIR/session.sh"
 PASS_COUNT=0
 FAIL_COUNT=0
 ERROR_COUNT=0
@@ -20,17 +24,6 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
-
-# Temp files for cleanup
-TEMP_FILES=()
-
-cleanup() {
-  "$SPEL" close 2>/dev/null || true
-  for f in "${TEMP_FILES[@]}"; do
-    rm -f "$f" 2>/dev/null
-  done
-}
-trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
 # Assertion Functions
@@ -172,18 +165,6 @@ assert_exists() {
 # Navigate helper — opens URL (synchronous, blocks until page loads)
 nav() {
   "$SPEL" open "$1" >/dev/null 2>&1
-}
-
-# ---------------------------------------------------------------------------
-# Pre-flight: ensure clean state
-# ---------------------------------------------------------------------------
-preflight() {
-  "$SPEL" close 2>/dev/null || true
-  # Kill only actual spel binary processes (daemon), not bash scripts referencing spel
-  pkill -9 -xf ".*spel daemon.*" 2>/dev/null || true
-  pkill -9 -x spel 2>/dev/null || true
-  rm -f /tmp/spel-*.sock /tmp/spel-*.pid 2>/dev/null || true
-  "$SPEL" open https://example.com >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------

@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 """Native session lifecycle regression tests, run by test-cli.sh (issue #136)."""
 
 import http.server
 import json
 import os
-from pathlib import Path
 import platform
+import re
 import shlex
 import signal
 import subprocess
@@ -13,6 +12,7 @@ import tempfile
 import threading
 import unittest
 import uuid
+from pathlib import Path
 
 
 class Fixture(http.server.BaseHTTPRequestHandler):
@@ -26,6 +26,29 @@ class Fixture(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+# Regression, Council #4728: test startup killed unrelated Spel daemons and
+# removed their socket/PID files. Inspect before executing any harness startup.
+def assert_harness_cleanup_scoped(test):
+    repository = Path(__file__).resolve().parents[1]
+    scripts = [
+        repository / "test-cli.sh",
+        *sorted((repository / "cli-tests").glob("*.sh")),
+    ]
+    unsafe = []
+    for script in scripts:
+        for number, line in enumerate(script.read_text().splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            if re.search(r"\b(?:pkill|killall)\b|/tmp/spel-\*", line):
+                unsafe.append(f"{script.name}:{number}: {line.strip()}")
+    test.assertEqual(unsafe, [], "Global cleanup can terminate unrelated sessions")
+
+
+class HarnessSafetyTest(unittest.TestCase):
+    def test_cleanup_is_scoped(self):
+        assert_harness_cleanup_scoped(self)
 
 
 @unittest.skipUnless(os.name == "posix", "POSIX terminal lifecycle")
@@ -57,6 +80,7 @@ class SessionLifecycleTest(unittest.TestCase):
             text=True,
             timeout=45,
             env=self.env,
+            check=False,
         )
 
     def command(self, *args, expected=0):
@@ -117,7 +141,7 @@ class SessionLifecycleTest(unittest.TestCase):
                 "/dev/null",
             ]
         opened = subprocess.run(
-            argv, capture_output=True, text=True, timeout=90, env=self.env
+            argv, capture_output=True, text=True, timeout=90, env=self.env, check=False
         )
         self.assertEqual(opened.returncode, 0, opened.stdout + opened.stderr)
         before = [
@@ -147,6 +171,70 @@ class SessionLifecycleTest(unittest.TestCase):
         before = self.command("health")
         self.assert_state()
         self.assertEqual(before["pid"], self.command("health")["pid"])
+
+    # Regression, Council #4728: running CLI tests closed another task's browser.
+    def test_harness_startup_and_cleanup_preserve_unrelated_browser(self):
+        assert_harness_cleanup_scoped(self)  # Never reproduce with a real global kill.
+        self.command("open", self.url)
+        self.command("eval-js", self.seed())
+        before = self.command("health")
+        helpers = Path(__file__).with_name("helpers.sh")
+        with tempfile.TemporaryDirectory() as caller_directory:
+            caller_state = Path(caller_directory) / "state-unrelated.json"
+            caller_state.write_text('{"owner":"sentinel"}')
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-e",
+                    "-c",
+                    (
+                        'source "$1"; preflight "$2"; '
+                        'printf "OWNED_SESSION=%s\nOWNED_DIRECTORY=%s\n" "$SPEL_SESSION" "$TEST_TMP_DIR"; '
+                        '"$SPEL" --json health; "$SPEL" state save; '
+                        '"$SPEL" state clear --all; cleanup'
+                    ),
+                    "harness-isolation",
+                    str(helpers),
+                    self.url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=caller_directory,
+                env={**self.env, "SPEL": self.binary, "SPEL_SESSION": self.session},
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(caller_state.read_text(), '{"owner":"sentinel"}')
+        ownership = dict(
+            line.split("=", 1)
+            for line in result.stdout.splitlines()
+            if line.startswith("OWNED_")
+        )
+        owned = ownership["OWNED_SESSION"]
+        self.assertNotEqual(owned, self.session)
+        self.assertNotEqual(owned, "default")
+        self.assertFalse(Path(ownership["OWNED_DIRECTORY"]).exists())
+        self.assertNotEqual(Path(ownership["OWNED_DIRECTORY"]), Path(caller_directory))
+        owned_health = next(
+            json.loads(line)
+            for line in result.stdout.splitlines()
+            if line.startswith("{") and '"pid"' in line
+        )
+        self.assertEqual(owned_health["status"], "ok")
+        self.assertNotEqual(owned_health["pid"], before["pid"])
+        closed = subprocess.run(
+            [self.binary, "--session", owned, "--json", "health"],
+            capture_output=True,
+            text=True,
+            timeout=45,
+            env=self.env,
+            check=False,
+        )
+        self.assertEqual(closed.returncode, 1, closed.stdout + closed.stderr)
+        self.assertEqual(json.loads(closed.stdout)["status"], "down")
+        self.assertEqual(before["pid"], self.command("health")["pid"])
+        self.assert_state()
 
     # Regression, issue #136: health called cached browser fields a healthy check.
     def test_health_identifies_cached_browser_observations(self):

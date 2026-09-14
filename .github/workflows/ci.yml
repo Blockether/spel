@@ -151,21 +151,8 @@ jobs:
           echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
           ls "$PLAYWRIGHT_BROWSERS_PATH/" 2>/dev/null | head -5 || echo 'WARNING: browser dir missing'
           chmod +x target/spel
-          # Quick sanity: can the binary launch a browser and navigate?
-          echo '--- Pre-flight: spel open (verbose) ---'
-          target/spel --json open https://example.com 2>&1 | head -5 || true
-          echo '--- Pre-flight: spel close ---'
-          target/spel close 2>&1 || true
           echo '--- Running test-cli.sh ---'
           ./test-cli.sh ./target/spel
-
-      - name: Dump daemon log (Unix)
-        if: runner.os != 'Windows' && always()
-        run: |
-          echo '--- Daemon log (last 50 lines) ---'
-          tail -50 /tmp/spel-default.log 2>/dev/null || echo 'No daemon log found'
-          echo '--- Daemon log for testsession ---'
-          tail -20 /tmp/spel-testsession.log 2>/dev/null || echo 'No testsession log'
 
       - name: CLI smoke tests (Unix)
         if: runner.os != 'Windows'

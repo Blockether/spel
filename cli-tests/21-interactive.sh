@@ -2,9 +2,6 @@
 source "$(dirname "$0")/helpers.sh"
 
 "$SPEL" close 2>/dev/null || true
-pkill -9 -xf ".*spel daemon.*" 2>/dev/null || true
-pkill -9 -x spel 2>/dev/null || true
-rm -f /tmp/spel-*.sock /tmp/spel-*.pid 2>/dev/null || true
 
 section "Interactive Mode (5)"
 

@@ -3,8 +3,7 @@
 # The report has no deterministic fixture. This covers its option combination and
 # repeated navigation, not a claimed RED/GREEN reproduction of the original error.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SESSION="agent-135-$(date +%s)-$$"
-export SPEL_SESSION="$SESSION" SPEL_SESSION_IDLE_TIMEOUT=0
+export SPEL_SESSION_IDLE_TIMEOUT=0
 # shellcheck source=helpers.sh
 source "$SCRIPT_DIR/helpers.sh"
 if [[ ! -x "$SPEL" ]]; then
@@ -20,7 +19,7 @@ fi
 WORK_DIR=$(mktemp -d)
 SERVER_PID=""
 cleanup_navigation() {
-  timeout 15 "$SPEL" --session "$SESSION" close >/dev/null 2>&1 || true
+  cleanup
   if [[ -n "$SERVER_PID" ]]; then
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true

@@ -65,9 +65,9 @@ assert_jq "select dropdown → success" "$OUT" '.success == true'
 
 nav "https://the-internet.herokuapp.com/upload"
 
-echo "test upload content" > /tmp/test-upload.txt
-TEMP_FILES+=(/tmp/test-upload.txt)
-OUT=$("$SPEL" --json upload "input#file-upload" /tmp/test-upload.txt 2>&1)
+echo "test upload content" > "$TEST_TMP_DIR/test-upload.txt"
+TEMP_FILES+=("$TEST_TMP_DIR/test-upload.txt")
+OUT=$("$SPEL" --json upload "input#file-upload" "$TEST_TMP_DIR/test-upload.txt" 2>&1)
 assert_jq "upload file → success" "$OUT" '.success == true'
 
 print_summary
