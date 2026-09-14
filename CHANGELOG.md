@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The v0.9.35 publication was cancelled; its CDP fixes are included in this release.
+
+### Fixed
+
+- Attach named CDP sessions without navigation and avoid redundant browser authorization requests ([#227](https://github.com/Blockether/vis/issues/227)).
+- Redact credentials and sensitive query parameters in tab output without changing the browser's URLs.
+- Isolate CLI regression tests in their own sessions and working directories, so test cleanup preserves unrelated browsers and caller-owned files.
+
 ## [v0.9.34] - 2026-09-11
 
 ### Changed
