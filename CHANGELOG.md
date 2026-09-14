@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.36] - 2026-09-14
+
+### Changed
+- chore(release): prepare Spel 0.9.36 (#227)
+- fix(test): isolate CLI regression sessions
+
+
 The v0.9.35 publication was cancelled; its CDP fixes are included in this release.
 
 ### Fixed
@@ -1818,7 +1825,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.34...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.36...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1908,3 +1915,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.32]: https://github.com/Blockether/spel/releases/tag/v0.9.32
 [v0.9.33]: https://github.com/Blockether/spel/releases/tag/v0.9.33
 [v0.9.34]: https://github.com/Blockether/spel/releases/tag/v0.9.34
+[v0.9.36]: https://github.com/Blockether/spel/releases/tag/v0.9.36
