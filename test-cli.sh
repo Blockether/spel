@@ -2594,6 +2594,16 @@ if SPEL="$SPEL" python3 "$(dirname "$0")/cli-tests/session_lifecycle_test.py"; t
 else
   fail "native session lifecycle" "see focused test diagnostics above"
 fi
+
+# Regression, Blockether/vis#227: CDP bootstrap, passive discovery and URL disclosure.
+section "Native CDP sessions (Blockether/vis#227)"
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if SPEL="$SPEL" python3 "$(dirname "$0")/cli-tests/cdp_session_test.py"; then
+  pass "native CDP sessions"
+else
+  fail "native CDP sessions" "see focused test diagnostics above"
+fi
+
 # =============================================================================
 # SUMMARY
 # =============================================================================

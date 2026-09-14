@@ -14,10 +14,50 @@
    3. **Max output truncation** — cap tool output at N characters to protect
       the agent's context window from runaway pages (e.g., a 2MB snapshot).
 
-   All functions are pure and side-effect free. Used by `cli` (print-result
-   wrapping + truncation) and `daemon` (route handler for allowed-domains)."
+   URL metadata redaction is always enabled for tab/session listings. It protects
+   credential parameters without changing the actual browser URL.
+
+   Used by `cli` (output transforms) and `daemon` (navigation and URL metadata)."
   (:require
    [clojure.string :as str]))
+
+;; =============================================================================
+;; URL metadata redaction
+;; =============================================================================
+
+(def ^:private credential-parameter-names
+  #{"accesstoken" "refreshtoken" "idtoken" "token" "code" "clientsecret"
+    "apikey" "key" "password" "passwd" "pwd" "secret" "authorization" "auth"
+    "oauthtoken" "oauthverifier" "codeverifier" "session" "sessionid"
+    "signature" "sig" "xamzsignature" "xamzcredential"})
+
+(defn- credential-parameter?
+  "Matches decoded credential names; malformed key encodings fail closed."
+  [^String key]
+  (try
+    (let [decoded (java.net.URLDecoder/decode key "UTF-8")]
+      (or (str/includes? decoded "�")
+        (contains? credential-parameter-names
+          (str/replace (.toLowerCase decoded java.util.Locale/ROOT) #"[-_]" ""))))
+    (catch IllegalArgumentException _ true)))
+
+(defn redact-url
+  "Redacts credential values in tab/session URL metadata, never browser state.
+
+   Query and fragment parameters (including hash-router queries) match credential
+   names case-insensitively after percent-decoding. Invalid key encodings fail
+   closed. Replaces values and authority userinfo with `[REDACTED]`, preserving
+   other text, parameter order, separators and encoding. Nil remains nil."
+  [url]
+  (when (some? url)
+    (let [[_ base suffix] (re-matches #"([^?#]*)([\s\S]*)" url)]
+      (str (str/replace base #"(?i)^([a-z][a-z0-9+.-]*://)[^/@]*@"
+             "$1[REDACTED]@")
+        (str/replace suffix #"([?&#;])([^?&#;=]+)=([^&#;]*)"
+          (fn [[original separator key _]]
+            (if (credential-parameter? key)
+              (str separator key "=[REDACTED]")
+              original)))))))
 
 ;; =============================================================================
 ;; Domain allowlist

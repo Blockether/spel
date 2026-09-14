@@ -1406,6 +1406,49 @@
         (expect (str/includes? (:url r) "/test-page"))
         (expect (= "Test Page" (:title r)))))))
 
+;; Regression, Blockether/vis#227: session metadata echoed OAuth credentials.
+(defdescribe cdp-url-redaction-test
+  "Tab and session metadata never echo URL credentials."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (it "redacts tab and session URLs without changing the page"
+    (let [state-a (deref #'daemon/!state)
+          url (str *test-server-url* "/test-page?access_token=example-access&view=home"
+                "#refresh_token=example-refresh")]
+      (cmd "navigate" {"url" url})
+      (let [info (cmd "session_info" {})
+            tabs (cmd "tab_list" {})
+            actual (page/url (:page @state-a))]
+        (doseq [metadata [info tabs]]
+          (expect (not (str/includes? (pr-str metadata) "example-access")))
+          (expect (not (str/includes? (pr-str metadata) "example-refresh")))
+          (expect (str/includes? (pr-str metadata) "view=home")))
+        (expect (= url actual))))))
+
+;; Regression, Blockether/vis#227: explicit CDP session initialization was ignored.
+(defdescribe cdp-session-bootstrap-test
+  "A deliberate session attach is separate from a passive metadata query."
+
+  (it "requests a tab-free attachment only for explicit session initialization"
+    (let [state-a (deref #'daemon/!state)
+          old @state-a
+          calls (atom [])]
+      (try
+        (reset! state-a {:session "agent-227-bootstrap"
+                         :launch-flags {"cdp" "http://127.0.0.1:9222"}})
+        (with-redefs [daemon/ensure-browser!
+                      (fn [& args]
+                        (swap! calls conj args)
+                        (swap! state-a assoc :browser :connected :cdp-connected true))]
+          (expect (false? (:cdp_connected (cmd "session_info" {}))))
+          (expect (empty? @calls))
+          (expect (true? (:cdp_connected (cmd "session_info" {"connect" true}))))
+          (expect (= [[false]] @calls))
+          (cmd "session_info" {"connect" true})
+          (expect (= [[false]] @calls)))
+        (finally (reset! state-a old))))))
+
 ;; =============================================================================
 ;; 29. Find (semantic locators)
 ;; =============================================================================

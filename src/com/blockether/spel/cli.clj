@@ -1169,9 +1169,15 @@
       "  (none)    Show current session info"
       "  list      List all active sessions"
       ""
+      "With --auto-connect or --cdp, initializes the named connection without"
+      "navigating or opening a tab. Without these flags, only reports status."
+      "Tab and session URL credentials are redacted in text and JSON output."
+      ""
       "Examples:"
       "  spel session"
       "  spel session list"
+      "  spel --session work --auto-connect session"
+      "  spel --session work --cdp http://127.0.0.1:9222 session"
       "  spel --session work open https://example.org"])
 
    "logs"
@@ -3001,11 +3007,11 @@
                            {:error (str "Unknown state command: " sub)}))
 
           ;; Sessions
-            "session"  (let [sub (first cmd-args)]
-                         (case sub
-                           "list" {:action "session_list"}
-                           (nil)  {:action "session_info"}
-                           {:action "session_info"}))
+            "session"  (if (= "list" (first cmd-args))
+                         {:action "session_list"}
+                         (cond-> {:action "session_info"}
+                           (or (:auto-connect flags) (:cdp flags))
+                           (assoc :connect true)))
 
           ;; Logs — one log file per session, shared by CLI and daemon
             "logs"     (let [v (vec cmd-args)
@@ -4129,7 +4135,7 @@
               (println "  No active sessions."))
             (when (seq external-cdp)
               (println)
-              (println "  External CDP endpoints (connect with: spel --auto-connect open <url>):")
+              (println "  External CDP endpoints (attach without navigation: spel --auto-connect session):")
               (println)
               (render-table
                 ["BROWSER" "CDP URL"]
@@ -4369,16 +4375,12 @@
         ;; Merge persisted flags as DEFAULTS — CLI args always win.
         ;; Only merge keys that the daemon actually uses as launch flags.
         flags (cond-> flags
-                (and (get persisted "cdp") (not (:cdp flags)))
+                (and (get persisted "cdp") (not (or (:cdp flags) (:auto-connect flags))))
                 (assoc :cdp (get persisted "cdp"))
                 (and (get persisted "browser") (not (:browser flags)))
                 (assoc :browser (get persisted "browser"))
                 (and (get persisted "profile") (not (:profile flags)))
                 (assoc :profile (get persisted "profile")))
-        ;; Auto-connect: discover running Chrome if no explicit --cdp
-        flags (if (and (:auto-connect flags) (not (:cdp flags)))
-                (assoc flags :cdp (daemon/discover-cdp-endpoint))
-                flags)
         ;; open --interactive launches the browser in headed (visible) mode so you
         ;; can watch and interact with the page while commands run. This restarts
         ;; the daemon if it was previously running headless. Only applies to
@@ -4638,10 +4640,9 @@
         (print-result {:success true :data data} flags))
       (System/exit 0))
 
-    ;; Session info (bare `spel session`) — if the target session's daemon is
-    ;; NOT running, do NOT auto-spawn. Print a message and exit. Only when
-    ;; the daemon is already alive do we forward the info query to it.
-    (when (= "session_info" (:action command))
+    ;; Bare session queries stay passive. Explicit --auto-connect/--cdp may
+    ;; initialize the named connection without navigating or creating a tab.
+    (when (and (= "session_info" (:action command)) (not (:connect command)))
       (let [session (:session flags)]
         (if (daemon/daemon-running? session)
           nil ;; fall through to the normal send-command! path below
@@ -4655,11 +4656,16 @@
               (println (str "  No active session '" session "'.")))
             (System/exit 0)))))
 
-    ;; Ensure daemon is running
-    (ensure-daemon! (:session flags) flags)
-
-    ;; Read from stdin if eval --stdin was used
-    (let [command (if (:stdin command)
+    ;; Discover only when a command will actually initialize a daemon. Help,
+    ;; session listing and close must not probe a user's browser, and an active
+    ;; named session keeps its existing attachment even with --auto-connect.
+    (let [flags (if (and (:auto-connect flags) (not (:cdp flags))
+                      (not (daemon/daemon-running? session)))
+                  (assoc flags :cdp (daemon/discover-cdp-endpoint))
+                  flags)
+          _ (ensure-daemon! session flags)
+          ;; Read from stdin if eval --stdin was used.
+          command (if (:stdin command)
                     (let [stdin-script (slurp *in*)]
                       (-> command
                         (assoc :script stdin-script)

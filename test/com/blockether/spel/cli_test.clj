@@ -65,6 +65,21 @@
                 (render-result {:success true :data {:url "http://127.0.0.1/page"}}
                   (:flags (sut/parse-args ["--json" "--content-boundaries" "url"]))))))))
 
+;; Regression, Blockether/vis#227: explicit CDP flags still parsed a passive session query.
+(defdescribe cdp-session-parsing-test
+  "Only explicit CDP flags initialize a named session."
+
+  (it "marks explicit CDP session queries for attachment"
+    (doseq [flags [["--auto-connect"] ["--cdp" "http://127.0.0.1:9222"]]]
+      (expect (= {:action "session_info" :connect true}
+                (:command (sut/parse-args (concat ["--session" "agent-227"] flags ["session"])))))))
+
+  (it "keeps bare session and session list passive"
+    (expect (= {:action "session_info"}
+              (:command (sut/parse-args ["--session" "agent-227" "session"]))))
+    (expect (= {:action "session_list"}
+              (:command (sut/parse-args ["--auto-connect" "session" "list"]))))))
+
 ;; =============================================================================
 ;; Helper
 ;; =============================================================================

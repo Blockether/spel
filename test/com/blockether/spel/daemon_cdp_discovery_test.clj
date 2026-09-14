@@ -249,12 +249,13 @@
                         (catch Exception _ nil))]
         (when srv
           (try
-            (let [result (sut/discover-external-cdp-endpoints [])
+            (let [result (with-redefs [sut/list-devtools-active-ports (constantly [])]
+                           (sut/discover-external-cdp-endpoints []))
                   match (first (filter #(= port (:port %)) result))]
               (expect (some? match))
               (expect (= (str "http://127.0.0.1:" port) (:cdp_url match)))
               ;; Label comes either from a real DevToolsActivePort (our test
-              ;; server has none) or from fetch-cdp-browser-label.
+              ;; server has none) or from the same /json/version response.
               (expect (or (= "FakeChrome/1.0" (:label match))
                         (string? (:label match)))))
             (finally (.stop srv 0)))))))
@@ -559,29 +560,6 @@
 ;; endpoints and `connect` must fail fast instead of hanging.
 ;; =============================================================================
 
-(defdescribe probe-ws-target-test
-  "probe-ws-target only accepts a real WebSocket upgrade (HTTP 101)."
-
-  (it "returns false for a closed port"
-    (let [ss   (java.net.ServerSocket. 0)
-          port (.getLocalPort ss)]
-      (.close ss)
-      (expect (false? (sut/probe-ws-target
-                        (str "ws://127.0.0.1:" port "/devtools/browser/x") 300)))))
-
-  (it "returns false when the port listens but does not upgrade"
-    (let [ss   (java.net.ServerSocket. 0 4 (java.net.InetAddress/getByName "127.0.0.1"))
-          port (.getLocalPort ss)
-          fut  (future (try (with-open [s (.accept ss)]
-                              (.write (.getOutputStream s)
-                                (.getBytes "HTTP/1.1 500 Internal Server Error\r\n\r\n" "UTF-8"))
-                              (.flush (.getOutputStream s)))
-                            (catch Exception _ nil)))]
-      (try
-        (expect (false? (sut/probe-ws-target
-                          (str "ws://127.0.0.1:" port "/devtools/browser/stale") 500)))
-        (finally (future-cancel fut) (.close ss))))))
-
 (defdescribe connect-endpoint-preflight-test
   "connect preflight fails fast with an actionable error."
 
@@ -740,3 +718,120 @@
     (when (platform/wsl?)
       (expect (= (platform/parse-proc-net-route-gateway (platform/read-proc-net-route))
                 (platform/wsl-default-gateway-ip))))))
+
+(defn- with-counted-cdp-server
+  "Runs f with a local fake CDP endpoint and a count of protocol requests."
+  ([f] (with-counted-cdp-server 0 f))
+  ([port f]
+   (let [requests (atom [])
+         srv (HttpServer/create (InetSocketAddress. "127.0.0.1" (int port)) 0)]
+     (.createContext srv "/"
+       (reify HttpHandler
+         (handle [_ ex]
+           (swap! requests conj (str (.getRequestURI ^HttpExchange ex)))
+           (let [body (.getBytes "{\"Browser\":\"CountedChrome/1.0\"}" "UTF-8")]
+             (.sendResponseHeaders ^HttpExchange ex 200 (count body))
+             (with-open [out (.getResponseBody ^HttpExchange ex)]
+               (.write out body))))))
+     (.start srv)
+     (try
+       (f (.getPort (.getAddress srv)) requests)
+       (finally (.stop srv 0))))))
+
+;; Regression, issue Blockether/vis#227: discovery and preflight sent redundant
+;; protocol requests, including a WebSocket upgrade before the real attachment.
+(defdescribe non-authorizing-cdp-discovery-test
+  (it "uses an advertised WebSocket without HTTP or WebSocket protocol probes"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (with-redefs [sut/list-devtools-active-ports
+                      (constantly [{:port port :ws-path "/devtools/browser/current" :label "Chrome"}])]
+          (expect (= (str "ws://127.0.0.1:" port "/devtools/browser/current")
+                    (sut/discover-cdp-endpoint)))
+          (expect (empty? @requests))))))
+
+  (it "lists an advertised WebSocket without attempting browser authorization"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (with-redefs [sut/list-devtools-active-ports
+                      (constantly [{:port port :ws-path "/devtools/browser/current" :label "Chrome"}])
+                      sut/port-in-use? (fn [^long candidate] (= port candidate))]
+          (expect (= [{:port port :cdp_url (str "ws://127.0.0.1:" port "/devtools/browser/current")
+                       :label "Chrome"}]
+                    (sut/discover-external-cdp-endpoints [])))
+          (expect (empty? @requests))))))
+
+  (it "reads a common HTTP endpoint only once"
+    (with-counted-cdp-server 9222
+      (fn [port requests]
+        (with-redefs [sut/list-devtools-active-ports (constantly [])]
+          (expect (= (str "http://127.0.0.1:" port) (sut/discover-cdp-endpoint)))
+          (expect (= ["/json/version"] @requests))))))
+
+  (it "gets the external browser label from the same HTTP request"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (with-redefs [sut/list-devtools-active-ports (constantly [{:port port}])
+                      sut/port-in-use? (fn [^long candidate] (= port candidate))]
+          (expect (= [{:port port :cdp_url (str "http://127.0.0.1:" port)
+                       :label "CountedChrome/1.0"}]
+                    (sut/discover-external-cdp-endpoints [])))
+          (expect (= ["/json/version"] @requests))))))
+
+  (it "skips a closed advertised endpoint and selects the next live one"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (let [closed (java.net.ServerSocket. 0)
+              dead-port (.getLocalPort closed)]
+          (.close closed)
+          (with-redefs [sut/list-devtools-active-ports
+                        (constantly [{:port dead-port :ws-path "/devtools/browser/stale"}
+                                     {:port port :ws-path "/devtools/browser/current"}])]
+            (expect (= (str "ws://127.0.0.1:" port "/devtools/browser/current")
+                      (sut/discover-cdp-endpoint)))
+            (expect (empty? @requests)))))))
+
+  (it "leaves WebSocket target validation to the one real attachment"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (expect (= true (try
+                          (#'sut/assert-cdp-endpoint-reachable!
+                           (str "ws://127.0.0.1:" port "/devtools/browser/current"))
+                          (catch Exception _ false))))
+        (expect (empty? @requests))))))
+
+;; Regression, issue Blockether/vis#227: WS preflight opened and discarded a
+;; browser connection before Playwright made the actual attachment.
+(defdescribe single-cdp-attachment-test
+  (it "rejects a stale target with one real WebSocket request and an actionable error"
+    (with-counted-cdp-server
+      (fn [port requests]
+        (with-redefs [sut/!state (atom {})]
+          (let [started (System/currentTimeMillis)
+                error (try (#'sut/connect-cdp! (str "ws://127.0.0.1:" port "/devtools/browser/stale"))
+                           nil
+                           (catch clojure.lang.ExceptionInfo e e))]
+            (expect (= "cdp_endpoint_unreachable" (:error_code (ex-data error))))
+            (expect (string? (:hint (ex-data error))))
+            (expect (= ["/devtools/browser/stale"] @requests))
+            (expect (< (- (System/currentTimeMillis) started) 15000)))))))
+
+  (it "keeps WSL host selection without sending authorization probes"
+    (let [probes (atom [])]
+      (with-redefs [sut/wsl? (constantly true)
+                    sut/wsl-default-gateway-ip (constantly "10.0.0.5")
+                    sut/list-devtools-active-ports
+                    (constantly [{:port 9222 :ws-path "/devtools/browser/current"
+                                  :source-path "/mnt/c/Users/example/DevToolsActivePort"}])
+                    sut/port-in-use? (fn [^long _] false)
+                    sut/tcp-endpoint-reachable?
+                    (fn [host port _]
+                      (swap! probes conj [host port])
+                      (= host "10.0.0.5"))
+                    sut/read-cdp-json-version (fn [& _] (throw (ex-info "Unexpected HTTP probe" {})))]
+        (expect (= "ws://10.0.0.5:9222/devtools/browser/current" (sut/discover-cdp-endpoint)))
+        (expect (= [["127.0.0.1" 9222] ["10.0.0.5" 9222]] @probes))
+        (reset! probes [])
+        (expect (= [{:port 9222 :cdp_url "ws://10.0.0.5:9222/devtools/browser/current" :label nil}]
+                  (sut/discover-external-cdp-endpoints [])))
+        (expect (= [["127.0.0.1" 9222] ["10.0.0.5" 9222]] @probes))))))

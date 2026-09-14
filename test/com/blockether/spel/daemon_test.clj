@@ -575,17 +575,17 @@
           (expect (str/includes? (.getMessage e) "No running browser"))
           (expect (contains? (ex-data e) :probed-ports)))))
 
-    (it "falls back to ws URL when DevToolsActivePort has ws-path and HTTP probe fails"
-      (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
-                                                          {:port 9222 :ws-path "/devtools/browser/ws-id"})
-                       #'sut/probe-http-cdp              (fn [& _] nil)}
+    (it "uses an advertised ws URL without probing HTTP"
+      (with-redefs-fn {#'sut/list-devtools-active-ports
+                       (constantly [{:port 9222 :ws-path "/devtools/browser/ws-id"}])
+                       #'sut/tcp-endpoint-reachable? (fn [& _] true)
+                       #'sut/read-cdp-json-version (fn [& _] (throw (ex-info "Unexpected HTTP probe" {})))}
         #(expect (= "ws://127.0.0.1:9222/devtools/browser/ws-id"
                    (sut/discover-cdp-endpoint)))))
 
-    (it "falls back to http URL when ws-path is missing"
-      (with-redefs-fn {#'sut/parse-devtools-active-port (fn [_]
-                                                          {:port 9222 :ws-path nil})
-                       #'sut/probe-http-cdp              (fn [& _] nil)}
+    (it "uses a validated http URL when ws-path is missing"
+      (with-redefs-fn {#'sut/list-devtools-active-ports (constantly [{:port 9222}])
+                       #'sut/read-cdp-json-version (fn [& _] {:browser "Chrome/1.0"})}
         #(expect (= "http://127.0.0.1:9222"
                    (sut/discover-cdp-endpoint))))))
 
@@ -1603,10 +1603,9 @@
                     (:browser (@#'sut/read-cdp-json-version "127.0.0.1" https-port 2000 true))))))))
 
   (describe "wss:// endpoint"
-    (it "passes the preflight through a TLS WebSocket handshake"
+    (it "checks TCP reachability without a TLS WebSocket authorization handshake"
       (with-tls-cdp-endpoint
         (fn [{:keys [wss-port]}]
-          (expect (sut/probe-ws-target (str "wss://127.0.0.1:" wss-port "/devtools/browser/abc") 2000))
           (expect (true? (@#'sut/assert-cdp-endpoint-reachable!
                           (str "wss://127.0.0.1:" wss-port "/devtools/browser/abc"))))))))
 
@@ -2284,9 +2283,9 @@
             before     @state-atom
             failure    (anomaly/anomaly ::anomaly/fault "Tracing has not been started" {})]
         (try
-          ;; The browser handle is what keeps `live-context` from launching one:
-          ;; this test is about the refusal, not about starting a browser.
-          (reset! state-atom {:browser (Object.) :context (Object.) :tracing? true})
+          ;; Model an initialized browser/page: this test checks the trace
+          ;; refusal, not first-page creation for a metadata-only CDP attach.
+          (reset! state-atom {:browser (Object.) :context (Object.) :page (Object.) :tracing? true})
           (with-redefs-fn {#'core/context-tracing (fn [_] ::tracing)
                            #'core/tracing-stop!   (fn [_ _] failure)}
             (fn []
@@ -2956,7 +2955,7 @@
         calls      (atom 0)]
     (try
       (reset! state-atom {:page nil :context nil :browser nil :session "first-command-test"})
-      (with-redefs-fn {#'sut/ensure-browser! (fn []
+      (with-redefs-fn {#'sut/ensure-browser! (fn [& _]
                                                (swap! calls inc)
                                                (swap! state-atom assoc
                                                  :page (Object.) :context (Object.) :browser (Object.)))}

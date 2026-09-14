@@ -48,7 +48,7 @@
    [java.util Base64]
    [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]
    [java.util.concurrent.locks ReentrantLock]
-   [javax.net.ssl HostnameVerifier HttpsURLConnection SSLContext SSLSocketFactory TrustManager X509TrustManager]))
+   [javax.net.ssl HostnameVerifier HttpsURLConnection SSLContext TrustManager X509TrustManager]))
 
 (declare stop-daemon!)
 (declare save-inflight-trace!)
@@ -461,8 +461,8 @@
      2. the body parses as JSON, AND
      3. the parsed object has a non-blank `Browser` field.
    Returns nil in every other case (non-200, non-JSON, missing field,
-   timeout, connection refused). Shared by `probe-http-cdp` and
-   `fetch-cdp-browser-label` so both apply the same CDP-ness check.
+   timeout, connection refused). Shared by explicit endpoint validation and
+   discovery so both apply the same CDP-ness check.
 
    Two-arity preserved for backwards compat with direct test call-sites
    that pass [port timeout-ms]; those default to loopback, which matches
@@ -555,112 +555,85 @@
               (assoc info :label label :source-path file))))
     (into [])))
 
+(defn- tcp-endpoint-reachable?
+  "Checks host:port without sending HTTP or starting browser authorization."
+  [^String host port timeout-ms]
+  (try
+    (with-open [socket (java.net.Socket.)]
+      (.connect socket (java.net.InetSocketAddress. host (int port)) (int timeout-ms))
+      true)
+    (catch Exception _ false)))
+
+(defn- probe-discovered-cdp
+  "Resolves one advertised or HTTP endpoint without a WebSocket upgrade.
+   An advertised target is only TCP-checked: its identity is validated by the
+   real, timeout-bounded attachment, never by a disposable authorization."
+  [{:keys [port ws-path label source-path]} timeout-ms]
+  (some (fn [host]
+          (if (seq ws-path)
+            (when (tcp-endpoint-reachable? host port timeout-ms)
+              {:port port :cdp_url (str "ws://" host ":" port ws-path) :label label})
+            (when-let [info (read-cdp-json-version host port timeout-ms)]
+              {:port port :cdp_url (str "http://" host ":" port)
+               :label (or label (:browser info))})))
+    (cdp-candidate-hosts source-path)))
+
 (defn discover-cdp-endpoint
-  "Auto-discovers a running Chromium-based browser's CDP endpoint.
-   Checks DevToolsActivePort files first across every known chromium-family
-   user-data dir on the current OS (Chrome, Chromium, Edge, Brave, Vivaldi,
-   Opera, Arc, Thorium — including snap/flatpak variants on Linux) and the
-   ms-playwright cache, then probes common ports (9222, 9223, 9229).
-   9223 is added to catch Windows proxy setups where 9222 is taken.
-   Returns a CDP URL string (http:// or ws://) suitable for Playwright connectOverCDP.
-
-   WSL awareness: when the DevToolsActivePort file was read from a
-   Windows-projected path (`/mnt/c/Users/...`), loopback inside WSL
-   doesn't reach the Windows-side Chrome under default NAT networking.
-   In that case we also probe the default-gateway IP (= Windows host),
-   and the winning host is baked into the returned URL so Playwright's
-   `connectOverCDP` uses the right one.
-
-   Chrome/Edge 136+ ignores --remote-debugging-port without --user-data-dir.
-   Chrome/Edge 144+ chrome://inspect remote debugging uses WebSocket-only (no HTTP)."
+  "Finds a running Chromium-family CDP endpoint without starting authorization.
+   Prefers DevToolsActivePort advertisements, including WSL-projected paths,
+   then checks common HTTP ports. Closed advertisements are skipped. A cached
+   WebSocket target id is validated only by the actual bounded attachment."
   []
   (let [mac? (str/includes? (str/lower-case (or (System/getProperty "os.name") "")) "mac")
-        dt-info (first (list-devtools-active-ports))]
-    (if dt-info
-      ;; DevToolsActivePort found — try HTTP probe across candidate hosts,
-      ;; then fall back to direct WebSocket using the winning host.
-      (let [port      (:port dt-info)
-            ws-path   (:ws-path dt-info)
-            src-path  (:source-path dt-info)
-            hosts     (cdp-candidate-hosts src-path)
-            ;; First host that passes the CDP-ness check wins. Falls back
-            ;; to the first host in the list if none respond, so the WS
-            ;; fallback still gets a non-nil host.
-            winning   (or (some (fn [h] (when (probe-http-cdp h port 2000) h)) hosts)
-                        (first hosts))
-            http-ok?  (some? (probe-http-cdp winning port 2000))]
-        (if http-ok?
-          ;; Pre-M144: HTTP endpoint works
-          (str "http://" winning ":" port)
-          ;; M144+: WebSocket-only server (chrome://inspect remote debugging)
-          ;; HTTP endpoints return 404, must connect via WebSocket directly.
-          (if ws-path
-            (str "ws://" winning ":" port ws-path)
-            (str "http://" winning ":" port))))
-      ;; No DevToolsActivePort — probe common ports on loopback only.
-      ;; (Port-scanning every host×port combo would be slow and noisy;
-      ;; users with a Windows-side browser but no WSL-projected DTAP file
-      ;; should pass --cdp http://<win-ip>:<port> explicitly.)
-      (let [found (some #(probe-http-cdp % 1000) platform/common-cdp-ports)]
-        (if found
-          (let [http-url (str "http://127.0.0.1:" found)
-                 ;; M144+ returns 404 for /json/version (WebSocket-only).
-                 ;; If /json/version returns non-200, fall back to raw ws:// URL.
-                ws? (try
-                      (let [url  (URL. (str http-url "/json/version"))
-                            conn (doto (.openConnection url)
-                                   (.setConnectTimeout 1000)
-                                   (.setReadTimeout 1000)
-                                   (.connect))]
-                        (try
-                          (not= 200 (.getResponseCode ^HttpURLConnection conn))
-                          (finally
-                            (.disconnect ^HttpURLConnection conn))))
-                      (catch Exception _ true))]
-            (if ws?
-              (str "ws://127.0.0.1:" found)
-              http-url))
-          (throw (ex-info (str "No running browser with remote debugging found.\n\n"
-                            "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
-                            "Option 1 — Launch browser with debug port:\n"
-                            "  " (if mac?
-                                   "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
-                                   "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
-                            "\n"
-                            "  " (if mac?
-                                   "open -na \"Microsoft Edge\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run"
-                                   "microsoft-edge --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run")
-                            "\n\n"
-                            "Option 2 — Enable in running browser (M144+):\n"
-                            "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
-                            "  (Works in both Chrome and Edge)\n"
-                            (when (wsl?)
-                              (str "\nWSL note — spel can't launch chrome.exe or msedge.exe from inside\n"
-                                "the WSL shell; those binaries live on Windows. Launch the browser\n"
-                                "you actually use (Chrome OR Edge) on the Windows side first, then\n"
-                                "rerun spel from WSL.\n\n"
-                                "Windows PowerShell — Google Chrome:\n"
-                                "  & \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" `\n"
-                                "    --remote-debugging-port=9222 `\n"
-                                "    --remote-debugging-address=0.0.0.0 `\n"
-                                "    --remote-allow-origins=* `\n"
-                                "    --user-data-dir=\"$env:LOCALAPPDATA\\Google\\Chrome\\User Data\"\n\n"
-                                "Windows PowerShell — Microsoft Edge:\n"
-                                "  & \"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" `\n"
-                                "    --remote-debugging-port=9222 `\n"
-                                "    --remote-debugging-address=0.0.0.0 `\n"
-                                "    --remote-allow-origins=* `\n"
-                                "    --user-data-dir=\"$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\"\n\n"
-                                "Or from inside WSL via Windows interop (either works):\n"
-                                "  powershell.exe -NoProfile -Command \"Start-Process chrome -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n"
-                                "  powershell.exe -NoProfile -Command \"Start-Process msedge -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n\n"
-                                "Once it's up, spel auto-discovery from WSL probes both 127.0.0.1 and\n"
-                                "the WSL default gateway (" (or (wsl-default-gateway-ip) "<unresolved>") ") — whichever answers /json/version first wins.\n"
-                                "Run ./dev/wsl-cdp-diag.sh for a step-by-step diagnosis.\n")))
-                   {:devtools-active-port-files (mapv :file (chromium-devtools-active-port-files))
-                    :probed-ports               platform/common-cdp-ports
-                    :wsl?                       (wsl?)
-                    :wsl-gateway                (wsl-default-gateway-ip)})))))))
+        advertised (distinct (list-devtools-active-ports))
+        advertised-ports (set (map :port advertised))
+        candidates (concat advertised
+                     (map (fn [port] {:port port})
+                       (remove advertised-ports platform/common-cdp-ports)))
+        found (some #(probe-discovered-cdp % 1000) candidates)]
+    (if found
+      (:cdp_url found)
+      (throw (ex-info (str "No running browser with remote debugging found.\n\n"
+                        "Chrome/Edge 136+ requires --user-data-dir for --remote-debugging-port to work.\n\n"
+                        "Option 1 — Launch browser with debug port:\n"
+                        "  " (if mac?
+                               "open -na \"Google Chrome\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run"
+                               "google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-debug\" --no-first-run")
+                        "\n"
+                        "  " (if mac?
+                               "open -na \"Microsoft Edge\" --args --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run"
+                               "microsoft-edge --remote-debugging-port=9222 --user-data-dir=\"$HOME/edge-debug\" --no-first-run")
+                        "\n\n"
+                        "Option 2 — Enable in running browser (M144+):\n"
+                        "  Open chrome://inspect/#remote-debugging and toggle it on.\n"
+                        "  (Works in both Chrome and Edge)\n"
+                        (when (wsl?)
+                          (str "\nWSL note — spel can't launch chrome.exe or msedge.exe from inside\n"
+                            "the WSL shell; those binaries live on Windows. Launch the browser\n"
+                            "you actually use (Chrome OR Edge) on the Windows side first, then\n"
+                            "rerun spel from WSL.\n\n"
+                            "Windows PowerShell — Google Chrome:\n"
+                            "  & \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" `\n"
+                            "    --remote-debugging-port=9222 `\n"
+                            "    --remote-debugging-address=0.0.0.0 `\n"
+                            "    --remote-allow-origins=* `\n"
+                            "    --user-data-dir=\"$env:LOCALAPPDATA\\Google\\Chrome\\User Data\"\n\n"
+                            "Windows PowerShell — Microsoft Edge:\n"
+                            "  & \"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" `\n"
+                            "    --remote-debugging-port=9222 `\n"
+                            "    --remote-debugging-address=0.0.0.0 `\n"
+                            "    --remote-allow-origins=* `\n"
+                            "    --user-data-dir=\"$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\"\n\n"
+                            "Or from inside WSL via Windows interop (either works):\n"
+                            "  powershell.exe -NoProfile -Command \"Start-Process chrome -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n"
+                            "  powershell.exe -NoProfile -Command \"Start-Process msedge -ArgumentList '--remote-debugging-port=9222','--remote-debugging-address=0.0.0.0','--remote-allow-origins=*'\"\n\n"
+                            "Once it's up, spel auto-discovery from WSL probes both 127.0.0.1 and\n"
+                            "the WSL default gateway (" (or (wsl-default-gateway-ip) "<unresolved>") ") — whichever answers /json/version first wins.\n"
+                            "Run ./dev/wsl-cdp-diag.sh for a step-by-step diagnosis.\n")))
+               {:devtools-active-port-files (mapv :file (chromium-devtools-active-port-files))
+                :probed-ports               platform/common-cdp-ports
+                :wsl?                       (wsl?)
+                :wsl-gateway                (wsl-default-gateway-ip)})))))
 
 ;; =============================================================================
 ;; Auto-Launch: browser lifecycle for --auto-launch
@@ -759,134 +732,31 @@
                 (catch Exception _ nil))))
       (into []))))
 
-(defn- fetch-cdp-browser-label
-  "Returns the `Browser` string reported by /json/version on the given
-   host:port (e.g. \"Chrome/144.0.7339.127\"), or nil when the endpoint
-   isn't a valid CDP endpoint. Thin wrapper around `read-cdp-json-version`.
-   Two-arity form defaults to loopback for backwards compat."
-  (^String [^long port]
-   (fetch-cdp-browser-label "127.0.0.1" port))
-  (^String [^String host ^long port]
-   (:browser (read-cdp-json-version host port 200))))
-
-(defn probe-ws-target
-  "Verifies that a CDP ws:// or wss:// URL points at a target that still EXISTS.
-
-   A live TCP socket is not enough: a browser restart leaves stale
-   DevToolsActivePort / session caches behind, and the old browser target id
-   then 500s while the port itself keeps listening. We perform the WebSocket
-   upgrade handshake by hand (no Origin header, so `--remote-allow-origins`
-   isn't required) and accept only `HTTP/1.1 101`.
-
-   `wss://` defaults to port 443 and runs the handshake through
-   `probe-ssl-context`: a plaintext handshake written into a TLS listener reads
-   back as a dead target, which is how remote CDP endpoints used to be refused.
-
-   Returns true/false, never throws."
-  [^String ws-url ^long timeout-ms]
-  (try
-    (let [uri     (java.net.URI. ws-url)
-          secure? (= "wss" (some-> (.getScheme uri) str/lower-case))
-          host    (or (.getHost uri) "127.0.0.1")
-          port    (let [p (.getPort uri)] (if (pos? p) p (if secure? 443 80)))
-          path    (let [p (.getRawPath uri)] (if (str/blank? p) "/" p))
-          key     (.encodeToString (java.util.Base64/getEncoder) (byte-array 16))]
-      (with-open [^java.net.Socket plain (java.net.Socket.)]
-        (.connect plain (java.net.InetSocketAddress. ^String host (int port)) (int timeout-ms))
-        (.setSoTimeout plain (int timeout-ms))
-        (with-open [^java.net.Socket s (if secure?
-                                         (doto ^java.net.Socket
-                                          (.createSocket ^SSLSocketFactory (.getSocketFactory ^SSLContext @probe-ssl-context)
-                                            plain host (int port) true)
-                                           (.setSoTimeout (int timeout-ms)))
-                                         plain)]
-          (let [out (.getOutputStream s)
-                req (str "GET " path " HTTP/1.1\r\n"
-                      "Host: " host ":" port "\r\n"
-                      "Upgrade: websocket\r\n"
-                      "Connection: Upgrade\r\n"
-                      "Sec-WebSocket-Version: 13\r\n"
-                      "Sec-WebSocket-Key: " key "\r\n\r\n")]
-            (.write out (.getBytes req "UTF-8"))
-            (.flush out)
-            (let [rdr    (java.io.BufferedReader.
-                           (java.io.InputStreamReader. (.getInputStream s) "UTF-8"))
-                  status (.readLine rdr)]
-              (boolean (and status (str/includes? status " 101"))))))))
-    (catch Exception _ false)))
-
 (defn discover-external-cdp-endpoints
-  "Scans for running CDP browsers. Probes common ports (9222, 9223, 9229),
-   the spel auto-launch port range, and any ports advertised in
-   DevToolsActivePort files (Chrome/Edge/Chromium/Brave/Vivaldi/Opera/Arc/
-   Thorium data dirs + ms-playwright cache). Excludes any ports in
-   `excluded-ports`. Fast TCP liveness check first so closed ports cost
-   ~microseconds, then HTTP-probes listening ports with a 200 ms timeout. If
-   HTTP /json/version returns non-200 (e.g. Chrome M144+ chrome://inspect is
-   WebSocket-only), falls back to the DevToolsActivePort ws-path to build a
-   ws:// URL. Returns [{:port :cdp_url :label}], where :label is the browser
-   identified via DevToolsActivePort source directory or the `Browser` field
-   from /json/version (or \"unknown\" as a last resort).
-
-   WSL awareness: for DTAP entries whose source path lives under /mnt/,
-   both loopback and the WSL default-gateway IP are probed per port.
-   The winning host is baked into the returned :cdp_url so downstream
-   `connectOverCDP` talks to the host that actually answered."
+  "Lists running CDP endpoint candidates, excluding spel-owned ports.
+   DevToolsActivePort WebSocket advertisements use TCP liveness only: listing
+   must not request browser authorization. Their cached target ids may be stale;
+   only an actual attachment verifies them. Other listeners get one bounded
+   /json/version request, also supplying their browser label. WSL-projected
+   advertisements try loopback then the Windows gateway."
   [excluded-ports]
   (let [excluded (set (map long excluded-ports))
         dt-entries (list-devtools-active-ports)
         dt-by-port (into {} (map (juxt :port identity) dt-entries))
-        common-ports platform/common-cdp-ports
         base (long auto-launch-base-port)
         span (long auto-launch-port-range)
-        range-ports (range base (+ base span))
-        candidates (->> (concat common-ports
-                          range-ports
+        candidates (->> (concat platform/common-cdp-ports
+                          (range base (+ base span))
                           (map :port dt-entries))
                      (map long)
                      distinct
                      (remove excluded))]
     (->> candidates
-      ;; For port-in-use? we still check loopback first — the TCP probe
-      ;; is cheap and WSL users on mirrored networking hit this fast path.
-      ;; Entries backed by a /mnt/ DTAP bypass this filter since the port
-      ;; isn't on WSL's loopback at all; we rely on the HTTP probe below.
       (filter (fn [^long port]
                 (or (port-in-use? port)
-                  (when-let [dt (get dt-by-port port)]
-                    (wsl-projected-source? (:source-path dt))))))
-      (keep (fn [^long port]
-              (let [dt-info  (get dt-by-port port)
-                    hosts    (cdp-candidate-hosts (:source-path dt-info))
-                    ;; Find the first host that passes the /json/version check.
-                    winner   (some (fn [h] (when (probe-http-cdp h port 200) h))
-                               hosts)]
-                (cond
-                  winner
-                  {:port port
-                   :cdp_url (str "http://" winner ":" port)
-                   :label   (or (:label dt-info)
-                              (fetch-cdp-browser-label winner port)
-                              "unknown")}
-
-                  ;; No HTTP probe succeeded, but we have a DTAP entry.
-                  ;; A DevToolsActivePort file long outlives the browser that
-                  ;; wrote it, and a restarted browser keeps the port listening
-                  ;; under a NEW target id — so a live TCP socket proves
-                  ;; nothing. Only advertise the ws:// URL when the WebSocket
-                  ;; upgrade handshake actually succeeds; otherwise the entry
-                  ;; is stale and `connect` would hang on it.
-                  dt-info
-                  (let [ws-path (:ws-path dt-info)]
-                    (some (fn [h]
-                            (let [url (if ws-path
-                                        (str "ws://" h ":" port ws-path)
-                                        (str "http://" h ":" port))]
-                              (when (and ws-path (probe-ws-target url 500))
-                                {:port    port
-                                 :cdp_url url
-                                 :label   (:label dt-info)})))
-                      hosts))))))
+                  (wsl-projected-source? (:source-path (get dt-by-port port))))))
+      (keep (fn [port]
+              (probe-discovered-cdp (get dt-by-port port {:port port}) 200)))
       (into []))))
 
 (defn find-free-cdp-port
@@ -2887,251 +2757,264 @@
    2. --auto-launch → launch browser with debug port, connect via CDP
    3. Normal → Playwright launch (or --cdp connect)
 
-   Auto-loads persisted session state unless --no-persist is set."
-  []
-  ;; Reconcile with reality first: a browser killed outside the daemon leaves
-  ;; handles that fail every command until they are dropped, and a tab reopened
-  ;; by that reconcile comes back instrumented.
-  (ensure-live-browser!)
-  (when-not (:browser @!state)
-    (let [flags       (get @!state :launch-flags {})
-          ;; --profile can be either a filesystem path (existing behavior) or
-          ;; a Chrome profile display name like "Default" / "Work". A name is
-          ;; resolved to the user's real Chrome profile directory and cloned
-          ;; to a temp dir, so the persistent context launches with existing
-          ;; cookies/sessions without mutating the user's live profile.
-          profile-arg (get flags "profile")
-          ;; --profile accepts either a filesystem path (existing behavior) or
-          ;; a Chrome profile name/display-name. For names, clone the live
-          ;; profile into a fresh temp user-data dir AND capture the resolved
-          ;; profile-directory — the caller must pass that to Chrome via
-          ;; --profile-directory=<dir> so Chrome picks the right subdir from
-          ;; the clone (without this, Chrome always defaults to 'Default').
-          profile-clone   (when (and profile-arg (profile/name? profile-arg))
-                            (let [result (profile/clone-profile! profile-arg)]
-                              (log/info! "[profile] cloned Chrome profile '"
-                                profile-arg "' (dir="
-                                (:profile-directory result) ") → "
-                                (:user-data-dir result))
-                              ;; Track the temp clone so `close` can delete it.
-                              (swap! !state assoc :profile-temp-dir (:user-data-dir result))
-                              result))
-          profile-dir (cond
-                        profile-clone (:user-data-dir profile-clone)
-                        ;; Path case: expand `~/foo` so Chrome can find it.
-                        profile-arg   (profile/expand-tilde profile-arg)
-                        :else         nil)
-          ;; Chrome arg to select the profile subdir from the clone.
-          profile-directory-arg (when profile-clone
-                                  (str "--profile-directory=" (:profile-directory profile-clone)))
-          extensions  (get flags "extensions")
-          _           (when (seq extensions)
-                        (doseq [ext extensions]
-                          (when-not (.isDirectory (java.io.File. ^String ext))
-                            (throw (ex-info (str "Extension path does not exist or is not a directory: " ext)
-                                     {:extension-path ext}))))
-                        (log/info! "Loading " (count extensions) " extension(s): "
-                          (str/join ", " extensions))
-                        (log/info! "Note: --extension is Chromium-only; extensions are ignored on Firefox/WebKit"))
-          launch-opts (cond-> {:headless (:headless @!state)}
-                        (get flags "channel")          (assoc :channel (get flags "channel"))
-                        (get flags "executable-path") (assoc :executable-path (get flags "executable-path"))
-                        (get flags "args")            (assoc :args (clojure.string/split (get flags "args") #","))
-                        (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
-                                                                     :bypass (get flags "proxy-bypass" "")})
-                        (get flags "cdp")             (assoc :cdp (get flags "cdp"))
-                        (get flags "stealth")         (update :args (fnil into []) (stealth/stealth-args))
-                        (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args))
-                        (seq extensions)
-                        (update :args (fnil conj [])
-                          (str "--load-extension=" (str/join "," extensions)))
-                        (seq extensions)
-                        (update :ignore-default-args (fnil conj []) "--disable-extensions")
-                        ;; --profile <name> Chrome profile clone: tell Chrome
-                        ;; which subdir to use inside the cloned user-data dir.
-                        profile-directory-arg
-                        (update :args (fnil conj []) profile-directory-arg)
-                        ;; --allow-file-access: let file:// URLs read local
-                        ;; files (both args are needed — agent-browser parity).
-                        (get flags "allow-file-access")
-                        (update :args (fnil into [])
-                          ["--allow-file-access-from-files" "--allow-file-access"]))
-          ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
-          ;; The preset contributes viewport, device-scale-factor, is-mobile,
-          ;; has-touch, and user-agent — all merged into ctx-opts. If the user
-          ;; also passes --user-agent, their override wins because it comes
-          ;; after in the cond->.
-          device-preset (when-let [device-name (get flags "device")]
-                          (or (devices/resolve-device-by-name device-name)
-                            (throw (ex-info
-                                     (str "Unknown device: " device-name
-                                       ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
-                                     {:device device-name}))))
-          browser-type  (get flags "browser" "chromium")
-          device-opts   (if (= "firefox" browser-type)
-                          ;; Firefox rejects :is-mobile / :has-touch
-                          (dissoc device-preset :is-mobile :has-touch)
-                          device-preset)
-          ctx-opts    (cond-> (or device-opts {})
-                        (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
-                        (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
-                        (get flags "headers")             (assoc :extra-http-headers
-                                                            (try (json/read-json (get flags "headers"))
-                                                                 (catch Exception _ {})))
-                        (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
-                        (get flags "download-path")       (assoc :accept-downloads true))
-          pw          (core/create)]
-      (cond
-        ;; ── Mode 0: --engine lightpanda → spawn Lightpanda, connect CDP ───
-        ;; Lightpanda is a non-Chromium headless browser; we run it as a
-        ;; CDP server subprocess and then reuse the existing connectOverCDP
-        ;; path to drive it through Playwright. The Lightpanda process is
-        ;; tracked like auto-launch so it gets cleaned up on daemon stop.
-        (= "lightpanda" (get flags "engine"))
-        (let [result  (launch-lightpanda! {:session (:session @!state)})
-              cdp-url (:cdp-url result)
-              _       (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
-              _       (persist-launch-flags!)
-              browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
-              contexts (.contexts ^com.microsoft.playwright.Browser browser)
-              context  (if (seq contexts)
-                         (first contexts)
-                         (check-anomaly!
-                           (core/new-context browser)
-                           "Lightpanda: failed to create context via CDP"))
-              pages   (.pages ^com.microsoft.playwright.BrowserContext context)
-              pg-inst (if (seq pages)
-                        (first pages)
-                        (check-anomaly!
-                          (new-spel-page! context)
-                          "Lightpanda: failed to create page"))]
-          (swap! !state assoc
-            :pw pw :browser browser :context context :page pg-inst
-            :cdp-connected true
-            :auto-launch-info {:port        (:port result)
-                               :browser-pid (:browser-pid result)
-                               :tmp-dir     nil
-                               :engine      "lightpanda"}))
-
-        ;; ── Mode 1: --profile with directory → Playwright persistent ──────
-        ;; Use Playwright's launchPersistentContext for custom profile dirs.
-        profile-dir
-        (let [_           (log/info! "[Mode 1] Persistent context with profile: " profile-dir)
-              launch-opts (update launch-opts :ignore-default-args
-                            (fnil into [])
-                            ["--use-mock-keychain" "--password-store=basic"])
-              persistent-opts (merge launch-opts ctx-opts)
-              context         (check-anomaly!
-                                (core/launch-persistent-context
-                                  (.chromium ^com.microsoft.playwright.Playwright pw)
-                                  profile-dir
-                                  persistent-opts)
-                                "Failed to launch persistent browser context")
-              _               (when (get flags "stealth")
-                                (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-              browser         (.browser ^BrowserContext context)
-              pg-inst         (if (seq (.pages ^BrowserContext context))
-                                (first (.pages ^BrowserContext context))
-                                (check-anomaly!
-                                  (new-spel-page! context)
-                                  "Failed to create page in persistent context"))]
-          (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
-            :persistent-profile true))
-
-        ;; ── Mode 2: --auto-launch → launch browser + CDP connect ─────────
-        (get flags "auto-launch")
-        (let [_       (log/info! "[Mode 2] Auto-launch browser with CDP")
-              channel (get flags "channel" "chrome")
-              session (:session @!state)
-              result  (auto-launch-browser!
-                        {:channel  channel
-                         :session  session
-                         :headless (:headless @!state)})
-              cdp-url (:cdp-url result)
-              _       (log/info! "auto-launch: connecting via CDP to " cdp-url)
-              browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
-              contexts (.contexts ^com.microsoft.playwright.Browser browser)
-              context  (if (seq contexts)
-                         (first contexts)
-                         (check-anomaly!
-                           (core/new-context browser)
-                           "Auto-launch: failed to create browser context"))
-              pages    (.pages ^com.microsoft.playwright.BrowserContext context)
-              pg-inst  (if (seq pages)
+   Auto-loads persisted session state unless --no-persist is set. Pass false
+   to attach over CDP without creating a tab; page commands create one later."
+  ([] (ensure-browser! true))
+  ([create-page?]
+    ;; Reconcile with reality first: a browser killed outside the daemon leaves
+    ;; handles that fail every command until they are dropped, and a tab reopened
+    ;; by that reconcile comes back instrumented.
+   (ensure-live-browser!)
+    ;; A metadata-only CDP attachment has a context but no owned page yet.
+   (when (and create-page? (:context @!state) (nil? (:page @!state)))
+     (let [flags (:launch-flags @!state)
+           p (new-spel-page! (:context @!state))]
+       (page/set-default-timeout! p
+         (double (or (get flags "timeout") default-action-timeout-ms)))
+       (install-default-dialog-handler! p (boolean (get flags "no-auto-dialog")))
+       (focus-page! p)))
+   (when-not (:browser @!state)
+     (let [flags       (get @!state :launch-flags {})
+            ;; --profile can be either a filesystem path (existing behavior) or
+            ;; a Chrome profile display name like "Default" / "Work". A name is
+            ;; resolved to the user's real Chrome profile directory and cloned
+            ;; to a temp dir, so the persistent context launches with existing
+            ;; cookies/sessions without mutating the user's live profile.
+           profile-arg (get flags "profile")
+            ;; --profile accepts either a filesystem path (existing behavior) or
+            ;; a Chrome profile name/display-name. For names, clone the live
+            ;; profile into a fresh temp user-data dir AND capture the resolved
+            ;; profile-directory — the caller must pass that to Chrome via
+            ;; --profile-directory=<dir> so Chrome picks the right subdir from
+            ;; the clone (without this, Chrome always defaults to 'Default').
+           profile-clone   (when (and profile-arg (profile/name? profile-arg))
+                             (let [result (profile/clone-profile! profile-arg)]
+                               (log/info! "[profile] cloned Chrome profile '"
+                                 profile-arg "' (dir="
+                                 (:profile-directory result) ") → "
+                                 (:user-data-dir result))
+                                ;; Track the temp clone so `close` can delete it.
+                               (swap! !state assoc :profile-temp-dir (:user-data-dir result))
+                               result))
+           profile-dir (cond
+                         profile-clone (:user-data-dir profile-clone)
+                          ;; Path case: expand `~/foo` so Chrome can find it.
+                         profile-arg   (profile/expand-tilde profile-arg)
+                         :else         nil)
+            ;; Chrome arg to select the profile subdir from the clone.
+           profile-directory-arg (when profile-clone
+                                   (str "--profile-directory=" (:profile-directory profile-clone)))
+           extensions  (get flags "extensions")
+           _           (when (seq extensions)
+                         (doseq [ext extensions]
+                           (when-not (.isDirectory (java.io.File. ^String ext))
+                             (throw (ex-info (str "Extension path does not exist or is not a directory: " ext)
+                                      {:extension-path ext}))))
+                         (log/info! "Loading " (count extensions) " extension(s): "
+                           (str/join ", " extensions))
+                         (log/info! "Note: --extension is Chromium-only; extensions are ignored on Firefox/WebKit"))
+           launch-opts (cond-> {:headless (:headless @!state)}
+                         (get flags "channel")          (assoc :channel (get flags "channel"))
+                         (get flags "executable-path") (assoc :executable-path (get flags "executable-path"))
+                         (get flags "args")            (assoc :args (clojure.string/split (get flags "args") #","))
+                         (get flags "proxy")           (assoc :proxy {:server (get flags "proxy")
+                                                                      :bypass (get flags "proxy-bypass" "")})
+                         (get flags "cdp")             (assoc :cdp (get flags "cdp"))
+                         (get flags "stealth")         (update :args (fnil into []) (stealth/stealth-args))
+                         (get flags "stealth")         (update :ignore-default-args (fnil into []) (stealth/stealth-ignore-default-args))
+                         (seq extensions)
+                         (update :args (fnil conj [])
+                           (str "--load-extension=" (str/join "," extensions)))
+                         (seq extensions)
+                         (update :ignore-default-args (fnil conj []) "--disable-extensions")
+                          ;; --profile <name> Chrome profile clone: tell Chrome
+                          ;; which subdir to use inside the cloned user-data dir.
+                         profile-directory-arg
+                         (update :args (fnil conj []) profile-directory-arg)
+                          ;; --allow-file-access: let file:// URLs read local
+                          ;; files (both args are needed — agent-browser parity).
+                         (get flags "allow-file-access")
+                         (update :args (fnil into [])
+                           ["--allow-file-access-from-files" "--allow-file-access"]))
+            ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
+            ;; The preset contributes viewport, device-scale-factor, is-mobile,
+            ;; has-touch, and user-agent — all merged into ctx-opts. If the user
+            ;; also passes --user-agent, their override wins because it comes
+            ;; after in the cond->.
+           device-preset (when-let [device-name (get flags "device")]
+                           (or (devices/resolve-device-by-name device-name)
+                             (throw (ex-info
+                                      (str "Unknown device: " device-name
+                                        ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
+                                      {:device device-name}))))
+           browser-type  (get flags "browser" "chromium")
+           device-opts   (if (= "firefox" browser-type)
+                            ;; Firefox rejects :is-mobile / :has-touch
+                           (dissoc device-preset :is-mobile :has-touch)
+                           device-preset)
+           ctx-opts    (cond-> (or device-opts {})
+                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
+                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
+                         (get flags "headers")             (assoc :extra-http-headers
+                                                             (try (json/read-json (get flags "headers"))
+                                                                  (catch Exception _ {})))
+                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
+                         (get flags "download-path")       (assoc :accept-downloads true))
+           pw          (core/create)]
+       (cond
+          ;; ── Mode 0: --engine lightpanda → spawn Lightpanda, connect CDP ───
+          ;; Lightpanda is a non-Chromium headless browser; we run it as a
+          ;; CDP server subprocess and then reuse the existing connectOverCDP
+          ;; path to drive it through Playwright. The Lightpanda process is
+          ;; tracked like auto-launch so it gets cleaned up on daemon stop.
+         (= "lightpanda" (get flags "engine"))
+         (let [result  (launch-lightpanda! {:session (:session @!state)})
+               cdp-url (:cdp-url result)
+               _       (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
+               _       (persist-launch-flags!)
+               browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
+               contexts (.contexts ^com.microsoft.playwright.Browser browser)
+               context  (if (seq contexts)
+                          (first contexts)
+                          (check-anomaly!
+                            (core/new-context browser)
+                            "Lightpanda: failed to create context via CDP"))
+               pages   (.pages ^com.microsoft.playwright.BrowserContext context)
+               pg-inst (if (seq pages)
                          (first pages)
                          (check-anomaly!
                            (new-spel-page! context)
-                           "Auto-launch: failed to create page"))]
-          ;; Store CDP URL in launch flags so subsequent commands know we're CDP-connected
-          (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
-          (persist-launch-flags!)
-          ;; Track auto-launch info for cleanup on stop-daemon!
-          (swap! !state assoc
-            :pw pw :browser browser :context context :page pg-inst
-            :cdp-connected true
-            :auto-launch-info {:port        (:port result)
-                               :browser-pid (:browser-pid result)
-                               :tmp-dir     (:tmp-dir result)}))
+                           "Lightpanda: failed to create page"))]
+           (swap! !state assoc
+             :pw pw :browser browser :context context :page pg-inst
+             :cdp-connected true
+             :auto-launch-info {:port        (:port result)
+                                :browser-pid (:browser-pid result)
+                                :tmp-dir     nil
+                                :engine      "lightpanda"}))
 
-        ;; ── Mode 3: Normal launch or CDP connect ─────────────────────────
-        :else
-        (let [_       (log/info! "[Mode 3] "
-                        (if (get flags "cdp")
-                          (str "CDP connect: " (get flags "cdp"))
-                          "Standard launch"))
-              browser-type (get flags "browser" "chromium")
-              launch-fn   (case browser-type
-                            "firefox" core/launch-firefox
-                            "webkit"  core/launch-webkit
-                            core/launch-chromium)
-              cdp-url     (get flags "cdp")
-              browser     (if cdp-url
-                            (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
-                            (check-anomaly!
-                              (launch-fn pw launch-opts)
-                              "Failed to launch browser"))]
-          (if cdp-url
-            ;; CDP: reuse the REAL browser's existing context (login sessions,
-            ;; cookies), but always drive a fresh spel-owned tab inside it so the
-            ;; user's own tabs are never hijacked or navigated away.
-            (let [contexts (.contexts ^com.microsoft.playwright.Browser browser)
-                  context  (if (seq contexts)
-                             (first contexts)
-                             (check-anomaly!
-                               (core/new-context browser)
-                               "No existing context found via CDP and failed to create one"))
-                  _        (adopt-foreign-pages! context)
-                  ;; spel always works in its OWN tab: never hijack a user tab.
-                  pg-inst  (check-anomaly!
-                             (new-spel-page! context)
-                             "Failed to open a spel-owned tab in the CDP browser")]
-              (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true))
-            ;; Normal launch: create fresh context and page as before.
-            (let [context (check-anomaly!
-                            (if (seq ctx-opts)
-                              (core/new-context browser ctx-opts)
-                              (core/new-context browser))
-                            "Failed to create browser context")
-                  _       (when (get flags "stealth")
-                            (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-                  pg-inst (check-anomaly!
+          ;; ── Mode 1: --profile with directory → Playwright persistent ──────
+          ;; Use Playwright's launchPersistentContext for custom profile dirs.
+         profile-dir
+         (let [_           (log/info! "[Mode 1] Persistent context with profile: " profile-dir)
+               launch-opts (update launch-opts :ignore-default-args
+                             (fnil into [])
+                             ["--use-mock-keychain" "--password-store=basic"])
+               persistent-opts (merge launch-opts ctx-opts)
+               context         (check-anomaly!
+                                 (core/launch-persistent-context
+                                   (.chromium ^com.microsoft.playwright.Playwright pw)
+                                   profile-dir
+                                   persistent-opts)
+                                 "Failed to launch persistent browser context")
+               _               (when (get flags "stealth")
+                                 (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+               browser         (.browser ^BrowserContext context)
+               pg-inst         (if (seq (.pages ^BrowserContext context))
+                                 (first (.pages ^BrowserContext context))
+                                 (check-anomaly!
+                                   (new-spel-page! context)
+                                   "Failed to create page in persistent context"))]
+           (swap! !state assoc :pw pw :browser browser :context context :page pg-inst
+             :persistent-profile true))
+
+          ;; ── Mode 2: --auto-launch → launch browser + CDP connect ─────────
+         (get flags "auto-launch")
+         (let [_       (log/info! "[Mode 2] Auto-launch browser with CDP")
+               channel (get flags "channel" "chrome")
+               session (:session @!state)
+               result  (auto-launch-browser!
+                         {:channel  channel
+                          :session  session
+                          :headless (:headless @!state)})
+               cdp-url (:cdp-url result)
+               _       (log/info! "auto-launch: connecting via CDP to " cdp-url)
+               browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
+               contexts (.contexts ^com.microsoft.playwright.Browser browser)
+               context  (if (seq contexts)
+                          (first contexts)
+                          (check-anomaly!
+                            (core/new-context browser)
+                            "Auto-launch: failed to create browser context"))
+               pages    (.pages ^com.microsoft.playwright.BrowserContext context)
+               pg-inst  (if (seq pages)
+                          (first pages)
+                          (check-anomaly!
                             (new-spel-page! context)
-                            "Failed to create page")]
-              (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
-      ;; Common setup for all paths
-      (let [pg-inst (:page @!state)]
-        (page/set-default-timeout! pg-inst
-          (double (or (get flags "timeout") default-action-timeout-ms)))
-        ;; Default dialog handler: auto-accept alert/beforeunload unless
-        ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
-        (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
-        (reset! !console-messages [])
-        (reset! !page-errors [])
-        (reset! !tracked-requests [])
-        (instrument-page! pg-inst)
-        ;; Auto-load persisted session state (not for persistent/CDP profiles)
-        (when-not (or profile-dir (get flags "cdp"))
-          (auto-load-session-state!))))))
+                            "Auto-launch: failed to create page"))]
+            ;; Store CDP URL in launch flags so subsequent commands know we're CDP-connected
+           (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
+           (persist-launch-flags!)
+            ;; Track auto-launch info for cleanup on stop-daemon!
+           (swap! !state assoc
+             :pw pw :browser browser :context context :page pg-inst
+             :cdp-connected true
+             :auto-launch-info {:port        (:port result)
+                                :browser-pid (:browser-pid result)
+                                :tmp-dir     (:tmp-dir result)}))
+
+          ;; ── Mode 3: Normal launch or CDP connect ─────────────────────────
+         :else
+         (let [_       (log/info! "[Mode 3] "
+                         (if (get flags "cdp")
+                           (str "CDP connect: " (get flags "cdp"))
+                           "Standard launch"))
+               browser-type (get flags "browser" "chromium")
+               launch-fn   (case browser-type
+                             "firefox" core/launch-firefox
+                             "webkit"  core/launch-webkit
+                             core/launch-chromium)
+               cdp-url     (get flags "cdp")
+               browser     (if cdp-url
+                             (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url
+                               (doto (com.microsoft.playwright.BrowserType$ConnectOverCDPOptions.)
+                                 (.setTimeout (double (or (get flags "timeout") default-action-timeout-ms)))))
+                             (check-anomaly!
+                               (launch-fn pw launch-opts)
+                               "Failed to launch browser"))]
+           (if cdp-url
+              ;; CDP: reuse the REAL browser's existing context (login sessions,
+              ;; cookies), but always drive a fresh spel-owned tab inside it so the
+              ;; user's own tabs are never hijacked or navigated away.
+             (let [contexts (.contexts ^com.microsoft.playwright.Browser browser)
+                   context  (if (seq contexts)
+                              (first contexts)
+                              (check-anomaly!
+                                (core/new-context browser)
+                                "No existing context found via CDP and failed to create one"))
+                   _        (adopt-foreign-pages! context)
+                    ;; spel always works in its OWN tab: never hijack a user tab.
+                   pg-inst  (when create-page?
+                              (check-anomaly!
+                                (new-spel-page! context)
+                                "Failed to open a spel-owned tab in the CDP browser"))]
+               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true))
+              ;; Normal launch: create fresh context and page as before.
+             (let [context (check-anomaly!
+                             (if (seq ctx-opts)
+                               (core/new-context browser ctx-opts)
+                               (core/new-context browser))
+                             "Failed to create browser context")
+                   _       (when (get flags "stealth")
+                             (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
+                   pg-inst (check-anomaly!
+                             (new-spel-page! context)
+                             "Failed to create page")]
+               (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
+        ;; Common setup for all paths
+       (when-let [pg-inst (:page @!state)]
+         (page/set-default-timeout! pg-inst
+           (double (or (get flags "timeout") default-action-timeout-ms)))
+          ;; Default dialog handler: auto-accept alert/beforeunload unless
+          ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
+         (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
+         (reset! !console-messages [])
+         (reset! !page-errors [])
+         (reset! !tracked-requests [])
+         (instrument-page! pg-inst)
+          ;; Auto-load persisted session state (not for persistent/CDP profiles)
+         (when-not (or profile-dir (get flags "cdp"))
+           (auto-load-session-state!)))))))
 
 ;; =============================================================================
 ;; Ref Resolution
@@ -4158,14 +4041,15 @@
     {:tab (tab-key-of new-pg) :url (page/url new-pg)}))
 
 (defmethod handle-cmd "tab_list" [_ _]
-  (let [pages  (live-context-pages (live-context))
+  (ensure-browser! false)
+  (let [pages  (live-context-pages (ctx))
         active (pg)]
     {:tabs (mapv (fn [idx p]
                    ;; A tab can close between the listing and this read; the
                    ;; whole listing must not die with it.
                    {:index  idx
                     :tab    (tab-key-of p)
-                    :url    (try (page/url p) (catch Throwable _ nil))
+                    :url    (try (security/redact-url (page/url p)) (catch Throwable _ nil))
                     :title  (try (page/title p) (catch Throwable _ ""))
                     :active (= p active)})
              (range) pages)}))
@@ -5114,7 +4998,10 @@
 ;; daemon socket it will get a "no method" error — intentional; listing is a
 ;; pure read of /tmp state that does not require a running daemon.
 
-(defmethod handle-cmd "session_info" [_ _]
+(defmethod handle-cmd "session_info" [_ params]
+  (when (and (get params "connect") (get-in @!state [:launch-flags "cdp"])
+          (not (:browser @!state)))
+    (ensure-browser! false))
   (let [state @!state
         context (:context state)
         page (try (pg) (catch Exception _ nil))
@@ -5154,10 +5041,10 @@
        :tracing        (boolean (:tracing? state))
        :har_recording  (boolean (:har-recording? state))
        :har_path       (:har-path state)
-       :cdp_url        (get launch-flags "cdp")
+       :cdp_url        (security/redact-url (get launch-flags "cdp"))
        :cdp_connected  (boolean (:cdp-connected state))
        :device         (:device state)
-       :url            (try (when page (page/url page)) (catch Exception _ nil))
+       :url            (try (when page (security/redact-url (page/url page))) (catch Exception _ nil))
        :title          (try (when page (page/title page)) (catch Exception _ nil))
        :viewport       viewport
        :tab_count      tab-count
@@ -5244,20 +5131,10 @@
 ;; --- Phase 5: Connect CDP ---
 
 (defn- assert-cdp-endpoint-reachable!
-  "Fail-fast preflight for `connect`. Playwright's connectOverCDP has no
-   connect timeout: pointing it at a dead ws:// browser URL (typical after the
-   browser restarted and left a stale DevToolsActivePort/session cache behind)
-   blocks the daemon command loop until the client transport times out. So we
-   check the endpoint ourselves first and throw a readable error instead.
-
-   ws:// / wss:// — requires a live TCP socket on host:port whose WebSocket
-   upgrade answers 101; wss:// handshakes over TLS and defaults to port 443.
-   http:// / https:// — additionally requires a valid /json/version DevTools
-   response; https:// fetches it over TLS and defaults to port 443.
-
-   Playwright accepts https:// and wss:// endpoints itself (its driver fetches
-   `<endpoint>/json/version` and dials wss:// transports), so this preflight
-   probes them the same way instead of downgrading them to plaintext."
+  "Checks endpoint reachability without a sacrificial WebSocket attachment.
+   ws(s):// uses TCP only; the real, bounded Playwright connect validates the
+   target and performs any browser authorization once. HTTP(S) endpoints also
+   require /json/version, preserving actionable protocol/TLS diagnostics."
   [^String url]
   (let [^java.net.URI uri (try (java.net.URI. url) (catch Exception _ nil))
         scheme  (when uri (some-> (.getScheme uri) str/lower-case))
@@ -5270,14 +5147,10 @@
                  (throw (ex-info msg {:error_code "cdp_endpoint_unreachable"
                                       :url        url
                                       :hint       hint})))]
-    (when (nil? scheme)
+    (when-not (contains? #{"http" "https" "ws" "wss"} scheme)
       (fail! (str "Invalid CDP URL: " url)
         "Expected http(s)://host:port or ws(s)://host:port/devtools/browser/<id>"))
-    (when-not (try
-                (with-open [^java.net.Socket s (java.net.Socket.)]
-                  (.connect s (java.net.InetSocketAddress. ^String host (int port)) 1500)
-                  true)
-                (catch Exception _ false))
+    (when-not (tcp-endpoint-reachable? host port 1500)
       (fail! (str "CDP browser endpoint unreachable: " host ":" port " is not accepting connections")
         (str "Start the browser with --remote-debugging-port=" port
           " --remote-debugging-address=" host " --remote-allow-origins='*', "
@@ -5292,12 +5165,6 @@
         (fail! (str "CDP endpoint at " host ":" port " is listening but /json/version is not a DevTools endpoint")
           (str "The port is held by a stale or non-DevTools process. Fully quit the browser "
             "and relaunch it with --remote-debugging-port=" port " --remote-allow-origins='*'."))))
-    (when (and (str/starts-with? (str scheme) "ws")
-            (not (probe-ws-target url 2000)))
-      (fail! (str "CDP browser target no longer exists at " url)
-        (str "That ws:// browser id is stale — the browser was restarted since it was cached. "
-          "Re-discover the current endpoint: curl " http-scheme "://" host ":" port "/json/version, "
-          "or connect to " http-scheme "://" host ":" port " instead of the cached ws:// URL.")))
     true))
 
 (defn- connect-cdp!
@@ -5308,7 +5175,16 @@
     (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
   (assert-cdp-endpoint-reachable! url)
   (let [pw (or (:pw @!state) (core/create))
-        browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String url)
+        browser (try
+                  (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) url
+                    (doto (com.microsoft.playwright.BrowserType$ConnectOverCDPOptions.)
+                      (.setTimeout 10000.0)))
+                  (catch Exception e
+                    (when-not (:pw @!state) (core/close! pw))
+                    (throw (ex-info "CDP attachment failed; the endpoint may be stale or authorization was not granted."
+                             {:error_code "cdp_endpoint_unreachable"
+                              :hint "Rediscover the current browser endpoint and approve the connection, then retry."}
+                             e))))
         contexts (.contexts ^com.microsoft.playwright.Browser browser)
         context (if (seq contexts) (first contexts) (core/new-context browser))
         _ (adopt-foreign-pages! context)

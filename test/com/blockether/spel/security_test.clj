@@ -255,3 +255,51 @@
 
     (it "nil text → nil"
       (expect (nil? (sut/truncate 100 nil))))))
+
+;; Regression, issue Blockether/vis#227: tab/session URL metadata exposed credentials.
+(defdescribe redact-url-test
+  "redact-url: protect credentials without rewriting harmless URL text"
+
+  (it "preserves nil, empty strings, and URLs without credentials"
+    (doseq [url [nil "" "about:blank" "https://example.com/path?lang=en#section"
+                 "https://example.com/a;password=public?q=ok"
+                 "https://example.com/a%2Fb?q=a+b&empty=&flag#route"]]
+      (expect (= url (sut/redact-url url)))))
+
+  (it "redacts OAuth credentials in queries and fragments"
+    (expect (= "https://example.com/callback?access_token=[REDACTED]&lang=en#refresh_token=[REDACTED]&id_token=[REDACTED]"
+              (sut/redact-url "https://example.com/callback?access_token=synthetic-access&lang=en#refresh_token=synthetic-refresh&id_token=synthetic-id"))))
+
+  (it "redacts repeated, case-insensitive, and percent-encoded names"
+    (expect (= "https://example.com/?ACCESS_TOKEN=[REDACTED]&access%5ftoken=[REDACTED]&%61pi_key=[REDACTED]&apiKey=[REDACTED]"
+              (sut/redact-url "https://example.com/?ACCESS_TOKEN=one&access%5ftoken=two&%61pi_key=three&apiKey=four"))))
+
+  (it "redacts credentials after hash routes without changing the route"
+    (expect (= "https://example.com/#/callback?code=[REDACTED]&next=%2Fhome"
+              (sut/redact-url "https://example.com/#/callback?code=synthetic-code&next=%2Fhome"))))
+
+  (it "preserves separators, harmless encoding, and blank parameter names"
+    (expect (= "https://example.com/?q=a%20b;password=[REDACTED]&&=ok&flag#token=[REDACTED];view=compact"
+              (sut/redact-url "https://example.com/?q=a%20b;password=synthetic-password&&=ok&flag#token=synthetic-token;view=compact"))))
+
+  (it "covers common credential and signed URL parameter names"
+    (doseq [key ["refresh-token" "id_token" "client_secret" "api_key" "apikey"
+                 "password" "passwd" "pwd" "secret" "authorization" "auth"
+                 "oauth_token" "oauth_verifier" "code_verifier" "session_id"
+                 "signature" "sig" "x-amz-signature" "x-amz-credential"]]
+      (expect (= (str "https://example.com/?" key "=[REDACTED]")
+                (sut/redact-url (str "https://example.com/?" key "=synthetic-value"))))))
+
+  (it "redacts empty sensitive values and values with malformed escapes"
+    (expect (= "https://example.com/?access_token=[REDACTED]&refresh_token=[REDACTED]&q=%ZZ"
+              (sut/redact-url "https://example.com/?access_token=&refresh_token=%ZZ&q=%ZZ"))))
+
+  (it "fails closed for malformed percent-encoded parameter names"
+    (expect (= "https://example.com/?access%ZZtoken=[REDACTED]&%FF=[REDACTED]&lang=en"
+              (sut/redact-url "https://example.com/?access%ZZtoken=synthetic-value&%FF=synthetic-value&lang=en"))))
+
+  (it "redacts userinfo in HTTP and WebSocket authorities"
+    (expect (= "wss://[REDACTED]@gateway.example.com/devtools/browser/id?token=[REDACTED]"
+              (sut/redact-url "wss://user:synthetic-password@gateway.example.com/devtools/browser/id?token=synthetic-token")))
+    (expect (= "https://[REDACTED]@example.com/path"
+              (sut/redact-url "https://synthetic-user@example.com/path")))))

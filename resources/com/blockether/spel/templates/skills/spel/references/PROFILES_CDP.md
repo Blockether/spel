@@ -33,13 +33,17 @@ Verify the endpoint before involving spel:
 curl -s http://127.0.0.1:9222/json/version   # must return webSocketDebuggerUrl
 ```
 
-Then attach and work in a named session:
+Attach without navigating or opening a tab:
 
 ```bash
 SESSION="agent-$(date +%s)"
-spel --session "$SESSION" connect http://127.0.0.1:9222
-spel --session "$SESSION" health --json
-spel --session "$SESSION" close      # detaches the session; the user's browser stays open
+spel --session "$SESSION" --auto-connect session
+# Or, for a known endpoint:
+# spel --session "$SESSION" --cdp http://127.0.0.1:9222 session
+spel --session "$SESSION" tab
+spel --session "$SESSION" open https://example.com  # opens a spel-owned tab
+spel --session "$SESSION" cdp disconnect  # closes spel-owned tabs and detaches
+spel --session "$SESSION" close           # stops the daemon; the user's browser stays open
 ```
 
 Notes:
@@ -47,11 +51,13 @@ Notes:
 - The browser must be fully quit before relaunching; a surviving process ignores the new flags.
 - Wrong `--profile-directory` yields a logged-out browser; list profiles first (`ls "$HOME/Library/Application Support/Microsoft Edge"`).
 - Some builds also gate this behind a devtools/remote-debugging setting in browser settings.
-- On an attached browser never use `kill`; `close` the spel session only, and never close the user's tabs.
+- Use `cdp disconnect` before stopping an attached session to clean up its own tabs. Never close the user's tabs.
 
 ### Tab ownership on an attached browser
 
-spel attaches to the browser's existing context (so cookies and logins are reused) but **always opens its own new tab** and drives that one. It never takes over a tab the user was using.
+spel reuses the browser's existing context, including cookies and logins. `--auto-connect session` and `--cdp <url> session` attach without creating a tab. Repeating the command reuses that named connection. A bare `session` command only reports status; it never attaches.
+
+The first page command, such as `open`, creates a spel-owned tab rather than navigating a user's existing tab. Explicit `connect <url>` still opens a spel-owned tab immediately. `tab` and `session list` do not create tabs.
 
 | Resource | Owner | spel may close it? |
 |---|---|---|
@@ -62,9 +68,11 @@ spel attaches to the browser's existing context (so cookies and logins are reuse
 
 - `tab list` / `tab switch` still see every tab; only closing is restricted.
 - Closing a foreign tab fails with `:error_code "tab_not_owned"`.
-- `close` and daemon shutdown close only spel-opened tabs and detach the local driver; the user's browser keeps running.
+- `cdp disconnect` closes only spel-opened tabs and detaches the local driver; the user's browser keeps running. `close` and `kill` force-stop the daemon without waiting for browser cleanup, so disconnect first when you want to remove spel-owned tabs.
 
-Stale endpoints fail fast instead of hanging: a cached `ws://.../devtools/browser/<id>` that no longer exists is rejected in ~2s with `:error_code "cdp_endpoint_unreachable"`, and `session list` no longer advertises it. If that happens, re-discover with `curl http://127.0.0.1:9222/json/version` or connect to `http://127.0.0.1:9222` directly.
+Discovery reads advertised endpoints and checks reachability without opening a WebSocket. Only the actual attachment requests browser authorization. A live port does not prove a cached browser target is still valid: the bounded attachment rejects stale targets. If that happens, rediscover the endpoint or connect to `http://127.0.0.1:9222` directly when the browser exposes HTTP CDP.
+
+Tab and session listings redact credential values in URL query parameters and fragments, including OAuth tokens and authorization codes. This applies to human-readable and `--json` output; it does not change the browser's URL. Raw page content and explicit evaluation results are not sanitized, so avoid printing credentials from those surfaces.
 
 
 ## Profiles
