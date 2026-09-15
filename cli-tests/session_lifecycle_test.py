@@ -152,6 +152,11 @@ class SessionLifecycleTest(unittest.TestCase):
         self.assertEqual(before["pid"], self.command("health")["pid"])
         self.assert_state()
 
+    # Regression, issue #133: auto-launch must open successfully and retain
+    # browser state after its launcher PTY exits.
+    def test_pty_chain_retains_auto_launched_browser_state(self):
+        self.pty_chain(["--auto-launch"])
+
     # Regression, issue #136: a chained launcher PTY exited with the daemon alive
     # but its browser gone; URL restoration silently lost DOM, cookies and storage.
     def test_pty_chain_retains_standard_browser_state(self):

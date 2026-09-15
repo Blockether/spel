@@ -2524,13 +2524,26 @@ assert_jq "idle daemon has nothing in flight" "$OUT" '(.in_flight | length) == 0
 # received its terminal's hangup, so health said down and the next command lost
 # the page.
 PTY_SESSION="pty-lifetime-$$"
-run_in_fresh_pty "$SPEL" --session "$PTY_SESSION" --auto-launch --json open \
-  'data:text/html,<body data-owner="pty">PTY lifetime</body>' >/dev/null 2>&1
+PTY_FAILURES=$FAIL_COUNT
+OUT=$(run_in_fresh_pty "$SPEL" --session "$PTY_SESSION" --auto-launch --json open \
+  'data:text/html,<body data-owner="pty">PTY lifetime</body>' 2>&1)
+PTY_EXIT=$?
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ $PTY_EXIT -eq 0 ]]; then
+  pass "PTY-launched CDP browser opens its page"
+else
+  fail "PTY-launched CDP browser opens its page" "Exit code: $PTY_EXIT, Output: $OUT"
+fi
 sleep 1
 OUT=$("$SPEL" --session "$PTY_SESSION" --json health 2>&1)
 assert_jq_eq "auto-started CDP daemon outlives its launcher PTY" "$OUT" '.status' 'ok'
 OUT=$("$SPEL" --session "$PTY_SESSION" --json eval-js 'document.body.dataset.owner' 2>&1)
 assert_jq_eq "PTY-launched CDP daemon retains its page" "$OUT" '.result' 'pty'
+if (( FAIL_COUNT > PTY_FAILURES )); then
+  printf 'PTY eval response: %s\n' "$OUT"
+  "$SPEL" --session "$PTY_SESSION" --json health
+  "$SPEL" --session "$PTY_SESSION" logs -n 80
+fi
 "$SPEL" --session "$PTY_SESSION" close >/dev/null 2>&1 || true
 
 OUT=$("$SPEL" --session "$HSESSION" --json cancel 2>&1)
