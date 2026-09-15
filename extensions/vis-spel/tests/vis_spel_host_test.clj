@@ -9,7 +9,7 @@
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
         paths ["extension.py" "pyproject.toml" "uv.lock" "README.md"
                "src/vis_spel/__init__.py" "src/vis_spel/install.py" "skills/browser/SKILL.md"]
-        sources (into {} (for [path paths] [(str "vis-spel/" path) (slurp (io/file package path))]))]
+        sources (into {} (for [path paths] [(str "vis-spel/current/" path) (slurp (io/file package path))]))]
     (#'fixtures/with-shared-packages
      (fn [_]
        (#'fixtures/with-fresh-loaded
@@ -36,7 +36,7 @@
         sources (into {} (for [path ["extension.py" "pyproject.toml" "uv.lock" "README.md"
                                      "src/vis_spel/__init__.py" "src/vis_spel/install.py"
                                      "skills/browser/SKILL.md"]]
-                           [(str "vis-spel/" path) (slurp (io/file package path))]))]
+                           [(str "vis-spel/current/" path) (slurp (io/file package path))]))]
     (#'fixtures/with-shared-packages
      (fn [_]
        (#'fixtures/with-fresh-loaded

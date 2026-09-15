@@ -4,7 +4,7 @@ import blockether.vis.extension as vis
 
 from vis_spel import Spel
 
-vis.register(
+vis.register_extension(
     vis.Extension(
         name="vis-spel",
         description="Verified Spel installation and reserved browser automation sessions.",

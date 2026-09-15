@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from blockether.vis import extension_package
+from packaging.requirements import Requirement
 
 PROJECT = Path(__file__).resolve().parents[1]
 README = (PROJECT / "README.md").read_text()
@@ -44,12 +45,35 @@ def test_readme_install_selects_the_published_package_version(tmp_path, monkeypa
     assert result == release
     assert options["--version"] == version
     assert "--revision" not in options
-    releases.assert_called_once_with(
-        "https://github.com/Blockether/spel", "extensions/vis-spel"
-    )
+    normalized_source = "https://github.com/blockether/spel"
+    releases.assert_called_once_with(normalized_source, "extensions/vis-spel")
     admit.assert_called_once_with(
-        args[3], tmp_path, "extensions/vis-spel", release["revision"], None, release
+        normalized_source,
+        tmp_path,
+        "extensions/vis-spel",
+        release["revision"],
+        None,
+        release,
     )
+
+
+def test_registration_sdk_requirement_matches_docs_and_lock():
+    # Older SDKs have no register_extension entrypoint.
+    project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
+    requirement = next(
+        dependency
+        for value in project["dependencies"]
+        if (dependency := Requirement(value)).name == "vis-agent"
+    )
+    assert "0.2.4" in requirement.specifier
+    assert "0.2.3" not in requirement.specifier
+    assert "Vis / `vis-agent` **0.2.4+**" in README
+    locked_sdk = next(
+        package
+        for package in tomllib.loads((PROJECT / "uv.lock").read_text())["package"]
+        if package["name"] == "vis-agent"
+    )
+    assert locked_sdk["version"] in requirement.specifier
 
 
 def test_readme_python_examples_compile():

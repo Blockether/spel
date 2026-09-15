@@ -5,11 +5,11 @@ navigation, snapshots, screenshots, JavaScript, Clojure/SCI and CDP.
 
 ## Install
 
-Requires Vis / `vis-agent` **0.1.69+**, Python 3.11+, Git and uv.
+Requires Vis / `vis-agent` **0.2.4+**, Python 3.11+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.3 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.4 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -23,7 +23,7 @@ To manage the installed extension package:
 
 ```sh
 vis-agent extension versions vis-spel
-vis-agent extension update vis-spel --version 0.1.3 --trust
+vis-agent extension update vis-spel --version 0.1.4 --trust
 # To roll back: vis-agent extension rollback vis-spel --version 0.1.1 --trust
 ```
 

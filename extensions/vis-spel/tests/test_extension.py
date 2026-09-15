@@ -10,14 +10,23 @@ from vis_spel.install import Release, ReleasePage
 
 @pytest.fixture
 def extension(monkeypatch):
+    # Registration regression: the entrypoint called removed vis.register.
+    monkeypatch.setattr(vis, "_registration", {"spec": None})
     registered = []
-    monkeypatch.setattr(vis, "register", registered.append)
+    register_extension = vis.register_extension
+
+    def register(declaration):
+        register_extension(declaration)
+        registered.append(declaration)
+
+    monkeypatch.setattr(vis, "register_extension", register)
     spec = importlib.util.spec_from_file_location(
         "spel_entry", Path(__file__).parents[1] / "extension.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert len(registered) == 1
+    assert vis._registration["spec"]["name"] == "vis-spel"
     return registered[0], module
 
 
