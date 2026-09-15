@@ -1,0 +1,1 @@
+2026-09-15T13:26:47.481Z WARN  [spel] cmd navigate ["url"] -> error in 2009ms code=cdp_route_lock error="Session 'owner-1789478805464' is intercepting network requests in the tab session 'integ-test' drives, so action 'navigate' cannot run. Timed out waiting for that session to release interception."
