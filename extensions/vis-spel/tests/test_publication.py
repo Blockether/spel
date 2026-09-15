@@ -21,29 +21,37 @@ def test_published_extension_install_update_and_rollback(tmp_path):
     version = tomllib.loads((project / "pyproject.toml").read_text())["project"][
         "version"
     ]
+    repository = "https://github.com/Blockether/spel"
+    subdirectory = "extensions/vis-spel"
     directory = tmp_path / "extensions"
 
     installed = extension_package.install(
-        "https://github.com/Blockether/spel",
+        repository,
         directory,
-        subdirectory="extensions/vis-spel",
+        subdirectory=subdirectory,
         version=version,
         trust=True,
     )
     assert installed["version"] == version
     assert installed["name"] == "vis-spel"
     assert installed["mode"] == "github"
-    metadata = Path(installed["path"]) / "pyproject.toml"
+    metadata = Path(installed["path"]).parent / "current" / "pyproject.toml"
     assert tomllib.loads(metadata.read_text())["project"]["version"] == version
 
     older = extension_package.rollback(
-        "vis-spel", directory, version="0.1.1", trust=True
+        repository,
+        directory,
+        subdirectory=subdirectory,
+        version="0.1.1",
+        trust=True,
     )
     assert older["version"] == "0.1.1"
     assert older["revision"] != installed["revision"]
     assert tomllib.loads(metadata.read_text())["project"]["version"] == "0.1.1"
 
-    updated = extension_package.update("vis-spel", directory, trust=True)
+    updated = extension_package.update(
+        repository, directory, subdirectory=subdirectory, trust=True
+    )
     assert updated["version"] == version
     assert updated["revision"] == installed["revision"]
     assert tomllib.loads(metadata.read_text())["project"]["version"] == version

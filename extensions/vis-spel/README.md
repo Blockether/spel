@@ -19,12 +19,12 @@ The [Extension Center](https://vis.blockether.com/extensions/869b34e042a90c0bcc3
 lists this extension as **blockether/spel**. Its package name is **vis-spel** and its
 release tags are `vis-spel/vVERSION`. Native Spel releases use separate `vVERSION` tags.
 
-To manage the installed extension package:
+Use the repository and project folder to manage installed versions:
 
 ```sh
-vis-agent extension versions vis-spel
-vis-agent extension update vis-spel --version 0.1.4 --trust
-# To roll back: vis-agent extension rollback vis-spel --version 0.1.1 --trust
+vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.4 --trust
+# To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
 These commands use catalog-approved, immutable versions. Run `/reload` after a change.

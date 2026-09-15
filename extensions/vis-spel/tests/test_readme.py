@@ -57,6 +57,21 @@ def test_readme_install_selects_the_published_package_version(tmp_path, monkeypa
     )
 
 
+def test_readme_management_selects_the_repository_and_project_folder():
+    for operation in ("versions", "update", "rollback"):
+        command = next(
+            line.removeprefix("# To roll back: ")
+            for line in README.splitlines()
+            if f"vis-agent extension {operation} " in line
+        )
+        args = shlex.split(command)
+        assert (
+            extension_package.github_repository(args[3])
+            == "https://github.com/blockether/spel"
+        )
+        assert args[args.index("--subdirectory") + 1] == "extensions/vis-spel"
+
+
 def test_registration_sdk_requirement_matches_docs_and_lock():
     # Older SDKs have no register_extension entrypoint.
     project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
