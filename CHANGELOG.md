@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.37] - 2026-09-20
+
+### Changed
+- chore(release): prepare Spel 0.9.37
+- fix(daemon): say why the Playwright driver failed to start
+- fix(extension): correct managed package update examples
+- test(cli): diagnose PTY auto-launch failures for #133
+- fix(extension): release vis-spel 0.1.4 for current SDK
+
+
 ### Fixed
 
 - Explain why the Playwright driver failed to start instead of failing with a `ClassCastException`. The daemon now reports the driver's own error and, when `NODE_OPTIONS` preloads a file that no longer exists, says that the missing preload kills every Node process — the driver included.
@@ -1829,7 +1839,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.36...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.37...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1920,3 +1930,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.33]: https://github.com/Blockether/spel/releases/tag/v0.9.33
 [v0.9.34]: https://github.com/Blockether/spel/releases/tag/v0.9.34
 [v0.9.36]: https://github.com/Blockether/spel/releases/tag/v0.9.36
+[v0.9.37]: https://github.com/Blockether/spel/releases/tag/v0.9.37
