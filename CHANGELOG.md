@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Explain why the Playwright driver failed to start instead of failing with a `ClassCastException`. The daemon now reports the driver's own error and, when `NODE_OPTIONS` preloads a file that no longer exists, says that the missing preload kills every Node process — the driver included.
+
 ## [v0.9.36] - 2026-09-14
 
 ### Changed
