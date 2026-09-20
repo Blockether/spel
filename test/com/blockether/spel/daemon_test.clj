@@ -3034,3 +3034,56 @@
     (expect (#'sut/ref? "@e5l65o"))
     (expect (not (#'sut/ref? "#main")))
     (expect (not (#'sut/ref? "@f1_")))))
+
+;; Regression, user report: with NODE_OPTIONS preloading a file that had been
+;; deleted, every Node process died at startup, so the Playwright driver never
+;; came up. `core/create` answered an anomaly map, that map reached the
+;; ^Playwright type hint, and the user saw "clojure.lang.PersistentArrayMap
+;; cannot be cast to com.microsoft.playwright.Playwright" instead of the
+;; driver's own error.
+(defdescribe playwright-driver-startup-test
+  "A Playwright driver that never starts says why."
+
+  (it "reports the driver error instead of a cast failure"
+    (let [state-atom (deref #'sut/!state)
+          before     @state-atom]
+      (try
+        (reset! state-atom {:pw nil :browser nil :context nil :page nil
+                            :refs {} :counter 0 :headless true
+                            :session "driver-startup-test"
+                            :launch-flags {}})
+        (with-redefs-fn
+          {#'core/create (fn []
+                           {::anomaly/category ::anomaly/fault
+                            ::anomaly/message
+                            "Failed to create driver: Cannot find module '/tmp/gone/preload.cjs'"})}
+          (fn []
+            (let [e (try (#'sut/ensure-browser!)
+                      nil
+                      (catch Throwable t t))
+                  msg (str (ex-message e))]
+              (expect (instance? clojure.lang.ExceptionInfo e))
+              (expect (str/includes? msg "Playwright driver"))
+              (expect (str/includes? msg "Cannot find module"))
+              (expect (not (str/includes? msg "cannot be cast"))))))
+        (finally (reset! state-atom before)))))
+
+  (it "names the NODE_OPTIONS preload that kills every Node process"
+    (let [gone (str (File. (System/getProperty "java.io.tmpdir") "spel-no-such-preload.cjs"))]
+      (expect (= [gone]
+                (#'sut/missing-node-preloads
+                  (str "--require=" gone " --max-old-space-size=4096"))))
+      (expect (nil? (#'sut/missing-node-preloads "--require=deps.edn")))
+      (expect (nil? (#'sut/missing-node-preloads "--max-old-space-size=4096")))
+      (expect (nil? (#'sut/missing-node-preloads nil)))))
+
+  (it "puts the missing preload into the driver error message"
+    (let [gone (str (File. (System/getProperty "java.io.tmpdir") "spel-no-such-preload.cjs"))
+          msg  (with-redefs-fn {#'sut/missing-node-preloads (constantly [gone])}
+                 (fn []
+                   (#'sut/driver-startup-message
+                     {::anomaly/category ::anomaly/fault
+                      ::anomaly/message  "Failed to create driver"})))]
+      (expect (str/includes? msg "Failed to start the Playwright driver"))
+      (expect (str/includes? msg gone))
+      (expect (str/includes? msg "NODE_OPTIONS")))))
