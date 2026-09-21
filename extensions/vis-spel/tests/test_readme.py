@@ -80,9 +80,9 @@ def test_registration_sdk_requirement_matches_docs_and_lock():
         for value in project["dependencies"]
         if (dependency := Requirement(value)).name == "vis-agent"
     )
-    assert "0.2.4" in requirement.specifier
-    assert "0.2.3" not in requirement.specifier
-    assert "Vis / `vis-agent` **0.2.4+**" in README
+    assert "0.2.15" in requirement.specifier
+    assert "0.2.14" not in requirement.specifier
+    assert "Vis / `vis-agent` **0.2.15+**" in README
     locked_sdk = next(
         package
         for package in tomllib.loads((PROJECT / "uv.lock").read_text())["package"]
