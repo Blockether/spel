@@ -1,5 +1,0 @@
-[viewport: 800x600]
-- body
-  - heading "Page Title" [@e3ei9v] [level=1] [pos:0,21 800×37]
-  - button "Click Me" [@e0n5wh] [pos:0,80 67×21]
-  - link "About Us" [@e0ip7a] [url=/about] [clickable] [pos:71,81 66×17]
