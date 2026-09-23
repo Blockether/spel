@@ -1,1 +1,0 @@
-{"id":"6eec7b4124e1ea51f2d3d19821a72484","fullName":"com.blockether.spel.security-test.extract-host: URL → hostname string (nil for non-HTTP).HTTP/HTTPS.extracts hostname from http URL","name":"extract-host: URL → hostname string (nil for non-HTTP) > HTTP/HTTPS > extracts hostname from http URL","status":"passed","testResultsByEnv":{"default":"3ab9d95996828028f3328b1f468d3aa0"}}
