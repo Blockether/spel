@@ -2072,8 +2072,9 @@
   ([opts] (helpers/inspect! (require-page!) opts)))
 
 (defn sci-overview
-  "Takes annotated full-page screenshot. Opts: :path :show-badges :show-dimensions :show-boxes :scope :all-frames?.
-   Returns {:bytes :refs-annotated} or {:path :size :refs-annotated}."
+  "Takes an annotated full-page screenshot by default. Pass :full-page false for the current viewport.
+   Opts: :path :full-page :show-badges :show-dimensions :show-boxes :scope :all-frames?.
+   Returns {:bytes :annotated} or {:path :size :annotated}."
   ([] (sci-overview {}))
   ([opts] (helpers/overview! (require-page!) opts)))
 
@@ -3607,4 +3608,3 @@
                          (namespace-variant-hint ctx e))]
           (throw (ex-info (str (ex-message e) "\n" hint) (ex-data e) e))
           (throw e))))))
-

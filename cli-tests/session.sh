@@ -7,6 +7,9 @@ export SPEL_SESSION="$SESSION"
 TEMP_FILES=()
 
 cleanup() {
+  if [[ -n "${VIEW_SESSION:-}" ]]; then
+    "$SPEL" --session "$VIEW_SESSION" close 2>/dev/null || true
+  fi
   "$SPEL" --session "$SESSION" close 2>/dev/null || true
   for f in "${TEMP_FILES[@]}"; do
     rm -f -- "$f" 2>/dev/null

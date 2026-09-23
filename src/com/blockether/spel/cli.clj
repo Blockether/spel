@@ -501,10 +501,13 @@
       "  spel screenshot -f full.png"
       "  spel screenshot --crop-to-content cropped.png"
       "  spel screenshot -a                     # Annotated full-page with ref labels"
-      "  spel screenshot --annotate shot.png    # Same, saved to path"
+      "  spel screenshot -a --viewport shot.png # Annotated current viewport with refs"
+      "  spel screenshot --annotate shot.png    # Full page, saved to path"
       ""
       "Flags:"
       "  -f, --full-page, --full    Capture full page (not just viewport)"
+      "  --viewport                 With --annotate, capture only the viewport"
+      "                             (cannot be combined with --full-page)"
       "  --crop-to-content          Crop screenshot to actual content height"
       "  -a, --annotate             Overlay ref labels ([ref role]) on visible"
       "                             elements before capturing (LLM-friendly)"
@@ -2483,27 +2486,29 @@
 
           ;; Screenshot
             "screenshot" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
-                               path      (first path-args)]
-                           (cond-> {:action "screenshot"}
-                             path (assoc :path (resolve-path path))
-                             (some #{"-f" "--full-page" "--full"} cmd-args)
-                             (assoc :fullPage true)
-                             (some #{"--crop-to-content"} cmd-args)
-                             (assoc :cropToContent true)
-                             ;; --annotate: full-page screenshot with ref-labeled
-                             ;; overlays. Returns :annotated {:count :entries} so
-                             ;; the caller can map visual labels back to snapshot
-                             ;; refs for subsequent interactions.
-                             (some #{"-a" "--annotate"} cmd-args)
-                             (assoc :annotate true)
-                             (some #{"--no-badges"} cmd-args)
-                             (assoc :show-badges false)
-                             (some #{"--dimensions" "--dims"} cmd-args)
-                             (assoc :show-dimensions true)
-                             (some #{"--no-boxes"} cmd-args)
-                             (assoc :show-boxes false)
-                             (some #{"--text"} cmd-args)
-                             (assoc :show-text true)))
+                               path      (first path-args)
+                               full?     (some #{"-f" "--full-page" "--full"} cmd-args)
+                               viewport? (some #{"--viewport"} cmd-args)]
+                           (if (and full? viewport?)
+                             {:error "--viewport and --full-page cannot be combined"}
+                             (cond-> {:action "screenshot"}
+                               path (assoc :path (resolve-path path))
+                               full? (assoc :fullPage true)
+                               viewport? (assoc :viewport true)
+                               (some #{"--crop-to-content"} cmd-args)
+                               (assoc :cropToContent true)
+                               ;; --annotate returns :annotated {:count :entries}
+                               ;; to map visual labels back to snapshot refs.
+                               (some #{"-a" "--annotate"} cmd-args)
+                               (assoc :annotate true)
+                               (some #{"--no-badges"} cmd-args)
+                               (assoc :show-badges false)
+                               (some #{"--dimensions" "--dims"} cmd-args)
+                               (assoc :show-dimensions true)
+                               (some #{"--no-boxes"} cmd-args)
+                               (assoc :show-boxes false)
+                               (some #{"--text"} cmd-args)
+                               (assoc :show-text true))))
 
           ;; Annotate (inject overlays onto the page for visible elements)
             "annotate" (cond-> {:action "annotate"}

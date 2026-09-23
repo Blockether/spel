@@ -27,4 +27,6 @@ Continue through verification, not just a plan or script. Ask only when intent c
 
 For native iOS, read `references/IOS_PROVIDER.md`: raw Appium is diagnostic evidence, not the final workflow. Use `spel/with-webview-context` for DOM measurements and native captures for placement. Measure timing from the first observable matching frame, not command completion.
 
+For viewport-specific visual proof, use `screenshot -a --viewport <path>` so the numbered marks and legend describe only the current viewport. Default `screenshot -a` and `overview` cover the full page.
+
 Follow the skill's scoped recovery when blocked. Finish with the result, verification, requested artifacts and remaining blockers; include the printed ref table with annotated captures. Do not manufacture reports, manifests or learning files the task does not need.

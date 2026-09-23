@@ -120,6 +120,7 @@
        (scroll-to! page 0)
 
        results))))
+
 ;; routes! — Link extraction
 ;; =============================================================================
 
@@ -253,21 +254,22 @@
      (snapshot/capture-snapshot page snap-opts))))
 
 ;; =============================================================================
-;; overview! — Annotated full-page screenshot
+;; overview! — Annotated screenshot (full page by default)
 ;; =============================================================================
 
 (defn overview!
-  "Takes an annotated full-page screenshot — a single image showing the entire
-   page with element annotations (ref labels, bounding boxes).
+  "Takes an annotated screenshot with element annotations (ref labels, boxes).
 
-   Unlike regular annotated-screenshot which only annotates viewport-visible
-   elements, overview annotates ALL elements on the page by using the
-   :full-page option for both overlay injection and screenshot capture.
+   By default overlays and capture cover the whole page. Pass :full-page false
+   to annotate and capture only the current viewport, including its responsive
+   and sticky layout. Both modes use the same snapshot, overlay and cleanup path.
 
    Params:
    `page` - Playwright Page instance.
    `opts` - Map, optional.
      :path            - String. Output file path (if nil, returns bytes only).
+     :full-page       - Boolean (default true). Capture and annotate full page;
+                        false limits both to the current viewport.
      :show-dimensions - Boolean (default false). Append width x height to each mark.
      :show-badges     - Boolean (default true). Draw the mark numbers.
      :show-boxes      - Boolean (default true).
@@ -293,16 +295,15 @@
                         (snapshot/capture-full-snapshot page)
                         (snapshot/capture-snapshot page))
          refs         (:refs snap)
-         ;; Inject overlays on ALL elements (full-page mode)
-         annotate-opts (cond-> {:full-page true}
+         full-page?   (get opts :full-page true)
+         annotate-opts (cond-> {:full-page full-page?}
                          (contains? opts :show-dimensions) (assoc :show-dimensions (:show-dimensions opts))
                          (contains? opts :show-badges)     (assoc :show-badges (:show-badges opts))
                          (contains? opts :show-boxes)      (assoc :show-boxes (:show-boxes opts))
                          (:scope opts)                     (assoc :scope (:scope opts)))
          annotated    (annotate/inject-overlays! page refs annotate-opts)
-         ;; Take full-page screenshot
          ss-bytes     (try
-                        (page/screenshot page {:full-page true})
+                        (page/screenshot page (if full-page? {:full-page true} {}))
                         (finally
                           (annotate/remove-overlays! page)))]
      (if-let [path (:path opts)]
@@ -857,4 +858,3 @@
                     {:css-total-bytes    (long (or (get as "css_total_bytes") 0))
                      :js-total-bytes     (long (or (get as "js_total_bytes") 0))
                      :coverage-available (boolean (get as "coverage_available"))})}))
-

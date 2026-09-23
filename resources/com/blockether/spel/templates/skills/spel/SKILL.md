@@ -33,7 +33,7 @@ Resolve the name once. Reference snippets inherit `SPEL_SESSION`; pass `--sessio
 
 ## Evidence and recovery
 
-For visual claims, inspect `screenshot -a <path>` or `overview` and include its printed `#N @ref role name` legend. Read geometry from snapshot `[pos:X,Y W×H]` boxes or `get box <sel>`. Scope captures with `-s` or `-d N`; `--max-output` limits text, not image annotations. Annotations cover actionable elements; add `--text` for prose. Other tasks need only evidence relevant to their result.
+For visual claims, inspect `screenshot -a <path>` or `overview` for the full page; use `screenshot -a --viewport <path>` for a responsive or sticky viewport. Include the printed `#N @ref role name` legend with the PNG. Read geometry from snapshot `[pos:X,Y W×H]` boxes or `get box <sel>`. Scope captures with `-s` or `-d N`; `--max-output` limits text, not image annotations. Annotations cover actionable elements; add `--text` for prose. Other tasks need only evidence relevant to their result.
 
 If stuck, inspect `spel --session <name> health --json` and `spel --session <name> logs -n 100`. Cancel only this task's in-flight command id. Never delete sockets or kill browser processes globally; `kill` is only for a verified spel daemon you own. Detailed recovery: `references/COMMON_PROBLEMS.md`.
 

@@ -82,7 +82,7 @@
   (let [url  (str *test-server-url* path)
         try! (fn [action params]
                (try {:ok (dispatch! action params)}
-                    (catch clojure.lang.ExceptionInfo e {:threw e})))]
+                 (catch clojure.lang.ExceptionInfo e {:threw e})))]
     (loop [attempt 0]
       (try! "navigate" {"url" url})
       (let [{:keys [ok threw]} (try! "url" {})]
@@ -542,7 +542,7 @@
         (expect (pos? (:size r)))
         ;; Clean up
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))
+          (catch Exception _))))
 
     (it "screenshot with explicit path"
       (nav! "/test-page")
@@ -561,7 +561,7 @@
       (let [r (cmd "screenshot" {"fullPage" true})]
         (expect (pos? (:size r)))
         (try (Files/deleteIfExists (Path/of (:path r) (into-array String [])))
-             (catch Exception _))))))
+          (catch Exception _))))))
 
 ;; =============================================================================
 ;; 13. Scroll
@@ -2188,6 +2188,47 @@
       (let [r (cmd "unannotate" {})]
         (expect (true? (:removed r)))))))
 
+;; Regression, issue #138: annotated screenshots always captured the full page,
+;; so viewport reviews showed offscreen elements and a full-height PNG.
+(defdescribe annotated-viewport-regression-test
+  "Annotated viewport screenshots retain only visible refs and clean overlays."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (it "captures the phone viewport while preserving the full-page default"
+    (let [pg (:page @(deref #'daemon/!state))]
+      (page/set-viewport-size! pg 361 800)
+      (cmd "navigate" {"url" (str "data:text/html,<title>Viewport capture</title>"
+                               "<button>Visible</button>"
+                               "<button style='position:absolute;top:1400px'>Below</button>"
+                               "<div style='height:1800px'></div>")})
+      (let [full     (cmd "screenshot" {"annotate" true})
+            viewport (cmd "screenshot" {"annotate" true "viewport" true})
+            dimensions (fn [r]
+                         (let [png (Files/readAllBytes (Path/of ^String (:path r) (into-array String [])))
+                               buffer (java.nio.ByteBuffer/wrap ^bytes png)]
+                           [(.getInt buffer 16) (.getInt buffer 20)]))]
+        (try
+          (expect (= [361 800] (dimensions viewport)))
+          (expect (> (second (dimensions full)) 1800))
+          (expect (= #{"Visible" "Below"} (set (map :name (get-in full [:annotated :entries])))))
+          (expect (= ["Visible"] (mapv :name (get-in viewport [:annotated :entries]))))
+          (expect (= 1 (get-in viewport [:annotated :count])))
+          (expect (zero? (page/evaluate pg "document.querySelectorAll('[data-spel-annotate]').length")))
+          (finally
+            (doseq [r [full viewport]]
+              (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))))
+
+  (it "removes overlays even when a viewport screenshot fails"
+    (let [pg (:page @(deref #'daemon/!state))]
+      (cmd "navigate" {"url" "data:text/html,<button>Visible</button>"})
+      (try
+        (with-redefs [page/screenshot (fn [_ _] (throw (ex-info "capture failed" {})))]
+          (cmd "screenshot" {"annotate" true "viewport" true}))
+        (catch clojure.lang.ExceptionInfo e
+          (expect (= "capture failed" (.getMessage e)))))
+      (expect (zero? (page/evaluate pg "document.querySelectorAll('[data-spel-annotate]').length"))))))
+
 ;; =============================================================================
 ;; 41. Helpers (survey, audit, routes, inspect, overview)
 ;; =============================================================================
@@ -3294,7 +3335,7 @@
 
     (it "returns error for missing code param"
       (let [threw? (try (cmd "sci_eval" {}) false
-                        (catch Exception _ true))]
+                     (catch Exception _ true))]
         (expect threw?)))))
 
     ;; --- Computed styles via SCI ---
@@ -3731,6 +3772,7 @@
           (let [detail (cmd "network_get_ref" {"ref" (:ref failed)})]
             (expect (str/includes? (str (:url detail)) "never-answers"))
             (expect (not (str/blank? (str (:error detail)))))))))))
+
 ;; =============================================================================
 ;; TASK-013: Console list
 ;; =============================================================================

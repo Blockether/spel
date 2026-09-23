@@ -473,7 +473,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `attach-bytes` | [att-name bytes content-type] | Attach binary content to the test report. |
 | `attach-file` | [att-name source-path content-type] | Attach a file from disk to the test report. |
 | `attach-http-markdown!` | [resp request-meta] | Attach HTTP request/response details as a Markdown document. |
-| `attach-network-markdown!` | [resp] | Attach HTTP request/response details as Markdown for a browser network Response. |
+| `attach-network-markdown!` | [exchange-or-response] \| [resp timestamp] | Attach browser HTTP request/response details as Markdown. Accepts either a |
 | _(macro)_ `before` | [& body] | Re-export of `lazytest.core/before`. |
 | _(macro)_ `before-each` | [& body] | Re-export of `lazytest.core/before-each`. |
 | `causes-with-msg?` | [c re f] | Re-export of `lazytest.core/causes-with-msg?`. |
@@ -498,7 +498,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `ok?` | [f] | Re-export of `lazytest.core/ok?`. |
 | `owner` | [value] | Set the test owner. |
 | `parameter` | [name value] | Add a parameter to the test or current step. |
-| `render-http-markdown` | [{:keys [method url status status-text request-headers request-body response-headers response-body content-type]}] | Render an HTTP request/response exchange as a Markdown document. |
+| `render-http-markdown` | [{:keys [method url status status-text timestamp request-headers request-body response-headers response-body content-type]}] | Render an HTTP request/response exchange as a Markdown document. |
 | `reporter-active?` | [] | Returns true when the Allure reporter is active (i.e. we're |
 | `screenshot` | [pg att-name] | Take a Playwright screenshot and attach it to the report. |
 | `set-ns-context!` | [contexts] | Re-export of `lazytest.core/set-ns-context!`. |
@@ -901,6 +901,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/ios-tap-dom!` | [x y] | Taps a WEB-VIEWPORT coordinate (CSS pixels) as a native XCUITest gesture. |
 | `spel/ios-tap-element!` | [css] | Taps the element matching a CSS selector inside the app's WebView, natively. |
 | `spel/ios-terminate-app!` | [] \| [bundle-id] | Terminates the bound or requested iOS application. |
+| `spel/ios-type-keys!` | [text] \| [selector text] | Types through XCTest keyboard events so native iOS IME/autocorrection runs. |
 | `spel/ios-uninstall-app!` | [bundle-id] | Uninstalls an iOS application by bundle identifier. |
 | `spel/ios-viewport-offset` | [] | Returns the native-point offset of the app's web viewport on the screen. |
 | `spel/keyboard` | [] |  |
@@ -933,7 +934,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/on-request` | [handler] | Registers a handler for requests. |
 | `spel/on-response` | [handler] | Registers a handler for responses. |
 | `spel/once-dialog` | [handler] | Registers a one-time handler for the next dialog. |
-| `spel/overview` | [] \| [opts] | Takes annotated full-page screenshot. Opts: :path :show-badges :show-dimensions :show-boxes :scope :all-frames?. |
+| `spel/overview` | [] \| [opts] | Takes an annotated full-page screenshot by default. Pass :full-page false for the current viewport. |
 | `spel/page` | [] | Returns the current Page instance. |
 | `spel/page-context` | [] | Returns the BrowserContext that the page belongs to. |
 | `spel/pdf` | [] \| [path-or-opts] | Generates a PDF of the page. Chromium only, headless or headed alike. |
@@ -971,6 +972,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/smooth-scroll` | [y-or-opts] | Smooth-scrolls the page to the given Y position (or by a delta). |
 | `spel/smooth-scroll-by` | [delta-y] | Smoothly scrolls the page by a relative delta (positive=down, negative=up). |
 | `spel/smooth-scroll-to` | [y] | Smoothly scrolls the page to an absolute Y position. |
+| `spel/snapshot` | [] \| [page-or-opts] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
 | `spel/source` | [query] | Shows the source code of a SCI eval function. |
 | `spel/start!` | [] \| [opts] | Creates a new Playwright instance. |
 | `spel/start-video-recording` | [] \| [opts] | Starts video recording by creating a new context with video recording enabled. |

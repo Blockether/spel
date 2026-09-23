@@ -390,6 +390,23 @@ assert_jq_contains "screenshot --annotate (named) → .path" "$OUT" '.path' 'tes
 OUT=$("$SPEL" screenshot -a 2>&1)
 assert_contains "screenshot -a (plain text) → 'refs annotated'" "$OUT" "refs annotated"
 
+# Regression, issue #138: annotated captures ignored the phone viewport and
+# included offscreen controls. Use a separate session to preserve main fixture refs.
+VIEW_SESSION="$SESSION-viewport"
+"$SPEL" --session "$VIEW_SESSION" --json open "data:text/html,<button>Visible</button><button style='position:absolute;top:1400px'>Below</button><div style='height:1800px'></div>" >/dev/null
+"$SPEL" --session "$VIEW_SESSION" --json set viewport 361 800 >/dev/null
+VIEW_PATH="$TEST_TMP_DIR/test-cli-viewport.png"
+OUT=$("$SPEL" --session "$VIEW_SESSION" --json screenshot -a --viewport "$VIEW_PATH" 2>&1)
+assert_jq_eq "screenshot -a --viewport → visible legend" "$OUT" '.annotated.entries | map(.name) | join(",")' 'Visible'
+HEIGHT=$(od -An -tu1 -j 20 -N 4 "$VIEW_PATH" | awk 'NF >= 4 {print $1*16777216+$2*65536+$3*256+$4}')
+TOTAL_COUNT=$((TOTAL_COUNT + 1))
+if [[ "$HEIGHT" == "800" ]]; then
+  pass "screenshot -a --viewport → PNG height 800"
+else
+  fail "screenshot -a --viewport → PNG height 800" "Got $HEIGHT"
+fi
+"$SPEL" --session "$VIEW_SESSION" close >/dev/null 2>&1
+
 # =============================================================================
 # JAVASCRIPT (2)
 # =============================================================================

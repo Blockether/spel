@@ -501,6 +501,15 @@
         (expect (= (abs-path "shot.png") (:path c)))
         (expect (true? (:fullPage c)))))
 
+    ;; Regression, issue #138: an annotated viewport request had no CLI flag.
+    (it "parses an explicit annotated viewport without changing the default"
+      (expect (= {:action "screenshot" :annotate true :viewport true}
+                (cmd ["screenshot" "-a" "--viewport"])))
+      (expect (= {:action "screenshot" :annotate true}
+                (cmd ["screenshot" "-a"])))
+      (expect (= {:error "--viewport and --full-page cannot be combined"}
+                (cmd ["screenshot" "-a" "--viewport" "-f"]))))
+
     (it "parses screenshot with --crop-to-content flag"
       (let [c (cmd ["screenshot" "shot.png" "--crop-to-content"])]
         (expect (= "screenshot" (:action c)))

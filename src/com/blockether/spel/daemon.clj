@@ -3770,10 +3770,9 @@
 (defmethod handle-cmd "screenshot" [_ params]
   (ensure-browser!)
   (ensure-page-loaded!)
-  ;; --annotate flag: delegate to helpers/overview! which injects ref labels
-  ;; onto the page, captures a full-page screenshot, then cleans up. Returns
-  ;; {:path :size :annotated {:count :entries}} so the caller can map visual
-  ;; labels back to snapshot refs for subsequent interactions.
+  ;; Annotated screenshots share one snapshot/overlay/cleanup path. Full-page
+  ;; remains the default; "viewport" limits both overlays and PNG to the viewport.
+  ;; Both modes return {:path :size :annotated {:count :entries}}.
   (if (get params "annotate")
     (let [path-str (get params "path")
           opts     (cond-> {}
@@ -3782,7 +3781,8 @@
                      (contains? params "show-dimensions")  (assoc :show-dimensions (get params "show-dimensions"))
                      (contains? params "show-boxes")       (assoc :show-boxes (get params "show-boxes"))
                      (get params "scope")                  (assoc :scope (get params "scope"))
-                     (get params "all")                    (assoc :all-frames? true))
+                     (get params "all")                    (assoc :all-frames? true)
+                     (get params "viewport")               (assoc :full-page false))
           result   (helpers/overview! (pg) opts)]
       (if (:bytes result)
         (let [tmp-path (str (System/getProperty "java.io.tmpdir")
