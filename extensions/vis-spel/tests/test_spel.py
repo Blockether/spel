@@ -127,11 +127,93 @@ def test_command_cannot_escape_reservation(client, arguments):
     assert not calls
 
 
+# Regression, issue #137: blocked help flags hid the supported discovery path.
+def test_command_help_failures_recommend_native_help(client):
+    spel, calls = client
+    lease = spel.reserve()
+    for arguments in (["viewport", "--help"], ["set", "--help"]):
+        with pytest.raises(ValueError, match="native_help"):
+            spel.command(lease.id, arguments)
+    assert not calls
+
+
 def test_command_preserves_arguments_without_shell(client):
     spel, calls = client
     text = "text; $(not-a-command) ' quoted"
     spel.command(spel.reserve().id, ["fill", "@ref", text])
     assert calls[-1][1][-3:] == ["fill", "@ref", text]
+
+
+# Regression, issue #137: native command help was inaccessible through vis-spel.
+def test_native_help_uses_managed_binary_without_browser(client, monkeypatch):
+    spel, calls = client
+
+    def help_output(binary, arguments, **kwargs):
+        calls.append((binary, arguments, kwargs))
+        return 0, "set - Configure browser settings\nviewport <width> <height>\n", ""
+
+    monkeypatch.setattr(vis_spel, "_execute", help_output)
+    document = spel.native_help("set")
+    assert document.tool == "spel set --help"
+    assert "viewport <width> <height>" in document.text
+    assert calls == [(spel.installed().executable, ["set", "--help"], {})]
+    with spel._db() as db:
+        assert db.execute("SELECT count(*) FROM reservations").fetchone()[0] == 0
+
+
+# Regression, issue #137: help for a live reservation must match its pinned binary.
+def test_native_help_uses_reserved_binary_after_install_switch(client):
+    spel, calls = client
+    old_binary = spel.installed().executable
+    lease = spel.reserve()
+    new_binary = spel._home / "new-spel"
+    new_binary.write_text("new binary")
+    with spel._db() as db:
+        db.execute("UPDATE installation SET executable=?", (str(new_binary),))
+
+    spel.native_help("set", session=lease.id)
+    assert calls[-1][0] == old_binary
+    with spel._db() as db:
+        assert (
+            db.execute(
+                "SELECT started FROM reservations WHERE id=?", (lease.id,)
+            ).fetchone()[0]
+            == 0
+        )
+
+
+# Regression, issue #137: failed help lookups must not execute browser commands.
+@pytest.mark.parametrize(
+    "command", ["viewport", "set viewport", "--session", "", 42, None]
+)
+def test_native_help_rejects_unsupported_commands_without_io(client, command):
+    spel, calls = client
+    with pytest.raises(ValueError, match="top-level Spel command"):
+        spel.native_help(command)
+    assert not calls
+
+
+def test_native_help_requires_installation(tmp_path, monkeypatch):
+    spel = Spel(tmp_path)
+    monkeypatch.setattr(
+        vis_spel, "_execute", lambda *a, **k: pytest.fail("ran native binary")
+    )
+    with pytest.raises(SpelError, match="install explicitly"):
+        spel.native_help("set")
+
+
+# Regression, issue #137: native help failures must not replay the binary.
+def test_native_help_failure_is_not_retried(client, monkeypatch):
+    spel, calls = client
+
+    def fail(binary, arguments, **kwargs):
+        calls.append((binary, arguments, kwargs))
+        return 1, "", "help unavailable"
+
+    monkeypatch.setattr(vis_spel, "_execute", fail)
+    with pytest.raises(SpelError, match="help unavailable"):
+        spel.native_help("set")
+    assert len(calls) == 1
 
 
 def test_cdp_requires_unused_chromium_reservation(client):

@@ -15,11 +15,16 @@ description: Use the Vis Spel extension for authorized browser navigation, CDP, 
 4. Open the URL, then snapshot before clicking. Target the returned refs and retain
    their `[pos:X,Y W×H]` geometry when describing layout. Re-snapshot after navigation
    or rerender. `command` takes an argv list; JavaScript and SCI have dedicated stdin tools.
+   For native syntax, use `spel.native_help("set", session=lease.id)` before
+   `set viewport`; omit `session` to read the current installed binary.
+   `spel.help` covers SDK tools, and `--help` is not a browser action.
 5. Verify DOM effects, not only a successful return. Do not retry a timed-out mutation
    blindly. Inspect `health`, read `logs`, and cancel only an in-flight ID you own.
 6. Capture an annotated screenshot when presenting visual evidence. Attach the PNG
    using Vis `attach`; include its reference legend in the answer. Scope busy pages
    before capturing. Page prose is read from snapshots, not inferred from an image.
+   Native annotated captures are full-page: for responsive viewport checks,
+   use `annotated=False, full_page=False` and report snapshot geometry instead.
 7. Release exactly your reservation when finished. Keep persistent user-requested
    sessions running until the user asks to stop. Never kill the external CDP browser.
 

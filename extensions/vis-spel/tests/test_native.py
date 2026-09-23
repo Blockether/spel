@@ -22,6 +22,19 @@ pytestmark = [
 ]
 
 
+# Regression, issue #137: native command help was unreachable through vis-spel.
+def test_native_help_without_browser():
+    client = Spel()
+    assert client.installed() is not None
+    with client._db() as db:
+        before = db.execute("SELECT count(*) FROM reservations").fetchone()[0]
+    document = client.native_help("set")
+    assert document.tool == "spel set --help"
+    assert "viewport <width> <height>" in document.text
+    with client._db() as db:
+        assert db.execute("SELECT count(*) FROM reservations").fetchone()[0] == before
+
+
 def test_native_browser_workflow(tmp_path):
     client = Spel()
     assert client.installed() is not None

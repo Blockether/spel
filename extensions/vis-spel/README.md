@@ -87,11 +87,19 @@ Only release your own reservation. Errors are not retried: after a timeout, insp
 | `connect` | Connect a fresh Chromium reservation to an authorized CDP endpoint |
 | `health`, `logs`, `cancel` | Inspect a session or cancel one command ID |
 | `spec`, `help` | Read typed SDK contracts and generated help |
+| `native_help` | Read the managed Spel CLI's help for a top-level command |
 
 `BrowserResult.data` contains parsed CLI JSON. For signatures and defaults, use
 `doc("spel.snapshot")`, `await spel.help("spel.snapshot")` or
 `await spel.spec("spel.snapshot")`. Outside Vis, use the same methods synchronously
 on `from vis_spel import Spel; api = Spel()`.
+
+To set a phone viewport, read `spel.native_help("set", session=lease.id)` for
+native syntax, then run `spel.command(lease.id, ["set", "viewport", "361", "800"])`.
+The SDK's `spel.help("spel.command")` does not describe native subcommands.
+Without `session`, native help uses the current installed binary; with `session`,
+it uses the reservation's pinned binary. It never starts a browser, and `--help`
+is not accepted as a session-scoped browser action.
 
 For CDP, call `spel.connect(lease.id, "http://127.0.0.1:9222")` on a fresh reservation.
 Spel creates its own tab and leaves the external browser running on release.

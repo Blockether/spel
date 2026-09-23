@@ -20,6 +20,7 @@
           (let [ext (#'fixtures/registered "vis-spel")
                 spec ((#'fixtures/symbol-fn ext 'spel.spec) "spel.snapshot")
                 help ((#'fixtures/symbol-fn ext 'spel.help) "spel.snapshot")
+                native-help ((#'fixtures/symbol-fn ext 'spel.native_help) "set")
                 releases ((#'fixtures/symbol-fn ext 'spel.releases))]
             (is (:success? spec) (pr-str spec))
             (is (= "spel.snapshot" (get-in spec [:result "__vis_attrs__" "name"])))
@@ -29,7 +30,11 @@
             (is (re-find #"0\.9\.33" (pr-str (:result releases))))
             (is (:success? help) (pr-str help))
             (is (= "spel.snapshot" (get-in help [:result "__vis_attrs__" "tool"])))
-            (is (re-find #"spel.snapshot" (get-in help [:result "__vis_attrs__" "text"]))))))))))
+            (is (re-find #"spel.snapshot" (get-in help [:result "__vis_attrs__" "text"])))
+            (is (:success? native-help) (pr-str native-help))
+            (is (= "spel set --help" (get-in native-help [:result "__vis_attrs__" "tool"])))
+            (is (re-find #"viewport <width> <height>"
+                  (get-in native-help [:result "__vis_attrs__" "text"]))))))))))
 
 (deftest native-browser-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))

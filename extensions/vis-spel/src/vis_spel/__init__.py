@@ -124,6 +124,17 @@ _COMMANDS = {
     "storage",
     "download",
 }
+_HELP_COMMANDS = _COMMANDS | {
+    "open",
+    "snapshot",
+    "screenshot",
+    "eval-js",
+    "eval-sci",
+    "health",
+    "cancel",
+    "logs",
+    "close",
+}
 _MAX_OUTPUT = 4 * 1024 * 1024
 
 
@@ -183,6 +194,37 @@ class Spel:
         Unknown names raise ValueError; a non-string name raises TypeError.
         """
         return vis.Catalog([vis.Symbol(self, name="spel")]).help(name)
+
+    def native_help(
+        self, command: str, *, session: str | None = None
+    ) -> vis.HelpDocument:
+        """Read native CLI help for a supported top-level command, such as `set`.
+
+        For viewport syntax, call native_help("set"). Unlike help(), which reads
+        Vis SDK tool contracts, this runs a managed Spel binary with --help.
+        Optionally pass a reservation ID to use its pinned binary after an upgrade.
+        Otherwise use the currently installed binary. Requires an installation or
+        reservation but never starts a browser. Native failures are not retried.
+        """
+        if not isinstance(command, str) or command not in _HELP_COMMANDS:
+            raise ValueError(
+                "Use a supported top-level Spel command, e.g. 'set' for viewport"
+            )
+        if session is None:
+            installation = self.installed()
+            if installation is None:
+                raise SpelError(
+                    "Spel is not installed. Call spel.install explicitly first."
+                )
+            executable = installation.executable
+        else:
+            executable = self._reservation(session)["executable"]
+        code, output, error = _execute(executable, [command, "--help"])
+        if code or not output.strip() or output.startswith("Unknown command:"):
+            raise SpelError(
+                f"Could not read Spel help for {command}: {error or output}".strip()
+            )
+        return vis.HelpDocument(f"spel {command} --help", output.strip())
 
     @contextmanager
     def _db(self):
@@ -452,8 +494,9 @@ class Spel:
         """Run a supported session-scoped CLI action with an argv list, never a shell string.
 
         Supports clicks, fill, keys, waits, tabs, frames, viewport, logs from console,
-        traces, network inspection, storage and downloads. Read native command help
-        before unfamiliar actions. Default timeout is 60 seconds. Mutating actions,
+        traces, network inspection, storage and downloads. Use native_help("set")
+        for viewport syntax or native_help(command) before unfamiliar actions.
+        Default timeout is 60 seconds. Mutating actions,
         uploads, downloads and page code require user authorization. No automatic retry.
         Browser-global flags, session adoption and all-session shutdown are refused.
         Use dedicated tools for JS/SCI, screenshots, health, cancel and release.
@@ -464,7 +507,8 @@ class Spel:
             or arguments[0] not in _COMMANDS
         ):
             raise ValueError(
-                "Unsupported action; use a session-scoped browser action or its dedicated tool"
+                "Unsupported action; use a session-scoped browser action or its dedicated tool. "
+                "Read syntax with spel.native_help('set') for viewport."
             )
         self._validate(arguments)
         return self._run(session, arguments, timeout=timeout)
@@ -472,6 +516,10 @@ class Spel:
     @staticmethod
     def _validate(arguments):
         for argument in arguments:
+            if argument in ("--help", "-h"):
+                raise ValueError(
+                    "Use spel.native_help('set') for viewport syntax; --help is not a browser action"
+                )
             if (
                 not isinstance(argument, str)
                 or "\0" in argument
@@ -670,6 +718,7 @@ for method, label, show_start, tag in [
     ("releases", "List Spel releases", True, "observation"),
     ("spec", "Inspect browser tools", False, "observation"),
     ("help", "Read browser reference", False, "observation"),
+    ("native_help", "Read Spel command help", False, "observation"),
     ("installed", "Check Spel installation", False, "observation"),
     ("reserve", "Reserve browser session", False, "mutation"),
     ("connect", "Connect browser through CDP", True, "mutation"),
