@@ -284,6 +284,63 @@ def test_snapshot_scope_and_screenshot_are_explicit(client, tmp_path):
         spel.screenshot(lease.id, str(target))
 
 
+# Regression, issue #138: explicit full_page=False silently produced full-page annotated PNGs.
+@pytest.mark.parametrize(
+    ("annotated", "full_page", "flags"),
+    [
+        (True, None, ["-a"]),
+        (True, False, ["-a", "--viewport"]),
+        (True, True, ["-a", "-f"]),
+        (False, None, []),
+        (False, False, []),
+        (False, True, ["-f"]),
+    ],
+)
+def test_screenshot_capture_modes(
+    client, tmp_path, annotated, full_page, flags, monkeypatch
+):
+    spel, calls = client
+    lease = spel.reserve()
+    original_execute = vis_spel._execute
+
+    def current_execute(binary, arguments, **kwargs):
+        if arguments == ["version"]:
+            calls.append((binary, arguments, kwargs))
+            return 0, "spel 0.9.38\n", ""
+        return original_execute(binary, arguments, **kwargs)
+
+    monkeypatch.setattr(vis_spel, "_execute", current_execute)
+    target = str(tmp_path / "mode.png")
+    kwargs = {"annotated": annotated}
+    if full_page is not None:
+        kwargs["full_page"] = full_page
+    spel.screenshot(lease.id, target, **kwargs)
+    assert calls[-1][1][-2 - len(flags) :] == ["screenshot", target, *flags]
+    if annotated and full_page is False:
+        assert calls[-2][1] == ["version"]
+        assert calls[-2][0] == calls[-1][0]
+
+
+# Regression, issue #138: older native binaries ignore --viewport, yielding a
+# successful full-page PNG instead of the requested annotated phone viewport.
+def test_viewport_annotation_requires_a_capable_pinned_binary(
+    client, tmp_path, monkeypatch
+):
+    spel, calls = client
+    lease = spel.reserve()
+
+    def old_execute(binary, arguments, **kwargs):
+        calls.append((binary, arguments, kwargs))
+        if arguments == ["version"]:
+            return 0, "spel 0.9.37\n", ""
+        return 0, json.dumps({"result": {"ok": True}}), ""
+
+    monkeypatch.setattr(vis_spel, "_execute", old_execute)
+    with pytest.raises(SpelError, match="Spel 0.9.38 or newer"):
+        spel.screenshot(lease.id, str(tmp_path / "old.png"), full_page=False)
+    assert not any("screenshot" in arguments for _, arguments, _ in calls)
+
+
 def test_cancel_requires_one_id(client):
     spel, calls = client
     lease = spel.reserve()
@@ -315,7 +372,7 @@ def test_install_runs_verified_binary_before_recording(client, monkeypatch):
     monkeypatch.setattr(vis_spel, "_execute", run)
     installed = spel.install()
     assert installed.browsers_installed
-    assert installed.version == DEFAULT_VERSION == "0.9.34"
+    assert installed.version == DEFAULT_VERSION == "0.9.38"
     assert calls == [["version"], ["install"]]
     assert spel.installed() == installed
 

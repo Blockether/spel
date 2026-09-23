@@ -23,8 +23,11 @@ description: Use the Vis Spel extension for authorized browser navigation, CDP, 
 6. Capture an annotated screenshot when presenting visual evidence. Attach the PNG
    using Vis `attach`; include its reference legend in the answer. Scope busy pages
    before capturing. Page prose is read from snapshots, not inferred from an image.
-   Native annotated captures are full-page: for responsive viewport checks,
-   use `annotated=False, full_page=False` and report snapshot geometry instead.
+   For responsive or sticky layouts, install Spel 0.9.38 or newer, then use
+   `spel.screenshot(lease.id, "/tmp/phone.png", full_page=False)` to capture only
+   the current viewport with its numbered marks and matching legend. Omitting
+   `full_page` keeps the annotated full-page default; plain captures default to
+   the viewport. Read `spel.native_help("screenshot", session=lease.id)` for flags.
 7. Release exactly your reservation when finished. Keep persistent user-requested
    sessions running until the user asks to stop. Never kill the external CDP browser.
 

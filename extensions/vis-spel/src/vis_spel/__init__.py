@@ -262,7 +262,7 @@ class Spel:
     ) -> Installation:
         """Install or switch to a pinned official stable release after SHA-256 verification.
 
-        Requires Spel 0.9.33 or newer; defaults to 0.9.34 with Playwright browsers.
+        Requires Spel 0.9.33 or newer; defaults to 0.9.38 with Playwright browsers.
         Use releases() to find versions. Upgrades and rollbacks use this same method.
         New reservations use the selected version; existing reservations keep their
         original executable, even across reloads. No running sessions are restarted.
@@ -558,22 +558,35 @@ class Spel:
         path: str,
         *,
         annotated: bool = True,
-        full_page: bool = False,
+        full_page: bool | None = None,
     ) -> BrowserResult:
-        """Write a PNG to an explicit absolute path; annotated full-page by default.
+        """Write a PNG to a new absolute path, with a reference legend if annotated.
 
-        Native annotated captures always include the full page and a reference legend.
-        For a viewport-only capture, use annotated=False and full_page=False;
-        full_page only changes unannotated captures. Keep the legend with the artifact.
+        Omit full_page to keep the defaults: annotated captures the full page;
+        unannotated captures the viewport. Set full_page=False for a viewport-only
+        annotated PNG and a legend of the marks actually drawn. Set True for a
+        full-page PNG in either mode. Keep the legend with the attached artifact.
+        Explicit annotated viewport captures require Spel 0.9.38 or newer; the
+        reservation's pinned binary is checked before starting the browser command.
         Existing paths are refused. Attach the resulting local file with Vis attach.
         """
         target = Path(path).expanduser()
         if not target.is_absolute() or target.exists() or not target.parent.is_dir():
             raise ValueError("Use a new absolute image path in an existing directory")
+        if annotated and full_page is False:
+            executable = self._reservation(session)["executable"]
+            code, output, _ = _execute(executable, ["version"])
+            match = re.fullmatch(r"spel (\d+)\.(\d+)\.(\d+)", output.strip())
+            if code or match is None or tuple(map(int, match.groups())) < (0, 9, 38):
+                raise SpelError(
+                    "Annotated viewport screenshots require Spel 0.9.38 or newer. "
+                    "Install the current native release and reserve a new session."
+                )
         args = (
             ["screenshot", str(target)]
             + (["-a"] if annotated else [])
-            + (["-f"] if full_page else [])
+            + (["--viewport"] if annotated and full_page is False else [])
+            + (["-f"] if full_page is True else [])
         )
         return self._run(session, args)
 

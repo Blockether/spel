@@ -89,6 +89,57 @@ def test_native_browser_workflow(tmp_path):
     assert not Path(str(lease.name) + ".png").exists()
 
 
+# Regression, issue #138: full_page=False returned an annotated full-page PNG
+# and mapped controls outside the phone viewport to marks that were not visible.
+def test_native_annotated_viewport_preserves_marks_and_cleanup(tmp_path):
+    installation = Spel().installed()
+    assert installation is not None
+    binary = Path(os.environ.get("SPEL_TEST_BINARY", installation.executable)).resolve()
+    code, output, error = _execute(str(binary), ["version"])
+    assert code == 0, error
+    version = output.strip().removeprefix("spel ")
+    assert tuple(map(int, version.split("."))) >= (0, 9, 38), version
+    client = Spel(tmp_path / "home")
+    with client._db() as db:
+        db.execute(
+            "INSERT INTO installation VALUES (1, ?, ?, 1)", (version, str(binary))
+        )
+    lease = client.reserve()
+    try:
+        client.open(
+            lease.id,
+            "data:text/html,<title>Phone viewport</title><button>Visible</button>"
+            "<button style='position:absolute;top:1400px'>Below</button>"
+            "<div style='height:1800px'></div>",
+        )
+        client.command(lease.id, ["set", "viewport", "361", "800"])
+        full = tmp_path / "full.png"
+        full_result = client.screenshot(lease.id, str(full))
+        assert struct.unpack(">II", full.read_bytes()[16:24])[1] > 1800
+        assert {e["name"] for e in full_result.data["annotated"]["entries"]} == {
+            "Visible",
+            "Below",
+        }
+        viewport = tmp_path / "viewport.png"
+        viewport_result = client.screenshot(lease.id, str(viewport), full_page=False)
+        assert struct.unpack(">II", viewport.read_bytes()[16:24]) == (361, 800)
+        assert [e["name"] for e in viewport_result.data["annotated"]["entries"]] == [
+            "Visible"
+        ]
+        assert viewport_result.data["annotated"]["count"] == 1
+        assert (
+            client.evaluate(
+                lease.id, "document.querySelectorAll('[data-spel-annotate]').length"
+            ).data["result"]
+            == 0
+        )
+        plain = tmp_path / "plain.png"
+        client.screenshot(lease.id, str(plain), annotated=False)
+        assert struct.unpack(">II", plain.read_bytes()[16:24]) == (361, 800)
+    finally:
+        client.release(lease.id)
+
+
 def test_cdp_release_preserves_external_browser():
     client = Spel()
     binary = client.installed().executable
