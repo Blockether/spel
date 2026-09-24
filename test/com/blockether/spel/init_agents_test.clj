@@ -576,7 +576,8 @@
                                    {:force true :flavour flavour} "sample-app" harness agent)))
           (let [skill (slurp (java.io.File. root (str skill-dir "/SKILL.md")))]
             (expect (str/includes? skill (str "compatibility: " harness)))
-            (expect (str/includes? skill "references/TESTING_CONVENTIONS.md")))
+            (expect (str/includes? skill "(selected by `--flavour`)"))
+            (expect (str/includes? skill "Generated `TESTING_CONVENTIONS.md` in `references/`")))
           (doseq [[_ out] specs
                   :let [content (slurp (java.io.File. root out))]]
             (expect (not (re-find #"\{\{(?:ns|version|testing-conventions)\}\}" content)))

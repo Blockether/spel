@@ -47,7 +47,7 @@ Paths below are relative to this skill directory. Choose the smallest relevant r
 | CDP / browser options | `references/PROFILES_CDP.md`, `references/BROWSER_OPTIONS.md` |
 | Locators / snapshots / readiness | `references/PAGE_LOCATORS.md`, `references/SELECTORS_SNAPSHOTS.md`, `references/NAVIGATION_WAIT.md` |
 | SCI scripts / constants / input | `references/EVAL_GUIDE.md`, `references/CONSTANTS.md`, `references/FRAMES_INPUT.md` |
-| Tests / assertions / API fixtures | `references/TESTING_CONVENTIONS.md`, `references/ASSERTIONS_EVENTS.md`, `references/API_TESTING.md` |
+| Tests / assertions / API fixtures | Generated `TESTING_CONVENTIONS.md` in `references/` (selected by `--flavour`), `references/ASSERTIONS_EVENTS.md`, `references/API_TESTING.md` |
 | Network / search / codegen | `references/NETWORK_ROUTING.md`, `references/SEARCH_API.md`, `references/CODEGEN_CLI.md` |
 | Native iOS / WKWebView / timing | `references/IOS_PROVIDER.md` |
 | PDF / stitching / video | `references/PDF_STITCH_VIDEO.md` |
