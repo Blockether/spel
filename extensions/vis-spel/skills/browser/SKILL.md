@@ -1,6 +1,6 @@
 ---
 name: browser
-description: Use the Vis Spel extension for authorized browser navigation, CDP, snapshots, JavaScript, screenshots and session diagnostics.
+description: Use this skill when you need authorized browser navigation, CDP, snapshots, JavaScript, screenshots or session diagnostics with the Vis Spel extension.
 ---
 
 # Browser automation with Spel
