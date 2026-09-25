@@ -1,0 +1,6 @@
+[viewport: 1280x720]
+- div
+  - heading "Example Domain" [@e2yrjz] [level=1] [pos:256,108 768×28]
+  - paragraph "This domain is for use in documentation examples without needing permission. Avoid use in operations." [@e9mter] [pos:256,152 768×38]
+  - paragraph [@e2m4ty] [pos:256,206 768×19]
+    - link "Learn more" [@e6t2x4] [url=https://iana.org/domains/example] [clickable] [pos:256,206 91×19]
