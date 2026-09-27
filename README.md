@@ -188,7 +188,7 @@ All env vars are optional. **CLI flags always take priority over env vars.**
 |---------|---------------|-------------|
 | `SPEL_BROWSER` | `--browser` | Browser engine: `chromium` (default), `firefox`, `webkit` |
 | `SPEL_CHANNEL` | `--channel` | Chromium channel: `chrome`, `msedge`, `chrome-beta`, etc. |
-| `SPEL_PROFILE` | `--profile` | Chrome/Edge user data directory (full profile: extensions, passwords, bookmarks) |
+| `SPEL_PROFILE` | `--profile` | Private Chromium user data directory for reuse; close gracefully to save sign-in state |
 | `SPEL_LOAD_STATE` | `--load-state` | Playwright storage state JSON path (alias: `SPEL_STORAGE_STATE`) |
 | `SPEL_EXECUTABLE_PATH` | `--executable-path` | Custom browser binary path |
 | `SPEL_USER_AGENT` | `--user-agent` | Custom user agent string |
@@ -274,7 +274,7 @@ spel click "text=More information"        # click a link by text
 spel fill "#search" "browser automation"  # fill an input field
 spel press Enter                          # press a key
 spel screenshot result.png                # take a screenshot
-spel close                                # close the session
+spel close                                # save state and close the browser gracefully
 ```
 
 **Read page content:**
@@ -325,7 +325,7 @@ spel health               # alive? busy? browser still there?
 spel health --json        # same, for agents (exit 0 = ok/busy, 1 otherwise)
 spel cancel               # interrupt whatever is in flight
 spel cancel c12           # interrupt one command by its id from `spel health`
-spel kill                 # end the daemon NOW, even mid-command
+spel kill                 # force-stop the daemon without saving browser state
 spel kill --all-sessions  # every session on this machine, orphans included
 ```
 

@@ -1278,11 +1278,11 @@
 
    "kill"
    (str/join \newline
-     ["kill - Alias for close: end daemon sessions immediately"
+     ["kill - Force-terminate daemon sessions without saving browser state"
       ""
-      "`close` and `kill` are the same operation. Both verify the daemon PID,"
-      "force-terminate the daemon process tree, reap orphaned daemons, and clean"
-      "session files. Use `health` before this when you need diagnostics."
+      "Verifies the daemon PID, force-terminates its process tree, reaps orphaned"
+      "daemons, and cleans session files. Use `close` to save persistent profiles"
+      "and session state. Use `health` first when you need diagnostics."
       ""
       "Usage:"
       "  spel kill [--all-sessions]"
@@ -1294,17 +1294,20 @@
 
    "close"
    (str/join \newline
-     ["close - End daemon sessions immediately"
+     ["close - Save state and close browser sessions gracefully"
       ""
-      "Aliases: close, quit, exit, kill"
+      "Aliases: close, quit, exit"
+      "Sends the daemon a close request, waits for browser shutdown and reports"
+      "failure if the daemon cannot confirm closure. A stuck daemon may require"
+      "`spel kill`, which does not save browser state."
       ""
       "Usage:"
       "  spel close                    Close current session (default)"
-      "  spel close --all-sessions     Close all active sessions, including orphans"
+      "  spel close --all-sessions     Close all discoverable sessions"
       "  spel --session NAME close     Close a specific named session"
       ""
       "Flags:"
-      "  --all-sessions    Close every active daemon session"
+      "  --all-sessions    Close every discoverable daemon session"
       ""
       "Examples:"
       "  spel close"
@@ -3403,23 +3406,47 @@
       (seq external-cdp) (assoc :external_cdp external-cdp))))
 
 (defn- close-session!
-  "Gracefully closes a single daemon session. Sends close command,
-   waits for the process to exit, then cleans up files.
+  "Gracefully closes a verified daemon session and waits for browser teardown.
+   Never removes the session files or reports success while its process is alive.
 
    `extra-flags` (optional map, string keys) rides along as `_flags` so
    close-time flags like --shutdown-simulator reach the daemon — the close
    fast-path bypasses the normal command pipeline that attaches them."
   ([^String session] (close-session! session nil))
   ([^String session extra-flags]
-   (let [old-pid (read-pid session)
-         cmd     (cond-> {:action "close"}
-                   (seq extra-flags) (assoc :_flags extra-flags))]
-     (try
-       (send-command! session cmd 5000)
-       (catch Exception _ nil))
-     (when old-pid
-       (poll-until #(not (process-alive? old-pid)) 10000))
-     (cleanup-session-files! session))))
+   (let [file-pid (read-pid session)
+         daemon   (daemon-process-for-session session)
+         pid      (:pid daemon)
+         cmd      (cond-> {:action "close"}
+                    (seq extra-flags) (assoc :_flags extra-flags))]
+     (cond
+       (and file-pid (process-alive? file-pid) (not= file-pid pid))
+       {:session session :pid file-pid :closed false :refused true
+        :error "PID file names an unrelated process; use spel health to diagnose"}
+
+       (nil? daemon)
+       (if (Files/exists (daemon/socket-path session) (into-array java.nio.file.LinkOption []))
+         {:session session :closed false :refused true
+          :error "Cannot verify the daemon owning this socket; use spel health to diagnose"}
+         (do (cleanup-session-files! session)
+           {:session session :closed true :method "already gone"}))
+
+       :else
+       (try
+         (let [resp   (send-command! session cmd 5000)
+               saved? (and (:success resp) (true? (get-in resp [:data :closed])))
+               exited? (and saved? (poll-until #(not (process-alive? pid)) 10000))]
+           (if exited?
+             (do (cleanup-session-files! session)
+               {:session session :pid pid :closed true :method "graceful browser shutdown"})
+             {:session session :pid pid :closed false
+              :error (if saved?
+                       "Daemon did not exit after close; inspect health or use spel kill"
+                       (or (:error resp) "Daemon did not confirm close; inspect health or use spel kill"))}))
+         (catch Exception e
+           {:session session :pid pid :closed false
+            :error (str "Could not close the daemon: " (.getMessage e)
+                     "; inspect health or use spel kill")}))))))
 
 (defn- socket-connectable?
   "Tries to connect to the daemon's Unix socket. Returns true if connectable."
@@ -4560,40 +4587,46 @@
 
           :else nil)))
 
-    ;; Close / kill — one lifecycle operation. Never starts a daemon, never waits
-    ;; on a browser. `close` is the friendly spelling; `kill` is kept as an alias
-    ;; for muscle memory and stale-daemon recovery docs.
+    ;; Close saves browser state and waits for the daemon to finish. Kill is the
+    ;; explicit forced-recovery path; it does not guarantee profile persistence.
+    ;; Neither command starts a new daemon.
     (when (#{"close" "kill"} (:action command))
       (let [close?   (= "close" (:action command))
             sessions (if (:all-sessions command)
                        (or (seq (discover-sessions)) [(:session flags)])
                        [(:session flags)])
-            results  (mapv force-kill-daemon! sessions)
-            ;; Sweep daemons that no longer have files to be discovered by —
-            ;; otherwise "close/kill every session" leaves the worst ones running.
+            results  (mapv (if close? close-session! force-kill-daemon!) sessions)
+            ;; A daemon without session files cannot be reached to close cleanly.
+            ;; Only explicit `kill --all-sessions` may terminate orphan processes.
             orphans  (when (:all-sessions command)
                        (let [known (set sessions)]
                          (->> (orphan-daemon-processes)
                            (remove #(contains? known (:session %)))
                            (mapv (fn [{:keys [pid session]}]
-                                   (terminate-pid! pid 1000)
-                                   {:session (or session "?")
-                                    :pid     pid
-                                    :killed  true
-                                    :method  "orphan process (no socket)"})))))
-            results  (into results (or orphans []))]
+                                   (if close?
+                                     {:session (or session "?") :pid pid :closed false
+                                      :error "Orphan daemon has no socket; use spel kill --all-sessions"}
+                                     (do (terminate-pid! pid 1000)
+                                       {:session (or session "?")
+                                        :pid     pid
+                                        :killed  true
+                                        :method  "orphan process (no socket)"})))))))
+            results  (into results (or orphans []))
+            success? (every? (if close? :closed #(not (:refused %))) results)]
         (if (:json flags)
           (println (json/write-json-str (if close?
-                                          {:closed true :killed results}
+                                          {:closed success? :sessions results}
                                           {:killed results})
                      :escape-slash false))
-          (doseq [{:keys [session pid killed method refused]} results]
+          (doseq [{:keys [session pid closed killed method error refused]} results]
             (println (str session ": "
                        (cond
-                         killed  (str (if close? "closed" "killed") " pid " pid " (" method ")")
-                         refused (str "REFUSED unsafe stale pid " pid " — unrelated process left alive")
+                         closed  (str "closed" (when pid (str " pid " pid)) " (" method ")")
+                         killed  (str "killed pid " pid " (" method ")")
+                         refused (str "REFUSED " error)
+                         error   (str "NOT CLOSED " error)
                          :else   "no daemon running")))))
-        (System/exit (if (some :refused results) 1 0))))
+        (System/exit (if success? 0 1))))
 
     ;; Health — the one question a wedged daemon can still answer. Never starts
     ;; a daemon: "there is none" is a valid health answer, and spawning one to

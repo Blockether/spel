@@ -2948,6 +2948,30 @@
               (expect (= pid (:pid result)))
               (expect (.isAlive (java.lang.ProcessHandle/current)))))))))
 
+  ;; Regression: a failed graceful close used to remove session files even while
+  ;; the daemon remained alive, so a reusable profile could be released too early.
+  (it "keeps the daemon and its session files when close is not acknowledged"
+    (let [s   (dfr-session)
+          pid (str (.pid (java.lang.ProcessHandle/current)))]
+      (with-live-pid s
+        (fn []
+          (with-redefs [sut/send-command! (fn [& _] {:success false :error "shutdown unavailable"})]
+            (let [result (#'sut/close-session! s)]
+              (expect (false? (:closed result)))
+              (expect (= "shutdown unavailable" (:error result)))
+              (expect (= pid (slurp (str (daemon/pid-file-path s)))))
+              (expect (.isAlive (java.lang.ProcessHandle/current)))))))))
+
+  (it "refuses graceful close when a stale PID names an unrelated process"
+    (let [s (dfr-session)]
+      (with-live-pid s
+        (fn []
+          (with-redefs [sut/daemon-process-at-pid (constantly nil)]
+            (let [result (#'sut/close-session! s)]
+              (expect (false? (:closed result)))
+              (expect (true? (:refused result)))
+              (expect (.exists (io/file (str (daemon/pid-file-path s)))))))))))
+
   (it "reports a verified daemon with deleted state files as orphaned"
     (let [s (dfr-session)]
       (with-redefs [sut/orphan-daemon-processes (fn [] [{:pid "4242" :session s}])]

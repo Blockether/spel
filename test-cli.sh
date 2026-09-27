@@ -939,6 +939,24 @@ assert_jq_eq "--session roundtrip open → .url" "$OUT" '.url' 'https://example.
 OUT=$(timeout 10 "$SPEL" --json --session "${SESSION}-roundtrip" close 2>/dev/null) || true
 assert_jq "--session roundtrip close → .closed" "$OUT" '.closed == true'
 
+# Regression: `close` force-killed Chromium before a persistent profile could
+# flush login cookies and localStorage. Use a new session name after closing so
+# the saved session-state JSON cannot hide a missing profile write.
+PROFILE_DIR="$TEST_TMP_DIR/persistent-profile"
+OUT=$(timeout 30 "$SPEL" --json --profile "$PROFILE_DIR" --session "${SESSION}-profile-first" open https://example.com 2>/dev/null) || true
+assert_jq_eq "profile first open → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-profile-first" eval-js "() => {localStorage.setItem('spel-profile-test', 'saved'); document.cookie = 'spel-profile-test=saved; Max-Age=3600; SameSite=Lax'; return {storage: localStorage.getItem('spel-profile-test'), cookie: document.cookie}}" 2>/dev/null) || true
+assert_jq_eq "profile first write → localStorage" "$OUT" '.result.storage' 'saved'
+OUT=$(timeout 15 "$SPEL" --json --session "${SESSION}-profile-first" close 2>/dev/null) || true
+assert_jq "profile first close → graceful" "$OUT" '.closed == true and .sessions[0].method == "graceful browser shutdown"'
+OUT=$(timeout 30 "$SPEL" --json --profile "$PROFILE_DIR" --session "${SESSION}-profile-second" open https://example.com 2>/dev/null) || true
+assert_jq_eq "profile second open → .url" "$OUT" '.url' 'https://example.com/'
+OUT=$(timeout 30 "$SPEL" --json --session "${SESSION}-profile-second" eval-js "() => ({storage: localStorage.getItem('spel-profile-test'), cookie: document.cookie})" 2>/dev/null) || true
+assert_jq_eq "profile second open → saved localStorage" "$OUT" '.result.storage' 'saved'
+assert_jq_contains "profile second open → saved cookie" "$OUT" '.result.cookie' 'spel-profile-test=saved'
+OUT=$(timeout 15 "$SPEL" --json --session "${SESSION}-profile-second" close 2>/dev/null) || true
+assert_jq "profile second close → graceful" "$OUT" '.closed == true'
+
 # =============================================================================
 # AGENT SAFETY + BATCH (15) — vercel-labs/agent-browser parity
 # =============================================================================
