@@ -30,6 +30,14 @@ class Installation:
 
 
 @dataclass(frozen=True)
+class BrowserProfile:
+    """Private Chromium user-data directory; browser state persists after release."""
+
+    name: str
+    path: Annotated[str, "Absolute directory containing sensitive browser state."]
+
+
+@dataclass(frozen=True)
 class Reservation:
     """A durable exclusive reservation; retain id across turns and reloads."""
 
@@ -232,11 +240,20 @@ class Spel:
         connection = sqlite3.connect(self._home / "sessions.sqlite3", timeout=10)
         connection.row_factory = sqlite3.Row
         try:
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "CREATE TABLE IF NOT EXISTS installation (singleton INTEGER PRIMARY KEY CHECK(singleton=1), version TEXT NOT NULL, executable TEXT NOT NULL, browsers INTEGER NOT NULL)"
             )
             connection.execute(
-                "CREATE TABLE IF NOT EXISTS reservations (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, label TEXT UNIQUE NOT NULL, executable TEXT NOT NULL, browser TEXT NOT NULL, headed INTEGER NOT NULL, cdp TEXT, started INTEGER NOT NULL DEFAULT 0)"
+                "CREATE TABLE IF NOT EXISTS reservations (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, label TEXT UNIQUE NOT NULL, executable TEXT NOT NULL, browser TEXT NOT NULL, headed INTEGER NOT NULL, cdp TEXT, started INTEGER NOT NULL DEFAULT 0, profile TEXT)"
+            )
+            if not any(
+                row["name"] == "profile"
+                for row in connection.execute("PRAGMA table_info(reservations)")
+            ):
+                connection.execute("ALTER TABLE reservations ADD COLUMN profile TEXT")
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS reservations_profile ON reservations(profile) WHERE profile IS NOT NULL"
             )
             with connection:
                 yield connection
@@ -262,7 +279,7 @@ class Spel:
     ) -> Installation:
         """Install or switch to a pinned official stable release after SHA-256 verification.
 
-        Requires Spel 0.9.33 or newer; defaults to 0.9.38 with Playwright browsers.
+        Requires Spel 0.9.33 or newer; defaults to 0.9.40 with Playwright browsers.
         Use releases() to find versions. Upgrades and rollbacks use this same method.
         New reservations use the selected version; existing reservations keep their
         original executable, even across reloads. No running sessions are restarted.
@@ -303,18 +320,59 @@ class Spel:
             else None
         )
 
+    def _profile_path(self, name: str) -> Path:
+        if not isinstance(name, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", name
+        ):
+            raise ValueError(
+                "profile name must be 1–80 letters, digits, underscores or hyphens"
+            )
+        root = self._home.expanduser().resolve() / "profiles"
+        path = root / name
+        for directory in (root, path):
+            if directory.is_symlink() or (
+                directory.exists() and not directory.is_dir()
+            ):
+                raise SpelError(
+                    "Managed profiles must be ordinary directories, not links"
+                )
+            if directory.exists() and directory.stat().st_mode & 0o077:
+                raise SpelError(
+                    "Managed profile directories must be private (mode 0700)"
+                )
+        return path
+
+    def prepare_profile(self, name: str) -> BrowserProfile:
+        """Create or reuse a private, named Chromium profile without starting a browser.
+
+        Creates ~/.vis/spel/profiles/<name> with owner-only access. Existing state is
+        never reset or exported. Use a dedicated profile, not a live personal Chrome
+        directory; its cookies and sign-in data are sensitive. Reserve it with
+        profile=name and headed=True for private manual sign-in. Releasing the
+        reservation closes the browser, leaving the profile on disk for later use.
+        """
+        path = self._profile_path(name)
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.mkdir(mode=0o700, exist_ok=True)
+        self._profile_path(name)
+        return BrowserProfile(name, str(path))
+
     def reserve(
         self,
         label: str | None = None,
         *,
         browser: Literal["chromium", "firefox", "webkit"] = "chromium",
         headed: bool = False,
+        profile: str | None = None,
     ) -> Reservation:
         """Reserve an exclusive named session without launching a browser.
 
         Installation must already exist. None generates a label; supplied labels
         are unique across workers and reloads until release. Duplicate labels fail,
         never adopt an existing session. Chromium and headless are the defaults.
+        For reusable sign-in, first call prepare_profile(name), then reserve with
+        profile=name; only one reservation can use that profile at a time. It is
+        incompatible with CDP, which instead uses an external browser's context.
         Retain the returned id; possession permits intentional handover of control.
         """
         if browser not in ("chromium", "firefox", "webkit"):
@@ -327,17 +385,33 @@ class Spel:
             raise ValueError(
                 "label must be 1–80 letters, digits, underscores or hyphens; not default"
             )
+        profile_path = None
+        if profile is not None:
+            if browser != "chromium":
+                raise ValueError("Persistent profiles require Chromium")
+            profile_path = self._profile_path(profile)
+            if not profile_path.is_dir():
+                raise ValueError("Call spel.prepare_profile(name) before reserving it")
         installation = self.installed()
         if installation is None:
             raise SpelError(
                 "Spel is not installed. Call spel.install explicitly first."
+            )
+        if profile_path and tuple(map(int, installation.version.split("."))) < (
+            0,
+            9,
+            40,
+        ):
+            raise SpelError(
+                "Managed profiles require Spel 0.9.40 or newer for graceful close. "
+                "Install that release and reserve a new session."
             )
         identifier = uuid.uuid4().hex
         name = f"agent-{int(time.time())}-{identifier[:12]}"
         try:
             with self._db() as db:
                 db.execute(
-                    "INSERT INTO reservations (id,name,label,executable,browser,headed) VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile) VALUES (?,?,?,?,?,?,?)",
                     (
                         identifier,
                         name,
@@ -345,11 +419,12 @@ class Spel:
                         installation.executable,
                         browser,
                         int(headed),
+                        str(profile_path) if profile_path is not None else None,
                     ),
                 )
         except sqlite3.IntegrityError:
             raise SpelError(
-                "That label is already reserved. Use a different label or release its reservation."
+                "That label or profile is already reserved. Use a different one or release its reservation."
             ) from None
         return Reservation(identifier, name, label or name)
 
@@ -393,6 +468,8 @@ class Spel:
             flags.append("--headed")
         if row["cdp"]:
             flags += ["--cdp", row["cdp"]]
+        if row["profile"]:
+            flags += ["--profile", row["profile"]]
         if not diagnostic:
             with self._db() as db:
                 db.execute("UPDATE reservations SET started=1 WHERE id=?", (session,))
@@ -444,6 +521,10 @@ class Spel:
         row = self._reservation(session)
         if row["browser"] != "chromium":
             raise ValueError("CDP requires a Chromium reservation")
+        if row["profile"]:
+            raise ValueError(
+                "CDP cannot use a managed profile; reserve without profile"
+            )
         with self._db() as db:
             updated = db.execute(
                 "UPDATE reservations SET cdp=?, started=1 WHERE id=? AND started=0",
@@ -686,6 +767,10 @@ def _presentation(label):
                 label,
                 f"Spel {result.version}; browsers {'installed' if result.browsers_installed else 'not installed'}",
             )
+        if isinstance(result, BrowserProfile):
+            return vis.ActivityPresentation(
+                label, f"Profile {result.name} ready", (vis.ActivityText(result.path),)
+            )
         if isinstance(result, Reservation):
             return vis.ActivityPresentation(
                 label, f"Reserved {result.label}", (vis.ActivityText(result.name),)
@@ -733,6 +818,7 @@ for method, label, show_start, tag in [
     ("help", "Read browser reference", False, "observation"),
     ("native_help", "Read Spel command help", False, "observation"),
     ("installed", "Check Spel installation", False, "observation"),
+    ("prepare_profile", "Prepare browser profile", False, "mutation"),
     ("reserve", "Reserve browser session", False, "mutation"),
     ("connect", "Connect browser through CDP", True, "mutation"),
     ("open", "Open browser page", True, "mutation"),

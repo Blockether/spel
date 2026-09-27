@@ -4,7 +4,7 @@ from pathlib import Path
 import blockether.vis.extension as vis
 import pytest
 
-from vis_spel import BrowserResult, Installation, Reservation, Spel
+from vis_spel import BrowserProfile, BrowserResult, Installation, Reservation, Spel
 from vis_spel.install import Release, ReleasePage
 
 
@@ -36,7 +36,7 @@ def test_registration_and_all_activity_states(extension):
     assert declaration.alias == "spel"
     contract = declaration.symbols[0].contract
     assert contract["name"] == "spel"
-    assert len(contract["members"]) == 18
+    assert len(contract["members"]) == 19
     for member in contract["members"]:
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
@@ -58,6 +58,7 @@ def test_registration_and_all_activity_states(extension):
         )
     assert Spel.installed.__vis_symbol_activity__.show_start is False
     assert Spel.native_help.__vis_symbol_activity__.show_start is False
+    assert Spel.prepare_profile.__vis_symbol_activity__.show_start is False
     assert Spel.reserve.__vis_symbol_activity__.show_start is False
     assert Spel.health.__vis_symbol_activity__.show_start is False
     assert Spel.install.__vis_symbol_activity__.show_start is True
@@ -89,6 +90,11 @@ def test_activity_preserves_failure_empty_and_bounded_data(extension):
             phase="success", result=Reservation("a", "agent-test", "example")
         ).summary
     )
+    profile = render(
+        phase="success", result=BrowserProfile("work", "/private/profiles/work")
+    )
+    assert profile.summary == "Profile work ready"
+    assert "/private/profiles/work" in str(profile.content)
     health = render(
         phase="success",
         result=BrowserResult("agent-test", "health", {"status": "stopped"}),

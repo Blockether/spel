@@ -9,7 +9,7 @@ Requires Vis / `vis-agent` **0.2.15+**, Python 3.11+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.7 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.8 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -23,7 +23,7 @@ Use the repository and project folder to manage installed versions:
 
 ```sh
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.7 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.8 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -38,7 +38,7 @@ In Vis `python_execution`:
 ```python
 print(await spel.releases())  # Available stable native releases
 print(await spel.installed())  # Selected version, or None
-print(await spel.install("0.9.38"))  # Install and select this version
+print(await spel.install("0.9.40"))  # Install and select this version
 # To roll back: await spel.install("0.9.33")
 ```
 
@@ -48,7 +48,7 @@ returns a `ReleasePage` with `releases` (version, URL, publication time) and
 if a filtered page is empty. Extension tags, prereleases and versions older than
 0.9.33 are excluded. GitHub rate limits and network errors are reported, not retried.
 
-`install()` defaults to **0.9.38**. It verifies the official asset's SHA-256 and
+`install()` defaults to **0.9.40**. It verifies the official asset's SHA-256 and
 reported version, then installs Playwright browsers. Pass `browsers=False` to skip
 browser setup. The same call handles upgrades and rollbacks:
 
@@ -59,6 +59,60 @@ browser setup. The same call handles upgrades and rollbacks:
   Playwright's cache. Linux system dependencies need separate administrator setup.
 
 Native binaries are available for Linux x64/arm64, macOS arm64 and Windows x64.
+
+## Keep an X.com sign-in for later visits
+
+Use a dedicated private Chromium profile when you want to sign in to X.com once
+and revisit it in later Vis sessions. Ask Vis to prepare a profile named
+`x-personal`, open X.com in a visible browser, then **pause for you to sign in**.
+Enter your password and any two-factor code directly in the browser. When your
+account's signed-in UI is visible, ask Vis to close the session gracefully.
+Later, ask Vis to reuse `x-personal` to visit X.com without signing in again.
+The site may require another sign-in or challenge at any time.
+
+If you prefer to call the tools directly in `python_execution`:
+
+```python
+profile = await spel.prepare_profile("x-personal")
+lease = await spel.reserve("x-setup", headed=True, profile=profile.name)
+await spel.open(lease.id, "https://x.com/i/flow/login")
+```
+
+Complete authentication in the visible browser before continuing. After you
+see the signed-in page, check its visible state, then close the session in a
+**separate** call:
+
+```python
+await spel.release(lease.id)  # Graceful close saves the browser profile.
+```
+
+On a later visit:
+
+```python
+later = await spel.reserve("x-revisit", profile="x-personal")
+try:
+    await spel.open(later.id, "https://x.com/")
+    print(await spel.snapshot(later.id))
+finally:
+    await spel.release(later.id)
+```
+
+`prepare_profile` creates or reuses `~/.vis/spel/profiles/x-personal` with
+owner-only permissions; it never clears existing data. Keep the directory
+private: it contains sensitive cookies and sign-in data. Only one Vis
+reservation may use a named profile at a time. Do not point it at a running
+personal Chrome profile. This workflow requires **native Spel 0.9.40+** so
+`release` closes Chromium gracefully; `spel kill` force-terminates it and may
+lose recent state. A managed profile cannot also connect to an external CDP
+browser: use `spel.connect` with a separate reservation for that workflow.
+
+Saving a profile does not make automation indistinguishable from a person,
+bypass a challenge, or guarantee that a site will keep a session active. Use
+only accounts and sites you are authorized to automate.
+
+To combine Spel with another extension, call both tool sets from the same
+`python_execution` block, for example `spel.*` with `gh.*`. Vis Spel imports
+only the Vis SDK, not other extensions' code.
 
 ## Use a browser
 
@@ -80,7 +134,7 @@ Only release your own reservation. Errors are not retried: after a timeout, insp
 | Tools | Purpose |
 | --- | --- |
 | `releases`, `installed`, `install` | List, inspect and select native versions |
-| `reserve`, `release` | Reserve a session and close it |
+| `prepare_profile`, `reserve`, `release` | Prepare a private profile, reserve a session and close it gracefully |
 | `open`, `snapshot`, `command` | Navigate, inspect and run session-scoped CLI actions |
 | `evaluate`, `sci` | Run page JavaScript or Spel Clojure via stdin |
 | `screenshot` | Save a PNG; annotated captures include a reference legend |
@@ -126,6 +180,8 @@ uv run ruff check .
 uv run ruff format --check .
 # After installing native Spel and its browsers:
 SPEL_INTEGRATION=1 uv run pytest tests/test_native.py
+# Before a native release, verify a locally built binary against the profile test:
+SPEL_INTEGRATION=1 SPEL_TEST_BINARY=../../target/spel uv run pytest tests/test_native.py -k managed_profile
 ```
 
 The trusted-worker suite runs from the Vis checkout:

@@ -3,9 +3,12 @@
 import json
 import os
 import socket
+import sqlite3
 import struct
+import threading
 import time
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -87,6 +90,66 @@ def test_native_browser_workflow(tmp_path):
     finally:
         client.release(lease.id)
     assert not Path(str(lease.name) + ".png").exists()
+
+
+def test_native_managed_profile_persists_auth_storage_across_sessions(tmp_path):
+    installed = Spel().installed()
+    assert installed is not None
+    binary = os.environ.get("SPEL_TEST_BINARY", installed.executable)
+    code, version, _ = _execute(binary, ["version"])
+    assert code == 0 and version.strip().startswith("spel ")
+    client = Spel(tmp_path / "managed")
+    with client._db() as db:
+        db.execute(
+            "INSERT INTO installation VALUES (1, ?, ?, 1)",
+            (version.strip().removeprefix("spel "), binary),
+        )
+    profile = client.prepare_profile("login")
+
+    class Page(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b"<title>Profile storage test</title><main>Signed-in state fixture</main>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{server.server_port}/"
+    try:
+        first = client.reserve("initial", profile="login")
+        try:
+            client.open(first.id, url)
+            assert client.evaluate(
+                first.id,
+                "() => {localStorage.setItem('profile-test', 'saved'); document.cookie = 'profile-test=saved; Max-Age=3600; SameSite=Lax'; return {storage: localStorage.getItem('profile-test'), cookie: document.cookie}}",
+            ).data["result"] == {"storage": "saved", "cookie": "profile-test=saved"}
+        finally:
+            client.release(first.id)
+        assert Path(profile.path).is_dir()
+        with sqlite3.connect(Path(profile.path) / "Default" / "Cookies") as cookies:
+            assert ("127.0.0.1", "profile-test") in cookies.execute(
+                "SELECT host_key, name FROM cookies"
+            ).fetchall()
+        reused = Spel(client._home).reserve("again", profile="login")
+        try:
+            client.open(reused.id, url)
+            assert client.evaluate(
+                reused.id,
+                "() => ({storage: localStorage.getItem('profile-test'), cookie: document.cookie})",
+            ).data["result"] == {"storage": "saved", "cookie": "profile-test=saved"}
+        finally:
+            client.release(reused.id)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 # Regression, issue #138: full_page=False returned an annotated full-page PNG

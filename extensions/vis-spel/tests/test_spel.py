@@ -16,7 +16,7 @@ def client(tmp_path, monkeypatch):
     binary.write_text("test executable")
     with spel._db() as db:
         db.execute(
-            "INSERT INTO installation VALUES (1, ?, ?, 1)", ("0.9.33", str(binary))
+            "INSERT INTO installation VALUES (1, ?, ?, 1)", ("0.9.40", str(binary))
         )
     calls = []
 
@@ -59,9 +59,97 @@ def test_concurrent_reservation_is_atomic(client):
     assert sum(lease is not None for lease in leases) == 1
 
 
+def test_prepared_profile_survives_release_and_new_reservation(client):
+    spel, calls = client
+    prepared = spel.prepare_profile("x-com")
+    assert prepared.name == "x-com"
+    assert prepared.path == str(spel._home / "profiles" / "x-com")
+    assert (spel._home / "profiles" / "x-com").is_dir()
+    lease = spel.reserve("initial-login", profile="x-com", headed=True)
+    spel.open(lease.id, "https://x.com/")
+    assert calls[-1][1][-2:] == ["open", "https://x.com/"]
+    assert calls[-1][1][calls[-1][1].index("--profile") + 1] == prepared.path
+    assert "--headed" in calls[-1][1]
+    spel.release(lease.id)
+    assert spel.prepare_profile("x-com") == prepared
+    reused = Spel(spel._home).reserve("next-visit", profile="x-com")
+    Spel(spel._home).open(reused.id, "https://x.com/")
+    assert calls[-1][1][calls[-1][1].index("--profile") + 1] == prepared.path
+    Spel(spel._home).release(reused.id)
+    assert prepared.path == str(spel._home / "profiles" / "x-com")
+
+
+def test_managed_profiles_are_private_and_keep_existing_data(client):
+    spel, calls = client
+    prepared = spel.prepare_profile("work")
+    path = spel._home / "profiles" / "work"
+    (path / "session-marker").write_text("kept")
+    assert spel.prepare_profile("work") == prepared
+    assert (path / "session-marker").read_text() == "kept"
+    assert path.stat().st_mode & 0o077 == 0
+    assert path.parent.stat().st_mode & 0o077 == 0
+    with pytest.raises(ValueError, match="prepare_profile"):
+        spel.reserve(profile="unprepared")
+    with pytest.raises(ValueError, match="Chromium"):
+        spel.reserve(profile="work", browser="webkit")
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.39'")
+    with pytest.raises(SpelError, match="Spel 0.9.40 or newer"):
+        spel.reserve(profile="work")
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.40'")
+    lease = spel.reserve(profile="work")
+    with pytest.raises(ValueError, match="CDP cannot use"):
+        spel.connect(lease.id, "http://127.0.0.1:9222")
+    assert not calls
+    spel.release(lease.id)
+
+
+@pytest.mark.parametrize("name", ["", "../other", "x y", "x" * 81, None])
+def test_invalid_profile_names_do_not_create_directories(client, name):
+    spel, calls = client
+    with pytest.raises(ValueError, match="profile name"):
+        spel.prepare_profile(name)
+    assert not (spel._home / "profiles").exists()
+    assert not calls
+
+
+def test_profile_symlinks_and_public_directories_are_refused(client, tmp_path):
+    spel, calls = client
+    root = spel._home / "profiles"
+    root.mkdir(mode=0o700)
+    (root / "linked").symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(SpelError, match="not links"):
+        spel.prepare_profile("linked")
+    root.chmod(0o755)
+    with pytest.raises(SpelError, match="private"):
+        spel.prepare_profile("new")
+    assert not calls
+
+
+def test_profile_is_exclusive_across_workers_and_released_on_close(client):
+    spel, _ = client
+    spel.prepare_profile("shared")
+
+    def attempt(index):
+        try:
+            return Spel(spel._home).reserve(f"task-{index}", profile="shared")
+        except SpelError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        leases = list(pool.map(attempt, range(12)))
+    assert sum(lease is not None for lease in leases) == 1
+    lease = next(lease for lease in leases if lease is not None)
+    with pytest.raises(SpelError, match="already reserved"):
+        spel.reserve("different-label", profile="shared")
+    spel.release(lease.id)
+    assert spel.reserve("reused", profile="shared").id != lease.id
+
+
 def test_read_and_reserve_never_start_browser(client):
     spel, calls = client
-    assert spel.installed().version == "0.9.33"
+    assert spel.installed().version == "0.9.40"
     spel.reserve()
     assert not calls
 
@@ -372,7 +460,7 @@ def test_install_runs_verified_binary_before_recording(client, monkeypatch):
     monkeypatch.setattr(vis_spel, "_execute", run)
     installed = spel.install()
     assert installed.browsers_installed
-    assert installed.version == DEFAULT_VERSION == "0.9.38"
+    assert installed.version == DEFAULT_VERSION == "0.9.40"
     assert calls == [["version"], ["install"]]
     assert spel.installed() == installed
 

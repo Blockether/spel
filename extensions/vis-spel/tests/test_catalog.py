@@ -22,7 +22,9 @@ def test_catalog_is_available_without_registration_or_configuration(
     (namespace,) = spel.spec()
     assert isinstance(namespace, vis.NamespaceSpec)
     assert namespace.name == "spel"
-    assert len(namespace.members) == 18
+    assert len(namespace.members) == 19
+    assert spel.spec("spel.prepare_profile").returns.name == "BrowserProfile"
+    assert spel.spec("spel.prepare_profile").tag == "mutation"
     assert spel.spec("spel.reserve").tag == "mutation"
     assert spel.spec("spel.spec").tag == "observation"
     assert spel.spec("spel.releases").tag == "observation"
@@ -51,6 +53,7 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
         names=[item["contract"]["name"] for item in public],
         mutations=[
             "spel.install",
+            "spel.prepare_profile",
             "spel.reserve",
             "spel.connect",
             "spel.open",
