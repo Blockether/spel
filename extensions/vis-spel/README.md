@@ -9,7 +9,7 @@ Requires Vis / `vis-agent` **0.2.15+**, Python 3.11+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.9 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.10 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -23,7 +23,7 @@ Use the repository and project folder to manage installed versions:
 
 ```sh
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.9 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.10 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -139,7 +139,7 @@ Only release your own reservation. Errors are not retried: after a timeout, insp
 | `evaluate`, `sci` | Run page JavaScript or Spel Clojure via stdin |
 | `screenshot` | Save a PNG; annotated captures include a reference legend |
 | `connect` | Connect a fresh Chromium reservation to an authorized CDP endpoint |
-| `health`, `logs`, `cancel` | Inspect a session or cancel one command ID |
+| `health`, `logs`, `cancel` | Inspect Spel or a session, or cancel one command ID |
 | `spec`, `help` | Read typed SDK contracts, browser action syntax and examples |
 
 `BrowserResult.data` contains parsed CLI JSON. For signatures and defaults, use

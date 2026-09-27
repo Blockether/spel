@@ -287,6 +287,58 @@ def test_health_returns_unhealthy_state_and_does_not_mark_started(client, monkey
     assert not spel._reservation(lease.id)["started"]
 
 
+def test_health_without_session_reports_spel_and_reservations_without_ids(
+    client, monkeypatch
+):
+    spel, _ = client
+    spel.prepare_profile("work")
+    checkout = spel.reserve("checkout")
+    signin = spel.reserve("sign-in", profile="work", headed=True)
+    spel.open(checkout.id, "about:blank")
+    monkeypatch.setattr(
+        vis_spel, "_execute", lambda *a, **k: pytest.fail("health() ran Spel")
+    )
+    result = spel.health()
+    assert (result.session, result.action) == ("", "health")
+    assert result.data["status"] == "ok"
+    assert result.data["version"] == "0.9.40"
+    assert result.data["browsers_installed"] is True
+    assert result.data["reservations"] == [
+        {
+            "label": "checkout",
+            "browser": "chromium",
+            "headed": False,
+            "cdp": False,
+            "profile": None,
+            "started": True,
+        },
+        {
+            "label": "sign-in",
+            "browser": "chromium",
+            "headed": True,
+            "cdp": False,
+            "profile": "work",
+            "started": False,
+        },
+    ]
+    text = json.dumps(result.data)
+    assert checkout.id not in text and signin.id not in text
+    assert str(spel._home) not in text
+    assert not spel.spec("spel.health").parameters[0].required
+
+
+def test_health_without_session_reports_missing_installation(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        vis_spel, "_execute", lambda *a, **k: pytest.fail("health() ran Spel")
+    )
+    assert Spel(tmp_path).health().data == {
+        "status": "not_installed",
+        "version": None,
+        "browsers_installed": None,
+        "reservations": [],
+    }
+
+
 def test_snapshot_scope_and_screenshot_are_explicit(client, tmp_path):
     spel, calls = client
     lease = spel.reserve()

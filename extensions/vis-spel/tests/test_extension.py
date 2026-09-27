@@ -100,6 +100,11 @@ def test_activity_preserves_failure_empty_and_bounded_data(extension):
         result=BrowserResult("agent-test", "health", {"status": "stopped"}),
     )
     assert "stopped" in health.summary
+    readiness = render(
+        phase="success",
+        result=BrowserResult("", "health", {"status": "not_installed"}),
+    )
+    assert readiness.summary == "Spel: not_installed"
     output = render(
         phase="success",
         result=BrowserResult(

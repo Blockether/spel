@@ -708,11 +708,48 @@ class Spel:
         )
         return self._run(session, args)
 
-    def health(self, session: str) -> BrowserResult:
-        """Inspect daemon status and in-flight command IDs without starting or restarting it.
+    def _readiness(self) -> BrowserResult:
+        installation = self.installed()
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT label, browser, headed, cdp, profile, started FROM reservations ORDER BY label"
+            ).fetchall()
+        return BrowserResult(
+            "",
+            "health",
+            {
+                "status": "ok" if installation else "not_installed",
+                "version": installation.version if installation else None,
+                "browsers_installed": (
+                    installation.browsers_installed if installation else None
+                ),
+                "reservations": [
+                    {
+                        "label": row["label"],
+                        "browser": row["browser"],
+                        "headed": bool(row["headed"]),
+                        "cdp": row["cdp"] is not None,
+                        "profile": Path(row["profile"]).name
+                        if row["profile"]
+                        else None,
+                        "started": bool(row["started"]),
+                    }
+                    for row in rows
+                ],
+            },
+        )
 
+    def health(self, session: str | None = None) -> BrowserResult:
+        """Inspect one reserved daemon, or Spel itself when no session is given.
+
+        With a reservation id: daemon status and in-flight command IDs, without
+        starting or restarting it. Without one: status ok or not_installed, the
+        managed version and active reservations by label, never their ids; the
+        result session is empty and no browser or daemon is touched.
         A stopped/degraded status is returned as data, not success disguised as healthy.
         """
+        if session is None:
+            return self._readiness()
         return self._run(session, ["health"], diagnostic=True)
 
     def cancel(self, session: str, command_id: str) -> BrowserResult:
@@ -819,7 +856,7 @@ def _presentation(label):
             content = []
             summary = result.session
             if result.action == "health" and isinstance(data, dict):
-                summary = f"{result.session}: {data.get('status', 'unknown')}"
+                summary = f"{result.session or 'Spel'}: {data.get('status', 'unknown')}"
             elif result.action == "close":
                 summary = f"Released {result.session}"
             elif data is None or data == {} or data == []:
