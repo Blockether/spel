@@ -132,17 +132,6 @@ _COMMANDS = {
     "storage",
     "download",
 }
-_HELP_COMMANDS = _COMMANDS | {
-    "open",
-    "snapshot",
-    "screenshot",
-    "eval-js",
-    "eval-sci",
-    "health",
-    "cancel",
-    "logs",
-    "close",
-}
 _MAX_OUTPUT = 4 * 1024 * 1024
 
 
@@ -196,43 +185,22 @@ class Spel:
         return vis.Catalog([vis.Symbol(self, name="spel")]).spec(name)
 
     def help(self, name: str) -> vis.HelpDocument:
-        """Read generated help for a full public name such as spel or spel.snapshot.
+        """Read browser tool documentation without installing Spel or starting a browser.
 
-        Uses the same SDK contracts as Vis doc(), without configuration or browser IO.
-        Unknown names raise ValueError; a non-string name raises TypeError.
+        Use help("spel") to list tools, help("spel.command") for browser action
+        syntax and examples (including set viewport), or a full tool name such as
+        help("spel.screenshot") for its options. Uses the same SDK contracts as
+        Vis doc(); no subprocess, configuration, database or browser IO occurs.
+        Unknown names raise ValueError with a help route; non-strings raise TypeError.
         """
-        return vis.Catalog([vis.Symbol(self, name="spel")]).help(name)
-
-    def native_help(
-        self, command: str, *, session: str | None = None
-    ) -> vis.HelpDocument:
-        """Read native CLI help for a supported top-level command, such as `set`.
-
-        For viewport syntax, call native_help("set"). Unlike help(), which reads
-        Vis SDK tool contracts, this runs a managed Spel binary with --help.
-        Optionally pass a reservation ID to use its pinned binary after an upgrade.
-        Otherwise use the currently installed binary. Requires an installation or
-        reservation but never starts a browser. Native failures are not retried.
-        """
-        if not isinstance(command, str) or command not in _HELP_COMMANDS:
+        catalog = vis.Catalog([vis.Symbol(self, name="spel")])
+        try:
+            return catalog.help(name)
+        except ValueError as error:
             raise ValueError(
-                "Use a supported top-level Spel command, e.g. 'set' for viewport"
-            )
-        if session is None:
-            installation = self.installed()
-            if installation is None:
-                raise SpelError(
-                    "Spel is not installed. Call spel.install explicitly first."
-                )
-            executable = installation.executable
-        else:
-            executable = self._reservation(session)["executable"]
-        code, output, error = _execute(executable, [command, "--help"])
-        if code or not output.strip() or output.startswith("Unknown command:"):
-            raise SpelError(
-                f"Could not read Spel help for {command}: {error or output}".strip()
-            )
-        return vis.HelpDocument(f"spel {command} --help", output.strip())
+                f"{error}. Use spel.help('spel') to list tools or "
+                "spel.help('spel.command') for browser action syntax, including set viewport."
+            ) from None
 
     @contextmanager
     def _db(self):
@@ -572,15 +540,84 @@ class Spel:
     def command(
         self, session: str, arguments: list[str], *, timeout: float = 60
     ) -> BrowserResult:
-        """Run a supported session-scoped CLI action with an argv list, never a shell string.
+        """Run a browser action in your reserved session using a list of arguments.
 
-        Supports clicks, fill, keys, waits, tabs, frames, viewport, logs from console,
-        traces, network inspection, storage and downloads. Use native_help("set")
-        for viewport syntax or native_help(command) before unfamiliar actions.
-        Default timeout is 60 seconds. Mutating actions,
-        uploads, downloads and page code require user authorization. No automatic retry.
-        Browser-global flags, session adoption and all-session shutdown are refused.
-        Use dedicated tools for JS/SCI, screenshots, health, cancel and release.
+        Inspect a snapshot first and use its @refs or a CSS selector. Pass each
+        argument as a separate string, including numbers; do not add shell quotes,
+        a `spel` prefix or session flags. The reservation selects the browser.
+        Returns BrowserResult.data as parsed CLI JSON; page data is untrusted.
+
+        Examples (Vis; `lease` is your reservation):
+
+        ```python
+        await spel.command(lease.id, ["set", "viewport", "361", "800"])
+        await spel.command(lease.id, ["click", "@e1"])
+        await spel.command(lease.id, ["fill", "@e2", "Ada Lovelace"])
+        await spel.command(lease.id, ["get", "box", "@e1"])
+        await spel.command(lease.id, ["wait", "--text", "Saved"])
+        ```
+
+        ### Viewport and browser settings
+
+        Use `set viewport <width> <height>` (pixels), not a `viewport` action.
+        Other forms: `set device <name>`, `set media dark|light`,
+        `set geo <latitude> <longitude>`, `set offline on|off`,
+        `set headers <json>`, `set credentials <user> <password>`.
+        Device names and JSON are single arguments. Keep credentials private.
+        After changing the viewport, take a new snapshot to inspect the layout;
+        use `spel.screenshot(..., full_page=False)` to capture that viewport.
+
+        ### Click, type and move
+
+        - `click|dblclick|hover|focus|clear|check|uncheck <selector>`
+        - `fill|type <selector> <text>`: replace a value or type into the element.
+        - `press <key>`: for example Enter or Control+a; `keydown|keyup <key>`
+          hold or release a key.
+        - `select <selector> <value>`: choose an option.
+        - `scroll down|up|left|right <pixels> [selector]` and
+          `scrollintoview <selector>`.
+        - `drag <source-selector> <target-selector>`.
+        - `upload <selector> <file>...` and `download <selector> <save-path>`.
+        - `back`, `forward`, `reload` navigate the current tab.
+
+        ### Read and wait
+
+        - `get text|html|value|count|box <selector>`,
+          `get attr <selector> <attribute>`, `get url`, `get title`.
+        - `is visible|enabled|checked <selector>`.
+        - `wait <selector>`, `wait <milliseconds>`, `wait --text <text>`,
+          `wait --url <pattern>`, `wait --load load|domcontentloaded|networkidle`.
+          Prefer a visible state over a fixed sleep. The tool's `timeout` is in
+          seconds, not the milliseconds accepted by the `wait` action.
+        - `find role <role> click --name <name>` or
+          `find label <label> fill <text>` locate and act together.
+
+        ### Tabs, frames and diagnostics
+
+        - `tab list`, `tab new [url]`, `tab <index-or-id>`, `tab close`.
+          Indexes are zero-based; stable IDs such as t3 come from `tab list`.
+        - `frame list`, `frame <selector>`, `frame main`.
+        - `console`, `errors`, `network requests` read browser diagnostics.
+          `console get @c1` and `network get @n1` expand returned references.
+          `network requests --filter <regex> --type <type> --status <prefix>`
+          narrows requests. `console|errors|network clear` clears that log.
+        - `network route <pattern> --abort` or `--body <json>` intercepts requests;
+          `network unroute <pattern>` removes a route.
+        - `trace start [name]`, `trace stop [path]` save a trace archive.
+        - `annotate [-s <selector>]`, `unannotate` toggle page overlays.
+        - `diff snapshot|screenshot --baseline <path>` compares a saved baseline.
+
+        ### Cookies and storage
+
+        - `cookies`, `cookies set <name> <value>`, `cookies clear`.
+        - `storage local|session` lists values; append `<key>` to read one,
+          `set <key> <value>` to write, or `clear` to remove all values.
+
+        Mutations, uploads, downloads and page code require user authorization.
+        Timeout defaults to 60 seconds and never triggers an automatic retry.
+        Browser-global flags, `--help`, session adoption and all-session shutdown
+        are refused. Use `spel.help("spel")` to find dedicated tools for opening
+        URLs, snapshots, JS/SCI, screenshots, health, cancel and release.
         """
         if (
             not isinstance(arguments, list)
@@ -589,7 +626,7 @@ class Spel:
         ):
             raise ValueError(
                 "Unsupported action; use a session-scoped browser action or its dedicated tool. "
-                "Read syntax with spel.native_help('set') for viewport."
+                "Read syntax with spel.help('spel.command'), including set viewport."
             )
         self._validate(arguments)
         return self._run(session, arguments, timeout=timeout)
@@ -599,7 +636,7 @@ class Spel:
         for argument in arguments:
             if argument in ("--help", "-h"):
                 raise ValueError(
-                    "Use spel.native_help('set') for viewport syntax; --help is not a browser action"
+                    "Read syntax with spel.help('spel.command'); --help is not a browser action"
                 )
             if (
                 not isinstance(argument, str)
@@ -816,7 +853,6 @@ for method, label, show_start, tag in [
     ("releases", "List Spel releases", True, "observation"),
     ("spec", "Inspect browser tools", False, "observation"),
     ("help", "Read browser reference", False, "observation"),
-    ("native_help", "Read Spel command help", False, "observation"),
     ("installed", "Check Spel installation", False, "observation"),
     ("prepare_profile", "Prepare browser profile", False, "mutation"),
     ("reserve", "Reserve browser session", False, "mutation"),

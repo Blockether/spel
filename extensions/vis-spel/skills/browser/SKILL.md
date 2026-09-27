@@ -18,9 +18,9 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    explicitly authorized endpoint, not scanning or automatic discovery.
 4. Open the URL, then snapshot before clicking. Target the returned refs and retain
    or rerender. `command` takes an argv list; JavaScript and SCI have dedicated stdin tools.
-   For native syntax, use `spel.native_help("set", session=lease.id)` before
-   `set viewport`; omit `session` to read the current installed binary.
-   `spel.help` covers SDK tools, and `--help` is not a browser action.
+   Read `spel.help("spel.command")` for action syntax and examples, including
+   `["set", "viewport", "361", "800"]`. Help needs no installation or reservation;
+   `spel.help("spel")` lists tools. `--help` is not a browser action.
 5. Verify DOM effects, not only a successful return. Do not retry a timed-out mutation
    blindly. Inspect `health`, read `logs`, and cancel only an in-flight ID you own.
 6. Capture an annotated screenshot when presenting visual evidence. Attach the PNG
@@ -30,7 +30,7 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    `spel.screenshot(lease.id, "/tmp/phone.png", full_page=False)` to capture only
    the current viewport with its numbered marks and matching legend. Omitting
    `full_page` keeps the annotated full-page default; plain captures default to
-   the viewport. Read `spel.native_help("screenshot", session=lease.id)` for flags.
+   the viewport. Read `spel.help("spel.screenshot")` for options.
 7. For sign-in, navigate to the site's login page, pause for private human
    authentication, and verify the signed-in UI without extracting credentials.
    Release the reservation gracefully to save its profile; reuse it with a new

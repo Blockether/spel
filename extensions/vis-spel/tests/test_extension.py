@@ -36,7 +36,7 @@ def test_registration_and_all_activity_states(extension):
     assert declaration.alias == "spel"
     contract = declaration.symbols[0].contract
     assert contract["name"] == "spel"
-    assert len(contract["members"]) == 19
+    assert len(contract["members"]) == 18
     for member in contract["members"]:
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
@@ -57,7 +57,7 @@ def test_registration_and_all_activity_states(extension):
             vis.ActivityPresentation,
         )
     assert Spel.installed.__vis_symbol_activity__.show_start is False
-    assert Spel.native_help.__vis_symbol_activity__.show_start is False
+    assert Spel.help.__vis_symbol_activity__.show_start is False
     assert Spel.prepare_profile.__vis_symbol_activity__.show_start is False
     assert Spel.reserve.__vis_symbol_activity__.show_start is False
     assert Spel.health.__vis_symbol_activity__.show_start is False
@@ -66,12 +66,12 @@ def test_registration_and_all_activity_states(extension):
     assert Spel.evaluate.__vis_symbol_tag__ == "mutation"
 
 
-# Regression, issue #137: native help needs a readable Activity, not a generic result.
-def test_native_help_activity_shows_cli_syntax(extension):
-    render = Spel.native_help.__vis_symbol_activity__.render
-    document = vis.HelpDocument("spel set --help", "set viewport <width> <height>")
+# Regression, issue #137: command syntax was absent from the help Activity.
+def test_help_activity_shows_command_syntax(extension):
+    render = Spel.help.__vis_symbol_activity__.render
+    document = Spel().help("spel.command")
     presentation = render(phase="success", result=document)
-    assert presentation.summary == "spel set --help"
+    assert presentation.summary == "spel.command"
     assert "set viewport <width> <height>" in str(presentation.content)
 
 

@@ -22,14 +22,17 @@ def test_catalog_is_available_without_registration_or_configuration(
     (namespace,) = spel.spec()
     assert isinstance(namespace, vis.NamespaceSpec)
     assert namespace.name == "spel"
-    assert len(namespace.members) == 19
+    assert len(namespace.members) == 18
+    assert not hasattr(spel, "native_help")
     assert spel.spec("spel.prepare_profile").returns.name == "BrowserProfile"
     assert spel.spec("spel.prepare_profile").tag == "mutation"
     assert spel.spec("spel.reserve").tag == "mutation"
     assert spel.spec("spel.spec").tag == "observation"
     assert spel.spec("spel.releases").tag == "observation"
-    assert spel.spec("spel.native_help").tag == "observation"
-    assert 'native_help("set")' in spel.help("spel.command").text
+    # Regression, issue #137: viewport help required a separate native tool.
+    command_help = spel.help("spel.command").text
+    assert '["set", "viewport", "361", "800"]' in command_help
+    assert "native_help" not in command_help
     assert spel.spec("spel.releases").returns.name == "ReleasePage"
     assert "next_page" in spel.help("spel.releases").text
     snapshot = spel.spec("spel.snapshot")
@@ -72,7 +75,12 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
     for name in ("unknown", "snapshot", "spel._db"):
         with pytest.raises(ValueError):
             spel.spec(name)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"spel.help.*spel.command"):
             spel.help(name)
+    # Regression, issue #137: a guessed viewport tool gave no usable help route.
+    with pytest.raises(ValueError, match=r"spel.help.*spel.command"):
+        spel.help("spel.viewport")
     with pytest.raises(TypeError):
         spel.spec(42)
+    with pytest.raises(TypeError):
+        spel.help(42)

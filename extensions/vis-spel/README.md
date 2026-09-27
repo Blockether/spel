@@ -9,7 +9,7 @@ Requires Vis / `vis-agent` **0.2.15+**, Python 3.11+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.8 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.9 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -23,7 +23,7 @@ Use the repository and project folder to manage installed versions:
 
 ```sh
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.8 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.9 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -140,20 +140,26 @@ Only release your own reservation. Errors are not retried: after a timeout, insp
 | `screenshot` | Save a PNG; annotated captures include a reference legend |
 | `connect` | Connect a fresh Chromium reservation to an authorized CDP endpoint |
 | `health`, `logs`, `cancel` | Inspect a session or cancel one command ID |
-| `spec`, `help` | Read typed SDK contracts and generated help |
-| `native_help` | Read the managed Spel CLI's help for a top-level command |
+| `spec`, `help` | Read typed SDK contracts, browser action syntax and examples |
 
 `BrowserResult.data` contains parsed CLI JSON. For signatures and defaults, use
 `doc("spel.snapshot")`, `await spel.help("spel.snapshot")` or
 `await spel.spec("spel.snapshot")`. Outside Vis, use the same methods synchronously
 on `from vis_spel import Spel; api = Spel()`.
 
-To set a phone viewport, read `spel.native_help("set", session=lease.id)` for
-native syntax, then run `spel.command(lease.id, ["set", "viewport", "361", "800"])`.
-The SDK's `spel.help("spel.command")` does not describe native subcommands.
-Without `session`, native help uses the current installed binary; with `session`,
-it uses the reservation's pinned binary. It never starts a browser, and `--help`
-is not accepted as a session-scoped browser action.
+For browser action syntax and examples, read `await spel.help("spel.command")`.
+You can read all help before installing Spel or reserving a browser: help never
+runs the binary. For example, to set a phone viewport in your reservation:
+
+```python
+await spel.command(lease.id, ["set", "viewport", "361", "800"])
+await spel.snapshot(lease.id)
+```
+
+Pass each argument as a string, without shell quotes. `viewport` is a setting
+under `set`, not a separate action or SDK tool. Use
+`await spel.help("spel.screenshot")` for screenshot options and
+`await spel.help("spel")` to list tools. `--help` is not a browser action.
 
 For CDP, call `spel.connect(lease.id, "http://127.0.0.1:9222")` on a fresh reservation.
 Spel creates its own tab and leaves the external browser running on release.
