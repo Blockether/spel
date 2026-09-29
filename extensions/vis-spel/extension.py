@@ -1,4 +1,4 @@
-"""Vis registration and human-facing Activities; browser logic lives in vis_spel."""
+"""Vis registration and human-facing Activities. The browser logic lives in vis_spel."""
 
 import blockether.vis.extension as vis
 
