@@ -1,1 +1,0 @@
-[{:method :get, :url "/health"} {:method :post, :url "/echo"} {:method :get, :url "/echo"}]
