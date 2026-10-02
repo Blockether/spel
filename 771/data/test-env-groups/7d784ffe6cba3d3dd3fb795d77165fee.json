@@ -1,0 +1,1 @@
+{"id":"7d784ffe6cba3d3dd3fb795d77165fee","fullName":"com.blockether.spel.cli-test.CLI-owned flags never hide the command that follows them (issue #119).accepts the = spelling","name":"CLI-owned flags never hide the command that follows them (issue #119) > accepts the = spelling","status":"passed","testResultsByEnv":{"default":"b99082a08e38c615b50ecae180b2ad0b"}}
