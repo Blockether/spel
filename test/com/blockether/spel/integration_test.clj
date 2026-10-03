@@ -10,6 +10,7 @@
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
    com.blockether.spel.data ;; loads datafy protocol extensions
+   [com.blockether.spel.example-domain :as example]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
@@ -98,6 +99,7 @@
 
     (it "page content contains expected HTML"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (let [html (page/content pg)]
           (expect (.contains html "Example Domain"))
@@ -135,6 +137,7 @@
 
     (it "locates h1 by CSS"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (let [h1 (page/locator pg "h1")]
           (expect (instance? Locator h1))
@@ -165,6 +168,7 @@
 
     (it "inner-html returns element markup"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (let [body (page/locator pg "body")
               html (locator/inner-html body)]
@@ -173,6 +177,7 @@
 
     (it "inner-text returns visible text"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (let [h1 (page/locator pg "h1")]
           (expect (= "Example Domain" (locator/inner-text h1))))))
@@ -189,11 +194,13 @@
 
     (it "h1 is visible"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (expect (true? (locator/is-visible? (page/locator pg "h1"))))))
 
     (it "h1 is enabled"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (expect (true? (locator/is-enabled? (page/locator pg "h1"))))))
 
@@ -204,6 +211,7 @@
 
     (it "bounding-box returns dimensions for h1"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (let [bb (locator/bounding-box (page/locator pg "h1"))]
           (expect (map? bb))
@@ -235,6 +243,7 @@
 
     (it "has-text passes for h1"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (assert/has-text (page/locator pg "h1") "Example Domain")))
 
@@ -245,6 +254,7 @@
 
     (it "is-visible passes for h1"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (assert/is-visible (page/locator pg "h1"))))
 
@@ -260,6 +270,7 @@
 
     (it "has-count passes for single h1"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (assert/has-count (page/locator pg "h1") 1)))))
 
@@ -281,6 +292,7 @@
 
     (it "reads DOM element text"
       (core/with-testing-page [pg]
+        (example/route! pg)
         (page/navigate pg "https://example.org")
         (expect (= "Example Domain"
                   (page/evaluate pg "document.querySelector('h1').textContent")))))

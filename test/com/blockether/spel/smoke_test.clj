@@ -10,6 +10,7 @@
    [clojure.string :as str]
    [com.blockether.spel.allure :as allure :refer [around defdescribe describe expect it]]
    [com.blockether.spel.assertions :as assert]
+   [com.blockether.spel.example-domain :as example]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.network :as net]
    [com.blockether.spel.page :as page]
@@ -99,6 +100,7 @@
 
         (allure/step "Navigate"
           (println "Loading example.org...")
+          (example/route! pg)
           (page/navigate pg "https://example.org")
           (println "Page loaded successfully"))
 
@@ -182,6 +184,7 @@
 
         (allure/step "Navigate"
           (println "Opening example.org for assertion tests...")
+          (example/route! pg)
           (page/navigate pg "https://example.org")
           (println "Ready for assertions"))
 
@@ -252,6 +255,7 @@
 
         (allure/step "Navigate"
           (println "Loading example.org for JS evaluation tests...")
+          (example/route! pg)
           (page/navigate pg "https://example.org"))
 
         (allure/step "Read document.title via JS"
@@ -315,6 +319,7 @@
         refs back to Playwright locators for interaction.")
 
         (allure/step "Navigate to example.org"
+          (example/route! pg)
           (page/navigate pg "https://example.org")
           (page/wait-for-load-state pg "load"))
 
@@ -354,6 +359,7 @@
         (allure/tag "snapshot")
 
         (allure/step "Navigate"
+          (example/route! pg)
           (page/navigate pg "https://example.org"))
 
         (allure/step "Capture snapshot and resolve refs"
@@ -462,6 +468,7 @@
         (allure/tag "navigation")
 
         (allure/step "Navigate to example.org"
+          (example/route! pg)
           (page/navigate pg "https://example.org"))
 
         (allure/step "Reload the page"

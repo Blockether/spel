@@ -10,6 +10,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.example-domain :as example]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
   (:import
    [java.io ByteArrayInputStream File]
@@ -653,7 +654,9 @@
 
     (it "annotated is larger than raw screenshot"
 
-      (core/with-testing-page [pg] (page/navigate pg "https://example.org")
+      (core/with-testing-page [pg]
+        (example/route! pg)
+        (page/navigate pg "https://example.org")
         (let [snap             (snapshot/capture-snapshot pg)
               raw              (page/screenshot pg)
               ^bytes annotated (:bytes (sut/annotated-screenshot pg (:refs snap)))]

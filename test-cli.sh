@@ -190,6 +190,13 @@ nav() {
   "$SPEL" open "$1" >/dev/null 2>&1
 }
 
+# IANA changed the live example.com page in 2026: it lost its h1 and asks people
+# not to test against it. Serve the copy that the Clojure tests pin instead.
+EXAMPLE_HTML="$(cat "$SCRIPT_DIR/test/com/blockether/spel/example_domain.html")"
+pin_example_page() {
+  "$SPEL" network route "https://example.com/" --body "$EXAMPLE_HTML" >/dev/null 2>&1
+}
+
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
@@ -214,6 +221,7 @@ echo "test upload content" > "$TEST_TMP_DIR/test-upload.txt"
 TEMP_FILES+=("$TEST_TMP_DIR/test-upload.txt")
 
 preflight
+pin_example_page
 
 # =============================================================================
 # NAVIGATION (4)
@@ -655,6 +663,9 @@ assert_jq_eq "network route *.gif → .route_added" "$OUT" '.route_added' '**/*.
 
 OUT=$("$SPEL" --json network unroute all 2>&1)
 assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_routes_removed == true'
+
+# `unroute all` also removed the pinned example.com page. Serve it again.
+pin_example_page
 
 # Regression, user report: `spel --session <s> --cdp <url> network route '**/*.gif'` as the
 # session's FIRST command answered browser_handle_lost — the route handler read a page no
@@ -1549,6 +1560,8 @@ assert_contains "eval-sci --help mentions --stdin" "$OUT" "--stdin"
 # =============================================================================
 section "Annotate & Unannotate (4)"
 
+# The close above dropped the session and its route. Pin the page again.
+pin_example_page
 "$SPEL" open https://example.com >/dev/null 2>&1
 
 OUT=$("$SPEL" --json annotate 2>&1)
@@ -1876,6 +1889,8 @@ else
 fi
 
 # --- Run generated script via eval-sci (the ultimate compatibility test) ---
+# The script asserts the heading of the pinned page, so pin it in this session first.
+pin_example_page
 # This proves: JSONL recording → codegen → Clojure script → SCI eval → real browser
 # Run WITHOUT --autoclose so browser stays alive for subsequent verification queries
 OUT=$("$SPEL" eval-sci "$CODEGEN_SCRIPT" 2>&1)
@@ -1996,6 +2011,10 @@ assert_jq_contains "click @enonexistent → error has context" "$OUT" '.error' '
 
 section "Styles, Clipboard, Diff (35)"
 
+# Daemon restarts since the last pin dropped its route. Serve the pinned page again.
+pin_example_page
+nav "https://example.com"
+
 # Styles --help
 OUT=$("$SPEL" styles --help 2>&1) || true
 assert_contains "styles --help → mentions selector" "$OUT" "selector"
@@ -2092,6 +2111,10 @@ OUT=$("$SPEL" --help 2>&1)
 assert_contains "help → mentions --browser" "$OUT" "--browser"
 
 section "Drag and Drop (37)"
+
+# REF1 and REF2 are refs on the pinned page. Serve it again before the drag checks.
+pin_example_page
+nav "https://example.com"
 
 OUT=$("$SPEL" drag --help 2>&1)
 assert_contains "drag --help → usage" "$OUT" "drag"

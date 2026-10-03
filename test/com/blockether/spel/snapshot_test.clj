@@ -9,6 +9,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as sut]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.example-domain :as example]
    [com.blockether.spel.allure :as allure :refer [around defdescribe describe expect it]]))
 
 ;; =============================================================================
@@ -96,7 +97,9 @@
 
     (it "contains heading role"
 
-      (core/with-testing-page [pg] (page/navigate pg "https://example.org")
+      (core/with-testing-page [pg]
+        (example/route! pg)
+        (page/navigate pg "https://example.org")
         (let [snap (sut/capture-snapshot pg)]
           (expect (str/includes? (:tree snap) "heading")))))
 

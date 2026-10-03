@@ -8,6 +8,7 @@
    [com.blockether.spel.allure :as allure]
    [com.blockether.spel.assertions :as assert]
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.example-domain :as example]
    [com.blockether.spel.locator :as locator]
    [com.blockether.spel.page :as page]))
 
@@ -21,6 +22,7 @@
   (allure/tag "clojure.test")
   (core/with-testing-page [pg]
     (testing "navigates to example.org"
+      (example/route! pg)
       (page/navigate pg "https://example.org")
       (is (= "Example Domain" (page/title pg))))
     (testing "h1 heading is correct"
@@ -34,6 +36,7 @@
   (allure/tag "clojure.test")
   (core/with-testing-page [pg]
     (testing "page-level assertions"
+      (example/route! pg)
       (page/navigate pg "https://example.org")
       (assert/has-title pg "Example Domain")
       (is (= "Example Domain" (page/title pg))))
