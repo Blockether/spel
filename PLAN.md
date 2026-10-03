@@ -39,7 +39,9 @@ Private host configuration belongs in the infrastructure repository.
 - Complete: reproduce native navigation timeouts on macOS and on the Linux test host.
 - Complete: create an owned context, validate engine options and expose Lightpanda reservations.
 - Complete: real native tests and the extension boundary test pass with Lightpanda 1.0.0.
-- In progress: full checks and exact-commit CI. The local full JVM suite hits an occupied fixed CDP port.
-- Pending: native release, extension release, released-artifact verification and the recurring test service.
+- Complete: local full checks. The full JVM suite has one known failure on an occupied fixed CDP port.
+- Complete: an isolated hourly service on the private test host checks each release from `v0.9.41`.
+- In progress: exact-commit CI. The macOS cleanup test now starts its fake browser without a host lookup.
+- Pending: native release, extension release and the first released-artifact check.
 - Initial checkout: clean `main`, commit `4e5bedeb76e`, development version `0.9.41`.
 - Latest published native release: `v0.9.40`. Existing services must remain unchanged.

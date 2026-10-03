@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v0.9.41] - 2026-10-03
-
 ### Added
 - Add real Lightpanda 1.0.0 coverage to Linux and macOS native CI.
 - Let Vis reservations select Lightpanda for page text, JavaScript and form actions.
