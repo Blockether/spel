@@ -41,7 +41,10 @@ Private host configuration belongs in the infrastructure repository.
 - Complete: real native tests and the extension boundary test pass with Lightpanda 1.0.0.
 - Complete: local full checks. The full JVM suite has one known failure on an occupied fixed CDP port.
 - Complete: an isolated hourly service on the private test host checks each release from `v0.9.41`.
-- In progress: exact-commit CI. The macOS cleanup test now starts its fake browser without a host lookup.
-- Pending: native release, extension release and the first released-artifact check.
+- Complete: exact-commit CI at `ab43414f1be` passed on Linux, macOS and Windows.
+- Complete: native release `v0.9.41` from `ab43414f1be`. Its published Linux x64 binary passed all 10 checks on the test host.
+- Complete: extension release `vis-spel/v0.1.13` from green commit `b27f7bfc53b`. Its CI passed the real Lightpanda reservation test.
+- Complete: Extension Center lists `vis-spel` 0.1.13 as the latest approved stable version.
+- Complete: the hourly service passed `v0.9.41` on its own schedule and ignores extension tags.
 - Initial checkout: clean `main`, commit `4e5bedeb76e`, development version `0.9.41`.
-- Latest published native release: `v0.9.40`. Existing services must remain unchanged.
+- Latest published native release: `v0.9.41`. Existing services stayed unchanged.
