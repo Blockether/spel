@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.41] - 2026-10-03
+
+### Changed
+- docs(changelog): leave v0.9.41 notes for the release job
+- test(lightpanda): start the fake CDP server without host lookup
+- feat(lightpanda): support real browser sessions
+- test: serve the-internet pages from local copies
+- test: pin the example.com page that IANA changed
+- docs(agents): rewrite guidance in Simplified English
+- docs(vis-spel): simplify prompt and browser skill
+- feat(catalog): add custom extension tags
+- docs(vis-spel): simplify tool docstrings
+- feat(vis-spel): let health run without a session
+- fix(vis-spel): document actions through help #137
+- feat(vis-spel): add persistent browser profiles for sign-in
+
+
 ### Added
 - Add real Lightpanda 1.0.0 coverage to Linux and macOS native CI.
 - Let Vis reservations select Lightpanda for page text, JavaScript and form actions.
@@ -1871,7 +1888,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.40...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.41...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -1966,3 +1983,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.38]: https://github.com/Blockether/spel/releases/tag/v0.9.38
 [v0.9.39]: https://github.com/Blockether/spel/releases/tag/v0.9.39
 [v0.9.40]: https://github.com/Blockether/spel/releases/tag/v0.9.40
+[v0.9.41]: https://github.com/Blockether/spel/releases/tag/v0.9.41
