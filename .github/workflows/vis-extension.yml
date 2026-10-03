@@ -34,8 +34,16 @@ jobs:
           PYTHONPATH: src
         run: |
           uv run python -c 'import subprocess; from vis_spel import Spel; installed = Spel().install(browsers=False); subprocess.run([installed.executable, "install", "--with-deps"], check=True)'
-      - name: Verify native DOM and external CDP isolation
+      - name: Install pinned Lightpanda
+        if: matrix.python == '3.14'
+        run: |
+          curl --fail --location --retry 3 https://github.com/lightpanda-io/browser/releases/download/1.0.0/lightpanda-x86_64-linux -o "$RUNNER_TEMP/lightpanda"
+          printf '%s  %s\n' aa5a4b8ed53d1e38b3c73f5b2647d0a84a82e6744557f45f9a9c85858aa031c3 "$RUNNER_TEMP/lightpanda" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/lightpanda"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Verify native DOM, external CDP isolation and Lightpanda
         if: matrix.python == '3.14'
         env:
           SPEL_INTEGRATION: '1'
+          SPEL_LIGHTPANDA: '1'
         run: uv run pytest tests/test_native.py -q
