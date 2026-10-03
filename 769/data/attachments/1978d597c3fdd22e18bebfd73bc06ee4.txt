@@ -1,7 +1,0 @@
-Opening example.org for assertion tests...
-Ready for assertions
-Running page-level Playwright assertions...
-Asserting title = 'Example Domain'
-Asserting URL contains 'example.org'
-All page assertions passed
-Locator: h1 — running 4 assertions
