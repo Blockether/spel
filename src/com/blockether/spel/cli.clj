@@ -1735,6 +1735,8 @@
      "  --no-persist             Disable auto-persist of cookies/storage"
      "  --json                  JSON output mode"
      "  --interactive, --headed Show browser window (headed mode)"
+     "  --engine ENGINE         chrome (default) or lightpanda (headless CDP)"
+     "                          Install Lightpanda on PATH. PNG/PDF export is text-only."
      "  --proxy URL             HTTP proxy"
      "  --proxy-bypass DOMAINS  Proxy bypass list"
      "  --user-agent STRING     Custom User-Agent"

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import socket
 import sqlite3
 import struct
@@ -23,6 +24,74 @@ pytestmark = [
         reason="Set SPEL_INTEGRATION=1 after explicit spel.install",
     ),
 ]
+
+
+@pytest.mark.skipif(
+    os.environ.get("SPEL_LIGHTPANDA") != "1",
+    reason="Set SPEL_LIGHTPANDA=1 with the pinned Lightpanda on PATH",
+)
+def test_native_lightpanda_reservation(tmp_path):
+    binary = os.environ.get("SPEL_TEST_BINARY")
+    if not binary:
+        installed = Spel().installed()
+        assert installed is not None
+        binary = installed.executable
+    code, version, _ = _execute(binary, ["version"])
+    assert code == 0
+    client = Spel(tmp_path / "lightpanda")
+    with client._db() as db:
+        db.execute(
+            "INSERT INTO installation VALUES (1, ?, ?, 1)",
+            (version.strip().removeprefix("spel "), binary),
+        )
+
+    class Page(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = (
+                b"<title>Lightpanda extension</title><label>Name<input id='name'></label>"
+                b"<button onclick=\"document.querySelector('#result').textContent="
+                b"document.querySelector('#name').value\">Save</button><p id='result'></p>"
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    lease = None
+    try:
+        lease = client.reserve(browser="lightpanda")
+        client.open(lease.id, f"http://127.0.0.1:{server.server_port}/")
+        snapshot = client.snapshot(lease.id).data["snapshot"]
+        save = re.search(r'button "Save".*?\[@(e[a-z0-9]+)\]', snapshot)
+        assert save, snapshot
+        client.command(lease.id, ["fill", "#name", "Ada"])
+        client.command(lease.id, ["click", f"@{save.group(1)}"])
+        other = Spel(client._home)
+        assert (
+            other.evaluate(
+                lease.id, "document.querySelector('#result').textContent"
+            ).data["result"]
+            == "Ada"
+        )
+        assert other.health(lease.id).data["browser"]["engine"] == "lightpanda"
+        picture = client.screenshot(
+            lease.id, str(tmp_path / "text.png"), annotated=False
+        )
+        assert picture.data["rendering"] == "text-only"
+        assert (tmp_path / "text.png").read_bytes().startswith(b"\x89PNG")
+    finally:
+        if lease is not None:
+            client.release(lease.id)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_native_browser_workflow(tmp_path):

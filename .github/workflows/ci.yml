@@ -145,11 +145,28 @@ jobs:
       - name: Build spel native image
         run: clojure -T:build native-image
 
-      - name: CLI bash regression tests (Unix)
+      - name: Install pinned Lightpanda (Unix)
         if: runner.os != 'Windows'
         run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            asset=lightpanda-x86_64-linux
+            sha256=aa5a4b8ed53d1e38b3c73f5b2647d0a84a82e6744557f45f9a9c85858aa031c3
+          else
+            asset=lightpanda-aarch64-macos
+            sha256=955440053a84754dd64c62f970449a56a2b350cdf43ea5f2e809a73047b8173d
+          fi
+          curl --fail --location --retry 3 "https://github.com/lightpanda-io/browser/releases/download/1.0.0/$asset" -o "$RUNNER_TEMP/lightpanda"
+          printf '%s  %s\n' "$sha256" "$RUNNER_TEMP/lightpanda" | shasum -a 256 -c -
+          chmod +x "$RUNNER_TEMP/lightpanda"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: CLI bash regression tests (Unix)
+        if: runner.os != 'Windows'
+        env:
+          SPEL_REQUIRE_LIGHTPANDA: '1'
+        run: |
           echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
-          ls "$PLAYWRIGHT_BROWSERS_PATH/" 2>/dev/null | head -5 || echo 'WARNING: browser dir missing'
+          printf '%s\n' "$PLAYWRIGHT_BROWSERS_PATH"/*
           chmod +x target/spel
           echo '--- Running test-cli.sh ---'
           ./test-cli.sh ./target/spel

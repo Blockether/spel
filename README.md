@@ -424,6 +424,37 @@ Xcode, and Appium (`npm install -g appium && appium driver install xcuitest`).
 Playwright-only features such as CDP, tracing, network mocking, frames, and
 tabs return explicit capability errors.
 
+### Use Lightpanda for non-visual browsing
+
+Use Lightpanda when you need page text, JavaScript, snapshots and form actions without Chromium.
+Spel 0.9.41 or newer supports this optional engine. Chromium remains the default.
+Install [Lightpanda](https://github.com/lightpanda-io/browser/releases/tag/1.0.0) on your `PATH` first.
+CI verifies Lightpanda 1.0.0 on Linux x64 and macOS ARM64. Windows users need WSL.
+
+```bash
+spel --session agent-text --engine lightpanda open https://example.com
+spel --session agent-text snapshot -i -c
+spel --session agent-text get title
+spel --session agent-text close
+```
+
+Keep the same session for each command. You can also set `"engine": "lightpanda"` in `spel.json`.
+Closing the session stops only its owned Lightpanda process. Failed connections also clean up that process.
+
+Lightpanda has no graphical layout engine. Its plain PNG and PDF exports contain a text rendering, not the site's visual design.
+Their JSON results include `"rendering": "text-only"`. Do not use snapshot coordinates as visual evidence.
+Annotated screenshots, overviews, element geometry and coordinate mouse actions return capability errors.
+Use Chromium for visual checks, headed windows, persistent profiles, browser extensions and explicit CDP connections.
+Unsupported launch options fail instead of being ignored.
+
+The native suite uses local HTTP fixtures, not public websites. Run it with a verified binary:
+
+```bash
+SPEL=./target/spel python3 cli-tests/lightpanda_test.py
+```
+
+`test-cli.sh` runs this suite when Lightpanda is installed. CI requires it with `SPEL_REQUIRE_LIGHTPANDA=1`.
+
 ### Clojure Library
 
 spel is also a Clojure library for writing browser automation and tests programmatically:

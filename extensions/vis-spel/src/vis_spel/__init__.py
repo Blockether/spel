@@ -335,7 +335,7 @@ class Spel:
         self,
         label: str | None = None,
         *,
-        browser: Literal["chromium", "firefox", "webkit"] = "chromium",
+        browser: Literal["chromium", "firefox", "webkit", "lightpanda"] = "chromium",
         headed: bool = False,
         profile: str | None = None,
     ) -> Reservation:
@@ -344,6 +344,8 @@ class Spel:
         Installation must already exist. None generates a label. A supplied label stays
         unique across workers and reloads until release. A duplicate label fails and
         never adopts an existing session. Chromium and headless are the defaults.
+        Lightpanda requires Spel 0.9.41+ and lightpanda on PATH. It has no visual
+        layout. Use screenshot(annotated=False) for a text-only image.
 
         For reusable sign-in, first call prepare_profile(name), then reserve with
         profile=name. Only one reservation can use that profile at a time. A profile
@@ -351,8 +353,10 @@ class Spel:
         instead. Keep the returned id. Holding the id allows a deliberate handover of
         control.
         """
-        if browser not in ("chromium", "firefox", "webkit"):
-            raise ValueError("browser must be chromium, firefox or webkit")
+        if browser not in ("chromium", "firefox", "webkit", "lightpanda"):
+            raise ValueError("browser must be chromium, firefox, webkit or lightpanda")
+        if browser == "lightpanda" and headed:
+            raise ValueError("Lightpanda is headless; omit headed=True")
         if label is not None and (
             not isinstance(label, str)
             or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", label)
@@ -382,6 +386,10 @@ class Spel:
                 "Managed profiles require Spel 0.9.40 or newer for graceful close. "
                 "Install that release and reserve a new session."
             )
+        if browser == "lightpanda" and tuple(
+            map(int, installation.version.split("."))
+        ) < (0, 9, 41):
+            raise SpelError("Lightpanda requires Spel 0.9.41 or newer. Upgrade first.")
         identifier = uuid.uuid4().hex
         name = f"agent-{int(time.time())}-{identifier[:12]}"
         try:
@@ -436,7 +444,7 @@ class Spel:
             row["name"],
             "--json",
             "--content-boundaries",
-            "--browser",
+            "--engine" if row["browser"] == "lightpanda" else "--browser",
             row["browser"],
             "--no-stealth",
         ]

@@ -1223,50 +1223,7 @@ else
   fail "upgrade --check → shows version" "got: $(echo "$OUT" | head -c 200)"
 fi
 
-# --engine lightpanda: when binary is NOT in PATH → clear error (not crash)
-"$SPEL" close >/dev/null 2>&1
-OUT=$(timeout 10 "$SPEL" --json --engine lightpanda open https://example.com 2>&1) || true
-assert_jq_contains "--engine lightpanda (no binary) → error mentions Lightpanda" "$OUT" '.error' 'Lightpanda'
-
-# --engine lightpanda: mock binary in PATH → launch flow exercises subprocess
-# spawn + CDP probe. connectOverCDP fails (mock isn't real WS) but the
-# important thing is: binary found, subprocess launched, probe succeeded.
-# Must close the daemon so the NEW daemon process inherits the modified PATH
-# with the mock lightpanda binary. An already-running daemon has its own PATH
-# from when it was originally started.
-"$SPEL" close >/dev/null 2>&1
-MOCK_DIR="$TEST_TMP_DIR/spel-mock-lp-$$"
-mkdir -p "$MOCK_DIR"
-cat > "$MOCK_DIR/lightpanda" << 'MOCK_EOF'
-#!/bin/bash
-PORT=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in --port) PORT="$2"; shift 2 ;; *) shift ;; esac
-done
-python3 -c "
-import http.server, json
-class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-Type','application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({'webSocketDebuggerUrl':'ws://127.0.0.1:${PORT}'}).encode())
-    def log_message(self,*a): pass
-http.server.HTTPServer(('127.0.0.1',${PORT}),H).serve_forever()
-"
-MOCK_EOF
-chmod +x "$MOCK_DIR/lightpanda"
-OUT=$(timeout 15 env PATH="$MOCK_DIR:$PATH" "$SPEL" --json --engine lightpanda open https://example.com 2>&1) || true
-# Mock isn't real CDP → connectOverCDP fails. But the error should NOT be
-# "not found in PATH" — it should be a CDP connection error proving the
-# subprocess was found, launched, and probe-http-cdp succeeded.
-TOTAL_COUNT=$((TOTAL_COUNT + 1))
-if [[ "$OUT" == *"Lightpanda binary not found"* ]]; then
-  fail "--engine lightpanda (mock) → subprocess launched" "still got 'not found' despite mock in PATH"
-else
-  pass "--engine lightpanda (mock) → subprocess launched (CDP connect expected to fail)"
-fi
-rm -rf "$MOCK_DIR"
+# Lightpanda uses the real browser suite below, not a permissive CDP mock.
 
 # --confirm-actions: non-TTY stdin → auto-deny (exit 2). In test-cli.sh
 # stdin is a pipe (not a TTY), so the gate MUST block without prompting.
@@ -2668,6 +2625,22 @@ if SPEL="$SPEL" python3 "$SCRIPT_DIR/cli-tests/cdp_session_test.py"; then
   pass "native CDP sessions"
 else
   fail "native CDP sessions" "see focused test diagnostics above"
+fi
+
+# Real Lightpanda coverage is required in CI and optional for local Chrome-only work.
+if command -v lightpanda >/dev/null 2>&1; then
+  section "Native Lightpanda sessions"
+  TOTAL_COUNT=$((TOTAL_COUNT + 1))
+  if SPEL="$SPEL" python3 "$SCRIPT_DIR/cli-tests/lightpanda_test.py"; then
+    pass "native Lightpanda sessions"
+  else
+    fail "native Lightpanda sessions" "see focused test diagnostics above"
+  fi
+elif [[ "${SPEL_REQUIRE_LIGHTPANDA:-0}" == "1" ]]; then
+  TOTAL_COUNT=$((TOTAL_COUNT + 1))
+  fail "native Lightpanda sessions" "the pinned Lightpanda binary is missing"
+else
+  echo "Lightpanda suite skipped: install Lightpanda or set SPEL_REQUIRE_LIGHTPANDA=1."
 fi
 
 # =============================================================================

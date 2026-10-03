@@ -1507,9 +1507,10 @@
     "state_list" "state_show" "state_rename" "state_clear" "state_clean"})
 
 (defn- current-cdp-url
-  "Returns currently configured CDP URL from daemon launch flags, if any."
+  "Returns the owned browser endpoint or the configured external CDP URL."
   []
-  (get-in @!state [:launch-flags "cdp"]))
+  (or (get-in @!state [:auto-launch-info :cdp-url])
+    (get-in @!state [:launch-flags "cdp"])))
 
 (defn- cdp-target-id
   "CDP target id of tab `p`, or nil when it cannot be asked for one.
@@ -2800,6 +2801,33 @@
                             nil))))]
       (.route ^Page page "**/*" consumer))))
 
+(defn- browser-engine-rejection
+  "Rejects unknown engines, live engine changes and unsupported Lightpanda options."
+  [incoming]
+  (let [state @!state
+        previous (:launch-flags state)
+        flags (merge previous incoming)
+        engine (get flags "engine" "chrome")
+        old-engine (get previous "engine" "chrome")]
+    (cond
+      (not (contains? #{"chrome" "lightpanda"} engine))
+      {:error (str "Unknown browser engine: " engine ". Use chrome or lightpanda.")
+       :error_code "unknown_engine"}
+
+      (and (:browser state) (not= engine old-engine))
+      {:error "Close the session before changing its browser engine."
+       :error_code "engine_conflict"}
+
+      (= engine "lightpanda")
+      (when-let [option (or (when (false? (get flags "headless" (:headless state))) "headed")
+                          (when (not (contains? #{nil "chromium"} (get flags "browser"))) "browser")
+                          (some #(when (get flags %) %)
+                            ["profile" "cdp" "auto-launch" "channel" "executable-path"
+                             "proxy" "proxy-bypass" "args" "device" "provider"])
+                          (when (seq (get flags "extensions")) "extension"))]
+        {:error (str "Lightpanda does not support --" option ". Use --engine chrome instead.")
+         :error_code "unsupported_engine_option"}))))
+
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
@@ -2826,6 +2854,8 @@
        (focus-page! p)))
    (when-not (:browser @!state)
      (let [flags       (get @!state :launch-flags {})
+           _           (when-let [rejection (browser-engine-rejection flags)]
+                         (throw (ex-info (:error rejection) rejection)))
             ;; --profile can be either a filesystem path (existing behavior) or
             ;; a Chrome profile display name like "Default" / "Work". A name is
             ;; resolved to the user's real Chrome profile directory and cloned
@@ -2919,30 +2949,27 @@
           ;; path to drive it through Playwright. The Lightpanda process is
           ;; tracked like auto-launch so it gets cleaned up on daemon stop.
          (= "lightpanda" (get flags "engine"))
-         (let [result  (launch-lightpanda! {:session (:session @!state)})
-               cdp-url (:cdp-url result)
-               _       (swap! !state assoc-in [:launch-flags "cdp"] cdp-url)
-               _       (persist-launch-flags!)
-               browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) ^String cdp-url)
-               contexts (.contexts ^com.microsoft.playwright.Browser browser)
-               context  (if (seq contexts)
-                          (first contexts)
-                          (check-anomaly!
-                            (core/new-context browser)
-                            "Lightpanda: failed to create context via CDP"))
-               pages   (.pages ^com.microsoft.playwright.BrowserContext context)
-               pg-inst (if (seq pages)
-                         (first pages)
-                         (check-anomaly!
-                           (new-spel-page! context)
-                           "Lightpanda: failed to create page"))]
-           (swap! !state assoc
-             :pw pw :browser browser :context context :page pg-inst
-             :cdp-connected true
-             :auto-launch-info {:port        (:port result)
-                                :browser-pid (:browser-pid result)
-                                :tmp-dir     nil
-                                :engine      "lightpanda"}))
+         (try
+           (let [result (launch-lightpanda! {:session (:session @!state)})
+                 info (assoc (select-keys result [:port :browser-pid :cdp-url])
+                        :engine "lightpanda")
+                 _ (swap! !state assoc :pw pw :auto-launch-info info)
+                 browser (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw)
+                           ^String (:cdp-url result))
+                 ;; The startup target is not a usable context. Own a new one.
+                 context (check-anomaly! (core/new-context browser ctx-opts)
+                           "Lightpanda: failed to create context via CDP")
+                 pg-inst (check-anomaly! (new-spel-page! context)
+                           "Lightpanda: failed to create page")]
+             (swap! !state assoc :browser browser :context context :page pg-inst
+               :cdp-connected true))
+           (catch Throwable e
+             (when-let [info (:auto-launch-info @!state)]
+               (kill-auto-launched-browser! info))
+             (try (.close ^com.microsoft.playwright.Playwright pw) (catch Exception _ nil))
+             (swap! !state assoc :pw nil :browser nil :context nil :page nil
+               :auto-launch-info nil :cdp-connected false)
+             (throw e)))
 
           ;; ── Mode 1: --profile with directory → Playwright persistent ──────
           ;; Use Playwright's launchPersistentContext for custom profile dirs.
@@ -5085,14 +5112,16 @@
        :socket      (try (.toString (socket-path (:session state))) (catch Exception _ nil))}
       {:session        (:session state)
        :provider       "playwright"
-       :browser        (get launch-flags "browser" "chromium")
+       :browser        (if (= "lightpanda" (get launch-flags "engine"))
+                         "lightpanda" (get launch-flags "browser" "chromium"))
+       :engine         (get launch-flags "engine" "chrome")
        :channel        (get launch-flags "channel")
        :headless       (:headless state)
        :persist        (persist-enabled?)
        :tracing        (boolean (:tracing? state))
        :har_recording  (boolean (:har-recording? state))
        :har_path       (:har-path state)
-       :cdp_url        (security/redact-url (get launch-flags "cdp"))
+       :cdp_url        (security/redact-url (current-cdp-url))
        :cdp_connected  (boolean (:cdp-connected state))
        :device         (:device state)
        :url            (try (when page (security/redact-url (page/url page))) (catch Exception _ nil))
@@ -5663,7 +5692,9 @@
                       :page_open (boolean (page-open?))
                       :page_crashed crashed?
                       :page_url  (current-page-url)
-                      :type      (get-in @!state [:launch-flags "browser"] "chromium")
+                      :type      (if (= "lightpanda" (get-in @!state [:launch-flags "engine"]))
+                                   "lightpanda" (get-in @!state [:launch-flags "browser"] "chromium"))
+                      :engine    (get-in @!state [:launch-flags "engine"] "chrome")
                       :headless  (boolean (:headless @!state))
                       :cdp       (current-cdp-url)}
      :ios_transport  (when ios?
@@ -6193,6 +6224,13 @@
   "Routes a command to the iOS dispatch table when the iOS provider is
    active, otherwise to the regular Playwright handlers."
   [action params]
+  (when (and (= "lightpanda" (get-in @!state [:launch-flags "engine"]))
+          (or (contains? #{"overview" "bounding_box" "mouse_move" "mouse_down" "mouse_up" "mouse_wheel"} action)
+            (and (= "screenshot" action)
+              (some #(get params %) ["annotate" "selector" "cropToContent"]))))
+    (throw (ex-info (str "Lightpanda does not support visual layout for " action
+                      ". Use --engine chrome for geometry and annotated screenshots.")
+             {:error_code "unsupported_engine_command"})))
   (if (ios-provider?)
     (try
       (if (contains? ios-passthrough-actions action)
@@ -6217,7 +6255,11 @@
     ;; the refs looking fresh after rewriting the document.
     (let [generation (:refs-generation @!state)]
       (try
-        (handle-cmd action params)
+        (let [result (handle-cmd action params)]
+          (cond-> result
+            (and (= "lightpanda" (get-in @!state [:launch-flags "engine"]))
+              (contains? #{"screenshot" "pdf"} action))
+            (assoc :rendering "text-only")))
         (finally
           (when (= generation (:refs-generation @!state))
             (swap! !state assoc :refs-stale? true)))))))
@@ -6870,7 +6912,8 @@
       ;; Provider conflicts and unsupported iOS capabilities are rejected BEFORE
       ;; flags merge, so a failed command cannot change the session identity.
       (if-let [rejection (or (session-provider-conflict flags)
-                            (ios-flag-rejection flags))]
+                           (ios-flag-rejection flags)
+                           (browser-engine-rejection flags))]
         (json/write-json-str rejection)
         (do
           ;; Store launch flags if present (used by ensure-browser!)

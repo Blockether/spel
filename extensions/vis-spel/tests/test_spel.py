@@ -79,6 +79,37 @@ def test_prepared_profile_survives_release_and_new_reservation(client):
     assert prepared.path == str(spel._home / "profiles" / "x-com")
 
 
+def test_lightpanda_reservation_uses_engine_and_survives_reload(client):
+    spel, calls = client
+    with pytest.raises(SpelError, match="0.9.41 or newer"):
+        spel.reserve(browser="lightpanda")
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.41'")
+    lease = spel.reserve("text-browser", browser="lightpanda")
+    Spel(spel._home).open(lease.id, "https://example.com/")
+    flags = calls[-1][1]
+    assert flags[flags.index("--engine") + 1] == "lightpanda"
+    assert "--browser" not in flags
+    assert "--headed" not in flags
+    Spel(spel._home).release(lease.id)
+    assert calls[-1][1][-1] == "close"
+
+
+def test_lightpanda_rejects_headed_profiles_and_external_cdp(client):
+    spel, calls = client
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.41'")
+    with pytest.raises(ValueError, match="headless"):
+        spel.reserve(browser="lightpanda", headed=True)
+    with pytest.raises(ValueError, match="Chromium"):
+        spel.reserve(browser="lightpanda", profile="login")
+    lease = spel.reserve(browser="lightpanda")
+    with pytest.raises(ValueError, match="Chromium"):
+        spel.connect(lease.id, "http://127.0.0.1:9222")
+    assert not calls
+    spel.release(lease.id)
+
+
 def test_managed_profiles_are_private_and_keep_existing_data(client):
     spel, calls = client
     prepared = spel.prepare_profile("work")

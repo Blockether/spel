@@ -31,6 +31,7 @@
    "session"             :session
    "profile"             :profile
    "browser"             :browser
+   "engine"              :engine
    "channel"             :channel
    "proxy"               :proxy
    "proxyBypass"         :proxy-bypass

@@ -175,6 +175,32 @@ actions can submit forms and write files; obtain authorization for those effects
 and complete authentication privately.
 See the [browser skill](skills/browser/SKILL.md) for the task workflow.
 
+## Use Lightpanda for page text and forms
+
+Use Lightpanda when you do not need graphical layout or a visible browser window.
+Install native Spel 0.9.41 or newer and put Lightpanda 1.0.0 on `PATH` first.
+The extension does not download Lightpanda automatically.
+
+```python
+await spel.install(version="0.9.41", browsers=False)
+lease = await spel.reserve(browser="lightpanda")
+try:
+    await spel.open(lease.id, "https://example.com")
+    page = await spel.snapshot(lease.id)
+    title = await spel.evaluate(lease.id, "document.title")
+finally:
+    await spel.release(lease.id)
+```
+
+Inspect the snapshot before you act through its references. Verify each action through the resulting DOM state.
+Keep the reservation for the whole task. Release it to stop its owned browser process.
+Lightpanda cannot use `headed=True`, a managed profile or `spel.connect`.
+Use Chromium for those workflows and for visual layout checks.
+
+For a text-only image, call `spel.screenshot(lease.id, path, annotated=False)` before releasing the reservation.
+Plain PNG and PDF exports include `rendering: text-only` in the result.
+They are not pictures of the site's graphical design. Annotated screenshots and coordinate actions are unavailable.
+
 ## Development
 
 From this directory:

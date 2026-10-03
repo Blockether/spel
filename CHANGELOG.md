@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.41] - 2026-10-03
+
+### Added
+- Add real Lightpanda 1.0.0 coverage to Linux and macOS native CI.
+- Let Vis reservations select Lightpanda for page text, JavaScript and form actions.
+
+### Fixed
+- Create an owned Lightpanda context instead of adopting its unusable startup target.
+- Clean up Lightpanda after failed connections and session close.
+- Reject incompatible engine options and visual actions. Label PNG and PDF exports as text-only.
+- Preserve engine selection from `spel.json` and report it in session diagnostics.
+
 ## [v0.9.40] - 2026-09-27
 
 ### Changed
