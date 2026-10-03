@@ -128,21 +128,28 @@ class LightpandaTest(unittest.TestCase):
     def test_failed_cdp_connection_cleans_child(self):
         with tempfile.TemporaryDirectory() as directory:
             marker = Path(directory) / "child.json"
+            probed = Path(directory) / "child.json.probed"
             fake = Path(directory) / "lightpanda"
             fake.write_text(
                 f"#!{sys.executable}\n"
-                "import http.server, json, os, sys, threading\n"
+                "import http.server, json, os, socketserver, sys, threading\n"
                 "port = int(sys.argv[sys.argv.index('--port') + 1])\n"
+                "marker = os.environ['SPEL_TEST_LP_CHILD']\n"
+                "with open(marker, 'w') as output:\n"
+                "    json.dump({'pid': os.getpid(), 'port': port}, output)\n"
                 "class Handler(http.server.BaseHTTPRequestHandler):\n"
                 "    def do_GET(self):\n"
+                "        open(marker + '.probed', 'w').close()\n"
                 "        self.send_response(200)\n"
                 "        self.end_headers()\n"
                 "        self.wfile.write(json.dumps({'Browser': 'Lightpanda/test', "
                 "'webSocketDebuggerUrl': f'ws://127.0.0.1:{port}'}).encode())\n"
                 "    def log_message(self, *args): pass\n"
-                "server = http.server.HTTPServer(('127.0.0.1', port), Handler)\n"
-                "with open(os.environ['SPEL_TEST_LP_CHILD'], 'w') as output:\n"
-                "    json.dump({'pid': os.getpid(), 'port': port}, output)\n"
+                # HTTPServer looks up the host name before it listens. A slow
+                # lookup must not exceed the Lightpanda startup limit.
+                "class Server(socketserver.TCPServer):\n"
+                "    allow_reuse_address = True\n"
+                "server = Server(('127.0.0.1', port), Handler)\n"
                 "threading.Timer(45, server.shutdown).start()\n"
                 "server.serve_forever()\n"
             )
@@ -153,6 +160,7 @@ class LightpandaTest(unittest.TestCase):
                 result = self.run_cli("--engine", "lightpanda", "open", self.url)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertTrue(marker.exists(), result.stdout + result.stderr)
+                self.assertTrue(probed.exists(), result.stdout + result.stderr)
                 child = json.loads(marker.read_text())
                 with socket.socket() as probe:
                     self.assertNotEqual(
