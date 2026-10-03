@@ -190,11 +190,19 @@ nav() {
   "$SPEL" open "$1" >/dev/null 2>&1
 }
 
-# IANA changed the live example.com page in 2026: it lost its h1 and asks people
-# not to test against it. Serve the copy that the Clojure tests pin instead.
-EXAMPLE_HTML="$(cat "$SCRIPT_DIR/test/com/blockether/spel/example_domain.html")"
-pin_example_page() {
-  "$SPEL" network route "https://example.com/" --body "$EXAMPLE_HTML" >/dev/null 2>&1
+# Live pages are not stable test input. IANA changed example.com in 2026: it lost its
+# h1 and asks people not to test against it. the-internet.herokuapp.com often times out
+# on CI. Serve stored copies of both through routes. Daemon restarts and `unroute all`
+# drop the routes, so pin the pages again after them.
+pin_page() {
+  "$SPEL" network route "$1" --body "$(cat "$SCRIPT_DIR/$2")" >/dev/null 2>&1
+}
+pin_test_pages() {
+  pin_page "https://example.com/" test/com/blockether/spel/example_domain.html
+  local page
+  for page in login checkboxes dropdown upload javascript_alerts; do
+    pin_page "https://the-internet.herokuapp.com/$page" "cli-tests/pages/the-internet/$page.html"
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -221,7 +229,7 @@ echo "test upload content" > "$TEST_TMP_DIR/test-upload.txt"
 TEMP_FILES+=("$TEST_TMP_DIR/test-upload.txt")
 
 preflight
-pin_example_page
+pin_test_pages
 
 # =============================================================================
 # NAVIGATION (4)
@@ -664,8 +672,8 @@ assert_jq_eq "network route *.gif → .route_added" "$OUT" '.route_added' '**/*.
 OUT=$("$SPEL" --json network unroute all 2>&1)
 assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_routes_removed == true'
 
-# `unroute all` also removed the pinned example.com page. Serve it again.
-pin_example_page
+# `unroute all` also removed the pinned pages. Serve them again.
+pin_test_pages
 
 # Regression, user report: `spel --session <s> --cdp <url> network route '**/*.gif'` as the
 # session's FIRST command answered browser_handle_lost — the route handler read a page no
@@ -1560,8 +1568,8 @@ assert_contains "eval-sci --help mentions --stdin" "$OUT" "--stdin"
 # =============================================================================
 section "Annotate & Unannotate (4)"
 
-# The close above dropped the session and its route. Pin the page again.
-pin_example_page
+# The close above dropped the session and its routes. Pin the pages again.
+pin_test_pages
 "$SPEL" open https://example.com >/dev/null 2>&1
 
 OUT=$("$SPEL" --json annotate 2>&1)
@@ -1889,8 +1897,8 @@ else
 fi
 
 # --- Run generated script via eval-sci (the ultimate compatibility test) ---
-# The script asserts the heading of the pinned page, so pin it in this session first.
-pin_example_page
+# The script asserts the heading of the pinned page, so pin the pages in this session first.
+pin_test_pages
 # This proves: JSONL recording → codegen → Clojure script → SCI eval → real browser
 # Run WITHOUT --autoclose so browser stays alive for subsequent verification queries
 OUT=$("$SPEL" eval-sci "$CODEGEN_SCRIPT" 2>&1)
@@ -2011,8 +2019,8 @@ assert_jq_contains "click @enonexistent → error has context" "$OUT" '.error' '
 
 section "Styles, Clipboard, Diff (35)"
 
-# Daemon restarts since the last pin dropped its route. Serve the pinned page again.
-pin_example_page
+# Daemon restarts since the last pin dropped the routes. Serve the pinned pages again.
+pin_test_pages
 nav "https://example.com"
 
 # Styles --help
@@ -2112,8 +2120,8 @@ assert_contains "help → mentions --browser" "$OUT" "--browser"
 
 section "Drag and Drop (37)"
 
-# REF1 and REF2 are refs on the pinned page. Serve it again before the drag checks.
-pin_example_page
+# REF1 and REF2 are refs on the pinned page. Serve the pages again before the drag checks.
+pin_test_pages
 nav "https://example.com"
 
 OUT=$("$SPEL" drag --help 2>&1)

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<!-- Stand-in for https://the-internet.herokuapp.com/javascript_alerts. test-cli.sh serves it through a route. -->
+<html>
+<head><meta charset="utf-8"><title>The Internet</title></head>
+<body>
+<h3>JavaScript Alerts</h3>
+<ul>
+  <li><button onclick="jsAlert()">Click for JS Alert</button></li>
+  <li><button onclick="jsConfirm()">Click for JS Confirm</button></li>
+  <li><button onclick="jsPrompt()">Click for JS Prompt</button></li>
+</ul>
+<p id="result"></p>
+<script>
+  function show(text) { document.getElementById("result").textContent = text; }
+  function jsAlert() { alert("I am a JS Alert"); show("You successfully clicked an alert"); }
+  function jsConfirm() { show("You clicked: " + (confirm("I am a JS Confirm") ? "Ok" : "Cancel")); }
+  function jsPrompt() { show("You entered: " + prompt("I am a JS prompt")); }
+</script>
+</body>
+</html>
