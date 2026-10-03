@@ -1,9 +1,0 @@
-[viewport: 1280x720]
-- body
-  - paragraph "This domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes." [@e62kfb] [pos:432,196 416×102]
-  - paragraph "هذا النطاق مُخصص للاستخدام في أمثلة التوثيق دون الحاجة إلى إذن. هذه ليست خدمة، يُرجى تجنب الاعتماد عليها لأغراض الاختبار والمراقبة." [@e955hi] [pos:432,314 416×45]
-  - paragraph "该域名仅用于文档示例，无需获得许可。这并非一项服务，请勿将其用于测试和监控目的。" [@e4khua] [pos:432,373 416×45]
-  - paragraph "L’usage de ce domaine est réservé à des exemples de documentation, sans autorisation préalable.  Il ne s’agit pas d’un service ; son utilisation à des fins de test ou de surveillance est à éviter." [@e2rmu9] [pos:432,432 416×90]
-  - paragraph "Данный домен предназначен для использования в примерах документации без необходимости получения предварительного разрешения. Это не сервис; не рекомендуется его использование для тестирования и мон..." [@e9wnn5] [pos:432,536 416×112]
-  - paragraph "Este dominio está destinado al uso en ejemplos de documentación sin necesidad de permiso. Esto no es un servicio; evitar utilizarlo para realizar pruebas o monitoreos." [@e7e3pi] [pos:432,661 416×90]
-  - link "Learn more" [@e6t2x4] [url=https://iana.org/help/example-domains] [clickable] [pos:594,768 91×19]
