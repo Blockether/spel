@@ -904,7 +904,7 @@ def _presentation(label):
     return render
 
 
-for method, label, show_start, tag in [
+_BINDINGS: list[tuple[str, str, bool, Literal["observation", "mutation"]]] = [
     ("install", "Install Spel", True, "mutation"),
     ("releases", "List Spel releases", True, "observation"),
     ("spec", "Inspect browser tools", False, "observation"),
@@ -923,7 +923,9 @@ for method, label, show_start, tag in [
     ("cancel", "Cancel browser command", True, "mutation"),
     ("logs", "Read browser logs", False, "observation"),
     ("release", "Release browser session", True, "mutation"),
-]:
+]
+
+for method, label, show_start, tag in _BINDINGS:
     setattr(
         Spel,
         method,
