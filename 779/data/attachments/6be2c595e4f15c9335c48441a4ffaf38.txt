@@ -1,0 +1,2 @@
+Merged 4 files from 2 directories into /tmp/merge-test7368134190740527363/merged/
+  3 test results
