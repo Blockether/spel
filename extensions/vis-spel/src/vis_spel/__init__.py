@@ -250,7 +250,7 @@ class Spel:
     ) -> Installation:
         """Install or switch to a pinned official stable release after SHA-256 verification.
 
-        Requires Spel 0.9.33 or newer. The default is 0.9.41 with Playwright browsers.
+        Requires Spel 0.9.33 or newer. The default is 0.9.42 with Playwright browsers.
         Use releases() to find versions. Upgrades and rollbacks use this same method.
 
         New reservations use the selected version. Existing reservations keep their

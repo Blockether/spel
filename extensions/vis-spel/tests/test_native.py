@@ -94,7 +94,13 @@ def test_native_lightpanda_reservation(tmp_path):
         thread.join(timeout=5)
 
 
-def test_native_browser_workflow(tmp_path):
+# Regression, user report: a missing NODE_OPTIONS preload blocked browser startup.
+@pytest.mark.parametrize("with_node_options", [False, True])
+def test_native_browser_workflow(tmp_path, monkeypatch, with_node_options):
+    if with_node_options:
+        monkeypatch.setenv(
+            "NODE_OPTIONS", f"--require={tmp_path / 'missing-preload.cjs'}"
+        )
     client = Spel()
     assert client.installed() is not None
     lease = client.reserve()
