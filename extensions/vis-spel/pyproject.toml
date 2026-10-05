@@ -1,6 +1,6 @@
 [project]
 name = "vis-spel"
-version = "0.1.15"
+version = "0.1.16"
 description = "Spel browser automation with verified installation, reserved sessions, CDP, JavaScript, snapshots and screenshots."
 keywords = ["browser", "automation"]
 readme = "README.md"

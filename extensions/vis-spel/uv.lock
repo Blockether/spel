@@ -425,7 +425,7 @@ wheels = [
 
 [[package]]
 name = "vis-spel"
-version = "0.1.15"
+version = "0.1.16"
 source = { virtual = "." }
 dependencies = [
     { name = "vis-agent" },
