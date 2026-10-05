@@ -534,7 +534,7 @@
       (eprintln "")
       (eprintln "Or set DISPLAY if you have a remote display:")
       (eprintln "  export DISPLAY=:0"))
-    (let [pb (doto (ProcessBuilder. ^java.util.List args)
+    (let [pb (doto (driver/node-process-builder args)
                (.inheritIO))
           proc (.start pb)
           exit (.waitFor proc)]

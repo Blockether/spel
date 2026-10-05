@@ -3903,7 +3903,7 @@
                     (into ["--channel" (:channel opts)])
                     (:cdp opts)
                     (into ["--cdp" (:cdp opts)]))
-        pb        (ProcessBuilder. ^java.util.List
+        pb        (driver/node-process-builder
                     (daemon-launch-command
                       {:native?   (native-image?)
                        :exec-path exec-path
@@ -4453,8 +4453,7 @@
                    (when (seq extra-args) (str " (" (clojure.string/join " " extra-args) ")"))
                    "..."))
         (flush)
-        (com.microsoft.playwright.CLI/main
-          (into-array String (into ["install"] extra-args)))
+        (driver/run-cli! (into ["install"] extra-args))
         ;; CLI/main may call System.exit — if we get here, print done
         (println "Done.")
         (flush)
@@ -4462,14 +4461,12 @@
 
     ;; Inspector — launch Playwright Inspector (bypasses daemon)
     (when (= "inspector" (:action command))
-      (com.microsoft.playwright.CLI/main
-        (into-array String (into ["open"] (:cli-args command))))
+      (driver/run-cli! (into ["open"] (:cli-args command)))
       (System/exit 0))
 
     ;; Show-trace — launch Playwright Trace Viewer (bypasses daemon)
     (when (= "show-trace" (:action command))
-      (com.microsoft.playwright.CLI/main
-        (into-array String (into ["show-trace"] (:cli-args command))))
+      (driver/run-cli! (into ["show-trace"] (:cli-args command)))
       (System/exit 0))
 
     ;; Batch — execute a JSON array of sub-commands against one daemon session.

@@ -24,6 +24,7 @@
    [charred.api :as json]
    [clojure.string :as str]
    [clojure.xml :as xml]
+   [com.blockether.spel.driver :as driver]
    [com.blockether.spel.webdriver :as webdriver])
   (:import
    [java.io ByteArrayInputStream File InputStream]
@@ -69,7 +70,7 @@
   "Default command runner. Executes `cmd` (vector of strings) and returns
    {:exit long :out string :err string}. Blocks until the process exits."
   [cmd]
-  (let [pb   (ProcessBuilder. ^java.util.List (vec cmd))
+  (let [pb   (driver/node-process-builder (vec cmd))
         proc (.start pb)
         out  (slurp (.getInputStream proc))
         err  (slurp (.getErrorStream proc))
@@ -459,7 +460,7 @@
   [label log-path path-env appium-bin port]
   ["launchctl" "submit" "-l" label "-o" log-path "-e" log-path "--"
    "/bin/sh" "-c"
-   "export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
+   "unset NODE_OPTIONS; export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
    "spel-appium" path-env appium-bin (str port)])
 
 (defn- stop-appium-launch!

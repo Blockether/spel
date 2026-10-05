@@ -19,6 +19,7 @@
    [clojure.string :as str]
    [clojure.test :as ct]
    [com.blockether.spel.allure :as allure]
+   [com.blockether.spel.driver :as driver]
    [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
    [lazytest.expectation-failed :refer [ex-failed?]]
    [lazytest.reporters :refer [reporter-dispatch]]
@@ -1124,7 +1125,7 @@
    Useful on read-only filesystems (e.g. AWS Lambda) where allure plugins
    try to write to CWD."
   [cmd]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (vec cmd)) (.inheritIO))]
+  (let [pb (doto (driver/node-process-builder (vec cmd)) (.inheritIO))]
     (when-let [cwd (or (System/getProperty "spel.allure.cwd")
                      (System/getenv "SPEL_ALLURE_CWD"))]
       (.directory pb (java.io.File. cwd)))

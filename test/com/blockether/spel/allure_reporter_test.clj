@@ -27,6 +27,34 @@
     (doseq [^File f (reverse (file-seq dir))]
       (.delete f))))
 
+;; Regression, user report: inherited Node preloads also prevented Allure from starting.
+(defdescribe node-options-isolation-test
+  "Allure starts Node without options from the parent process."
+  (it "ignores a missing preload while preserving the parent environment"
+    (let [dir (tmp-dir "spel-allure-node-options")
+          preload (str (io/file dir "missing.cjs"))
+          options (str "--require=" preload)
+          code (str "(require '[com.blockether.spel.allure-reporter :as r]"
+                 " '[com.blockether.spel.driver :as d] '[clojure.java.io :as io])"
+                 "(d/ensure-driver!)"
+                 "(let [node (str (io/file (System/getProperty \"playwright.cli.dir\")"
+                 " (if (.startsWith (System/getProperty \"os.name\") \"Windows\") \"node.exe\" \"node\")))]"
+                 " (System/exit (#'r/run-proc! [node \"-e\" \"if (process.env.NODE_OPTIONS) process.exit(42)\"])))")
+          pb (ProcessBuilder.
+               ^java.util.List [(str (io/file (System/getProperty "java.home") "bin" "java"))
+                                "-cp" (System/getProperty "java.class.path")
+                                "clojure.main" "-e" code])]
+      (try
+        (.put (.environment pb) "NODE_OPTIONS" options)
+        (.redirectErrorStream pb true)
+        (let [proc (.start pb)
+              out (with-open [stream (.getInputStream proc)] (slurp stream))
+              exit (.waitFor proc)]
+          (expect (= {:exit 0}
+                    (cond-> {:exit exit}
+                      (not (zero? exit)) (assoc :out out)))))
+        (finally (clean-dir! dir))))))
+
 (defn- write-result!
   "Write a mock allure result JSON file."
   [^File dir ^String uuid ^String status]

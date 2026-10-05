@@ -2670,42 +2670,6 @@
              (:playwright/exception result)))
     result))
 
-(defn- missing-node-preloads
-  "Returns the NODE_OPTIONS `--require` preloads that are not on disk.
-
-   Node refuses to start when a preload file is missing, so every Node process
-   dies at startup — including the driver process Playwright needs."
-  [node-options]
-  (when-not (str/blank? node-options)
-    (->> (re-seq #"--require[=\s]+(\S+)" node-options)
-      (map second)
-      (map #(str/replace % #"^[\"']|[\"']$" ""))
-      (remove #(.exists (File. ^String %)))
-      seq)))
-
-(defn- driver-startup-message
-  "Explains why the Playwright driver did not start.
-
-   The driver's own stderr only reaches the daemon log, so the message the user
-   sees has to carry it — plus the environment cause when we can name it. A
-   NODE_OPTIONS preload that no longer exists is the common one: it kills every
-   Node process, and the driver is a Node process."
-  [result]
-  (let [node-options (System/getenv "NODE_OPTIONS")
-        missing      (missing-node-preloads node-options)]
-    (str "Failed to start the Playwright driver: "
-      (or (::anomaly/message result) "unknown error")
-      (cond
-        missing
-        (str ". NODE_OPTIONS preloads " (str/join ", " missing)
-          ", which is missing, so every Node process — the driver included —"
-          " exits at startup. Unset or fix NODE_OPTIONS, then run the command again.")
-
-        (not (str/blank? node-options))
-        (str ". NODE_OPTIONS is set (" node-options
-          ") and applies to the driver too; unset it and run the command again"
-          " if the driver keeps failing.")))))
-
 (defn- create-playwright!
   "Creates the Playwright instance the daemon drives, or throws a readable error.
 
@@ -2716,7 +2680,8 @@
   []
   (let [result (core/create)]
     (if (anomaly/anomaly? result)
-      (throw (ex-info (driver-startup-message result)
+      (throw (ex-info (str "Failed to start the Playwright driver: "
+                        (or (::anomaly/message result) "unknown error"))
                (dissoc result :playwright/exception)
                (:playwright/exception result)))
       result)))

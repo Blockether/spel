@@ -1205,7 +1205,26 @@
             (sut/swipe session {:from [200 600] :to [200 100]})
             (expect (= [{:from [200 600] :to [200 100] :duration 800}] @swipes*))))))))
 
- ;; Regression, issue #134: Appium inherited the launcher's process group and
+;; Regression, user report: Node options from launchd could also prevent Appium startup.
+(defdescribe appium-node-options-test
+  "Appium ignores Node options from its launch service."
+  (it "clears inherited Node options before the Appium command runs"
+    (when-not (str/includes? (str/lower-case (System/getProperty "os.name")) "win")
+      (let [script (java.io.File/createTempFile "spel-appium-env-" ".sh")]
+        (try
+          (spit script "#!/bin/sh\nprintf '%s' \"${NODE_OPTIONS-}\"\n")
+          (.setExecutable script true)
+          (let [command (#'sut/appium-command "test" "/tmp/unused.log"
+                                              (System/getenv "PATH") (.getAbsolutePath script) 4901)
+                pb (ProcessBuilder. ^java.util.List (subvec command 9))]
+            (.put (.environment pb) "NODE_OPTIONS" "--require=/missing/preload.cjs")
+            (.redirectErrorStream pb true)
+            (let [proc (.start pb)
+                  out (with-open [stream (.getInputStream proc)] (slurp stream))]
+              (expect (= {:exit 0 :out ""} {:exit (.waitFor proc) :out out}))))
+          (finally (.delete script)))))))
+
+;; Regression, issue #134: Appium inherited the launcher's process group and
 ;; died when a timed-out CLI's process tree closed, while the daemon stayed alive.
 (defdescribe appium-process-lifetime-test
   "The owned Appium server outlives whichever CLI invocation started it."
@@ -1214,7 +1233,7 @@
     (expect (= ["launchctl" "submit" "-l" "spel.label"
                 "-o" "/tmp/appium.log" "-e" "/tmp/appium.log" "--"
                 "/bin/sh" "-c"
-                "export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
+                "unset NODE_OPTIONS; export PATH=\"$1\"; exec \"$2\" server --address 127.0.0.1 --port \"$3\""
                 "spel-appium" "/test/bin" "/opt/homebrew/bin/appium" "4901"]
               (#'sut/appium-command "spel.label" "/tmp/appium.log"
                                     "/test/bin" "/opt/homebrew/bin/appium" 4901)))))

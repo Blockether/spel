@@ -18,6 +18,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.data]
    [com.blockether.spel.devices :as devices]
+   [com.blockether.spel.driver :as driver]
    [com.blockether.spel.logging :as log]
    [com.blockether.spel.options :as opts])
   (:import
@@ -328,7 +329,7 @@
    is captured with {:sources true}, the Trace Viewer Source tab will show
    the actual Clojure source code for each action.
 
-   Respects the PLAYWRIGHT_JAVA_SRC environment variable if already set.
+   Respects PLAYWRIGHT_JAVA_SRC when set. Ignores inherited NODE_OPTIONS for the Playwright driver.
    
    Returns:
    Playwright instance or anomaly map on failure.
@@ -341,7 +342,7 @@
     (let [src-dirs (when-not (System/getenv "PLAYWRIGHT_JAVA_SRC")
                      (detect-source-dirs))]
       (Playwright/create (doto (Playwright$CreateOptions.)
-                           (.setEnv (cond-> {"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" "1"}
+                           (.setEnv (cond-> (assoc driver/node-env "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" "1")
                                       src-dirs (assoc "PLAYWRIGHT_JAVA_SRC" src-dirs))))))))
 
 (defn find-free-port

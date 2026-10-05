@@ -30,6 +30,8 @@
    [clojure.string :as str]
    [clojure.tools.deps :as deps])
   (:import
+   [com.microsoft.playwright CLI]
+   [com.microsoft.playwright.impl.driver Driver]
    [java.io InputStream]
    [java.nio.file Files Path Paths StandardCopyOption]
    [java.nio.file.attribute FileAttribute]
@@ -293,6 +295,23 @@
 ;; =============================================================================
 ;; Public API
 ;; =============================================================================
+
+(def node-env
+  "Environment overrides for Spel's Node processes. Keep inherited Node options out of the bundled runtime."
+  {"NODE_OPTIONS" ""})
+
+(defn node-process-builder
+  "Creates a process builder with inherited Node options cleared. Keeps all other environment variables."
+  ^ProcessBuilder [args]
+  (let [pb (ProcessBuilder. ^java.util.List args)]
+    (.putAll (.environment pb) node-env)
+    pb))
+
+(defn run-cli!
+  "Runs the Playwright CLI without inherited Node options. The CLI exits the current process."
+  [args]
+  (Driver/ensureDriverInstalled node-env false)
+  (CLI/main (into-array String args)))
 
 (defn ensure-driver!
   "Ensures the Playwright Java Node.js driver is available locally.

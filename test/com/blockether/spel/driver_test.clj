@@ -26,6 +26,18 @@
         (.write zos (.getBytes ^String content StandardCharsets/UTF_8)))
       (.closeEntry zos))))
 
+;; Regression, user report: inherited Node preloads prevented Spel from starting.
+(defdescribe node-environment-test
+  "Spel isolates Node options without replacing the process environment."
+  (it "clears Node options and preserves the command and other variables"
+    (let [args ["node" "--version"]
+          pb (driver/node-process-builder args)
+          env (.environment pb)]
+      (expect (= args (vec (.command pb))))
+      (expect (= "" (get env "NODE_OPTIONS")))
+      (expect (= (dissoc (into {} (System/getenv)) "NODE_OPTIONS")
+                (dissoc (into {} env) "NODE_OPTIONS"))))))
+
 (defdescribe driver-artifact-resolution-test
   "Tests for Playwright driver artifact resolution."
 

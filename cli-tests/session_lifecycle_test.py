@@ -10,6 +10,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -240,6 +241,58 @@ class SessionLifecycleTest(unittest.TestCase):
         self.assertEqual(json.loads(closed.stdout)["status"], "down")
         self.assertEqual(before["pid"], self.command("health")["pid"])
         self.assert_state()
+
+    def poison_node_options(self):
+        preload = Path(tempfile.gettempdir()) / f"{self.session}-missing-preload.cjs"
+        self.assertFalse(preload.exists())
+        self.env["NODE_OPTIONS"] = f"--require={preload}"
+
+    # Regression, user report: inherited Node preloads killed the daemon launcher.
+    def test_auto_start_ignores_node_options(self):
+        self.poison_node_options()
+        try:
+            self.command("open", self.url)
+        except subprocess.TimeoutExpired:
+            log = Path(tempfile.gettempdir()) / f"spel-{self.session}.log"
+            self.fail(log.read_text() if log.exists() else "Daemon startup timed out")
+        self.assertEqual(
+            self.command("eval-js", "document.title")["result"], "Session fixture"
+        )
+
+    # Regression, user report: direct daemon startup still inherited Node preloads.
+    def test_driver_ignores_node_options(self):
+        self.poison_node_options()
+        with subprocess.Popen(
+            self.args + ["daemon"],
+            env=self.env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ) as daemon:
+            try:
+                for _ in range(100):
+                    health = self.run_cli("--json", "health")
+                    if health.returncode == 0 or daemon.poll() is not None:
+                        break
+                    time.sleep(0.1)
+                self.assertEqual(health.returncode, 0, health.stdout + health.stderr)
+                self.assertEqual(int(json.loads(health.stdout)["pid"]), daemon.pid)
+                self.command("open", self.url)
+                self.assertEqual(
+                    self.command("eval-js", "document.title")["result"],
+                    "Session fixture",
+                )
+            finally:
+                self.run_cli("close")
+                if daemon.poll() is None:
+                    daemon.terminate()
+                daemon.wait(timeout=10)
+
+    # Regression, user report: Node preloads also broke direct Playwright commands.
+    def test_install_ignores_node_options(self):
+        self.poison_node_options()
+        result = self.run_cli("install", "--dry-run", "chromium")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("chromium", result.stdout.lower())
 
     # Regression, issue #136: health called cached browser fields a healthy check.
     def test_health_identifies_cached_browser_observations(self):

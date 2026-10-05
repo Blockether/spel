@@ -3056,7 +3056,7 @@
           {#'core/create (fn []
                            {::anomaly/category ::anomaly/fault
                             ::anomaly/message
-                            "Failed to create driver: Cannot find module '/tmp/gone/preload.cjs'"})}
+                            "Failed to create driver: permission denied"})}
           (fn []
             (let [e (try (#'sut/ensure-browser!)
                       nil
@@ -3064,26 +3064,7 @@
                   msg (str (ex-message e))]
               (expect (instance? clojure.lang.ExceptionInfo e))
               (expect (str/includes? msg "Playwright driver"))
-              (expect (str/includes? msg "Cannot find module"))
+              (expect (str/includes? msg "permission denied"))
+              (expect (not (str/includes? msg "NODE_OPTIONS")))
               (expect (not (str/includes? msg "cannot be cast"))))))
-        (finally (reset! state-atom before)))))
-
-  (it "names the NODE_OPTIONS preload that kills every Node process"
-    (let [gone (str (File. (System/getProperty "java.io.tmpdir") "spel-no-such-preload.cjs"))]
-      (expect (= [gone]
-                (#'sut/missing-node-preloads
-                  (str "--require=" gone " --max-old-space-size=4096"))))
-      (expect (nil? (#'sut/missing-node-preloads "--require=deps.edn")))
-      (expect (nil? (#'sut/missing-node-preloads "--max-old-space-size=4096")))
-      (expect (nil? (#'sut/missing-node-preloads nil)))))
-
-  (it "puts the missing preload into the driver error message"
-    (let [gone (str (File. (System/getProperty "java.io.tmpdir") "spel-no-such-preload.cjs"))
-          msg  (with-redefs-fn {#'sut/missing-node-preloads (constantly [gone])}
-                 (fn []
-                   (#'sut/driver-startup-message
-                     {::anomaly/category ::anomaly/fault
-                      ::anomaly/message  "Failed to create driver"})))]
-      (expect (str/includes? msg "Failed to start the Playwright driver"))
-      (expect (str/includes? msg gone))
-      (expect (str/includes? msg "NODE_OPTIONS")))))
+        (finally (reset! state-atom before))))))
