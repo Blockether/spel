@@ -87,22 +87,28 @@ def test_readme_management_selects_the_repository_and_project_folder():
 
 
 def test_registration_sdk_requirement_matches_docs_and_lock():
-    # Older SDKs have no register_extension entrypoint.
+    # SDKs before 0.2.31 reject the skill table that hides its settings switch.
     project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
     requirement = next(
         dependency
         for value in project["dependencies"]
         if (dependency := Requirement(value)).name == "vis-agent"
     )
-    assert "0.2.15" in requirement.specifier
-    assert "0.2.14" not in requirement.specifier
-    assert "Vis / `vis-agent` **0.2.15+**" in README
+    assert "0.2.31" in requirement.specifier
+    assert "0.2.30" not in requirement.specifier
+    assert "Vis / `vis-agent` **0.2.31+**" in README
     locked_sdk = next(
         package
         for package in tomllib.loads((PROJECT / "uv.lock").read_text())["package"]
         if package["name"] == "vis-agent"
     )
     assert locked_sdk["version"] in requirement.specifier
+
+
+def test_browser_skill_follows_the_extension_setting():
+    text = (PROJECT / "pyproject.toml").read_text()
+    manifest = extension_package.manifest_metadata(text)
+    assert manifest["skills"] == [{"path": "skills/browser", "settings": False}]
 
 
 def test_readme_python_examples_compile():
