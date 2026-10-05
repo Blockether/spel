@@ -58,7 +58,7 @@ def test_native_lightpanda_reservation(tmp_path):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *_):
+        def log_message(self, format, *args):
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
@@ -177,7 +177,7 @@ def test_native_managed_profile_persists_auth_storage_across_sessions(tmp_path):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *_):
+        def log_message(self, format, *args):
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
@@ -267,7 +267,9 @@ def test_native_annotated_viewport_preserves_marks_and_cleanup(tmp_path):
 
 def test_cdp_release_preserves_external_browser():
     client = Spel()
-    binary = client.installed().executable
+    installation = client.installed()
+    assert installation is not None
+    binary = installation.executable
     external = f"agent-{int(time.time())}-{uuid.uuid4().hex[:12]}-cdp-host"
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))

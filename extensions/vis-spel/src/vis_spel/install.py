@@ -91,7 +91,7 @@ def asset_name(system: str, machine: str) -> str:
         "amd64": "amd64",
         "aarch64": "arm64",
         "arm64": "arm64",
-    }.get(machine.lower())
+    }.get(machine.lower(), "")
     names = {
         ("Linux", "amd64"): "spel-linux-amd64",
         ("Linux", "arm64"): "spel-linux-arm64",
@@ -115,7 +115,8 @@ def download(home: Path, version: str) -> Path:
     name = asset_name(platform.system(), platform.machine())
     release, _ = _metadata(f"/tags/v{version}")
     if (
-        release.get("tag_name") != f"v{version}"
+        not isinstance(release, dict)
+        or release.get("tag_name") != f"v{version}"
         or release.get("draft")
         or release.get("prerelease")
     ):

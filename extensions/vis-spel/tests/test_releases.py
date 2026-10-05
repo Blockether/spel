@@ -3,6 +3,7 @@
 import io
 import json
 from dataclasses import FrozenInstanceError
+from http.client import HTTPMessage
 from urllib.error import HTTPError
 
 import pytest
@@ -55,7 +56,7 @@ def test_releases_filter_native_versions_and_preserve_pagination(tmp_path, monke
     assert result.releases[0].published_at == "2026-09-11T12:00:00Z"
     assert result.releases[1].published_at is None
     with pytest.raises(FrozenInstanceError):
-        result.releases[0].version = "changed"
+        result.releases[0].version = "changed"  # pyright: ignore[reportAttributeAccessIssue]
     assert calls == [
         (
             "https://api.github.com/repos/Blockether/spel/releases?per_page=10&page=2",
@@ -121,7 +122,9 @@ def test_github_error_is_not_retried(tmp_path, monkeypatch):
 
     def request(req, **kwargs):
         calls.append(req.full_url)
-        raise HTTPError(req.full_url, 403, "API rate limit exceeded", {}, None)
+        raise HTTPError(
+            req.full_url, 403, "API rate limit exceeded", HTTPMessage(), None
+        )
 
     monkeypatch.setattr(install, "urlopen", request)
     with pytest.raises(HTTPError, match="403"):

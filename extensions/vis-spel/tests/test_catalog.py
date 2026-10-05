@@ -9,6 +9,13 @@ import pytest
 from vis_spel import Spel
 
 
+def _tool(spel: Spel, name: str) -> vis.ToolSpec:
+    """Return one tool contract; Spel.spec(name) can also return a namespace."""
+    spec = spel.spec(name)
+    assert isinstance(spec, vis.ToolSpec)
+    return spec
+
+
 def test_catalog_is_available_without_registration_or_configuration(
     tmp_path, monkeypatch
 ):
@@ -19,23 +26,25 @@ def test_catalog_is_available_without_registration_or_configuration(
     spel = Spel(home)
     monkeypatch.setattr(spel, "_db", forbidden)
     monkeypatch.setattr(subprocess, "Popen", forbidden)
-    (namespace,) = spel.spec()
+    namespaces = spel.spec()
+    assert isinstance(namespaces, tuple)
+    (namespace,) = namespaces
     assert isinstance(namespace, vis.NamespaceSpec)
     assert namespace.name == "spel"
     assert len(namespace.members) == 18
     assert not hasattr(spel, "native_help")
-    assert spel.spec("spel.prepare_profile").returns.name == "BrowserProfile"
-    assert spel.spec("spel.prepare_profile").tag == "mutation"
-    assert spel.spec("spel.reserve").tag == "mutation"
-    assert spel.spec("spel.spec").tag == "observation"
-    assert spel.spec("spel.releases").tag == "observation"
+    assert _tool(spel, "spel.prepare_profile").returns.name == "BrowserProfile"
+    assert _tool(spel, "spel.prepare_profile").tag == "mutation"
+    assert _tool(spel, "spel.reserve").tag == "mutation"
+    assert _tool(spel, "spel.spec").tag == "observation"
+    assert _tool(spel, "spel.releases").tag == "observation"
     # Regression, issue #137: viewport help required a separate native tool.
     command_help = spel.help("spel.command").text
     assert '["set", "viewport", "361", "800"]' in command_help
     assert "native_help" not in command_help
-    assert spel.spec("spel.releases").returns.name == "ReleasePage"
+    assert _tool(spel, "spel.releases").returns.name == "ReleasePage"
     assert "next_page" in spel.help("spel.releases").text
-    snapshot = spel.spec("spel.snapshot")
+    snapshot = _tool(spel, "spel.snapshot")
     assert snapshot.parameters[1].kind == "keyword_only"
     assert "session" in [parameter.name for parameter in snapshot.parameters]
     assert snapshot.returns.name == "BrowserResult"
@@ -44,7 +53,7 @@ def test_catalog_is_available_without_registration_or_configuration(
     assert "spel.snapshot(" in document.text
     assert "snapshot" in document.text
     with pytest.raises(FrozenInstanceError):
-        snapshot.name = "changed"
+        snapshot.name = "changed"  # pyright: ignore[reportAttributeAccessIssue]
     assert not home.exists()
 
 
@@ -69,6 +78,7 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
         ],
     )
     spel = symbol.fn
+    assert isinstance(spel, Spel)
     for item in public:
         assert item["doc"] in spel.help(item["contract"]["name"]).text
         assert getattr(Spel, item["name"]).__vis_symbol_activity__ is not None
@@ -81,6 +91,6 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
     with pytest.raises(ValueError, match=r"spel.help.*spel.command"):
         spel.help("spel.viewport")
     with pytest.raises(TypeError):
-        spel.spec(42)
+        spel.spec(42)  # pyright: ignore[reportArgumentType]
     with pytest.raises(TypeError):
-        spel.help(42)
+        spel.help(42)  # pyright: ignore[reportArgumentType]

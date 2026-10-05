@@ -1,4 +1,5 @@
 import importlib.util
+from collections.abc import Callable
 from pathlib import Path
 
 import blockether.vis.extension as vis
@@ -6,6 +7,26 @@ import pytest
 
 from vis_spel import BrowserProfile, BrowserResult, Installation, Reservation, Spel
 from vis_spel.install import Release, ReleasePage
+
+
+def _activity(method: object) -> vis.Activity:
+    """Read the Activity that vis.method set on one tool function."""
+    activity = getattr(method, "__vis_symbol_activity__", None)
+    assert isinstance(activity, vis.Activity)
+    return activity
+
+
+def _renderer(method: object) -> Callable[..., vis.ActivityPresentation]:
+    """Render the Activity of one tool function; each call must give a presentation."""
+    render = _activity(method).render
+    assert render is not None
+
+    def present(**kwargs: object) -> vis.ActivityPresentation:
+        presentation = render(**kwargs)
+        assert isinstance(presentation, vis.ActivityPresentation)
+        return presentation
+
+    return present
 
 
 @pytest.fixture
@@ -23,10 +44,13 @@ def extension(monkeypatch):
     spec = importlib.util.spec_from_file_location(
         "spel_entry", Path(__file__).parents[1] / "extension.py"
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert len(registered) == 1
-    assert vis._registration["spec"]["name"] == "vis-spel"
+    registration = vis._registration["spec"]
+    assert registration is not None
+    assert registration["name"] == "vis-spel"
     return registered[0], module
 
 
@@ -41,6 +65,7 @@ def test_registration_and_all_activity_states(extension):
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
         assert isinstance(activity, vis.Activity)
+        assert activity.label and activity.render is not None
         assert activity.label[0].isupper()
         assert not activity.label.isupper()
         for phase in ["start", "failure"]:
@@ -56,19 +81,19 @@ def test_registration_and_all_activity_states(extension):
             ),
             vis.ActivityPresentation,
         )
-    assert Spel.installed.__vis_symbol_activity__.show_start is False
-    assert Spel.help.__vis_symbol_activity__.show_start is False
-    assert Spel.prepare_profile.__vis_symbol_activity__.show_start is False
-    assert Spel.reserve.__vis_symbol_activity__.show_start is False
-    assert Spel.health.__vis_symbol_activity__.show_start is False
-    assert Spel.install.__vis_symbol_activity__.show_start is True
-    assert Spel.releases.__vis_symbol_activity__.show_start is True
-    assert Spel.evaluate.__vis_symbol_tag__ == "mutation"
+    assert _activity(Spel.installed).show_start is False
+    assert _activity(Spel.help).show_start is False
+    assert _activity(Spel.prepare_profile).show_start is False
+    assert _activity(Spel.reserve).show_start is False
+    assert _activity(Spel.health).show_start is False
+    assert _activity(Spel.install).show_start is True
+    assert _activity(Spel.releases).show_start is True
+    assert getattr(Spel.evaluate, "__vis_symbol_tag__", None) == "mutation"
 
 
 # Regression, issue #137: command syntax was absent from the help Activity.
 def test_help_activity_shows_command_syntax(extension):
-    render = Spel.help.__vis_symbol_activity__.render
+    render = _renderer(Spel.help)
     document = Spel().help("spel.command")
     presentation = render(phase="success", result=document)
     assert presentation.summary == "spel.command"
@@ -76,7 +101,7 @@ def test_help_activity_shows_command_syntax(extension):
 
 
 def test_activity_preserves_failure_empty_and_bounded_data(extension):
-    render = Spel.snapshot.__vis_symbol_activity__.render
+    render = _renderer(Spel.snapshot)
     assert "No managed" in render(phase="success", result=None).summary
     assert (
         "0.9.33"
@@ -120,7 +145,7 @@ def test_activity_preserves_failure_empty_and_bounded_data(extension):
 
 
 def test_release_activity_shows_versions_count_and_pagination(extension):
-    render = Spel.releases.__vis_symbol_activity__.render
+    render = _renderer(Spel.releases)
     result = ReleasePage(
         (
             Release(

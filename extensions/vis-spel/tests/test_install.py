@@ -73,6 +73,17 @@ def test_bad_release_never_admits_executable(tmp_path, release, field, value):
     assert not [path for path in tmp_path.rglob("*") if path.is_file()]
 
 
+# Regression: a JSON array as release metadata raised AttributeError, not a refusal.
+def test_release_metadata_must_be_an_object(tmp_path, release, monkeypatch):
+    data, _, _ = release
+    monkeypatch.setattr(
+        install, "urlopen", lambda req, **kwargs: Response(json.dumps([data]).encode())
+    )
+    with pytest.raises(RuntimeError, match="requested stable release"):
+        install.download(tmp_path, "0.9.33")
+    assert not [path for path in tmp_path.rglob("*") if path.is_file()]
+
+
 def test_corrupt_existing_binary_is_not_overwritten(tmp_path, release):
     target = install.download(tmp_path, "0.9.33")
     target.write_bytes(b"unexpected")
@@ -94,9 +105,10 @@ def test_platform_assets(system, machine, name):
     assert install.asset_name(system, machine) == name
 
 
-def test_unsupported_platform():
+@pytest.mark.parametrize("system,machine", [("Darwin", "x86_64"), ("Linux", "riscv64")])
+def test_unsupported_platform(system, machine):
     with pytest.raises(ValueError):
-        install.asset_name("Darwin", "x86_64")
+        install.asset_name(system, machine)
 
 
 @pytest.mark.parametrize("version", ["latest", "../main", "1.2.3?x", "1.2.3\n"])
