@@ -1074,6 +1074,7 @@
                   "function renderMd(){\n"
                   "  document.querySelectorAll('pre[data-testid=\"code-attachment-content\"].language-md').forEach(function(pre){\n"
                   "    if(pre.dataset.spelRendered)return;\n"
+                  "    if(document.readyState==='loading'&&!pre.nextSibling)return;\n"
                   "    pre.dataset.spelRendered='1';\n"
                   "    var code=pre.querySelector('code');\n"
                   "    if(!code)return;\n"
@@ -1084,16 +1085,16 @@
                   "  });\n"
                   "}\n"
 
-                  ;; Set up observer + initial render
+                  ;; Render completed attachments while the document streams in.
                   "var obs=new MutationObserver(function(){renderMd();renderBadges()});\n"
-                  "obs.observe(document.body,{childList:true,subtree:true});\n"
-                  "setTimeout(function(){renderMd();renderBadges()},2000);\n"
+                  "obs.observe(document.documentElement,{childList:true,subtree:true});\n"
+                  "document.addEventListener('DOMContentLoaded',function(){renderMd();renderBadges()});\n"
+                  "renderMd();renderBadges();\n"
                   "}());\n"
                   "</script>\n")
 
                 patched (-> content
-                          (str/replace "</head>" (str css "</head>"))
-                          (str/replace "</body>" (str js "</body>")))]
+                          (str/replace "</head>" (str css js "</head>")))]
             (when (not= content patched)
               (spit idx patched))))))))
 

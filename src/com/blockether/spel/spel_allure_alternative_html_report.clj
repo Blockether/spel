@@ -21,10 +21,7 @@
    "passed" 3
    "unknown" 4})
 
-;; When true, all collapsible attachment panels (markdown/image/json/text/log)
-;; render with `open` so users don't have to click through each one. Bound to
-;; `single?` during generation so single-test reports show every HTTP exchange
-;; (request/response markdown, screenshots, logs) inline by default.
+;; Attachment bodies stay closed by default, including single-test reports.
 (def ^:dynamic *auto-open-attachments?* false)
 
 (defn load-results
@@ -588,10 +585,22 @@
 (defn- trace-viewer-href [attachment]
   (str "trace-viewer/index.html?trace=../data/attachments/" (get attachment "source")))
 
+(def ^:private attachment-inline-limit 262144)
+
+(def ^:private attachment-preview-limit 16384)
+
 (defn- slurp-safe [^File f]
   (when (and f (.isFile f))
     (try
-      (slurp f)
+      (let [limit (if (> (.length f) (long attachment-inline-limit))
+                    attachment-preview-limit attachment-inline-limit)
+            buf (char-array limit)]
+        (with-open [reader (io/reader f :encoding "UTF-8")]
+          (loop [offset 0]
+            (let [n (.read reader buf (int offset) (int (- (long limit) offset)))]
+              (if (or (neg? n) (= (+ offset n) (long limit)))
+                (String. buf 0 (int (if (neg? n) offset (+ offset n))))
+                (recur (+ offset n)))))))
       (catch Exception _ nil))))
 
 (defn- count-nested-steps ^long [steps]
@@ -746,7 +755,12 @@
   (let [att-name (html-escape (get attachment "name" "attachment"))
         href (attachment-href attachment)
         file (attachment-path results-dir attachment)
-        content (slurp-safe file)
+        content (when (or (markdown-attachment? attachment)
+                        (json-attachment? attachment) (text-attachment? attachment))
+                  (slurp-safe file))
+        truncated? (and content (> (.length ^File file) (long attachment-inline-limit)))
+        preview-note (when truncated?
+                       "<p class=\"attachment-preview-note\">Preview truncated. Open Raw file for the complete attachment.</p>")
         source (html-escape (get attachment "source" ""))
         chunk-count (if (and (trace-attachment? attachment) file (.isFile ^File file))
                       (trace-chunk-count ^File file)
@@ -777,12 +791,13 @@
 
       (markdown-attachment? attachment)
       (str "<details class=\"attachment-panel attachment-panel-markdown\"" (when *auto-open-attachments?* " open") ">"
-        "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
-        "<div class=\"attachment-actions attachment-actions-top\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
+        "<summary>" (detail-marker) "<span>" att-name "</span>"
+        "<a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></summary>"
+        preview-note
         (if content
           (str "<pre data-testid=\"code-attachment-content\" class=\"language-md\"><code>"
             (html-escape content)
-            "</code></pre>")
+            "</code></pre>\n")
           "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
         "</details>")
 
@@ -803,7 +818,7 @@
       (str "<details class=\"attachment-panel attachment-panel-json\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
         (if content
-          (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
+          (str preview-note "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
           "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
         "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
         "</details>")
@@ -818,8 +833,9 @@
       (str "<details class=\"attachment-panel attachment-panel-log\"" (when *auto-open-attachments?* " open") ">"
         "<summary>" (detail-marker) "<span>" att-name "</span></summary>"
         (if content
-          (str "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
+          (str preview-note "<pre class=\"attachment-pre\"><code>" (html-escape content) "</code></pre>")
           "<div class=\"attachment-missing\">Attachment content unavailable.</div>")
+        "<div class=\"attachment-actions\"><a class=\"attachment-link attachment-link-subtle\" href=\"" href "\" target=\"_blank\" rel=\"noopener\">Raw file</a></div>"
         "</details>")
 
       :else
@@ -832,6 +848,26 @@
     (str "<div class=\"attachment-list\">"
       (str/join "" (map #(render-attachment-html % results-dir) attachments))
       "</div>")))
+
+(defn- framework-frame [line]
+  (second (re-find #"^\s+at (?:[\w.]+/)?(lazytest\.|clojure\.core|clojure\.lang|java\.|jdk\.|sun\.)" line)))
+
+(defn- compact-trace [trace]
+  (->> (str/split-lines trace)
+    (partition-by #(boolean (framework-frame %)))
+    (mapcat (fn [lines]
+              (if (framework-frame (first lines))
+                [(str "\t... " (count lines) " framework frames ("
+                   (str/join ", " (distinct (map #(str/replace (framework-frame %) #"\.$" "") lines))) ")")]
+                lines)))
+    (str/join "\n")))
+
+(defn- render-trace [trace]
+  (let [compact (compact-trace trace)]
+    (str "<pre class=\"attachment-pre\"><code>" (html-escape compact) "</code></pre>"
+      (when (not= compact (str/trimr trace))
+        (str "<details class=\"full-stacktrace\"><summary>Full trace</summary>"
+          "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre></details>")))))
 
 (declare render-steps-html)
 
@@ -911,9 +947,9 @@
           "</div>"))
       (when (seq step-trace)
         (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel\""
-          (when *auto-open-attachments?* " open") ">"
+          " open>"
           "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
-          "<pre class=\"attachment-pre\"><code>" (html-escape step-trace) "</code></pre>"
+          (render-trace step-trace)
           "</details>"))
       (when (seq child-steps)
         (render-steps-html child-steps results-dir))
@@ -1031,9 +1067,9 @@
                                 (duplicate-trace? (get % "steps")))
                          xs))
                      steps)))
-         (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\"" (when *auto-open-attachments?* " open") ">"
+         (str "<details class=\"attachment-panel attachment-panel-log stacktrace-panel test-level-trace\" open>"
            "<summary>" (detail-marker) "<span>Stack trace</span></summary>"
-           "<pre class=\"attachment-pre\"><code>" (html-escape trace) "</code></pre>"
+           (render-trace trace)
            "</details>"))
        (when (seq steps)
          (str "<div class=\"test-steps test-steps-inline\">"
@@ -2057,6 +2093,13 @@
     letter-spacing: 0.03em;
     font-weight: 600;
   }
+  .attachment-panel > summary, .attachment-panel .http-title {
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .attachment-panel > summary > a { margin-left: auto; }
+  pre.language-md { display: none; }
+  .attachment-preview-note { padding: 0.5rem; color: var(--text-secondary); }
   .test-steps > summary::-webkit-details-marker,
   .attachment-panel > summary::-webkit-details-marker { display: none; }
   /* Thin chevron — two borders rotated 45° to form a `>` arrow. Sits
@@ -2587,21 +2630,12 @@
   []
   "
   (function() {
-    // Single-test mode — every <details> is pre-opened. Prevent the
-    // user from collapsing anything by intercepting summary clicks on
-    // body.single-mode. Scoped to the summary of THIS report (not
-    // nested third-party content) so attachment-internal interactions
-    // (raw-file links, image popups) keep working.
-    if (document.body && document.body.classList.contains('single-mode')) {
-      document.addEventListener('click', function(e) {
-        var s = e.target.closest('summary');
-        if (!s || !document.body.contains(s)) return;
-        // Keep the Environment panel togglable — users can still collapse it
-        // even in single-mode. Everything else stays locked open.
-        if (s.parentElement && (s.parentElement.classList.contains('environment-panel') || s.parentElement.classList.contains('attachment-panel'))) return;
-        e.preventDefault();
-      }, true);
-    }
+    // Lock only the report structure, never attachment or HTTP summaries.
+    document.addEventListener('click', function(e) {
+      if (!document.body.classList.contains('single-mode')) return;
+      var s = e.target.closest('summary');
+      if (s && s.parentElement.matches('.test-card, .suite-section')) e.preventDefault();
+    }, true);
     // Flatten the HTTP exchange title into the parent step's header
     // when the step has exactly one HTTP markdown attachment — the
     // step row itself becomes the expand/collapse handle, showing:
@@ -2636,7 +2670,7 @@
           if (isSingleMode) {
             // Single mode: flat styling but keep summary visible + toggleable
             panel.classList.add('attachment-panel-flat');
-            panel.open = true;
+            // Keep attachment bodies closed until the user opens them.
             stepHeader.dataset.httpMerged = '1';
             panelSummary.dataset.httpInlined = '1';
             // Inline title into the panel summary for a nice label
@@ -3413,7 +3447,7 @@
            ;; Self-contained so the report has zero external asset deps
            ;; and no /favicon.ico 404 in the console.
              favicon-data "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23f0ad00'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23262626'/%3E%3C/svg%3E"
-             html (binding [*auto-open-attachments?* single?]
+             html (binding [*auto-open-attachments?* false]
                     (str "<!DOCTYPE html>
 <html lang=\"en\">
 <head>
