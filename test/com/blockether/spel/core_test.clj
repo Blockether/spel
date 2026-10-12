@@ -527,3 +527,53 @@
       (expect (seq (sut/handler-errors)))
       (sut/reset-handler-errors!)
       (expect (empty? (sut/handler-errors))))))
+
+;; Regression, issue #141: library failures returned anomalies even in strict mode.
+(defdescribe throw-on-error-test
+  (it "rethrows the original exception when the JVM switch is enabled"
+    (let [previous (System/getProperty "spel.throw-on-error")
+          error (com.microsoft.playwright.PlaywrightException. "reported failure")]
+      (try
+        (System/setProperty "spel.throw-on-error" "true")
+        (expect (identical? error
+                  (try (sut/safe (throw error))
+                    (catch Exception e e))))
+        (finally
+          (if previous
+            (System/setProperty "spel.throw-on-error" previous)
+            (System/clearProperty "spel.throw-on-error"))))))
+
+  (it "keeps default anomalies and binds strict mode only within its scope"
+    (let [error (com.microsoft.playwright.PlaywrightException. "reported failure")]
+      (expect (sut/anomaly? (sut/safe (throw error))))
+      (expect (identical? error
+                (try (sut/with-throw-on-error (sut/safe (throw error)))
+                  (catch Exception e e))))
+      (expect (= :ok (sut/with-throw-on-error (sut/safe :ok))))
+      (expect (sut/anomaly? (sut/safe (throw error)))))))
+
+;; Regression, issue #141: context timeout options were silently ignored.
+(defdescribe context-timeouts-test
+  (it "sets independent action and navigation timeouts on new contexts"
+    (let [seen (atom {})
+          context (proxy [BrowserContext] []
+                    (setDefaultTimeout [ms] (swap! seen assoc :timeout ms))
+                    (setDefaultNavigationTimeout [ms]
+                      (swap! seen assoc :navigation-timeout ms)))
+          browser (proxy [Browser] [] (newContext [_] context))]
+      (expect (identical? context
+                (sut/new-context browser {:timeout 1200 :navigation-timeout 90000})))
+      (expect (= {:timeout 1200.0 :navigation-timeout 90000.0} @seen))))
+
+  (it "applies zero timeouts to persistent contexts"
+    (let [seen (atom {})
+          context (proxy [BrowserContext] []
+                    (setDefaultTimeout [ms] (swap! seen assoc :timeout ms))
+                    (setDefaultNavigationTimeout [ms]
+                      (swap! seen assoc :navigation-timeout ms)))
+          browser-type (proxy [BrowserType] []
+                         (launchPersistentContext [_ _] context))]
+      (expect (identical? context
+                (sut/launch-persistent-context browser-type ""
+                  {:timeout 0 :navigation-timeout 0})))
+      (expect (= {:timeout 0.0 :navigation-timeout 0.0} @seen)))))

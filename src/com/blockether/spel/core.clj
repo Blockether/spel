@@ -11,7 +11,7 @@
           (navigate page \"https://example.org\")
           (text-content page \"h1\"))))
     
-    All operations return anomaly maps on failure instead of throwing exceptions."
+    Operations return anomaly maps by default. Use with-throw-on-error to propagate exceptions."
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -263,24 +263,27 @@
         (full-message e)
         (assoc base :playwright/error-type :playwright.error/unknown)))))
 
+(def ^:dynamic *throw-on-error*
+  "When true, safe rethrows the original exception. Defaults to anomaly maps."
+  false)
+
+(defmacro with-throw-on-error
+  "Runs body with exception propagation instead of anomaly maps."
+  [& body]
+  `(binding [*throw-on-error* true] ~@body))
+
 (defmacro safe
-  "Wraps body in try/catch, returning anomaly map on Playwright errors.
-    
-   Returns the result of body on success, or an anomaly map on failure.
-   Catches TimeoutError, TargetClosedError, PlaywrightException, and
-   any other Exception. All anomaly maps include the original exception,
-   its class name, and full stack trace."
+  "Returns body on success and an anomaly map on failure.
+
+   With *throw-on-error* or JVM property spel.throw-on-error enabled,
+   rethrows the original exception. Catches Exception, not JVM errors."
   [& body]
   `(try
      ~@body
-     (catch TimeoutError e#
-       (wrap-error e#))
-     (catch TargetClosedError e#
-       (wrap-error e#))
-     (catch PlaywrightException e#
-       (wrap-error e#))
      (catch Exception e#
-       (wrap-error e#))))
+       (if (or *throw-on-error* (Boolean/getBoolean "spel.throw-on-error"))
+         (throw e#)
+         (wrap-error e#)))))
 
 (def anomaly?
   "Returns true if x is an anomaly map (has a recognized anomaly category).
@@ -523,6 +526,30 @@
 ;; Persistent Context (Chrome Profile)
 ;; =============================================================================
 
+(def ^:private source-map-init-script
+  (delay
+    ;; Isolate the upstream UMD export from page globals and AMD loaders.
+    (str "(function () {\nvar sourceMapSupport;\n(function () {\n"
+      (slurp (io/resource "com/blockether/spel/browser-source-map-support.js"))
+      "\n}).call({define: function (_, factory) { sourceMapSupport = factory(); }});\n"
+      (slurp (io/resource "com/blockether/spel/install-source-maps.js"))
+      "\n})();")))
+
+(defn- configure-context!
+  "Applies context settings that Playwright does not accept in its options object."
+  ^BrowserContext [^BrowserContext context context-opts]
+  (try
+    (when-some [timeout (:timeout context-opts)]
+      (.setDefaultTimeout context (double timeout)))
+    (when-some [timeout (:navigation-timeout context-opts)]
+      (.setDefaultNavigationTimeout context (double timeout)))
+    (when (:source-maps context-opts)
+      (.addInitScript context ^String @source-map-init-script))
+    context
+    (catch Exception e
+      (.close context)
+      (throw e))))
+
 (defn launch-persistent-context
   "Launches a browser with a persistent user data directory (Chrome profile).
 
@@ -551,9 +578,11 @@
    (safe (.launchPersistentContext browser-type
            (java.nio.file.Paths/get user-data-dir (into-array String [])))))
   (^BrowserContext [^BrowserType browser-type ^String user-data-dir opts]
-   (safe (.launchPersistentContext browser-type
-           (java.nio.file.Paths/get user-data-dir (into-array String []))
-           (opts/->launch-persistent-context-options opts)))))
+   (safe (configure-context!
+           (.launchPersistentContext browser-type
+             (java.nio.file.Paths/get user-data-dir (into-array String []))
+             (opts/->launch-persistent-context-options opts))
+           opts))))
 
 ;; =============================================================================
 ;; Browser Operations
@@ -640,13 +669,20 @@
    Params:
    `browser` - Browser instance.
    `opts`    - Map, optional. Context options (see options/->new-context-options).
+   `:timeout` and `:navigation-timeout` set context defaults in milliseconds.
+   Zero disables the corresponding timeout.
+   `:source-maps true` maps page and frame error stacks with V8 hooks.
+   It defaults to false here. Maps load through synchronous XHR on first stack access.
+   Workers are not covered.
    
    Returns:
    BrowserContext instance or anomaly map on failure."
   (^BrowserContext [^Browser browser]
    (safe (.newContext browser)))
   (^BrowserContext [^Browser browser context-opts]
-   (safe (.newContext browser (opts/->new-context-options context-opts)))))
+   (safe (configure-context!
+           (.newContext browser (opts/->new-context-options context-opts))
+           context-opts))))
 
 (defn close-context!
   "Closes a browser context and all its pages.
@@ -996,7 +1032,7 @@
 
 (def ^:private non-context-keys
   "Keys that must be stripped from context opts (launch keys + meta keys)."
-  (conj launch-opt-keys :device :viewport :browser-type :profile))
+  (conj (disj launch-opt-keys :timeout) :device :viewport :browser-type :profile))
 
 (defn- resolve-context-opts
   "Resolves `:device` and `:viewport` in opts to context-ready options.
@@ -1370,7 +1406,12 @@
      :proxy           - Map with :server, :bypass, :username, :password.
      :args            - Vector of additional browser args.
      :downloads-path  - String. Path to download files.
-     :timeout         - Double. Max time in ms to wait for browser launch.
+     :timeout         - Milliseconds for browser launch and default context actions.
+     :navigation-timeout - Milliseconds for context navigation. Overrides :timeout for navigation.
+     :source-maps     - Boolean. Map browser error stacks to original sources (default true).
+                       First stack access reads source maps with synchronous XHR.
+                       Disable this option for timing or network assertions.
+                       Applies to pages and frames, not workers. Requires V8 stack hooks.
      :chromium-sandbox - Boolean. Enable Chromium sandbox.
      + any key accepted by `new-context` (e.g. :locale, :color-scheme,
        :timezone-id, :storage-state)
@@ -1381,7 +1422,7 @@
   (let [[allure-active? allure-vars] (resolve-allure-vars)
         allure-enabled? (allure-active?)
         profile         (:profile opts)
-        ctx-opts        (resolve-context-opts opts)]
+        ctx-opts        (merge {:source-maps true} (resolve-context-opts opts))]
     (if (and *testing-browser* (not profile))
       ;; Reuse shared browser from with-testing-browser
       (if allure-enabled?
@@ -1460,7 +1501,11 @@
      :proxy           - Map with :server, :bypass, :username, :password.
      :args            - Vector of additional browser args.
      :downloads-path  - String. Path to download files.
-     :timeout         - Double. Max time in ms to wait for browser launch.
+     :timeout         - Milliseconds for browser launch and default context actions.
+     :navigation-timeout - Milliseconds for context navigation.
+     :source-maps     - Boolean. Map page and frame stacks with V8 hooks (default true).
+                       Source maps load on first stack access through synchronous XHR.
+                       Disable for timing or network assertions. Workers are not covered.
      :chromium-sandbox - Boolean. Enable Chromium sandbox.
      + any key accepted by `new-context` (:locale, :color-scheme, :timezone-id,
        :storage-state, etc.)

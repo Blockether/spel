@@ -272,3 +272,29 @@
         (let [vp (page/viewport-size pg)]
           (expect (= 1920 (:width vp)))
           (expect (= 1080 (:height vp))))))))
+
+;; Regression, issue #141: test helpers dropped the context action timeout.
+(defdescribe testing-context-timeouts-test
+  (it "passes context settings through standalone and shared browser paths"
+    (let [original core/new-context
+          seen (atom [])
+          options {:timeout 30000 :navigation-timeout 90000 :source-maps false}]
+      (with-redefs [core/new-context
+                    (fn [browser opts]
+                      (swap! seen conj (select-keys opts (keys options)))
+                      (original browser opts))]
+        (core/with-testing-page options [pg]
+          (expect (= "about:blank" (page/url pg))))
+        (core/with-testing-browser
+          (core/with-testing-page options [pg]
+            (expect (= "about:blank" (page/url pg))))))
+      (expect (= [options options] @seen))))
+
+  (it "throws at a failed page operation when strict mode is bound"
+    (core/with-testing-page {:source-maps false} [pg]
+      (expect (core/anomaly? (page/evaluate pg "throw new Error('reported failure')")))
+      (expect (instance? com.microsoft.playwright.PlaywrightException
+                (try
+                  (core/with-throw-on-error
+                    (page/evaluate pg "throw new Error('reported failure')"))
+                  (catch Exception e e)))))))
