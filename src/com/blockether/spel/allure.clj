@@ -627,29 +627,34 @@
         :content-type     (get headers "content-type")))))
 
 (defn- materialize-network-capture
-  [{:keys [exchange request response]}]
-  (let [^Request req request
-        ^Response resp response
-        request-headers (if req
+  "Adds complete headers and the response body to a parked capture.
+   An unfinished capture keeps its event data, because reading the complete
+   data of a streaming response blocks until the stream ends."
+  [{:keys [exchange request response finished?] :or {finished? true}}]
+  (if-not finished?
+    exchange
+    (let [^Request req request
+          ^Response resp response
+          request-headers (if req
+                            (try
+                              (into {} (.allHeaders req))
+                              (catch Throwable _ (:request-headers exchange)))
+                            (:request-headers exchange))
+          response-headers (if resp
+                             (try
+                               (into {} (.allHeaders resp))
+                               (catch Throwable _ (:response-headers exchange)))
+                             (:response-headers exchange))
+          response-body (if resp
                           (try
-                            (into {} (.allHeaders req))
-                            (catch Throwable _ (:request-headers exchange)))
-                          (:request-headers exchange))
-        response-headers (if resp
-                           (try
-                             (into {} (.allHeaders resp))
-                             (catch Throwable _ (:response-headers exchange)))
-                           (:response-headers exchange))
-        response-body (if resp
-                        (try
-                          (.text resp)
-                          (catch Throwable _ (:response-body exchange)))
-                        (:response-body exchange))]
-    (cond-> (assoc exchange :request-headers request-headers)
-      resp (assoc
-             :response-headers response-headers
-             :response-body response-body
-             :content-type (get response-headers "content-type")))))
+                            (.text resp)
+                            (catch Throwable _ (:response-body exchange)))
+                          (:response-body exchange))]
+      (cond-> (assoc exchange :request-headers request-headers)
+        resp (assoc
+               :response-headers response-headers
+               :response-body response-body
+               :content-type (get response-headers "content-type"))))))
 
 (defn install-network-capture!
   "Register event-safe page listeners and return a zero-argument snapshot function.
@@ -658,7 +663,9 @@
    carried by Playwright events; the returned function must run before page
    teardown to materialize complete headers and response bodies without recursively
    entering Playwright's event dispatcher. Request timestamps record browser event
-   time at the start of each request.
+   time at the start of each request. A response that has not finished (long poll,
+   SSE, `fetch` stream) keeps its event headers and has a nil body, so the snapshot
+   never waits for a stream to end.
 
    Must be called while `*network-log*` is bound to an atom. The page fixtures call
    the returned snapshot function automatically. Manual callers must invoke it
@@ -667,6 +674,7 @@
   (when-let [log *network-log*]
     (let [pending      (atom {})
           captures     (atom [])
+          finished     (atom #{})
           snapshotted? (atom false)]
       (page/on-request pg
         (fn [^Request req]
@@ -684,9 +692,17 @@
             (finally
               (when-let [^Request req (try (.request resp) (catch Throwable _ nil))]
                 (swap! pending dissoc req))))))
+      (page/on-request-finished pg
+        (fn [^Request req]
+          (try
+            (when-not (contains? skip-resource-types (.resourceType req))
+              (swap! finished conj req))
+            (catch Throwable _ nil))))
       (page/on-request-failed pg
         (fn [^Request req]
           (try
+            (when-not (contains? skip-resource-types (.resourceType req))
+              (swap! finished conj req))
             (when-let [capture (get @pending req)]
               (swap! captures conj
                 (update capture :exchange assoc
@@ -700,7 +716,12 @@
               (swap! pending dissoc req)))))
       (fn snapshot-network-capture! []
         (when (compare-and-set! snapshotted? false true)
-          (swap! log into (mapv materialize-network-capture @captures)))))))
+          (let [done @finished]
+            (swap! log into
+              (mapv (fn [capture]
+                      (materialize-network-capture
+                        (assoc capture :finished? (contains? done (:request capture)))))
+                @captures))))))))
 
 (defn flush-network-steps!
   "Create allure steps from buffered network responses. Call after the

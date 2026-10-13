@@ -1131,6 +1131,18 @@
   [^Page page handler]
   (.onRequestFailed page (event-consumer "request-failed" handler)))
 
+(defn on-request-finished
+  "Registers a handler for requests whose response body is complete.
+
+   Fires after the last body byte arrives. A response that is still streaming
+   (long poll, SSE, `fetch` stream) has not finished.
+
+   Params:
+   `page`    - Page instance.
+   `handler` - Function that receives a Request."
+  [^Page page handler]
+  (.onRequestFinished page (event-consumer "request-finished" handler)))
+
 (defn on-close
   "Registers a handler for page close.
    

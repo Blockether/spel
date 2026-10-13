@@ -305,67 +305,164 @@
 
 ;; Regression, issue #55: response bodies were read inside Playwright callbacks,
 ;; recursively dispatching concurrent responses until capture failed.
+(defn- capture-stub
+  "Returns a stub page, request and response that count complete-data reads."
+  []
+  (let [listeners (atom {})
+        calls     (atom {:request-all 0 :response-all 0 :response-text 0})
+        response* (atom nil)
+        request   (proxy [com.microsoft.playwright.Request] []
+                    (resourceType [] "xhr")
+                    (method [] "GET")
+                    (url [] "https://example.test/failure")
+                    (headers [] {"accept" "application/json"})
+                    (allHeaders []
+                      (swap! calls update :request-all inc)
+                      {"accept" "application/json"
+                       "cookie" "trace-request=recorded"})
+                    (postData [] nil)
+                    (response [] @response*))
+        response  (proxy [com.microsoft.playwright.Response] []
+                    (request [] request)
+                    (url [] "https://example.test/failure")
+                    (status [] 500)
+                    (statusText [] "Internal Server Error")
+                    (headers [] {"content-type" "application/json"})
+                    (allHeaders []
+                      (swap! calls update :response-all inc)
+                      {"content-type" "application/json"
+                       "set-cookie" "trace-response=recorded; Path=/"})
+                    (text []
+                      (swap! calls update :response-text inc)
+                      "{\"status\":500}"))
+        pg        (proxy [com.microsoft.playwright.Page] []
+                    (onRequest [listener]
+                      (swap! listeners assoc :request listener))
+                    (onResponse [listener]
+                      (swap! listeners assoc :response listener))
+                    (onRequestFinished [listener]
+                      (swap! listeners assoc :request-finished listener))
+                    (onRequestFailed [listener]
+                      (swap! listeners assoc :request-failed listener)))]
+    (reset! response* response)
+    {:listeners listeners
+     :calls     calls
+     :request   request
+     :response  response
+     :page      pg}))
+
+(defn- fire-listener!
+  "Sends `value` to the stub page listener `k`, if one is registered."
+  [listeners k value]
+  (when-let [^java.util.function.Consumer listener (get @listeners k)]
+    (.accept listener value)))
+
 (defdescribe network-capture-materialization-test
   "Tests event-safe network capture materialization"
 
   (it "reads complete headers and bodies only after event callbacks return"
-    (let [listeners (atom {})
-          calls     (atom {:request-all 0 :response-all 0 :response-text 0})
+    (let [{:keys [listeners calls request response page]} (capture-stub)
           log       (atom [])
-          response* (atom nil)
-          request   (proxy [com.microsoft.playwright.Request] []
-                      (resourceType [] "xhr")
-                      (method [] "GET")
-                      (url [] "https://example.test/failure")
-                      (headers [] {"accept" "application/json"})
-                      (allHeaders []
-                        (swap! calls update :request-all inc)
-                        {"accept" "application/json"
-                         "cookie" "trace-request=recorded"})
-                      (postData [] nil)
-                      (response [] @response*))
-          response  (proxy [com.microsoft.playwright.Response] []
-                      (request [] request)
-                      (url [] "https://example.test/failure")
-                      (status [] 500)
-                      (statusText [] "Internal Server Error")
-                      (headers [] {"content-type" "application/json"})
-                      (allHeaders []
-                        (swap! calls update :response-all inc)
-                        {"content-type" "application/json"
-                         "set-cookie" "trace-response=recorded; Path=/"})
-                      (text []
-                        (swap! calls update :response-text inc)
-                        "{\"status\":500}"))
-          pg        (proxy [com.microsoft.playwright.Page] []
-                      (onRequest [listener]
-                        (swap! listeners assoc :request listener))
-                      (onResponse [listener]
-                        (swap! listeners assoc :response listener))
-                      (onRequestFinished [listener]
-                        (swap! listeners assoc :request-finished listener))
-                      (onRequestFailed [listener]
-                        (swap! listeners assoc :request-failed listener)))]
-      (reset! response* response)
-      (let [snapshot! (binding [allure/*network-log* log]
-                        (allure/install-network-capture! pg))]
-        (.accept ^java.util.function.Consumer (:request @listeners) request)
-        (if-let [listener (:response @listeners)]
-          (.accept ^java.util.function.Consumer listener response)
-          (.accept ^java.util.function.Consumer (:request-finished @listeners) request))
+          snapshot! (binding [allure/*network-log* log]
+                      (allure/install-network-capture! page))]
+      (fire-listener! listeners :request request)
+      (fire-listener! listeners :response response)
+      (fire-listener! listeners :request-finished request)
 
-        (expect (fn? snapshot!))
+      (expect (fn? snapshot!))
+      (expect (= {:request-all 0 :response-all 0 :response-text 0} @calls))
+      (expect (empty? @log))
+      (when snapshot! (snapshot!))
+
+      (let [entry (first @log)]
+        (expect (= 1 (count @log)))
+        (expect (= "trace-request=recorded"
+                  (get (:request-headers entry) "cookie")))
+        (expect (= "trace-response=recorded; Path=/"
+                  (get (:response-headers entry) "set-cookie")))
+        (expect (= "{\"status\":500}" (:response-body entry))))))
+
+  ;; Regression, issue #142: the snapshot read the body of a response that was
+  ;; still streaming, so it blocked until the stream ended.
+  (it "records an unfinished response without reading its body"
+    (let [{:keys [listeners calls request response page]} (capture-stub)
+          log       (atom [])
+          snapshot! (binding [allure/*network-log* log]
+                      (allure/install-network-capture! page))]
+      (fire-listener! listeners :request request)
+      (fire-listener! listeners :response response)
+      (snapshot!)
+
+      (let [entry (first @log)]
+        (expect (= 1 (count @log)))
         (expect (= {:request-all 0 :response-all 0 :response-text 0} @calls))
-        (expect (empty? @log))
-        (when snapshot! (snapshot!))
+        (expect (= 500 (:status entry)))
+        (expect (= "application/json"
+                  (get (:response-headers entry) "content-type")))
+        (expect (= "application/json" (get (:request-headers entry) "accept")))
+        (expect (nil? (:response-body entry)))))))
 
-        (let [entry (first @log)]
-          (expect (= 1 (count @log)))
-          (expect (= "trace-request=recorded"
-                    (get (:request-headers entry) "cookie")))
-          (expect (= "trace-response=recorded; Path=/"
-                    (get (:response-headers entry) "set-cookie")))
-          (expect (= "{\"status\":500}" (:response-body entry))))))))
+(defn- start-streaming-server
+  "Starts a server whose `/stream` response stays open until `release` counts down."
+  ^com.sun.net.httpserver.HttpServer [^java.util.concurrent.CountDownLatch release]
+  (let [threads (reify java.util.concurrent.ThreadFactory
+                  (newThread [_ runnable]
+                    (doto (Thread. ^Runnable runnable)
+                      (.setDaemon true))))]
+    (doto (com.sun.net.httpserver.HttpServer/create
+            (java.net.InetSocketAddress. "127.0.0.1" 0) 0)
+      (.setExecutor (java.util.concurrent.Executors/newCachedThreadPool threads))
+      (.createContext "/"
+        (reify com.sun.net.httpserver.HttpHandler
+          (handle [_ exchange]
+            (let [^com.sun.net.httpserver.HttpExchange exchange exchange
+                  headers (.getResponseHeaders exchange)]
+              (if (= "/stream" (.getPath (.getRequestURI exchange)))
+                (do (.set headers "Content-Type" "text/plain")
+                    (.sendResponseHeaders exchange 200 0)
+                    (with-open [out (.getResponseBody exchange)]
+                      (.write out (.getBytes "x"))
+                      (.flush out)
+                      (.await release 30 java.util.concurrent.TimeUnit/SECONDS)))
+                (let [body (.getBytes "<html><body>hi</body></html>")]
+                  (.set headers "Content-Type" "text/html")
+                  (.sendResponseHeaders exchange 200 (alength body))
+                  (with-open [out (.getResponseBody exchange)]
+                    (.write out body))))))))
+      (.start))))
+
+;; Regression, issue #142: a streaming fetch blocked the network snapshot, so page
+;; teardown never ended after the test body passed.
+(defdescribe network-capture-streaming-response-test
+  "Integration: network snapshot with a response that does not end"
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "returns at once and records the stream without a body"
+    (let [release (java.util.concurrent.CountDownLatch. 1)
+          server  (start-streaming-server release)
+          url     (str "http://127.0.0.1:" (.getPort (.getAddress server)))
+          log     (atom [])]
+      (try
+        (core/with-testing-page [pg]
+          (try
+            (let [snapshot! (binding [allure/*network-log* log]
+                              (allure/install-network-capture! pg))]
+              (page/navigate pg (str url "/"))
+              (page/evaluate pg
+                (str "async () => { const r = await fetch('/stream');"
+                  " await r.body.getReader().read(); return 1 }"))
+              (page/wait-for-timeout pg 500)
+              (expect (= :done (deref (future (snapshot!) :done) 10000 :timeout))))
+            (finally
+              (.countDown release))))
+        (finally
+          (.stop server 0)))
+      (let [stream   (first (filter #(str/ends-with? (str (:url %)) "/stream") @log))
+            document (first (filter #(= "document" (:resource-type %)) @log))]
+        (expect (= 200 (:status stream)))
+        (expect (= "text/plain" (:content-type stream)))
+        (expect (nil? (:response-body stream)))
+        (expect (str/includes? (str (:response-body document)) "hi"))))))
 
 ;; =============================================================================
 ;; Integration tests — network auto-capture through with-page fixture

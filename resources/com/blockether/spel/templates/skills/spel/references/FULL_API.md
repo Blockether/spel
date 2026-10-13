@@ -90,7 +90,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `run-with-testing-api` | [opts f] | Functional core of `with-testing-api`. Sets up a complete Playwright stack |
 | `run-with-testing-browser` | [opts f] | Functional core of `with-testing-browser`. Creates a Playwright instance and |
 | `run-with-testing-page` | [opts f] | Functional core of `with-testing-page`. Sets up a complete Playwright stack |
-| _(macro)_ `safe` | [& body] | Wraps body in try/catch, returning anomaly map on Playwright errors. |
+| _(macro)_ `safe` | [& body] | Returns body on success and an anomaly map on failure. |
 | `selectors` | [pw] | Returns the Selectors for a Playwright instance. |
 | `selectors-register!` | [sels name script] | Registers a custom selector engine. |
 | `tag-eval-source` | [result source lang] | Tags an evaluation anomaly with the source that produced it. |
@@ -120,6 +120,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | _(macro)_ `with-testing-api` | [opts-or-binding & args] | All-in-one macro for API testing with automatic resource management. |
 | _(macro)_ `with-testing-browser` | [maybe-opts & body] | All-in-one macro that creates a shared Playwright + Browser for a group of tests. |
 | _(macro)_ `with-testing-page` | [opts-or-binding & args] | All-in-one macro for quick browser testing with automatic resource management. |
+| _(macro)_ `with-throw-on-error` | [& body] | Runs body with exception propagation instead of anomaly maps. |
 | `wrap-error` | [e] | Wraps Playwright exceptions into anomaly maps. |
 
 ### `page` — Navigation, locators, content, events
@@ -198,6 +199,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `on-popup` | [page handler] | Registers a handler for popup pages. |
 | `on-request` | [page handler] | Registers a handler for requests. |
 | `on-request-failed` | [page handler] | Registers a handler for requests that never produced a response. |
+| `on-request-finished` | [page handler] | Registers a handler for requests whose response body is complete. |
 | `on-response` | [page handler] | Registers a handler for responses. |
 | `once-dialog` | [page handler] | Registers a one-time handler for the next dialog. |
 | `opener` | [page] | Returns the opener page, if any. |
