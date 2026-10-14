@@ -784,7 +784,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/auto-accept-dialogs!` | [] \| [prompt-text] | Registers a persistent dialog handler that auto-accepts all dialogs. |
 | `spel/auto-dismiss-dialogs!` | [] | Registers a persistent dialog handler that auto-dismisses all dialogs. |
 | `spel/blur` | [sel] | Blurs (removes focus from) the element. |
-| `spel/bounding-box` | [sel] | Returns the bounding box of the element. |
+| `spel/bounding-box` | [sel] \| [frame selector] | Returns the element box in main-viewport pixels; with a Frame first, finds the selector in that frame. |
 | `spel/bring-to-front` | [] | Brings page to front (activates tab). |
 | `spel/browser` | [] | Returns the current Browser instance. |
 | `spel/browser-connected?` | [] | Returns true if the browser is connected. |
@@ -840,9 +840,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/editable?` | [sel] | Returns whether the element is editable. |
 | `spel/emulate-media!` | [opts] | Emulates media type and features. |
 | `spel/enabled?` | [sel] | Returns whether the element is enabled. |
-| `spel/eval-js` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
+| `spel/eval-js` | [expr] \| [expr arg] \| [frame expr arg] | Evaluates JavaScript in the page; with a Frame first, evaluates it in that frame. |
 | `spel/eval-js-file` | [path] \| [path arg] | Loads JavaScript from a file and evaluates it in the current page. |
-| `spel/evaluate` | [expr] \| [expr arg] | Evaluates JavaScript expression in the page context. |
+| `spel/evaluate` | [expr] \| [expr arg] \| [frame expr arg] | Evaluates JavaScript in the page; with a Frame first, evaluates it in that frame. |
 | `spel/evaluate-all` | [sel expr] \| [sel expr arg] | Evaluates JavaScript on all elements matching the locator. |
 | `spel/evaluate-file` | [path] \| [path arg] | Loads JavaScript from a file and evaluates it in the current page. |
 | `spel/evaluate-handle` | [expr] \| [expr arg] | Like evaluate, but returns a JSHandle. |
@@ -855,9 +855,9 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/finish-video-recording` | [] \| [opts] | Stops video recording by closing the context to finalize the video. |
 | `spel/first-element` | [sel] | Returns the first element matching the locator. |
 | `spel/focus` | [sel] | Focuses the element. |
-| `spel/frame-by-name` | [name] | Returns a frame by its name attribute. |
-| `spel/frame-by-url` | [pattern] | Returns a frame by matching URL pattern. |
-| `spel/frames` | [] | Returns all frames in the page. |
+| `spel/frame-by-name` | [name] | Returns the frame with this name attribute or nil; pass it to spel/locator, spel/evaluate or spel/bounding-box. |
+| `spel/frame-by-url` | [pattern] | Returns the frame whose URL matches a glob, regex or predicate, or nil; pass it to spel/locator, spel/evaluate or spel/bounding-box. |
+| `spel/frames` | [] | Returns all page frames; pass one to spel/locator, spel/evaluate or spel/bounding-box. |
 | `spel/get-attribute` | [sel name] | Returns the value of an attribute. |
 | `spel/get-by-alt-text` | [text] | Locates elements by alt text. |
 | `spel/get-by-label` | [text] | Locates elements by their label text. |
@@ -917,11 +917,11 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `spel/loc-get-by-text` | [sel text] | Locates elements by text within this locator. |
 | `spel/loc-locator` | [sel sub-sel] | Creates a sub-locator within this locator. |
 | `spel/loc-wait-for` | [sel] \| [sel opts] | Waits for the locator to satisfy a condition. |
-| `spel/locator` | [sel-or-loc] | Resolves a ref ID to a Playwright Locator. |
+| `spel/locator` | [sel-or-loc] \| [frame selector] | Returns a Locator for a selector or @ref; with a Frame first, finds the selector in that frame. |
 | `spel/locator-screenshot` | [sel] \| [sel opts] | Takes a screenshot of the element. |
 | `spel/main-frame` | [] | Returns the main frame of the page. |
 | `spel/markdownify` | [] \| [html] | Converts the current page HTML into Markdown. |
-| `spel/mouse` | [] | Returns the Mouse for this page. |
+| `spel/mouse` | [] | Returns the page Mouse for input/mouse-click, input/mouse-move, input/mouse-down and input/mouse-up. |
 | `spel/navigate` | [url] \| [url opts] | Navigates the current page to a URL. |
 | `spel/new-cdp-session` | [] | Opens a new Chrome DevTools Protocol session bound to the current |
 | `spel/new-tab!` | [] | Opens a new tab in the current context and switches to it. |

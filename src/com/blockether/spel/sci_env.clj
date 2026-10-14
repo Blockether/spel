@@ -608,6 +608,21 @@
       (if (ref? s)
         (snapshot/resolve-ref (require-page!) (str/replace s #"^@" ""))
         (page/locator (require-page!) s)))))
+
+(defn- require-frame
+  "Returns x when it is a Frame. Throws with the functions that return one."
+  ^Frame [x]
+  (if (instance? Frame x)
+    x
+    (throw (ex-info (str "Expected a Frame from spel/frame-by-url, spel/frame-by-name"
+                      " or spel/frames, got " (pr-str (type x)))
+             {:type (str (type x))}))))
+
+(defn sci-locator
+  "Returns a Locator for a selector or @ref; with a Frame first, finds the selector in that frame."
+  ([sel-or-loc] (sci-$ sel-or-loc))
+  ([frame selector] (frame/frame-locator (require-frame frame) selector)))
+
 (defn sci-$$           [sel]  (locator/all (sci-$ sel)))
 (defn sci-$text        [text] (page/get-by-text (require-page!) text))
 (defn sci-$role
@@ -801,9 +816,13 @@
 (defn sci-checked? [sel]
   (if @!ios-session (:selected (ios/element-state @!ios-session sel))
       (locator/is-checked? (sci-$ sel))))
-(defn sci-bbox [sel]
-  (if @!ios-session (ios/element-rect @!ios-session sel)
-      (locator/bounding-box (sci-$ sel))))
+(defn sci-bbox
+  "Returns the element box in main-viewport pixels; with a Frame first, finds the selector in that frame."
+  ([sel]
+   (if @!ios-session (ios/element-rect @!ios-session sel)
+       (locator/bounding-box (sci-$ sel))))
+  ([frame selector]
+   (locator/bounding-box (sci-locator frame selector))))
 (defn sci-all-text-contents [sel] (locator/all-text-contents (sci-$ sel)))
 (defn sci-all-inner-texts   [sel] (locator/all-inner-texts (sci-$ sel)))
 
@@ -843,15 +862,25 @@
 ;; JavaScript
 ;; =============================================================================
 
+(defn- sci-frame-eval
+  "Evaluates JavaScript in a frame and converts the result to Clojure data."
+  [frame expr args]
+  (core/java->clj
+    (throw-if-anomaly (apply frame/frame-evaluate (require-frame frame) expr args))))
+
 (defn sci-eval-js
+  "Evaluates JavaScript in the page; with a Frame first, evaluates it in that frame."
   ([expr]
    (if-let [b (active-backend)]
      (backend/evaluate! b expr [])
      (throw-if-anomaly (page/evaluate (require-page!) expr))))
   ([expr arg]
-   (if-let [b (active-backend)]
-     (backend/evaluate! b expr [arg])
-     (throw-if-anomaly (page/evaluate (require-page!) expr arg)))))
+   (if (instance? Frame expr)
+     (sci-frame-eval expr arg [])
+     (if-let [b (active-backend)]
+       (backend/evaluate! b expr [arg])
+       (throw-if-anomaly (page/evaluate (require-page!) expr arg)))))
+  ([frame expr arg] (sci-frame-eval frame expr [arg])))
 (defn sci-evaluate-handle
   ([expr]     (throw-if-anomaly (page/evaluate-handle (require-page!) expr)))
   ([expr arg] (throw-if-anomaly (page/evaluate-handle (require-page!) expr arg))))
@@ -1330,13 +1359,21 @@
   "Returns the current Page instance."
   [] (require-page!))
 (defn sci-keyboard    [] (page/page-keyboard (require-page!)))
-(defn sci-mouse       [] (page/page-mouse (require-page!)))
+(defn sci-mouse
+  "Returns the page Mouse for input/mouse-click, input/mouse-move, input/mouse-down and input/mouse-up."
+  [] (page/page-mouse (require-page!)))
 (defn sci-touchscreen [] (page/page-touchscreen (require-page!)))
 (defn sci-page-context [] (page/page-context (require-page!)))
-(defn sci-frames      [] (page/frames (require-page!)))
+(defn sci-frames
+  "Returns all page frames; pass one to spel/locator, spel/evaluate or spel/bounding-box."
+  [] (page/frames (require-page!)))
 (defn sci-main-frame  [] (page/main-frame (require-page!)))
-(defn sci-frame-by-name [name] (page/frame-by-name (require-page!) name))
-(defn sci-frame-by-url  [pattern] (page/frame-by-url (require-page!) pattern))
+(defn sci-frame-by-name
+  "Returns the frame with this name attribute or nil; pass it to spel/locator, spel/evaluate or spel/bounding-box."
+  [name] (page/frame-by-name (require-page!) name))
+(defn sci-frame-by-url
+  "Returns the frame whose URL matches a glob, regex or predicate, or nil; pass it to spel/locator, spel/evaluate or spel/bounding-box."
+  [pattern] (page/frame-by-url (require-page!) pattern))
 
 ;; =============================================================================
 ;; Context & Browser Functions
@@ -2141,17 +2178,46 @@
 ;; SCI Namespace Registration
 ;; =============================================================================
 
+(defn- parse-help-arglists
+  "Reads registry arglists such as \"[a] | [a b]\" as a list of vectors, or nil."
+  [s]
+  (when-not (str/blank? s)
+    (try
+      (seq (mapv edn/read-string (str/split s #" \| ")))
+      (catch Exception _ nil))))
+
+(def ^:private !help-var-meta
+  "Caches the help registry as SCI var metadata, filled at runtime on first use."
+  (atom nil))
+
+(defn- help-var-meta
+  "Returns the help registry as {[ns-name fn-name] {:doc .. :arglists ..}}."
+  []
+  (or @!help-var-meta
+    (reset! !help-var-meta
+      (into {}
+        (map (fn [{:keys [doc arglists] :as entry}]
+               (let [parsed   (parse-help-arglists arglists)
+                     var-meta (cond-> {}
+                                (not (str/blank? doc)) (assoc :doc doc)
+                                parsed (assoc :arglists parsed))]
+                 [[(:ns entry) (:name entry)] var-meta])))
+        (load-help-registry)))))
+
 (defn- make-ns-map
   "Creates a SCI namespace map from a seq of [name fn] pairs.
-   Preserves :sci/macro metadata from with-meta on the function."
+   Preserves :sci/macro metadata from with-meta on the function.
+   Copies :doc and :arglists from the help registry onto each var."
   [sci-ns pairs]
-  (into {}
-    (map (fn [[sym f]]
-           (let [m (meta f)
-                 var-meta (cond-> {:ns sci-ns}
-                            (:sci/macro m) (assoc :sci/macro true))]
-             [sym (sci/new-var sym f var-meta)])))
-    pairs))
+  (let [ns-str (str (sci/ns-name sci-ns))
+        help   (help-var-meta)]
+    (into {}
+      (map (fn [[sym f]]
+             (let [m (meta f)
+                   var-meta (cond-> (merge (get help [ns-str (name sym)]) {:ns sci-ns})
+                              (:sci/macro m) (assoc :sci/macro true))]
+               [sym (sci/new-var sym f var-meta)])))
+      pairs)))
 
 ;; =============================================================================
 ;; WSL / Platform SCI wrappers
@@ -2276,7 +2342,7 @@
                   ['title         sci-title]
                   ['content       sci-html]
                   ;; Locators
-                  ['locator       sci-$]
+                  ['locator       sci-locator]
                   ['get-by-text        sci-$text]
                   ['get-by-role        sci-$role]
                   ['get-by-label       sci-$label]

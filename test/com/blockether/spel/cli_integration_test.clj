@@ -1548,7 +1548,57 @@
     (it "frame_switch to main"
       (nav! "/test-page")
       (let [r (cmd "frame_switch" {"selector" "main"})]
-        (expect (= "main" (:frame r)))))))
+        (expect (= "main" (:frame r))))))
+
+  ;; Regression, vis#382 follow-up: spel/locator, spel/evaluate and
+  ;; spel/bounding-box refused a Frame, so agents fell back to Java interop
+  ;; that fails on FrameImpl and to a separate Node Playwright script.
+  (describe "SCI frame-first forms"
+
+    (it "spel/locator, spel/evaluate and spel/bounding-box take a Frame first"
+      (nav! "/iframe-page")
+      (let [r (cmd "sci_eval"
+                {"code" (str "(let [f (spel/frame-by-name \"test-frame\")]"
+                          "  (frame/wait-for-selector f \"#link\")"
+                          "  [(spel/text-content (spel/locator f \"#link\"))"
+                          "   (spel/evaluate f \"document.title\")"
+                          "   (spel/evaluate f \"x => ({doubled: x * 2})\" (int 21))"
+                          "   (>= (:y (spel/bounding-box f \"#link\"))"
+                          "       (:y (spel/bounding-box \"#test-iframe\")))])")})]
+        (expect (= "[\"Go to Second Page\" \"Test Page\" {\"doubled\" 42} true]"
+                  (:result r)))))
+
+    (it "a mouse click at the frame box center follows the framed link"
+      (nav! "/iframe-page")
+      (let [r (cmd "sci_eval"
+                {"code" (str "(let [f (spel/frame-by-name \"test-frame\")"
+                          "      _ (frame/wait-for-selector f \"#link\")"
+                          "      {:keys [x y width height]} (spel/bounding-box f \"#link\")]"
+                          "  (input/mouse-click (spel/mouse) (+ x (/ width 2)) (+ y (/ height 2)))"
+                          "  (frame/wait-for-selector f \"#back-link\")"
+                          "  (frame/url f))")})]
+        (expect (str/includes? (:result r) "/second-page"))))
+
+    (it "spel/locator rejects a first argument that is not a Frame"
+      (nav! "/test-page")
+      (let [r (cmd "sci_eval" {"code" "(spel/locator \"#content\" \"#link\")"})]
+        (expect (false? (:success r)))
+        (expect (str/includes? (str (:error r)) "spel/frame-by-url")))))
+
+  ;; Regression, vis#382 follow-up: SCI vars had no :doc or :arglists, so
+  ;; (meta #'spel/mouse) was empty and the input/ and frame/ helpers stayed hidden.
+  (describe "SCI var metadata"
+
+    (it "SCI vars carry the help registry doc and arglists"
+      (let [r (cmd "sci_eval"
+                {"code" (str "[(:doc (meta #'spel/mouse))"
+                          " (:doc (meta #'spel/frame-by-url))"
+                          " (:arglists (meta #'input/mouse-click))"
+                          " (:arglists (meta #'spel/locator))]")})]
+        (expect (str/includes? (:result r) "input/mouse-click"))
+        (expect (str/includes? (:result r) "spel/bounding-box"))
+        (expect (str/includes? (:result r) "([mouse x y] [mouse x y click-opts])"))
+        (expect (str/includes? (:result r) "[frame selector]"))))))
 
 ;; =============================================================================
 ;; 31. Network Route
