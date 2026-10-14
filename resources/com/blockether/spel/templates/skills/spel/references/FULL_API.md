@@ -12,6 +12,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 
 | Function | Args | Description |
 |----------|------|-------------|
+| `->js-arg` | [obj] | Converts Clojure data into an argument Playwright's `.evaluate` accepts. |
 | `api-delete` | [ctx url] \| [ctx url opts] | Sends a DELETE request. |
 | `api-dispose!` | [ctx] | Disposes the APIRequestContext and all responses. |
 | `api-fetch` | [ctx url] \| [ctx url opts] | Sends a request with custom method (set via :method in opts). |
@@ -528,7 +529,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `capture-full-snapshot` | [page] | Captures a snapshot of the page and all its iframes. |
 | `capture-script` | [opts] | Returns the capture-snapshot JS with optional flags injected. |
 | `capture-snapshot` | [page] \| [page opts] | Captures an accessibility snapshot of the page with numbered refs. |
-| `capture-snapshot-for-frame` | [frame frame-ordinal] | Captures an accessibility snapshot inside one child frame. |
+| `capture-snapshot-for-frame` | [frame frame-ordinal] \| [frame frame-ordinal opts] | Captures an accessibility snapshot inside one child frame. |
 | `capture-webdriver` | [driver] \| [driver opts] | Captures an accessibility snapshot through a W3C WebDriver session. |
 | `clear-refs!` | [page] | Removes all data-pw-ref attributes from the page. |
 | `decode-capture-result` | [result] | Parses the capture script's JSON payload into a string-keyed map. |

@@ -21,6 +21,7 @@
    [com.blockether.spel.ios :as ios]
    [com.blockether.spel.devices :as devices]
    [com.blockether.spel.errors :as errors]
+   [com.blockether.spel.frame :as frame]
    [com.blockether.spel.helpers :as helpers]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.locator :as locator]
@@ -3129,18 +3130,58 @@
       (pos? (locator/count-elements loc))                               loc
       :else
       (do
-        (refresh-snapshot!)
+         ;; A frame-prefixed ref lives in a child frame, which the page capture skips.
+        (if (re-matches #"f\d+_.+" ref-id)
+          (publish-refs! (snapshot/capture-full-snapshot (pg)))
+          (refresh-snapshot!))
         (if (contains? (:refs @!state) ref-id)
           (snapshot/resolve-ref (pg) ref-id)
           (throw (missing-ref-error selector ref-id)))))))
 
+(defn- find-frame
+  "Finds a frame of `page` by its name, by a CSS selector that matches its
+   iframe element, or by a substring of its URL, in that order."
+  ^Frame [^Page page ^String selector]
+  (or (page/frame-by-name page selector)
+    (try
+      (let [loc (.first (page/locator page selector))]
+        (when (pos? (.count loc))
+          (.contentFrame (.elementHandle loc))))
+      (catch Exception _ nil))
+    (some #(when (str/includes? (.url ^Frame %) selector) %) (page/frames page))))
+
+(defn- current-frame
+  "Returns the frame that `frame <selector>` selected, or nil for the main frame.
+
+   The selection belongs to one tab, so another tab drops it. A detached frame,
+   for example after a script reloads the page, is found again by its selector.
+   When nothing matches any more, the selection drops and the command fails."
+  ^Frame []
+  (when-let [{:keys [^Frame frame selector]} (:frame @!state)]
+    (cond
+      (not (identical? (.page frame) (pg))) (do (swap! !state dissoc :frame) nil)
+      (not (.isDetached frame))             frame
+      :else
+      (if-let [found (find-frame (pg) selector)]
+        (do (swap! !state assoc :frame {:frame found :selector selector}) found)
+        (do (swap! !state dissoc :frame)
+            (throw (ex-info (str "Frame " selector " is gone. Commands now run on the main frame.")
+                     {:frame selector})))))))
+
+(defn- scoped-locator
+  "Returns a locator for `selector` in the selected frame, or else in the page."
+  [^String selector]
+  (if-let [f (current-frame)]
+    (.locator f selector)
+    (page/locator (pg) selector)))
+
 (defn- resolve-selector
   "Resolves a selector — an @ref through the snapshot that stamped it, anything
-   else as a regular locator."
+   else as a regular locator in the selected frame."
   [^String selector]
   (if (ref? selector)
     (ref-locator! selector (str/replace selector #"^@" ""))
-    (page/locator (pg) selector)))
+    (scoped-locator selector)))
 
 (declare unwrap-anomaly!)
 
@@ -3577,6 +3618,8 @@
   (ensure-browser!)
   (ensure-allowed-domains-installed!)
   (page/validate-url url (or raw-input url))
+  ;; A page navigation starts again in the main frame.
+  (swap! !state dissoc :frame)
   ;; Set viewport before navigation so the page renders at the requested size.
   (when (and viewport-width viewport-height)
     (page/set-viewport-size! (pg) (long viewport-width) (long viewport-height)))
@@ -3636,8 +3679,19 @@
         no-network?    (get params "no_network")
         no-console?    (get params "no_console")
         device         (:device @!state)
-        snap           (if all?
+        frame          (when-not all? (current-frame))
+        snap           (cond
+                         all?
                          (snapshot/capture-full-snapshot (pg))
+                         frame
+                         (snapshot/capture-snapshot-for-frame
+                           frame (.indexOf ^java.util.List (page/frames (pg)) frame)
+                           (cond-> {}
+                             sel           (assoc :scope sel)
+                             styles?       (assoc :styles true)
+                             styles-detail (assoc :styles-detail styles-detail)
+                             max-nodes     (assoc :max-nodes max-nodes)))
+                         :else
                          (snapshot/capture-snapshot (pg) (cond-> {}
                                                            sel           (assoc :scope sel)
                                                            styles?       (assoc :styles true)
@@ -3655,6 +3709,7 @@
             structured (build-structured-refs (:refs snap))]
         (cond-> {:snapshot tree :refs_count (:counter snap) :url (page/url (pg)) :title (page/title (pg))
                  :refs structured :pages @!pages}
+          frame                       (assoc :frame (:selector (:frame @!state)))
           (:truncated snap)           (assoc :truncated (:truncated snap))
           (:viewport snap)            (assoc :viewport (:viewport snap))
           (:device snap)              (assoc :device (:device snap))
@@ -4008,7 +4063,11 @@
   ;; No ensure-page-loaded! here on purpose: evaluating JS against a blank
   ;; page is legitimate (bootstrapping a fixture, probing a replacement tab
   ;; created by `tab close`), and Playwright evaluates fine on about:blank.
-  (let [result (unwrap-anomaly! (page/evaluate (pg) script))]
+  (let [result (unwrap-anomaly!
+                 (if-let [f (current-frame)]
+                   (let [r (frame/frame-evaluate f script)]
+                     (if (anomaly/anomaly? r) r (core/java->clj r)))
+                   (page/evaluate (pg) script)))]
     (if base64
       {:result (.encodeToString (Base64/getEncoder)
                  (.getBytes (str result) "UTF-8"))}
@@ -4042,10 +4101,17 @@
   (unwrap-anomaly! (page/reload (pg)))
   {:url (page/url (pg))})
 
+(defn- wait-for-scoped-selector
+  "Waits for `selector` in the selected frame, or else in the page."
+  [^String selector]
+  (if-let [f (current-frame)]
+    (frame/frame-wait-for-selector f selector)
+    (page/wait-for-selector (pg) selector)))
+
 (defmethod handle-cmd "wait" [_ params]
   (cond
     (get params "text")
-    (do (unwrap-anomaly! (page/wait-for-selector (pg) (str "text=" (get params "text"))))
+    (do (unwrap-anomaly! (wait-for-scoped-selector (str "text=" (get params "text"))))
         {:found_text (get params "text")})
 
     (get params "url")
@@ -4060,7 +4126,7 @@
     (let [sel (get params "selector")]
       (if (ref? sel)
         (unwrap-anomaly! (locator/wait-for (resolve-selector sel)))
-        (unwrap-anomaly! (page/wait-for-selector (pg) sel)))
+        (unwrap-anomaly! (wait-for-scoped-selector sel)))
       {:found sel})
 
     (get params "state")
@@ -4315,7 +4381,7 @@
 
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:count (unwrap-anomaly! (locator/count-elements (page/locator (pg) selector)))})
+  {:count (unwrap-anomaly! (locator/count-elements (scoped-locator selector)))})
 
 (defmethod handle-cmd "bounding_box" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -4477,7 +4543,7 @@
 
 (defmethod handle-cmd "get_count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:count (locator/count-elements (page/locator (pg) selector))})
+  {:count (locator/count-elements (scoped-locator selector))})
 
 (defmethod handle-cmd "get_box" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -4851,13 +4917,12 @@
 
 (defmethod handle-cmd "frame_switch" [_ {:strs [selector]}]
   (if (= selector "main")
-    {:frame "main"}
-    (let [frames (page/frames (pg))
-          target (or (page/frame-by-name (pg) selector)
-                   (some #(when (str/includes? (.url ^Frame %) selector) %) frames))]
-      (if target
-        {:frame selector :url (.url ^Frame target)}
-        {:error (str "Frame not found: " selector)}))))
+    (do (swap! !state dissoc :frame)
+        {:frame "main"})
+    (if-let [target (find-frame (pg) selector)]
+      (do (swap! !state assoc :frame {:frame target :selector selector})
+          {:frame selector :url (.url target)})
+      {:error (str "Frame not found: " selector)})))
 
 (defmethod handle-cmd "frame_list" [_ _]
   {:frames (mapv (fn [f]

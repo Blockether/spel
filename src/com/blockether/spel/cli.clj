@@ -1035,12 +1035,18 @@
       "  (none)        Switch to main frame"
       "  main          Switch to main frame"
       "  list          List all frames"
-      "  <selector>    Switch to frame by CSS selector"
-      ""
-      "Examples:"
-      "  spel frame list"
-      "  spel frame main"
-      "  spel frame \"iframe#content\""])
+       "  <selector>    Switch to a frame by name, iframe CSS selector or URL part"
+       ""
+       "The switch lasts until 'frame main' or the next 'open'. Element commands,"
+       "eval, wait and snapshot then run inside the frame. 'snapshot --all' lists"
+       "every frame; its @f1_... refs work from the main frame."
+       ""
+       "Examples:"
+       "  spel frame list"
+       "  spel frame main"
+       "  spel frame \"iframe#content\""
+       "  spel frame checkout"
+       "  spel frame \"#test-iframe\" && spel click \"#link\""])
 
    "dialog"
    (str/join \newline

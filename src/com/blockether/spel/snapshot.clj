@@ -1016,27 +1016,30 @@
    Params:
    `frame`         - Playwright Frame instance.
    `frame-ordinal` - Long. Frame index (1-based, main frame excluded).
+   `opts`          - Map, optional. The capture options of `capture-snapshot`.
 
    Returns:
    Same format as capture-snapshot with prefixed refs, plus `:prefix`. A frame
    that detached or refused evaluation answers an empty snapshot rather than
    failing the whole page capture."
-  [^Frame frame frame-ordinal]
-  (let [prefix (str "f" frame-ordinal "_")
-        empty  {:tree nil :refs {} :counter 0 :prefix prefix}
-        result (try (decode-capture-result (.evaluate frame (capture-script {})))
-                 (catch Exception _ nil))]
-    (if (or (nil? result) (capture-failure result))
-      empty
-      (let [snap (parse-capture-result result {})]
-        {:tree    (when-let [t (:tree snap)]
-                    (->> (str/split-lines t)
-                      (map #(str "  " (str/replace % #"\[@(e[^\]]+)\]" (str "[@" prefix "$1]"))))
-                      (cons (str "- iframe [" (str/replace prefix #"_$" "") "]"))
-                      (str/join "\n")))
-         :refs    (into {} (map (fn [[k v]] [(str prefix k) v])) (:refs snap))
-         :counter (:counter snap)
-         :prefix  prefix}))))
+  ([^Frame frame frame-ordinal]
+   (capture-snapshot-for-frame frame frame-ordinal {}))
+  ([^Frame frame frame-ordinal opts]
+   (let [prefix (str "f" frame-ordinal "_")
+         empty  {:tree nil :refs {} :counter 0 :prefix prefix}
+         result (try (decode-capture-result (.evaluate frame (capture-script opts)))
+                     (catch Exception _ nil))]
+     (if (or (nil? result) (capture-failure result))
+       empty
+       (let [snap (parse-capture-result result opts)]
+         {:tree    (when-let [t (:tree snap)]
+                     (->> (str/split-lines t)
+                       (map #(str "  " (str/replace % #"\[@(e[^\]]+)\]" (str "[@" prefix "$1]"))))
+                       (cons (str "- iframe [" (str/replace prefix #"_$" "") "]"))
+                       (str/join "\n")))
+          :refs    (into {} (map (fn [[k v]] [(str prefix k) v])) (:refs snap))
+          :counter (:counter snap)
+          :prefix  prefix})))))
 
 (defn capture-full-snapshot
   "Captures a snapshot of the page and all its iframes.

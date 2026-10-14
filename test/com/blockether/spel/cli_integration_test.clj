@@ -1550,6 +1550,72 @@
       (let [r (cmd "frame_switch" {"selector" "main"})]
         (expect (= "main" (:frame r))))))
 
+  ;; Regression, vis#382 follow-up: frame_switch only checked that the frame
+  ;; existed, so later commands still ran on the main page.
+  (describe "frame_switch scope"
+
+    (it "a CSS selector switch scopes later element commands and eval to the frame"
+      (nav! "/iframe-page")
+      (expect (str/includes? (str (:url (cmd "frame_switch" {"selector" "#test-iframe"})))
+                "/test-page"))
+      (expect (= 1 (:count (cmd "count" {"selector" "#link"}))))
+      (expect (= "Go to Second Page" (:text (cmd "get_text" {"selector" "#link"}))))
+      (expect (= "/test-page" (:result (cmd "evaluate" {"script" "location.pathname"}))))
+      (expect (= "main" (:frame (cmd "frame_switch" {"selector" "main"}))))
+      (expect (= 0 (:count (cmd "count" {"selector" "#link"})))))
+
+    (it "the switch survives a navigation inside the frame"
+      (nav! "/iframe-page")
+      (cmd "frame_switch" {"selector" "test-frame"})
+      (cmd "click" {"selector" "#link"})
+      (cmd "wait" {"selector" "#back-link"})
+      (expect (some? (:text (cmd "get_text" {"selector" "#back-link"})))))
+
+    (it "a page navigation returns to the main frame"
+      (nav! "/iframe-page")
+      (cmd "frame_switch" {"selector" "#test-iframe"})
+      (nav! "/test-page")
+      (expect (= "/test-page" (:result (cmd "evaluate" {"script" "location.pathname"}))))
+      (expect (= 1 (:count (cmd "count" {"selector" "#link"})))))
+
+    (it "an unknown frame is an error"
+      (nav! "/iframe-page")
+      (expect (str/includes? (str (:error (cmd "frame_switch" {"selector" "#missing"})))
+                "Frame not found")))
+
+    (it "snapshot inside a switched frame gives refs that click"
+      (nav! "/iframe-page")
+      (cmd "frame_switch" {"selector" "#test-iframe"})
+      (let [tree (:snapshot (cmd "snapshot" {}))
+            ref  (second (re-find #"link \"Go to Second Page\"[^\[]*\[@(f\d+_[^\]]+)\]" (str tree)))]
+        (expect (some? ref))
+        (cmd "click" {"selector" (str "@" ref)})
+        (cmd "wait" {"selector" "#back-link"})
+        (expect (= "/second-page" (:result (cmd "evaluate" {"script" "location.pathname"})))))))
+
+  ;; Regression, vis#382 follow-up: agents could not reach a button inside a
+  ;; sandboxed blob: frame without raw mouse input or a separate Playwright script.
+  (describe "snapshot --all into a sandboxed blob: frame"
+
+    (it "lists the frame content and its refs click"
+      (nav! "/test-page")
+      (cmd "evaluate"
+        {"script" (str "new Promise(done => {"
+                    "  const f = document.createElement('iframe');"
+                    "  f.id = 'blob-frame'; f.sandbox = 'allow-scripts';"
+                    "  f.onload = () => done(true);"
+                    "  f.src = URL.createObjectURL(new Blob(["
+                    "    '<button onclick=\"this.textContent=`Hit`\">Press</button>'],"
+                    "    {type: 'text/html'}));"
+                    "  document.body.appendChild(f);"
+                    "})")})
+      (let [tree (:snapshot (cmd "snapshot" {"all" true}))
+            ref  (second (re-find #"button \"Press\"[^\[]*\[@(f\d+_[^\]]+)\]" (str tree)))]
+        (expect (some? ref))
+        (cmd "click" {"selector" (str "@" ref)})
+        (cmd "frame_switch" {"selector" "#blob-frame"})
+        (expect (= "Hit" (:text (cmd "get_text" {"selector" "button"})))))))
+
   ;; Regression, vis#382 follow-up: spel/locator, spel/evaluate and
   ;; spel/bounding-box refused a Frame, so agents fell back to Java interop
   ;; that fails on FrameImpl and to a separate Node Playwright script.
