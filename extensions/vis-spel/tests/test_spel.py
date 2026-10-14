@@ -263,6 +263,23 @@ def test_command_preserves_arguments_without_shell(client):
     assert calls[-1][1][-3:] == ["fill", "@ref", text]
 
 
+# Regression, vis#382 follow-up: spel.command refused `mouse`, so agents had no
+# real coordinate input and fell back to a separate Node Playwright script.
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["mouse", "move", "86", "211"],
+        ["mouse", "down"],
+        ["mouse", "up", "left"],
+        ["mouse", "wheel", "120", "0"],
+    ],
+)
+def test_command_passes_mouse_input(client, arguments):
+    spel, calls = client
+    spel.command(spel.reserve().id, arguments)
+    assert calls[-1][1][-len(arguments) :] == arguments
+
+
 def test_cdp_requires_unused_chromium_reservation(client):
     spel, calls = client
     lease = spel.reserve()

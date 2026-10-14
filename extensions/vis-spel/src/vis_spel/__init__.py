@@ -102,6 +102,7 @@ _COMMANDS = {
     "keydown",
     "keyup",
     "hover",
+    "mouse",
     "select",
     "check",
     "uncheck",
@@ -594,6 +595,10 @@ class Spel:
         - `scroll down|up|left|right <pixels> [selector]` and
           `scrollintoview <selector>`.
         - `drag <source-selector> <target-selector>`.
+        - `mouse move <x> <y>`, `mouse down|up [left|right|middle]` and
+          `mouse wheel <delta-y> [delta-x]` send real input at viewport pixels.
+          `get box <selector>` gives coordinates; for an iframe, use SCI
+          `(spel/bounding-box (spel/frame-by-url url) selector)`.
         - `upload <selector> <file>...` and `download <selector> <save-path>`.
         - `back`, `forward`, `reload` navigate the current tab.
 
