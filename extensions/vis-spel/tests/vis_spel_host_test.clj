@@ -1,6 +1,7 @@
 (ns vis-spel-host-test
   "Crosses Vis registration, the trusted Python worker and the native browser."
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [com.blockether.vis.internal.python.extensions-test :as fixtures]
             [lazytest.experimental.interfaces.clojure-test :refer [deftest is]]))
 
@@ -53,7 +54,12 @@
                            (is (:success? result) (pr-str result))
                            (:result result)))
                 installation (invoke 'spel.installed)]
-            (is (= "0.9.33" (get-in installation ["__vis_attrs__" "version"])))
+            ;; The installed binary changes with each upgrade, so check only the minimum.
+            (let [version (get-in installation ["__vis_attrs__" "version"])]
+              (is (>= (compare (mapv parse-long (str/split (str version) #"\."))
+                               [0 9 33])
+                    0)
+                (pr-str version)))
             (let [lease (invoke 'spel.reserve)
                   id (get-in lease ["__vis_attrs__" "id"])]
               (is (string? id))
