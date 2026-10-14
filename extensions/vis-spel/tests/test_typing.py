@@ -31,7 +31,7 @@ def test_sources_and_tests_pass_pyright_standard(tmp_path):
         json.dumps(
             {
                 "typeCheckingMode": "standard",
-                "pythonVersion": "3.11",
+                "pythonVersion": "3.12",
                 "extraPaths": [str(ROOT / "src")],
             }
         )
