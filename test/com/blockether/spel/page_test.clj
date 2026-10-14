@@ -99,6 +99,15 @@
         (let [result (sut/evaluate pg "x => x + '!'" "hello")]
           (expect (= "hello!" result)))))
 
+    ;; Regression, vis#382 follow-up: Playwright refused a Clojure long and a
+    ;; keyword-keyed map as the argument ("Unsupported type of argument: 21").
+    (it "accepts Clojure numbers, keywords and nested collections as the argument"
+      (core/with-testing-page [pg]
+        (expect (= 42 (long (sut/evaluate pg "x => x * 2" 21))))
+        (expect (= {"n" 21 "tags" ["a" "b"] "ok" true}
+                  (sut/evaluate pg "x => ({n: x.n, tags: x.tags, ok: x.ok})"
+                    {:n 21 :tags [:a "b"] :ok true})))))
+
     (it "tags a failing evaluation with the JS it ran"
       ;; The error layer frames :spel/source, so a Clojure form that evaluates
       ;; JS reports the JS that failed instead of the form.

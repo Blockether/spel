@@ -1,7 +1,7 @@
 (ns com.blockether.spel.frame
   "Frame and FrameLocator operations."
   (:require
-   [com.blockether.spel.core :refer [safe]]
+   [com.blockether.spel.core :refer [safe ->js-arg]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Frame FrameLocator Locator]
@@ -172,7 +172,7 @@
   ([^Frame frame ^String expression]
    (safe (.evaluate frame expression)))
   ([^Frame frame ^String expression arg]
-   (safe (.evaluate frame expression arg))))
+   (safe (.evaluate frame expression (->js-arg arg)))))
 
 ;; =============================================================================
 ;; Frame Hierarchy

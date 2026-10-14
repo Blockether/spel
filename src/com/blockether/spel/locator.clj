@@ -4,7 +4,7 @@
    Locators are the primary way to find and interact with elements.
    They auto-wait and auto-retry, making them the preferred API."
   (:require
-   [com.blockether.spel.core :refer [safe java->clj tag-eval-source]]
+   [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source]]
    [com.blockether.spel.input :as input]
    [com.blockether.spel.options :as opts])
   (:import
@@ -692,7 +692,7 @@
    (let [r (tag-eval-source (safe (.evaluate loc expression)) expression :js)]
      (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (let [r (tag-eval-source (safe (.evaluate loc expression arg)) expression :js)]
+   (let [r (tag-eval-source (safe (.evaluate loc expression (->js-arg arg))) expression :js)]
      (if (map? r) r (java->clj r)))))
 
 (defn evaluate-all
@@ -711,7 +711,7 @@
    (let [r (tag-eval-source (safe (.evaluateAll loc expression)) expression :js)]
      (if (map? r) r (java->clj r))))
   ([^Locator loc ^String expression arg]
-   (let [r (tag-eval-source (safe (.evaluateAll loc expression arg)) expression :js)]
+   (let [r (tag-eval-source (safe (.evaluateAll loc expression (->js-arg arg))) expression :js)]
      (if (map? r) r (java->clj r)))))
 
 ;; =============================================================================
@@ -886,7 +886,7 @@
   ([^JSHandle handle ^String expression]
    (safe (.evaluate handle expression)))
   ([^JSHandle handle ^String expression arg]
-   (safe (.evaluate handle expression arg))))
+   (safe (.evaluate handle expression (->js-arg arg)))))
 
 (defn js-json-value
   "Returns the JSON value of a JSHandle.

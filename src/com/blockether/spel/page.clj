@@ -7,7 +7,7 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe java->clj tag-eval-source event-consumer]]
+   [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source event-consumer]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
@@ -328,7 +328,7 @@
    (let [result (tag-eval-source (safe (.evaluate page expression)) expression :js)]
      (if (anomaly/anomaly? result) result (java->clj result))))
   ([^Page page ^String expression arg]
-   (let [result (tag-eval-source (safe (.evaluate page expression arg)) expression :js)]
+   (let [result (tag-eval-source (safe (.evaluate page expression (->js-arg arg))) expression :js)]
      (if (anomaly/anomaly? result) result (java->clj result)))))
 
 (defn keyboard-press
@@ -356,7 +356,7 @@
   ([^Page page ^String expression]
    (tag-eval-source (safe (.evaluateHandle page expression)) expression :js))
   ([^Page page ^String expression arg]
-   (tag-eval-source (safe (.evaluateHandle page expression arg)) expression :js)))
+   (tag-eval-source (safe (.evaluateHandle page expression (->js-arg arg))) expression :js)))
 
 (defn evaluate-file
   "Reads a JavaScript file from disk and evaluates it in the page context.
@@ -1689,7 +1689,7 @@
   ([^Worker worker ^String expression]
    (safe (.evaluate worker expression)))
   ([^Worker worker ^String expression arg]
-   (safe (.evaluate worker expression arg))))
+   (safe (.evaluate worker expression (->js-arg arg)))))
 
 ;; =============================================================================
 ;; FileChooser

@@ -177,6 +177,33 @@
 
     :else obj))
 
+(defn ->js-arg
+  "Converts Clojure data into an argument Playwright's `.evaluate` accepts.
+
+   Playwright serializes only Integer, Double, String, Boolean, List and
+   String-keyed Map, so a Clojure long or a keyword-keyed map failed with
+   \"Unsupported type of argument\". Longs in int range become Integer, other
+   numbers Double, keywords and symbols strings, and collections convert
+   recursively. Anything else, such as a JSHandle, passes through."
+  [obj]
+  (cond
+    (or (nil? obj) (string? obj) (boolean? obj)
+      (instance? Integer obj) (instance? Double obj)) obj
+    (and (integer? obj)
+      (<= Integer/MIN_VALUE obj Integer/MAX_VALUE)) (int obj)
+    (number? obj)                                    (double obj)
+    (keyword? obj)                                   (str (symbol obj))
+    (symbol? obj)                                    (str obj)
+    (map? obj)                                       (let [m (java.util.LinkedHashMap.)]
+                                                       (doseq [[k v] obj]
+                                                         (.put m (if (or (keyword? k) (symbol? k))
+                                                                   (str (symbol k))
+                                                                   (str k))
+                                                           (->js-arg v)))
+                                                       m)
+    (or (sequential? obj) (set? obj))                (java.util.ArrayList. ^java.util.Collection (mapv ->js-arg obj))
+    :else                                            obj))
+
 ;; =============================================================================
 ;; Error Handling
 ;; =============================================================================
