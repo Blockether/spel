@@ -29,13 +29,10 @@
             (is (= 1 (get-in releases [:result "__vis_attrs__" "page"])))
             (is (re-find #"0\.9\.33" (pr-str (:result releases))))
             (is (:success? help) (pr-str help))
-            (is (= "spel.snapshot" (get-in help [:result "__vis_attrs__" "tool"])))
-            (is (re-find #"spel.snapshot" (get-in help [:result "__vis_attrs__" "text"])))
+            (is (re-find #"spel.snapshot" (:result help)))
             ;; Regression, issue #137: the help tool did not document browser actions.
             (is (:success? command-help) (pr-str command-help))
-            (is (= "spel.command" (get-in command-help [:result "__vis_attrs__" "tool"])))
-            (is (re-find #"set viewport <width> <height>"
-                  (get-in command-help [:result "__vis_attrs__" "text"]))))))))))
+            (is (re-find #"set viewport <width> <height>" (:result command-help))))))))))
 
 (deftest native-browser-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))

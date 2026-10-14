@@ -94,8 +94,11 @@ def test_registration_and_all_activity_states(extension):
 # Regression, issue #137: command syntax was absent from the help Activity.
 def test_help_activity_shows_command_syntax(extension):
     render = _renderer(Spel.help)
-    document = Spel().help("spel.command")
-    presentation = render(phase="success", result=document)
+    spel = Spel()
+    document = spel.help("spel.command")
+    presentation = render(
+        phase="success", args=(spel, "spel.command"), kwargs={}, result=document
+    )
     assert presentation.summary == "spel.command"
     assert "set viewport <width> <height>" in str(presentation.content)
 

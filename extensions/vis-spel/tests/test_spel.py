@@ -387,6 +387,18 @@ def test_health_without_session_reports_missing_installation(tmp_path, monkeypat
     }
 
 
+# Regression, vis#382 follow-up: snapshots could not reach iframes, and --all was refused.
+def test_snapshot_frames_includes_iframes(client):
+    spel, calls = client
+    lease = spel.reserve()
+    spel.snapshot(lease.id, frames=True)
+    assert calls[-1][1][-4:] == ["snapshot", "-c", "-i", "--all"]
+    with pytest.raises(ValueError, match="scope and frames"):
+        spel.snapshot(lease.id, scope="#main", frames=True)
+    with pytest.raises(TypeError, match="frames must be a bool"):
+        spel.snapshot(lease.id, frames="yes")  # pyright: ignore[reportArgumentType]
+
+
 def test_snapshot_scope_and_screenshot_are_explicit(client, tmp_path):
     spel, calls = client
     lease = spel.reserve()

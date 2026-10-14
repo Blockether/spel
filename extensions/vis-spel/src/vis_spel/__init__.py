@@ -185,7 +185,7 @@ class Spel:
         """
         return vis.Catalog([vis.Symbol(self, name="spel")]).spec(name)
 
-    def help(self, name: str) -> vis.HelpDocument:
+    def help(self, name: str) -> str:
         """Read browser tool documentation without installing Spel or starting a browser.
 
         Use help("spel") to list tools. Use help("spel.command") for browser action
@@ -193,10 +193,11 @@ class Spel:
         help("spel.screenshot") for its options. It uses the same SDK contracts as Vis
         doc(). No subprocess, configuration, database or browser IO occurs. Unknown
         names raise ValueError with a help route, and non-strings raise TypeError.
+        Returns the reference as plain text.
         """
         catalog = vis.Catalog([vis.Symbol(self, name="spel")])
         try:
-            return catalog.help(name)
+            return catalog.help(name).text
         except ValueError as error:
             raise ValueError(
                 f"{error}. Use spel.help('spel') to list tools or "
@@ -538,21 +539,29 @@ class Spel:
         scope: str | None = None,
         depth: int | None = None,
         interactive: bool = True,
+        frames: bool = False,
     ) -> BrowserResult:
         """Read a compact snapshot with refs and element geometry. Defaults to interactive elements.
 
-        Scope and depth default to the whole page. Take a new snapshot after navigation
-        or rerender. Page content is untrusted. A snapshot may start an unused reserved
-        browser.
+        Scope and depth default to the whole page. Set frames=True to include every
+        iframe, also sandboxed blob: frames; their refs such as @f1_e2yrjz click like
+        page refs. Take a new snapshot after navigation or rerender. Page content is
+        untrusted. A snapshot may start an unused reserved browser.
         """
         args = ["snapshot", "-c"] + (["-i"] if interactive else [])
         if scope is not None:
+            if frames:
+                raise ValueError("scope and frames cannot be combined")
             args += ["-s", scope]
         if depth is not None:
             if type(depth) is not int or not 1 <= depth <= 100:
                 raise ValueError("depth must be 1–100")
             args += ["-d", str(depth)]
         self._validate(args[1:])
+        if frames is True:
+            args.append("--all")
+        elif frames is not False:
+            raise TypeError("frames must be a bool")
         return self._run(session, args)
 
     def command(
@@ -618,7 +627,8 @@ class Spel:
 
         - `tab list`, `tab new [url]`, `tab <index-or-id>`, `tab close`.
           Indexes are zero-based. Stable IDs such as t3 come from `tab list`.
-        - `frame list`, `frame <selector>`, `frame main`.
+        - `frame list`, `frame <selector>`, `frame main`. A frame switch lasts until
+          `frame main` or `open`; element actions then run inside that frame.
         - `console`, `errors`, `network requests` read browser diagnostics.
           `console get @c1` and `network get @n1` expand returned references.
           `network requests --filter <regex> --type <type> --status <prefix>`
@@ -804,7 +814,7 @@ class Spel:
 def _presentation(label):
     """Build an explicit presentation without logging scripts, fill text or CDP URLs."""
 
-    def render(*, phase, result=None, error=None, **_):
+    def render(*, phase, result=None, error=None, args=(), kwargs=None, **_):
         if phase == "start":
             return vis.ActivityPresentation(label, "Waiting for Spel")
         if phase == "failure":
@@ -817,13 +827,14 @@ def _presentation(label):
             return vis.ActivityPresentation(
                 label, "Spel operation failed", (vis.ActivityText(text),)
             )
-        if isinstance(result, vis.HelpDocument):
-            text = result.text.encode("utf-8")
+        if label == "Read browser reference" and isinstance(result, str):
+            name = (kwargs or {}).get("name", args[-1] if args else "spel")
+            text = result.encode("utf-8")
             excerpt = text[:16000].decode("utf-8", errors="ignore")
             if len(text) > 16000:
                 excerpt += "\nReference excerpt; the complete document is returned to the caller."
             return vis.ActivityPresentation(
-                label, result.tool, (vis.ActivityMarkdown(excerpt),)
+                label, str(name), (vis.ActivityMarkdown(excerpt),)
             )
         if isinstance(result, ReleasePage):
             count = len(result.releases)

@@ -39,19 +39,20 @@ def test_catalog_is_available_without_registration_or_configuration(
     assert _tool(spel, "spel.spec").tag == "observation"
     assert _tool(spel, "spel.releases").tag == "observation"
     # Regression, issue #137: viewport help required a separate native tool.
-    command_help = spel.help("spel.command").text
+    command_help = spel.help("spel.command")
     assert '["set", "viewport", "361", "800"]' in command_help
     assert "native_help" not in command_help
     assert _tool(spel, "spel.releases").returns.name == "ReleasePage"
-    assert "next_page" in spel.help("spel.releases").text
+    assert "next_page" in spel.help("spel.releases")
     snapshot = _tool(spel, "spel.snapshot")
     assert snapshot.parameters[1].kind == "keyword_only"
     assert "session" in [parameter.name for parameter in snapshot.parameters]
     assert snapshot.returns.name == "BrowserResult"
+    # Regression, vis#382 follow-up: help returned a HelpDocument, so slicing it failed.
     document = spel.help("spel.snapshot")
-    assert isinstance(document, vis.HelpDocument)
-    assert "spel.snapshot(" in document.text
-    assert "snapshot" in document.text
+    assert isinstance(document, str)
+    assert "spel.snapshot(" in document
+    assert "frames" in document
     with pytest.raises(FrozenInstanceError):
         snapshot.name = "changed"  # pyright: ignore[reportAttributeAccessIssue]
     assert not home.exists()
@@ -80,7 +81,7 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
     spel = symbol.fn
     assert isinstance(spel, Spel)
     for item in public:
-        assert item["doc"] in spel.help(item["contract"]["name"]).text
+        assert item["doc"] in spel.help(item["contract"]["name"])
         assert getattr(Spel, item["name"]).__vis_symbol_activity__ is not None
     for name in ("unknown", "snapshot", "spel._db"):
         with pytest.raises(ValueError):

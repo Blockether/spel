@@ -21,6 +21,9 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    their own stdin tools. Read `spel.help("spel.command")` for action syntax and examples,
    such as `["set", "viewport", "361", "800"]`. Help needs no installation or reservation;
    `spel.help("spel")` lists the tools. `--help` is not a browser action.
+   For iframes, use `spel.snapshot(lease.id, frames=True)`; its `@f1_…` refs click like page
+   refs. `["frame", "<name|css|url part>"]` scopes later actions to one frame until
+   `["frame", "main"]`.
 5. Verify DOM effects, not only a successful return. Check a timed-out mutation's effect
    before any retry. Inspect `health`, read `logs`, and cancel only an in-flight ID you own.
 6. For visual evidence, capture an annotated screenshot, attach the PNG with Vis `attach`
